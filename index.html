@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Welcome to Claude Code</title>
+<style>
+  :root {
+    --bg1: #0f0c29;
+    --bg2: #302b63;
+    --bg3: #24243e;
+    --accent: #5eead4;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    font-family: 'SF Mono', 'Menlo', 'Consolas', monospace;
+  }
+
+  .hero {
+    position: relative;
+    height: 100vh;
+    overflow: hidden;
+    background: linear-gradient(-45deg, var(--bg1), var(--bg2), var(--bg3), #1a1a2e);
+    background-size: 400% 400%;
+    animation: drift 18s ease infinite;
+  }
+
+  @keyframes drift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+
+  .wrap {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #e8e8f0;
+  }
+
+  .prompt {
+    font-size: 1.1rem;
+    color: var(--accent);
+    opacity: 0.75;
+    margin-bottom: 1.2rem;
+    letter-spacing: 0.05em;
+  }
+
+  h1 {
+    font-size: clamp(2.5rem, 8vw, 6rem);
+    font-weight: 800;
+    margin: 0;
+    line-height: 1.1;
+    background: linear-gradient(90deg, #5eead4, #a78bfa, #f472b6, #5eead4);
+    background-size: 300% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 6s linear infinite;
+    text-shadow: 0 0 60px rgba(94, 234, 212, 0.25);
+  }
+
+  @keyframes shimmer {
+    to { background-position: 300% center; }
+  }
+
+  .cursor {
+    display: inline-block;
+    width: 0.5ch;
+    background: var(--accent);
+    animation: blink 1s step-end infinite;
+    margin-left: 0.1em;
+    border-radius: 1px;
+  }
+
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+
+  .sub {
+    margin-top: 1.5rem;
+    font-size: 1rem;
+    color: #b6b6c9;
+    max-width: 36rem;
+    line-height: 1.6;
+  }
+
+  .sub span {
+    color: var(--accent);
+  }
+
+  .stars {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+  }
+
+  footer {
+    position: absolute;
+    bottom: 1.5rem;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #6b6b85;
+    letter-spacing: 0.04em;
+  }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 4rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.8rem;
+    color: var(--accent);
+    opacity: 0.6;
+    animation: bob 2s ease-in-out infinite;
+  }
+
+  @keyframes bob {
+    0%, 100% { transform: translate(-50%, 0); }
+    50% { transform: translate(-50%, 6px); }
+  }
+
+  /* ---- Section 2 ---- */
+
+  section.guide {
+    position: relative;
+    background: #0c0a1f;
+    color: #e8e8f0;
+    padding: 6rem 1.5rem 5rem;
+  }
+
+  .guide-inner {
+    max-width: 56rem;
+    margin: 0 auto;
+  }
+
+  .guide h2 {
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    margin: 0 0 0.5rem;
+    background: linear-gradient(90deg, #5eead4, #a78bfa);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .guide .lede {
+    color: #9d9db8;
+    margin: 0 0 3rem;
+    font-size: 1.05rem;
+    line-height: 1.7;
+    max-width: 42rem;
+  }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 3.5rem;
+  }
+
+  .card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(94,234,212,0.15);
+    border-radius: 0.9rem;
+    padding: 1.5rem;
+    transition: border-color 0.25s, transform 0.25s;
+  }
+
+  .card:hover {
+    border-color: rgba(94,234,212,0.5);
+    transform: translateY(-3px);
+  }
+
+  .card .icon {
+    font-size: 1.6rem;
+    margin-bottom: 0.6rem;
+    display: block;
+  }
+
+  .card h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1.05rem;
+    color: #f1f1ff;
+  }
+
+  .card p {
+    margin: 0;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: #aeaec8;
+  }
+
+  .guide h3.section-title {
+    font-size: 1.4rem;
+    color: #f1f1ff;
+    margin: 3rem 0 1rem;
+  }
+
+  .recommend-list {
+    list-style: none;
+    margin: 0 0 3rem;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+  }
+
+  .recommend-list li {
+    padding-left: 1.6rem;
+    position: relative;
+    color: #c7c7df;
+    line-height: 1.6;
+    font-size: 0.95rem;
+  }
+
+  .recommend-list li::before {
+    content: "▸";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  .recommend-list strong {
+    color: #f472b6;
+  }
+
+  pre.code-block {
+    background: #07060f;
+    border: 1px solid rgba(167,139,250,0.25);
+    border-radius: 0.9rem;
+    padding: 1.4rem 1.6rem;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #d6d6f5;
+    margin: 0 0 1rem;
+  }
+
+  pre.code-block .c { color: #6b6b85; }
+  pre.code-block .h { color: #5eead4; font-weight: bold; }
+  pre.code-block .s { color: #f472b6; }
+
+  .file-tag {
+    display: inline-block;
+    background: rgba(94,234,212,0.12);
+    color: var(--accent);
+    border-radius: 0.4rem;
+    padding: 0.15rem 0.55rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.8rem;
+  }
+
+  .guide footer.fine {
+    position: static;
+    margin-top: 4rem;
+    text-align: center;
+    color: #565671;
+  }
+</style>
+</head>
+<body>
+<section class="hero">
+  <canvas class="stars" id="stars"></canvas>
+
+  <div class="wrap">
+    <div class="prompt">~/Desktop/Clean $ ./greet.sh</div>
+    <h1>Welcome to Claude Code<span class="cursor">&nbsp;</span></h1>
+    <p class="sub">
+      One empty <span>file</span> in, and we're already shipping gradients.
+      Tell me what to build next — terminal optional, ambition required.
+    </p>
+  </div>
+
+  <div class="scroll-hint">▾ scroll for the field guide</div>
+  <footer>compiled with vibes, served with &lt;3 by Claude</footer>
+</section>
+
+<section class="guide">
+  <div class="guide-inner">
+
+    <span class="file-tag">~/Desktop/Clean/index.html</span>
+    <h2>How Claude Code actually works</h2>
+    <p class="lede">
+      No magic — just a model with hands. Claude Code is me, running in your
+      terminal (or here, in a browser session like this one), with real
+      access to read files, edit them, run shell commands, and check my own
+      work. Same brain as chat, but instead of describing code I write it.
+    </p>
+
+    <div class="card-grid">
+      <div class="card">
+        <span class="icon">🧠</span>
+        <h3>It's an agent loop</h3>
+        <p>I read your request, decide which tool to use (read a file, run a command, search the repo), look at the result, and decide the next step — repeating until the task is done, not just one shot.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🛠️</span>
+        <h3>Real tools, real effects</h3>
+        <p>Read/Write/Edit touch your actual filesystem. Bash runs actual commands. Nothing is simulated — which is why risky actions (deletes, force-pushes) get a confirmation step.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🗂️</span>
+        <h3>Context is the fuel</h3>
+        <p>I work from what's in the conversation plus what I read from disk. The more relevant context I have — code, docs, your conventions — the less I guess.</p>
+      </div>
+      <div class="card">
+        <span class="icon">🧩</span>
+        <h3>Skills &amp; subagents</h3>
+        <p>For specialized jobs (code review, security review, deep research) I can invoke purpose-built skills, or spin up focused subagents for parallel/independent digging.</p>
+      </div>
+    </div>
+
+    <h3 class="section-title">What I'd recommend, concretely</h3>
+    <ul class="recommend-list">
+      <li><strong>Start every real project with a <code>CLAUDE.md</code></strong> — it's the single highest-leverage thing you can do. It's the difference between me guessing your conventions and just knowing them.</li>
+      <li><strong>Let me explore before I edit.</strong> For unfamiliar codebases, ask me to read/search first — bad assumptions compound fast in agentic edits.</li>
+      <li><strong>Keep tasks scoped.</strong> "Fix this bug" beats "refactor the whole app" — small, verifiable steps mean I catch mistakes before they spread.</li>
+      <li><strong>Use git.</strong> Even solo, commits give us a undo button. I'll never force-push or rewrite history without asking.</li>
+      <li><strong>Tell me when I'm wrong.</strong> Corrections stick — I keep a memory of feedback so I don't repeat the same miss next session.</li>
+    </ul>
+
+    <h3 class="section-title">Setting up your own CLAUDE.md</h3>
+    <p class="lede" style="margin-bottom:1.5rem;">
+      Think of it as onboarding docs for a new hire who reads fast but
+      knows nothing about your project's quirks. Run <span style="color:var(--accent)">/init</span>
+      in a repo and I'll draft one by reading the codebase — but here's the shape that works well:
+    </p>
+
+    <pre class="code-block"><span class="c"># CLAUDE.md</span>
+
+<span class="h">## Project</span>
+One paragraph: what this is, who it's for, the stack.
+
+<span class="h">## Commands</span>
+- build: <span class="s">npm run build</span>
+- test:  <span class="s">npm test</span>
+- lint:  <span class="s">npm run lint</span>
+
+<span class="h">## Conventions</span>
+- State management: <span class="s">Zustand, not Redux</span>
+- Styling: <span class="s">Tailwind only, no CSS modules</span>
+- Tests live next to source as <span class="s">*.test.ts</span>
+
+<span class="h">## Gotchas</span>
+- The payments service needs <span class="s">STRIPE_KEY</span> in .env.local
+- Don't touch /legacy — slated for deletion, not maintained
+
+<span class="h">## Do NOT</span>
+- Don't add new dependencies without asking
+- Don't run migrations against prod</pre>
+
+    <p class="lede" style="margin-bottom:0;">
+      Keep it short and honest — a stale CLAUDE.md that lies about your
+      stack is worse than none at all. Update it the moment a convention
+      changes, the same way you'd update a README.
+    </p>
+
+    <footer class="fine">~/Desktop/Clean $ <span style="color:var(--accent)">_</span> ready for the next command</footer>
+  </div>
+</section>
+
+  <script>
+    const canvas = document.getElementById('stars');
+    const ctx = canvas.getContext('2d');
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resize();
+    window.addEventListener('resize', resize);
+
+    const stars = Array.from({ length: 140 }, () => ({
+      x: Math.random() * canvas.width,
+      y: Math.random() * canvas.height,
+      r: Math.random() * 1.4 + 0.2,
+      d: Math.random() * 0.5 + 0.2,
+      t: Math.random() * Math.PI * 2
+    }));
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#cbd5ff';
+      for (const s of stars) {
+        s.t += 0.02 * s.d;
+        const alpha = 0.4 + Math.sin(s.t) * 0.4;
+        ctx.globalAlpha = Math.max(alpha, 0.05);
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      requestAnimationFrame(draw);
+    }
+    draw();
+  </script>
+</body>
+</html>
