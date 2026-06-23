@@ -115,8 +115,10 @@ struct HeatmapView: View {
         if let m = model.matrix, !m.themes.isEmpty {
             TimelineTabView(
                 matrix: m.sorted(by: model.themeSort),
-                sort: Binding(get: { model.themeSort }, set: { model.changeThemeSort($0) })
-            ) { model.select(row: $0, col: $1) }
+                sort: Binding(get: { model.themeSort }, set: { model.changeThemeSort($0) }),
+                onSelect: { model.select(row: $0, col: $1) },
+                onSelectTheme: { model.selectTheme($0) }
+            )
         } else {
             emptyState
         }
@@ -193,6 +195,16 @@ struct TimelineTabView: View {
     let matrix: HeatmapMatrix
     @Binding var sort: ThemeSort
     let onSelect: (Int, Int) -> Void
+    let onSelectTheme: (Int) -> Void
+
+    @State private var searchText: String = ""
+
+    /// Rows that match the search — returns all indices when search is empty.
+    private var matchingIndices: Set<Int> {
+        guard !searchText.isEmpty else { return Set(matrix.themes.indices) }
+        let q = searchText.lowercased()
+        return Set(matrix.themes.indices.filter { matrix.themes[$0].lowercased().contains(q) })
+    }
 
     private let labelW: CGFloat = 200
     private let cellSize: CGFloat = 28
@@ -202,8 +214,8 @@ struct TimelineTabView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // ── Sort picker — top left ───────────────────────────────────────
-            HStack {
+            // ── Controls bar: sort + search ──────────────────────────────────
+            HStack(spacing: 16) {
                 HStack(spacing: 6) {
                     Text("Order:")
                         .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
@@ -215,10 +227,39 @@ struct TimelineTabView: View {
                     .labelsHidden()
                     .frame(width: 160)
                 }
-                .padding(.horizontal, 22)
-                .padding(.vertical, 8)
+
+                // Search bar
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.35))
+                    TextField("Filter themes…", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white)
+                        .frame(width: 200)
+                    if !searchText.isEmpty {
+                        Button { searchText = "" } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundStyle(.white.opacity(0.4))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 10).padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 7).fill(Color.white.opacity(0.08)))
+                .overlay(RoundedRectangle(cornerRadius: 7).stroke(Color.white.opacity(0.12), lineWidth: 1))
+
+                if !searchText.isEmpty {
+                    Text("\(matchingIndices.count) of \(matrix.themes.count)")
+                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.4))
+                }
+
                 Spacer()
             }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 8)
 
             // Outer vertical scroll — label column pinned left, cells scroll horizontally.
             // 5% padding each side so the grid occupies 90% of the app width.
@@ -230,12 +271,17 @@ struct TimelineTabView: View {
                         // ── Sticky label column ──────────────────────────────────────
                         VStack(alignment: .trailing, spacing: gap) {
                             Color.clear.frame(width: labelW, height: headerH)
-                            ForEach(Array(matrix.themes.enumerated()), id: \.offset) { _, theme in
-                                Text(theme)
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.white.opacity(0.88))
-                                    .lineLimit(1).truncationMode(.tail)
-                                    .frame(width: labelW, height: cellSize, alignment: .trailing)
+                            ForEach(Array(matrix.themes.enumerated()), id: \.offset) { r, theme in
+                                let matched = matchingIndices.contains(r)
+                                Button { onSelectTheme(r) } label: {
+                                    Text(theme)
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(.white.opacity(matched ? 0.88 : 0.18))
+                                        .lineLimit(1).truncationMode(.tail)
+                                        .frame(width: labelW, height: cellSize, alignment: .trailing)
+                                }
+                                .buttonStyle(.plain)
+                                .help("Show all \"\(theme)\" conversations")
                             }
                         }
                         .overlay(alignment: .trailing) {
@@ -268,6 +314,7 @@ struct TimelineTabView: View {
                                 }
                                 // Data rows
                                 ForEach(Array(matrix.themes.enumerated()), id: \.offset) { r, theme in
+                                    let matched = matchingIndices.contains(r)
                                     HStack(spacing: gap) {
                                         ForEach(0..<matrix.buckets.count, id: \.self) { c in
                                             let t = matrix.normalized(r, c)
@@ -276,8 +323,9 @@ struct TimelineTabView: View {
                                                 .frame(width: colW, height: cellSize)
                                                 .overlay(RoundedRectangle(cornerRadius: 4)
                                                     .stroke(.white.opacity(0.06), lineWidth: 1))
-                                                .onTapGesture { onSelect(r, c) }
-                                                .help(t > 0 ? "\(theme) · \(matrix.buckets[c].label)" : "")
+                                                .opacity(matched ? 1.0 : 0.12)
+                                                .onTapGesture { if matched { onSelect(r, c) } }
+                                                .help(t > 0 && matched ? "\(theme) · \(matrix.buckets[c].label)" : "")
                                         }
                                     }
                                 }
@@ -322,7 +370,7 @@ private func accentRamp(_ t: Double) -> Color {
     return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
 }
 
-private func heatmapColor(_ t: Double) -> Color { accentRamp(t).opacity(t == 0 ? 0.04 : 0.18 + 0.82 * t) }
+private func heatmapColor(_ t: Double) -> Color { accentRamp(t).opacity(t == 0 ? 0.07 : 0.25 + 0.75 * t) }
 
 // MARK: - Bubbles tab
 

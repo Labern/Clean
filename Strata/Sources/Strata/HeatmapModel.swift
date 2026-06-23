@@ -140,6 +140,17 @@ final class HeatmapModel: ObservableObject {
         selected = SelectedBubble(theme: bubble.theme, conversations: convs)
     }
 
+    /// Drill into a theme across ALL time — every conversation that ever had it.
+    func selectTheme(_ row: Int) {
+        guard let m = matrix, row < m.themes.count else { return }
+        let theme = m.themes[row]
+        let ids = Set(m.cells[row].flatMap { $0.contributors })
+        let convs = conversations.filter { ids.contains($0.id) }
+            .sorted { $0.lastTimestamp > $1.lastTimestamp }
+        guard !convs.isEmpty else { return }
+        selected = SelectedBubble(theme: theme, conversations: convs)
+    }
+
     func select(row: Int, col: Int) {
         guard let m = matrix, row < m.cells.count, col < m.cells[row].count else { return }
         let ids = Set(m.cells[row][col].contributors)
