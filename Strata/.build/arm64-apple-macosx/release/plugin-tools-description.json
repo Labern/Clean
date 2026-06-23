@@ -1,0 +1,572 @@
+{
+  "builtTestProducts" : [
+
+  ],
+  "copyCommands" : {
+
+  },
+  "explicitTargetDependencyImportCheckingMode" : {
+    "none" : {
+
+    }
+  },
+  "generatedSourceTargetSet" : [
+
+  ],
+  "pluginDescriptions" : [
+
+  ],
+  "swiftCommands" : {
+    "C.Strata-arm64-apple-macosx-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/sources",
+      "importPath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/App.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/ClaudeWebClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/HeatmapModel.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/HeatmapView.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Modules/StrataCore.swiftmodule"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/sources"
+        }
+      ],
+      "isLibrary" : false,
+      "moduleName" : "Strata",
+      "moduleOutputPath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Modules/Strata.swiftmodule",
+      "objects" : [
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/App.swift.o",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/ClaudeWebClient.swift.o",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/HeatmapModel.swift.o",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/HeatmapView.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx13.0",
+        "-whole-module-optimization",
+        "-num-threads",
+        "18",
+        "-serialize-diagnostics",
+        "-O",
+        "-j18",
+        "-DSWIFT_PACKAGE",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-Xfrontend",
+        "-entry-point-function-name",
+        "-Xfrontend",
+        "Strata_main",
+        "-swift-version",
+        "5",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "strata"
+      ],
+      "outputFileMapPath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/App.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/ClaudeWebClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/HeatmapModel.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/HeatmapView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Modules/Strata.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/App.swift",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/ClaudeWebClient.swift",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/HeatmapModel.swift",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/HeatmapView.swift"
+      ],
+      "tempsPath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build",
+      "wholeModuleOptimization" : true
+    },
+    "C.StrataCore-arm64-apple-macosx-release.module" : {
+      "executable" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "fileList" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/sources",
+      "importPath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Modules",
+      "inputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ConversationCache.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/DateParsing.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Heatmap.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Loaders.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Models.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Stopwords.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ThemeExtractor.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/sources"
+        }
+      ],
+      "isLibrary" : true,
+      "moduleName" : "StrataCore",
+      "moduleOutputPath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Modules/StrataCore.swiftmodule",
+      "objects" : [
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ConversationCache.swift.o",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/DateParsing.swift.o",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Heatmap.swift.o",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Loaders.swift.o",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Models.swift.o",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Stopwords.swift.o",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ThemeExtractor.swift.o"
+      ],
+      "otherArguments" : [
+        "-target",
+        "arm64-apple-macosx13.0",
+        "-whole-module-optimization",
+        "-num-threads",
+        "18",
+        "-serialize-diagnostics",
+        "-O",
+        "-j18",
+        "-DSWIFT_PACKAGE",
+        "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+        "-module-cache-path",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/ModuleCache",
+        "-parseable-output",
+        "-parse-as-library",
+        "-emit-objc-header",
+        "-emit-objc-header-path",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/include/StrataCore-Swift.h",
+        "-swift-version",
+        "5",
+        "-plugin-path",
+        "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+        "-sdk",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-F",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-I",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-L",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+        "-g",
+        "-Xcc",
+        "-isysroot",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+        "-Xcc",
+        "-F",
+        "-Xcc",
+        "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+        "-Xcc",
+        "-fPIC",
+        "-Xcc",
+        "-g",
+        "-package-name",
+        "strata"
+      ],
+      "outputFileMapPath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/output-file-map.json",
+      "outputs" : [
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ConversationCache.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/DateParsing.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Heatmap.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Loaders.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Models.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Stopwords.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ThemeExtractor.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Modules/StrataCore.swiftmodule"
+        }
+      ],
+      "prepareForIndexing" : false,
+      "sources" : [
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ConversationCache.swift",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/DateParsing.swift",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Heatmap.swift",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Loaders.swift",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Models.swift",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Stopwords.swift",
+        "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ThemeExtractor.swift"
+      ],
+      "tempsPath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build",
+      "wholeModuleOptimization" : true
+    }
+  },
+  "swiftFrontendCommands" : {
+
+  },
+  "swiftTargetScanArgs" : {
+    "Strata" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "Strata",
+      "-package-name",
+      "strata",
+      "-c",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/App.swift",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/ClaudeWebClient.swift",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/HeatmapModel.swift",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/HeatmapView.swift",
+      "-I",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx13.0",
+      "-whole-module-optimization",
+      "-num-threads",
+      "18",
+      "-serialize-diagnostics",
+      "-O",
+      "-j18",
+      "-DSWIFT_PACKAGE",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-Xfrontend",
+      "-entry-point-function-name",
+      "-Xfrontend",
+      "Strata_main",
+      "-swift-version",
+      "5",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "strata",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ],
+    "StrataCore" : [
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc",
+      "-module-name",
+      "StrataCore",
+      "-package-name",
+      "strata",
+      "-c",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ConversationCache.swift",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/DateParsing.swift",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Heatmap.swift",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Loaders.swift",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Models.swift",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Stopwords.swift",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ThemeExtractor.swift",
+      "-I",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Modules",
+      "-target",
+      "arm64-apple-macosx13.0",
+      "-whole-module-optimization",
+      "-num-threads",
+      "18",
+      "-serialize-diagnostics",
+      "-O",
+      "-j18",
+      "-DSWIFT_PACKAGE",
+      "-DSWIFT_MODULE_RESOURCE_BUNDLE_UNAVAILABLE",
+      "-module-cache-path",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/ModuleCache",
+      "-parseable-output",
+      "-parse-as-library",
+      "-emit-objc-header",
+      "-emit-objc-header-path",
+      "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/include/StrataCore-Swift.h",
+      "-swift-version",
+      "5",
+      "-plugin-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins/testing",
+      "-sdk",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-F",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-I",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-L",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib",
+      "-g",
+      "-Xcc",
+      "-isysroot",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk",
+      "-Xcc",
+      "-F",
+      "-Xcc",
+      "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks",
+      "-Xcc",
+      "-fPIC",
+      "-Xcc",
+      "-g",
+      "-package-name",
+      "strata",
+      "-driver-use-frontend-path",
+      "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+    ]
+  },
+  "targetDependencyMap" : {
+    "Strata" : [
+      "StrataCore"
+    ],
+    "StrataCore" : [
+
+    ]
+  },
+  "testDiscoveryCommands" : {
+
+  },
+  "testEntryPointCommands" : {
+
+  },
+  "traitConfiguration" : {
+    "default" : {
+
+    }
+  },
+  "writeCommands" : {
+    "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/App.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/ClaudeWebClient.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/HeatmapModel.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/Strata/HeatmapView.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/sources"
+    },
+    "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.product/Objects.LinkFileList" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<link-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/App.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/ClaudeWebClient.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/HeatmapModel.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.build/HeatmapView.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ConversationCache.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/DateParsing.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Heatmap.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Loaders.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Models.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Stopwords.swift.o"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ThemeExtractor.swift.o"
+        }
+      ],
+      "outputFilePath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/Strata.product/Objects.LinkFileList"
+    },
+    "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/sources" : {
+      "alwaysOutOfDate" : false,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<sources-file-list>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ConversationCache.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/DateParsing.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Heatmap.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Loaders.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Models.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Stopwords.swift"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ThemeExtractor.swift"
+        }
+      ],
+      "outputFilePath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/sources"
+    },
+    "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt" : {
+      "alwaysOutOfDate" : true,
+      "inputs" : [
+        {
+          "kind" : "virtual",
+          "name" : "<swift-get-version>"
+        },
+        {
+          "kind" : "file",
+          "name" : "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
+        }
+      ],
+      "outputFilePath" : "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/swift-version--58304C5D6DBC2206.txt"
+    }
+  }
+}

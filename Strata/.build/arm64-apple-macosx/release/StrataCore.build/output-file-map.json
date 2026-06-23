@@ -1,0 +1,49 @@
+{
+  "": {
+    "dependencies": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/StrataCore.d",
+    "object": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/StrataCore.o",
+    "swift-dependencies": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/primary.swiftdeps"
+  },
+  "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ConversationCache.swift": {
+    "object": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ConversationCache.swift.o",
+    "swiftmodule": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ConversationCache~partial.swiftmodule",
+    "swift-dependencies": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ConversationCache.swiftdeps",
+    "diagnostics": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ConversationCache.dia"
+  },
+  "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/DateParsing.swift": {
+    "object": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/DateParsing.swift.o",
+    "swiftmodule": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/DateParsing~partial.swiftmodule",
+    "swift-dependencies": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/DateParsing.swiftdeps",
+    "diagnostics": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/DateParsing.dia"
+  },
+  "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Heatmap.swift": {
+    "object": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Heatmap.swift.o",
+    "swiftmodule": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Heatmap~partial.swiftmodule",
+    "swift-dependencies": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Heatmap.swiftdeps",
+    "diagnostics": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Heatmap.dia"
+  },
+  "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Loaders.swift": {
+    "object": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Loaders.swift.o",
+    "swiftmodule": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Loaders~partial.swiftmodule",
+    "swift-dependencies": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Loaders.swiftdeps",
+    "diagnostics": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Loaders.dia"
+  },
+  "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Models.swift": {
+    "object": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Models.swift.o",
+    "swiftmodule": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Models~partial.swiftmodule",
+    "swift-dependencies": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Models.swiftdeps",
+    "diagnostics": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Models.dia"
+  },
+  "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/Stopwords.swift": {
+    "object": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Stopwords.swift.o",
+    "swiftmodule": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Stopwords~partial.swiftmodule",
+    "swift-dependencies": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Stopwords.swiftdeps",
+    "diagnostics": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/Stopwords.dia"
+  },
+  "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/Sources/StrataCore/ThemeExtractor.swift": {
+    "object": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ThemeExtractor.swift.o",
+    "swiftmodule": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ThemeExtractor~partial.swiftmodule",
+    "swift-dependencies": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ThemeExtractor.swiftdeps",
+    "diagnostics": "/Users/labern/Desktop/Clean/.claude/worktrees/strata-heatmap/Strata/.build/arm64-apple-macosx/release/StrataCore.build/ThemeExtractor.dia"
+  }
+}
