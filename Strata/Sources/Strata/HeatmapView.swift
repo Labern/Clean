@@ -49,9 +49,9 @@ struct HeatmapView: View {
         HStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Strata")
-                    .font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
+                    .font(.system(size: 24, weight: .bold)).foregroundStyle(.white)
                 Text(model.statusText)
-                    .font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
+                    .font(.system(size: 17)).foregroundStyle(.white.opacity(0.5))
             }
 
             Spacer()
@@ -78,7 +78,7 @@ struct HeatmapView: View {
             // Max subjects stepper
             HStack(spacing: 6) {
                 Text("Subjects:")
-                    .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
+                    .font(.system(size: 17)).foregroundStyle(.white.opacity(0.45))
                 Stepper(
                     value: Binding(
                         get: { model.topThemeCount },
@@ -87,7 +87,7 @@ struct HeatmapView: View {
                     in: 10...500, step: 10
                 ) {
                     Text("\(model.topThemeCount)")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.85))
                         .frame(minWidth: 28, alignment: .trailing)
                 }
@@ -159,12 +159,12 @@ struct HeatmapView: View {
             Spacer()
             if model.isSyncing {
                 ProgressView().controlSize(.large).tint(.accentTeal)
-                Text("Syncing conversations…").font(.system(size: 13)).foregroundStyle(.white.opacity(0.55))
+                Text("Syncing conversations…").font(.system(size: 16)).foregroundStyle(.white.opacity(0.55))
             } else if model.needsLogin {
-                Image(systemName: "bubble.left.and.bubble.right").font(.system(size: 44))
+                Image(systemName: "bubble.left.and.bubble.right").font(.system(size: 52))
                     .foregroundStyle(.white.opacity(0.2))
                 Text("Connect claude.ai to include all your conversations")
-                    .font(.system(size: 14)).foregroundStyle(.white.opacity(0.7))
+                    .font(.system(size: 17)).foregroundStyle(.white.opacity(0.7))
                 Button("Connect claude.ai") { model.showLogin() }
                     .buttonStyle(.borderedProminent).tint(.accentViolet)
             } else {
@@ -182,7 +182,7 @@ struct TabButtonStyle: ButtonStyle {
     let active: Bool
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: active ? .semibold : .regular))
+            .font(.system(size: 15, weight: active ? .semibold : .regular))
             .foregroundStyle(active ? .white : Color.white.opacity(0.5))
             .padding(.horizontal, 16).padding(.vertical, 6)
             .background(active ? Capsule().fill(Color.white.opacity(0.16)) : nil)
@@ -206,19 +206,22 @@ struct TimelineTabView: View {
         return Set(matrix.themes.indices.filter { matrix.themes[$0].lowercased().contains(q) })
     }
 
-    private let labelW: CGFloat = 200
-    private let cellSize: CGFloat = 28
-    private let gap: CGFloat = 3
-    private let headerH: CGFloat = 36   // tall enough for "June 1" on two lines if needed
-    private let colW: CGFloat = 68      // wide enough for "June 1" without truncation
+    private let labelW: CGFloat = 240
+    private let cellSize: CGFloat = 36
+    private let gap: CGFloat = 4
+    private let headerH: CGFloat = 46
+    private let colW: CGFloat = 84
 
     var body: some View {
+        // Single GeometryReader so controls bar and grid share the same 5% sidePad.
+        GeometryReader { geo in
+        let sidePad = geo.size.width * 0.05
         VStack(spacing: 0) {
             // ── Controls bar: sort + search ──────────────────────────────────
             HStack(spacing: 16) {
                 HStack(spacing: 6) {
                     Text("Order:")
-                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.45))
+                        .font(.system(size: 13, design: .monospaced)).foregroundStyle(.white.opacity(0.45))
                     Picker("", selection: $sort) {
                         ForEach(ThemeSort.allCases) { s in
                             Text(s.rawValue).tag(s)
@@ -231,17 +234,17 @@ struct TimelineTabView: View {
                 // Search bar
                 HStack(spacing: 6) {
                     Image(systemName: "magnifyingglass")
-                        .font(.system(size: 11))
+                        .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.35))
                     TextField("Filter themes…", text: $searchText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 12))
+                        .font(.system(size: 14, design: .monospaced))
                         .foregroundStyle(.white)
                         .frame(width: 200)
                     if !searchText.isEmpty {
                         Button { searchText = "" } label: {
                             Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 11))
+                                .font(.system(size: 13))
                                 .foregroundStyle(.white.opacity(0.4))
                         }
                         .buttonStyle(.plain)
@@ -253,18 +256,16 @@ struct TimelineTabView: View {
 
                 if !searchText.isEmpty {
                     Text("\(matchingIndices.count) of \(matrix.themes.count)")
-                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.4))
+                        .font(.system(size: 13, design: .monospaced)).foregroundStyle(.white.opacity(0.4))
                 }
 
                 Spacer()
             }
-            .padding(.horizontal, 22)
+            .padding(.horizontal, sidePad)
             .padding(.vertical, 8)
 
             // Outer vertical scroll — label column pinned left, cells scroll horizontally.
             // 5% padding each side so the grid occupies 90% of the app width.
-            GeometryReader { geo in
-                let sidePad = geo.size.width * 0.05
                 ScrollView(.vertical, showsIndicators: true) {
                     HStack(alignment: .top, spacing: 0) {
 
@@ -275,8 +276,8 @@ struct TimelineTabView: View {
                                 let matched = matchingIndices.contains(r)
                                 Button { onSelectTheme(r) } label: {
                                     Text(theme)
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(.white.opacity(matched ? 0.88 : 0.18))
+                                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                                        .foregroundStyle(.white.opacity(matched ? 0.92 : 0.18))
                                         .lineLimit(1).truncationMode(.tail)
                                         .frame(width: labelW, height: cellSize, alignment: .trailing)
                                 }
@@ -295,7 +296,7 @@ struct TimelineTabView: View {
                                            startPoint: .topLeading, endPoint: .bottomTrailing)
                             .ignoresSafeArea()
                         )
-                        .zIndex(1)
+                        .zIndex(10)
 
                         // ── Horizontally scrollable cell grid ────────────────────────
                         ScrollView(.horizontal, showsIndicators: true) {
@@ -304,8 +305,8 @@ struct TimelineTabView: View {
                                 HStack(spacing: gap) {
                                     ForEach(matrix.buckets) { b in
                                         Text(b.short)
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.white.opacity(0.5))
+                                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                            .foregroundStyle(Color.accentTeal.opacity(0.65))
                                             .multilineTextAlignment(.center)
                                             .lineLimit(2)
                                             .frame(width: colW, height: headerH, alignment: .bottom)
@@ -340,14 +341,14 @@ struct TimelineTabView: View {
         .safeAreaInset(edge: .bottom) {
             GeometryReader { geo in
                 HStack(spacing: 8) {
-                    Text("less").font(.system(size: 10)).foregroundStyle(.white.opacity(0.4))
+                    Text("less").font(.system(size: 16)).foregroundStyle(.white.opacity(0.4))
                     LinearGradient(colors: [.accentTeal, .accentViolet, .accentPink],
                                    startPoint: .leading, endPoint: .trailing)
                         .frame(width: 160, height: 7).clipShape(Capsule())
-                    Text("more").font(.system(size: 10)).foregroundStyle(.white.opacity(0.4))
+                    Text("more").font(.system(size: 16)).foregroundStyle(.white.opacity(0.4))
                     Spacer()
                     Text("tap a cell to see conversations")
-                        .font(.system(size: 10)).foregroundStyle(.white.opacity(0.3))
+                        .font(.system(size: 16)).foregroundStyle(.white.opacity(0.3))
                 }
                 .padding(.horizontal, geo.size.width * 0.05)
                 .padding(.vertical, 10)
@@ -414,10 +415,10 @@ struct BubbleView: View {
     }
 
     private var labelSize: CGFloat {
-        if radius > 70 { return 13 }
-        if radius > 48 { return 11 }
-        if radius > 32 { return 9 }
-        return 8
+        if radius > 70 { return 16 }
+        if radius > 48 { return 14 }
+        if radius > 32 { return 12 }
+        return 10
     }
 }
 
@@ -536,7 +537,7 @@ struct GroupSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(group.name.uppercased())
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.4))
                 .tracking(1.2)
 
@@ -572,9 +573,9 @@ struct ConversationListView: View {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(sel.theme)
-                        .font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
+                        .font(.system(size: 24, weight: .bold)).foregroundStyle(.white)
                     Text("\(sel.conversations.count) conversation\(sel.conversations.count == 1 ? "" : "s")")
-                        .font(.system(size: 12)).foregroundStyle(.white.opacity(0.5))
+                        .font(.system(size: 15)).foregroundStyle(.white.opacity(0.5))
                 }
                 Spacer()
                 Button("Done") { dismiss() }
@@ -611,22 +612,22 @@ struct ConversationRow: View {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(conv.displayName)
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(hovering && claudeURL != nil ? Color.accentViolet : .white)
                     HStack(spacing: 5) {
                         Text(relativeDate(conv.lastTimestamp))
                         Text("·")
                         Text(conv.source)
                     }
-                    .font(.system(size: 10)).foregroundStyle(.white.opacity(0.4))
+                    .font(.system(size: 16)).foregroundStyle(.white.opacity(0.4))
                     Text(snippet(conv.combinedText))
-                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.65))
+                        .font(.system(size: 17)).foregroundStyle(.white.opacity(0.65))
                         .lineLimit(2)
                 }
                 Spacer(minLength: 4)
                 if claudeURL != nil {
                     Image(systemName: "arrow.up.right")
-                        .font(.system(size: 10))
+                        .font(.system(size: 16))
                         .foregroundStyle(.white.opacity(hovering ? 0.8 : 0.2))
                 }
             }

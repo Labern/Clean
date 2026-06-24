@@ -11,5 +11,10 @@ let package = Package(
             dependencies: ["StrataCore"],
             path: "Sources/Strata"
         ),
+        .testTarget(
+            name: "StrataCoreTests",
+            dependencies: ["StrataCore"],
+            path: "Tests/StrataCoreTests"
+        ),
     ]
 )
