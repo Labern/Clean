@@ -11,15 +11,14 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
-      --bg:     #0d0f1a;
-      --bg2:    #131629;
-      --bg3:    #1a1d35;
-      --teal:   #5eead4;
-      --violet: #a78bfa;
-      --pink:   #f472b6;
-      --text:   #e2e8f0;
-      --muted:  #64748b;
-      --border: rgba(255,255,255,0.08);
+      --bg:     #191414;
+      --bg2:    #121212;
+      --bg3:    #282828;
+      --green:  #1DB954;
+      --green2: #1ed760;
+      --text:   #FFFFFF;
+      --muted:  #B3B3B3;
+      --border: rgba(255,255,255,0.1);
     }
 
     html, body {
@@ -41,14 +40,13 @@
     }
     #auth-screen h1 {
       font-size: 3rem; font-weight: 800; letter-spacing: -0.02em;
-      background: linear-gradient(135deg, var(--teal), var(--violet));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      color: var(--green);
     }
     #auth-screen p { text-align: center; color: var(--muted); font-size: 1.1rem; line-height: 1.6; }
 
     .btn-connect {
-      background: linear-gradient(135deg, var(--teal), var(--violet));
-      color: #0d0f1a; border: none; border-radius: 20px;
+      background: var(--green);
+      color: #000000; border: none; border-radius: 20px;
       padding: 22px 52px; font-size: 1.2rem; font-weight: 700;
       cursor: pointer; width: 100%; max-width: 320px;
       letter-spacing: 0.02em; margin-top: 8px;
@@ -70,7 +68,7 @@
       flex: 1; display: flex; align-items: center; gap: 8px;
       background: var(--bg3); border: 1px solid var(--border);
       border-radius: 14px; padding: 10px 14px; cursor: pointer;
-      font-size: 0.9rem; color: var(--teal); min-width: 0;
+      font-size: 0.9rem; color: var(--green); min-width: 0;
     }
     #device-pill .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
     #device-pill .caret { color: var(--muted); flex-shrink: 0; }
@@ -104,7 +102,7 @@
     }
     #progress-fill {
       height: 100%; width: 0%;
-      background: linear-gradient(90deg, var(--teal), var(--violet));
+      background: var(--green);
       border-radius: 2px; transition: width 1s linear;
     }
 
@@ -124,8 +122,8 @@
     .ctrl.skip { width: 88px; height: 88px; }
     .ctrl.play {
       width: 108px; height: 108px; font-size: 2.4rem;
-      background: linear-gradient(135deg, var(--teal), var(--violet));
-      color: #0d0f1a; border: none;
+      background: var(--green);
+      color: #000000; border: none;
     }
     .ctrl.play:active { transform: scale(0.91); opacity: 0.9; }
 
@@ -141,8 +139,8 @@
       transition: color 0.15s, border-color 0.15s;
     }
     .sec .icon { font-size: 1.35rem; }
-    .sec.on { color: var(--teal); border-color: rgba(94,234,212,0.35); }
-    .sec.liked { color: var(--pink); border-color: rgba(244,114,182,0.35); }
+    .sec.on { color: var(--green); border-color: rgba(29,185,84,0.4); }
+    .sec.liked { color: var(--green); border-color: rgba(29,185,84,0.4); }
     .sec:active { opacity: 0.7; }
 
     /* ── Search Bar ────────────────────────────────────────── */
@@ -156,10 +154,10 @@
       -webkit-appearance: none; appearance: none;
     }
     #search-input::placeholder { color: var(--muted); }
-    #search-input:focus { border-color: var(--teal); }
+    #search-input:focus { border-color: var(--green); }
     #search-go {
       background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 16px; color: var(--teal); padding: 15px 18px;
+      border-radius: 16px; color: var(--green); padding: 15px 18px;
       font-size: 1.3rem; cursor: pointer; flex-shrink: 0;
     }
     #search-go:active { opacity: 0.7; }
@@ -167,8 +165,8 @@
     /* ── No-device Banner ──────────────────────────────────── */
     #no-device {
       margin: 0 16px 10px; padding: 11px 14px;
-      background: rgba(244,114,182,0.08); border: 1px solid rgba(244,114,182,0.35);
-      border-radius: 12px; color: var(--pink); font-size: 0.85rem;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px; color: var(--muted); font-size: 0.85rem;
       text-align: center; flex-shrink: 0;
     }
 
@@ -181,19 +179,19 @@
       background: var(--bg2); border-radius: 24px 24px 0 0;
       padding: 24px 20px; width: 100%; max-height: 65vh; overflow-y: auto;
     }
-    .sheet-title { font-size: 1.1rem; font-weight: 700; color: var(--teal); margin-bottom: 14px; }
+    .sheet-title { font-size: 1.1rem; font-weight: 700; color: var(--green); margin-bottom: 14px; }
     .device-row {
       display: flex; align-items: center; gap: 14px;
       padding: 14px 12px; border-radius: 14px; cursor: pointer;
       border: 1px solid transparent; margin-bottom: 8px;
     }
     .device-row:active, .device-row.current {
-      background: var(--bg3); border-color: rgba(94,234,212,0.3);
+      background: var(--bg3); border-color: rgba(29,185,84,0.4);
     }
     .device-icon { font-size: 1.7rem; }
     .device-name { font-size: 1rem; font-weight: 600; }
     .device-type { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
-    .device-check { margin-left: auto; color: var(--teal); font-size: 1.1rem; }
+    .device-check { margin-left: auto; color: var(--green); font-size: 1.1rem; }
 
     /* ── Search Results Overlay ────────────────────────────── */
     #results-overlay {
@@ -203,7 +201,7 @@
       gap: 10px; overflow-y: auto;
     }
     .back-btn {
-      background: none; border: none; color: var(--teal);
+      background: none; border: none; color: var(--green);
       font-size: 1rem; padding: 6px 0 10px; cursor: pointer;
       display: flex; align-items: center; gap: 6px; flex-shrink: 0;
     }
