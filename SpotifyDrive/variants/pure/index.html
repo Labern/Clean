@@ -95,7 +95,7 @@
       padding: 12px 28px; gap: 18px; text-align: center; min-height: 0;
     }
     #album-art {
-      width: min(300px, 62vw); height: min(300px, 62vw);
+      width: min(240px, 54vw); height: min(240px, 54vw);
       border-radius: 12px; object-fit: cover;
       background: var(--bg3);
       box-shadow: 0 24px 60px rgba(0,0,0,0.7);
@@ -118,10 +118,35 @@
       border-radius: 3px; transition: width 1s linear;
     }
 
+    /* ── Gauge play button (ring-wrapped), grafted from Dashboard ── */
+    #gauge {
+      position: relative; flex-shrink: 0;
+      width: min(152px, 42vw); height: min(152px, 42vw);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #gauge-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+    #gauge-ring .track { fill: none; stroke: rgba(255,255,255,0.14); stroke-width: 5; }
+    #gauge-ring .fill {
+      fill: none; stroke: var(--green); stroke-width: 5; stroke-linecap: round;
+      filter: drop-shadow(0 0 6px rgba(30,215,96,0.6));
+      transition: stroke-dashoffset 1s linear;
+    }
+    #gauge #play-btn {
+      position: relative; z-index: 2;
+      width: 74%; height: 74%; border-radius: 50%;
+      background: radial-gradient(120% 120% at 50% 30%, #1ed760, #1DB954);
+      color: #000; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 40px rgba(30,215,96,0.4), inset 0 2px 6px rgba(255,255,255,0.25);
+      transition: transform 0.1s ease, box-shadow 0.2s;
+    }
+    #gauge #play-btn:active { transform: scale(0.94); box-shadow: 0 0 24px rgba(30,215,96,0.28); }
+    #gauge #play-btn svg { width: 44%; height: 44%; }
+
     /* ── Big Controls ──────────────────────────────────────── */
     #controls {
       display: flex; align-items: center; justify-content: center;
-      gap: 22px; padding: 14px 20px; flex-shrink: 0;
+      gap: 18px; padding: 10px 20px; flex-shrink: 0;
     }
     .ctrl {
       border-radius: 50%; border: none;
@@ -131,9 +156,9 @@
       flex-shrink: 0; padding: 0;
     }
     .ctrl:active { transform: scale(0.90); }
-    .ctrl.skip { width: 92px; height: 92px; color: var(--text); }
+    .ctrl.skip { width: 80px; height: 80px; color: var(--text); }
     .ctrl.skip:active { background: rgba(255,255,255,0.08); }
-    .ctrl.skip svg { width: 52px; height: 52px; }
+    .ctrl.skip svg { width: 46px; height: 46px; }
     .ctrl.play {
       width: 116px; height: 116px;
       background: var(--green);
@@ -286,7 +311,13 @@
       <button class="ctrl skip" onclick="prev()" aria-label="Previous">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
       </button>
-      <button class="ctrl play" id="play-btn" onclick="togglePlay()" aria-label="Play/Pause"></button>
+      <div id="gauge">
+        <svg id="gauge-ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="track" cx="50" cy="50" r="46"></circle>
+          <circle class="fill"  cx="50" cy="50" r="46" style="stroke-dasharray:289;stroke-dashoffset:289"></circle>
+        </svg>
+        <button class="ctrl play" id="play-btn" onclick="togglePlay()" aria-label="Play/Pause"></button>
+      </div>
       <button class="ctrl skip" onclick="next()" aria-label="Next">
         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
       </button>
@@ -553,9 +584,17 @@ async function fetchState() {
   } catch(e) { console.warn('fetchState', e); }
 }
 
+// circumference of r=46 ring used by stroke-dasharray/offset
+const RING_CIRC = 2 * Math.PI * 46;
 function renderProgress() {
   if (!S.durationMs) return;
-  $('progress-fill').style.width = (S.progressMs / S.durationMs * 100) + '%';
+  const frac = Math.max(0, Math.min(1, S.progressMs / S.durationMs));
+  $('progress-fill').style.width = (frac * 100) + '%';
+  const ring = document.querySelector('#gauge-ring .fill');
+  if (ring) {
+    ring.style.strokeDasharray  = RING_CIRC;
+    ring.style.strokeDashoffset = RING_CIRC * (1 - frac);
+  }
 }
 function tickProgress() {
   if (!S.playing || !S.durationMs) return;
