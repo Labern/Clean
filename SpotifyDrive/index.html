@@ -11,41 +11,30 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
-      --bg:     #050607;
-      --bg2:    #0b0d0e;
-      --bg3:    #15181a;
-      --panel:  #0e1112;
+      --bg:     #000000;
+      --bg2:    #121212;
+      --bg3:    #1f1f1f;
       --green:  #1DB954;
       --green2: #1ed760;
       --text:   #FFFFFF;
-      --muted:  #8b9296;
-      --border: rgba(255,255,255,0.07);
-      --ring-track: rgba(255,255,255,0.08);
-      --glow:   0 0 0px rgba(30,215,96,0);
+      --muted:  #B3B3B3;
+      --border: rgba(255,255,255,0.10);
     }
 
     html, body {
       height: 100%; background: var(--bg); color: var(--text);
-      font-family: -apple-system, 'Inter', system-ui, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
       overflow: hidden; user-select: none;
-    }
-    /* radial vignette so the green gauge reads like a lit instrument cluster */
-    body::before {
-      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
-      background:
-        radial-gradient(120% 80% at 50% 38%, rgba(29,185,84,0.10), transparent 60%),
-        radial-gradient(140% 100% at 50% 120%, rgba(0,0,0,0.6), transparent 50%);
+      -webkit-font-smoothing: antialiased;
     }
 
     #app {
-      position: relative; z-index: 1;
       height: 100dvh; display: flex; flex-direction: column;
       padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
                env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
     }
 
     svg { display: block; }
-    .ico { width: 1em; height: 1em; }
 
     /* ── Auth ──────────────────────────────────────────────── */
     #auth-screen {
@@ -53,237 +42,225 @@
       justify-content: center; height: 100%; gap: 24px; padding: 40px;
     }
     #auth-screen h1 {
-      font-size: 3.4rem; font-weight: 800; letter-spacing: 0.18em;
-      text-transform: uppercase; color: var(--text);
+      font-size: 3.4rem; font-weight: 800; letter-spacing: -0.03em;
+      color: var(--text);
     }
-    #auth-screen h1 span { color: var(--green); text-shadow: 0 0 26px rgba(30,215,96,0.55); }
-    #auth-screen p { text-align: center; color: var(--muted); font-size: 1.05rem; line-height: 1.6; letter-spacing: 0.01em; }
+    #auth-screen p { text-align: center; color: var(--muted); font-size: 1.1rem; line-height: 1.6; }
 
     .btn-connect {
       background: var(--green);
-      color: #000000; border: none; border-radius: 18px;
-      padding: 22px 52px; font-size: 1.1rem; font-weight: 800;
+      color: #000000; border: none; border-radius: 500px;
+      padding: 20px 52px; font-size: 1.1rem; font-weight: 700;
       cursor: pointer; width: 100%; max-width: 320px;
-      letter-spacing: 0.06em; text-transform: uppercase; margin-top: 8px;
-      box-shadow: 0 0 36px rgba(30,215,96,0.35);
+      letter-spacing: 0.02em; margin-top: 8px;
+      transition: transform 0.1s, background 0.15s;
     }
-    .btn-connect:active { opacity: 0.85; transform: scale(0.985); }
+    .btn-connect:hover { background: var(--green2); }
+    .btn-connect:active { transform: scale(0.97); }
 
     #setup-note {
-      font-size: 0.74rem; color: var(--muted); text-align: center;
-      max-width: 280px; line-height: 1.5; letter-spacing: 0.02em;
+      font-size: 0.78rem; color: var(--muted); text-align: center;
+      max-width: 280px; line-height: 1.5;
     }
-    #setup-note code { font-family: 'JetBrains Mono', ui-monospace, monospace; color: var(--green2); }
 
     /* ── Header ────────────────────────────────────────────── */
     #header {
-      display: flex; align-items: center; gap: 12px;
-      padding: 14px 18px 10px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; flex-shrink: 0;
     }
     #device-pill {
-      flex: 1; display: flex; align-items: center; gap: 12px;
+      flex: 1; display: flex; align-items: center; gap: 10px;
       background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 16px; padding: 13px 16px; cursor: pointer;
-      font-size: 0.92rem; color: var(--text); min-width: 0;
-      transition: border-color 0.15s;
+      border-radius: 500px; padding: 10px 16px; cursor: pointer;
+      font-size: 0.92rem; font-weight: 600; color: var(--green); min-width: 0;
+      transition: background 0.15s;
     }
-    #device-pill:active { border-color: rgba(30,215,96,0.4); }
-    #device-icon { display: flex; align-items: center; color: var(--green); font-size: 1.25rem; flex-shrink: 0; }
-    #device-pill .label {
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
-      font-weight: 600; letter-spacing: 0.01em;
-    }
-    #device-pill .caret { color: var(--muted); flex-shrink: 0; font-size: 0.85rem; }
+    #device-pill:active { background: #2a2a2a; }
+    #device-pill #device-icon { display: flex; flex-shrink: 0; }
+    #device-pill #device-icon svg { width: 20px; height: 20px; }
+    #device-pill .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    #device-pill .caret { color: var(--muted); flex-shrink: 0; font-size: 0.7rem; }
     #logout-btn {
-      background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
-      width: 48px; height: 48px; border-radius: 16px; padding: 0; cursor: pointer; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
+      background: none; border: none; color: var(--muted);
+      padding: 10px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
     }
+    #logout-btn svg { width: 24px; height: 24px; }
     #logout-btn:active { color: var(--text); }
 
     /* ── Now Playing ───────────────────────────────────────── */
     #now-playing {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 8px 24px; gap: 22px; text-align: center; min-height: 0;
+      padding: 12px 28px; gap: 18px; text-align: center; min-height: 0;
+    }
+    #album-art {
+      width: min(240px, 54vw); height: min(240px, 54vw);
+      border-radius: 12px; object-fit: cover;
+      background: var(--bg3);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.7);
+      flex-shrink: 0;
+    }
+    #album-art.hidden { display: none; }
+    #track-name {
+      font-size: clamp(1.4rem, 6vw, 2.3rem); font-weight: 800;
+      line-height: 1.15; letter-spacing: -0.02em; max-width: 92%;
+    }
+    #artist-name { font-size: clamp(1rem, 4vw, 1.3rem); font-weight: 500; color: var(--muted); }
+    #progress-wrap {
+      width: 100%; max-width: 420px; height: 5px;
+      background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden;
+      margin-top: 4px;
+    }
+    #progress-fill {
+      height: 100%; width: 0%;
+      background: var(--text);
+      border-radius: 3px; transition: width 1s linear;
     }
 
-    /* Gauge: big circular play button wrapped by an SVG progress ring */
+    /* ── Gauge play button (ring-wrapped), grafted from Dashboard ── */
     #gauge {
       position: relative; flex-shrink: 0;
-      width: min(190px, 56vw); height: min(190px, 56vw);
+      width: min(152px, 42vw); height: min(152px, 42vw);
       display: flex; align-items: center; justify-content: center;
     }
     #gauge-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
-    #gauge-ring .track { fill: none; stroke: var(--ring-track); stroke-width: 5; }
+    #gauge-ring .track { fill: none; stroke: rgba(255,255,255,0.14); stroke-width: 5; }
     #gauge-ring .fill {
       fill: none; stroke: var(--green); stroke-width: 5; stroke-linecap: round;
-      filter: drop-shadow(0 0 6px rgba(30,215,96,0.65));
+      filter: drop-shadow(0 0 6px rgba(30,215,96,0.6));
       transition: stroke-dashoffset 1s linear;
     }
-    #play-btn {
+    #gauge #play-btn {
       position: relative; z-index: 2;
       width: 74%; height: 74%; border-radius: 50%;
-      background: radial-gradient(120% 120% at 50% 30%, var(--green2), var(--green));
+      background: radial-gradient(120% 120% at 50% 30%, #1ed760, #1DB954);
       color: #000; border: none; cursor: pointer;
       display: flex; align-items: center; justify-content: center;
-      font-size: 4.2rem;
-      box-shadow: 0 0 44px rgba(30,215,96,0.45), inset 0 2px 6px rgba(255,255,255,0.25);
+      box-shadow: 0 0 40px rgba(30,215,96,0.4), inset 0 2px 6px rgba(255,255,255,0.25);
       transition: transform 0.1s ease, box-shadow 0.2s;
     }
-    #play-btn:active { transform: scale(0.94); box-shadow: 0 0 26px rgba(30,215,96,0.3); }
-    #play-btn .ico { width: 1em; height: 1em; }
+    #gauge #play-btn:active { transform: scale(0.94); box-shadow: 0 0 24px rgba(30,215,96,0.28); }
+    #gauge #play-btn svg { width: 44%; height: 44%; }
 
-    /* album art reduced to a tiny chip badge so the gauge is the hero */
-    #album-art {
-      position: absolute; bottom: -6px; right: -6px; z-index: 3;
-      width: 44px; height: 44px; border-radius: 12px; object-fit: cover;
-      background: var(--bg3); border: 2px solid var(--bg);
-      box-shadow: 0 6px 18px rgba(0,0,0,0.6);
-    }
-    #album-art.hidden { display: none; }
-
-    .readout { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 92vw; }
-    #track-name {
-      font-size: clamp(1.7rem, 8vw, 2.6rem); font-weight: 800;
-      line-height: 1.05; letter-spacing: -0.02em;
-      max-width: 92vw; overflow: hidden; text-overflow: ellipsis;
-      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-    }
-    #artist-name {
-      font-size: clamp(1rem, 4vw, 1.25rem); color: var(--muted);
-      font-weight: 600; letter-spacing: 0.02em;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 92vw;
-    }
-
-    /* slim linear progress kept (hidden) for compatibility; ring is the visible one */
-    #progress-wrap {
-      width: 100%; max-width: 360px; height: 3px;
-      background: var(--bg3); border-radius: 2px; overflow: hidden;
-      display: none;
-    }
-    #progress-fill {
-      height: 100%; width: 0%; background: var(--green);
-      border-radius: 2px; transition: width 1s linear;
-    }
-
-    /* ── Big Controls (prev / gauge / next) ────────────────── */
+    /* ── Big Controls ──────────────────────────────────────── */
     #controls {
       display: flex; align-items: center; justify-content: center;
-      gap: 22px; padding: 4px 20px 6px; flex-shrink: 0;
+      gap: 18px; padding: 10px 20px; flex-shrink: 0;
     }
     .ctrl {
-      border-radius: 50%; border: 1px solid var(--border);
-      background: var(--bg3); color: var(--text);
+      border-radius: 50%; border: none;
+      background: transparent; color: var(--text);
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; transition: transform 0.1s, background 0.15s, border-color 0.15s;
-      flex-shrink: 0;
+      cursor: pointer; transition: transform 0.1s, background 0.15s, color 0.15s;
+      flex-shrink: 0; padding: 0;
     }
-    .ctrl:active { transform: scale(0.9); border-color: rgba(30,215,96,0.45); }
-    .ctrl.skip { width: 76px; height: 76px; font-size: 2.1rem; }
-    .ctrl.skip .ico { width: 1em; height: 1em; }
-    /* .ctrl.play styling lives in #play-btn / #gauge above */
+    .ctrl:active { transform: scale(0.90); }
+    .ctrl.skip { width: 80px; height: 80px; color: var(--text); }
+    .ctrl.skip:active { background: rgba(255,255,255,0.08); }
+    .ctrl.skip svg { width: 46px; height: 46px; }
+    .ctrl.play {
+      width: 116px; height: 116px;
+      background: var(--green);
+      color: #000000;
+    }
+    .ctrl.play svg { width: 56px; height: 56px; }
+    .ctrl.play:hover { background: var(--green2); }
+    .ctrl.play:active { transform: scale(0.93); }
 
     /* ── Secondary Controls ────────────────────────────────── */
     #secondary {
-      display: flex; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0;
+      display: flex; gap: 12px; padding: 8px 16px 14px; flex-shrink: 0;
     }
     .sec {
       flex: 1; background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 18px; color: var(--muted); padding: 15px 6px;
-      font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
-      cursor: pointer;
-      display: flex; flex-direction: column; align-items: center; gap: 7px;
+      border-radius: 14px; color: var(--muted); padding: 14px 6px;
+      font-size: 0.78rem; font-weight: 600; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
       transition: color 0.15s, border-color 0.15s, background 0.15s;
     }
-    .sec .icon { display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
-    .sec .icon .ico { width: 1em; height: 1em; }
-    .sec.on { color: var(--green); border-color: rgba(29,185,84,0.45); background: rgba(29,185,84,0.06); }
-    .sec.liked { color: var(--green); border-color: rgba(29,185,84,0.45); background: rgba(29,185,84,0.06); }
-    .sec:active { opacity: 0.7; }
+    .sec .icon { display: flex; align-items: center; justify-content: center; }
+    .sec .icon svg { width: 24px; height: 24px; }
+    .sec.on { color: var(--green); border-color: rgba(29,185,84,0.45); }
+    .sec.liked { color: var(--green); border-color: rgba(29,185,84,0.45); }
+    .sec:active { background: #2a2a2a; }
 
     /* ── Search Bar ────────────────────────────────────────── */
     #search-bar {
-      display: flex; gap: 12px; padding: 0 18px 18px; flex-shrink: 0;
+      display: flex; gap: 10px; padding: 0 16px 18px; flex-shrink: 0;
     }
     #search-input {
       flex: 1; background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 18px; color: var(--text); font-size: 1.05rem; font-weight: 500;
-      padding: 16px 18px; outline: none;
+      border-radius: 500px; color: var(--text); font-size: 1.05rem;
+      padding: 15px 20px; outline: none;
       -webkit-appearance: none; appearance: none;
     }
     #search-input::placeholder { color: var(--muted); }
-    #search-input:focus { border-color: var(--green); }
+    #search-input:focus { border-color: var(--text); }
     #search-go {
       background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 18px; color: var(--green); padding: 0 20px;
-      font-size: 1.45rem; cursor: pointer; flex-shrink: 0;
+      border-radius: 50%; color: var(--green); width: 54px;
+      cursor: pointer; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
-    #search-go .ico { width: 1em; height: 1em; }
-    #search-go:active { opacity: 0.7; }
+    #search-go svg { width: 24px; height: 24px; }
+    #search-go:active { background: #2a2a2a; }
 
     /* ── No-device Banner ──────────────────────────────────── */
     #no-device {
-      margin: 0 18px 10px; padding: 12px 14px;
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
-      border-radius: 14px; color: var(--muted); font-size: 0.85rem;
-      text-align: center; flex-shrink: 0; letter-spacing: 0.01em;
+      margin: 0 16px 10px; padding: 11px 14px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px; color: var(--muted); font-size: 0.85rem;
+      text-align: center; flex-shrink: 0;
     }
 
     /* ── Device Sheet ──────────────────────────────────────── */
     #device-overlay {
       position: fixed; inset: 0; background: rgba(0,0,0,0.7);
-      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
       display: flex; align-items: flex-end; z-index: 200;
     }
     #device-sheet {
-      background: var(--bg2); border: 1px solid var(--border); border-bottom: none;
-      border-radius: 28px 28px 0 0;
-      padding: 26px 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
-      width: 100%; max-height: 65vh; overflow-y: auto;
+      background: var(--bg2); border-radius: 20px 20px 0 0;
+      padding: 24px 20px; width: 100%; max-height: 65vh; overflow-y: auto;
     }
-    .sheet-title {
-      font-size: 0.85rem; font-weight: 700; color: var(--muted);
-      letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 16px;
-    }
+    .sheet-title { font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 16px; }
     .device-row {
-      display: flex; align-items: center; gap: 16px;
-      padding: 16px 14px; border-radius: 16px; cursor: pointer;
-      border: 1px solid transparent; margin-bottom: 8px; background: var(--bg3);
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 12px; border-radius: 12px; cursor: pointer;
+      border: 1px solid transparent; margin-bottom: 8px;
     }
     .device-row:active, .device-row.current {
-      background: rgba(29,185,84,0.08); border-color: rgba(29,185,84,0.4);
+      background: var(--bg3); border-color: rgba(29,185,84,0.45);
     }
-    .device-icon { font-size: 1.55rem; color: var(--green); display: flex; align-items: center; }
-    .device-icon .ico { width: 1em; height: 1em; }
-    .device-name { font-size: 1.02rem; font-weight: 700; }
-    .device-type { font-size: 0.72rem; color: var(--muted); margin-top: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
-    .device-check { margin-left: auto; color: var(--green); font-size: 1.2rem; font-weight: 800; }
+    .device-icon { display: flex; align-items: center; justify-content: center; color: var(--green); }
+    .device-icon svg { width: 26px; height: 26px; }
+    .device-name { font-size: 1rem; font-weight: 600; }
+    .device-type { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
+    .device-check { margin-left: auto; color: var(--green); display: flex; align-items: center; }
+    .device-check svg { width: 22px; height: 22px; }
 
     /* ── Search Results Overlay ────────────────────────────── */
     #results-overlay {
       position: fixed; inset: 0; background: var(--bg); z-index: 100;
       display: flex; flex-direction: column;
-      padding: calc(env(safe-area-inset-top, 0px) + 16px) 18px 18px;
-      gap: 12px; overflow-y: auto;
+      padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 16px;
+      gap: 10px; overflow-y: auto;
     }
     .back-btn {
-      background: none; border: none; color: var(--green);
-      font-size: 0.95rem; font-weight: 700; letter-spacing: 0.04em;
-      padding: 6px 0 10px; cursor: pointer;
+      background: none; border: none; color: var(--text);
+      font-size: 1rem; font-weight: 600; padding: 6px 0 10px; cursor: pointer;
       display: flex; align-items: center; gap: 8px; flex-shrink: 0;
     }
-    .back-btn .ico { width: 1.1em; height: 1.1em; }
+    .back-btn svg { width: 22px; height: 22px; }
     .result-row {
       display: flex; align-items: center; gap: 14px;
       padding: 12px 14px; background: var(--bg3);
-      border-radius: 16px; cursor: pointer; border: 1px solid var(--border);
+      border-radius: 12px; cursor: pointer; border: 1px solid var(--border);
       flex-shrink: 0;
     }
-    .result-row:active { opacity: 0.75; }
-    .result-row img { width: 54px; height: 54px; border-radius: 10px; flex-shrink: 0; object-fit: cover; }
-    .result-track { font-size: 0.98rem; font-weight: 700; }
+    .result-row:active { background: #2a2a2a; }
+    .result-row img { width: 52px; height: 52px; border-radius: 6px; flex-shrink: 0; object-fit: cover; }
+    .result-track { font-size: 0.95rem; font-weight: 600; }
     .result-artist { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
 
     .hidden { display: none !important; }
@@ -296,7 +273,7 @@
 
   <!-- ── Auth Screen ────────────────────────────────────────── -->
   <div id="auth-screen">
-    <h1>DR<span>I</span>VE</h1>
+    <h1>Drive</h1>
     <p>Spotify remote built for driving.<br>Big buttons. No faff.</p>
     <button class="btn-connect" onclick="authorize()">Connect Spotify</button>
     <p id="setup-note">
@@ -312,47 +289,49 @@
       <div id="device-pill" onclick="openDevices()">
         <span id="device-icon"></span>
         <span id="device-label" class="label">Select device</span>
-        <span class="caret">▾</span>
+        <span class="caret">&#9662;</span>
       </div>
-      <button id="logout-btn" onclick="logout()" title="Disconnect" aria-label="Disconnect"></button>
+      <button id="logout-btn" onclick="logout()" title="Disconnect" aria-label="Disconnect">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>
+      </button>
     </div>
 
     <div id="no-device" class="hidden">
-      Open Spotify on any device first, then select it above
+      Open Spotify on any device first, then select it above &#8593;
     </div>
 
     <div id="now-playing">
-      <div id="gauge">
-        <svg id="gauge-ring" viewBox="0 0 100 100" aria-hidden="true">
-          <circle class="track" cx="50" cy="50" r="46"></circle>
-          <circle class="fill"  cx="50" cy="50" r="46"></circle>
-        </svg>
-        <button class="ctrl play" id="play-btn" onclick="togglePlay()" aria-label="Play / pause"></button>
-        <img id="album-art" class="hidden" src="" alt="">
-      </div>
-
-      <div class="readout">
-        <div id="track-name">Nothing playing</div>
-        <div id="artist-name">—</div>
-      </div>
-
+      <img id="album-art" class="hidden" src="" alt="">
+      <div id="track-name">Nothing playing</div>
+      <div id="artist-name">&mdash;</div>
       <div id="progress-wrap"><div id="progress-fill"></div></div>
     </div>
 
     <div id="controls">
-      <button class="ctrl skip" onclick="prev()" aria-label="Previous"></button>
-      <button class="ctrl skip" onclick="next()" aria-label="Next"></button>
+      <button class="ctrl skip" onclick="prev()" aria-label="Previous">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+      </button>
+      <div id="gauge">
+        <svg id="gauge-ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="track" cx="50" cy="50" r="46"></circle>
+          <circle class="fill"  cx="50" cy="50" r="46" style="stroke-dasharray:289;stroke-dashoffset:289"></circle>
+        </svg>
+        <button class="ctrl play" id="play-btn" onclick="togglePlay()" aria-label="Play/Pause"></button>
+      </div>
+      <button class="ctrl skip" onclick="next()" aria-label="Next">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
+      </button>
     </div>
 
     <div id="secondary">
       <button class="sec" id="shuffle-btn" onclick="toggleShuffle()">
-        <span class="icon"></span><span>Shuffle</span>
+        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></span><span>Shuffle</span>
       </button>
       <button class="sec" id="like-btn" onclick="toggleLike()">
         <span class="icon"></span><span>Like</span>
       </button>
       <button class="sec" onclick="jamTap()">
-        <span class="icon"></span><span>Jam</span>
+        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05A4.4 4.4 0 0 1 17 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></span><span>Jam</span>
       </button>
     </div>
 
@@ -360,7 +339,9 @@
       <input id="search-input" type="search" placeholder="Search songs, artists…"
              enterkeyhint="search" autocomplete="off"
              onkeydown="if(event.key==='Enter'){event.preventDefault();doSearch();}">
-      <button id="search-go" onclick="doSearch()" aria-label="Search"></button>
+      <button id="search-go" onclick="doSearch()" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </button>
     </div>
 
   </div><!-- /main -->
@@ -375,13 +356,30 @@
 
   <!-- ── Search Results Overlay ─────────────────────────────── -->
   <div id="results-overlay" class="hidden">
-    <button class="back-btn" onclick="closeSearch()"></button>
+    <button class="back-btn" onclick="closeSearch()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+      <span>Back</span>
+    </button>
     <div id="results-list"></div>
   </div>
 
 </div><!-- /app -->
 
 <script>
+// ── ICONS (inline SVG strings, colour via currentColor) ─────────────
+const ICONS = {
+  play:        '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+  pause:       '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
+  heart:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
+  heartFilled: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
+  check:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
+  computer:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>',
+  phone:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
+  speaker:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="14" r="3.5"/><circle cx="12" cy="6" r="1"/></svg>',
+  car:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 21 8l2 5v5h-3v-2H6v2H3z"/><circle cx="7.5" cy="15.5" r="1.5"/><circle cx="16.5" cy="15.5" r="1.5"/></svg>',
+  tv:          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1"/><path d="M8 21h8"/></svg>',
+};
+
 // ── CONFIG — fill this in before using ──────────────────────────────
 const CLIENT_ID = '8a2fa6f88fac444290f3d0c81e390346';
 // Get one free at: https://developer.spotify.com/dashboard
@@ -396,34 +394,6 @@ const SCOPES = [
   'user-library-read',
   'user-library-modify',
 ].join(' ');
-
-// ── Inline SVG icon set (no emoji) ──────────────────────────────────
-const ICONS = {
-  play:    '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
-  pause:   '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
-  prev:    '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>',
-  next:    '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>',
-  shuffle: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>',
-  heart:       '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
-  heartFilled: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
-  people:  '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05A4.4 4.4 0 0 1 17 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>',
-  search:  '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
-  power:   '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>',
-  back:    '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
-  check:   '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg>',
-  phone:    '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
-  computer: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>',
-  speaker:  '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="14" r="3.5"/><circle cx="12" cy="6" r="1"/></svg>',
-  car:      '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 21 8l2 5v5h-3v-2H6v2H3z"/><circle cx="7.5" cy="15.5" r="1.5"/><circle cx="16.5" cy="15.5" r="1.5"/></svg>',
-  tv:       '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1"/><path d="M8 21h8"/></svg>',
-};
-function deviceSvg(type) {
-  const map = {
-    Computer: 'computer', Smartphone: 'phone', Speaker: 'speaker',
-    CastVideo: 'tv', TV: 'tv', CarThing: 'car', Automobile: 'car',
-  };
-  return ICONS[map[type] || 'speaker'];
-}
 
 // ── PKCE ─────────────────────────────────────────────────────────────
 function rndStr(n) {
@@ -552,6 +522,13 @@ async function toggleLike() {
   });
 }
 
+// ── Device icon helper ────────────────────────────────────────────
+function deviceSvg(t) {
+  return { Computer: ICONS.computer, Smartphone: ICONS.phone, Speaker: ICONS.speaker,
+           CastVideo: ICONS.tv, TV: ICONS.tv,
+           CarThing: ICONS.car, Automobile: ICONS.car }[t] || ICONS.speaker;
+}
+
 // ── Render helpers ────────────────────────────────────────────────
 function renderPlayBtn() {
   $('play-btn').innerHTML = S.playing ? ICONS.pause : ICONS.play;
@@ -612,9 +589,7 @@ const RING_CIRC = 2 * Math.PI * 46;
 function renderProgress() {
   if (!S.durationMs) return;
   const frac = Math.max(0, Math.min(1, S.progressMs / S.durationMs));
-  // keep the legacy linear fill working too
   $('progress-fill').style.width = (frac * 100) + '%';
-  // drive the circular gauge ring
   const ring = document.querySelector('#gauge-ring .fill');
   if (ring) {
     ring.style.strokeDasharray  = RING_CIRC;
@@ -736,7 +711,7 @@ function logout() {
   hide('main'); show('auth-screen');
 }
 function showAuth() { hide('main'); show('auth-screen'); }
-function showMain() { hide('auth-screen'); show('main'); paintStaticIcons(); startPolling(); }
+function showMain() { hide('auth-screen'); show('main'); startPolling(); }
 
 // ── Tiny helpers ──────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -748,25 +723,13 @@ function esc(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// inject the non-stateful SVG icons once the main UI is shown
-function paintStaticIcons() {
-  $('device-icon').innerHTML = ICONS.phone;
-  $('logout-btn').innerHTML  = ICONS.power;
-  $('search-go').innerHTML   = ICONS.search;
-  $('play-btn').innerHTML    = ICONS.play;
-  const skips = document.querySelectorAll('#controls .ctrl.skip');
-  if (skips[0]) skips[0].innerHTML = ICONS.prev;
-  if (skips[1]) skips[1].innerHTML = ICONS.next;
-  const secIcons = document.querySelectorAll('#secondary .sec .icon');
-  if (secIcons[0]) secIcons[0].innerHTML = ICONS.shuffle;
-  if (secIcons[1]) secIcons[1].innerHTML = ICONS.heart;
-  if (secIcons[2]) secIcons[2].innerHTML = ICONS.people;
-  const back = document.querySelector('#results-overlay .back-btn');
-  if (back) back.innerHTML = ICONS.back + '<span>Back</span>';
-}
-
 // ── Init ──────────────────────────────────────────────────────────
 (async () => {
+  // Seed default icons so buttons aren't empty before first state fetch.
+  renderPlayBtn();
+  renderLikeBtn();
+  $('device-icon').innerHTML = ICONS.phone;
+
   const params = new URLSearchParams(location.search);
   const code   = params.get('code');
   if (code) {
