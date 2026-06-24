@@ -11,20 +11,21 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
-      --bg:     #191414;
+      --bg:     #000000;
       --bg2:    #121212;
-      --bg3:    #282828;
+      --bg3:    #1f1f1f;
       --green:  #1DB954;
       --green2: #1ed760;
       --text:   #FFFFFF;
       --muted:  #B3B3B3;
-      --border: rgba(255,255,255,0.1);
+      --border: rgba(255,255,255,0.10);
     }
 
     html, body {
       height: 100%; background: var(--bg); color: var(--text);
-      font-family: -apple-system, 'Inter', sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
       overflow: hidden; user-select: none;
+      -webkit-font-smoothing: antialiased;
     }
 
     #app {
@@ -33,25 +34,29 @@
                env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
     }
 
+    svg { display: block; }
+
     /* ── Auth ──────────────────────────────────────────────── */
     #auth-screen {
       display: flex; flex-direction: column; align-items: center;
       justify-content: center; height: 100%; gap: 24px; padding: 40px;
     }
     #auth-screen h1 {
-      font-size: 3rem; font-weight: 800; letter-spacing: -0.02em;
-      color: var(--green);
+      font-size: 3.4rem; font-weight: 800; letter-spacing: -0.03em;
+      color: var(--text);
     }
     #auth-screen p { text-align: center; color: var(--muted); font-size: 1.1rem; line-height: 1.6; }
 
     .btn-connect {
       background: var(--green);
-      color: #000000; border: none; border-radius: 20px;
-      padding: 22px 52px; font-size: 1.2rem; font-weight: 700;
+      color: #000000; border: none; border-radius: 500px;
+      padding: 20px 52px; font-size: 1.1rem; font-weight: 700;
       cursor: pointer; width: 100%; max-width: 320px;
       letter-spacing: 0.02em; margin-top: 8px;
+      transition: transform 0.1s, background 0.15s;
     }
-    .btn-connect:active { opacity: 0.85; }
+    .btn-connect:hover { background: var(--green2); }
+    .btn-connect:active { transform: scale(0.97); }
 
     #setup-note {
       font-size: 0.78rem; color: var(--muted); text-align: center;
@@ -61,106 +66,120 @@
     /* ── Header ────────────────────────────────────────────── */
     #header {
       display: flex; align-items: center; gap: 10px;
-      padding: 10px 16px; border-bottom: 1px solid var(--border);
-      flex-shrink: 0;
+      padding: 12px 16px; flex-shrink: 0;
     }
     #device-pill {
-      flex: 1; display: flex; align-items: center; gap: 8px;
+      flex: 1; display: flex; align-items: center; gap: 10px;
       background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 14px; padding: 10px 14px; cursor: pointer;
-      font-size: 0.9rem; color: var(--green); min-width: 0;
+      border-radius: 500px; padding: 10px 16px; cursor: pointer;
+      font-size: 0.92rem; font-weight: 600; color: var(--green); min-width: 0;
+      transition: background 0.15s;
     }
+    #device-pill:active { background: #2a2a2a; }
+    #device-pill #device-icon { display: flex; flex-shrink: 0; }
+    #device-pill #device-icon svg { width: 20px; height: 20px; }
     #device-pill .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
-    #device-pill .caret { color: var(--muted); flex-shrink: 0; }
+    #device-pill .caret { color: var(--muted); flex-shrink: 0; font-size: 0.7rem; }
     #logout-btn {
       background: none; border: none; color: var(--muted);
-      font-size: 1.2rem; padding: 10px; cursor: pointer; flex-shrink: 0;
+      padding: 10px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
     }
+    #logout-btn svg { width: 24px; height: 24px; }
+    #logout-btn:active { color: var(--text); }
 
     /* ── Now Playing ───────────────────────────────────────── */
     #now-playing {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 16px 24px; gap: 10px; text-align: center; min-height: 0;
+      padding: 12px 28px; gap: 18px; text-align: center; min-height: 0;
     }
     #album-art {
-      width: min(180px, 40vw); height: min(180px, 40vw);
-      border-radius: 16px; object-fit: cover;
+      width: min(300px, 62vw); height: min(300px, 62vw);
+      border-radius: 12px; object-fit: cover;
       background: var(--bg3);
-      box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+      box-shadow: 0 24px 60px rgba(0,0,0,0.7);
       flex-shrink: 0;
     }
     #album-art.hidden { display: none; }
     #track-name {
-      font-size: clamp(1.15rem, 5vw, 1.7rem); font-weight: 700;
-      line-height: 1.2; max-width: 340px;
+      font-size: clamp(1.4rem, 6vw, 2.3rem); font-weight: 800;
+      line-height: 1.15; letter-spacing: -0.02em; max-width: 92%;
     }
-    #artist-name { font-size: clamp(0.95rem, 3.5vw, 1.2rem); color: var(--muted); }
+    #artist-name { font-size: clamp(1rem, 4vw, 1.3rem); font-weight: 500; color: var(--muted); }
     #progress-wrap {
-      width: 100%; max-width: 360px; height: 4px;
-      background: var(--bg3); border-radius: 2px; overflow: hidden;
+      width: 100%; max-width: 420px; height: 5px;
+      background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden;
+      margin-top: 4px;
     }
     #progress-fill {
       height: 100%; width: 0%;
-      background: var(--green);
-      border-radius: 2px; transition: width 1s linear;
+      background: var(--text);
+      border-radius: 3px; transition: width 1s linear;
     }
 
     /* ── Big Controls ──────────────────────────────────────── */
     #controls {
       display: flex; align-items: center; justify-content: center;
-      gap: 14px; padding: 12px 20px; flex-shrink: 0;
+      gap: 22px; padding: 14px 20px; flex-shrink: 0;
     }
     .ctrl {
-      border-radius: 20px; border: 1px solid var(--border);
-      background: var(--bg3); color: var(--text);
+      border-radius: 50%; border: none;
+      background: transparent; color: var(--text);
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; transition: transform 0.1s, background 0.15s;
-      font-size: 2rem; flex-shrink: 0;
+      cursor: pointer; transition: transform 0.1s, background 0.15s, color 0.15s;
+      flex-shrink: 0; padding: 0;
     }
-    .ctrl:active { transform: scale(0.91); }
-    .ctrl.skip { width: 88px; height: 88px; }
+    .ctrl:active { transform: scale(0.90); }
+    .ctrl.skip { width: 92px; height: 92px; color: var(--text); }
+    .ctrl.skip:active { background: rgba(255,255,255,0.08); }
+    .ctrl.skip svg { width: 52px; height: 52px; }
     .ctrl.play {
-      width: 108px; height: 108px; font-size: 2.4rem;
+      width: 116px; height: 116px;
       background: var(--green);
-      color: #000000; border: none;
+      color: #000000;
     }
-    .ctrl.play:active { transform: scale(0.91); opacity: 0.9; }
+    .ctrl.play svg { width: 56px; height: 56px; }
+    .ctrl.play:hover { background: var(--green2); }
+    .ctrl.play:active { transform: scale(0.93); }
 
     /* ── Secondary Controls ────────────────────────────────── */
     #secondary {
-      display: flex; gap: 10px; padding: 0 16px 12px; flex-shrink: 0;
+      display: flex; gap: 12px; padding: 8px 16px 14px; flex-shrink: 0;
     }
     .sec {
       flex: 1; background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 16px; color: var(--muted); padding: 14px 6px;
-      font-size: 0.8rem; cursor: pointer;
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
-      transition: color 0.15s, border-color 0.15s;
+      border-radius: 14px; color: var(--muted); padding: 14px 6px;
+      font-size: 0.78rem; font-weight: 600; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
     }
-    .sec .icon { font-size: 1.35rem; }
-    .sec.on { color: var(--green); border-color: rgba(29,185,84,0.4); }
-    .sec.liked { color: var(--green); border-color: rgba(29,185,84,0.4); }
-    .sec:active { opacity: 0.7; }
+    .sec .icon { display: flex; align-items: center; justify-content: center; }
+    .sec .icon svg { width: 24px; height: 24px; }
+    .sec.on { color: var(--green); border-color: rgba(29,185,84,0.45); }
+    .sec.liked { color: var(--green); border-color: rgba(29,185,84,0.45); }
+    .sec:active { background: #2a2a2a; }
 
     /* ── Search Bar ────────────────────────────────────────── */
     #search-bar {
-      display: flex; gap: 10px; padding: 0 16px 16px; flex-shrink: 0;
+      display: flex; gap: 10px; padding: 0 16px 18px; flex-shrink: 0;
     }
     #search-input {
       flex: 1; background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 16px; color: var(--text); font-size: 1.05rem;
-      padding: 15px 18px; outline: none;
+      border-radius: 500px; color: var(--text); font-size: 1.05rem;
+      padding: 15px 20px; outline: none;
       -webkit-appearance: none; appearance: none;
     }
     #search-input::placeholder { color: var(--muted); }
-    #search-input:focus { border-color: var(--green); }
+    #search-input:focus { border-color: var(--text); }
     #search-go {
       background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 16px; color: var(--green); padding: 15px 18px;
-      font-size: 1.3rem; cursor: pointer; flex-shrink: 0;
+      border-radius: 50%; color: var(--green); width: 54px;
+      cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
     }
-    #search-go:active { opacity: 0.7; }
+    #search-go svg { width: 24px; height: 24px; }
+    #search-go:active { background: #2a2a2a; }
 
     /* ── No-device Banner ──────────────────────────────────── */
     #no-device {
@@ -172,26 +191,28 @@
 
     /* ── Device Sheet ──────────────────────────────────────── */
     #device-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
       display: flex; align-items: flex-end; z-index: 200;
     }
     #device-sheet {
-      background: var(--bg2); border-radius: 24px 24px 0 0;
+      background: var(--bg2); border-radius: 20px 20px 0 0;
       padding: 24px 20px; width: 100%; max-height: 65vh; overflow-y: auto;
     }
-    .sheet-title { font-size: 1.1rem; font-weight: 700; color: var(--green); margin-bottom: 14px; }
+    .sheet-title { font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 16px; }
     .device-row {
       display: flex; align-items: center; gap: 14px;
-      padding: 14px 12px; border-radius: 14px; cursor: pointer;
+      padding: 14px 12px; border-radius: 12px; cursor: pointer;
       border: 1px solid transparent; margin-bottom: 8px;
     }
     .device-row:active, .device-row.current {
-      background: var(--bg3); border-color: rgba(29,185,84,0.4);
+      background: var(--bg3); border-color: rgba(29,185,84,0.45);
     }
-    .device-icon { font-size: 1.7rem; }
+    .device-icon { display: flex; align-items: center; justify-content: center; color: var(--green); }
+    .device-icon svg { width: 26px; height: 26px; }
     .device-name { font-size: 1rem; font-weight: 600; }
     .device-type { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
-    .device-check { margin-left: auto; color: var(--green); font-size: 1.1rem; }
+    .device-check { margin-left: auto; color: var(--green); display: flex; align-items: center; }
+    .device-check svg { width: 22px; height: 22px; }
 
     /* ── Search Results Overlay ────────────────────────────── */
     #results-overlay {
@@ -201,18 +222,19 @@
       gap: 10px; overflow-y: auto;
     }
     .back-btn {
-      background: none; border: none; color: var(--green);
-      font-size: 1rem; padding: 6px 0 10px; cursor: pointer;
-      display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+      background: none; border: none; color: var(--text);
+      font-size: 1rem; font-weight: 600; padding: 6px 0 10px; cursor: pointer;
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
     }
+    .back-btn svg { width: 22px; height: 22px; }
     .result-row {
       display: flex; align-items: center; gap: 14px;
       padding: 12px 14px; background: var(--bg3);
-      border-radius: 14px; cursor: pointer; border: 1px solid var(--border);
+      border-radius: 12px; cursor: pointer; border: 1px solid var(--border);
       flex-shrink: 0;
     }
-    .result-row:active { opacity: 0.75; }
-    .result-row img { width: 52px; height: 52px; border-radius: 8px; flex-shrink: 0; object-fit: cover; }
+    .result-row:active { background: #2a2a2a; }
+    .result-row img { width: 52px; height: 52px; border-radius: 6px; flex-shrink: 0; object-fit: cover; }
     .result-track { font-size: 0.95rem; font-weight: 600; }
     .result-artist { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
 
@@ -233,7 +255,6 @@
       Requires a free Spotify Developer app.<br>
       Set <code>CLIENT_ID</code> at the top of this file.
     </p>
-    <p id="debug-uri" style="font-size:0.7rem;color:#666;word-break:break-all;max-width:320px;text-align:center;"></p>
   </div>
 
   <!-- ── Main UI ────────────────────────────────────────────── -->
@@ -241,39 +262,45 @@
 
     <div id="header">
       <div id="device-pill" onclick="openDevices()">
-        <span id="device-icon">📱</span>
+        <span id="device-icon"></span>
         <span id="device-label" class="label">Select device</span>
-        <span class="caret">▾</span>
+        <span class="caret">&#9662;</span>
       </div>
-      <button id="logout-btn" onclick="logout()" title="Disconnect">⏏</button>
+      <button id="logout-btn" onclick="logout()" title="Disconnect" aria-label="Disconnect">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>
+      </button>
     </div>
 
     <div id="no-device" class="hidden">
-      Open Spotify on any device first, then select it above ↑
+      Open Spotify on any device first, then select it above &#8593;
     </div>
 
     <div id="now-playing">
       <img id="album-art" class="hidden" src="" alt="">
       <div id="track-name">Nothing playing</div>
-      <div id="artist-name">—</div>
+      <div id="artist-name">&mdash;</div>
       <div id="progress-wrap"><div id="progress-fill"></div></div>
     </div>
 
     <div id="controls">
-      <button class="ctrl skip" onclick="prev()">⏮</button>
-      <button class="ctrl play" id="play-btn" onclick="togglePlay()">▶</button>
-      <button class="ctrl skip" onclick="next()">⏭</button>
+      <button class="ctrl skip" onclick="prev()" aria-label="Previous">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+      </button>
+      <button class="ctrl play" id="play-btn" onclick="togglePlay()" aria-label="Play/Pause"></button>
+      <button class="ctrl skip" onclick="next()" aria-label="Next">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
+      </button>
     </div>
 
     <div id="secondary">
       <button class="sec" id="shuffle-btn" onclick="toggleShuffle()">
-        <span class="icon">⇄</span><span>Shuffle</span>
+        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></span><span>Shuffle</span>
       </button>
       <button class="sec" id="like-btn" onclick="toggleLike()">
-        <span class="icon">♡</span><span>Like</span>
+        <span class="icon"></span><span>Like</span>
       </button>
       <button class="sec" onclick="jamTap()">
-        <span class="icon">👥</span><span>Jam</span>
+        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05A4.4 4.4 0 0 1 17 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></span><span>Jam</span>
       </button>
     </div>
 
@@ -281,7 +308,9 @@
       <input id="search-input" type="search" placeholder="Search songs, artists…"
              enterkeyhint="search" autocomplete="off"
              onkeydown="if(event.key==='Enter'){event.preventDefault();doSearch();}">
-      <button id="search-go" onclick="doSearch()">🔍</button>
+      <button id="search-go" onclick="doSearch()" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      </button>
     </div>
 
   </div><!-- /main -->
@@ -296,13 +325,30 @@
 
   <!-- ── Search Results Overlay ─────────────────────────────── -->
   <div id="results-overlay" class="hidden">
-    <button class="back-btn" onclick="closeSearch()">← Back</button>
+    <button class="back-btn" onclick="closeSearch()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
+      <span>Back</span>
+    </button>
     <div id="results-list"></div>
   </div>
 
 </div><!-- /app -->
 
 <script>
+// ── ICONS (inline SVG strings, colour via currentColor) ─────────────
+const ICONS = {
+  play:        '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+  pause:       '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
+  heart:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
+  heartFilled: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
+  check:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
+  computer:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>',
+  phone:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
+  speaker:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="14" r="3.5"/><circle cx="12" cy="6" r="1"/></svg>',
+  car:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 21 8l2 5v5h-3v-2H6v2H3z"/><circle cx="7.5" cy="15.5" r="1.5"/><circle cx="16.5" cy="15.5" r="1.5"/></svg>',
+  tv:          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1"/><path d="M8 21h8"/></svg>',
+};
+
 // ── CONFIG — fill this in before using ──────────────────────────────
 const CLIENT_ID = '8a2fa6f88fac444290f3d0c81e390346';
 // Get one free at: https://developer.spotify.com/dashboard
@@ -334,8 +380,6 @@ async function authorize() {
     alert('Set CLIENT_ID in this file first.\nSee the comment at the top of the <script> block.');
     return;
   }
-  console.log('Redirect URI:', REDIRECT_URI);
-  alert('Redirect URI being used:\n\n' + REDIRECT_URI + '\n\nMake sure this is registered exactly in your Spotify dashboard.');
   const v = rndStr(128);
   sessionStorage.setItem('pkce_v', v);
   const params = new URLSearchParams({
@@ -447,16 +491,23 @@ async function toggleLike() {
   });
 }
 
+// ── Device icon helper ────────────────────────────────────────────
+function deviceSvg(t) {
+  return { Computer: ICONS.computer, Smartphone: ICONS.phone, Speaker: ICONS.speaker,
+           CastVideo: ICONS.tv, TV: ICONS.tv,
+           CarThing: ICONS.car, Automobile: ICONS.car }[t] || ICONS.speaker;
+}
+
 // ── Render helpers ────────────────────────────────────────────────
 function renderPlayBtn() {
-  $('play-btn').textContent = S.playing ? '⏸' : '▶';
+  $('play-btn').innerHTML = S.playing ? ICONS.pause : ICONS.play;
 }
 function renderShuffleBtn() {
   $('shuffle-btn').classList.toggle('on', S.shuffle);
 }
 function renderLikeBtn() {
   const btn = $('like-btn');
-  btn.querySelector('.icon').textContent = S.liked ? '♥' : '♡';
+  btn.querySelector('.icon').innerHTML = S.liked ? ICONS.heartFilled : ICONS.heart;
   btn.classList.toggle('liked', S.liked);
 }
 
@@ -491,7 +542,7 @@ async function fetchState() {
 
     if (d.device) {
       $('device-label').textContent = d.device.name;
-      $('device-icon').textContent  = deviceEmoji(d.device.type);
+      $('device-icon').innerHTML    = deviceSvg(d.device.type);
     }
 
     renderPlayBtn();
@@ -543,12 +594,12 @@ async function openDevices() {
     list.innerHTML = devs.map(dev => `
       <div class="device-row ${dev.id === S.deviceId ? 'current' : ''}"
            onclick="pickDevice('${esc(dev.id)}','${esc(dev.name)}','${esc(dev.type)}')">
-        <span class="device-icon">${deviceEmoji(dev.type)}</span>
+        <span class="device-icon">${deviceSvg(dev.type)}</span>
         <div>
           <div class="device-name">${esc(dev.name)}</div>
           <div class="device-type">${dev.type}${dev.is_active ? ' · active' : ''}</div>
         </div>
-        ${dev.id === S.deviceId ? '<span class="device-check">✓</span>' : ''}
+        ${dev.id === S.deviceId ? '<span class="device-check">' + ICONS.check + '</span>' : ''}
       </div>
     `).join('');
   } catch(e) {
@@ -558,16 +609,12 @@ async function openDevices() {
 function pickDevice(id, name, type) {
   S.deviceId = id;
   $('device-label').textContent = name;
-  $('device-icon').textContent  = deviceEmoji(type);
+  $('device-icon').innerHTML    = deviceSvg(type);
   hide('device-overlay');
   $('no-device').classList.add('hidden');
   api('/me/player', 'PUT', { device_ids: [id], play: S.playing }).catch(() => {});
 }
 function closeDevicesOnBg(e) { if (e.target.id === 'device-overlay') hide('device-overlay'); }
-function deviceEmoji(t) {
-  return { Computer:'💻', Smartphone:'📱', Speaker:'🔊', CastVideo:'📺',
-           CarThing:'🚗', Automobile:'🚗', TV:'📺' }[t] || '🎵';
-}
 
 // ── Search ────────────────────────────────────────────────────────
 async function doSearch() {
@@ -639,8 +686,11 @@ function esc(s) {
 
 // ── Init ──────────────────────────────────────────────────────────
 (async () => {
-  const el = document.getElementById('debug-uri');
-  if (el) el.textContent = 'URI: ' + REDIRECT_URI;
+  // Seed default icons so buttons aren't empty before first state fetch.
+  renderPlayBtn();
+  renderLikeBtn();
+  $('device-icon').innerHTML = ICONS.phone;
+
   const params = new URLSearchParams(location.search);
   const code   = params.get('code');
   if (code) {
