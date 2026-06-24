@@ -333,6 +333,8 @@ async function authorize() {
     alert('Set CLIENT_ID in this file first.\nSee the comment at the top of the <script> block.');
     return;
   }
+  console.log('Redirect URI:', REDIRECT_URI);
+  alert('Redirect URI being used:\n\n' + REDIRECT_URI + '\n\nMake sure this is registered exactly in your Spotify dashboard.');
   const v = rndStr(128);
   sessionStorage.setItem('pkce_v', v);
   const params = new URLSearchParams({
