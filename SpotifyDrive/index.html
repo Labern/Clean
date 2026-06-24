@@ -233,6 +233,7 @@
       Requires a free Spotify Developer app.<br>
       Set <code>CLIENT_ID</code> at the top of this file.
     </p>
+    <p id="debug-uri" style="font-size:0.7rem;color:#666;word-break:break-all;max-width:320px;text-align:center;"></p>
   </div>
 
   <!-- ── Main UI ────────────────────────────────────────────── -->
@@ -638,6 +639,8 @@ function esc(s) {
 
 // ── Init ──────────────────────────────────────────────────────────
 (async () => {
+  const el = document.getElementById('debug-uri');
+  if (el) el.textContent = 'URI: ' + REDIRECT_URI;
   const params = new URLSearchParams(location.search);
   const code   = params.get('code');
   if (code) {
