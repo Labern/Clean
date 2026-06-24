@@ -575,7 +575,7 @@ async function doSearch() {
   const list = $('results-list');
   list.innerHTML = '<div style="color:var(--muted);padding:20px 0">Searching…</div>';
   try {
-    const d = await api(`/search?q=${encodeURIComponent(q)}&type=track&limit=25`);
+    const d = await api(`/search?q=${encodeURIComponent(q)}&type=track&limit=10`);
     const tracks = d?.tracks?.items || [];
     if (!tracks.length) {
       list.innerHTML = '<div style="color:var(--muted);padding:20px 0">No results.</div>';
