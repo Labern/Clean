@@ -11,66 +11,41 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
-      /* Aurora gradient stops — driven by album art, fall back to Spotify dark */
-      --aur1: #1e3a34;
-      --aur2: #0f1d2b;
-      --aur3: #2a1438;
-      --aur4: #060809;
-      --glass:      rgba(255,255,255,0.10);
-      --glass-soft: rgba(255,255,255,0.06);
-      --glass-line: rgba(255,255,255,0.16);
+      --bg:     #050607;
+      --bg2:    #0b0d0e;
+      --bg3:    #15181a;
+      --panel:  #0e1112;
       --green:  #1DB954;
       --green2: #1ed760;
       --text:   #FFFFFF;
-      --muted:  rgba(255,255,255,0.66);
-      --pink:   #f472b6;
+      --muted:  #8b9296;
+      --border: rgba(255,255,255,0.07);
+      --ring-track: rgba(255,255,255,0.08);
+      --glow:   0 0 0px rgba(30,215,96,0);
     }
 
     html, body {
-      height: 100%; color: var(--text);
-      font-family: -apple-system, 'Inter', sans-serif;
+      height: 100%; background: var(--bg); color: var(--text);
+      font-family: -apple-system, 'Inter', system-ui, sans-serif;
       overflow: hidden; user-select: none;
-      background: #060809;
     }
-
-    /* ── Aurora background ─────────────────────────────────────
-       Two layered drifting gradients tinted by album-art colours. */
-    #aurora-bg {
-      position: fixed; inset: -20%; z-index: -2;
+    /* radial vignette so the green gauge reads like a lit instrument cluster */
+    body::before {
+      content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
       background:
-        radial-gradient(60% 55% at 22% 28%, var(--aur1) 0%, transparent 62%),
-        radial-gradient(58% 60% at 80% 22%, var(--aur3) 0%, transparent 60%),
-        radial-gradient(70% 65% at 70% 82%, var(--aur2) 0%, transparent 66%),
-        radial-gradient(80% 80% at 30% 75%, var(--aur4) 0%, transparent 70%),
-        linear-gradient(160deg, var(--aur2), var(--aur4));
-      filter: saturate(1.15);
-      animation: drift 26s ease-in-out infinite alternate;
-      transition: background 1.4s ease;
-      will-change: transform;
-    }
-    #aurora-veil {
-      position: fixed; inset: 0; z-index: -1; pointer-events: none;
-      background:
-        radial-gradient(120% 90% at 50% 0%, transparent 40%, rgba(0,0,0,0.35) 100%),
-        linear-gradient(180deg, rgba(0,0,0,0.18) 0%, rgba(0,0,0,0.42) 100%);
-    }
-    @keyframes drift {
-      0%   { transform: translate3d(-2%, -1%, 0) scale(1.04) rotate(0deg); }
-      50%  { transform: translate3d(2%, 1.5%, 0) scale(1.10) rotate(1.2deg); }
-      100% { transform: translate3d(-1.5%, 2%, 0) scale(1.05) rotate(-1deg); }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      #aurora-bg { animation: none; }
+        radial-gradient(120% 80% at 50% 38%, rgba(29,185,84,0.10), transparent 60%),
+        radial-gradient(140% 100% at 50% 120%, rgba(0,0,0,0.6), transparent 50%);
     }
 
     #app {
+      position: relative; z-index: 1;
       height: 100dvh; display: flex; flex-direction: column;
       padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
                env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
-      position: relative; z-index: 1;
     }
 
     svg { display: block; }
+    .ico { width: 1em; height: 1em; }
 
     /* ── Auth ──────────────────────────────────────────────── */
     #auth-screen {
@@ -78,252 +53,237 @@
       justify-content: center; height: 100%; gap: 24px; padding: 40px;
     }
     #auth-screen h1 {
-      font-size: 3.4rem; font-weight: 800; letter-spacing: -0.03em;
-      background: linear-gradient(120deg, #fff, var(--green2) 60%, #7ef0c0);
-      -webkit-background-clip: text; background-clip: text;
-      -webkit-text-fill-color: transparent;
-      text-shadow: 0 8px 40px rgba(30,215,96,0.25);
+      font-size: 3.4rem; font-weight: 800; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--text);
     }
-    #auth-screen p { text-align: center; color: var(--muted); font-size: 1.1rem; line-height: 1.6; }
+    #auth-screen h1 span { color: var(--green); text-shadow: 0 0 26px rgba(30,215,96,0.55); }
+    #auth-screen p { text-align: center; color: var(--muted); font-size: 1.05rem; line-height: 1.6; letter-spacing: 0.01em; }
 
     .btn-connect {
-      background: linear-gradient(135deg, var(--green2), var(--green));
-      color: #062b14; border: none; border-radius: 22px;
-      padding: 22px 52px; font-size: 1.2rem; font-weight: 800;
+      background: var(--green);
+      color: #000000; border: none; border-radius: 18px;
+      padding: 22px 52px; font-size: 1.1rem; font-weight: 800;
       cursor: pointer; width: 100%; max-width: 320px;
-      letter-spacing: 0.02em; margin-top: 8px;
-      box-shadow: 0 14px 44px rgba(30,215,96,0.4);
+      letter-spacing: 0.06em; text-transform: uppercase; margin-top: 8px;
+      box-shadow: 0 0 36px rgba(30,215,96,0.35);
     }
-    .btn-connect:active { transform: scale(0.97); opacity: 0.92; }
+    .btn-connect:active { opacity: 0.85; transform: scale(0.985); }
 
     #setup-note {
-      font-size: 0.78rem; color: var(--muted); text-align: center;
-      max-width: 280px; line-height: 1.5;
+      font-size: 0.74rem; color: var(--muted); text-align: center;
+      max-width: 280px; line-height: 1.5; letter-spacing: 0.02em;
     }
-    #setup-note code {
-      font-family: 'JetBrains Mono', ui-monospace, monospace;
-      color: #fff; background: rgba(255,255,255,0.1);
-      padding: 1px 5px; border-radius: 5px;
-    }
-
-    /* Frosted surface mixin look */
-    .glass {
-      background: var(--glass);
-      backdrop-filter: blur(22px) saturate(1.4);
-      -webkit-backdrop-filter: blur(22px) saturate(1.4);
-      border: 1px solid var(--glass-line);
-    }
+    #setup-note code { font-family: 'JetBrains Mono', ui-monospace, monospace; color: var(--green2); }
 
     /* ── Header ────────────────────────────────────────────── */
     #header {
-      display: flex; align-items: center; gap: 10px;
-      padding: 12px 16px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 18px 10px; flex-shrink: 0;
     }
     #device-pill {
-      flex: 1; display: flex; align-items: center; gap: 10px;
-      background: var(--glass);
-      backdrop-filter: blur(22px) saturate(1.4);
-      -webkit-backdrop-filter: blur(22px) saturate(1.4);
-      border: 1px solid var(--glass-line);
-      border-radius: 16px; padding: 11px 15px; cursor: pointer;
-      font-size: 0.92rem; color: #fff; min-width: 0;
-      box-shadow: 0 6px 22px rgba(0,0,0,0.25);
+      flex: 1; display: flex; align-items: center; gap: 12px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 16px; padding: 13px 16px; cursor: pointer;
+      font-size: 0.92rem; color: var(--text); min-width: 0;
+      transition: border-color 0.15s;
     }
-    #device-pill #device-icon { display: flex; flex-shrink: 0; color: var(--green2); }
-    #device-pill #device-icon svg { width: 20px; height: 20px; }
-    #device-pill .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-weight: 600; }
-    #device-pill .caret { color: var(--muted); flex-shrink: 0; font-size: 0.8rem; }
+    #device-pill:active { border-color: rgba(30,215,96,0.4); }
+    #device-icon { display: flex; align-items: center; color: var(--green); font-size: 1.25rem; flex-shrink: 0; }
+    #device-pill .label {
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
+      font-weight: 600; letter-spacing: 0.01em;
+    }
+    #device-pill .caret { color: var(--muted); flex-shrink: 0; font-size: 0.85rem; }
     #logout-btn {
-      background: var(--glass); border: 1px solid var(--glass-line);
-      backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
-      color: var(--muted); padding: 10px; cursor: pointer; flex-shrink: 0;
-      border-radius: 14px; display: flex; align-items: center; justify-content: center;
+      background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
+      width: 48px; height: 48px; border-radius: 16px; padding: 0; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
     }
-    #logout-btn svg { width: 20px; height: 20px; }
-    #logout-btn:active { opacity: 0.7; }
+    #logout-btn:active { color: var(--text); }
 
     /* ── Now Playing ───────────────────────────────────────── */
     #now-playing {
       flex: 1; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 12px 24px; gap: 14px; text-align: center; min-height: 0;
+      padding: 8px 24px; gap: 22px; text-align: center; min-height: 0;
     }
+
+    /* Gauge: big circular play button wrapped by an SVG progress ring */
+    #gauge {
+      position: relative; flex-shrink: 0;
+      width: min(190px, 56vw); height: min(190px, 56vw);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #gauge-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+    #gauge-ring .track { fill: none; stroke: var(--ring-track); stroke-width: 5; }
+    #gauge-ring .fill {
+      fill: none; stroke: var(--green); stroke-width: 5; stroke-linecap: round;
+      filter: drop-shadow(0 0 6px rgba(30,215,96,0.65));
+      transition: stroke-dashoffset 1s linear;
+    }
+    #play-btn {
+      position: relative; z-index: 2;
+      width: 74%; height: 74%; border-radius: 50%;
+      background: radial-gradient(120% 120% at 50% 30%, var(--green2), var(--green));
+      color: #000; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 4.2rem;
+      box-shadow: 0 0 44px rgba(30,215,96,0.45), inset 0 2px 6px rgba(255,255,255,0.25);
+      transition: transform 0.1s ease, box-shadow 0.2s;
+    }
+    #play-btn:active { transform: scale(0.94); box-shadow: 0 0 26px rgba(30,215,96,0.3); }
+    #play-btn .ico { width: 1em; height: 1em; }
+
+    /* album art reduced to a tiny chip badge so the gauge is the hero */
     #album-art {
-      width: min(220px, 46vw); height: min(220px, 46vw);
-      border-radius: 22px; object-fit: cover;
-      background: rgba(255,255,255,0.06);
-      box-shadow: 0 26px 70px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08);
-      flex-shrink: 0;
+      position: absolute; bottom: -6px; right: -6px; z-index: 3;
+      width: 44px; height: 44px; border-radius: 12px; object-fit: cover;
+      background: var(--bg3); border: 2px solid var(--bg);
+      box-shadow: 0 6px 18px rgba(0,0,0,0.6);
     }
     #album-art.hidden { display: none; }
+
+    .readout { display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: 92vw; }
     #track-name {
-      font-size: clamp(1.3rem, 6.4vw, 2.3rem); font-weight: 800;
-      line-height: 1.15; max-width: 360px; letter-spacing: -0.02em;
-      text-shadow: 0 2px 18px rgba(0,0,0,0.55);
+      font-size: clamp(1.7rem, 8vw, 2.6rem); font-weight: 800;
+      line-height: 1.05; letter-spacing: -0.02em;
+      max-width: 92vw; overflow: hidden; text-overflow: ellipsis;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
     }
     #artist-name {
       font-size: clamp(1rem, 4vw, 1.25rem); color: var(--muted);
-      font-weight: 600; text-shadow: 0 1px 10px rgba(0,0,0,0.5);
-    }
-    #progress-wrap {
-      width: 100%; max-width: 380px; height: 6px;
-      background: rgba(255,255,255,0.15); border-radius: 3px; overflow: hidden;
-      margin-top: 2px;
-    }
-    #progress-fill {
-      height: 100%; width: 0%;
-      background: linear-gradient(90deg, #fff, var(--green2));
-      border-radius: 3px; transition: width 1s linear;
-      box-shadow: 0 0 12px rgba(255,255,255,0.5);
+      font-weight: 600; letter-spacing: 0.02em;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 92vw;
     }
 
-    /* ── Big Controls ──────────────────────────────────────── */
+    /* slim linear progress kept (hidden) for compatibility; ring is the visible one */
+    #progress-wrap {
+      width: 100%; max-width: 360px; height: 3px;
+      background: var(--bg3); border-radius: 2px; overflow: hidden;
+      display: none;
+    }
+    #progress-fill {
+      height: 100%; width: 0%; background: var(--green);
+      border-radius: 2px; transition: width 1s linear;
+    }
+
+    /* ── Big Controls (prev / gauge / next) ────────────────── */
     #controls {
       display: flex; align-items: center; justify-content: center;
-      gap: 18px; padding: 8px 20px 14px; flex-shrink: 0;
+      gap: 22px; padding: 4px 20px 6px; flex-shrink: 0;
     }
     .ctrl {
-      border-radius: 50%;
-      background: var(--glass);
-      backdrop-filter: blur(20px) saturate(1.4);
-      -webkit-backdrop-filter: blur(20px) saturate(1.4);
-      border: 1px solid var(--glass-line);
-      color: #fff;
+      border-radius: 50%; border: 1px solid var(--border);
+      background: var(--bg3); color: var(--text);
       display: flex; align-items: center; justify-content: center;
-      cursor: pointer; transition: transform 0.12s, background 0.2s;
-      flex-shrink: 0; box-shadow: 0 10px 32px rgba(0,0,0,0.35);
+      cursor: pointer; transition: transform 0.1s, background 0.15s, border-color 0.15s;
+      flex-shrink: 0;
     }
-    .ctrl:active { transform: scale(0.9); }
-    .ctrl.skip { width: 92px; height: 92px; }
-    .ctrl.skip svg { width: 40px; height: 40px; }
-    .ctrl.play {
-      width: 116px; height: 116px;
-      background: linear-gradient(135deg, var(--green2), var(--green));
-      color: #052910; border: none;
-      box-shadow: 0 16px 46px rgba(30,215,96,0.5);
-    }
-    .ctrl.play svg { width: 54px; height: 54px; }
-    .ctrl.play:active { transform: scale(0.9); opacity: 0.92; }
+    .ctrl:active { transform: scale(0.9); border-color: rgba(30,215,96,0.45); }
+    .ctrl.skip { width: 76px; height: 76px; font-size: 2.1rem; }
+    .ctrl.skip .ico { width: 1em; height: 1em; }
+    /* .ctrl.play styling lives in #play-btn / #gauge above */
 
     /* ── Secondary Controls ────────────────────────────────── */
     #secondary {
-      display: flex; gap: 12px; padding: 0 16px 12px; flex-shrink: 0;
+      display: flex; gap: 12px; padding: 16px 18px 12px; flex-shrink: 0;
     }
     .sec {
-      flex: 1;
-      background: var(--glass-soft);
-      backdrop-filter: blur(18px) saturate(1.3);
-      -webkit-backdrop-filter: blur(18px) saturate(1.3);
-      border: 1px solid var(--glass-line);
-      border-radius: 18px; color: var(--muted); padding: 14px 6px;
-      font-size: 0.78rem; font-weight: 600; cursor: pointer;
-      display: flex; flex-direction: column; align-items: center; gap: 5px;
+      flex: 1; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 18px; color: var(--muted); padding: 15px 6px;
+      font-size: 0.72rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 7px;
       transition: color 0.15s, border-color 0.15s, background 0.15s;
     }
-    .sec .icon { display: flex; }
-    .sec .icon svg { width: 24px; height: 24px; }
-    .sec.on, .sec.liked {
-      color: var(--green2); border-color: rgba(30,215,96,0.55);
-      background: rgba(30,215,96,0.12);
-    }
+    .sec .icon { display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+    .sec .icon .ico { width: 1em; height: 1em; }
+    .sec.on { color: var(--green); border-color: rgba(29,185,84,0.45); background: rgba(29,185,84,0.06); }
+    .sec.liked { color: var(--green); border-color: rgba(29,185,84,0.45); background: rgba(29,185,84,0.06); }
     .sec:active { opacity: 0.7; }
 
     /* ── Search Bar ────────────────────────────────────────── */
     #search-bar {
-      display: flex; gap: 12px; padding: 0 16px 18px; flex-shrink: 0;
+      display: flex; gap: 12px; padding: 0 18px 18px; flex-shrink: 0;
     }
     #search-input {
-      flex: 1;
-      background: var(--glass-soft);
-      backdrop-filter: blur(18px) saturate(1.3);
-      -webkit-backdrop-filter: blur(18px) saturate(1.3);
-      border: 1px solid var(--glass-line);
-      border-radius: 18px; color: var(--text); font-size: 1.05rem;
-      padding: 16px 20px; outline: none;
+      flex: 1; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 18px; color: var(--text); font-size: 1.05rem; font-weight: 500;
+      padding: 16px 18px; outline: none;
       -webkit-appearance: none; appearance: none;
     }
     #search-input::placeholder { color: var(--muted); }
-    #search-input:focus { border-color: var(--green2); }
+    #search-input:focus { border-color: var(--green); }
     #search-go {
-      background: var(--glass);
-      backdrop-filter: blur(18px) saturate(1.3);
-      -webkit-backdrop-filter: blur(18px) saturate(1.3);
-      border: 1px solid var(--glass-line);
-      border-radius: 18px; color: var(--green2); padding: 14px 18px;
-      cursor: pointer; flex-shrink: 0;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 18px; color: var(--green); padding: 0 20px;
+      font-size: 1.45rem; cursor: pointer; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center;
     }
-    #search-go svg { width: 24px; height: 24px; }
+    #search-go .ico { width: 1em; height: 1em; }
     #search-go:active { opacity: 0.7; }
 
     /* ── No-device Banner ──────────────────────────────────── */
     #no-device {
-      margin: 0 16px 10px; padding: 12px 14px;
-      background: var(--glass-soft); border: 1px solid var(--glass-line);
-      backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+      margin: 0 18px 10px; padding: 12px 14px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12);
       border-radius: 14px; color: var(--muted); font-size: 0.85rem;
-      text-align: center; flex-shrink: 0;
+      text-align: center; flex-shrink: 0; letter-spacing: 0.01em;
     }
 
     /* ── Device Sheet ──────────────────────────────────────── */
     #device-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
-      backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
       display: flex; align-items: flex-end; z-index: 200;
     }
     #device-sheet {
-      background: rgba(20,22,26,0.72);
-      backdrop-filter: blur(34px) saturate(1.5);
-      -webkit-backdrop-filter: blur(34px) saturate(1.5);
-      border-top: 1px solid var(--glass-line);
-      border-radius: 26px 26px 0 0;
-      padding: 24px 20px calc(24px + env(safe-area-inset-bottom, 0px));
+      background: var(--bg2); border: 1px solid var(--border); border-bottom: none;
+      border-radius: 28px 28px 0 0;
+      padding: 26px 20px calc(env(safe-area-inset-bottom, 0px) + 24px);
       width: 100%; max-height: 65vh; overflow-y: auto;
     }
-    .sheet-title { font-size: 1.1rem; font-weight: 800; color: #fff; margin-bottom: 14px; }
+    .sheet-title {
+      font-size: 0.85rem; font-weight: 700; color: var(--muted);
+      letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 16px;
+    }
     .device-row {
-      display: flex; align-items: center; gap: 14px;
-      padding: 14px 12px; border-radius: 16px; cursor: pointer;
-      border: 1px solid transparent; margin-bottom: 8px;
+      display: flex; align-items: center; gap: 16px;
+      padding: 16px 14px; border-radius: 16px; cursor: pointer;
+      border: 1px solid transparent; margin-bottom: 8px; background: var(--bg3);
     }
     .device-row:active, .device-row.current {
-      background: rgba(30,215,96,0.12); border-color: rgba(30,215,96,0.5);
+      background: rgba(29,185,84,0.08); border-color: rgba(29,185,84,0.4);
     }
-    .device-icon { display: flex; color: #fff; }
-    .device-icon svg { width: 26px; height: 26px; }
-    .device-name { font-size: 1rem; font-weight: 700; }
-    .device-type { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
-    .device-check { margin-left: auto; color: var(--green2); display: flex; }
-    .device-check svg { width: 22px; height: 22px; }
+    .device-icon { font-size: 1.55rem; color: var(--green); display: flex; align-items: center; }
+    .device-icon .ico { width: 1em; height: 1em; }
+    .device-name { font-size: 1.02rem; font-weight: 700; }
+    .device-type { font-size: 0.72rem; color: var(--muted); margin-top: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
+    .device-check { margin-left: auto; color: var(--green); font-size: 1.2rem; font-weight: 800; }
 
     /* ── Search Results Overlay ────────────────────────────── */
     #results-overlay {
-      position: fixed; inset: 0;
-      background: rgba(8,10,12,0.82);
-      backdrop-filter: blur(28px) saturate(1.3);
-      -webkit-backdrop-filter: blur(28px) saturate(1.3);
-      z-index: 100;
+      position: fixed; inset: 0; background: var(--bg); z-index: 100;
       display: flex; flex-direction: column;
-      padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px
-               calc(env(safe-area-inset-bottom, 0px) + 16px);
-      gap: 10px; overflow-y: auto;
+      padding: calc(env(safe-area-inset-top, 0px) + 16px) 18px 18px;
+      gap: 12px; overflow-y: auto;
     }
     .back-btn {
-      background: none; border: none; color: var(--green2);
-      font-size: 1rem; font-weight: 700; padding: 6px 0 10px; cursor: pointer;
+      background: none; border: none; color: var(--green);
+      font-size: 0.95rem; font-weight: 700; letter-spacing: 0.04em;
+      padding: 6px 0 10px; cursor: pointer;
       display: flex; align-items: center; gap: 8px; flex-shrink: 0;
     }
-    .back-btn svg { width: 20px; height: 20px; }
+    .back-btn .ico { width: 1.1em; height: 1.1em; }
     .result-row {
       display: flex; align-items: center; gap: 14px;
-      padding: 12px 14px;
-      background: var(--glass-soft); border: 1px solid var(--glass-line);
-      border-radius: 16px; cursor: pointer;
+      padding: 12px 14px; background: var(--bg3);
+      border-radius: 16px; cursor: pointer; border: 1px solid var(--border);
       flex-shrink: 0;
     }
     .result-row:active { opacity: 0.75; }
     .result-row img { width: 54px; height: 54px; border-radius: 10px; flex-shrink: 0; object-fit: cover; }
-    .result-track { font-size: 0.95rem; font-weight: 700; }
+    .result-track { font-size: 0.98rem; font-weight: 700; }
     .result-artist { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
 
     .hidden { display: none !important; }
@@ -332,13 +292,11 @@
   </style>
 </head>
 <body>
-<div id="aurora-bg"></div>
-<div id="aurora-veil"></div>
 <div id="app">
 
   <!-- ── Auth Screen ────────────────────────────────────────── -->
   <div id="auth-screen">
-    <h1>Drive</h1>
+    <h1>DR<span>I</span>VE</h1>
     <p>Spotify remote built for driving.<br>Big buttons. No faff.</p>
     <button class="btn-connect" onclick="authorize()">Connect Spotify</button>
     <p id="setup-note">
@@ -360,19 +318,29 @@
     </div>
 
     <div id="no-device" class="hidden">
-      Open Spotify on any device first, then select it above ↑
+      Open Spotify on any device first, then select it above
     </div>
 
     <div id="now-playing">
-      <img id="album-art" class="hidden" src="" alt="">
-      <div id="track-name">Nothing playing</div>
-      <div id="artist-name">—</div>
+      <div id="gauge">
+        <svg id="gauge-ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="track" cx="50" cy="50" r="46"></circle>
+          <circle class="fill"  cx="50" cy="50" r="46"></circle>
+        </svg>
+        <button class="ctrl play" id="play-btn" onclick="togglePlay()" aria-label="Play / pause"></button>
+        <img id="album-art" class="hidden" src="" alt="">
+      </div>
+
+      <div class="readout">
+        <div id="track-name">Nothing playing</div>
+        <div id="artist-name">—</div>
+      </div>
+
       <div id="progress-wrap"><div id="progress-fill"></div></div>
     </div>
 
     <div id="controls">
       <button class="ctrl skip" onclick="prev()" aria-label="Previous"></button>
-      <button class="ctrl play" id="play-btn" onclick="togglePlay()" aria-label="Play/Pause"></button>
       <button class="ctrl skip" onclick="next()" aria-label="Next"></button>
     </div>
 
@@ -383,7 +351,7 @@
       <button class="sec" id="like-btn" onclick="toggleLike()">
         <span class="icon"></span><span>Like</span>
       </button>
-      <button class="sec" id="jam-btn" onclick="jamTap()">
+      <button class="sec" onclick="jamTap()">
         <span class="icon"></span><span>Jam</span>
       </button>
     </div>
@@ -429,34 +397,32 @@ const SCOPES = [
   'user-library-modify',
 ].join(' ');
 
-// ── SVG icon set ─────────────────────────────────────────────────────
-const ICON = {
-  play:    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
-  pause:   '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
-  prev:    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>',
-  next:    '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>',
-  shuffle: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>',
-  heart:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
-  heartFilled: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
-  people:  '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05A4.4 4.4 0 0 1 17 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>',
-  search:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
-  power:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>',
-  check:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
-  back:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
-  device: {
-    phone:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
-    computer: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>',
-    speaker:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="14" r="3.5"/><circle cx="12" cy="6" r="1"/></svg>',
-    car:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 21 8l2 5v5h-3v-2H6v2H3z"/><circle cx="7.5" cy="15.5" r="1.5"/><circle cx="16.5" cy="15.5" r="1.5"/></svg>',
-    tv:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1"/><path d="M8 21h8"/></svg>',
-  },
+// ── Inline SVG icon set (no emoji) ──────────────────────────────────
+const ICONS = {
+  play:    '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+  pause:   '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
+  prev:    '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>',
+  next:    '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>',
+  shuffle: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>',
+  heart:       '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
+  heartFilled: '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
+  people:  '<svg class="ico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05A4.4 4.4 0 0 1 17 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>',
+  search:  '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>',
+  power:   '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>',
+  back:    '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
+  check:   '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg>',
+  phone:    '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
+  computer: '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>',
+  speaker:  '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="14" r="3.5"/><circle cx="12" cy="6" r="1"/></svg>',
+  car:      '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 21 8l2 5v5h-3v-2H6v2H3z"/><circle cx="7.5" cy="15.5" r="1.5"/><circle cx="16.5" cy="15.5" r="1.5"/></svg>',
+  tv:       '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1"/><path d="M8 21h8"/></svg>',
 };
-function deviceSvg(t) {
+function deviceSvg(type) {
   const map = {
     Computer: 'computer', Smartphone: 'phone', Speaker: 'speaker',
     CastVideo: 'tv', TV: 'tv', CarThing: 'car', Automobile: 'car',
   };
-  return ICON.device[map[t] || 'speaker'];
+  return ICONS[map[type] || 'speaker'];
 }
 
 // ── PKCE ─────────────────────────────────────────────────────────────
@@ -588,80 +554,15 @@ async function toggleLike() {
 
 // ── Render helpers ────────────────────────────────────────────────
 function renderPlayBtn() {
-  $('play-btn').innerHTML = S.playing ? ICON.pause : ICON.play;
+  $('play-btn').innerHTML = S.playing ? ICONS.pause : ICONS.play;
 }
 function renderShuffleBtn() {
   $('shuffle-btn').classList.toggle('on', S.shuffle);
 }
 function renderLikeBtn() {
   const btn = $('like-btn');
-  btn.querySelector('.icon').innerHTML = S.liked ? ICON.heartFilled : ICON.heart;
+  btn.querySelector('.icon').innerHTML = S.liked ? ICONS.heartFilled : ICONS.heart;
   btn.classList.toggle('liked', S.liked);
-}
-// One-time icon injection for static buttons
-function renderStaticIcons() {
-  const setIcon = (sel, svg) => { const el = $(sel); if (el) el.querySelector('.icon').innerHTML = svg; };
-  $('device-icon').innerHTML = deviceSvg('Smartphone');
-  $('logout-btn').innerHTML = ICON.power;
-  $('search-go').innerHTML = ICON.search;
-  document.querySelector('#controls .skip[onclick="prev()"]').innerHTML = ICON.prev;
-  document.querySelector('#controls .skip[onclick="next()"]').innerHTML = ICON.next;
-  setIcon('shuffle-btn', ICON.shuffle);
-  setIcon('jam-btn', ICON.people);
-  renderPlayBtn();
-  renderLikeBtn();
-  const back = document.querySelector('#results-overlay .back-btn');
-  if (back) back.innerHTML = ICON.back + '<span>Back</span>';
-}
-
-// ── Aurora background colour sampling ─────────────────────────────
-// Draw album art to a tiny offscreen canvas, average a few regions,
-// and feed them into the CSS gradient variables. Must never throw in
-// a way that breaks playback — everything is wrapped/guarded.
-const _aurCanvas = document.createElement('canvas');
-_aurCanvas.width = 16; _aurCanvas.height = 16;
-let _aurLastUrl = null;
-
-function applyAuroraColors(url) {
-  try {
-    if (!url || url === _aurLastUrl) return;
-    _aurLastUrl = url;
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      try {
-        const ctx = _aurCanvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) return;
-        ctx.drawImage(img, 0, 0, 16, 16);
-        let data;
-        try { data = ctx.getImageData(0, 0, 16, 16).data; }
-        catch (e) { return; } // tainted canvas (CORS) — keep current/default gradient
-        // Sample four quadrants for representative tints.
-        const quad = (x0, y0, x1, y1) => {
-          let r = 0, g = 0, b = 0, n = 0;
-          for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-            const i = (y * 16 + x) * 4;
-            r += data[i]; g += data[i + 1]; b += data[i + 2]; n++;
-          }
-          return n ? [r / n, g / n, b / n] : [20, 24, 28];
-        };
-        const tl = quad(0, 0, 8, 8), tr = quad(8, 0, 16, 8);
-        const bl = quad(0, 8, 8, 16), br = quad(8, 8, 16, 16);
-        // Boost vividness a touch, then darken slightly so white text reads.
-        const css = (c, mul) => {
-          const f = v => Math.max(0, Math.min(255, Math.round(v * mul)));
-          return `rgb(${f(c[0])},${f(c[1])},${f(c[2])})`;
-        };
-        const root = document.documentElement.style;
-        root.setProperty('--aur1', css(tl, 0.92));
-        root.setProperty('--aur3', css(tr, 0.86));
-        root.setProperty('--aur2', css(bl, 0.55));
-        root.setProperty('--aur4', css(br, 0.32));
-      } catch (e) { /* never break playback */ }
-    };
-    img.onerror = () => {};
-    img.src = url;
-  } catch (e) { /* never break playback */ }
 }
 
 // ── Fetch Playback State ──────────────────────────────────────────
@@ -690,10 +591,7 @@ async function fetchState() {
     $('artist-name').textContent = t.artists.map(a => a.name).join(', ');
 
     const art = t.album?.images?.[0]?.url;
-    if (art) {
-      $('album-art').src = art; $('album-art').classList.remove('hidden');
-      applyAuroraColors(art); // drive the drifting background from the artwork
-    }
+    if (art) { $('album-art').src = art; $('album-art').classList.remove('hidden'); }
     else      { $('album-art').classList.add('hidden'); }
 
     if (d.device) {
@@ -709,9 +607,19 @@ async function fetchState() {
   } catch(e) { console.warn('fetchState', e); }
 }
 
+// circumference of r=46 ring used by stroke-dasharray/offset
+const RING_CIRC = 2 * Math.PI * 46;
 function renderProgress() {
   if (!S.durationMs) return;
-  $('progress-fill').style.width = (S.progressMs / S.durationMs * 100) + '%';
+  const frac = Math.max(0, Math.min(1, S.progressMs / S.durationMs));
+  // keep the legacy linear fill working too
+  $('progress-fill').style.width = (frac * 100) + '%';
+  // drive the circular gauge ring
+  const ring = document.querySelector('#gauge-ring .fill');
+  if (ring) {
+    ring.style.strokeDasharray  = RING_CIRC;
+    ring.style.strokeDashoffset = RING_CIRC * (1 - frac);
+  }
 }
 function tickProgress() {
   if (!S.playing || !S.durationMs) return;
@@ -755,7 +663,7 @@ async function openDevices() {
           <div class="device-name">${esc(dev.name)}</div>
           <div class="device-type">${dev.type}${dev.is_active ? ' · active' : ''}</div>
         </div>
-        ${dev.id === S.deviceId ? '<span class="device-check">' + ICON.check + '</span>' : ''}
+        ${dev.id === S.deviceId ? '<span class="device-check">' + ICONS.check + '</span>' : ''}
       </div>
     `).join('');
   } catch(e) {
@@ -828,7 +736,7 @@ function logout() {
   hide('main'); show('auth-screen');
 }
 function showAuth() { hide('main'); show('auth-screen'); }
-function showMain() { hide('auth-screen'); show('main'); renderStaticIcons(); startPolling(); }
+function showMain() { hide('auth-screen'); show('main'); paintStaticIcons(); startPolling(); }
 
 // ── Tiny helpers ──────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
@@ -838,6 +746,23 @@ function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// inject the non-stateful SVG icons once the main UI is shown
+function paintStaticIcons() {
+  $('device-icon').innerHTML = ICONS.phone;
+  $('logout-btn').innerHTML  = ICONS.power;
+  $('search-go').innerHTML   = ICONS.search;
+  $('play-btn').innerHTML    = ICONS.play;
+  const skips = document.querySelectorAll('#controls .ctrl.skip');
+  if (skips[0]) skips[0].innerHTML = ICONS.prev;
+  if (skips[1]) skips[1].innerHTML = ICONS.next;
+  const secIcons = document.querySelectorAll('#secondary .sec .icon');
+  if (secIcons[0]) secIcons[0].innerHTML = ICONS.shuffle;
+  if (secIcons[1]) secIcons[1].innerHTML = ICONS.heart;
+  if (secIcons[2]) secIcons[2].innerHTML = ICONS.people;
+  const back = document.querySelector('#results-overlay .back-btn');
+  if (back) back.innerHTML = ICONS.back + '<span>Back</span>';
 }
 
 // ── Init ──────────────────────────────────────────────────────────
