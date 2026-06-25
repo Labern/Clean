@@ -538,19 +538,42 @@ async function behaviourChecks() {
     check('artist view never opens the Spotify app', !/open\.spotify\.com/.test(h));
   }
 
-  // 20. Queue view: see what's queued up
+  // 20. Queue view: see what's queued up, including now-playing header
   {
     const app = load(); app.auth();
-    app.queueResp({ status: 200, body: { currently_playing: { name: 'Now', uri: 'spotify:track:now' }, queue: [
-      { uri: 'spotify:track:q1', name: 'Q1', artists: [{ name: 'A' }], album: { images: [{}, {}, { url: 'u' }] } },
-      { uri: 'spotify:track:q2', name: 'Q2', artists: [{ name: 'B' }], album: { images: [{}, {}, { url: 'u' }] } },
-    ] } });
+    app.queueResp({ status: 200, body: {
+      currently_playing: { name: 'NowPlaying', uri: 'spotify:track:now', artists: [{ name: 'A' }], album: { images: [{}, {}, { url: 'u' }] } },
+      queue: [
+        { uri: 'spotify:track:q1', name: 'Q1', artists: [{ name: 'A' }], album: { images: [{}, {}, { url: 'u' }] } },
+        { uri: 'spotify:track:q2', name: 'Q2', artists: [{ name: 'B' }], album: { images: [{}, {}, { url: 'u' }] } },
+      ]
+    } });
     await app.ctx.showQueue();
     await flush();
     const h = app.getEl('results-list').innerHTML;
     check('queue view fetches /me/player/queue', !!app.fetchCalls.find(c => c.url.endsWith('/me/player/queue')));
+    check('queue view shows currently-playing header', h.includes('NowPlaying') && /Now playing/i.test(h));
     check('queue view lists upcoming tracks', h.includes('Q1') && h.includes('Q2'));
     check('queue items are tappable to jump', h.includes("playTrackUri('spotify:track:q1'"));
+  }
+
+  // 20b. Queue view empty state is descriptive (not just "Nothing queued")
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { currently_playing: null, queue: [] } });
+    await app.ctx.showQueue();
+    await flush();
+    check('empty queue state tells user how to add tracks', /tap \+ Queue/i.test(app.getEl('results-list').innerHTML));
+  }
+
+  // 20c. Queue API error surfaces as toast + inline message
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 503, body: { error: { message: 'Service unavailable' } } });
+    await app.ctx.showQueue();
+    await flush();
+    const toast = app.getEl('toast');
+    check('queue error toasts the user', toast && /queue error/i.test(toast.textContent), toast && toast.textContent);
   }
 
   // 21. Playing a track uses its album context (so it doesn't loop / re-play one song)
@@ -589,7 +612,7 @@ async function behaviourChecks() {
       { track: { uri: 'spotify:track:r1', name: 'R1', artists: [{ name: 'A' }], album: { uri: 'spotify:album:a1', images: [{}, {}, { url: 'u' }] } } },
     ] } });
     app.queueResp({ status: 200, body: { items: [
-      { uri: 'spotify:playlist:p1', name: 'Chill', images: [{ url: 'u' }], tracks: { total: 42 } },
+      { id: 'p1', uri: 'spotify:playlist:p1', name: 'Chill', images: [{ url: 'u' }], tracks: { total: 42 } },
     ] } });
     await app.ctx.loadDashboard();
     await flush();
@@ -597,7 +620,7 @@ async function behaviourChecks() {
     check('dashboard fetches recently-played', !!app.fetchCalls.find(c => c.url.includes('/me/player/recently-played')));
     check('dashboard fetches playlists', !!app.fetchCalls.find(c => c.url.includes('/me/playlists')));
     check('dashboard shows Recently played track', /Recently played/.test(h) && h.includes("playTrackUri('spotify:track:r1'"));
-    check('dashboard shows a playlist tile', /Your playlists/.test(h) && h.includes("playContext('spotify:playlist:p1')"));
+    check('dashboard shows a playlist tile (opens inline)', /Your playlists/.test(h) && h.includes("openPlaylist('p1'"));
   }
 
   // 24. playContext plays a whole playlist/album from the start
@@ -664,6 +687,24 @@ async function behaviourChecks() {
     const app = load();
     app.ctx.storeTokens({ access_token: 'A', expires_in: 3600, scope: 'user-read-playback-state user-read-recently-played' });
     check('storeTokens persists granted_scope', app.ls.getItem('granted_scope') === 'user-read-playback-state user-read-recently-played', app.ls.getItem('granted_scope'));
+  }
+
+  // 30. Playlist row opens tracks inline (not play immediately); Play all button exists
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { items: [
+      { track: { uri: 'spotify:track:pt1', name: 'Track One', artists: [{ name: 'Band' }], album: { images: [{}, {}, { url: 'u' }] } } },
+      { track: { uri: 'spotify:track:pt2', name: 'Track Two', artists: [{ name: 'Band' }], album: { images: [{}, {}, { url: 'u' }] } } },
+    ] } });
+    await app.ctx.openPlaylist('pl1', 'spotify:playlist:pl1');
+    await flush();
+    const h = app.getEl('results-list').innerHTML;
+    check('openPlaylist fetches /playlists/{id}/tracks', !!app.fetchCalls.find(c => c.url.includes('/playlists/pl1/tracks')));
+    check('playlist view shows tracks', h.includes('Track One') && h.includes('Track Two'));
+    check('tracks are playable inline', h.includes("playTrackUri('spotify:track:pt1', 'spotify:playlist:pl1')"));
+    check('playlist tracks have queue buttons', h.includes("queueTrack(this, 'spotify:track:pt1')"));
+    check('playlist view has a Play all button', h.includes("playContext('spotify:playlist:pl1')"));
+    check('playlist view has a back button', /results-back/.test(h));
   }
 }
 
