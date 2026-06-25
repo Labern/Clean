@@ -213,6 +213,7 @@ function staticChecks() {
   check('progress bar is chunky + rounded', /height:\s*9px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
   check('time readout under the bar', /id="time-elapsed"/.test(html) && /id="time-remaining"/.test(html));
   check('now-playing title→album & artist→artist', /id="track-name" onclick="openCurrentAlbum/.test(html) && /id="artist-name" onclick="openCurrentArtist/.test(html));
+  check('album title element present', /id="album-name"/.test(html));
   check('queued animation (green QUEUED + tick)', /\.result-queue\.queued/.test(html) && /@keyframes queuePop/.test(html));
 }
 
@@ -409,12 +410,13 @@ async function behaviourChecks() {
     app.queueResp({ status: 200, body: {
       is_playing: true, progress_ms: 30000, shuffle_state: false,
       device: { id: 'd1', name: 'Mac', type: 'Computer' },
-      item: { id: 't1', name: 'Song', duration_ms: 95000, artists: [{ name: 'A', id: 'ar1' }], album: { id: 'al1', images: [{ url: 'art' }] } },
+      item: { id: 't1', name: 'Song', duration_ms: 95000, artists: [{ name: 'A', id: 'ar1' }], album: { id: 'al1', name: 'Album X', images: [{ url: 'art' }] } },
     } });
     await app.ctx.fetchState();
     await flush();
     check('elapsed time shows 0:30', app.getEl('time-elapsed').textContent === '0:30', app.getEl('time-elapsed').textContent);
     check('remaining time shows -1:05', app.getEl('time-remaining').textContent === '-1:05', app.getEl('time-remaining').textContent);
+    check('album title shows under song title', app.getEl('album-name').textContent === 'Album X', app.getEl('album-name').textContent);
     let opened = '';
     app.ctx.open = (u) => { opened = u; };
     app.ctx.openCurrentAlbum();

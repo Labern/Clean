@@ -11,7 +11,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
-      --bg:     #0c0f17;
+      --bg:     #000000;
       --bg2:    #141926;
       --bg3:    #1c2332;
       --green:  #1DB954;
@@ -110,7 +110,7 @@
       padding: 8px 24px 6px; gap: 8px; text-align: center;
     }
     #album-art {
-      width: min(168px, 40vw); height: min(168px, 40vw);
+      width: min(200px, 48vw); height: min(200px, 48vw);
       border-radius: 10px; object-fit: cover;
       background: var(--bg3);
       box-shadow: 0 12px 34px rgba(0,0,0,0.6);
@@ -118,12 +118,18 @@
     }
     #album-art.hidden { display: none; }
     #track-name {
-      font-size: clamp(1.2rem, 5vw, 1.7rem); font-weight: 800;
-      line-height: 1.15; letter-spacing: -0.02em; max-width: 92%;
+      font-size: clamp(1.5rem, 6.2vw, 2.15rem); font-weight: 800;
+      line-height: 1.12; letter-spacing: -0.02em; max-width: 92%;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
     }
     #track-name:active { color: var(--green); }
-    #artist-name { font-size: clamp(0.95rem, 3.6vw, 1.2rem); font-weight: 500; color: var(--muted); cursor: pointer; }
+    #album-name {
+      font-size: clamp(1.05rem, 4.2vw, 1.4rem); font-weight: 600; color: #d7dce4;
+      max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+    }
+    #album-name:empty { display: none; }
+    #album-name:active { color: var(--green); }
+    #artist-name { font-size: clamp(1.1rem, 4.4vw, 1.5rem); font-weight: 500; color: var(--muted); cursor: pointer; }
     #artist-name:active { color: var(--green); }
     #progress-wrap {
       width: 100%; max-width: 420px; height: 9px;
@@ -197,13 +203,13 @@
     }
     .sec {
       flex: 1; background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 14px; color: var(--muted); padding: 14px 6px;
-      font-size: 0.78rem; font-weight: 600; cursor: pointer;
-      display: flex; flex-direction: column; align-items: center; gap: 6px;
+      border-radius: 12px; color: var(--muted); padding: 9px 6px;
+      font-size: 0.68rem; font-weight: 600; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
       transition: color 0.15s, border-color 0.15s, background 0.15s;
     }
     .sec .icon { display: flex; align-items: center; justify-content: center; }
-    .sec .icon svg { width: 24px; height: 24px; }
+    .sec .icon svg { width: 19px; height: 19px; }
     .sec.on { color: var(--green); border-color: rgba(29,185,84,0.45); }
     .sec.liked { color: var(--green); border-color: rgba(29,185,84,0.45); }
     .sec:active { background: #283042; }
@@ -362,6 +368,7 @@
     <div id="now-playing">
       <img id="album-art" class="hidden" src="" alt="">
       <div id="track-name" onclick="openCurrentAlbum()">Nothing playing</div>
+      <div id="album-name" onclick="openCurrentAlbum()"></div>
       <div id="artist-name" onclick="openCurrentArtist()">&mdash;</div>
       <div id="progress-wrap"><div id="progress-fill"></div></div>
       <div id="time-row"><span id="time-elapsed">0:00</span><span id="time-remaining">0:00</span></div>
@@ -685,6 +692,7 @@ async function fetchState() {
     const d = await api('/me/player');
     if (!d || !d.item) {
       $('track-name').textContent = 'Nothing playing';
+      $('album-name').textContent = '';
       $('artist-name').textContent = '—';
       $('album-art').classList.add('hidden');
       $('no-device').classList.remove('hidden');
@@ -704,6 +712,7 @@ async function fetchState() {
     if (d.device) S.deviceId = d.device.id;
 
     $('track-name').textContent  = t.name;
+    $('album-name').textContent  = t.album?.name || '';
     $('artist-name').textContent = t.artists.map(a => a.name).join(', ');
 
     const art = t.album?.images?.[0]?.url;
