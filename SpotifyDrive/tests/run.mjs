@@ -213,6 +213,9 @@ function staticChecks() {
   check('search is as-you-type (oninput)', /oninput="onSearchInput/.test(html));
   check('inline results, no full-screen overlay element', !/id="results-overlay"/.test(html));
   check('big search font (>=1.3rem)', /#search-input\b[\s\S]{0,240}font-size:\s*1\.(3|4|5)/.test(html));
+  // flex inputs must be allowed to shrink or they push siblings off-screen (horizontal spill)
+  check('#search-input has min-width:0 (no flex overflow)', /#search-input\s*\{[^}]*min-width:\s*0/.test(html));
+  check('#app clips horizontal overflow', /#app\s*\{[^}]*overflow-x:\s*hidden/.test(html));
   check('add-to-queue wired to /me/player/queue', /queueTrack\(/.test(html) && /\/me\/player\/queue/.test(html));
   check('title→album and artist→artist openers exist', /function openAlbum/.test(html) && /function openArtist/.test(html));
   check('Stats and Facts section + drive-time stat', /id="stat-drive"/.test(html) && /Stats and Facts/.test(html));
