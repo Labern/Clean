@@ -398,6 +398,19 @@ async function behaviourChecks() {
     check('queue failure reverts the button to + Queue', !btn.className.includes('queued') && btn.innerHTML === '+ Queue', btn.className + ' / ' + btn.innerHTML);
   }
 
+  // 12c. Queue retries once on a stale-device 404, then succeeds (stays Queued — the reported bug)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } }); // ensureActiveDevice
+    app.queueResp({ status: 404, body: { error: { message: 'Device not found' } } });                                  // first queue → 404
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd2', is_active: true, type: 'Computer', name: 'Mac' }] } }); // re-ensure
+    app.queueResp({ status: 200 });                                                                                     // retry queue ok
+    const btn = app.ctx.document.createElement('button'); btn.innerHTML = '+ Queue';
+    await app.ctx.queueTrack(btn, 'spotify:track:R');
+    await flush(); await flush();
+    check('queue retries on stale-device 404 then stays Queued', btn.className.includes('queued') && /queued/i.test(btn.innerHTML), btn.className + ' / ' + btn.innerHTML);
+  }
+
   // 13. Clearing the query empties the inline results
   {
     const app = load(); app.auth();
@@ -537,6 +550,22 @@ async function behaviourChecks() {
     check('play uses album context_uri + offset (not a context-less single track)',
       play && play.body && play.body.context_uri === 'spotify:album:AL' && play.body.offset && play.body.offset.uri === 'spotify:track:T',
       play && JSON.stringify(play.body));
+  }
+
+  // 22. New song snaps the progress bar to 0 (no backward "rewind" animation)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { is_playing: true, progress_ms: 30000, shuffle_state: false,
+      device: { id: 'd1', name: 'M', type: 'Computer' },
+      item: { id: 't1', name: 'A', duration_ms: 60000, artists: [{ name: 'A' }], album: { images: [{ url: 'x' }] } } } });
+    await app.ctx.fetchState(); await flush();
+    app.queueResp({ status: 200, body: { is_playing: true, progress_ms: 0, shuffle_state: false,
+      device: { id: 'd1', name: 'M', type: 'Computer' },
+      item: { id: 't2', name: 'B', duration_ms: 60000, artists: [{ name: 'B' }], album: { images: [{ url: 'x' }] } } } });
+    await app.ctx.fetchState(); await flush();
+    const fill = app.getEl('progress-fill');
+    check('new song snaps progress to 0%', parseFloat(fill.style.width) === 0, fill.style.width);
+    check('transitions restored after snap (ticks still animate)', fill.style.transition === 'width 1s linear', fill.style.transition);
   }
 }
 

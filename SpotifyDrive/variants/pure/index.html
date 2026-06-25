@@ -785,7 +785,7 @@ async function fetchState() {
 
     renderPlayBtn();
     renderShuffleBtn();
-    renderProgress();
+    if (newTrack) snapProgress(); else renderProgress();
 
     if (newTrack) { S.trackId = t.id; checkLiked(); }
   } catch(e) { console.warn('fetchState', e); }
@@ -810,6 +810,18 @@ function renderProgress() {
   if (el) el.textContent = fmtTime(S.progressMs);
   const rm = document.getElementById('time-remaining');
   if (rm) rm.textContent = '-' + fmtTime(S.durationMs - S.progressMs);
+}
+// On a NEW track, jump the bar/ring to the new position with NO transition so it doesn't
+// animate backwards ("rewind"); then restore transitions for the per-second ticks.
+function snapProgress() {
+  const fill = $('progress-fill');
+  const ring = document.querySelector('#gauge-ring .fill');
+  fill.style.transition = 'none';
+  if (ring) ring.style.transition = 'none';
+  renderProgress();
+  void fill.offsetWidth;                        // force reflow so 'none' applies before re-enabling
+  fill.style.transition = 'width 1s linear';
+  if (ring) ring.style.transition = 'stroke-dashoffset 1s linear';
 }
 function tickProgress() {
   if (!S.playing || !S.durationMs) return;
@@ -952,12 +964,24 @@ async function queueTrack(btn, uri) {
     btn.classList.add('queued');
     btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg><span>Queued</span>';
   }
-  const dev = await ensureActiveDevice();
+  let dev = await ensureActiveDevice();
+  const url = (d) => '/me/player/queue?uri=' + encodeURIComponent(uri) + (d ? `&device_id=${d}` : '');
   try {
-    await api('/me/player/queue?uri=' + encodeURIComponent(uri) + (dev ? `&device_id=${dev}` : ''), 'POST');
+    await api(url(dev), 'POST');
     if (!(btn && btn.classList)) toast('Added to queue');
   } catch(e) {
-    if (btn && btn.classList) {
+    if (e && e.status === 404) {            // device went inactive — re-ensure + retry once (like play)
+      S.deviceId = null;
+      dev = await ensureActiveDevice();
+      if (dev) {
+        try {
+          await api(url(dev), 'POST');
+          if (!(btn && btn.classList)) toast('Added to queue');
+          return;                            // success on retry — keep the optimistic Queued state
+        } catch(e2) { e = e2; }
+      }
+    }
+    if (btn && btn.classList) {             // genuine failure — revert + surface the reason
       btn.classList.remove('queued');
       if (prevHTML !== null) btn.innerHTML = prevHTML;
     }
