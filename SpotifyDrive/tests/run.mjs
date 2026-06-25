@@ -212,7 +212,11 @@ function staticChecks() {
   // Inline-search + driving-UI features
   check('search is as-you-type (oninput)', /oninput="onSearchInput/.test(html));
   check('inline results, no full-screen overlay element', !/id="results-overlay"/.test(html));
-  check('big search font (>=1.3rem)', /#search-input\b[\s\S]{0,240}font-size:\s*1\.(3|4|5)/.test(html));
+  check('search font set (1.0–1.3rem)', /#search-input\b[\s\S]{0,240}font-size:\s*1\.(0|1|2|3)/.test(html));
+  check('dashboard preset tiles (Quick play, one-tap playlist)',
+    /function presetTileHTML/.test(html) && /class="preset-tile"/.test(html) && /Quick play/.test(html));
+  check('plays default to album/context repeat (no single-track loop)',
+    /function setRepeatContext/.test(html) && /repeat\?state=context/.test(html));
   // flex inputs must be allowed to shrink or they push siblings off-screen (horizontal spill)
   check('#search-input has min-width:0 (no flex overflow)', /#search-input\s*\{[^}]*min-width:\s*0/.test(html));
   check('#app clips horizontal overflow', /#app\s*\{[^}]*overflow-x:\s*hidden/.test(html));
@@ -820,6 +824,31 @@ async function behaviourChecks() {
     inst.onend();                         // ended with no speech captured
     const toast = app.getEl('toast');
     check('empty dictation prompts the user to retry', toast && /didn.t catch/i.test(toast.textContent), toast && toast.textContent);
+  }
+
+  // 38. Dashboard "Quick play" preset tiles play the playlist on tap
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { items: [] } });        // recently-played
+    app.queueResp({ status: 200, body: { items: [
+      { id: 'p1', uri: 'spotify:playlist:p1', name: 'Morning Drive', images: [{ url: 'u' }], tracks: { total: 20 } },
+    ] } });                                                       // playlists
+    await app.ctx.loadDashboard();
+    await flush();
+    const h = app.getEl('results-list').innerHTML;
+    check('dashboard shows Quick play preset tiles', /Quick play/.test(h) && /preset-tile/.test(h));
+    check('preset tile plays the playlist on tap', h.includes("playContext('spotify:playlist:p1')"));
+  }
+
+  // 39. Playing a track also sets repeat=context (so it follows the album, no loop)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 200 });                              // play
+    app.queueResp({ status: 200 });                              // repeat
+    await app.ctx.playTrackUri('spotify:track:T', 'spotify:album:AL');
+    await flush(); await flush();
+    check('play sets repeat=context', !!app.fetchCalls.find(c => c.url.includes('/me/player/repeat?state=context')));
   }
 }
 

@@ -9,13 +9,13 @@
   <title>Drive</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
       --bg:     #000000;
-      --font-spotify: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-spotify: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
       --bg2:    #161519;
       --bg3:    #242329;
       --green:  #1DB954;
@@ -229,8 +229,8 @@
     }
     #search-input {
       flex: 1; min-width: 0; background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 500px; color: var(--text); font-size: 1.35rem; font-weight: 600;
-      padding: 16px 22px; outline: none;
+      border-radius: 500px; color: var(--text); font-size: 1.1rem; font-weight: 600;
+      padding: 14px 20px; outline: none;
       -webkit-appearance: none; appearance: none;
     }
     #search-input::placeholder { color: var(--muted); font-weight: 500; }
@@ -276,6 +276,28 @@
     .results-title { font-size: 1.25rem; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .section-divider { height: 1px; background: var(--border); margin: 2px 16px 8px; flex-shrink: 0; }
     .dash-head { font-size: 0.82rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 12px 6px 8px; }
+    /* Quick-play preset tiles: big one-tap playlist buttons (no searching while driving) */
+    .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 2px 6px 10px; }
+    .preset-tile {
+      position: relative; aspect-ratio: 1 / 1; border-radius: 16px; overflow: hidden;
+      cursor: pointer; background: var(--bg3); border: 1px solid var(--border);
+      display: flex; align-items: flex-end;
+    }
+    .preset-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .preset-tile .preset-label {
+      position: relative; z-index: 2; width: 100%; padding: 14px 12px 12px;
+      font-size: 1.05rem; font-weight: 800; line-height: 1.15; color: #fff;
+      background: linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.2) 70%, transparent);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .preset-tile .preset-play {
+      position: absolute; top: 10px; right: 10px; z-index: 2;
+      width: 36px; height: 36px; border-radius: 50%; background: var(--green); color: #000;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+    }
+    .preset-tile .preset-play svg { width: 18px; height: 18px; }
+    .preset-tile:active { transform: scale(0.97); }
     .result-row {
       display: flex; align-items: center; gap: 12px;
       padding: 12px; background: var(--bg3);
@@ -329,7 +351,7 @@
     }
     #credit {
       flex-shrink: 0; text-align: center; color: var(--muted);
-      font-size: 0.82rem; padding: 0 0 10px; opacity: 0.85;
+      font-size: 0.82rem; padding: 0 0 14px; margin-top: 28px; opacity: 0.85;
     }
     /* ── DM Sans (≈ Spotify's Circular) on search / stats areas ── */
     #search-input, #search-clear, #results-list, .result-track, .result-artist,
@@ -344,20 +366,20 @@
     #controls       { transition: padding 0.28s ease, gap 0.28s ease; }
     #secondary      { transition: padding 0.28s ease; }
 
-    #main.searching #now-playing { padding: 4px 16px 2px; gap: 4px; }
-    #main.searching #album-art   { width: min(68px, 16vw) !important; height: min(68px, 16vw) !important; }
-    #main.searching #track-name  { font-size: clamp(0.82rem, 2.8vw, 1rem); -webkit-line-clamp: 1; }
+    #main.searching #now-playing { padding: 6px 16px 4px; gap: 6px; }
+    #main.searching #album-art   { width: min(96px, 24vw) !important; height: min(96px, 24vw) !important; }
+    #main.searching #track-name  { font-size: clamp(0.95rem, 3.2vw, 1.2rem); -webkit-line-clamp: 1; }
     #main.searching #album-name,
     #main.searching #artist-name,
     #main.searching #progress-wrap,
     #main.searching #time-row    { display: none; }
-    #main.searching #gauge       { width: min(84px, 23vw) !important; height: min(84px, 23vw) !important; }
-    #main.searching #controls    { padding: 2px 12px; gap: 6px; }
-    #main.searching .ctrl.skip   { width: 50px; height: 50px; }
-    #main.searching .ctrl.skip svg { width: 28px; height: 28px; }
-    #main.searching #secondary   { padding: 4px 14px 8px; gap: 8px; }
-    #main.searching .sec         { padding: 7px 4px; font-size: 0.62rem; }
-    #main.searching .sec .icon svg { width: 16px; height: 16px; }
+    #main.searching #gauge       { width: min(116px, 31vw) !important; height: min(116px, 31vw) !important; }
+    #main.searching #controls    { padding: 4px 12px; gap: 14px; }
+    #main.searching .ctrl.skip   { width: 66px; height: 66px; }
+    #main.searching .ctrl.skip svg { width: 38px; height: 38px; }
+    #main.searching #secondary   { padding: 6px 14px 10px; gap: 10px; }
+    #main.searching .sec         { padding: 9px 5px; font-size: 0.68rem; }
+    #main.searching .sec .icon svg { width: 18px; height: 18px; }
     #main.searching #stats       { display: none; }
 
     /* ── BMW Mode (optional theme) ─────────────────────────── */
@@ -1199,6 +1221,12 @@ function albumArtTap() {
   if (main && main.classList.contains('searching')) clearSearch();
 }
 
+// Default playback to follow the album/context (continuous) instead of repeating the
+// single track — kills the "same song loops" behaviour. Best-effort, never blocks play.
+function setRepeatContext(dev) {
+  api('/me/player/repeat?state=context' + (dev ? `&device_id=${dev}` : ''), 'PUT').catch(() => {});
+}
+
 async function playTrackUri(uri, contextUri) {
   let dev = await ensureActiveDevice();
   // Play the track WITHIN its album context (+offset) so playback continues naturally
@@ -1206,6 +1234,7 @@ async function playTrackUri(uri, contextUri) {
   const body = contextUri ? { context_uri: contextUri, offset: { uri } } : { uris: [uri] };
   try {
     await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', body);
+    setRepeatContext(dev);
     setTimeout(fetchState, 800);
   } catch(e) {
     if (e && e.status === 404) {            // device went inactive — refetch + retry once
@@ -1214,6 +1243,7 @@ async function playTrackUri(uri, contextUri) {
       if (dev) {
         try {
           await api(`/me/player/play?device_id=${dev}`, 'PUT', body);
+          setRepeatContext(dev);
           setTimeout(fetchState, 800);
           return;
         } catch(e2) { e = e2; }
@@ -1392,11 +1422,14 @@ async function loadDashboard() {
     ]);
     mergeRecentIntoLog(recent && recent.items);   // grow the plays-this-week log
     let html = '';
+    const playlists = ((pls && pls.items) || []).filter(Boolean);
+    // Quick-play tiles: big one-tap buttons for your playlists (no searching while driving)
+    const presets = playlists.slice(0, 4);
+    if (presets.length) html += '<div class="dash-head">Quick play</div><div class="preset-grid">' + presets.map(presetTileHTML).join('') + '</div>';
     const seen = new Set();
     const recentTracks = ((recent && recent.items) || [])
       .map(i => i.track).filter(t => t && t.uri && !seen.has(t.uri) && seen.add(t.uri)).slice(0, 5);
     if (recentTracks.length) html += '<div class="dash-head">Recently played</div>' + recentTracks.map(trackRowHTML).join('');
-    const playlists = ((pls && pls.items) || []).filter(Boolean);
     if (playlists.length) html += '<div class="dash-head">Your playlists</div>' + playlists.map(playlistRowHTML).join('');
     dashHTML = html || '<div class="hint">Search above to start playing.</div>';
   } catch(e) {
@@ -1422,6 +1455,15 @@ function trackRowHTML(t) {
         </div>
         <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
       </div>`;
+}
+function presetTileHTML(p) {
+  const art = (p.images && p.images[0] && p.images[0].url) || '';
+  return `
+    <div class="preset-tile" onclick="playContext('${esc(p.uri)}')">
+      ${art ? `<img src="${esc(art)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <span class="preset-play">${ICONS.play}</span>
+      <div class="preset-label">${esc(p.name)}</div>
+    </div>`;
 }
 function playlistRowHTML(p) {
   const art = (p.images && p.images[0] && p.images[0].url) || '';
@@ -1479,11 +1521,12 @@ async function playContext(contextUri) {
   let dev = await ensureActiveDevice();
   try {
     await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', { context_uri: contextUri });
+    setRepeatContext(dev);
     setTimeout(fetchState, 800);
   } catch(e) {
     if (e && e.status === 404) {
       S.deviceId = null; dev = await ensureActiveDevice();
-      if (dev) { try { await api(`/me/player/play?device_id=${dev}`, 'PUT', { context_uri: contextUri }); setTimeout(fetchState, 800); return; } catch(e2) { e = e2; } }
+      if (dev) { try { await api(`/me/player/play?device_id=${dev}`, 'PUT', { context_uri: contextUri }); setRepeatContext(dev); setTimeout(fetchState, 800); return; } catch(e2) { e = e2; } }
     }
     handlePlaybackError(e, 'Play');
   }
