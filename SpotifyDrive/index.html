@@ -241,6 +241,22 @@
     }
     #search-clear svg { width: 30px; height: 30px; }
     #search-clear:active { background: #2f2e36; }
+    #mic-btn {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 50%; color: var(--green); width: 72px; flex-shrink: 0;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #mic-btn svg { width: 32px; height: 32px; }
+    #mic-btn:active { background: #2f2e36; }
+    #mic-btn.listening {
+      background: var(--green); color: #000; border-color: var(--green);
+      animation: micPulse 1.1s ease-in-out infinite;
+    }
+    @keyframes micPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(29,185,84,0.55); }
+      50%      { box-shadow: 0 0 0 12px rgba(29,185,84,0); }
+    }
 
     /* ── Inline results (scroll area; play controls stay above) ── */
     #results-list {
@@ -501,7 +517,10 @@
     </div>
 
     <div id="search-bar">
-      <input id="search-input" type="search" placeholder="Search songs, artists…"
+      <button id="mic-btn" onclick="startDictation()" aria-label="Search by voice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
+      <input id="search-input" type="search" placeholder="Search or tap mic to speak…"
              enterkeyhint="search" autocomplete="off"
              oninput="onSearchInput(this.value)"
              onfocus="onSearchFocus()"
@@ -1034,6 +1053,63 @@ function onSearchBlur() {
 // Helper: error view with a back button (used by any inline fetch that can fail).
 function inlineErr(msg) {
   return `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title"></div></div><div class="hint">${esc(String(msg))}</div>`;
+}
+
+// ── Voice dictation for search (one tap → speak) ───────────────────
+// Tap the mic: it WIPES any previous text and listens fresh, so a wrong
+// dictation is redone with a single tap (no backspacing). Tap again to stop.
+// The mic is separate from the keyboard, so typing and voice never conflict.
+let recog = null, recogActive = false;
+function setMicState(on) {
+  const b = document.getElementById('mic-btn');
+  if (b) b.classList.toggle('listening', on);
+}
+function startDictation() {
+  const input = $('search-input');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  // Tap while already listening → stop and keep what we have.
+  if (recogActive && recog) { try { recog.stop(); } catch(e){} return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    // No Web Speech here (some installed iOS PWAs): fall back to the keyboard mic.
+    input.value = '';
+    input.focus();
+    toast('Tap the microphone on your keyboard to dictate.');
+    return;
+  }
+  // Fresh start: wipe the old attempt so a mistaken result is replaced, not appended.
+  input.value = '';
+  renderResults(null);
+  try {
+    recog = new SR();
+    recog.lang = 'en-US';
+    recog.interimResults = true;
+    recog.continuous = false;
+    recog.maxAlternatives = 1;
+    recogActive = true;
+    setMicState(true);
+    recog.onresult = (e) => {
+      let txt = '';
+      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+      input.value = txt;
+      onSearchInput(txt);                 // live as-you-speak search
+    };
+    recog.onerror = (e) => {
+      recogActive = false; setMicState(false);
+      const err = e && e.error;
+      if (err && err !== 'no-speech' && err !== 'aborted') toast('Dictation: ' + err, true);
+    };
+    recog.onend = () => {
+      recogActive = false; setMicState(false);
+      const q = input.value.trim();
+      if (q) runSearch(q);
+    };
+    recog.start();
+  } catch(err) {
+    recogActive = false; setMicState(false);
+    input.focus();
+    toast('Couldn\'t start dictation — use the keyboard mic.', true);
+  }
 }
 
 let searchTimer = null, searchSeq = 0;
