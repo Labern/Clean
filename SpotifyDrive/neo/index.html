@@ -1,0 +1,1904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Drive">
+  <title>Drive</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --bg:     #000000;
+      --font-spotify: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-display: 'Space Grotesk', -apple-system, sans-serif;
+      --bg2:    #161519;
+      --bg3:    #242329;
+      --green:  #1DB954;
+      --green2: #1ed760;
+      --text:   #FFFFFF;
+      --muted:  #aeb6c4;
+      --border: rgba(255,255,255,0.09);
+      --active: var(--active);
+      --track:  rgba(255,255,255,0.16);
+    }
+    /* Light theme — toggled by #app.light; composes with BMW Mode (which only
+       overrides --green), so BMW+Light = blue accent on a light surface. */
+    #app.light {
+      --bg:     #ffffff;
+      --bg2:    #f3f3f6;
+      --bg3:    #ececef;
+      --text:   #121212;
+      --muted:  #5b6472;
+      --border: rgba(0,0,0,0.12);
+      --active: #e4e4ea;
+      --track:  rgba(0,0,0,0.18);
+    }
+
+    html, body {
+      height: 100%; background: #111; color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      overflow: hidden; user-select: none;
+      -webkit-font-smoothing: antialiased;
+      display: flex; justify-content: center;
+    }
+
+    #app {
+      height: 100dvh; display: flex; flex-direction: column;
+      background: var(--bg); color: var(--text);   /* themed inherit — so light mode has dark text */
+      width: 100%; max-width: 430px; overflow-x: hidden;
+      padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
+               env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
+    }
+    #main { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+    svg { display: block; }
+
+    /* ── Toast (visible action feedback) ───────────────────── */
+    #toast {
+      position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+      transform: translateX(-50%); z-index: 300;
+      background: var(--active); color: var(--text);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 13px 18px; font-size: 0.95rem; font-weight: 600;
+      max-width: 86vw; text-align: center; line-height: 1.35;
+      box-shadow: 0 10px 34px rgba(0,0,0,0.6);
+      opacity: 0; transition: opacity 0.25s ease; pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+    #toast.err { border-color: rgba(244,114,182,0.55); }
+
+    /* ── Auth ──────────────────────────────────────────────── */
+    #auth-screen {
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; height: 100%; gap: 24px; padding: 40px;
+    }
+    #auth-screen h1 {
+      font-size: 3.4rem; font-weight: 800; letter-spacing: -0.03em;
+      color: var(--text);
+    }
+    #auth-screen p { text-align: center; color: var(--muted); font-size: 1.1rem; line-height: 1.6; }
+
+    .btn-connect {
+      background: var(--green);
+      color: #000000; border: none; border-radius: 500px;
+      padding: 20px 52px; font-size: 1.1rem; font-weight: 700;
+      cursor: pointer; width: 100%; max-width: 320px;
+      letter-spacing: 0.02em; margin-top: 8px;
+      transition: transform 0.1s, background 0.15s;
+    }
+    .btn-connect:hover { background: var(--green2); }
+    .btn-connect:active { transform: scale(0.97); }
+
+    #setup-note {
+      font-size: 0.78rem; color: var(--muted); text-align: center;
+      max-width: 280px; line-height: 1.5;
+    }
+
+    /* ── Header ────────────────────────────────────────────── */
+    #header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; flex-shrink: 0;
+    }
+    #device-pill {
+      flex: 1; display: flex; align-items: center; gap: 10px;
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 500px; padding: 10px 16px; cursor: pointer;
+      font-size: 0.92rem; font-weight: 600; color: var(--green); min-width: 0;
+      transition: background 0.15s;
+    }
+    #device-pill:active { background: var(--active); }
+    #device-pill #device-icon { display: flex; flex-shrink: 0; }
+    #device-pill #device-icon svg { width: 20px; height: 20px; }
+    #device-pill .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+    #device-pill .caret { color: var(--muted); flex-shrink: 0; font-size: 0.7rem; }
+    #logout-btn {
+      background: none; border: none; color: var(--muted);
+      padding: 10px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #logout-btn svg { width: 24px; height: 24px; }
+    #logout-btn:active { color: var(--text); }
+
+    /* ── Now Playing ───────────────────────────────────────── */
+    #now-playing {
+      flex-shrink: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 8px 24px 6px; gap: 8px; text-align: center;
+    }
+    #album-art {
+      width: min(200px, 48vw); height: min(200px, 48vw);
+      border-radius: 10px; object-fit: cover;
+      background: var(--bg3);
+      box-shadow: 0 12px 34px rgba(0,0,0,0.6);
+      flex-shrink: 0;
+    }
+    #album-art.hidden { display: none; }
+    #track-name {
+      font-size: clamp(1.5rem, 6.2vw, 2.15rem); font-weight: 800;
+      line-height: 1.14; letter-spacing: -0.02em; max-width: 94%; cursor: pointer;
+      overflow-wrap: anywhere; word-break: break-word;
+      display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    #track-name:active { color: var(--green); }
+    #album-name {
+      font-size: clamp(1.05rem, 4.2vw, 1.4rem); font-weight: 600; color: var(--muted);
+      max-width: 92%; cursor: pointer; line-height: 1.2;
+      overflow-wrap: anywhere; word-break: break-word;
+    }
+    #album-name:empty { display: none; }
+    #album-name:active { color: var(--green); }
+    #artist-name { font-size: clamp(1.1rem, 4.4vw, 1.5rem); font-weight: 500; color: var(--muted); cursor: pointer; }
+    #artist-name:active { color: var(--green); }
+    #progress-wrap {
+      width: 100%; max-width: 420px; height: 12px;
+      background: var(--track); border-radius: 999px; overflow: hidden;
+      margin-top: 6px; cursor: pointer;
+      touch-action: none;                 /* we handle drag-to-scrub ourselves */
+      transition: height 0.15s ease;
+    }
+    /* Touch the bar → it grows thick + easy to scrub */
+    #progress-wrap.scrubbing { height: 30px; box-shadow: 0 0 0 4px var(--track); }
+    #progress-fill {
+      height: 100%; width: 0%;
+      background: var(--text);
+      border-radius: 999px; transition: width 1s linear;
+    }
+    #time-row {
+      width: 100%; max-width: 420px; display: flex; justify-content: space-between;
+      font-size: 1rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums;
+      margin-top: 5px;
+    }
+
+    /* ── Gauge play button (ring-wrapped), grafted from Dashboard ── */
+    #gauge {
+      position: relative; flex-shrink: 0;
+      width: min(190px, 52vw); height: min(190px, 52vw);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #gauge-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+    #gauge-ring .track { fill: none; stroke: var(--track); stroke-width: 5; }
+    #gauge-ring .fill {
+      fill: none; stroke: var(--green); stroke-width: 5; stroke-linecap: round;
+      filter: drop-shadow(0 0 6px rgba(30,215,96,0.6));
+      transition: stroke-dashoffset 1s linear;
+    }
+    #gauge #play-btn {
+      position: relative; z-index: 2;
+      width: 74%; height: 74%; border-radius: 50%;
+      background: radial-gradient(120% 120% at 50% 30%, #1ed760, #1DB954);
+      color: #000; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 0 40px rgba(30,215,96,0.4), inset 0 2px 6px rgba(255,255,255,0.25);
+      transition: transform 0.1s ease, box-shadow 0.2s;
+    }
+    #gauge #play-btn:active { transform: scale(0.94); box-shadow: 0 0 24px rgba(30,215,96,0.28); }
+    #gauge #play-btn svg { width: 44%; height: 44%; }
+
+    /* ── Big Controls ──────────────────────────────────────── */
+    #controls {
+      display: flex; align-items: center; justify-content: center;
+      gap: 16px; padding: 6px 16px; flex-shrink: 0;
+    }
+    .ctrl {
+      border-radius: 50%; border: none;
+      background: transparent; color: var(--text);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: transform 0.1s, background 0.15s, color 0.15s;
+      flex-shrink: 0; padding: 0;
+    }
+    .ctrl:active { transform: scale(0.90); }
+    .ctrl.skip { width: 72px; height: 72px; color: var(--text); }
+    .ctrl.skip:active { background: rgba(255,255,255,0.08); }
+    .ctrl.skip svg { width: 42px; height: 42px; }
+    .ctrl.play {
+      width: 116px; height: 116px;
+      background: var(--green);
+      color: #000000;
+    }
+    .ctrl.play svg { width: 56px; height: 56px; }
+    .ctrl.play:hover { background: var(--green2); }
+    .ctrl.play:active { transform: scale(0.93); }
+
+    /* ── Secondary Controls ────────────────────────────────── */
+    #secondary {
+      display: flex; gap: 12px; padding: 8px 16px 14px; flex-shrink: 0;
+    }
+    .sec {
+      flex: 1; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 12px; color: var(--muted); padding: 9px 6px;
+      font-size: 0.68rem; font-weight: 600; cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .sec .icon { display: flex; align-items: center; justify-content: center; }
+    .sec .icon svg { width: 19px; height: 19px; }
+    .sec.on { color: var(--green); border-color: var(--green); }
+    .sec.liked { color: var(--green); border-color: var(--green); }
+    .sec:active { background: var(--active); }
+
+    /* ── Search Bar ────────────────────────────────────────── */
+    #search-bar {
+      display: flex; gap: 10px; padding: 6px 16px 8px; flex-shrink: 0;
+    }
+    #search-input {
+      flex: 1; min-width: 0; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 500px; color: var(--text); font-size: 0.95rem; font-weight: 600;
+      padding: 13px 18px; outline: none;
+      -webkit-appearance: none; appearance: none;
+    }
+    #search-input::placeholder { color: var(--muted); font-weight: 500; }
+    #search-input:focus { border-color: var(--green); }
+    #search-clear {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 50%; color: var(--muted); width: 72px; flex-shrink: 0;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    #search-clear svg { width: 30px; height: 30px; }
+    #search-clear:active { background: var(--active); }
+    #mic-btn {
+      background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 50%; color: var(--green); width: 72px; flex-shrink: 0;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    #mic-btn svg { width: 32px; height: 32px; }
+    #mic-btn:active { background: var(--active); }
+    #mic-btn.listening {
+      background: var(--green); color: #000; border-color: var(--green);
+      animation: micPulse 1.1s ease-in-out infinite;
+    }
+    @keyframes micPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(29,185,84,0.55); }
+      50%      { box-shadow: 0 0 0 12px rgba(29,185,84,0); }
+    }
+
+    /* ── Inline results (scroll area; play controls stay above) ── */
+    #results-list {
+      flex-shrink: 0;
+      padding: 0 12px 4px; display: flex; flex-direction: column; gap: 8px;
+    }
+    #results-list .hint { color: var(--muted); padding: 14px 6px; font-size: 0.95rem; text-align: center; }
+    .results-head { display: flex; align-items: center; gap: 12px; padding: 2px 2px 6px; }
+    .results-back {
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+      width: 60px; height: 60px; border-radius: 50%; flex-shrink: 0; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .results-back svg { width: 30px; height: 30px; }
+    .results-back:active { background: var(--active); }
+    /* Full-width error back button — must be trivially easy to hit while driving */
+    .err-back {
+      width: 100%; margin-top: 12px; padding: 22px; border-radius: 16px;
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+      font-size: 1.2rem; font-weight: 800; cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+    }
+    .err-back svg { width: 26px; height: 26px; }
+    .err-back:active { background: var(--active); }
+    .results-title { font-size: 1.25rem; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .section-divider { height: 1px; background: var(--border); margin: 2px 16px 8px; flex-shrink: 0; }
+    .dash-head { font-size: 0.82rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 12px 6px 8px; }
+    /* Quick-play preset tiles: big one-tap playlist buttons (no searching while driving) */
+    .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 2px 6px 10px; }
+    .preset-tile {
+      position: relative; aspect-ratio: 1 / 1; border-radius: 16px; overflow: hidden;
+      cursor: pointer; background: var(--bg3); border: 1px solid var(--border);
+      display: flex; align-items: flex-end;
+    }
+    .preset-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .preset-tile .preset-label {
+      position: relative; z-index: 2; width: 100%; padding: 14px 12px 12px;
+      font-size: 1.05rem; font-weight: 800; line-height: 1.15; color: #fff;
+      background: linear-gradient(to top, rgba(0,0,0,0.9), rgba(0,0,0,0.2) 70%, transparent);
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .preset-tile .preset-play {
+      position: absolute; top: 10px; right: 10px; z-index: 2;
+      width: 36px; height: 36px; border-radius: 50%; background: var(--green); color: #000;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+    }
+    .preset-tile .preset-play svg { width: 18px; height: 18px; }
+    .preset-tile:active { transform: scale(0.97); }
+    .result-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px; background: var(--bg3);
+      border-radius: 14px; border: 1px solid var(--border); flex-shrink: 0;
+      cursor: pointer; touch-action: pan-y;   /* let vertical scroll pass; we handle horizontal swipe */
+    }
+    .result-row:active { background: var(--active); }
+    .result-art {
+      width: 56px; height: 56px; border-radius: 8px; flex-shrink: 0;
+      object-fit: cover; cursor: pointer; background: var(--active);
+    }
+    .result-meta { flex: 1; min-width: 0; }
+    .result-track {
+      font-size: 1.1rem; font-weight: 700; cursor: pointer;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .result-artist {
+      font-size: 0.92rem; color: var(--muted); margin-top: 2px; cursor: pointer;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .result-track:active, .result-artist:active { color: var(--green); }
+    .result-queue {
+      flex-shrink: 0; background: none; border: 1px solid var(--green);
+      color: var(--green); border-radius: 500px; padding: 12px 16px;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+      display: flex; align-items: center; gap: 6px;
+      transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
+    }
+    .result-queue svg { width: 18px; height: 18px; }
+    .result-queue:active { background: color-mix(in srgb, var(--green) 16%, transparent); }
+    .result-queue.queued {
+      background: var(--green); color: #000; border-color: var(--green);
+      animation: queuePop 0.32s ease;
+    }
+    @keyframes queuePop { 0% { transform: scale(0.92); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
+    /* ── Stats and Facts (live drive stats above the browse list) ── */
+    #stats { flex-shrink: 0; padding: 0 12px 2px; }
+    .stat-grid { display: flex; gap: 12px; padding: 2px 0 8px; }
+    .stat-tile {
+      flex: 1; min-width: 0; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 10px; text-align: center;
+    }
+    .stat-value {
+      font-size: 1.95rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text);
+      font-variant-numeric: tabular-nums; line-height: 1.05;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .stat-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--muted); margin-top: 6px;
+    }
+    #credit {
+      flex-shrink: 0; text-align: center; color: var(--muted);
+      font-size: 0.82rem; padding: 0 0 14px; margin-top: 28px; opacity: 0.85;
+    }
+    /* ── DM Sans (≈ Spotify's Circular) on search / stats areas ── */
+    #search-input, #search-clear, #results-list, .result-track, .result-artist,
+    .result-queue, .dash-head, #stats, .stat-value, .stat-label, .results-title,
+    .results-back { font-family: var(--font-spotify); }
+
+    /* ── Search compact mode: player shrinks but stays visible + functional ── */
+    #album-art      { transition: width 0.28s ease, height 0.28s ease; }
+    #track-name     { transition: font-size 0.28s ease; }
+    #gauge          { transition: width 0.28s ease, height 0.28s ease; }
+    #now-playing    { transition: padding 0.28s ease, gap 0.28s ease; }
+    #controls       { transition: padding 0.28s ease, gap 0.28s ease; }
+    #secondary      { transition: padding 0.28s ease; }
+
+    #main.searching #now-playing { padding: 6px 16px 4px; gap: 6px; }
+    #main.searching #album-art   { width: min(96px, 24vw) !important; height: min(96px, 24vw) !important; }
+    #main.searching #track-name  { font-size: clamp(0.95rem, 3.2vw, 1.2rem); -webkit-line-clamp: 1; }
+    #main.searching #album-name,
+    #main.searching #artist-name,
+    #main.searching #progress-wrap,
+    #main.searching #time-row    { display: none; }
+    #main.searching #gauge       { width: min(116px, 31vw) !important; height: min(116px, 31vw) !important; }
+    #main.searching #controls    { padding: 4px 12px; gap: 14px; }
+    #main.searching .ctrl.skip   { width: 66px; height: 66px; }
+    #main.searching .ctrl.skip svg { width: 38px; height: 38px; }
+    #main.searching #secondary   { padding: 6px 14px 10px; gap: 10px; }
+    #main.searching .sec         { padding: 9px 5px; font-size: 0.68rem; }
+    #main.searching .sec .icon svg { width: 18px; height: 18px; }
+    #main.searching #stats       { display: none; }
+
+    /* ── BMW Mode (optional theme) ─────────────────────────── */
+    #mode-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px 11px; flex-shrink: 0;
+      border-bottom: 1px solid var(--border); margin-bottom: 12px;
+    }
+    #brand { display: flex; flex-direction: column; line-height: 1.05; }
+    .brand-name { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.01em; }
+    .brand-accent { color: var(--green); }
+    .brand-by { font-size: 0.64rem; color: var(--muted); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+    #header { display: none; }   /* mobile: skip the device pill / off button — straight to album art */
+    #mode-toggles { display: flex; align-items: center; gap: 10px; }
+    #theme-toggle {
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+      border-radius: 500px; width: 40px; height: 40px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+    }
+    #theme-toggle svg { width: 20px; height: 20px; }
+    #theme-toggle:active { background: var(--active); }
+    #bmw-toggle {
+      background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
+      border-radius: 500px; padding: 7px 16px; font-size: 0.8rem; font-weight: 700;
+      cursor: pointer; letter-spacing: 0.04em;
+    }
+    #bmw-toggle.on { background: #0166B1; border-color: #0166B1; color: #fff; }
+    #app.bmw { --green: #0166B1; --green2: #338fd0; }
+    #app.bmw #gauge #play-btn {
+      background: #000; padding: 0; overflow: hidden;
+      box-shadow: 0 0 40px rgba(1,102,177,0.45), inset 0 2px 6px rgba(255,255,255,0.15);
+    }
+    #app.bmw #gauge #play-btn .bmw-roundel { position: absolute; inset: 0; }
+    #app.bmw #gauge #play-btn .bmw-roundel svg { width: 100%; height: 100%; display: block; }
+    #app.bmw #gauge #play-btn .bmw-glyph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    #app.bmw #gauge #play-btn .bmw-glyph svg { width: 26%; height: 26%; color: #fff; filter: drop-shadow(0 1px 4px rgba(0,0,0,0.9)); }
+
+    /* ── No-device Banner ──────────────────────────────────── */
+    #no-device {
+      margin: 0 16px 10px; padding: 11px 14px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px; color: var(--muted); font-size: 0.85rem;
+      text-align: center; flex-shrink: 0;
+    }
+
+    /* ── Device Sheet ──────────────────────────────────────── */
+    #device-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.7);
+      display: flex; align-items: flex-end; z-index: 200;
+    }
+    #device-sheet {
+      background: var(--bg2); border-radius: 20px 20px 0 0;
+      padding: 24px 20px; width: 100%; max-height: 65vh; overflow-y: auto;
+    }
+    .sheet-title { font-size: 1.15rem; font-weight: 700; color: var(--text); margin-bottom: 16px; }
+    .device-row {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 12px; border-radius: 12px; cursor: pointer;
+      border: 1px solid transparent; margin-bottom: 8px;
+    }
+    .device-row:active, .device-row.current {
+      background: var(--bg3); border-color: var(--green);
+    }
+    .device-icon { display: flex; align-items: center; justify-content: center; color: var(--green); }
+    .device-icon svg { width: 26px; height: 26px; }
+    .device-name { font-size: 1rem; font-weight: 600; }
+    .device-type { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
+    .device-check { margin-left: auto; color: var(--green); display: flex; align-items: center; }
+    .device-check svg { width: 22px; height: 22px; }
+
+    /* ── Search Results Overlay ────────────────────────────── */
+    #results-overlay {
+      position: fixed; inset: 0; background: var(--bg); z-index: 100;
+      display: flex; flex-direction: column;
+      padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px 16px;
+      gap: 10px; overflow-y: auto;
+    }
+    .back-btn {
+      background: none; border: none; color: var(--text);
+      font-size: 1rem; font-weight: 600; padding: 6px 0 10px; cursor: pointer;
+      display: flex; align-items: center; gap: 8px; flex-shrink: 0;
+    }
+    .back-btn svg { width: 22px; height: 22px; }
+    /* result-row styles are defined in the Search section above */
+
+    .hidden { display: none !important; }
+    .spin { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── NEO experiment: Space Grotesk display + Inter UI, squircle buttons ── */
+    html, body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    #track-name, .brand-name, .stat-value, .dash-head, .results-title,
+    #auth-screen h1, .preset-tile .preset-label { font-family: var(--font-display); letter-spacing: -0.02em; }
+    /* squircles instead of circles/pills */
+    .ctrl.skip { border-radius: 20px; }
+    .sec { border-radius: 16px; }
+    #search-input, #search-clear, #mic-btn, #theme-toggle { border-radius: 16px; }
+    .result-row { border-radius: 10px; }
+    .result-art { border-radius: 10px; }
+    .preset-tile { border-radius: 22px; }
+    .btn-connect, #device-pill, .err-back { border-radius: 16px; }
+    .result-queue, #bmw-toggle { border-radius: 12px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Auth Screen ────────────────────────────────────────── -->
+  <div id="auth-screen">
+    <h1>Drive</h1>
+    <p>Spotify remote built for driving.<br>Big buttons. No faff.</p>
+    <button class="btn-connect" onclick="authorize()">Connect Spotify</button>
+    <p id="setup-note">
+      Requires a free Spotify Developer app.<br>
+      Set <code>CLIENT_ID</code> at the top of this file.
+    </p>
+  </div>
+
+  <!-- ── Main UI ────────────────────────────────────────────── -->
+  <div id="main" class="hidden">
+
+    <div id="mode-bar">
+      <div id="brand">
+        <div class="brand-name">Spotify <span class="brand-accent">Drive</span></div>
+        <div class="brand-by">by Labern</div>
+      </div>
+      <div id="mode-toggles">
+        <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light / dark"></button>
+        <button id="bmw-toggle" onclick="toggleBmw()">BMW Mode</button>
+      </div>
+    </div>
+
+    <div id="header">
+      <div id="device-pill" onclick="openDevices()">
+        <span id="device-icon"></span>
+        <span id="device-label" class="label">Select device</span>
+        <span class="caret">&#9662;</span>
+      </div>
+      <button id="logout-btn" onclick="logout()" title="Disconnect" aria-label="Disconnect">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>
+      </button>
+    </div>
+
+    <div id="no-device" class="hidden">
+      Open Spotify on any device first, then select it above &#8593;
+    </div>
+
+    <div id="now-playing">
+      <img id="album-art" class="hidden" src="" alt="" onclick="albumArtTap()">
+      <div id="track-name" onclick="openCurrentAlbum()">Nothing playing</div>
+      <div id="album-name" onclick="openCurrentAlbum()"></div>
+      <div id="artist-name" onclick="openCurrentArtist()">&mdash;</div>
+      <div id="progress-wrap"><div id="progress-fill"></div></div>
+      <div id="time-row"><span id="time-elapsed">0:00</span><span id="time-remaining">0:00</span></div>
+    </div>
+
+    <div id="controls">
+      <button class="ctrl skip" onclick="prev()" aria-label="Previous">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+      </button>
+      <div id="gauge">
+        <svg id="gauge-ring" viewBox="0 0 100 100" aria-hidden="true">
+          <circle class="track" cx="50" cy="50" r="46"></circle>
+          <circle class="fill"  cx="50" cy="50" r="46" style="stroke-dasharray:289;stroke-dashoffset:289"></circle>
+        </svg>
+        <button class="ctrl play" id="play-btn" onclick="togglePlay()" aria-label="Play/Pause"></button>
+      </div>
+      <button class="ctrl skip" onclick="next()" aria-label="Next">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
+      </button>
+    </div>
+
+    <div id="secondary">
+      <button class="sec" id="shuffle-btn" onclick="toggleShuffle()">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></span><span>Shuffle</span>
+      </button>
+      <button class="sec" id="like-btn" onclick="toggleLike()">
+        <span class="icon"></span><span>Like</span>
+      </button>
+      <button class="sec" onclick="showQueue()">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 6h11v2H3zm0 5h11v2H3zm0 5h7v2H3zM16 9l5 3-5 3z"/></svg></span><span>Queue</span>
+      </button>
+    </div>
+
+    <div id="search-bar">
+      <button id="mic-btn" onclick="startDictation()" aria-label="Search by voice">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+      </button>
+      <input id="search-input" type="search" placeholder="Search or tap mic to speak…"
+             enterkeyhint="search" autocomplete="off"
+             oninput="onSearchInput(this.value)"
+             onfocus="onSearchFocus()"
+             onblur="onSearchBlur()"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();runSearch(this.value);}">
+      <button id="search-clear" onclick="clearSearch()" aria-label="Clear search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div class="section-divider"></div>
+    <div id="stats">
+      <div class="dash-head">Stats and Facts</div>
+      <div class="stat-grid">
+        <div class="stat-tile">
+          <div class="stat-value" id="stat-drive">0s</div>
+          <div class="stat-label">Drive time</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value" id="stat-plays">&mdash;</div>
+          <div class="stat-label">Plays this week</div>
+        </div>
+      </div>
+    </div>
+    <div id="results-list"></div>
+    <div id="credit">Made by Labern 🐿️</div>
+
+  </div><!-- /main -->
+
+  <!-- ── Device Sheet ───────────────────────────────────────── -->
+  <div id="device-overlay" class="hidden" onclick="closeDevicesOnBg(event)">
+    <div id="device-sheet">
+      <div class="sheet-title">Choose a device</div>
+      <div id="device-list"></div>
+    </div>
+  </div>
+
+  <!-- Search results render inline under the controls (see #results-list in #main) -->
+
+</div><!-- /app -->
+
+<script>
+// ── ICONS (inline SVG strings, colour via currentColor) ─────────────
+const ICONS = {
+  play:        '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+  pause:       '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
+  heart:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
+  heartFilled: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 20.5 4.2 12.7a4.6 4.6 0 0 1 6.5-6.5l1.3 1.3 1.3-1.3a4.6 4.6 0 0 1 6.5 6.5L12 20.5z"/></svg>',
+  check:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>',
+  sun:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>',
+  moon:        '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>',
+  computer:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="1"/><path d="M8 20h8M12 16v4"/></svg>',
+  phone:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>',
+  speaker:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="14" r="3.5"/><circle cx="12" cy="6" r="1"/></svg>',
+  car:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 13l2-5a2 2 0 0 1 1.9-1.4h10.2A2 2 0 0 1 21 8l2 5v5h-3v-2H6v2H3z"/><circle cx="7.5" cy="15.5" r="1.5"/><circle cx="16.5" cy="15.5" r="1.5"/></svg>',
+  tv:          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="12" rx="1"/><path d="M8 21h8"/></svg>',
+};
+
+// ── CONFIG — fill this in before using ──────────────────────────────
+const CLIENT_ID = '8a2fa6f88fac444290f3d0c81e390346';
+// Get one free at: https://developer.spotify.com/dashboard
+// Redirect URI to register: https://labern.github.io/Clean/SpotifyDrive/index.html
+// ────────────────────────────────────────────────────────────────────
+
+const REDIRECT_URI = 'https://labern.github.io/Clean/SpotifyDrive/index.html';
+const SCOPES = [
+  'user-read-playback-state',
+  'user-modify-playback-state',
+  'user-read-currently-playing',
+  'user-read-recently-played',       // dashboard: "Recently played" + plays-this-week log
+  'playlist-read-private',           // dashboard: "Your playlists" (private)
+  'playlist-read-collaborative',     // dashboard: "Your playlists" (collaborative)
+  'user-library-read',
+  'user-library-modify',
+].join(' ');
+
+// Bump when SCOPES changes: existing users granted scopes ONCE at first connect,
+// and refresh tokens never pick up scopes added later — so a new scope needs a
+// fresh consent. missingScopes() drives a one-time auto-reconnect on load.
+const SCOPE_VER = 'v3-playlist';
+function missingScopes() {
+  const have = new Set((localStorage.getItem('granted_scope') || '').split(/\s+/).filter(Boolean));
+  return SCOPES.split(' ').filter(s => !have.has(s));
+}
+
+// ── PKCE ─────────────────────────────────────────────────────────────
+function rndStr(n) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+  const bytes = crypto.getRandomValues(new Uint8Array(n));
+  return Array.from(bytes, b => chars[b % chars.length]).join('');
+}
+async function codeChallenge(v) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(v));
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+async function authorize() {
+  if (CLIENT_ID === 'YOUR_CLIENT_ID_HERE') {
+    alert('Set CLIENT_ID in this file first.\nSee the comment at the top of the <script> block.');
+    return;
+  }
+  const v = rndStr(128);
+  // localStorage (not sessionStorage): an installed iOS PWA can lose sessionStorage
+  // across the OAuth redirect to accounts.spotify.com and back.
+  localStorage.setItem('pkce_v', v);
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID, response_type: 'code',
+    redirect_uri: REDIRECT_URI,
+    code_challenge_method: 'S256', code_challenge: await codeChallenge(v),
+    scope: SCOPES,
+  });
+  location.href = 'https://accounts.spotify.com/authorize?' + params;
+}
+async function exchangeCode(code) {
+  const v = localStorage.getItem('pkce_v');
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code', code,
+      redirect_uri: REDIRECT_URI, client_id: CLIENT_ID, code_verifier: v,
+    }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || !d.access_token) {
+    toast('Couldn’t connect to Spotify. Try again.', true);
+    showAuth();
+    return;
+  }
+  localStorage.removeItem('pkce_v');
+  storeTokens(d);
+}
+// Wipe credentials and bounce back to the Connect screen (revoked/expired token).
+function forceReauth() {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('token_expiry');
+  localStorage.removeItem('refresh_token');
+  toast('Session expired — reconnect Spotify.', true);
+  showAuth();
+}
+async function refreshAccessToken() {
+  const rt = ls('refresh_token');
+  if (!rt) { forceReauth(); return null; }
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'refresh_token', refresh_token: rt, client_id: CLIENT_ID,
+    }),
+  });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || !d.access_token) { forceReauth(); return null; }
+  storeTokens(d);
+  return d.access_token;
+}
+function storeTokens(d) {
+  if (!d.access_token) return;
+  lsSet('access_token', d.access_token);
+  lsSet('token_expiry', Date.now() + d.expires_in * 1000);
+  if (d.refresh_token) lsSet('refresh_token', d.refresh_token);
+  if (d.scope) lsSet('granted_scope', d.scope);   // track what was actually granted
+}
+async function getToken() {
+  const expiry = +ls('token_expiry') || 0;
+  if (Date.now() > expiry - 60_000) return refreshAccessToken();
+  return ls('access_token');
+}
+
+// ── localStorage helpers ──────────────────────────────────────────
+const ls    = k => localStorage.getItem(k);
+const lsSet = (k, v) => localStorage.setItem(k, v);
+
+// ── DEMO MODE (local UI testing without Spotify auth) ──────────────
+// Auto-on for localhost / LAN IPs (or ?demo=1). NEVER on the deployed host, so
+// production always uses real Spotify. Lets you iterate on the UI fast on your
+// phone over the LAN — sample data, no login, no OAuth redirect headache.
+const DEMO = /[?&]demo=1/.test(location.search || '')
+  || /\/neo\//.test(location.pathname || '')        // /neo/ preview path → demo (no auth needed)
+  || ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname)
+  || /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname || '');
+function demoCover(c) {
+  return 'data:image/svg+xml,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="${c}"/></svg>`);
+}
+const DEMO_TRACK = (id, name, artist, color) => ({
+  id, uri: 'spotify:track:' + id, name, duration_ms: 213000,
+  artists: [{ id: 'ar' + id, name: artist }],
+  album: { id: 'al' + id, uri: 'spotify:album:al' + id, name: name + ' — Single',
+           images: [{ url: demoCover(color) }, {}, { url: demoCover(color) }] },
+});
+const DEMO_TRACKS = [
+  DEMO_TRACK('1', 'Midnight City', 'M83', '#5eead4'),
+  DEMO_TRACK('2', 'Instant Crush', 'Daft Punk', '#a78bfa'),
+  DEMO_TRACK('3', 'The Less I Know The Better', 'Tame Impala', '#f472b6'),
+  DEMO_TRACK('4', 'Redbone', 'Childish Gambino', '#fbbf24'),
+  DEMO_TRACK('5', 'Nights', 'Frank Ocean', '#60a5fa'),
+];
+let demoNow = 0;
+function demoApi(path, method, body) {
+  const m = (method || 'GET').toUpperCase();
+  if (m === 'PUT' && path.startsWith('/me/player/play') && body) {
+    const uri = (body.offset && body.offset.uri) || (body.uris && body.uris[0]) || null;
+    const i = DEMO_TRACKS.findIndex(t => t.uri === uri);
+    if (i >= 0) demoNow = i;
+  }
+  if (m !== 'GET') return null;                       // playback commands succeed silently
+  if (path.startsWith('/me/player/devices'))         return { devices: [{ id: 'demo-dev', name: 'Demo Speaker', type: 'Speaker', is_active: true }] };
+  if (path.startsWith('/me/player/recently-played')) return { items: DEMO_TRACKS.map((t, i) => ({ track: t, played_at: new Date(Date.now() - (i + 1) * 5400000).toISOString() })) };
+  if (path.startsWith('/me/player/queue'))           return { currently_playing: DEMO_TRACKS[demoNow], queue: DEMO_TRACKS.filter((_, i) => i !== demoNow) };
+  if (path.startsWith('/me/playlists'))              return { items: [
+    { id: 'pl1', uri: 'spotify:playlist:pl1', name: 'Morning Drive', images: [{ url: demoCover('#5eead4') }], tracks: { total: 24 } },
+    { id: 'pl2', uri: 'spotify:playlist:pl2', name: 'Hype', images: [{ url: demoCover('#f472b6') }], tracks: { total: 51 } },
+    { id: 'pl3', uri: 'spotify:playlist:pl3', name: 'Late Night', images: [{ url: demoCover('#a78bfa') }], tracks: { total: 38 } },
+  ] };
+  if (/^\/playlists\/[^/]+\/tracks/.test(path))      return { items: DEMO_TRACKS.map(t => ({ track: t })) };
+  if (/^\/albums\//.test(path))                      return { name: 'Demo Album', uri: 'spotify:album:x', images: [{ url: demoCover('#a78bfa') }], tracks: { items: DEMO_TRACKS } };
+  if (/^\/artists\/[^/]+\/albums/.test(path))        return { items: [{ id: 'al1', name: 'Demo Album', album_type: 'album', total_tracks: 10, images: [{ url: demoCover('#a78bfa') }], artists: [{ id: 'ar1', name: 'Demo Artist' }] }] };
+  if (path.startsWith('/search'))                    return { tracks: { items: DEMO_TRACKS } };
+  if (path.startsWith('/me/tracks/contains'))        return [demoNow % 2 === 0];
+  if (path.startsWith('/me/player'))                 return { is_playing: true, shuffle_state: false, progress_ms: 42000, device: { id: 'demo-dev', name: 'Demo Speaker', type: 'Speaker' }, item: DEMO_TRACKS[demoNow] };
+  return null;
+}
+
+// ── API ───────────────────────────────────────────────────────────
+async function api(path, method = 'GET', body = null, _retried = false) {
+  if (DEMO) return demoApi(path, method, body);
+  const t = await getToken();
+  if (!t) throw Object.assign(new Error('Not authenticated'), { status: 401 });
+  const opts = { method, headers: { Authorization: 'Bearer ' + t } };
+  if (body !== null) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+  const res = await fetch('https://api.spotify.com/v1' + path, opts);
+  if (res.status === 204 || res.status === 202) return null;
+  if (res.status === 401 && !_retried) {
+    // token rejected mid-session — refresh once and retry, else bounce to Connect
+    const nt = await refreshAccessToken();
+    if (nt) return api(path, method, body, true);
+    throw Object.assign(new Error('Session expired'), { status: 401 });
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw Object.assign(new Error(err?.error?.message || res.status), { status: res.status });
+  }
+  // Playback commands (play/pause/next/seek…) return empty bodies — don't call
+  // res.json() on nothing, or it throws "Unexpected end of JSON input".
+  // Also guard JSON.parse so a malformed/non-JSON 200 body can NEVER surface as
+  // a raw "JSON Parse error: Unexpected identifier" on a play/pause toast.
+  const text = await res.text();
+  if (!text) return null;
+  try { return JSON.parse(text); } catch(e) { return null; }
+}
+
+// ── State ─────────────────────────────────────────────────────────
+const S = {
+  playing: false, shuffle: false, liked: false,
+  trackId: null, deviceId: null,
+  progressMs: 0, durationMs: 0,
+};
+let pollTimer = null, tickTimer = null;
+// Tracks the track-ids WE added to the queue, so the LAST one can flow into its
+// own album when nothing else is queued (instead of dead-air / a stop).
+const myQueued = new Set(), continuedAlbums = new Set();
+
+// ── Playback ──────────────────────────────────────────────────────
+function devQ() { return S.deviceId ? `?device_id=${S.deviceId}` : ''; }
+
+// Visible, auto-dismissing feedback so failures are never swallowed silently.
+function toast(msg, isErr) {
+  let el = document.getElementById('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = ''; }, 3400);
+}
+
+// Resolve a device to command: the picked one, else the active one, else the
+// first available. Returns a device id, or null if Spotify has no device anywhere.
+async function ensureActiveDevice() {
+  if (S.deviceId) return S.deviceId;
+  try {
+    const d = await api('/me/player/devices');
+    const devs = d?.devices || [];
+    const dev = devs.find(x => x.is_active) || devs[0];
+    if (dev) { S.deviceId = dev.id; return dev.id; }
+  } catch(e) { /* fall through to null */ }
+  return null;
+}
+
+// Shared error handler: surface "no active device" clearly instead of failing silently.
+function handlePlaybackError(e, what) {
+  if (e && e.status === 401) return; // forceReauth already showed the Connect screen
+  if (e && e.status === 404) {
+    S.deviceId = null;
+    toast('No active Spotify device. Open Spotify on a device, then tap it here.', true);
+    openDevices();
+  } else if (e && e.status === 403) {
+    toast('Playback control needs Spotify Premium.', true);
+  } else {
+    toast((what || 'Playback') + ' failed: ' + ((e && e.message) || 'error'), true);
+  }
+}
+
+async function togglePlay() {
+  try {
+    const dev = await ensureActiveDevice();
+    const q = dev ? `?device_id=${dev}` : '';
+    await api('/me/player/' + (S.playing ? 'pause' : 'play') + q, 'PUT');
+    S.playing = !S.playing;
+    renderPlayBtn();
+  } catch(e) { handlePlaybackError(e, 'Play/pause'); }
+}
+async function next() {
+  try {
+    const dev = await ensureActiveDevice();
+    await api('/me/player/next' + (dev ? `?device_id=${dev}` : ''), 'POST');
+    setTimeout(fetchState, 600);
+  } catch(e) { handlePlaybackError(e, 'Skip'); }
+}
+async function prev() {
+  try {
+    const dev = await ensureActiveDevice();
+    await api('/me/player/previous' + (dev ? `?device_id=${dev}` : ''), 'POST');
+    setTimeout(fetchState, 600);
+  } catch(e) { handlePlaybackError(e, 'Skip'); }
+}
+async function toggleShuffle() {
+  const dev = await ensureActiveDevice();
+  S.shuffle = !S.shuffle;
+  renderShuffleBtn();
+  try {
+    await api('/me/player/shuffle?state=' + S.shuffle + (dev ? `&device_id=${dev}` : ''), 'PUT');
+  } catch(e) {
+    S.shuffle = !S.shuffle; renderShuffleBtn();
+    handlePlaybackError(e, 'Shuffle');
+  }
+}
+async function toggleLike() {
+  if (!S.trackId) return;
+  S.liked = !S.liked;
+  renderLikeBtn();
+  const method = S.liked ? 'PUT' : 'DELETE';
+  await api(`/me/tracks?ids=${S.trackId}`, method).catch(e => {
+    S.liked = !S.liked; renderLikeBtn(); // revert on error
+    if (e && e.status === 401) return;
+    toast('Couldn’t update Liked Songs.', true);
+  });
+}
+
+// ── Device icon helper ────────────────────────────────────────────
+function deviceSvg(t) {
+  return { Computer: ICONS.computer, Smartphone: ICONS.phone, Speaker: ICONS.speaker,
+           CastVideo: ICONS.tv, TV: ICONS.tv,
+           CarThing: ICONS.car, Automobile: ICONS.car }[t] || ICONS.speaker;
+}
+
+// ── Render helpers ────────────────────────────────────────────────
+// BMW roundel (drawn as the play button in BMW Mode) — blue #0166B1 / white / black.
+const BMW_ROUNDEL = '<svg viewBox="0 0 100 100" aria-hidden="true">' +
+  '<circle cx="50" cy="50" r="50" fill="#000"/>' +
+  '<circle cx="50" cy="50" r="39" fill="#fff"/>' +
+  '<path d="M50 50 L50 11 A39 39 0 0 1 89 50 Z" fill="#0166B1"/>' +
+  '<path d="M50 50 L50 89 A39 39 0 0 1 11 50 Z" fill="#0166B1"/>' +
+  '<path id="bmwArc" d="M9 50 A41 41 0 0 1 91 50" fill="none"/>' +
+  '<text fill="#fff" font-size="13" font-weight="800" letter-spacing="2.5" text-anchor="middle"><textPath href="#bmwArc" startOffset="50%">BMW</textPath></text>' +
+  '</svg>';
+function renderPlayBtn() {
+  const btn = $('play-btn');
+  const glyph = S.playing ? ICONS.pause : ICONS.play;
+  const app = document.getElementById('app');
+  if (app && app.classList.contains('bmw')) {
+    btn.innerHTML = '<span class="bmw-roundel">' + BMW_ROUNDEL + '</span><span class="bmw-glyph">' + glyph + '</span>';
+  } else {
+    btn.innerHTML = glyph;
+  }
+}
+function renderShuffleBtn() {
+  $('shuffle-btn').classList.toggle('on', S.shuffle);
+}
+function renderLikeBtn() {
+  const btn = $('like-btn');
+  btn.querySelector('.icon').innerHTML = S.liked ? ICONS.heartFilled : ICONS.heart;
+  btn.classList.toggle('liked', S.liked);
+}
+
+// ── Fetch Playback State ──────────────────────────────────────────
+async function fetchState() {
+  try {
+    const d = await api('/me/player');
+    if (!d || !d.item) {
+      $('track-name').textContent = 'Nothing playing';
+      $('album-name').textContent = '';
+      $('artist-name').textContent = '—';
+      $('album-art').classList.add('hidden');
+      $('no-device').classList.remove('hidden');
+      return;
+    }
+    $('no-device').classList.add('hidden');
+
+    const t = d.item;
+    const newTrack = t.id !== S.trackId;
+
+    S.playing     = d.is_playing;
+    S.shuffle     = d.shuffle_state;
+    S.progressMs  = d.progress_ms;
+    S.durationMs  = t.duration_ms;
+    S.albumId     = t.album?.id || null;
+    S.artistId    = t.artists?.[0]?.id || null;
+    S.contextUri  = d.context?.uri || null;
+    if (d.device) S.deviceId = d.device.id;
+
+    $('track-name').textContent  = t.name;
+    $('album-name').textContent  = t.album?.name || '';
+    $('artist-name').textContent = t.artists.map(a => a.name).join(', ');
+
+    const art = t.album?.images?.[0]?.url;
+    if (art) { $('album-art').src = art; $('album-art').classList.remove('hidden'); }
+    else      { $('album-art').classList.add('hidden'); }
+
+    if (d.device) {
+      $('device-label').textContent = d.device.name;
+      $('device-icon').innerHTML    = deviceSvg(d.device.type);
+    }
+
+    renderPlayBtn();
+    renderShuffleBtn();
+    if (!S.scrubbing) { if (newTrack) snapProgress(); else renderProgress(); }
+
+    if (newTrack) { S.trackId = t.id; recordPlay(t.id); updateStats(); checkLiked(); maybeContinueAlbum(t); }
+  } catch(e) { console.warn('fetchState', e); }
+}
+
+// circumference of r=46 ring used by stroke-dasharray/offset
+const RING_CIRC = 2 * Math.PI * 46;
+function fmtTime(ms) {
+  const s = Math.max(0, Math.floor((ms || 0) / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+function renderProgress() {
+  if (!S.durationMs) return;
+  const frac = Math.max(0, Math.min(1, S.progressMs / S.durationMs));
+  $('progress-fill').style.width = (frac * 100) + '%';
+  const ring = document.querySelector('#gauge-ring .fill');
+  if (ring) {
+    ring.style.strokeDasharray  = RING_CIRC;
+    ring.style.strokeDashoffset = RING_CIRC * (1 - frac);
+  }
+  const el = document.getElementById('time-elapsed');
+  if (el) el.textContent = fmtTime(S.progressMs);
+  const rm = document.getElementById('time-remaining');
+  if (rm) rm.textContent = '-' + fmtTime(S.durationMs - S.progressMs);
+}
+// On a NEW track, jump the bar/ring to the new position with NO transition so it doesn't
+// animate backwards ("rewind"); then restore transitions for the per-second ticks.
+function snapProgress() {
+  const fill = $('progress-fill');
+  const ring = document.querySelector('#gauge-ring .fill');
+  fill.style.transition = 'none';
+  if (ring) ring.style.transition = 'none';
+  renderProgress();
+  void fill.offsetWidth;                        // force reflow so 'none' applies before re-enabling
+  fill.style.transition = 'width 1s linear';
+  if (ring) ring.style.transition = 'stroke-dashoffset 1s linear';
+}
+function tickProgress() {
+  if (S.scrubbing) return;                 // don't fight the user's drag
+  if (!S.playing || !S.durationMs) return;
+  S.progressMs = Math.min(S.progressMs + 1000, S.durationMs);
+  $('progress-fill').style.transition = 'width 1s linear';
+  renderProgress();
+}
+async function checkLiked() {
+  if (!S.trackId) return;
+  try {
+    const d = await api(`/me/tracks/contains?ids=${S.trackId}`);
+    S.liked = Array.isArray(d) ? d[0] : false;
+    renderLikeBtn();
+  } catch(e) {}
+}
+
+function startPolling() {
+  clearInterval(pollTimer); clearInterval(tickTimer);
+  fetchState();
+  pollTimer = setInterval(fetchState, 5000);
+  tickTimer = setInterval(tickProgress, 1000);
+}
+
+// ── Devices ───────────────────────────────────────────────────────
+async function openDevices() {
+  show('device-overlay');
+  const list = $('device-list');
+  list.innerHTML = '<div style="color:var(--muted);padding:14px 0">Loading…</div>';
+  try {
+    const d = await api('/me/player/devices');
+    const devs = d?.devices || [];
+    if (!devs.length) {
+      list.innerHTML = '<div style="color:var(--muted);padding:14px 0">No active Spotify devices found.<br>Open Spotify somewhere first.</div>';
+      return;
+    }
+    list.innerHTML = devs.map(dev => `
+      <div class="device-row ${dev.id === S.deviceId ? 'current' : ''}"
+           onclick="pickDevice('${esc(dev.id)}','${esc(dev.name)}','${esc(dev.type)}')">
+        <span class="device-icon">${deviceSvg(dev.type)}</span>
+        <div>
+          <div class="device-name">${esc(dev.name)}</div>
+          <div class="device-type">${dev.type}${dev.is_active ? ' · active' : ''}</div>
+        </div>
+        ${dev.id === S.deviceId ? '<span class="device-check">' + ICONS.check + '</span>' : ''}
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = '<div style="color:var(--pink);padding:14px 0">Couldn\'t load devices.</div>';
+  }
+}
+function pickDevice(id, name, type) {
+  S.deviceId = id;
+  $('device-label').textContent = name;
+  $('device-icon').innerHTML    = deviceSvg(type);
+  hide('device-overlay');
+  $('no-device').classList.add('hidden');
+  api('/me/player', 'PUT', { device_ids: [id], play: true })
+    .then(() => setTimeout(fetchState, 600))
+    .catch(e => handlePlaybackError(e, 'Switch device'));
+}
+function closeDevicesOnBg(e) { if (e.target.id === 'device-overlay') hide('device-overlay'); }
+
+// ── Search (inline, as-you-type) ──────────────────────────────────
+// Search focus immediately compacts the player; blur clears if the query is empty.
+function onSearchFocus() {
+  const main = document.getElementById('main');
+  if (main) main.classList.add('searching');
+  // Pull the field up so the keyboard doesn't bury it / the results.
+  setTimeout(() => {
+    const sb = document.getElementById('search-bar');
+    if (sb && sb.scrollIntoView) sb.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, 250);
+}
+function onSearchBlur() {
+  setTimeout(() => {
+    const inp = $('search-input');
+    if (inp && !inp.value.trim()) clearSearch();
+  }, 160);
+}
+// Helper: error view with a BIG full-width back button (easy to hit while driving).
+function inlineErr(msg) {
+  return `<div class="hint">${esc(String(msg))}</div>` +
+    `<button class="err-back" onclick="clearSearch()">${BACK_SVG}<span>Back</span></button>`;
+}
+
+// ── Voice dictation for search (one tap → speak) ───────────────────
+// Tap the mic: it WIPES any previous text and listens fresh, so a wrong
+// dictation is redone with a single tap (no backspacing). Tap again to stop.
+// The mic is separate from the keyboard, so typing and voice never conflict.
+let recog = null, recogActive = false, recogTimer = null;
+function setMicState(on) {
+  const b = document.getElementById('mic-btn');
+  if (b) b.classList.toggle('listening', on);
+}
+// Normalize a dictated phrase for search: trim, drop trailing punctuation, and strip a
+// leading command word ("play/search for/find/put on/queue") so the query is just the
+// music — dictation otherwise returns e.g. "play redbone." which searches poorly.
+function cleanDictation(s) {
+  return (s || '')
+    .trim()
+    .replace(/[.,!?;:]+$/, '')
+    .replace(/^(play|search for|search|find|put on|queue)\s+/i, '')
+    .trim();
+}
+function startDictation() {
+  const input = $('search-input');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  // Tap while already listening → stop and keep what we have.
+  if (recogActive && recog) { try { recog.stop(); } catch(e){} return; }
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    // No Web Speech here (some installed iOS PWAs): fall back to the keyboard mic.
+    input.value = '';
+    input.focus();
+    toast('Tap the microphone on your keyboard to dictate.');
+    return;
+  }
+  // Fresh start: wipe the old attempt so a mistaken result is replaced, not appended.
+  input.value = '';
+  renderResults(null);
+  try {
+    recog = new SR();
+    recog.lang = 'en-US';
+    recog.interimResults = true;
+    recog.continuous = false;
+    recog.maxAlternatives = 1;
+    recogActive = true;
+    setMicState(true);
+    // Safety net: never let the mic hang "listening" forever (incl. the installed-PWA
+    // case where recognition starts but never returns a result).
+    clearTimeout(recogTimer);
+    recogTimer = setTimeout(() => { try { recog.stop(); } catch(e){} }, 7000);
+    recog.onresult = (e) => {
+      let txt = '';
+      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+      const q = cleanDictation(txt);
+      input.value = q;
+      onSearchInput(q);                   // live, filler-stripped search as you speak
+    };
+    recog.onerror = (e) => {
+      clearTimeout(recogTimer);
+      recogActive = false; setMicState(false);
+      const err = e && e.error;
+      if (err && err !== 'no-speech' && err !== 'aborted') toast('Dictation: ' + err, true);
+    };
+    recog.onend = () => {
+      clearTimeout(recogTimer);
+      recogActive = false; setMicState(false);
+      const q = cleanDictation(input.value);
+      input.value = q;
+      if (q) runSearch(q);
+      else toast('Didn’t catch that — tap the mic to try again.');
+    };
+    recog.start();
+  } catch(err) {
+    clearTimeout(recogTimer);
+    recogActive = false; setMicState(false);
+    input.focus();
+    toast('Couldn\'t start dictation — use the keyboard mic.', true);
+  }
+}
+
+let searchTimer = null, searchSeq = 0;
+function onSearchInput(v) {
+  clearTimeout(searchTimer);
+  const q = (v || '').trim();
+  if (!q) { renderResults(null); return; }
+  searchTimer = setTimeout(() => runSearch(q), 220); // debounce keystrokes
+}
+async function runSearch(q) {
+  q = (q || '').trim();
+  if (!q) { renderResults(null); return; }
+  const seq = ++searchSeq;
+  try {
+    const d = await api(`/search?q=${encodeURIComponent(q)}&type=track&limit=10`);
+    if (seq !== searchSeq) return;            // a newer keystroke superseded this one
+    renderResults(d?.tracks?.items || []);
+  } catch(e) {
+    if (seq !== searchSeq || (e && e.status === 401)) return;
+    $('results-list').innerHTML = `<div class="hint">Search error: ${esc(e.message || 'failed')}</div>`;
+  }
+}
+function renderResults(tracks) {
+  const list = $('results-list');
+  const main = document.getElementById('main');
+  if (main) main.classList.toggle('searching', !!(tracks && tracks.length));
+  if (tracks === null) { showDashboard(); return; }
+  if (!tracks.length) { list.innerHTML = '<div class="hint">No results.</div>'; return; }
+  list.innerHTML = tracks.map(t => {
+    const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+    const albumId = t.album?.id || '';
+    const artistId = t.artists?.[0]?.id || '';
+    return `
+      <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(t.album?.uri || '')}" data-name="${esc(t.name)}" onclick="playSearchResult('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')">${esc(t.name)}</div>
+          <div class="result-artist" onclick="event.stopPropagation();openArtist('${esc(artistId)}')">${esc(t.artists.map(a => a.name).join(', '))}</div>
+        </div>
+        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+      </div>`;
+  }).join('');
+}
+function clearSearch() {
+  const inp = $('search-input');
+  if (inp) { inp.value = ''; if (inp.blur) inp.blur(); }   // also dismiss the keyboard
+  renderResults(null);
+}
+// Picking a search result IS "search complete": play it, then snap the full-size
+// player back (fast, intuitive — no hunting for the clear button while driving).
+async function playSearchResult(uri, ctx) {
+  await playTrackUri(uri, ctx);
+  clearSearch();
+}
+// Tap the shrunken album art while searching to pop straight back to the full player.
+function albumArtTap() {
+  const main = document.getElementById('main');
+  if (main && main.classList.contains('searching')) clearSearch();
+}
+
+// Default playback to follow the album/context (continuous) instead of repeating the
+// single track — kills the "same song loops" behaviour. Best-effort, never blocks play.
+function setRepeatContext(dev) {
+  api('/me/player/repeat?state=context' + (dev ? `&device_id=${dev}` : ''), 'PUT').catch(() => {});
+}
+
+// When a track WE queued becomes current and nothing else is queued behind it (it's the
+// last item), continue into THAT song's album so the music doesn't just stop. Only fires
+// when the queue is empty — if a real context is playing, Spotify already continues it.
+async function maybeContinueAlbum(t) {
+  if (!t || !t.id || !myQueued.has(t.id) || continuedAlbums.has(t.id)) return;
+  const albumId = t.album && t.album.id;
+  if (!albumId) return;
+  try {
+    const q = await api('/me/player/queue');
+    if (((q && q.queue) || []).length > 0) return;     // something's still queued/contextual — leave it
+    continuedAlbums.add(t.id);
+    const al = await api('/albums/' + albumId);
+    const tracks = (al && al.tracks && al.tracks.items) || [];
+    const idx = tracks.findIndex(x => x && x.id === t.id);
+    if (idx < 0) return;
+    for (const nt of tracks.slice(idx + 1, idx + 1 + 8)) {   // queue the rest of the album (bounded)
+      if (nt && nt.uri) await api('/me/player/queue?uri=' + encodeURIComponent(nt.uri), 'POST').catch(() => {});
+    }
+  } catch(e) { /* best-effort */ }
+}
+
+async function playTrackUri(uri, contextUri) {
+  let dev = await ensureActiveDevice();
+  // Play the track WITHIN its album context (+offset) so playback continues naturally
+  // afterwards, instead of a context-less single track that loops / re-plays.
+  const body = contextUri ? { context_uri: contextUri, offset: { uri } } : { uris: [uri] };
+  try {
+    await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', body);
+    setRepeatContext(dev);
+    setTimeout(fetchState, 800);
+  } catch(e) {
+    if (e && e.status === 404) {            // device went inactive — refetch + retry once
+      S.deviceId = null;
+      dev = await ensureActiveDevice();
+      if (dev) {
+        try {
+          await api(`/me/player/play?device_id=${dev}`, 'PUT', body);
+          setRepeatContext(dev);
+          setTimeout(fetchState, 800);
+          return;
+        } catch(e2) { e = e2; }
+      }
+    }
+    handlePlaybackError(e, 'Play');
+  }
+}
+
+// Add a track to the Spotify play queue (the "+ Queue" button on each result).
+async function queueTrack(btn, uri) {
+  // Already queued? Spotify's API has NO un-queue endpoint, so re-tapping must not
+  // silently add a duplicate — tell the truth instead.
+  if (btn && btn.classList && btn.classList.contains('queued')) {
+    toast('Already queued — Spotify can’t un-queue a track. Skip it when it plays.', true);
+    return;
+  }
+  if (uri) myQueued.add(uri.split(':').pop());   // remember so the last one continues its album
+  // Optimistic: flip to the green "Queued" state immediately, revert if it fails.
+  let prevHTML = null;
+  if (btn && btn.classList) {
+    prevHTML = btn.innerHTML;
+    btn.classList.add('queued');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg><span>Queued</span>';
+  }
+  let dev = await ensureActiveDevice();
+  const url = (d) => '/me/player/queue?uri=' + encodeURIComponent(uri) + (d ? `&device_id=${d}` : '');
+  try {
+    await api(url(dev), 'POST');
+    // (button shows the green "Queued" state; swipe-to-queue shows its own toast)
+  } catch(e) {
+    if (e && e.status === 404) {            // device went inactive — re-ensure + retry once (like play)
+      S.deviceId = null;
+      dev = await ensureActiveDevice();
+      if (dev) {
+        try {
+          await api(url(dev), 'POST');
+          return;                            // success on retry — keep the optimistic Queued state
+        } catch(e2) { e = e2; }
+      }
+    }
+    if (btn && btn.classList) {             // genuine failure — revert + surface the reason
+      btn.classList.remove('queued');
+      if (prevHTML !== null) btn.innerHTML = prevHTML;
+    }
+    handlePlaybackError(e, 'Queue');
+  }
+}
+
+// Open the album / artist in Spotify (universal links open the app on iOS).
+// Back chevron used by the inline album view.
+const BACK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
+
+// In-app album view: fetch the album and list its tracks inline (each selectable).
+async function openAlbum(id) {
+  if (!id) return;
+  const list = $('results-list');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  list.innerHTML = '<div class="hint">Loading album…</div>';
+  try {
+    renderAlbum(await api('/albums/' + id));
+  } catch(e) {
+    if (e && e.status === 401) return;
+    list.innerHTML = inlineErr('Couldn\'t load album (' + (e && e.status || 'err') + ': ' + (e && e.message || 'unknown') + ')');
+    toast('Album: ' + (e && e.message || 'error'), true);
+  }
+}
+function renderAlbum(album) {
+  const art = album.images?.[1]?.url || album.images?.[0]?.url || '';
+  const tracks = album.tracks?.items || [];
+  const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title">${esc(album.name)}</div></div>`;
+  const rows = tracks.map(t => `
+      <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(album.uri || '')}" data-name="${esc(t.name)}" onclick="playTrackUri('${esc(t.uri)}', '${esc(album.uri || '')}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(t.name)}</div>
+          <div class="result-artist">${esc(t.artists.map(a => a.name).join(', '))}</div>
+        </div>
+        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+      </div>`).join('');
+  $('results-list').innerHTML = head + rows;
+}
+// In-app artist view: list the artist's albums (dev-mode removed /top-tracks, so use albums).
+async function openArtist(id) {
+  if (!id) return;
+  const list = $('results-list');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  list.innerHTML = '<div class="hint">Loading artist…</div>';
+  try {
+    const d = await api('/artists/' + id + '/albums?include_groups=album,single&limit=10');
+    const items = d?.items || [];
+    const name = ((items[0]?.artists || []).find(a => a.id === id) || (items[0]?.artists || [])[0] || {}).name || 'Artist';
+    renderArtistAlbums(items, name);
+  } catch(e) {
+    if (e && e.status === 401) return;
+    list.innerHTML = inlineErr('Couldn\'t load artist (' + (e && e.status || 'err') + ': ' + (e && e.message || 'unknown') + ')');
+    toast('Artist: ' + (e && e.message || 'error'), true);
+  }
+}
+function renderArtistAlbums(items, title) {
+  const seen = new Set();
+  const albums = items.filter(a => { const k = (a.name || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title">${esc(title)}</div></div>`;
+  const rows = albums.map(al => `
+      <div class="result-row" onclick="openAlbum('${esc(al.id)}')">
+        <img class="result-art" src="${esc(al.images?.[1]?.url || al.images?.[0]?.url || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(al.name)}</div>
+          <div class="result-artist">${al.album_type === 'single' ? 'Single' : 'Album'}${al.total_tracks ? ' · ' + al.total_tracks + ' tracks' : ''}${al.release_date ? ' · ' + String(al.release_date).slice(0, 4) : ''}</div>
+        </div>
+      </div>`).join('');
+  $('results-list').innerHTML = head + rows;
+}
+function openCurrentAlbum()  { openAlbum(S.albumId); }
+function openCurrentArtist() { openArtist(S.artistId); }
+
+// ── Play history → "played X times this week" ──────────────────────
+// Spotify exposes NO per-track play-count API, and recently-played caps at the
+// last 50 plays. So we keep a small local log: seed it from recently-played
+// (each item carries a played_at timestamp) and append every track change we
+// see live. "This week" = log entries for that track in the last 7 days.
+const PLAY_LOG_KEY = 'play_log_v1';
+const WEEK_MS = 7 * 24 * 3600 * 1000;
+function loadPlayLog() {
+  try { return JSON.parse(localStorage.getItem(PLAY_LOG_KEY)) || []; }
+  catch(e) { return []; }
+}
+function savePlayLog(log) {
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;   // bound storage to ~30 days
+  const pruned = log.filter(e => e && e.at >= cutoff);
+  try { localStorage.setItem(PLAY_LOG_KEY, JSON.stringify(pruned)); } catch(e) {}
+  return pruned;
+}
+// Append a play; ignore a rapid repeat of the SAME track (poll jitter / re-render).
+function recordPlay(id, at) {
+  if (!id) return;
+  const log = loadPlayLog();
+  const t = at || Date.now();
+  const last = log[log.length - 1];
+  if (last && last.id === id && Math.abs(t - last.at) < 30_000) return;
+  log.push({ id, at: t });
+  savePlayLog(log);
+}
+// Merge Spotify's recently-played history (each item has a played_at) into the log.
+function mergeRecentIntoLog(items) {
+  const log = loadPlayLog();
+  const have = new Set(log.map(e => e.id + '@' + e.at));
+  let changed = false;
+  for (const it of items || []) {
+    const id = it && it.track && it.track.id;
+    const at = it && it.played_at ? Date.parse(it.played_at) : NaN;
+    if (!id || isNaN(at)) continue;
+    const key = id + '@' + at;
+    if (!have.has(key)) { log.push({ id, at }); have.add(key); changed = true; }
+  }
+  if (changed) { log.sort((a, b) => a.at - b.at); savePlayLog(log); }
+}
+function playsThisWeek(id) {
+  if (!id) return 0;
+  const cutoff = Date.now() - WEEK_MS;
+  return loadPlayLog().filter(e => e.id === id && e.at >= cutoff).length;
+}
+function updateStats() {
+  const el = document.getElementById('stat-plays');
+  if (!el) return;
+  el.textContent = S.trackId ? String(playsThisWeek(S.trackId)) : '—';
+}
+
+// ── Dashboard (recently played + your playlists, shown under search by default) ──
+let dashHTML = '';
+async function loadDashboard() {
+  try {
+    const [recent, pls] = await Promise.all([
+      api('/me/player/recently-played?limit=10').catch(() => null),
+      api('/me/playlists?limit=10').catch(() => null),
+    ]);
+    mergeRecentIntoLog(recent && recent.items);   // grow the plays-this-week log
+    let html = '';
+    const playlists = ((pls && pls.items) || []).filter(Boolean);
+    // Quick-play tiles: big one-tap buttons for your playlists (no searching while driving)
+    const presets = playlists.slice(0, 4);
+    if (presets.length) html += '<div class="dash-head">Quick play</div><div class="preset-grid">' + presets.map(presetTileHTML).join('') + '</div>';
+    const seen = new Set();
+    const recentTracks = ((recent && recent.items) || [])
+      .map(i => i.track).filter(t => t && t.uri && !seen.has(t.uri) && seen.add(t.uri)).slice(0, 5);
+    if (recentTracks.length) html += '<div class="dash-head">Recently played</div>' + recentTracks.map(trackRowHTML).join('');
+    if (playlists.length) html += '<div class="dash-head">Your playlists</div>' + playlists.map(playlistRowHTML).join('');
+    dashHTML = html || '<div class="hint">Search above to start playing.</div>';
+  } catch(e) {
+    if (e && e.status === 401) return;
+    dashHTML = '<div class="hint">Search above to start playing.</div>';
+  }
+  updateStats();
+  showDashboard();
+}
+function showDashboard() {
+  const main = document.getElementById('main'); if (main) main.classList.remove('searching');
+  if (dashHTML) $('results-list').innerHTML = dashHTML;
+  else loadDashboard();
+}
+function trackRowHTML(t) {
+  const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+  return `
+      <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(t.album?.uri || '')}" data-name="${esc(t.name)}" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(t.name)}</div>
+          <div class="result-artist">${esc((t.artists || []).map(a => a.name).join(', '))}</div>
+        </div>
+        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+      </div>`;
+}
+function presetTileHTML(p) {
+  const art = (p.images && p.images[0] && p.images[0].url) || '';
+  return `
+    <div class="preset-tile" onclick="playContext('${esc(p.uri)}')">
+      ${art ? `<img src="${esc(art)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <span class="preset-play">${ICONS.play}</span>
+      <div class="preset-label">${esc(p.name)}</div>
+    </div>`;
+}
+function playlistRowHTML(p) {
+  const art = (p.images && p.images[0] && p.images[0].url) || '';
+  const sub = (p.tracks && p.tracks.total != null) ? p.tracks.total + ' tracks' : 'Playlist';
+  return `
+      <div class="result-row" onclick="openPlaylist('${esc(p.id)}', '${esc(p.uri)}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(p.name)}</div>
+          <div class="result-artist">${esc(sub)}</div>
+        </div>
+      </div>`;
+}
+// Open a playlist's tracks inline (row click); "Play all" button in the header plays the context.
+async function openPlaylist(id, uri) {
+  if (!id) return;
+  const list = $('results-list');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  list.innerHTML = '<div class="hint">Loading playlist…</div>';
+  try {
+    const tr = await api('/playlists/' + id + '/tracks?limit=10');
+    renderPlaylistTracks(id, uri || '', tr);
+  } catch(e) {
+    if (e && e.status === 401) return;
+    const msg = (e && e.status === 403)
+      ? 'Can’t open this playlist (403). Spotify-curated playlists (Discover Weekly, Daily Mix, etc.) can’t be read via the API — but you can still tap its Quick-play tile to play it.'
+      : 'Couldn\'t load playlist (' + (e && e.status || 'err') + ': ' + (e && e.message || 'unknown') + ')';
+    list.innerHTML = inlineErr(msg);
+    toast('Playlist: ' + (e && e.status === 403 ? 'curated playlist, can’t open' : (e && e.message || 'error')), true);
+  }
+}
+function renderPlaylistTracks(id, uri, tr) {
+  const head = `<div class="results-head">
+    <button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button>
+    <div class="results-title" style="flex:1;min-width:0"></div>
+    ${uri ? `<button class="result-queue" style="margin-left:auto;flex-shrink:0" onclick="playContext('${esc(uri)}')">Play all</button>` : ''}
+  </div>`;
+  const items = (tr && tr.items || []).filter(i => i && i.track && i.track.uri);
+  if (!items.length) { $('results-list').innerHTML = head + '<div class="hint">No tracks in this playlist.</div>'; return; }
+  const rows = items.map(i => {
+    const t = i.track;
+    const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+    return `
+      <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(uri)}" data-name="${esc(t.name)}" onclick="playTrackUri('${esc(t.uri)}', '${esc(uri)}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(t.name)}</div>
+          <div class="result-artist">${esc((t.artists || []).map(a => a.name).join(', '))}</div>
+        </div>
+        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+      </div>`;
+  }).join('');
+  $('results-list').innerHTML = head + rows;
+}
+// Play a whole context (playlist / album) from the start.
+async function playContext(contextUri) {
+  if (!contextUri) return;
+  let dev = await ensureActiveDevice();
+  try {
+    await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', { context_uri: contextUri });
+    setRepeatContext(dev);
+    setTimeout(fetchState, 800);
+  } catch(e) {
+    if (e && e.status === 404) {
+      S.deviceId = null; dev = await ensureActiveDevice();
+      if (dev) { try { await api(`/me/player/play?device_id=${dev}`, 'PUT', { context_uri: contextUri }); setRepeatContext(dev); setTimeout(fetchState, 800); return; } catch(e2) { e = e2; } }
+    }
+    handlePlaybackError(e, 'Play');
+  }
+}
+
+// Clear the queue — Spotify has no delete-from-queue API, so the only way is to
+// re-issue the current context (which wipes the user-added queue), keeping the
+// current track + position. Falls back to the track's album if there's no context.
+async function clearQueue() {
+  if (!S.trackId) { toast('Nothing playing to clear around.', true); return; }
+  const trackUri = 'spotify:track:' + S.trackId;
+  const ctx = S.contextUri || (S.albumId ? 'spotify:album:' + S.albumId : null);
+  const pos = S.progressMs || 0;
+  const dev = await ensureActiveDevice();
+  const body = ctx ? { context_uri: ctx, offset: { uri: trackUri } } : { uris: [trackUri] };
+  try {
+    await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', body);
+    setRepeatContext(dev);
+    if (pos > 1500) await api('/me/player/seek?position_ms=' + Math.round(pos) + (dev ? `&device_id=${dev}` : ''), 'PUT').catch(() => {});
+    myQueued.clear(); continuedAlbums.clear();
+    toast('Queue cleared');
+    setTimeout(showQueue, 800);
+  } catch(e) { handlePlaybackError(e, 'Clear queue'); }
+}
+
+// Queue view: see what's coming up next on the active Spotify device.
+async function showQueue() {
+  const list = $('results-list');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  list.innerHTML = '<div class="hint">Loading queue…</div>';
+  try {
+    renderQueue(await api('/me/player/queue'));
+  } catch(e) {
+    if (e && e.status === 401) return;
+    const msg = (e && e.message) || 'failed';
+    list.innerHTML = inlineErr('Couldn\'t load the queue (' + (e && e.status || 'err') + ': ' + msg + ')');
+    toast('Queue: ' + msg, true);
+  }
+}
+function renderQueue(d) {
+  const hasItems = !!(d && d.queue && d.queue.length);
+  const clearBtn = hasItems ? `<button class="result-queue" style="margin-left:auto;flex-shrink:0;border-color:var(--pink,#f472b6);color:#f472b6" onclick="clearQueue()">Clear</button>` : '';
+  const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title" style="flex:1">Up next</div>${clearBtn}</div>`;
+  let html = head;
+  // Show currently-playing at the top so the user can tell the view loaded correctly.
+  const now = d && d.currently_playing;
+  if (now && now.uri) {
+    const art = now.album?.images?.[2]?.url || now.album?.images?.[0]?.url || '';
+    html += `<div class="dash-head">Now playing</div>
+      <div class="result-row" style="opacity:0.55;pointer-events:none">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy">
+        <div class="result-meta">
+          <div class="result-track">${esc(now.name)}</div>
+          <div class="result-artist">${esc((now.artists || []).map(a => a.name).join(', '))}</div>
+        </div>
+      </div>`;
+  }
+  const items = (d && d.queue) || [];
+  if (!items.length) {
+    html += '<div class="hint">Queue is empty — tap + Queue on any track while searching.</div>';
+    $('results-list').innerHTML = html;
+    return;
+  }
+  html += '<div class="dash-head">Coming up</div>';
+  html += items.map(t => {
+    const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+    return `
+      <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(t.album?.uri || '')}" data-name="${esc(t.name)}" data-noqueue="1" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(t.name)}</div>
+          <div class="result-artist">${esc((t.artists || []).map(a => a.name).join(', '))}</div>
+        </div>
+      </div>`;
+  }).join('');
+  $('results-list').innerHTML = html;
+}
+
+// ── Jam ───────────────────────────────────────────────────────────
+function jamTap() {
+  // Spotify doesn't expose Jam creation via API. Best we can do: deep-link to app.
+  if (confirm('Jam needs to be started inside Spotify.\n\nOpen Spotify now?')) {
+    location.href = 'spotify://';
+  }
+}
+
+// ── BMW Mode (optional theme) ─────────────────────────────────────
+function toggleBmw() {
+  const on = document.getElementById('app').classList.toggle('bmw');
+  localStorage.setItem('bmw_mode', on ? '1' : '0');
+  const t = document.getElementById('bmw-toggle');
+  if (t) t.classList.toggle('on', on);
+  renderPlayBtn();
+}
+
+// ── Light / Dark theme (icon-only toggle; composes with BMW) ───────
+function renderThemeIcon() {
+  const app = document.getElementById('app');
+  const btn = document.getElementById('theme-toggle');
+  if (!btn) return;
+  // Show the TARGET: a sun while dark (tap → light), a moon while light (tap → dark).
+  btn.innerHTML = (app && app.classList.contains('light')) ? ICONS.moon : ICONS.sun;
+}
+function toggleTheme() {
+  const light = document.getElementById('app').classList.toggle('light');
+  localStorage.setItem('theme', light ? 'light' : 'dark');
+  renderThemeIcon();
+}
+
+// ── Auth flow ─────────────────────────────────────────────────────
+function logout() {
+  clearInterval(pollTimer); clearInterval(tickTimer);
+  localStorage.clear();
+  hide('main'); show('auth-screen');
+}
+function showAuth() { hide('main'); show('auth-screen'); }
+function showMain() { hide('auth-screen'); show('main'); startPolling(); loadDashboard(); }
+
+// ── Tiny helpers ──────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const show = id => $( id).classList.remove('hidden');
+const hide = id => $( id).classList.add('hidden');
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Drive time (session uptime ≈ how long this drive has been going) ──
+let appOpenedAt = Date.now();
+function fmtDuration(s) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (h) return h + 'h ' + m + 'm';
+  if (m) return m + 'm ' + sec + 's';
+  return sec + 's';
+}
+function tickUptime() {
+  const el = document.getElementById('stat-drive');
+  if (!el) return;
+  el.textContent = fmtDuration(Math.floor((Date.now() - appOpenedAt) / 1000));
+}
+setInterval(tickUptime, 1000);
+tickUptime();
+
+// Keep the app sized to the VISIBLE viewport so the iOS keyboard never covers the
+// search bar / results (stops focus from "taking things away" behind the keyboard).
+function setupViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const apply = () => { const app = document.getElementById('app'); if (app) app.style.height = vv.height + 'px'; };
+  vv.addEventListener('resize', apply);
+  vv.addEventListener('scroll', apply);
+  apply();
+}
+
+// ── Swipe a song row: LEFT = play, RIGHT = add to queue (with feedback) ──
+function setupSwipe() {
+  const list = document.getElementById('results-list');
+  if (!list || !list.addEventListener) return;
+  const THRESH = 78;                       // px past which the action fires
+  let row = null, x0 = 0, y0 = 0, dx = 0, decided = false, swiping = false, suppress = false;
+  list.addEventListener('touchstart', (e) => {
+    const t = e.target && e.target.closest && e.target.closest('.result-row[data-uri]');
+    row = t || null; dx = 0; decided = false; swiping = false;
+    if (!row || !e.touches) return;
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+  }, { passive: true });
+  list.addEventListener('touchmove', (e) => {
+    if (!row || !e.touches) return;
+    const ddx = e.touches[0].clientX - x0, ddy = e.touches[0].clientY - y0;
+    if (!decided) {
+      if (Math.abs(ddx) < 10 && Math.abs(ddy) < 10) return;
+      decided = true; swiping = Math.abs(ddx) > Math.abs(ddy);   // horizontal intent → swipe
+    }
+    if (!swiping) return;
+    e.preventDefault();
+    dx = Math.max(-130, Math.min(130, ddx));
+    row.style.transition = 'none';
+    row.style.transform = 'translateX(' + dx + 'px)';
+    if (dx <= -THRESH)     row.style.background = 'color-mix(in srgb, var(--text) 22%, var(--bg3))';    // left → play
+    else if (dx >= THRESH) row.style.background = 'color-mix(in srgb, var(--green) 34%, var(--bg3))';   // right → queue
+    else                   row.style.background = '';
+  }, { passive: false });
+  list.addEventListener('touchend', () => {
+    if (!row || !swiping) { row = null; return; }
+    const r = row, fire = Math.abs(dx) >= THRESH, left = dx < 0;
+    const uri = r.dataset.uri, ctx = r.dataset.ctx || '', name = r.dataset.name || 'track';
+    r.style.transition = 'transform 0.2s ease, background 0.2s ease';
+    r.style.transform = ''; r.style.background = '';
+    if (fire) {
+      suppress = true; setTimeout(() => { suppress = false; }, 450);   // don't also fire the tap
+      if (left) { playTrackUri(uri, ctx); toast('Playing ' + name); }
+      else if (r.dataset.noqueue) {                                    // already in the queue view
+        // Spotify's API can't remove a track from the queue — be honest, don't re-add a duplicate.
+        toast('Spotify can’t remove a queued track — skip it when it plays.');
+      } else { queueTrack(null, uri); toast('Queued: ' + name); }
+    }
+    row = null; swiping = false; dx = 0;
+  });
+  // a committed swipe must not also trigger the row's tap-to-play
+  list.addEventListener('click', (e) => { if (suppress) { e.preventDefault(); e.stopPropagation(); } }, true);
+}
+
+// ── Touch-scrub the progress bar (grows thick; drag to seek) ───────
+async function seekTo(ms) {
+  const dev = await ensureActiveDevice();
+  try {
+    await api('/me/player/seek?position_ms=' + Math.max(0, Math.round(ms)) + (dev ? `&device_id=${dev}` : ''), 'PUT');
+    setTimeout(fetchState, 600);
+  } catch(e) { handlePlaybackError(e, 'Seek'); }
+}
+function setupScrub() {
+  const wrap = document.getElementById('progress-wrap');
+  if (!wrap || !wrap.addEventListener) return;
+  let dragging = false;
+  const frac = (clientX) => {
+    const r = wrap.getBoundingClientRect ? wrap.getBoundingClientRect() : { left: 0, width: 1 };
+    return Math.max(0, Math.min(1, (clientX - r.left) / (r.width || 1)));
+  };
+  const preview = (f) => {
+    const fill = document.getElementById('progress-fill');
+    if (fill) { fill.style.transition = 'none'; fill.style.width = (f * 100) + '%'; }
+    if (S.durationMs) {
+      const ms = f * S.durationMs;
+      const el = document.getElementById('time-elapsed'); if (el) el.textContent = fmtTime(ms);
+      const rm = document.getElementById('time-remaining'); if (rm) rm.textContent = '-' + fmtTime(S.durationMs - ms);
+    }
+  };
+  const start = (x) => { if (!S.durationMs) return; dragging = true; S.scrubbing = true; wrap.classList.add('scrubbing'); preview(frac(x)); };
+  const move  = (x) => { if (dragging) preview(frac(x)); };
+  const end   = (x) => {
+    if (!dragging) return;
+    dragging = false; wrap.classList.remove('scrubbing');
+    const ms = frac(x) * (S.durationMs || 0);
+    S.progressMs = ms;
+    seekTo(ms);
+    setTimeout(() => { S.scrubbing = false; }, 700);   // let the seek land before the tick resumes
+  };
+  wrap.addEventListener('touchstart', (e) => { if (e.touches) { start(e.touches[0].clientX); e.preventDefault(); } }, { passive: false });
+  wrap.addEventListener('touchmove',  (e) => { if (e.touches) { move(e.touches[0].clientX); e.preventDefault(); } }, { passive: false });
+  wrap.addEventListener('touchend',   (e) => { end(((e.changedTouches && e.changedTouches[0]) || {}).clientX || 0); });
+  wrap.addEventListener('mousedown',  (e) => start(e.clientX));
+  if (window.addEventListener) {           // desktop drag (absent in the test sandbox)
+    window.addEventListener('mousemove', (e) => move(e.clientX));
+    window.addEventListener('mouseup',   (e) => end(e.clientX));
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+(async () => {
+  setupViewport();
+  setupSwipe();
+  setupScrub();
+  // Seed default icons so buttons aren't empty before first state fetch.
+  if (localStorage.getItem('bmw_mode') === '1') {
+    document.getElementById('app').classList.add('bmw');
+    const t = document.getElementById('bmw-toggle'); if (t) t.classList.add('on');
+  }
+  if (localStorage.getItem('theme') === 'light') document.getElementById('app').classList.add('light');
+  renderThemeIcon();
+  renderPlayBtn();
+  renderLikeBtn();
+  $('device-icon').innerHTML = ICONS.phone;
+
+  const params = new URLSearchParams(location.search);
+  const code   = params.get('code');
+  if (code) {
+    history.replaceState({}, '', location.pathname);
+    await exchangeCode(code);
+  }
+  if (DEMO) {
+    showMain();
+    setTimeout(() => toast('Demo mode — sample data, no Spotify login'), 400);
+    return;
+  }
+  if (ls('access_token')) {
+    // Newly-added scopes (the dashboard's recently-played / playlists) need a
+    // one-time re-consent. Guarded by SCOPE_VER so it can never loop.
+    if (missingScopes().length && ls('scope_try') !== SCOPE_VER) {
+      lsSet('scope_try', SCOPE_VER);
+      await authorize();
+      return;
+    }
+    showMain();
+  } else showAuth();
+})();
+</script>
+</body>
+</html>
