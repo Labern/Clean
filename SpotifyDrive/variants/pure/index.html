@@ -245,9 +245,9 @@
       display: flex; align-items: center; gap: 10px; padding: 6px 16px 8px; flex-shrink: 0;
     }
     #search-input {
-      flex: 1; min-width: 0; background: var(--bg3); border: 1px solid var(--border);
+      flex: 1; min-width: 0; height: 60px; background: var(--bg3); border: 1px solid var(--border);
       border-radius: 500px; color: var(--text); font-size: 0.95rem; font-weight: 600;
-      padding: 13px 18px; outline: none;
+      padding: 0 18px; outline: none;
       -webkit-appearance: none; appearance: none;
     }
     #search-input::placeholder { color: var(--muted); font-weight: 500; }
@@ -496,6 +496,15 @@
     .hidden { display: none !important; }
     .spin { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Visible tap feedback — an accent glow ring + scale pop on any button press,
+       so a click registers in peripheral vision (e.g. when you skip while driving). */
+    @keyframes tapFlash {
+      0%   { box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 60%, transparent); transform: scale(1); }
+      55%  { box-shadow: 0 0 0 11px color-mix(in srgb, var(--green) 30%, transparent); transform: scale(1.08); }
+      100% { box-shadow: 0 0 0 20px color-mix(in srgb, var(--green) 0%, transparent); transform: scale(1); }
+    }
+    .tapped { animation: tapFlash 0.42s ease-out; }
 
     /* ======== PARADOX theme (star toggle) — the app rendered as a terminal ======== */
     #termbar { display: none; }
@@ -1918,11 +1927,28 @@ function setupScrub() {
   }
 }
 
+// ── Visible tap feedback (glow + scale pulse on any button) ────────
+function flashTap(el) {
+  if (!el || !el.classList) return;
+  el.classList.remove('tapped');
+  void el.offsetWidth;                 // restart the animation if tapped again quickly
+  el.classList.add('tapped');
+  setTimeout(() => { if (el && el.classList) el.classList.remove('tapped'); }, 440);
+}
+function setupTapFeedback() {
+  if (!document.addEventListener) return;
+  document.addEventListener('click', (e) => {
+    const b = e.target && e.target.closest && e.target.closest('button');
+    if (b) flashTap(b);
+  }, true);
+}
+
 // ── Init ──────────────────────────────────────────────────────────
 (async () => {
   setupViewport();
   setupSwipe();
   setupScrub();
+  setupTapFeedback();
   // Seed default icons so buttons aren't empty before first state fetch.
   if (localStorage.getItem('bmw_mode') === '1') {
     document.getElementById('app').classList.add('bmw');

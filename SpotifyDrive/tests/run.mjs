@@ -213,6 +213,8 @@ function staticChecks() {
   check('search is as-you-type (oninput)', /oninput="onSearchInput/.test(html));
   check('inline results, no full-screen overlay element', !/id="results-overlay"/.test(html));
   check('search font set (0.9–1.3rem)', /#search-input\b[\s\S]{0,240}font-size:\s*(0\.9|1\.[0-3])/.test(html));
+  check('search input height matches the 60px round buttons', /#search-input\s*\{[^}]*height:\s*60px/.test(html));
+  check('visible tap feedback (glow + scale pulse on buttons)', /@keyframes tapFlash/.test(html) && /function flashTap/.test(html));
   check('dashboard preset tiles (Quick play, one-tap playlist)',
     /function presetTileHTML/.test(html) && /class="preset-tile"/.test(html) && /Quick play/.test(html));
   check('plays default to album/context repeat (no single-track loop)',
@@ -936,6 +938,14 @@ async function behaviourChecks() {
     await app.ctx.clearQueue(); await flush();
     const play = app.fetchCalls.find(c => c.url.includes('/me/player/play') && c.method === 'PUT' && c.body && c.body.context_uri === 'spotify:album:CTX');
     check('clearQueue re-issues the current context to wipe the queue', !!play, app.fetchCalls.filter(c => c.method === 'PUT').map(c => c.url).join(' | '));
+  }
+
+  // 45. Tap feedback: flashTap marks the element so the glow/scale animation plays
+  {
+    const app = load();
+    const btn = app.ctx.document.createElement('button');
+    app.ctx.flashTap(btn);
+    check('flashTap adds the .tapped class', btn.classList.contains('tapped'));
   }
 }
 
