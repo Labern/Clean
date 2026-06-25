@@ -874,6 +874,16 @@ async function behaviourChecks() {
     check('theme toggles back to dark', !app.getEl('app').classList.contains('light') && app.ls.getItem('theme') === 'dark');
   }
 
+  // 40b. PARADOX theme toggle (★): adds .paradox, persists, toggles back
+  {
+    const app = load();
+    app.ctx.toggleParadox();
+    check('PARADOX toggle adds .paradox', app.getEl('app').classList.contains('paradox'));
+    check('PARADOX persisted to localStorage', app.ls.getItem('paradox') === '1');
+    app.ctx.toggleParadox();
+    check('PARADOX toggles back off', !app.getEl('app').classList.contains('paradox') && app.ls.getItem('paradox') === '0');
+  }
+
   // 41. Scrub → seek: seekTo issues /me/player/seek with position_ms
   {
     const app = load(); app.auth();

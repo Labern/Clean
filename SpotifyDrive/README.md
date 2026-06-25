@@ -45,6 +45,9 @@ control that misfires. Spotify Drive is the opposite — **size and tap-safety f
 - **BMW Mode** — one toggle re-themes the whole app to BMW blue/white/black and
   rebuilds the play button as the BMW roundel.
 - **Light / Dark** — icon-only toggle that composes with BMW Mode.
+- **PARADOX theme** — a `★` toggle reskins the whole app as a *terminal*
+  (★★★★★ × PARADOX style): monospace, window chrome + traffic lights, gold/teal
+  on an animated deep-purple gradient.
 
 <p align="center">
   <img src="docs/screenshots/bmw.png" alt="BMW Mode" width="250">
