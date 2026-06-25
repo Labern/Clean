@@ -500,25 +500,15 @@
     /* ======== PARADOX theme (star toggle) — the app rendered as a terminal ======== */
     #termbar { display: none; }
     #app.paradox {
-      --bg:#0e0b1a; --bg2:#171331; --bg3:#16122e;
+      --bg:#17132e; --bg2:#1c1740; --bg3:#241d44;
       --green:#87d7d7; --green2:#ffd75f; --text:#cfcae6; --muted:#8787af;
-      --border:rgba(135,95,215,0.30); --active:#211a44; --track:rgba(135,95,215,0.20);
+      --border:rgba(135,95,215,0.30); --active:#2c2552; --track:rgba(135,95,215,0.22);
       --violet:#af87ff; --pink:#ff87ff; --gold:#ffd75f; --dim:#6c6c8a;
-      --titlebar:#171331; --win-border:#2a2350;
       font-family:'Menlo','SF Mono','Consolas',monospace;
-      border:1px solid var(--win-border); border-radius:14px;
-      box-shadow:0 30px 80px rgba(0,0,0,0.55); overflow:hidden;
     }
     #app.paradox input, #app.paradox button { font-family: inherit; }
-    body:has(#app.paradox) {
-      background: linear-gradient(135deg,#0f0c29,#302b63,#24243e,#1a1a2e);
-      background-size:400% 400%; animation: paradoxDrift 26s ease infinite;
-    }
-    @keyframes paradoxDrift { 0%,100%{background-position:0% 50%;} 50%{background-position:100% 50%;} }
-    #app.paradox #termbar {
-      display:flex; align-items:center; gap:8px; height:34px; flex-shrink:0;
-      background:var(--titlebar); border-bottom:1px solid var(--win-border); padding:0 14px;
-    }
+    /* clean flat dark-purple backdrop (no window, no gradient) */
+    body:has(#app.paradox) { background:#17132e; }
     #termbar .tl { width:11px; height:11px; border-radius:50%; flex-shrink:0; }
     #termbar .tl-r{background:#ff5f57;} #termbar .tl-y{background:#febc2e;} #termbar .tl-g{background:#28c840;}
     #termbar .termtitle { flex:1; text-align:center; color:var(--dim,#6c6c8a); font-size:0.72rem; letter-spacing:0.5px; }
@@ -531,8 +521,8 @@
     #app.paradox #theme-toggle, #app.paradox #paradox-toggle, #app.paradox .ctrl.skip,
     #app.paradox .btn-connect, #app.paradox #device-pill, #app.paradox .err-back,
     #app.paradox .result-queue, #app.paradox #bmw-toggle { border-radius:3px; }
-    /* CLI-prompt brand: gold wordmark, teal prompt */
-    #app.paradox .brand-name { color:var(--gold); }
+    /* CLI-prompt brand: "PARADOX DRIVE" — violet identity, teal accent + prompt */
+    #app.paradox .brand-name { color:var(--violet); text-transform:uppercase; }
     #app.paradox .brand-name::before { content:"> "; color:var(--green); }
     #app.paradox .brand-accent { color:var(--green) !important; }
     #app.paradox .brand-by { letter-spacing:3px; }
@@ -545,8 +535,8 @@
     }
     @keyframes paradoxShimmer { to{background-position:300% center;} }
     /* gold play block + teal ring + pink→gold progress */
-    #app.paradox #gauge #play-btn { background:var(--gold); color:var(--bg); box-shadow:0 0 40px rgba(255,215,95,0.45); }
-    #app.paradox .ctrl.play, #app.paradox .ctrl.play:hover { background:var(--gold); color:var(--bg); }
+    #app.paradox:not(.bmw) #gauge #play-btn { background:var(--gold); color:var(--bg); box-shadow:0 0 40px rgba(255,215,95,0.45); }
+    #app.paradox:not(.bmw) .ctrl.play, #app.paradox:not(.bmw) .ctrl.play:hover { background:var(--gold); color:var(--bg); }
     #app.paradox #progress-fill { background:linear-gradient(90deg,var(--pink),var(--gold)); }
     /* uppercase tracked labels; gold = section titles, teal = values */
     #app.paradox .sec, #app.paradox .result-queue, #app.paradox #bmw-toggle { text-transform:uppercase; letter-spacing:2px; }
@@ -1014,7 +1004,7 @@ const BMW_ROUNDEL = '<svg viewBox="0 0 100 100" aria-hidden="true">' +
   '<path d="M50 50 L50 11 A39 39 0 0 1 89 50 Z" fill="#0166B1"/>' +
   '<path d="M50 50 L50 89 A39 39 0 0 1 11 50 Z" fill="#0166B1"/>' +
   '<path id="bmwArc" d="M9 50 A41 41 0 0 1 91 50" fill="none"/>' +
-  '<text fill="#fff" font-size="13" font-weight="800" letter-spacing="2.5" text-anchor="middle"><textPath href="#bmwArc" startOffset="50%">BMW</textPath></text>' +
+  '<text fill="#fff" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="13" font-weight="800" letter-spacing="2.5" text-anchor="middle"><textPath href="#bmwArc" startOffset="50%">BMW</textPath></text>' +
   '</svg>';
 function renderPlayBtn() {
   const btn = $('play-btn');
@@ -1778,7 +1768,15 @@ function toggleParadox() {
   const on = document.getElementById('app').classList.toggle('paradox');
   localStorage.setItem('paradox', on ? '1' : '0');
   const b = document.getElementById('paradox-toggle'); if (b) b.classList.toggle('on', on);
+  renderBrand();
   renderPlayBtn();
+}
+// Wordmark swaps to "PARADOX Drive" in the PARADOX theme (CSS uppercases it).
+function renderBrand() {
+  const el = document.querySelector('.brand-name');
+  if (!el) return;
+  const paradox = document.getElementById('app').classList.contains('paradox');
+  el.innerHTML = (paradox ? 'PARADOX' : 'Spotify') + ' <span class="brand-accent">Drive</span>';
 }
 
 // ── Auth flow ─────────────────────────────────────────────────────
@@ -1940,6 +1938,7 @@ function setupScrub() {
   if (themeParams.get('bmw') === '1') { document.getElementById('app').classList.add('bmw'); const tb = document.getElementById('bmw-toggle'); if (tb) tb.classList.add('on'); }
   if (themeParams.get('light') === '1') document.getElementById('app').classList.add('light');
   if (themeParams.get('paradox') === '1') { document.getElementById('app').classList.add('paradox'); const pb2 = document.getElementById('paradox-toggle'); if (pb2) pb2.classList.add('on'); }
+  renderBrand();
   renderThemeIcon();
   renderPlayBtn();
   renderLikeBtn();
