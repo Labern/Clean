@@ -267,6 +267,21 @@ function staticChecks() {
   check('now-playing title→album & artist→artist', /id="track-name" onclick="openCurrentAlbum/.test(html) && /id="artist-name" onclick="openCurrentArtist/.test(html));
   check('album title element present', /id="album-name"/.test(html));
   check('queued animation (green QUEUED + tick)', /\.result-queue\.queued/.test(html) && /@keyframes queuePop/.test(html));
+
+  // ── Visual / structural regression guards ──
+  check('round buttons are square (equal w/h → real circles, not ovals)',
+    /#mic-btn\s*\{[^}]*width:\s*60px;\s*height:\s*60px/.test(html) &&
+    /#search-clear\s*\{[^}]*width:\s*60px;\s*height:\s*60px/.test(html));
+  check('three theme toggles present (paradox / light-dark / BMW)',
+    /id="paradox-toggle"/.test(html) && /id="theme-toggle"/.test(html) && /id="bmw-toggle"/.test(html));
+  check('each theme defines its token overrides (bmw / light / paradox)',
+    /#app\.bmw\s*\{/.test(html) && /#app\.light\s*\{/.test(html) && /#app\.paradox\s*\{/.test(html));
+  check('paradox wordmark becomes PARADOX (renderBrand)', /function renderBrand/.test(html) && /'PARADOX'/.test(html));
+  check('icon controls carry aria-labels (a11y)', (html.match(/aria-label=/g) || []).length >= 6);
+  check('search box has a placeholder', /id="search-input"[\s\S]{0,260}placeholder="[^"]+"/.test(html));
+  check('progress bar is touch-scrubbable (touch-action:none)', /#progress-wrap\s*\{[^}]*touch-action:\s*none/.test(html));
+  check('every onclick handler in the markup is a real function (already per-handler above) — sanity: app has a play handler',
+    /onclick="togglePlay\(\)"/.test(html));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -957,6 +972,121 @@ async function behaviourChecks() {
     try { app.ctx.updateBeat({ name: 'Midnight City', artists: [{ name: 'M83' }] }); } catch(e) { threw = true; }
     check('updateBeat runs without throwing', !threw);
     check('beat note is revealed on a new track', app.getEl('beat') && !app.getEl('beat').classList.contains('hidden'));
+  }
+
+  // ── helper: load a track into state via fetchState (player + checkLiked responses) ──
+  async function withTrack(app, id, liked, extra) {
+    app.queueResp({ status: 200, body: Object.assign({ is_playing: true, progress_ms: 1000, shuffle_state: false,
+      device: { id: 'd1', name: 'Mac', type: 'Computer' },
+      item: { id, name: 'Song ' + id, duration_ms: 200000, artists: [{ name: 'A' }], album: { name: 'Alb', images: [{ url: 'art' }] } } }, extra || {}) });
+    app.queueResp({ status: 200, body: [!!liked] });           // checkLiked /contains
+    await app.ctx.fetchState(); await flush();
+  }
+
+  // 47. togglePlay pauses when already playing
+  {
+    const app = load(); app.auth();
+    await withTrack(app, 'tp', false);                          // S.playing = true, deviceId = d1
+    app.queueResp({ status: 200 });                            // pause PUT
+    await app.ctx.togglePlay(); await flush();
+    check('togglePlay pauses when playing', !!app.fetchCalls.find(c => c.url.includes('/me/player/pause') && c.method === 'PUT'));
+  }
+
+  // 48/49. toggleLike: like → PUT, unlike → DELETE
+  {
+    const app = load(); app.auth();
+    await withTrack(app, 'tL', false);
+    app.queueResp({ status: 200 });
+    await app.ctx.toggleLike(); await flush();
+    check('toggleLike adds to Liked Songs (PUT /me/tracks)', !!app.fetchCalls.find(c => c.url.includes('/me/tracks?ids=tL') && c.method === 'PUT'));
+  }
+  {
+    const app = load(); app.auth();
+    await withTrack(app, 'tU', true);                           // already liked
+    app.queueResp({ status: 200 });
+    await app.ctx.toggleLike(); await flush();
+    check('toggleLike removes from Liked Songs (DELETE) when liked', !!app.fetchCalls.find(c => c.url.includes('/me/tracks?ids=tU') && c.method === 'DELETE'));
+  }
+
+  // 50. toggleShuffle success turns shuffle on
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'M' }] } });
+    app.queueResp({ status: 200 });
+    await app.ctx.toggleShuffle(); await flush();
+    check('toggleShuffle turns shuffle on (PUT state=true)', !!app.fetchCalls.find(c => c.url.includes('/me/player/shuffle?state=true') && c.method === 'PUT'), app.fetchCalls.map(c => c.url).join(' | '));
+  }
+
+  // 51. prev() uses POST
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd9', is_active: true, type: 'Computer', name: 'M' }] } });
+    app.queueResp({ status: 200 });
+    await app.ctx.prev(); await flush();
+    const p = app.fetchCalls.find(c => c.url.includes('/me/player/previous'));
+    check('prev() POSTs to /me/player/previous', p && p.method === 'POST', p && p.method);
+  }
+
+  // 52. checkLiked marks the like button
+  {
+    const app = load(); app.auth();
+    await withTrack(app, 'tH', true);
+    check('checkLiked marks the like button liked', app.getEl('like-btn') && app.getEl('like-btn').classList.contains('liked'));
+  }
+
+  // 53/54. ensureActiveDevice: prefers the active device, else the first
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'dA', is_active: false, type: 'Computer', name: 'A' }, { id: 'dB', is_active: true, type: 'Speaker', name: 'B' }] } });
+    check('ensureActiveDevice returns the active device', (await app.ctx.ensureActiveDevice()) === 'dB');
+  }
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'dX', is_active: false, type: 'Computer', name: 'X' }] } });
+    check('ensureActiveDevice falls back to the first device', (await app.ctx.ensureActiveDevice()) === 'dX');
+  }
+
+  // 55. esc() escapes HTML special chars (XSS hardening)
+  {
+    const app = load();
+    check('esc() escapes < > & " \'', app.ctx.esc('<b>&"\'') === '&lt;b&gt;&amp;&quot;&#39;', app.ctx.esc('<b>&"\''));
+  }
+
+  // 56. Search results escape HTML in track names (no injection)
+  {
+    const app = load(); app.auth();
+    app.ctx.renderResults([{ uri: 'spotify:track:x', name: '<img src=x onerror=alert(1)>', artists: [{ name: 'A', id: 'a' }], album: { id: 'b', images: [{}, {}, { url: 'u' }] } }]);
+    const h = app.getEl('results-list').innerHTML;
+    check('search results escape HTML in names (no XSS)', h.includes('&lt;img') && !h.includes('<img src=x onerror'));
+  }
+
+  // 57. fmtTime formats mm:ss
+  {
+    const app = load();
+    check('fmtTime formats mm:ss', app.ctx.fmtTime(0) === '0:00' && app.ctx.fmtTime(95000) === '1:35' && app.ctx.fmtTime(605000) === '10:05',
+      [app.ctx.fmtTime(0), app.ctx.fmtTime(95000), app.ctx.fmtTime(605000)].join(' '));
+  }
+
+  // 58. handlePlaybackError → specific messages
+  {
+    const app = load(); app.auth();
+    app.ctx.handlePlaybackError({ status: 403, message: 'x' }, 'Play');
+    check('403 surfaces a Premium message', /premium/i.test(app.getEl('toast').textContent));
+    app.ctx.handlePlaybackError({ status: 500, message: 'boom' }, 'Skip');
+    check('generic error shows "<what> failed: <msg>"', /Skip failed: boom/.test(app.getEl('toast').textContent), app.getEl('toast').textContent);
+  }
+
+  // 59. fetchState renders the now-playing text + art
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { is_playing: true, progress_ms: 1000, shuffle_state: false,
+      device: { id: 'd1', name: 'Mac', type: 'Computer' },
+      item: { id: 'tR', name: 'My Song', duration_ms: 200000, artists: [{ name: 'Art1' }, { name: 'Art2' }], album: { name: 'My Album', images: [{ url: 'art' }] } } } });
+    app.queueResp({ status: 200, body: [false] });
+    await app.ctx.fetchState(); await flush();
+    check('fetchState renders the track name', app.getEl('track-name').textContent === 'My Song', app.getEl('track-name').textContent);
+    check('fetchState joins multiple artists', app.getEl('artist-name').textContent === 'Art1, Art2', app.getEl('artist-name').textContent);
+    check('fetchState shows album art', app.getEl('album-art').src === 'art' && !app.getEl('album-art').classList.contains('hidden'));
   }
 }
 
