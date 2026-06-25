@@ -34,15 +34,20 @@ A living list of features we want, roughly prioritised. Status legend:
   song-timeline + geolocation capture; a fun stretch feature. (Requested 2026-06-25.)
 - ✅ **Session uptime readout** — small "open for Xm" line at the bottom (added 2026-06-25);
   seed for richer session stats later.
-- 🚧 **Dashboard under search** — DONE (2026-06-25): "Recently played" + "Your playlists"
-  (tap a playlist to play the whole thing) under a divider below search, as the default
-  browse view when not searching. Next in this section: play-count stats, add-to-playlist,
-  in-app design toggle.
+- ✅ **Stats and Facts** (was "Dashboard under search") — DONE (2026-06-25): the browse
+  area below search, retitled. Two live tiles — **Drive time** (session uptime ≈ how long
+  this drive's been going) and **Plays this week** (current track) — above "Recently played"
+  + "Your playlists" (tap a playlist to play it). Fixed the bug where it showed empty: the
+  data calls needed `user-read-recently-played` + `playlist-read-private` scopes that were
+  never requested; added them + a one-time auto-reconnect (SCOPE_VER) for existing users.
+  Next in this section: add-to-playlist, in-app design toggle.
 - 💡 **In-app album / artist view** — tapping a song title or artist currently opens the
   Spotify app (universal link). Ideally show the album/artist tracks inline in our own UI
   instead of leaving the app. Deferred. (Noted 2026-06-25.)
-- 💡 **Play-count stats** — "played X times this week" and similar listening stats at the
-  bottom of the page. (Requested 2026-06-25.)
+- ✅ **Play-count stats** — "played X times this week" (current track), DONE 2026-06-25 in
+  Stats and Facts. NOTE the limit: Spotify has no per-track play-count API and recently-played
+  caps at the last 50 plays, so this is a best-effort LOCAL play-log (seeded from
+  recently-played timestamps, extended on each observed track change), not a true server count.
 - 💡 **Add to playlist** — a button to add the current or a searched track to a chosen
   playlist (`POST /playlists/{id}/tracks`). (Requested 2026-06-25.)
 - 🚧 **BMW Mode** — optional theme toggle: BMW blue/white/black palette + the play button
