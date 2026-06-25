@@ -7,11 +7,15 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Drive">
   <title>Drive</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
       --bg:     #000000;
+      --font-spotify: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
       --bg2:    #161519;
       --bg3:    #242329;
       --green:  #1DB954;
@@ -22,14 +26,17 @@
     }
 
     html, body {
-      height: 100%; background: var(--bg); color: var(--text);
+      height: 100%; background: #111; color: var(--text);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif;
       overflow: hidden; user-select: none;
       -webkit-font-smoothing: antialiased;
+      display: flex; justify-content: center;
     }
 
     #app {
       height: 100dvh; display: flex; flex-direction: column;
+      background: var(--bg);
+      width: 100%; max-width: 430px;
       padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
                env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
     }
@@ -307,11 +314,34 @@
       flex-shrink: 0; text-align: center; color: var(--muted);
       font-size: 0.82rem; padding: 0 0 10px; opacity: 0.85;
     }
-    /* Search mode: free vertical room so results need no awkward scroll while driving */
+    /* ── DM Sans (≈ Spotify's Circular) on search / stats areas ── */
+    #search-input, #search-clear, #results-list, .result-track, .result-artist,
+    .result-queue, .dash-head, #stats, .stat-value, .stat-label, .results-title,
+    .results-back { font-family: var(--font-spotify); }
+
+    /* ── Search compact mode: player shrinks but stays visible + functional ── */
+    #album-art      { transition: width 0.28s ease, height 0.28s ease; }
+    #track-name     { transition: font-size 0.28s ease; }
+    #gauge          { transition: width 0.28s ease, height 0.28s ease; }
+    #now-playing    { transition: padding 0.28s ease, gap 0.28s ease; }
+    #controls       { transition: padding 0.28s ease, gap 0.28s ease; }
+    #secondary      { transition: padding 0.28s ease; }
+
+    #main.searching #now-playing { padding: 4px 16px 2px; gap: 4px; }
+    #main.searching #album-art   { width: min(68px, 16vw) !important; height: min(68px, 16vw) !important; }
+    #main.searching #track-name  { font-size: clamp(0.82rem, 2.8vw, 1rem); -webkit-line-clamp: 1; }
     #main.searching #album-name,
-    #main.searching #secondary,
-    #main.searching #stats { display: none; }
-    #main.searching #now-playing { padding: 6px 24px 4px; gap: 6px; }
+    #main.searching #artist-name,
+    #main.searching #progress-wrap,
+    #main.searching #time-row    { display: none; }
+    #main.searching #gauge       { width: min(84px, 23vw) !important; height: min(84px, 23vw) !important; }
+    #main.searching #controls    { padding: 2px 12px; gap: 6px; }
+    #main.searching .ctrl.skip   { width: 50px; height: 50px; }
+    #main.searching .ctrl.skip svg { width: 28px; height: 28px; }
+    #main.searching #secondary   { padding: 4px 14px 8px; gap: 8px; }
+    #main.searching .sec         { padding: 7px 4px; font-size: 0.62rem; }
+    #main.searching .sec .icon svg { width: 16px; height: 16px; }
+    #main.searching #stats       { display: none; }
 
     /* ── BMW Mode (optional theme) ─────────────────────────── */
     #mode-bar {
@@ -474,6 +504,8 @@
       <input id="search-input" type="search" placeholder="Search songs, artists…"
              enterkeyhint="search" autocomplete="off"
              oninput="onSearchInput(this.value)"
+             onfocus="onSearchFocus()"
+             onblur="onSearchBlur()"
              onkeydown="if(event.key==='Enter'){event.preventDefault();runSearch(this.value);}">
       <button id="search-clear" onclick="clearSearch()" aria-label="Clear search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -537,8 +569,9 @@ const SCOPES = [
   'user-read-playback-state',
   'user-modify-playback-state',
   'user-read-currently-playing',
-  'user-read-recently-played',   // dashboard: "Recently played" + plays-this-week log
-  'playlist-read-private',       // dashboard: "Your playlists"
+  'user-read-recently-played',       // dashboard: "Recently played" + plays-this-week log
+  'playlist-read-private',           // dashboard: "Your playlists" (private)
+  'playlist-read-collaborative',     // dashboard: "Your playlists" (collaborative)
   'user-library-read',
   'user-library-modify',
 ].join(' ');
@@ -546,7 +579,7 @@ const SCOPES = [
 // Bump when SCOPES changes: existing users granted scopes ONCE at first connect,
 // and refresh tokens never pick up scopes added later — so a new scope needs a
 // fresh consent. missingScopes() drives a one-time auto-reconnect on load.
-const SCOPE_VER = 'v2-dashboard';
+const SCOPE_VER = 'v3-playlist';
 function missingScopes() {
   const have = new Set((localStorage.getItem('granted_scope') || '').split(/\s+/).filter(Boolean));
   return SCOPES.split(' ').filter(s => !have.has(s));
@@ -639,8 +672,59 @@ async function getToken() {
 const ls    = k => localStorage.getItem(k);
 const lsSet = (k, v) => localStorage.setItem(k, v);
 
+// ── DEMO MODE (local UI testing without Spotify auth) ──────────────
+// Auto-on for localhost / LAN IPs (or ?demo=1). NEVER on the deployed host, so
+// production always uses real Spotify. Lets you iterate on the UI fast on your
+// phone over the LAN — sample data, no login, no OAuth redirect headache.
+const DEMO = /[?&]demo=1/.test(location.search || '') ||
+  ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname) ||
+  /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname || '');
+function demoCover(c) {
+  return 'data:image/svg+xml,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="120" height="120" fill="${c}"/></svg>`);
+}
+const DEMO_TRACK = (id, name, artist, color) => ({
+  id, uri: 'spotify:track:' + id, name, duration_ms: 213000,
+  artists: [{ id: 'ar' + id, name: artist }],
+  album: { id: 'al' + id, uri: 'spotify:album:al' + id, name: name + ' — Single',
+           images: [{ url: demoCover(color) }, {}, { url: demoCover(color) }] },
+});
+const DEMO_TRACKS = [
+  DEMO_TRACK('1', 'Midnight City', 'M83', '#5eead4'),
+  DEMO_TRACK('2', 'Instant Crush', 'Daft Punk', '#a78bfa'),
+  DEMO_TRACK('3', 'The Less I Know The Better', 'Tame Impala', '#f472b6'),
+  DEMO_TRACK('4', 'Redbone', 'Childish Gambino', '#fbbf24'),
+  DEMO_TRACK('5', 'Nights', 'Frank Ocean', '#60a5fa'),
+];
+let demoNow = 0;
+function demoApi(path, method, body) {
+  const m = (method || 'GET').toUpperCase();
+  if (m === 'PUT' && path.startsWith('/me/player/play') && body) {
+    const uri = (body.offset && body.offset.uri) || (body.uris && body.uris[0]) || null;
+    const i = DEMO_TRACKS.findIndex(t => t.uri === uri);
+    if (i >= 0) demoNow = i;
+  }
+  if (m !== 'GET') return null;                       // playback commands succeed silently
+  if (path.startsWith('/me/player/devices'))         return { devices: [{ id: 'demo-dev', name: 'Demo Speaker', type: 'Speaker', is_active: true }] };
+  if (path.startsWith('/me/player/recently-played')) return { items: DEMO_TRACKS.map((t, i) => ({ track: t, played_at: new Date(Date.now() - (i + 1) * 5400000).toISOString() })) };
+  if (path.startsWith('/me/player/queue'))           return { currently_playing: DEMO_TRACKS[demoNow], queue: DEMO_TRACKS.filter((_, i) => i !== demoNow) };
+  if (path.startsWith('/me/playlists'))              return { items: [
+    { id: 'pl1', uri: 'spotify:playlist:pl1', name: 'Morning Drive', images: [{ url: demoCover('#5eead4') }], tracks: { total: 24 } },
+    { id: 'pl2', uri: 'spotify:playlist:pl2', name: 'Hype', images: [{ url: demoCover('#f472b6') }], tracks: { total: 51 } },
+    { id: 'pl3', uri: 'spotify:playlist:pl3', name: 'Late Night', images: [{ url: demoCover('#a78bfa') }], tracks: { total: 38 } },
+  ] };
+  if (/^\/playlists\/[^/]+\/tracks/.test(path))      return { items: DEMO_TRACKS.map(t => ({ track: t })) };
+  if (/^\/albums\//.test(path))                      return { name: 'Demo Album', uri: 'spotify:album:x', images: [{ url: demoCover('#a78bfa') }], tracks: { items: DEMO_TRACKS } };
+  if (/^\/artists\/[^/]+\/albums/.test(path))        return { items: [{ id: 'al1', name: 'Demo Album', album_type: 'album', total_tracks: 10, images: [{ url: demoCover('#a78bfa') }], artists: [{ id: 'ar1', name: 'Demo Artist' }] }] };
+  if (path.startsWith('/search'))                    return { tracks: { items: DEMO_TRACKS } };
+  if (path.startsWith('/me/tracks/contains'))        return [demoNow % 2 === 0];
+  if (path.startsWith('/me/player'))                 return { is_playing: true, shuffle_state: false, progress_ms: 42000, device: { id: 'demo-dev', name: 'Demo Speaker', type: 'Speaker' }, item: DEMO_TRACKS[demoNow] };
+  return null;
+}
+
 // ── API ───────────────────────────────────────────────────────────
 async function api(path, method = 'GET', body = null, _retried = false) {
+  if (DEMO) return demoApi(path, method, body);
   const t = await getToken();
   if (!t) throw Object.assign(new Error('Not authenticated'), { status: 401 });
   const opts = { method, headers: { Authorization: 'Bearer ' + t } };
@@ -936,6 +1020,22 @@ function pickDevice(id, name, type) {
 function closeDevicesOnBg(e) { if (e.target.id === 'device-overlay') hide('device-overlay'); }
 
 // ── Search (inline, as-you-type) ──────────────────────────────────
+// Search focus immediately compacts the player; blur clears if the query is empty.
+function onSearchFocus() {
+  const main = document.getElementById('main');
+  if (main) main.classList.add('searching');
+}
+function onSearchBlur() {
+  setTimeout(() => {
+    const inp = $('search-input');
+    if (inp && !inp.value.trim()) clearSearch();
+  }, 160);
+}
+// Helper: error view with a back button (used by any inline fetch that can fail).
+function inlineErr(msg) {
+  return `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title"></div></div><div class="hint">${esc(String(msg))}</div>`;
+}
+
 let searchTimer = null, searchSeq = 0;
 function onSearchInput(v) {
   clearTimeout(searchTimer);
@@ -1054,7 +1154,8 @@ async function openAlbum(id) {
     renderAlbum(await api('/albums/' + id));
   } catch(e) {
     if (e && e.status === 401) return;
-    list.innerHTML = '<div class="hint">Couldn\'t load album.</div>';
+    list.innerHTML = inlineErr('Couldn\'t load album (' + (e && e.status || 'err') + ': ' + (e && e.message || 'unknown') + ')');
+    toast('Album: ' + (e && e.message || 'error'), true);
   }
 }
 function renderAlbum(album) {
@@ -1085,7 +1186,8 @@ async function openArtist(id) {
     renderArtistAlbums(items, name);
   } catch(e) {
     if (e && e.status === 401) return;
-    list.innerHTML = '<div class="hint">Couldn\'t load this artist.</div>';
+    list.innerHTML = inlineErr('Couldn\'t load artist (' + (e && e.status || 'err') + ': ' + (e && e.message || 'unknown') + ')');
+    toast('Artist: ' + (e && e.message || 'error'), true);
   }
 }
 function renderArtistAlbums(items, title) {
@@ -1221,7 +1323,8 @@ async function openPlaylist(id, uri) {
     renderPlaylistTracks(id, uri || '', tr);
   } catch(e) {
     if (e && e.status === 401) return;
-    list.innerHTML = '<div class="hint">Couldn\'t load playlist.</div>';
+    list.innerHTML = inlineErr('Couldn\'t load playlist (' + (e && e.status || 'err') + ': ' + (e && e.message || 'unknown') + ')');
+    toast('Playlist: ' + (e && e.message || 'error'), true);
   }
 }
 function renderPlaylistTracks(id, uri, tr) {
@@ -1273,8 +1376,8 @@ async function showQueue() {
   } catch(e) {
     if (e && e.status === 401) return;
     const msg = (e && e.message) || 'failed';
-    list.innerHTML = `<div class="hint">Couldn't load the queue: ${esc(msg)}</div>`;
-    toast('Queue error: ' + msg, true);
+    list.innerHTML = inlineErr('Couldn\'t load the queue (' + (e && e.status || 'err') + ': ' + msg + ')');
+    toast('Queue: ' + msg, true);
   }
 }
 function renderQueue(d) {
@@ -1382,6 +1485,11 @@ tickUptime();
   if (code) {
     history.replaceState({}, '', location.pathname);
     await exchangeCode(code);
+  }
+  if (DEMO) {
+    showMain();
+    setTimeout(() => toast('Demo mode — sample data, no Spotify login'), 400);
+    return;
   }
   if (ls('access_token')) {
     // Newly-added scopes (the dashboard's recently-played / playlists) need a
