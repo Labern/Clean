@@ -33,6 +33,7 @@
       padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
                env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
     }
+    #main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
     svg { display: block; }
 
@@ -104,23 +105,24 @@
 
     /* ── Now Playing ───────────────────────────────────────── */
     #now-playing {
-      flex: 1; display: flex; flex-direction: column;
+      flex-shrink: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 12px 28px; gap: 18px; text-align: center; min-height: 0;
+      padding: 8px 24px 6px; gap: 8px; text-align: center;
     }
     #album-art {
-      width: min(240px, 54vw); height: min(240px, 54vw);
-      border-radius: 12px; object-fit: cover;
+      width: min(112px, 26vw); height: min(112px, 26vw);
+      border-radius: 10px; object-fit: cover;
       background: var(--bg3);
-      box-shadow: 0 24px 60px rgba(0,0,0,0.7);
+      box-shadow: 0 12px 34px rgba(0,0,0,0.6);
       flex-shrink: 0;
     }
     #album-art.hidden { display: none; }
     #track-name {
-      font-size: clamp(1.4rem, 6vw, 2.3rem); font-weight: 800;
+      font-size: clamp(1.2rem, 5vw, 1.7rem); font-weight: 800;
       line-height: 1.15; letter-spacing: -0.02em; max-width: 92%;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    #artist-name { font-size: clamp(1rem, 4vw, 1.3rem); font-weight: 500; color: var(--muted); }
+    #artist-name { font-size: clamp(0.95rem, 3.6vw, 1.2rem); font-weight: 500; color: var(--muted); }
     #progress-wrap {
       width: 100%; max-width: 420px; height: 5px;
       background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden;
@@ -135,7 +137,7 @@
     /* ── Gauge play button (ring-wrapped), grafted from Dashboard ── */
     #gauge {
       position: relative; flex-shrink: 0;
-      width: min(152px, 42vw); height: min(152px, 42vw);
+      width: min(208px, 56vw); height: min(208px, 56vw);
       display: flex; align-items: center; justify-content: center;
     }
     #gauge-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
@@ -160,7 +162,7 @@
     /* ── Big Controls ──────────────────────────────────────── */
     #controls {
       display: flex; align-items: center; justify-content: center;
-      gap: 18px; padding: 10px 20px; flex-shrink: 0;
+      gap: 16px; padding: 6px 16px; flex-shrink: 0;
     }
     .ctrl {
       border-radius: 50%; border: none;
@@ -170,9 +172,9 @@
       flex-shrink: 0; padding: 0;
     }
     .ctrl:active { transform: scale(0.90); }
-    .ctrl.skip { width: 80px; height: 80px; color: var(--text); }
+    .ctrl.skip { width: 72px; height: 72px; color: var(--text); }
     .ctrl.skip:active { background: rgba(255,255,255,0.08); }
-    .ctrl.skip svg { width: 46px; height: 46px; }
+    .ctrl.skip svg { width: 42px; height: 42px; }
     .ctrl.play {
       width: 116px; height: 116px;
       background: var(--green);
@@ -201,24 +203,61 @@
 
     /* ── Search Bar ────────────────────────────────────────── */
     #search-bar {
-      display: flex; gap: 10px; padding: 0 16px 18px; flex-shrink: 0;
+      display: flex; gap: 10px; padding: 6px 16px 8px; flex-shrink: 0;
     }
     #search-input {
       flex: 1; background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 500px; color: var(--text); font-size: 1.05rem;
-      padding: 15px 20px; outline: none;
+      border-radius: 500px; color: var(--text); font-size: 1.35rem; font-weight: 600;
+      padding: 16px 22px; outline: none;
       -webkit-appearance: none; appearance: none;
     }
-    #search-input::placeholder { color: var(--muted); }
-    #search-input:focus { border-color: var(--text); }
-    #search-go {
+    #search-input::placeholder { color: var(--muted); font-weight: 500; }
+    #search-input:focus { border-color: var(--green); }
+    #search-clear {
       background: var(--bg3); border: 1px solid var(--border);
-      border-radius: 50%; color: var(--green); width: 54px;
-      cursor: pointer; flex-shrink: 0;
-      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; color: var(--muted); width: 72px; flex-shrink: 0;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
     }
-    #search-go svg { width: 24px; height: 24px; }
-    #search-go:active { background: #2a2a2a; }
+    #search-clear svg { width: 30px; height: 30px; }
+    #search-clear:active { background: #2a2a2a; }
+
+    /* ── Inline results (scroll area; play controls stay above) ── */
+    #results-list {
+      flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+      padding: 0 12px; display: flex; flex-direction: column; gap: 8px;
+    }
+    #results-list .hint { color: var(--muted); padding: 14px 6px; font-size: 0.95rem; text-align: center; }
+    .result-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px; background: var(--bg3);
+      border-radius: 14px; border: 1px solid var(--border); flex-shrink: 0;
+      cursor: pointer;
+    }
+    .result-row:active { background: #2a2a2a; }
+    .result-art {
+      width: 56px; height: 56px; border-radius: 8px; flex-shrink: 0;
+      object-fit: cover; cursor: pointer; background: #2a2a2a;
+    }
+    .result-meta { flex: 1; min-width: 0; }
+    .result-track {
+      font-size: 1.1rem; font-weight: 700; cursor: pointer;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .result-artist {
+      font-size: 0.92rem; color: var(--muted); margin-top: 2px; cursor: pointer;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .result-track:active, .result-artist:active { color: var(--green); }
+    .result-queue {
+      flex-shrink: 0; background: none; border: 1px solid rgba(29,185,84,0.5);
+      color: var(--green); border-radius: 500px; padding: 12px 16px;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+    }
+    .result-queue:active { background: rgba(29,185,84,0.12); }
+    #uptime {
+      flex-shrink: 0; text-align: center; color: var(--muted);
+      font-size: 0.72rem; padding: 6px 0 8px; letter-spacing: 0.04em;
+    }
 
     /* ── No-device Banner ──────────────────────────────────── */
     #no-device {
@@ -266,16 +305,7 @@
       display: flex; align-items: center; gap: 8px; flex-shrink: 0;
     }
     .back-btn svg { width: 22px; height: 22px; }
-    .result-row {
-      display: flex; align-items: center; gap: 14px;
-      padding: 12px 14px; background: var(--bg3);
-      border-radius: 12px; cursor: pointer; border: 1px solid var(--border);
-      flex-shrink: 0;
-    }
-    .result-row:active { background: #2a2a2a; }
-    .result-row img { width: 52px; height: 52px; border-radius: 6px; flex-shrink: 0; object-fit: cover; }
-    .result-track { font-size: 0.95rem; font-weight: 600; }
-    .result-artist { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+    /* result-row styles are defined in the Search section above */
 
     .hidden { display: none !important; }
     .spin { animation: spin 1s linear infinite; }
@@ -352,11 +382,15 @@
     <div id="search-bar">
       <input id="search-input" type="search" placeholder="Search songs, artists…"
              enterkeyhint="search" autocomplete="off"
-             onkeydown="if(event.key==='Enter'){event.preventDefault();doSearch();}">
-      <button id="search-go" onclick="doSearch()" aria-label="Search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+             oninput="onSearchInput(this.value)"
+             onkeydown="if(event.key==='Enter'){event.preventDefault();runSearch(this.value);}">
+      <button id="search-clear" onclick="clearSearch()" aria-label="Clear search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </div>
+
+    <div id="results-list"></div>
+    <div id="uptime"></div>
 
   </div><!-- /main -->
 
@@ -368,14 +402,7 @@
     </div>
   </div>
 
-  <!-- ── Search Results Overlay ─────────────────────────────── -->
-  <div id="results-overlay" class="hidden">
-    <button class="back-btn" onclick="closeSearch()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>
-      <span>Back</span>
-    </button>
-    <div id="results-list"></div>
-  </div>
+  <!-- Search results render inline under the controls (see #results-list in #main) -->
 
 </div><!-- /app -->
 
@@ -516,7 +543,10 @@ async function api(path, method = 'GET', body = null, _retried = false) {
     const err = await res.json().catch(() => ({}));
     throw Object.assign(new Error(err?.error?.message || res.status), { status: res.status });
   }
-  return res.json();
+  // Playback commands (play/pause/next/seek…) return empty bodies — don't call
+  // res.json() on nothing, or it throws "Unexpected end of JSON input".
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
 }
 
 // ── State ─────────────────────────────────────────────────────────
@@ -748,44 +778,58 @@ function pickDevice(id, name, type) {
 }
 function closeDevicesOnBg(e) { if (e.target.id === 'device-overlay') hide('device-overlay'); }
 
-// ── Search ────────────────────────────────────────────────────────
-async function doSearch() {
-  const q = $('search-input').value.trim();
-  if (!q) return;
-  $('search-input').blur();
-  show('results-overlay');
-  const list = $('results-list');
-  list.innerHTML = '<div style="color:var(--muted);padding:20px 0">Searching…</div>';
+// ── Search (inline, as-you-type) ──────────────────────────────────
+let searchTimer = null, searchSeq = 0;
+function onSearchInput(v) {
+  clearTimeout(searchTimer);
+  const q = (v || '').trim();
+  if (!q) { renderResults(null); return; }
+  searchTimer = setTimeout(() => runSearch(q), 220); // debounce keystrokes
+}
+async function runSearch(q) {
+  q = (q || '').trim();
+  if (!q) { renderResults(null); return; }
+  const seq = ++searchSeq;
   try {
     const d = await api(`/search?q=${encodeURIComponent(q)}&type=track&limit=10`);
-    const tracks = d?.tracks?.items || [];
-    if (!tracks.length) {
-      list.innerHTML = '<div style="color:var(--muted);padding:20px 0">No results.</div>';
-      return;
-    }
-    list.innerHTML = tracks.map(t => `
-      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}')">
-        <img src="${t.album?.images?.[2]?.url || ''}" alt=""
-             onerror="this.style.display='none'" loading="lazy">
-        <div>
-          <div class="result-track">${esc(t.name)}</div>
-          <div class="result-artist">${esc(t.artists.map(a => a.name).join(', '))}</div>
-        </div>
-      </div>
-    `).join('');
+    if (seq !== searchSeq) return;            // a newer keystroke superseded this one
+    renderResults(d?.tracks?.items || []);
   } catch(e) {
-    list.innerHTML = `<div style="color:var(--pink);padding:20px 0">Search error: ${e.message}</div>`;
+    if (seq !== searchSeq || (e && e.status === 401)) return;
+    $('results-list').innerHTML = `<div class="hint">Search error: ${esc(e.message || 'failed')}</div>`;
   }
 }
+function renderResults(tracks) {
+  const list = $('results-list');
+  if (tracks === null) { list.innerHTML = ''; return; }
+  if (!tracks.length) { list.innerHTML = '<div class="hint">No results.</div>'; return; }
+  list.innerHTML = tracks.map(t => {
+    const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+    const albumId = t.album?.id || '';
+    const artistId = t.artists?.[0]?.id || '';
+    return `
+      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')">${esc(t.name)}</div>
+          <div class="result-artist" onclick="event.stopPropagation();openArtist('${esc(artistId)}')">${esc(t.artists.map(a => a.name).join(', '))}</div>
+        </div>
+        <button class="result-queue" onclick="event.stopPropagation();queueTrack('${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+      </div>`;
+  }).join('');
+}
+function clearSearch() {
+  $('search-input').value = '';
+  renderResults(null);
+}
+
 async function playTrackUri(uri) {
-  closeSearch();
   let dev = await ensureActiveDevice();
   try {
     await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', { uris: [uri] });
     setTimeout(fetchState, 800);
   } catch(e) {
-    // device may have gone inactive — refetch once and retry before giving up
-    if (e && e.status === 404) {
+    if (e && e.status === 404) {            // device went inactive — refetch + retry once
       S.deviceId = null;
       dev = await ensureActiveDevice();
       if (dev) {
@@ -799,10 +843,19 @@ async function playTrackUri(uri) {
     handlePlaybackError(e, 'Play');
   }
 }
-function closeSearch() {
-  hide('results-overlay');
-  $('search-input').value = '';
+
+// Add a track to the Spotify play queue (the "+ Queue" button on each result).
+async function queueTrack(uri) {
+  const dev = await ensureActiveDevice();
+  try {
+    await api('/me/player/queue?uri=' + encodeURIComponent(uri) + (dev ? `&device_id=${dev}` : ''), 'POST');
+    toast('Added to queue');
+  } catch(e) { handlePlaybackError(e, 'Queue'); }
 }
+
+// Open the album / artist in Spotify (universal links open the app on iOS).
+function openAlbum(id)  { if (id) window.open('https://open.spotify.com/album/'  + id, '_blank'); }
+function openArtist(id) { if (id) window.open('https://open.spotify.com/artist/' + id, '_blank'); }
 
 // ── Jam ───────────────────────────────────────────────────────────
 function jamTap() {
@@ -830,6 +883,18 @@ function esc(s) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+
+// ── Session uptime (small readout at the bottom of the page) ──────
+let appOpenedAt = Date.now();
+function tickUptime() {
+  const el = document.getElementById('uptime');
+  if (!el) return;
+  const s = Math.floor((Date.now() - appOpenedAt) / 1000);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  el.textContent = 'Open for ' + (h ? h + 'h ' : '') + ((h || m) ? m + 'm ' : '') + sec + 's';
+}
+setInterval(tickUptime, 1000);
+tickUptime();
 
 // ── Init ──────────────────────────────────────────────────────────
 (async () => {
