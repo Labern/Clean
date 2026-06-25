@@ -88,9 +88,12 @@ function load() {
     fetchCalls.push(call);
     const r = queue.shift() || { status: 200, body: {} };
     const status = r.status ?? 200;
+    const hasBody = r.body !== undefined && r.body !== null;
     return {
       status, ok: status >= 200 && status < 300,
-      json: async () => (r.body ?? {}),
+      // realistic: real json() throws on an empty body; text() returns ''
+      async json() { if (!hasBody) throw new SyntaxError('Unexpected end of JSON input'); return r.body; },
+      async text() { return hasBody ? JSON.stringify(r.body) : ''; },
     };
   }
 
@@ -111,7 +114,7 @@ function load() {
     atob: s => Buffer.from(s, 'base64').toString('binary'),
     TextEncoder, URLSearchParams, encodeURIComponent, decodeURIComponent,
     console: { log() {}, warn() {}, error() {}, info() {} },
-    alert() {}, confirm: () => false, prompt: () => null,
+    alert() {}, confirm: () => false, prompt: () => null, open() {},
     setTimeout: () => 0, clearTimeout: () => {},
     setInterval: () => 0, clearInterval: () => {},
     Math, JSON, Date, Object, Array, String, Number, Boolean, Promise, Error, RegExp, Symbol, Map, Set,
@@ -197,6 +200,14 @@ function staticChecks() {
   check('api() retries once on 401 then re-auths', /status === 401/.test(html) && /_retried/.test(html));
   check('pickDevice starts playback (play:true)', /device_ids:\s*\[id\],\s*play:\s*true/.test(html));
   check('no remaining catch(console.warn) silent swallows', !/catch\(console\.warn\)/.test(html));
+
+  // Inline-search + driving-UI features
+  check('search is as-you-type (oninput)', /oninput="onSearchInput/.test(html));
+  check('inline results, no full-screen overlay element', !/id="results-overlay"/.test(html));
+  check('big search font (>=1.3rem)', /#search-input\b[\s\S]{0,240}font-size:\s*1\.(3|4|5)/.test(html));
+  check('add-to-queue wired to /me/player/queue', /queueTrack\(/.test(html) && /\/me\/player\/queue/.test(html));
+  check('title→album and artist→artist openers exist', /function openAlbum/.test(html) && /function openArtist/.test(html));
+  check('uptime readout present', /id="uptime"/.test(html) && /Open for/.test(html));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -254,22 +265,21 @@ async function behaviourChecks() {
     check('next() uses POST', nx && nx.method === 'POST', nx && nx.method);
   }
 
-  // 5. doSearch builds the right query and renders tappable results
+  // 5. runSearch builds the right query and renders tappable inline results
   {
     const app = load(); app.auth();
-    app.getEl('search-input') || app.ctx.document; // ensure
-    app.ctx.document.getElementById('search-input').value = 'daft punk';
     app.queueResp({ status: 200, body: { tracks: { items: [
-      { uri: 'spotify:track:1', name: 'One More Time', artists: [{ name: 'Daft Punk' }], album: { images: [{}, {}, { url: 'u' }] } },
+      { uri: 'spotify:track:1', name: 'One More Time', id: 't1',
+        artists: [{ name: 'Daft Punk', id: 'ar1' }], album: { id: 'al1', images: [{}, {}, { url: 'u' }] } },
     ] } } });
-    await app.ctx.doSearch();
+    await app.ctx.runSearch('daft punk');
     await flush();
     const search = app.fetchCalls.find(c => c.url.includes('/search'));
-    check('doSearch hits /search', !!search);
-    check('doSearch uses limit=10', search && /[?&]limit=10\b/.test(search.url), search && search.url);
-    check('doSearch url-encodes the query', search && search.url.includes('daft%20punk'), search && search.url);
+    check('runSearch hits /search', !!search);
+    check('runSearch uses limit=10', search && /[?&]limit=10\b/.test(search.url), search && search.url);
+    check('runSearch url-encodes the query', search && search.url.includes('daft%20punk'), search && search.url);
     const list = app.getEl('results-list');
-    check('search renders a tappable result', list && list.innerHTML.includes('playTrackUri('), list && list.innerHTML.slice(0, 60));
+    check('inline result is tappable to play', list && list.innerHTML.includes("playTrackUri('spotify:track:1')"));
   }
 
   // 6. Free account (403 Premium) → clear, specific message
@@ -316,6 +326,75 @@ async function behaviourChecks() {
     await flush(); await flush();
     const toast = app.getEl('toast');
     check('toggleShuffle surfaces failure via toast', toast && toast.className.includes('err') && toast.textContent.length > 0);
+  }
+
+  // 10. Empty 200 body on play/pause must NOT raise a JSON error
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 200 }); // play returns 200 with an EMPTY body
+    await app.ctx.togglePlay();
+    await flush();
+    const toast = app.getEl('toast');
+    check('empty-body play response is not a JSON error', !(toast && toast.className.includes('err')), toast && toast.textContent);
+  }
+
+  // 11. Inline result row exposes play / album / artist / queue targets
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { tracks: { items: [
+      { uri: 'spotify:track:Z', name: 'Song', id: 't1', artists: [{ name: 'Art', id: 'ar1' }], album: { id: 'al1', images: [{}, {}, { url: 'u' }] } },
+    ] } } });
+    await app.ctx.runSearch('song');
+    await flush();
+    const h = app.getEl('results-list').innerHTML;
+    check('row plays the track', h.includes("playTrackUri('spotify:track:Z')"));
+    check('title opens the album', h.includes("openAlbum('al1')"));
+    check('artist opens the artist', h.includes("openArtist('ar1')"));
+    check('row has + Queue button', h.includes("queueTrack('spotify:track:Z')"));
+  }
+
+  // 12. queueTrack POSTs to /me/player/queue with the uri (empty body must be fine)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 200 }); // queue add → empty body
+    await app.ctx.queueTrack('spotify:track:9');
+    await flush();
+    const q = app.fetchCalls.find(c => c.url.includes('/me/player/queue'));
+    check('queueTrack hits /me/player/queue', !!q);
+    check('queueTrack uses POST', q && q.method === 'POST', q && q.method);
+    check('queueTrack passes the uri', q && q.url.includes(encodeURIComponent('spotify:track:9')), q && q.url);
+    const toast = app.getEl('toast');
+    check('queue add confirms with a toast', toast && /queue/i.test(toast.textContent) && !toast.className.includes('err'));
+  }
+
+  // 13. Clearing the query empties the inline results
+  {
+    const app = load(); app.auth();
+    app.ctx.renderResults([{ uri: 'spotify:track:1', name: 'X', artists: [{ name: 'Y', id: 'a' }], album: { id: 'b', images: [{}, {}, { url: 'u' }] } }]);
+    app.ctx.clearSearch();
+    check('clearSearch empties results', app.getEl('results-list').innerHTML === '');
+  }
+
+  // 14. Progress bar + ring update from fetchState and advance on tick
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: {
+      is_playing: true, progress_ms: 30000, shuffle_state: false,
+      device: { id: 'd1', name: 'Mac', type: 'Computer' },
+      item: { id: 't1', name: 'Song', duration_ms: 60000, artists: [{ name: 'A' }], album: { images: [{ url: 'art' }] } },
+    } });
+    await app.ctx.fetchState();
+    await flush();
+    const fill = app.getEl('progress-fill');
+    check('horizontal progress set to 50% after fetchState', fill && fill.style.width === '50%', fill && fill.style.width);
+    const ring = app.getEl('#gauge-ring .fill');
+    check('ring offset set (between empty and full)', ring && parseFloat(ring.style.strokeDashoffset) > 0 && parseFloat(ring.style.strokeDashoffset) < 289, ring && ring.style.strokeDashoffset);
+    const before = parseFloat(app.getEl('progress-fill').style.width);
+    app.ctx.tickProgress();
+    const after = parseFloat(app.getEl('progress-fill').style.width);
+    check('progress advances on tick', after > before, `${before} -> ${after}`);
   }
 }
 
