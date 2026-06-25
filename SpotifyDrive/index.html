@@ -543,6 +543,15 @@ const SCOPES = [
   'user-library-modify',
 ].join(' ');
 
+// Bump when SCOPES changes: existing users granted scopes ONCE at first connect,
+// and refresh tokens never pick up scopes added later — so a new scope needs a
+// fresh consent. missingScopes() drives a one-time auto-reconnect on load.
+const SCOPE_VER = 'v2-dashboard';
+function missingScopes() {
+  const have = new Set((localStorage.getItem('granted_scope') || '').split(/\s+/).filter(Boolean));
+  return SCOPES.split(' ').filter(s => !have.has(s));
+}
+
 // ── PKCE ─────────────────────────────────────────────────────────────
 function rndStr(n) {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
@@ -618,6 +627,7 @@ function storeTokens(d) {
   lsSet('access_token', d.access_token);
   lsSet('token_expiry', Date.now() + d.expires_in * 1000);
   if (d.refresh_token) lsSet('refresh_token', d.refresh_token);
+  if (d.scope) lsSet('granted_scope', d.scope);   // track what was actually granted
 }
 async function getToken() {
   const expiry = +ls('token_expiry') || 0;
@@ -1315,7 +1325,16 @@ tickUptime();
     history.replaceState({}, '', location.pathname);
     await exchangeCode(code);
   }
-  if (ls('access_token')) showMain(); else showAuth();
+  if (ls('access_token')) {
+    // Newly-added scopes (the dashboard's recently-played / playlists) need a
+    // one-time re-consent. Guarded by SCOPE_VER so it can never loop.
+    if (missingScopes().length && ls('scope_try') !== SCOPE_VER) {
+      lsSet('scope_try', SCOPE_VER);
+      await authorize();
+      return;
+    }
+    showMain();
+  } else showAuth();
 })();
 </script>
 </body>
