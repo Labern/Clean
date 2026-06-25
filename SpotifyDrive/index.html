@@ -250,6 +250,8 @@
     .results-back svg { width: 30px; height: 30px; }
     .results-back:active { background: #2f2e36; }
     .results-title { font-size: 1.25rem; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .section-divider { height: 1px; background: var(--border); margin: 2px 16px 8px; flex-shrink: 0; }
+    .dash-head { font-size: 0.82rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 12px 6px 8px; }
     .result-row {
       display: flex; align-items: center; gap: 12px;
       padding: 12px; background: var(--bg3);
@@ -465,6 +467,7 @@
       </button>
     </div>
 
+    <div class="section-divider"></div>
     <div id="results-list"></div>
     <div id="uptime"></div>
     <div id="credit">Made by Labern 🐿️</div>
@@ -920,7 +923,7 @@ function renderResults(tracks) {
   const list = $('results-list');
   const main = document.getElementById('main');
   if (main) main.classList.toggle('searching', !!(tracks && tracks.length));
-  if (tracks === null) { list.innerHTML = ''; return; }
+  if (tracks === null) { showDashboard(); return; }
   if (!tracks.length) { list.innerHTML = '<div class="hint">No results.</div>'; return; }
   list.innerHTML = tracks.map(t => {
     const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
@@ -1065,6 +1068,73 @@ function renderArtistAlbums(items, title) {
 function openCurrentAlbum()  { openAlbum(S.albumId); }
 function openCurrentArtist() { openArtist(S.artistId); }
 
+// ── Dashboard (recently played + your playlists, shown under search by default) ──
+let dashHTML = '';
+async function loadDashboard() {
+  try {
+    const [recent, pls] = await Promise.all([
+      api('/me/player/recently-played?limit=12').catch(() => null),
+      api('/me/playlists?limit=20').catch(() => null),
+    ]);
+    let html = '';
+    const seen = new Set();
+    const recentTracks = ((recent && recent.items) || [])
+      .map(i => i.track).filter(t => t && t.uri && !seen.has(t.uri) && seen.add(t.uri));
+    if (recentTracks.length) html += '<div class="dash-head">Recently played</div>' + recentTracks.map(trackRowHTML).join('');
+    const playlists = ((pls && pls.items) || []).filter(Boolean);
+    if (playlists.length) html += '<div class="dash-head">Your playlists</div>' + playlists.map(playlistRowHTML).join('');
+    dashHTML = html || '<div class="hint">Search above to start playing.</div>';
+  } catch(e) {
+    if (e && e.status === 401) return;
+    dashHTML = '<div class="hint">Search above to start playing.</div>';
+  }
+  showDashboard();
+}
+function showDashboard() {
+  const main = document.getElementById('main'); if (main) main.classList.remove('searching');
+  if (dashHTML) $('results-list').innerHTML = dashHTML;
+  else loadDashboard();
+}
+function trackRowHTML(t) {
+  const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+  return `
+      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(t.name)}</div>
+          <div class="result-artist">${esc((t.artists || []).map(a => a.name).join(', '))}</div>
+        </div>
+        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+      </div>`;
+}
+function playlistRowHTML(p) {
+  const art = (p.images && p.images[0] && p.images[0].url) || '';
+  const sub = (p.tracks && p.tracks.total != null) ? p.tracks.total + ' tracks' : 'Playlist';
+  return `
+      <div class="result-row" onclick="playContext('${esc(p.uri)}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(p.name)}</div>
+          <div class="result-artist">${esc(sub)}</div>
+        </div>
+      </div>`;
+}
+// Play a whole context (playlist / album) from the start.
+async function playContext(contextUri) {
+  if (!contextUri) return;
+  let dev = await ensureActiveDevice();
+  try {
+    await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', { context_uri: contextUri });
+    setTimeout(fetchState, 800);
+  } catch(e) {
+    if (e && e.status === 404) {
+      S.deviceId = null; dev = await ensureActiveDevice();
+      if (dev) { try { await api(`/me/player/play?device_id=${dev}`, 'PUT', { context_uri: contextUri }); setTimeout(fetchState, 800); return; } catch(e2) { e = e2; } }
+    }
+    handlePlaybackError(e, 'Play');
+  }
+}
+
 // Queue view: see what's coming up next on the active Spotify device.
 async function showQueue() {
   const list = $('results-list');
@@ -1119,7 +1189,7 @@ function logout() {
   hide('main'); show('auth-screen');
 }
 function showAuth() { hide('main'); show('auth-screen'); }
-function showMain() { hide('auth-screen'); show('main'); startPolling(); }
+function showMain() { hide('auth-screen'); show('main'); startPolling(); loadDashboard(); }
 
 // ── Tiny helpers ──────────────────────────────────────────────────
 const $ = id => document.getElementById(id);
