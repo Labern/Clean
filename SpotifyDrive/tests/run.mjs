@@ -219,6 +219,8 @@ function staticChecks() {
   check('top header hidden (no device pill / off button)', /#header\s*\{\s*display:\s*none/.test(html));
   check('queue view present (see what is queued)', /function showQueue/.test(html) && /\/me\/player\/queue/.test(html));
   check('search collapse never hides the album art', !/#main\.searching #album-art/.test(html));
+  check('brand wordmark in top bar (Spotify Drive / Labern)', /id="brand"/.test(html) && /Spotify <span class="brand-accent">Drive/.test(html) && /by Labern/.test(html));
+  check('thin divider under the top bar', /#mode-bar\s*\{[\s\S]{0,220}border-bottom/.test(html));
 
   // Progress time + now-playing deep-links + queue animation
   check('progress bar is chunky + rounded', /height:\s*9px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));

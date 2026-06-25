@@ -299,7 +299,15 @@
     #main.searching #now-playing { padding: 6px 24px 4px; gap: 6px; }
 
     /* ── BMW Mode (optional theme) ─────────────────────────── */
-    #mode-bar { display: flex; justify-content: flex-end; padding: 8px 16px 2px; flex-shrink: 0; }
+    #mode-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 16px 11px; flex-shrink: 0;
+      border-bottom: 1px solid var(--border); margin-bottom: 12px;
+    }
+    #brand { display: flex; flex-direction: column; line-height: 1.05; }
+    .brand-name { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.01em; }
+    .brand-accent { color: var(--green); }
+    .brand-by { font-size: 0.64rem; color: var(--muted); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
     #header { display: none; }   /* mobile: skip the device pill / off button — straight to album art */
     #bmw-toggle {
       background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
@@ -388,6 +396,10 @@
   <div id="main" class="hidden">
 
     <div id="mode-bar">
+      <div id="brand">
+        <div class="brand-name">Spotify <span class="brand-accent">Drive</span></div>
+        <div class="brand-by">by Labern</div>
+      </div>
       <button id="bmw-toggle" onclick="toggleBmw()">BMW Mode</button>
     </div>
 
