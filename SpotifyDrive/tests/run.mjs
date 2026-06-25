@@ -215,6 +215,8 @@ function staticChecks() {
   check('search font set (0.9–1.3rem)', /#search-input\b[\s\S]{0,240}font-size:\s*(0\.9|1\.[0-3])/.test(html));
   check('search input height matches the 60px round buttons', /#search-input\s*\{[^}]*height:\s*60px/.test(html));
   check('visible tap feedback (glow + scale pulse on buttons)', /@keyframes tapFlash/.test(html) && /function flashTap/.test(html));
+  check('beat trinket: ♪ pulses at the BPM (real tempo via Deezer)',
+    /id="beat"/.test(html) && /@keyframes beatPulse/.test(html) && /function lookupBpm/.test(html) && /api\.deezer\.com/.test(html));
   check('dashboard preset tiles (Quick play, one-tap playlist)',
     /function presetTileHTML/.test(html) && /class="preset-tile"/.test(html) && /Quick play/.test(html));
   check('plays default to album/context repeat (no single-track loop)',
@@ -946,6 +948,15 @@ async function behaviourChecks() {
     const btn = app.ctx.document.createElement('button');
     app.ctx.flashTap(btn);
     check('flashTap adds the .tapped class', btn.classList.contains('tapped'));
+  }
+
+  // 46. Beat trinket shows the ♪ on a new track (BPM lookup is best-effort, non-blocking)
+  {
+    const app = load();
+    let threw = false;
+    try { app.ctx.updateBeat({ name: 'Midnight City', artists: [{ name: 'M83' }] }); } catch(e) { threw = true; }
+    check('updateBeat runs without throwing', !threw);
+    check('beat note is revealed on a new track', app.getEl('beat') && !app.getEl('beat').classList.contains('hidden'));
   }
 }
 

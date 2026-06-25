@@ -127,7 +127,7 @@
     #now-playing {
       flex-shrink: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 8px 24px 6px; gap: 8px; text-align: center;
+      padding: 20px 24px 6px; gap: 8px; text-align: center;
     }
     #album-art {
       width: min(200px, 48vw); height: min(200px, 48vw);
@@ -156,7 +156,7 @@
     #progress-wrap {
       width: 100%; max-width: 420px; height: 12px;
       background: var(--track); border-radius: 999px; overflow: hidden;
-      margin-top: 6px; cursor: pointer;
+      margin-top: 16px; cursor: pointer;
       touch-action: none;                 /* we handle drag-to-scrub ourselves */
       transition: height 0.15s ease;
     }
@@ -171,6 +171,16 @@
       width: 100%; max-width: 420px; display: flex; justify-content: space-between;
       font-size: 1rem; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums;
       margin-top: 5px;
+    }
+    /* Beat trinket — a music note that pulses at the track's BPM (real tempo via Deezer) */
+    #beat {
+      font-size: 1.6rem; line-height: 1; color: var(--green); margin-top: 6px;
+      opacity: 0.5; transform-origin: center bottom; will-change: transform;
+    }
+    #beat.playing { animation: beatPulse var(--beat, 0.55s) ease-in-out infinite; }
+    @keyframes beatPulse {
+      0%, 100% { transform: scale(1);    opacity: 0.4; }
+      42%      { transform: scale(1.5);  opacity: 1; text-shadow: 0 0 16px var(--green); }
     }
 
     /* ── Gauge play button (ring-wrapped), grafted from Dashboard ── */
@@ -613,6 +623,7 @@
       <div id="artist-name" onclick="openCurrentArtist()">&mdash;</div>
       <div id="progress-wrap"><div id="progress-fill"></div></div>
       <div id="time-row"><span id="time-elapsed">0:00</span><span id="time-remaining">0:00</span></div>
+      <div id="beat" class="hidden" title="pulses at the track's BPM">&#9834;</div>
     </div>
 
     <div id="controls">
@@ -647,7 +658,7 @@
       <button id="mic-btn" onclick="startDictation()" aria-label="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
       </button>
-      <input id="search-input" type="search" placeholder="Search or tap mic to speak…"
+      <input id="search-input" type="search" placeholder="Speak or type to search bitch"
              enterkeyhint="search" autocomplete="off"
              oninput="onSearchInput(this.value)"
              onfocus="onSearchFocus()"
@@ -1024,6 +1035,7 @@ function renderPlayBtn() {
   } else {
     btn.innerHTML = glyph;
   }
+  setBeatPlaying();
 }
 function renderShuffleBtn() {
   $('shuffle-btn').classList.toggle('on', S.shuffle);
@@ -1043,6 +1055,7 @@ async function fetchState() {
       $('album-name').textContent = '';
       $('artist-name').textContent = '—';
       $('album-art').classList.add('hidden');
+      $('beat').classList.add('hidden');
       $('no-device').classList.remove('hidden');
       return;
     }
@@ -1077,7 +1090,7 @@ async function fetchState() {
     renderShuffleBtn();
     if (!S.scrubbing) { if (newTrack) snapProgress(); else renderProgress(); }
 
-    if (newTrack) { S.trackId = t.id; recordPlay(t.id); updateStats(); checkLiked(); maybeContinueAlbum(t); }
+    if (newTrack) { S.trackId = t.id; recordPlay(t.id); updateStats(); checkLiked(); maybeContinueAlbum(t); updateBeat(t); }
   } catch(e) { console.warn('fetchState', e); }
 }
 
@@ -1941,6 +1954,53 @@ function setupTapFeedback() {
     const b = e.target && e.target.closest && e.target.closest('button');
     if (b) flashTap(b);
   }, true);
+}
+
+// ── Beat trinket: a music note that pulses at the track's BPM ──────
+// Spotify killed its tempo endpoint for new apps, so we read real BPM from
+// Deezer's public API via JSONP (no key, no CORS issue). Falls back to a gentle
+// decorative pulse when Deezer has no BPM for the track.
+let beatSeq = 0, beatLookupSeq = 0;
+function jsonp(url) {
+  return new Promise((resolve) => {
+    if (!document.head || !document.createElement) { resolve(null); return; }
+    const cb = 'dz_cb_' + (++beatSeq);
+    let done = false;
+    const s = document.createElement('script');
+    const finish = (v) => { if (done) return; done = true; try { delete window[cb]; } catch(e){} if (s && s.parentNode) s.parentNode.removeChild(s); resolve(v); };
+    window[cb] = (data) => finish(data);
+    s.onerror = () => finish(null);
+    s.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'output=jsonp&callback=' + cb;
+    document.head.appendChild(s);
+    setTimeout(() => finish(null), 4500);
+  });
+}
+async function lookupBpm(title, artist) {
+  try {
+    const r = await jsonp('https://api.deezer.com/search?limit=1&q=' + encodeURIComponent((title || '') + ' ' + (artist || '')));
+    const t = r && r.data && r.data[0];
+    if (!t || !t.id) return null;
+    if (t.bpm && t.bpm > 0) return t.bpm;
+    const tr = await jsonp('https://api.deezer.com/track/' + t.id);
+    return (tr && tr.bpm > 0) ? tr.bpm : null;
+  } catch(e) { return null; }
+}
+function setBeatPlaying() {
+  const el = document.getElementById('beat');
+  if (el) el.classList.toggle('playing', !!S.playing);
+}
+function updateBeat(t) {
+  const el = document.getElementById('beat');
+  if (!el) return;
+  el.classList.remove('hidden');
+  if (el.style && el.style.setProperty) el.style.setProperty('--beat', '0.55s');   // decorative default
+  setBeatPlaying();
+  const seq = ++beatLookupSeq;
+  const artist = (t && t.artists && t.artists[0] && t.artists[0].name) || '';
+  if (t && t.name) lookupBpm(t.name, artist).then(bpm => {
+    if (seq !== beatLookupSeq) return;                        // a newer track superseded this
+    if (bpm && bpm > 30 && bpm < 320 && el.style && el.style.setProperty) el.style.setProperty('--beat', (60 / bpm).toFixed(3) + 's');
+  });
 }
 
 // ── Init ──────────────────────────────────────────────────────────
