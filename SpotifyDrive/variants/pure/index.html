@@ -127,7 +127,7 @@
     #now-playing {
       flex-shrink: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 20px 24px 6px; gap: 8px; text-align: center;
+      padding: 12px 24px 6px; gap: 8px; text-align: center;
     }
     #album-art {
       width: min(200px, 48vw); height: min(200px, 48vw);
@@ -176,6 +176,7 @@
     #beat {
       font-size: 1.6rem; line-height: 1; color: var(--green); margin-top: 6px;
       opacity: 0.5; transform-origin: center bottom; will-change: transform;
+      display: none;   /* TEMP: pulse hidden so spacing can be checked — remove to restore */
     }
     #beat.playing { animation: beatPulse var(--beat, 0.55s) ease-in-out infinite; }
     @keyframes beatPulse {
@@ -425,7 +426,7 @@
       border-bottom: 1px solid var(--border); margin-bottom: 12px;
     }
     #brand { display: flex; flex-direction: column; line-height: 1.05; }
-    .brand-name { font-size: 1.1rem; font-weight: 800; letter-spacing: -0.01em; }
+    .brand-name { font-size: 0.95rem; font-weight: 800; letter-spacing: -0.01em; }
     .brand-accent { color: var(--green); }
     .brand-by { font-size: 0.64rem; color: var(--muted); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
     #header { display: none; }   /* mobile: skip the device pill / off button — straight to album art */
