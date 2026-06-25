@@ -213,6 +213,7 @@ function staticChecks() {
   check('footer credit present', /Made by Labern/.test(html));
   check('BMW Mode toggle present', /id="bmw-toggle"/.test(html) && /BMW Mode/.test(html));
   check('BMW palette + roundel defined', /#app\.bmw/.test(html) && /#0166B1/i.test(html) && /BMW_ROUNDEL/.test(html));
+  check('in-app album view (fetches /albums/ + renders tracks)', /\/albums\//.test(html) && /function renderAlbum/.test(html));
 
   // Progress time + now-playing deep-links + queue animation
   check('progress bar is chunky + rounded', /height:\s*9px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
@@ -434,12 +435,14 @@ async function behaviourChecks() {
     check('elapsed time shows 0:30', app.getEl('time-elapsed').textContent === '0:30', app.getEl('time-elapsed').textContent);
     check('remaining time shows -1:05', app.getEl('time-remaining').textContent === '-1:05', app.getEl('time-remaining').textContent);
     check('album title shows under song title', app.getEl('album-name').textContent === 'Album X', app.getEl('album-name').textContent);
+    app.queueResp({ status: 200, body: { name: 'Al', images: [{ url: 'a' }], tracks: { items: [] } } });
+    await app.ctx.openCurrentAlbum();
+    await flush();
+    check('now-playing title opens the album inline (fetches /albums/al1)', !!app.fetchCalls.find(c => c.url.includes('/albums/al1')));
     let opened = '';
     app.ctx.open = (u) => { opened = u; };
-    app.ctx.openCurrentAlbum();
-    check('now-playing title opens current album', opened.includes('/album/al1'), opened);
     app.ctx.openCurrentArtist();
-    check('now-playing artist opens current artist', opened.includes('/artist/ar1'), opened);
+    check('now-playing artist deep-links to the artist', opened.includes('/artist/ar1'), opened);
   }
 
   // 16. Searching collapses now-playing (frees room → no awkward scroll while driving)
@@ -466,6 +469,26 @@ async function behaviourChecks() {
     check('play button becomes BMW roundel', /bmw-roundel/.test(btn.innerHTML) && /0166B1/i.test(btn.innerHTML), btn.innerHTML.slice(0, 50));
     app.ctx.toggleBmw();
     check('BMW toggle off restores default', !app.getEl('app').classList.contains('bmw') && app.ls.getItem('bmw_mode') === '0');
+  }
+
+  // 18. Tapping an album loads its tracks inline (selectable), not the Spotify app
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: {
+      name: 'Discovery', images: [{ url: 'a' }, { url: 'b' }],
+      tracks: { items: [
+        { uri: 'spotify:track:a', name: 'Aerodynamic', artists: [{ name: 'Daft Punk' }] },
+        { uri: 'spotify:track:b', name: 'One More Time', artists: [{ name: 'Daft Punk' }] },
+      ] },
+    } });
+    await app.ctx.openAlbum('al1');
+    await flush();
+    const h = app.getEl('results-list').innerHTML;
+    check('album tap fetches /albums/{id}', !!app.fetchCalls.find(c => c.url.includes('/albums/al1')));
+    check('album view shows the album name', h.includes('Discovery'));
+    check('album tracks are play-tappable', h.includes("playTrackUri('spotify:track:a')") && h.includes("playTrackUri('spotify:track:b')"));
+    check('album tracks have queue buttons', h.includes("queueTrack(this, 'spotify:track:a')"));
+    check('album view has a back button', /results-back/.test(h));
   }
 }
 
