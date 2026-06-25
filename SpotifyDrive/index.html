@@ -241,6 +241,15 @@
       padding: 0 12px 4px; display: flex; flex-direction: column; gap: 8px;
     }
     #results-list .hint { color: var(--muted); padding: 14px 6px; font-size: 0.95rem; text-align: center; }
+    .results-head { display: flex; align-items: center; gap: 12px; padding: 2px 2px 6px; }
+    .results-back {
+      background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+      width: 60px; height: 60px; border-radius: 50%; flex-shrink: 0; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .results-back svg { width: 30px; height: 30px; }
+    .results-back:active { background: #2f2e36; }
+    .results-title { font-size: 1.25rem; font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .result-row {
       display: flex; align-items: center; gap: 12px;
       padding: 12px; background: var(--bg3);
@@ -953,7 +962,38 @@ async function queueTrack(btn, uri) {
 }
 
 // Open the album / artist in Spotify (universal links open the app on iOS).
-function openAlbum(id)  { if (id) window.open('https://open.spotify.com/album/'  + id, '_blank'); }
+// Back chevron used by the inline album view.
+const BACK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
+
+// In-app album view: fetch the album and list its tracks inline (each selectable).
+async function openAlbum(id) {
+  if (!id) return;
+  const list = $('results-list');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  list.innerHTML = '<div class="hint">Loading album…</div>';
+  try {
+    renderAlbum(await api('/albums/' + id));
+  } catch(e) {
+    if (e && e.status === 401) return;
+    list.innerHTML = '<div class="hint">Couldn\'t load album.</div>';
+  }
+}
+function renderAlbum(album) {
+  const art = album.images?.[1]?.url || album.images?.[0]?.url || '';
+  const tracks = album.tracks?.items || [];
+  const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title">${esc(album.name)}</div></div>`;
+  const rows = tracks.map(t => `
+      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(t.name)}</div>
+          <div class="result-artist">${esc(t.artists.map(a => a.name).join(', '))}</div>
+        </div>
+        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+      </div>`).join('');
+  $('results-list').innerHTML = head + rows;
+}
+// Artist: Spotify dev-mode removed /artists/{id}/top-tracks, so deep-link out for now.
 function openArtist(id) { if (id) window.open('https://open.spotify.com/artist/' + id, '_blank'); }
 function openCurrentAlbum()  { openAlbum(S.albumId); }
 function openCurrentArtist() { openArtist(S.artistId); }
