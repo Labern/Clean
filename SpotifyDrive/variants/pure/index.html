@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Drive">
@@ -35,6 +35,20 @@
     }
 
     svg { display: block; }
+
+    /* ── Toast (visible action feedback) ───────────────────── */
+    #toast {
+      position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
+      transform: translateX(-50%); z-index: 300;
+      background: #2a2a2a; color: var(--text);
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 13px 18px; font-size: 0.95rem; font-weight: 600;
+      max-width: 86vw; text-align: center; line-height: 1.35;
+      box-shadow: 0 10px 34px rgba(0,0,0,0.6);
+      opacity: 0; transition: opacity 0.25s ease; pointer-events: none;
+    }
+    #toast.show { opacity: 1; }
+    #toast.err { border-color: rgba(244,114,182,0.55); }
 
     /* ── Auth ──────────────────────────────────────────────── */
     #auth-screen {
@@ -412,7 +426,9 @@ async function authorize() {
     return;
   }
   const v = rndStr(128);
-  sessionStorage.setItem('pkce_v', v);
+  // localStorage (not sessionStorage): an installed iOS PWA can lose sessionStorage
+  // across the OAuth redirect to accounts.spotify.com and back.
+  localStorage.setItem('pkce_v', v);
   const params = new URLSearchParams({
     client_id: CLIENT_ID, response_type: 'code',
     redirect_uri: REDIRECT_URI,
@@ -422,7 +438,7 @@ async function authorize() {
   location.href = 'https://accounts.spotify.com/authorize?' + params;
 }
 async function exchangeCode(code) {
-  const v = sessionStorage.getItem('pkce_v');
+  const v = localStorage.getItem('pkce_v');
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -491,20 +507,64 @@ let pollTimer = null, tickTimer = null;
 // ── Playback ──────────────────────────────────────────────────────
 function devQ() { return S.deviceId ? `?device_id=${S.deviceId}` : ''; }
 
+// Visible, auto-dismissing feedback so failures are never swallowed silently.
+function toast(msg, isErr) {
+  let el = document.getElementById('toast');
+  if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+  el.textContent = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = ''; }, 3400);
+}
+
+// Resolve a device to command: the picked one, else the active one, else the
+// first available. Returns a device id, or null if Spotify has no device anywhere.
+async function ensureActiveDevice() {
+  if (S.deviceId) return S.deviceId;
+  try {
+    const d = await api('/me/player/devices');
+    const devs = d?.devices || [];
+    const dev = devs.find(x => x.is_active) || devs[0];
+    if (dev) { S.deviceId = dev.id; return dev.id; }
+  } catch(e) { /* fall through to null */ }
+  return null;
+}
+
+// Shared error handler: surface "no active device" clearly instead of failing silently.
+function handlePlaybackError(e, what) {
+  if (e && e.status === 404) {
+    S.deviceId = null;
+    toast('No active Spotify device. Open Spotify on a device, then tap it here.', true);
+    openDevices();
+  } else if (e && e.status === 403) {
+    toast('Playback control needs Spotify Premium.', true);
+  } else {
+    toast((what || 'Playback') + ' failed: ' + ((e && e.message) || 'error'), true);
+  }
+}
+
 async function togglePlay() {
   try {
-    await api(S.playing ? '/me/player/pause' : '/me/player/play' + devQ(), 'PUT');
+    const dev = await ensureActiveDevice();
+    const q = dev ? `?device_id=${dev}` : '';
+    await api('/me/player/' + (S.playing ? 'pause' : 'play') + q, 'PUT');
     S.playing = !S.playing;
     renderPlayBtn();
-  } catch(e) { console.warn('togglePlay', e); }
+  } catch(e) { handlePlaybackError(e, 'Play/pause'); }
 }
 async function next() {
-  await api('/me/player/next' + devQ(), 'POST').catch(console.warn);
-  setTimeout(fetchState, 600);
+  try {
+    const dev = await ensureActiveDevice();
+    await api('/me/player/next' + (dev ? `?device_id=${dev}` : ''), 'POST');
+    setTimeout(fetchState, 600);
+  } catch(e) { handlePlaybackError(e, 'Skip'); }
 }
 async function prev() {
-  await api('/me/player/previous' + devQ(), 'POST').catch(console.warn);
-  setTimeout(fetchState, 600);
+  try {
+    const dev = await ensureActiveDevice();
+    await api('/me/player/previous' + (dev ? `?device_id=${dev}` : ''), 'POST');
+    setTimeout(fetchState, 600);
+  } catch(e) { handlePlaybackError(e, 'Skip'); }
 }
 async function toggleShuffle() {
   S.shuffle = !S.shuffle;
@@ -686,10 +746,25 @@ async function doSearch() {
 }
 async function playTrackUri(uri) {
   closeSearch();
+  let dev = await ensureActiveDevice();
   try {
-    await api('/me/player/play' + devQ(), 'PUT', { uris: [uri] });
+    await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', { uris: [uri] });
     setTimeout(fetchState, 800);
-  } catch(e) { console.warn('playTrack', e); }
+  } catch(e) {
+    // device may have gone inactive — refetch once and retry before giving up
+    if (e && e.status === 404) {
+      S.deviceId = null;
+      dev = await ensureActiveDevice();
+      if (dev) {
+        try {
+          await api(`/me/player/play?device_id=${dev}`, 'PUT', { uris: [uri] });
+          setTimeout(fetchState, 800);
+          return;
+        } catch(e2) { e = e2; }
+      }
+    }
+    handlePlaybackError(e, 'Play');
+  }
 }
 function closeSearch() {
   hide('results-overlay');
