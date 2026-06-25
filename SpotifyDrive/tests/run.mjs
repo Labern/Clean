@@ -221,6 +221,8 @@ function staticChecks() {
   check('search collapse never hides the album art', !/#main\.searching #album-art/.test(html));
   check('brand wordmark in top bar (Spotify Drive / Labern)', /id="brand"/.test(html) && /Spotify <span class="brand-accent">Drive/.test(html) && /by Labern/.test(html));
   check('thin divider under the top bar', /#mode-bar\s*\{[\s\S]{0,220}border-bottom/.test(html));
+  check('dashboard under search (recently played + playlists)', /function loadDashboard/.test(html) && /recently-played/.test(html) && /\/me\/playlists/.test(html));
+  check('horizontal divider under search', /class="section-divider"/.test(html));
 
   // Progress time + now-playing deep-links + queue animation
   check('progress bar is chunky + rounded', /height:\s*9px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
@@ -414,12 +416,16 @@ async function behaviourChecks() {
     check('queue retries on stale-device 404 then stays Queued', btn.className.includes('queued') && /queued/i.test(btn.innerHTML), btn.className + ' / ' + btn.innerHTML);
   }
 
-  // 13. Clearing the query empties the inline results
+  // 13. Clearing the query returns to the dashboard (not an empty list)
   {
     const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { items: [{ track: { uri: 'spotify:track:r1', name: 'R1', artists: [{ name: 'A' }], album: { uri: 'spotify:album:a1', images: [{}, {}, { url: 'u' }] } } }] } });
+    app.queueResp({ status: 200, body: { items: [] } });
+    await app.ctx.loadDashboard();
+    await flush();
     app.ctx.renderResults([{ uri: 'spotify:track:1', name: 'X', artists: [{ name: 'Y', id: 'a' }], album: { id: 'b', images: [{}, {}, { url: 'u' }] } }]);
     app.ctx.clearSearch();
-    check('clearSearch empties results', app.getEl('results-list').innerHTML === '');
+    check('clearSearch returns to the dashboard (recently played)', /Recently played/.test(app.getEl('results-list').innerHTML));
   }
 
   // 14. Progress bar + ring update from fetchState and advance on tick
@@ -569,6 +575,35 @@ async function behaviourChecks() {
     const fill = app.getEl('progress-fill');
     check('new song snaps progress to 0%', parseFloat(fill.style.width) === 0, fill.style.width);
     check('transitions restored after snap (ticks still animate)', fill.style.transition === 'width 1s linear', fill.style.transition);
+  }
+
+  // 23. Dashboard under search: recently played + your playlists (default browse view)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { items: [
+      { track: { uri: 'spotify:track:r1', name: 'R1', artists: [{ name: 'A' }], album: { uri: 'spotify:album:a1', images: [{}, {}, { url: 'u' }] } } },
+    ] } });
+    app.queueResp({ status: 200, body: { items: [
+      { uri: 'spotify:playlist:p1', name: 'Chill', images: [{ url: 'u' }], tracks: { total: 42 } },
+    ] } });
+    await app.ctx.loadDashboard();
+    await flush();
+    const h = app.getEl('results-list').innerHTML;
+    check('dashboard fetches recently-played', !!app.fetchCalls.find(c => c.url.includes('/me/player/recently-played')));
+    check('dashboard fetches playlists', !!app.fetchCalls.find(c => c.url.includes('/me/playlists')));
+    check('dashboard shows Recently played track', /Recently played/.test(h) && h.includes("playTrackUri('spotify:track:r1'"));
+    check('dashboard shows a playlist tile', /Your playlists/.test(h) && h.includes("playContext('spotify:playlist:p1')"));
+  }
+
+  // 24. playContext plays a whole playlist/album from the start
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 200 });
+    await app.ctx.playContext('spotify:playlist:p1');
+    await flush();
+    const play = app.fetchCalls.find(c => c.url.includes('/me/player/play'));
+    check('playContext sends context_uri', play && play.body && play.body.context_uri === 'spotify:playlist:p1', play && JSON.stringify(play.body));
   }
 }
 

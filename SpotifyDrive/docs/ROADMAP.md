@@ -34,9 +34,10 @@ A living list of features we want, roughly prioritised. Status legend:
   song-timeline + geolocation capture; a fun stretch feature. (Requested 2026-06-25.)
 - ✅ **Session uptime readout** — small "open for Xm" line at the bottom (added 2026-06-25);
   seed for richer session stats later.
-- 📋 **Mini dashboard** — "recently played" (`GET /me/player/recently-played`) + quick stats,
-  shown below the search bar for now; final placement TBD. Build functionality first,
-  decide position later. (Requested 2026-06-25.)
+- 🚧 **Dashboard under search** — DONE (2026-06-25): "Recently played" + "Your playlists"
+  (tap a playlist to play the whole thing) under a divider below search, as the default
+  browse view when not searching. Next in this section: play-count stats, add-to-playlist,
+  in-app design toggle.
 - 💡 **In-app album / artist view** — tapping a song title or artist currently opens the
   Spotify app (universal link). Ideally show the album/artist tracks inline in our own UI
   instead of leaving the app. Deferred. (Noted 2026-06-25.)
