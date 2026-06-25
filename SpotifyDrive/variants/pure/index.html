@@ -1856,6 +1856,10 @@ function setupScrub() {
     const t = document.getElementById('bmw-toggle'); if (t) t.classList.add('on');
   }
   if (localStorage.getItem('theme') === 'light') document.getElementById('app').classList.add('light');
+  // Shareable deep-link theme params: ?bmw=1 and/or ?light=1
+  const themeParams = new URLSearchParams(location.search);
+  if (themeParams.get('bmw') === '1') { document.getElementById('app').classList.add('bmw'); const tb = document.getElementById('bmw-toggle'); if (tb) tb.classList.add('on'); }
+  if (themeParams.get('light') === '1') document.getElementById('app').classList.add('light');
   renderThemeIcon();
   renderPlayBtn();
   renderLikeBtn();
