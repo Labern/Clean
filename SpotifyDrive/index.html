@@ -1068,10 +1068,20 @@ function inlineErr(msg) {
 // Tap the mic: it WIPES any previous text and listens fresh, so a wrong
 // dictation is redone with a single tap (no backspacing). Tap again to stop.
 // The mic is separate from the keyboard, so typing and voice never conflict.
-let recog = null, recogActive = false;
+let recog = null, recogActive = false, recogTimer = null;
 function setMicState(on) {
   const b = document.getElementById('mic-btn');
   if (b) b.classList.toggle('listening', on);
+}
+// Normalize a dictated phrase for search: trim, drop trailing punctuation, and strip a
+// leading command word ("play/search for/find/put on/queue") so the query is just the
+// music — dictation otherwise returns e.g. "play redbone." which searches poorly.
+function cleanDictation(s) {
+  return (s || '')
+    .trim()
+    .replace(/[.,!?;:]+$/, '')
+    .replace(/^(play|search for|search|find|put on|queue)\s+/i, '')
+    .trim();
 }
 function startDictation() {
   const input = $('search-input');
@@ -1097,24 +1107,34 @@ function startDictation() {
     recog.maxAlternatives = 1;
     recogActive = true;
     setMicState(true);
+    // Safety net: never let the mic hang "listening" forever (incl. the installed-PWA
+    // case where recognition starts but never returns a result).
+    clearTimeout(recogTimer);
+    recogTimer = setTimeout(() => { try { recog.stop(); } catch(e){} }, 7000);
     recog.onresult = (e) => {
       let txt = '';
       for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
-      input.value = txt;
-      onSearchInput(txt);                 // live as-you-speak search
+      const q = cleanDictation(txt);
+      input.value = q;
+      onSearchInput(q);                   // live, filler-stripped search as you speak
     };
     recog.onerror = (e) => {
+      clearTimeout(recogTimer);
       recogActive = false; setMicState(false);
       const err = e && e.error;
       if (err && err !== 'no-speech' && err !== 'aborted') toast('Dictation: ' + err, true);
     };
     recog.onend = () => {
+      clearTimeout(recogTimer);
       recogActive = false; setMicState(false);
-      const q = input.value.trim();
+      const q = cleanDictation(input.value);
+      input.value = q;
       if (q) runSearch(q);
+      else toast('Didn’t catch that — tap the mic to try again.');
     };
     recog.start();
   } catch(err) {
+    clearTimeout(recogTimer);
     recogActive = false; setMicState(false);
     input.focus();
     toast('Couldn\'t start dictation — use the keyboard mic.', true);
@@ -1205,6 +1225,12 @@ async function playTrackUri(uri, contextUri) {
 
 // Add a track to the Spotify play queue (the "+ Queue" button on each result).
 async function queueTrack(btn, uri) {
+  // Already queued? Spotify's API has NO un-queue endpoint, so re-tapping must not
+  // silently add a duplicate — tell the truth instead.
+  if (btn && btn.classList && btn.classList.contains('queued')) {
+    toast('Already queued — Spotify can’t un-queue a track. Skip it when it plays.', true);
+    return;
+  }
   // Optimistic: flip to the green "Queued" state immediately, revert if it fails.
   let prevHTML = null;
   if (btn && btn.classList) {
