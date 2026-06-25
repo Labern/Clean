@@ -1169,7 +1169,7 @@ async function loadDashboard() {
     let html = '';
     const seen = new Set();
     const recentTracks = ((recent && recent.items) || [])
-      .map(i => i.track).filter(t => t && t.uri && !seen.has(t.uri) && seen.add(t.uri)).slice(0, 15);
+      .map(i => i.track).filter(t => t && t.uri && !seen.has(t.uri) && seen.add(t.uri)).slice(0, 5);
     if (recentTracks.length) html += '<div class="dash-head">Recently played</div>' + recentTracks.map(trackRowHTML).join('');
     const playlists = ((pls && pls.items) || []).filter(Boolean);
     if (playlists.length) html += '<div class="dash-head">Your playlists</div>' + playlists.map(playlistRowHTML).join('');
@@ -1202,13 +1202,50 @@ function playlistRowHTML(p) {
   const art = (p.images && p.images[0] && p.images[0].url) || '';
   const sub = (p.tracks && p.tracks.total != null) ? p.tracks.total + ' tracks' : 'Playlist';
   return `
-      <div class="result-row" onclick="playContext('${esc(p.uri)}')">
+      <div class="result-row" onclick="openPlaylist('${esc(p.id)}', '${esc(p.uri)}')">
         <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div class="result-meta">
           <div class="result-track">${esc(p.name)}</div>
           <div class="result-artist">${esc(sub)}</div>
         </div>
       </div>`;
+}
+// Open a playlist's tracks inline (row click); "Play all" button in the header plays the context.
+async function openPlaylist(id, uri) {
+  if (!id) return;
+  const list = $('results-list');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  list.innerHTML = '<div class="hint">Loading playlist…</div>';
+  try {
+    const tr = await api('/playlists/' + id + '/tracks?limit=50');
+    renderPlaylistTracks(id, uri || '', tr);
+  } catch(e) {
+    if (e && e.status === 401) return;
+    list.innerHTML = '<div class="hint">Couldn\'t load playlist.</div>';
+  }
+}
+function renderPlaylistTracks(id, uri, tr) {
+  const head = `<div class="results-head">
+    <button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button>
+    <div class="results-title" style="flex:1;min-width:0"></div>
+    ${uri ? `<button class="result-queue" style="margin-left:auto;flex-shrink:0" onclick="playContext('${esc(uri)}')">Play all</button>` : ''}
+  </div>`;
+  const items = (tr && tr.items || []).filter(i => i && i.track && i.track.uri);
+  if (!items.length) { $('results-list').innerHTML = head + '<div class="hint">No tracks in this playlist.</div>'; return; }
+  const rows = items.map(i => {
+    const t = i.track;
+    const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+    return `
+      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}', '${esc(uri)}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(t.name)}</div>
+          <div class="result-artist">${esc((t.artists || []).map(a => a.name).join(', '))}</div>
+        </div>
+        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+      </div>`;
+  }).join('');
+  $('results-list').innerHTML = head + rows;
 }
 // Play a whole context (playlist / album) from the start.
 async function playContext(contextUri) {
@@ -1235,14 +1272,35 @@ async function showQueue() {
     renderQueue(await api('/me/player/queue'));
   } catch(e) {
     if (e && e.status === 401) return;
-    list.innerHTML = '<div class="hint">Couldn\'t load the queue.</div>';
+    const msg = (e && e.message) || 'failed';
+    list.innerHTML = `<div class="hint">Couldn't load the queue: ${esc(msg)}</div>`;
+    toast('Queue error: ' + msg, true);
   }
 }
 function renderQueue(d) {
   const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title">Up next</div></div>`;
+  let html = head;
+  // Show currently-playing at the top so the user can tell the view loaded correctly.
+  const now = d && d.currently_playing;
+  if (now && now.uri) {
+    const art = now.album?.images?.[2]?.url || now.album?.images?.[0]?.url || '';
+    html += `<div class="dash-head">Now playing</div>
+      <div class="result-row" style="opacity:0.55;pointer-events:none">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy">
+        <div class="result-meta">
+          <div class="result-track">${esc(now.name)}</div>
+          <div class="result-artist">${esc((now.artists || []).map(a => a.name).join(', '))}</div>
+        </div>
+      </div>`;
+  }
   const items = (d && d.queue) || [];
-  if (!items.length) { $('results-list').innerHTML = head + '<div class="hint">Nothing queued.</div>'; return; }
-  const rows = items.map(t => {
+  if (!items.length) {
+    html += '<div class="hint">Queue is empty — tap + Queue on any track while searching.</div>';
+    $('results-list').innerHTML = html;
+    return;
+  }
+  html += '<div class="dash-head">Coming up</div>';
+  html += items.map(t => {
     const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
     return `
       <div class="result-row" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
@@ -1253,7 +1311,7 @@ function renderQueue(d) {
         </div>
       </div>`;
   }).join('');
-  $('results-list').innerHTML = head + rows;
+  $('results-list').innerHTML = html;
 }
 
 // ── Jam ───────────────────────────────────────────────────────────
