@@ -1616,7 +1616,7 @@ function renderQueue(d) {
   html += items.map(t => {
     const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
     return `
-      <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(t.album?.uri || '')}" data-name="${esc(t.name)}" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
+      <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(t.album?.uri || '')}" data-name="${esc(t.name)}" data-noqueue="1" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
         <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div class="result-meta">
           <div class="result-track">${esc(t.name)}</div>
@@ -1741,7 +1741,10 @@ function setupSwipe() {
     if (fire) {
       suppress = true; setTimeout(() => { suppress = false; }, 450);   // don't also fire the tap
       if (left) { playTrackUri(uri, ctx); toast('Playing ' + name); }
-      else      { queueTrack(null, uri); toast('Queued: ' + name); }   // queueTrack stays silent for null btn on success path below
+      else if (r.dataset.noqueue) {                                    // already in the queue view
+        // Spotify's API can't remove a track from the queue — be honest, don't re-add a duplicate.
+        toast('Spotify can’t remove a queued track — skip it when it plays.');
+      } else { queueTrack(null, uri); toast('Queued: ' + name); }
     }
     row = null; swiping = false; dx = 0;
   });
