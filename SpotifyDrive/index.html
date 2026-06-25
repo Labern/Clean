@@ -421,13 +421,15 @@
     .brand-by { font-size: 0.64rem; color: var(--muted); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
     #header { display: none; }   /* mobile: skip the device pill / off button — straight to album art */
     #mode-toggles { display: flex; align-items: center; gap: 10px; }
-    #theme-toggle {
+    #theme-toggle, #paradox-toggle {
       background: var(--bg3); border: 1px solid var(--border); color: var(--text);
       border-radius: 500px; width: 40px; height: 40px; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center; cursor: pointer;
     }
     #theme-toggle svg { width: 20px; height: 20px; }
-    #theme-toggle:active { background: var(--active); }
+    #paradox-toggle { font-size: 19px; line-height: 1; }
+    #theme-toggle:active, #paradox-toggle:active { background: var(--active); }
+    #paradox-toggle.on { color: #ffd75f; border-color: #ffd75f; }
     #bmw-toggle {
       background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
       border-radius: 500px; padding: 7px 16px; font-size: 0.8rem; font-weight: 700;
@@ -495,10 +497,75 @@
     .hidden { display: none !important; }
     .spin { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ======== PARADOX theme (star toggle) — the app rendered as a terminal ======== */
+    #termbar { display: none; }
+    #app.paradox {
+      --bg:#0e0b1a; --bg2:#171331; --bg3:#16122e;
+      --green:#87d7d7; --green2:#ffd75f; --text:#cfcae6; --muted:#8787af;
+      --border:rgba(135,95,215,0.30); --active:#211a44; --track:rgba(135,95,215,0.20);
+      --violet:#af87ff; --pink:#ff87ff; --gold:#ffd75f; --dim:#6c6c8a;
+      --titlebar:#171331; --win-border:#2a2350;
+      font-family:'Menlo','SF Mono','Consolas',monospace;
+      border:1px solid var(--win-border); border-radius:14px;
+      box-shadow:0 30px 80px rgba(0,0,0,0.55); overflow:hidden;
+    }
+    #app.paradox input, #app.paradox button { font-family: inherit; }
+    body:has(#app.paradox) {
+      background: linear-gradient(135deg,#0f0c29,#302b63,#24243e,#1a1a2e);
+      background-size:400% 400%; animation: paradoxDrift 26s ease infinite;
+    }
+    @keyframes paradoxDrift { 0%,100%{background-position:0% 50%;} 50%{background-position:100% 50%;} }
+    #app.paradox #termbar {
+      display:flex; align-items:center; gap:8px; height:34px; flex-shrink:0;
+      background:var(--titlebar); border-bottom:1px solid var(--win-border); padding:0 14px;
+    }
+    #termbar .tl { width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+    #termbar .tl-r{background:#ff5f57;} #termbar .tl-y{background:#febc2e;} #termbar .tl-g{background:#28c840;}
+    #termbar .termtitle { flex:1; text-align:center; color:var(--dim,#6c6c8a); font-size:0.72rem; letter-spacing:0.5px; }
+    #termbar .termcursor { color:var(--green,#87d7d7); animation:termBlink 1.1s steps(1) infinite; }
+    @keyframes termBlink { 50%{opacity:0;} }
+    /* sharp terminal corners (the gauge stays circular) */
+    #app.paradox #album-art, #app.paradox .result-row, #app.paradox .result-art,
+    #app.paradox .preset-tile, #app.paradox .stat-tile, #app.paradox .sec,
+    #app.paradox #search-input, #app.paradox #search-clear, #app.paradox #mic-btn,
+    #app.paradox #theme-toggle, #app.paradox #paradox-toggle, #app.paradox .ctrl.skip,
+    #app.paradox .btn-connect, #app.paradox #device-pill, #app.paradox .err-back,
+    #app.paradox .result-queue, #app.paradox #bmw-toggle { border-radius:3px; }
+    /* CLI-prompt brand: gold wordmark, teal prompt */
+    #app.paradox .brand-name { color:var(--gold); }
+    #app.paradox .brand-name::before { content:"> "; color:var(--green); }
+    #app.paradox .brand-accent { color:var(--green) !important; }
+    #app.paradox .brand-by { letter-spacing:3px; }
+    /* shimmer track title */
+    #app.paradox #track-name {
+      background:linear-gradient(90deg,#5eead4,#a78bfa,#f472b6,#5eead4);
+      background-size:300% auto; -webkit-background-clip:text; background-clip:text;
+      color:transparent; -webkit-text-fill-color:transparent;
+      animation:paradoxShimmer 7s linear infinite; font-weight:700;
+    }
+    @keyframes paradoxShimmer { to{background-position:300% center;} }
+    /* gold play block + teal ring + pink→gold progress */
+    #app.paradox #gauge #play-btn { background:var(--gold); color:var(--bg); box-shadow:0 0 40px rgba(255,215,95,0.45); }
+    #app.paradox .ctrl.play, #app.paradox .ctrl.play:hover { background:var(--gold); color:var(--bg); }
+    #app.paradox #progress-fill { background:linear-gradient(90deg,var(--pink),var(--gold)); }
+    /* uppercase tracked labels; gold = section titles, teal = values */
+    #app.paradox .sec, #app.paradox .result-queue, #app.paradox #bmw-toggle { text-transform:uppercase; letter-spacing:2px; }
+    #app.paradox .result-queue { border:1px solid var(--gold); color:var(--gold); }
+    #app.paradox .result-queue.queued { background:var(--gold); color:var(--bg); border-color:var(--gold); }
+    #app.paradox #mic-btn { color:var(--green); }
+    #app.paradox .dash-head, #app.paradox .results-title { color:var(--gold); letter-spacing:2px; }
+    #app.paradox .stat-value { color:var(--green); }
   </style>
 </head>
 <body>
 <div id="app">
+
+  <!-- ── Terminal window chrome (only shown in PARADOX theme) ── -->
+  <div id="termbar">
+    <span class="tl tl-r"></span><span class="tl tl-y"></span><span class="tl tl-g"></span>
+    <span class="termtitle">paradox — zsh — spotify·drive<span class="termcursor">&#9613;</span></span>
+  </div>
 
   <!-- ── Auth Screen ────────────────────────────────────────── -->
   <div id="auth-screen">
@@ -520,6 +587,7 @@
         <div class="brand-by">by Labern</div>
       </div>
       <div id="mode-toggles">
+        <button id="paradox-toggle" onclick="toggleParadox()" aria-label="PARADOX theme">&#9733;</button>
         <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light / dark"></button>
         <button id="bmw-toggle" onclick="toggleBmw()">BMW Mode</button>
       </div>
@@ -1706,6 +1774,14 @@ function toggleTheme() {
   renderThemeIcon();
 }
 
+// ── PARADOX theme (star toggle) — swap the whole app to the terminal skin ────
+function toggleParadox() {
+  const on = document.getElementById('app').classList.toggle('paradox');
+  localStorage.setItem('paradox', on ? '1' : '0');
+  const b = document.getElementById('paradox-toggle'); if (b) b.classList.toggle('on', on);
+  renderPlayBtn();
+}
+
 // ── Auth flow ─────────────────────────────────────────────────────
 function logout() {
   clearInterval(pollTimer); clearInterval(tickTimer);
@@ -1856,10 +1932,15 @@ function setupScrub() {
     const t = document.getElementById('bmw-toggle'); if (t) t.classList.add('on');
   }
   if (localStorage.getItem('theme') === 'light') document.getElementById('app').classList.add('light');
-  // Shareable deep-link theme params: ?bmw=1 and/or ?light=1
+  if (localStorage.getItem('paradox') === '1') {
+    document.getElementById('app').classList.add('paradox');
+    const pb = document.getElementById('paradox-toggle'); if (pb) pb.classList.add('on');
+  }
+  // Shareable deep-link theme params: ?bmw=1, ?light=1, ?paradox=1
   const themeParams = new URLSearchParams(location.search);
   if (themeParams.get('bmw') === '1') { document.getElementById('app').classList.add('bmw'); const tb = document.getElementById('bmw-toggle'); if (tb) tb.classList.add('on'); }
   if (themeParams.get('light') === '1') document.getElementById('app').classList.add('light');
+  if (themeParams.get('paradox') === '1') { document.getElementById('app').classList.add('paradox'); const pb2 = document.getElementById('paradox-toggle'); if (pb2) pb2.classList.add('on'); }
   renderThemeIcon();
   renderPlayBtn();
   renderLikeBtn();
