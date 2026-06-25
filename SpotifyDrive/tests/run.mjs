@@ -209,7 +209,10 @@ function staticChecks() {
   check('big search font (>=1.3rem)', /#search-input\b[\s\S]{0,240}font-size:\s*1\.(3|4|5)/.test(html));
   check('add-to-queue wired to /me/player/queue', /queueTrack\(/.test(html) && /\/me\/player\/queue/.test(html));
   check('title→album and artist→artist openers exist', /function openAlbum/.test(html) && /function openArtist/.test(html));
-  check('uptime readout present', /id="uptime"/.test(html) && /Open for/.test(html));
+  check('Stats and Facts section + drive-time stat', /id="stat-drive"/.test(html) && /Stats and Facts/.test(html));
+  check('plays-this-week stat (local play log)', /id="stat-plays"/.test(html) && /function playsThisWeek/.test(html));
+  check('dashboard scopes requested (recently-played + playlists)',
+    /user-read-recently-played/.test(html) && /playlist-read-private/.test(html));
   check('footer credit present', /Made by Labern/.test(html));
   check('BMW Mode toggle present', /id="bmw-toggle"/.test(html) && /BMW Mode/.test(html));
   check('BMW palette + roundel defined', /#app\.bmw/.test(html) && /#0166B1/i.test(html) && /BMW_ROUNDEL/.test(html));
@@ -604,6 +607,42 @@ async function behaviourChecks() {
     await flush();
     const play = app.fetchCalls.find(c => c.url.includes('/me/player/play'));
     check('playContext sends context_uri', play && play.body && play.body.context_uri === 'spotify:playlist:p1', play && JSON.stringify(play.body));
+  }
+
+  // 25. Drive-time stat: formats h/m/s and gets written into the tile
+  {
+    const app = load(); app.auth();
+    check('drive-time formats h/m/s', app.ctx.fmtDuration(3661) === '1h 1m' && app.ctx.fmtDuration(61) === '1m 1s' && app.ctx.fmtDuration(5) === '5s',
+      `${app.ctx.fmtDuration(3661)} / ${app.ctx.fmtDuration(61)} / ${app.ctx.fmtDuration(5)}`);
+    app.ctx.tickUptime();
+    check('tickUptime writes the drive-time tile', /\d/.test(app.getEl('stat-drive').textContent), app.getEl('stat-drive').textContent);
+  }
+
+  // 26. Play log → "played X times this week" (dedupe + recently-played seed + 7-day window)
+  {
+    const app = load(); app.auth();
+    app.ctx.recordPlay('songA');
+    app.ctx.recordPlay('songA');   // rapid repeat of the same track → ignored (poll jitter)
+    check('rapid same-track replays dedupe to one play', app.ctx.playsThisWeek('songA') === 1, String(app.ctx.playsThisWeek('songA')));
+    const now = Date.now();
+    app.ctx.mergeRecentIntoLog([
+      { track: { id: 'songA' }, played_at: new Date(now - 2 * 3600 * 1000).toISOString() },
+      { track: { id: 'songA' }, played_at: new Date(now - 5 * 3600 * 1000).toISOString() },
+      { track: { id: 'songB' }, played_at: new Date(now - 1 * 3600 * 1000).toISOString() },
+      { track: { id: 'songA' }, played_at: new Date(now - 9 * 24 * 3600 * 1000).toISOString() }, // 9 days → outside week
+    ]);
+    check('recently-played history counts toward this week', app.ctx.playsThisWeek('songA') === 3, String(app.ctx.playsThisWeek('songA')));
+    check('plays older than 7 days are excluded', app.ctx.playsThisWeek('songB') === 1, String(app.ctx.playsThisWeek('songB')));
+  }
+
+  // 27. fetchState logs the current play and updates the plays-this-week tile
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { is_playing: true, progress_ms: 1000, shuffle_state: false,
+      device: { id: 'd1', name: 'M', type: 'Computer' },
+      item: { id: 'songX', name: 'X', duration_ms: 200000, artists: [{ name: 'A' }], album: { images: [{ url: 'art' }] } } } });
+    await app.ctx.fetchState(); await flush();
+    check('fetchState updates the plays-this-week stat to 1', app.getEl('stat-plays').textContent === '1', app.getEl('stat-plays').textContent);
   }
 }
 

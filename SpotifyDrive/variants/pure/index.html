@@ -287,9 +287,21 @@
       animation: queuePop 0.32s ease;
     }
     @keyframes queuePop { 0% { transform: scale(0.92); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
-    #uptime {
-      flex-shrink: 0; text-align: center; color: var(--muted);
-      font-size: 0.95rem; font-weight: 600; padding: 8px 0 6px; letter-spacing: 0.03em;
+    /* ── Stats and Facts (live drive stats above the browse list) ── */
+    #stats { flex-shrink: 0; padding: 0 12px 2px; }
+    .stat-grid { display: flex; gap: 12px; padding: 2px 0 8px; }
+    .stat-tile {
+      flex: 1; min-width: 0; background: var(--bg3); border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px 10px; text-align: center;
+    }
+    .stat-value {
+      font-size: 1.95rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text);
+      font-variant-numeric: tabular-nums; line-height: 1.05;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .stat-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+      color: var(--muted); margin-top: 6px;
     }
     #credit {
       flex-shrink: 0; text-align: center; color: var(--muted);
@@ -297,7 +309,8 @@
     }
     /* Search mode: free vertical room so results need no awkward scroll while driving */
     #main.searching #album-name,
-    #main.searching #secondary { display: none; }
+    #main.searching #secondary,
+    #main.searching #stats { display: none; }
     #main.searching #now-playing { padding: 6px 24px 4px; gap: 6px; }
 
     /* ── BMW Mode (optional theme) ─────────────────────────── */
@@ -468,8 +481,20 @@
     </div>
 
     <div class="section-divider"></div>
+    <div id="stats">
+      <div class="dash-head">Stats and Facts</div>
+      <div class="stat-grid">
+        <div class="stat-tile">
+          <div class="stat-value" id="stat-drive">0s</div>
+          <div class="stat-label">Drive time</div>
+        </div>
+        <div class="stat-tile">
+          <div class="stat-value" id="stat-plays">&mdash;</div>
+          <div class="stat-label">Plays this week</div>
+        </div>
+      </div>
+    </div>
     <div id="results-list"></div>
-    <div id="uptime"></div>
     <div id="credit">Made by Labern 🐿️</div>
 
   </div><!-- /main -->
@@ -512,6 +537,8 @@ const SCOPES = [
   'user-read-playback-state',
   'user-modify-playback-state',
   'user-read-currently-playing',
+  'user-read-recently-played',   // dashboard: "Recently played" + plays-this-week log
+  'playlist-read-private',       // dashboard: "Your playlists"
   'user-library-read',
   'user-library-modify',
 ].join(' ');
@@ -801,7 +828,7 @@ async function fetchState() {
     renderShuffleBtn();
     if (newTrack) snapProgress(); else renderProgress();
 
-    if (newTrack) { S.trackId = t.id; checkLiked(); }
+    if (newTrack) { S.trackId = t.id; recordPlay(t.id); updateStats(); checkLiked(); }
   } catch(e) { console.warn('fetchState', e); }
 }
 
@@ -1068,18 +1095,71 @@ function renderArtistAlbums(items, title) {
 function openCurrentAlbum()  { openAlbum(S.albumId); }
 function openCurrentArtist() { openArtist(S.artistId); }
 
+// ── Play history → "played X times this week" ──────────────────────
+// Spotify exposes NO per-track play-count API, and recently-played caps at the
+// last 50 plays. So we keep a small local log: seed it from recently-played
+// (each item carries a played_at timestamp) and append every track change we
+// see live. "This week" = log entries for that track in the last 7 days.
+const PLAY_LOG_KEY = 'play_log_v1';
+const WEEK_MS = 7 * 24 * 3600 * 1000;
+function loadPlayLog() {
+  try { return JSON.parse(localStorage.getItem(PLAY_LOG_KEY)) || []; }
+  catch(e) { return []; }
+}
+function savePlayLog(log) {
+  const cutoff = Date.now() - 30 * 24 * 3600 * 1000;   // bound storage to ~30 days
+  const pruned = log.filter(e => e && e.at >= cutoff);
+  try { localStorage.setItem(PLAY_LOG_KEY, JSON.stringify(pruned)); } catch(e) {}
+  return pruned;
+}
+// Append a play; ignore a rapid repeat of the SAME track (poll jitter / re-render).
+function recordPlay(id, at) {
+  if (!id) return;
+  const log = loadPlayLog();
+  const t = at || Date.now();
+  const last = log[log.length - 1];
+  if (last && last.id === id && Math.abs(t - last.at) < 30_000) return;
+  log.push({ id, at: t });
+  savePlayLog(log);
+}
+// Merge Spotify's recently-played history (each item has a played_at) into the log.
+function mergeRecentIntoLog(items) {
+  const log = loadPlayLog();
+  const have = new Set(log.map(e => e.id + '@' + e.at));
+  let changed = false;
+  for (const it of items || []) {
+    const id = it && it.track && it.track.id;
+    const at = it && it.played_at ? Date.parse(it.played_at) : NaN;
+    if (!id || isNaN(at)) continue;
+    const key = id + '@' + at;
+    if (!have.has(key)) { log.push({ id, at }); have.add(key); changed = true; }
+  }
+  if (changed) { log.sort((a, b) => a.at - b.at); savePlayLog(log); }
+}
+function playsThisWeek(id) {
+  if (!id) return 0;
+  const cutoff = Date.now() - WEEK_MS;
+  return loadPlayLog().filter(e => e.id === id && e.at >= cutoff).length;
+}
+function updateStats() {
+  const el = document.getElementById('stat-plays');
+  if (!el) return;
+  el.textContent = S.trackId ? String(playsThisWeek(S.trackId)) : '—';
+}
+
 // ── Dashboard (recently played + your playlists, shown under search by default) ──
 let dashHTML = '';
 async function loadDashboard() {
   try {
     const [recent, pls] = await Promise.all([
-      api('/me/player/recently-played?limit=12').catch(() => null),
+      api('/me/player/recently-played?limit=50').catch(() => null),
       api('/me/playlists?limit=20').catch(() => null),
     ]);
+    mergeRecentIntoLog(recent && recent.items);   // grow the plays-this-week log
     let html = '';
     const seen = new Set();
     const recentTracks = ((recent && recent.items) || [])
-      .map(i => i.track).filter(t => t && t.uri && !seen.has(t.uri) && seen.add(t.uri));
+      .map(i => i.track).filter(t => t && t.uri && !seen.has(t.uri) && seen.add(t.uri)).slice(0, 15);
     if (recentTracks.length) html += '<div class="dash-head">Recently played</div>' + recentTracks.map(trackRowHTML).join('');
     const playlists = ((pls && pls.items) || []).filter(Boolean);
     if (playlists.length) html += '<div class="dash-head">Your playlists</div>' + playlists.map(playlistRowHTML).join('');
@@ -1088,6 +1168,7 @@ async function loadDashboard() {
     if (e && e.status === 401) return;
     dashHTML = '<div class="hint">Search above to start playing.</div>';
   }
+  updateStats();
   showDashboard();
 }
 function showDashboard() {
@@ -1201,14 +1282,18 @@ function esc(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-// ── Session uptime (small readout at the bottom of the page) ──────
+// ── Drive time (session uptime ≈ how long this drive has been going) ──
 let appOpenedAt = Date.now();
-function tickUptime() {
-  const el = document.getElementById('uptime');
-  if (!el) return;
-  const s = Math.floor((Date.now() - appOpenedAt) / 1000);
+function fmtDuration(s) {
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-  el.textContent = 'Open for ' + (h ? h + 'h ' : '') + ((h || m) ? m + 'm ' : '') + sec + 's';
+  if (h) return h + 'h ' + m + 'm';
+  if (m) return m + 'm ' + sec + 's';
+  return sec + 's';
+}
+function tickUptime() {
+  const el = document.getElementById('stat-drive');
+  if (!el) return;
+  el.textContent = fmtDuration(Math.floor((Date.now() - appOpenedAt) / 1000));
 }
 setInterval(tickUptime, 1000);
 tickUptime();
