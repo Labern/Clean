@@ -36,11 +36,11 @@
     #app {
       height: 100dvh; display: flex; flex-direction: column;
       background: var(--bg);
-      width: 100%; max-width: 430px;
+      width: 100%; max-width: 430px; overflow-x: hidden;
       padding: env(safe-area-inset-top, 0) env(safe-area-inset-right, 0)
                env(safe-area-inset-bottom, 0) env(safe-area-inset-left, 0);
     }
-    #main { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    #main { flex: 1; display: flex; flex-direction: column; min-height: 0; width: 100%; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 
     svg { display: block; }
 
@@ -228,7 +228,7 @@
       display: flex; gap: 10px; padding: 6px 16px 8px; flex-shrink: 0;
     }
     #search-input {
-      flex: 1; background: var(--bg3); border: 1px solid var(--border);
+      flex: 1; min-width: 0; background: var(--bg3); border: 1px solid var(--border);
       border-radius: 500px; color: var(--text); font-size: 1.35rem; font-weight: 600;
       padding: 16px 22px; outline: none;
       -webkit-appearance: none; appearance: none;
