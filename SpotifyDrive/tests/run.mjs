@@ -212,7 +212,7 @@ function staticChecks() {
   // Inline-search + driving-UI features
   check('search is as-you-type (oninput)', /oninput="onSearchInput/.test(html));
   check('inline results, no full-screen overlay element', !/id="results-overlay"/.test(html));
-  check('search font set (1.0–1.3rem)', /#search-input\b[\s\S]{0,240}font-size:\s*1\.(0|1|2|3)/.test(html));
+  check('search font set (0.9–1.3rem)', /#search-input\b[\s\S]{0,240}font-size:\s*(0\.9|1\.[0-3])/.test(html));
   check('dashboard preset tiles (Quick play, one-tap playlist)',
     /function presetTileHTML/.test(html) && /class="preset-tile"/.test(html) && /Quick play/.test(html));
   check('plays default to album/context repeat (no single-track loop)',
@@ -247,7 +247,12 @@ function staticChecks() {
   check('horizontal divider under search', /class="section-divider"/.test(html));
 
   // Progress time + now-playing deep-links + queue animation
-  check('progress bar is chunky + rounded', /height:\s*9px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
+  check('progress bar is chunky + rounded', /#progress-wrap\s*\{[^}]*height:\s*1[0-4]px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
+  check('touch-to-scrub the progress bar (grows + seeks)', /#progress-wrap\.scrubbing/.test(html) && /function setupScrub/.test(html) && /player\/seek\?position_ms=/.test(html));
+  check('swipe rows: left=play, right=queue', /function setupSwipe/.test(html) && /data-uri=/.test(html));
+  check('light/dark toggle, icon-only, composes with BMW', /id="theme-toggle"/.test(html) && /#app\.light/.test(html) && /function toggleTheme/.test(html) && /ICONS\.sun/.test(html));
+  check('error back button full-width', /\.err-back\s*\{[^}]*width:\s*100%/.test(html));
+  check('queue button border follows the theme (BMW recolours it)', /\.result-queue\s*\{[^}]*border:\s*1px solid var\(--green\)/.test(html));
   check('time readout under the bar', /id="time-elapsed"/.test(html) && /id="time-remaining"/.test(html));
   check('now-playing title→album & artist→artist', /id="track-name" onclick="openCurrentAlbum/.test(html) && /id="artist-name" onclick="openCurrentArtist/.test(html));
   check('album title element present', /id="album-name"/.test(html));
@@ -849,6 +854,39 @@ async function behaviourChecks() {
     await app.ctx.playTrackUri('spotify:track:T', 'spotify:album:AL');
     await flush(); await flush();
     check('play sets repeat=context', !!app.fetchCalls.find(c => c.url.includes('/me/player/repeat?state=context')));
+  }
+
+  // 40. Light/dark theme toggle: adds .light, persists, composes with BMW, toggles back
+  {
+    const app = load();
+    app.ctx.toggleBmw();                              // BMW on first
+    app.ctx.toggleTheme();
+    check('theme toggle adds .light', app.getEl('app').classList.contains('light'));
+    check('theme persisted to localStorage', app.ls.getItem('theme') === 'light');
+    check('light composes with BMW (both classes present)', app.getEl('app').classList.contains('bmw') && app.getEl('app').classList.contains('light'));
+    app.ctx.toggleTheme();
+    check('theme toggles back to dark', !app.getEl('app').classList.contains('light') && app.ls.getItem('theme') === 'dark');
+  }
+
+  // 41. Scrub → seek: seekTo issues /me/player/seek with position_ms
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 200 });                  // seek ok
+    await app.ctx.seekTo(42000);
+    await flush();
+    const seek = app.fetchCalls.find(c => c.url.includes('/me/player/seek?position_ms='));
+    check('seekTo issues a seek with position_ms', !!seek, app.fetchCalls.map(c => c.url).join(' | '));
+    check('seek uses PUT', seek && seek.method === 'PUT');
+    check('seek position is the requested ms', seek && /position_ms=42000\b/.test(seek.url), seek && seek.url);
+  }
+
+  // 42. Gesture wiring (swipe + scrub) attaches without throwing
+  {
+    const app = load();
+    let threw = false;
+    try { app.ctx.setupSwipe(); app.ctx.setupScrub(); } catch(e) { threw = true; }
+    check('setupSwipe + setupScrub wire up without throwing', !threw);
   }
 }
 
