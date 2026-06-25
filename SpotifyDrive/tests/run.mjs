@@ -381,6 +381,18 @@ async function behaviourChecks() {
     check('success animates button to QUEUED + tick', btn.className.includes('queued') && /queued/i.test(btn.innerHTML) && btn.innerHTML.includes('<svg'), btn.className + ' / ' + btn.innerHTML.slice(0, 40));
   }
 
+  // 12b. Queue failure reverts the optimistic button and surfaces the error
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 404, body: { error: { message: 'No active device found' } } });
+    const btn = app.ctx.document.createElement('button');
+    btn.innerHTML = '+ Queue';
+    await app.ctx.queueTrack(btn, 'spotify:track:7');
+    await flush(); await flush();
+    check('queue failure reverts the button to + Queue', !btn.className.includes('queued') && btn.innerHTML === '+ Queue', btn.className + ' / ' + btn.innerHTML);
+  }
+
   // 13. Clearing the query empties the inline results
   {
     const app = load(); app.auth();

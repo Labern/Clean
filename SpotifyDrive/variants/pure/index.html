@@ -932,16 +932,24 @@ async function playTrackUri(uri) {
 
 // Add a track to the Spotify play queue (the "+ Queue" button on each result).
 async function queueTrack(btn, uri) {
+  // Optimistic: flip to the green ✓ Queued state immediately, revert if it fails.
+  let prevHTML = null;
+  if (btn && btn.classList) {
+    prevHTML = btn.innerHTML;
+    btn.classList.add('queued');
+    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg><span>Queued</span>';
+  }
   const dev = await ensureActiveDevice();
   try {
     await api('/me/player/queue?uri=' + encodeURIComponent(uri) + (dev ? `&device_id=${dev}` : ''), 'POST');
+    if (!(btn && btn.classList)) toast('Added to queue');
+  } catch(e) {
     if (btn && btn.classList) {
-      btn.classList.add('queued');
-      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg><span>Queued</span>';
-    } else {
-      toast('Added to queue');
+      btn.classList.remove('queued');
+      if (prevHTML !== null) btn.innerHTML = prevHTML;
     }
-  } catch(e) { handlePlaybackError(e, 'Queue'); }
+    handlePlaybackError(e, 'Queue');
+  }
 }
 
 // Open the album / artist in Spotify (universal links open the app on iOS).
