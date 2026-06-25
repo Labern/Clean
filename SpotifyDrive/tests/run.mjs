@@ -176,9 +176,15 @@ function staticChecks() {
   const htmlSansCredit = html.replace(/Made by Labern[^<]*/, '');
   check('no emoji (besides the credit squirrel)', !/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F6FF}]/u.test(htmlSansCredit));
 
-  // search limit must be <= 10 (Spotify cap)
-  const lim = html.match(/[?&]limit=(\d+)/);
-  check('search limit <= 10', lim && Number(lim[1]) <= 10, lim ? `limit=${lim[1]}` : 'no limit found');
+  // EVERY Spotify limit must be <= 10 — this app/account 400s "invalid limit" on higher
+  const allLimits = [...html.matchAll(/[?&]limit=(\d+)/g)].map(m => Number(m[1]));
+  check('every Spotify limit <= 10 (app rejects higher)',
+    allLimits.length > 0 && allLimits.every(n => n <= 10), 'limits: ' + allLimits.join(','));
+  // api() must guard JSON.parse so a bad 200 body can't surface as a raw parse error
+  check('api() guards JSON.parse (no raw "Unexpected identifier")', /try \{ return JSON\.parse\(text\)/.test(html));
+  // album title wraps (always visible), like the song title + artist
+  check('album title wraps (no nowrap/ellipsis truncation)',
+    !/#album-name\s*\{[^}]*white-space:\s*nowrap/.test(html) && /#album-name\s*\{[^}]*overflow-wrap:\s*anywhere/.test(html));
 
   // required playback scopes present
   for (const sc of ['user-read-playback-state', 'user-modify-playback-state']) {
@@ -310,7 +316,7 @@ async function behaviourChecks() {
     check('runSearch uses limit=10', search && /[?&]limit=10\b/.test(search.url), search && search.url);
     check('runSearch url-encodes the query', search && search.url.includes('daft%20punk'), search && search.url);
     const list = app.getEl('results-list');
-    check('inline result is tappable to play', list && list.innerHTML.includes("playTrackUri('spotify:track:1'"));
+    check('inline result is tappable to play', list && list.innerHTML.includes("playSearchResult('spotify:track:1'"));
   }
 
   // 6. Free account (403 Premium) → clear, specific message
@@ -379,7 +385,7 @@ async function behaviourChecks() {
     await app.ctx.runSearch('song');
     await flush();
     const h = app.getEl('results-list').innerHTML;
-    check('row plays the track', h.includes("playTrackUri('spotify:track:Z'"));
+    check('row plays the track', h.includes("playSearchResult('spotify:track:Z'"));
     check('title opens the album', h.includes("openAlbum('al1')"));
     check('artist opens the artist', h.includes("openArtist('ar1')"));
     check('row has + Queue button', h.includes("queueTrack(this, 'spotify:track:Z')"));
@@ -747,6 +753,36 @@ async function behaviourChecks() {
     instance.onend();
     await flush();
     check('mic listening state cleared on end', !app.getEl('mic-btn').classList.contains('listening'));
+  }
+
+  // 33. Playing a search result exits search mode (full-size player snaps back)
+  {
+    const app = load(); app.auth();
+    app.getEl('main').classList.add('searching');                // pretend mid-search
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 200 });                              // play ok
+    app.queueResp({ status: 200, body: { items: [] } });        // dashboard recently-played
+    app.queueResp({ status: 200, body: { items: [] } });        // dashboard playlists
+    await app.ctx.playSearchResult('spotify:track:S', 'spotify:album:A');
+    await flush(); await flush();
+    check('search result still plays', !!app.fetchCalls.find(c => c.url.includes('/me/player/play')));
+    check('picking a result exits search mode', !app.getEl('main').classList.contains('searching'));
+  }
+
+  // 34. A malformed 200 body does NOT crash api() (no raw JSON parse error toast)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    // monkeypatch text() to return non-JSON for the play response
+    const origFetch = app.ctx.fetch;
+    app.ctx.fetch = async (url, opts) => {
+      if (url.includes('/me/player/play')) return { status: 200, ok: true, async json(){ throw new Error('x'); }, async text(){ return 'Premium required'; } };
+      return origFetch(url, opts);
+    };
+    let threw = false;
+    try { await app.ctx.togglePlay(); } catch(e) { threw = true; }
+    await flush();
+    check('togglePlay survives a non-JSON 200 body (no crash/parse error)', !threw);
   }
 }
 

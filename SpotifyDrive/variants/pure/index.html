@@ -133,7 +133,8 @@
     #track-name:active { color: var(--green); }
     #album-name {
       font-size: clamp(1.05rem, 4.2vw, 1.4rem); font-weight: 600; color: #d7dce4;
-      max-width: 92%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+      max-width: 92%; cursor: pointer; line-height: 1.2;
+      overflow-wrap: anywhere; word-break: break-word;
     }
     #album-name:empty { display: none; }
     #album-name:active { color: var(--green); }
@@ -480,7 +481,7 @@
     </div>
 
     <div id="now-playing">
-      <img id="album-art" class="hidden" src="" alt="">
+      <img id="album-art" class="hidden" src="" alt="" onclick="albumArtTap()">
       <div id="track-name" onclick="openCurrentAlbum()">Nothing playing</div>
       <div id="album-name" onclick="openCurrentAlbum()"></div>
       <div id="artist-name" onclick="openCurrentArtist()">&mdash;</div>
@@ -765,8 +766,11 @@ async function api(path, method = 'GET', body = null, _retried = false) {
   }
   // Playback commands (play/pause/next/seek…) return empty bodies — don't call
   // res.json() on nothing, or it throws "Unexpected end of JSON input".
+  // Also guard JSON.parse so a malformed/non-JSON 200 body can NEVER surface as
+  // a raw "JSON Parse error: Unexpected identifier" on a play/pause toast.
   const text = await res.text();
-  return text ? JSON.parse(text) : null;
+  if (!text) return null;
+  try { return JSON.parse(text); } catch(e) { return null; }
 }
 
 // ── State ─────────────────────────────────────────────────────────
@@ -1043,6 +1047,11 @@ function closeDevicesOnBg(e) { if (e.target.id === 'device-overlay') hide('devic
 function onSearchFocus() {
   const main = document.getElementById('main');
   if (main) main.classList.add('searching');
+  // Pull the field up so the keyboard doesn't bury it / the results.
+  setTimeout(() => {
+    const sb = document.getElementById('search-bar');
+    if (sb && sb.scrollIntoView) sb.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, 250);
 }
 function onSearchBlur() {
   setTimeout(() => {
@@ -1143,7 +1152,7 @@ function renderResults(tracks) {
     const albumId = t.album?.id || '';
     const artistId = t.artists?.[0]?.id || '';
     return `
-      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
+      <div class="result-row" onclick="playSearchResult('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
         <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div class="result-meta">
           <div class="result-track" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')">${esc(t.name)}</div>
@@ -1154,8 +1163,20 @@ function renderResults(tracks) {
   }).join('');
 }
 function clearSearch() {
-  $('search-input').value = '';
+  const inp = $('search-input');
+  if (inp) { inp.value = ''; if (inp.blur) inp.blur(); }   // also dismiss the keyboard
   renderResults(null);
+}
+// Picking a search result IS "search complete": play it, then snap the full-size
+// player back (fast, intuitive — no hunting for the clear button while driving).
+async function playSearchResult(uri, ctx) {
+  await playTrackUri(uri, ctx);
+  clearSearch();
+}
+// Tap the shrunken album art while searching to pop straight back to the full player.
+function albumArtTap() {
+  const main = document.getElementById('main');
+  if (main && main.classList.contains('searching')) clearSearch();
 }
 
 async function playTrackUri(uri, contextUri) {
@@ -1256,7 +1277,7 @@ async function openArtist(id) {
   const main = document.getElementById('main'); if (main) main.classList.add('searching');
   list.innerHTML = '<div class="hint">Loading artist…</div>';
   try {
-    const d = await api('/artists/' + id + '/albums?include_groups=album,single&limit=30');
+    const d = await api('/artists/' + id + '/albums?include_groups=album,single&limit=10');
     const items = d?.items || [];
     const name = ((items[0]?.artists || []).find(a => a.id === id) || (items[0]?.artists || [])[0] || {}).name || 'Artist';
     renderArtistAlbums(items, name);
@@ -1340,8 +1361,8 @@ let dashHTML = '';
 async function loadDashboard() {
   try {
     const [recent, pls] = await Promise.all([
-      api('/me/player/recently-played?limit=50').catch(() => null),
-      api('/me/playlists?limit=20').catch(() => null),
+      api('/me/player/recently-played?limit=10').catch(() => null),
+      api('/me/playlists?limit=10').catch(() => null),
     ]);
     mergeRecentIntoLog(recent && recent.items);   // grow the plays-this-week log
     let html = '';
@@ -1395,7 +1416,7 @@ async function openPlaylist(id, uri) {
   const main = document.getElementById('main'); if (main) main.classList.add('searching');
   list.innerHTML = '<div class="hint">Loading playlist…</div>';
   try {
-    const tr = await api('/playlists/' + id + '/tracks?limit=50');
+    const tr = await api('/playlists/' + id + '/tracks?limit=10');
     renderPlaylistTracks(id, uri || '', tr);
   } catch(e) {
     if (e && e.status === 401) return;
@@ -1545,8 +1566,20 @@ function tickUptime() {
 setInterval(tickUptime, 1000);
 tickUptime();
 
+// Keep the app sized to the VISIBLE viewport so the iOS keyboard never covers the
+// search bar / results (stops focus from "taking things away" behind the keyboard).
+function setupViewport() {
+  const vv = window.visualViewport;
+  if (!vv) return;
+  const apply = () => { const app = document.getElementById('app'); if (app) app.style.height = vv.height + 'px'; };
+  vv.addEventListener('resize', apply);
+  vv.addEventListener('scroll', apply);
+  apply();
+}
+
 // ── Init ──────────────────────────────────────────────────────────
 (async () => {
+  setupViewport();
   // Seed default icons so buttons aren't empty before first state fetch.
   if (localStorage.getItem('bmw_mode') === '1') {
     document.getElementById('app').classList.add('bmw');
