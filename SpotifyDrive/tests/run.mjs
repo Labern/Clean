@@ -214,6 +214,10 @@ function staticChecks() {
   check('BMW Mode toggle present', /id="bmw-toggle"/.test(html) && /BMW Mode/.test(html));
   check('BMW palette + roundel defined', /#app\.bmw/.test(html) && /#0166B1/i.test(html) && /BMW_ROUNDEL/.test(html));
   check('in-app album view (fetches /albums/ + renders tracks)', /\/albums\//.test(html) && /function renderAlbum/.test(html));
+  check('in-app artist view (artist albums)', /function renderArtistAlbums/.test(html) && /\/artists\//.test(html));
+  check('album & artist views stay in-app (no open.spotify.com)', !/open\.spotify\.com/.test(html));
+  check('top header hidden (no device pill / off button)', /#header\s*\{\s*display:\s*none/.test(html));
+  check('queue view present (see what is queued)', /function showQueue/.test(html) && /\/me\/player\/queue/.test(html));
 
   // Progress time + now-playing deep-links + queue animation
   check('progress bar is chunky + rounded', /height:\s*9px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
@@ -292,7 +296,7 @@ async function behaviourChecks() {
     check('runSearch uses limit=10', search && /[?&]limit=10\b/.test(search.url), search && search.url);
     check('runSearch url-encodes the query', search && search.url.includes('daft%20punk'), search && search.url);
     const list = app.getEl('results-list');
-    check('inline result is tappable to play', list && list.innerHTML.includes("playTrackUri('spotify:track:1')"));
+    check('inline result is tappable to play', list && list.innerHTML.includes("playTrackUri('spotify:track:1'"));
   }
 
   // 6. Free account (403 Premium) → clear, specific message
@@ -361,7 +365,7 @@ async function behaviourChecks() {
     await app.ctx.runSearch('song');
     await flush();
     const h = app.getEl('results-list').innerHTML;
-    check('row plays the track', h.includes("playTrackUri('spotify:track:Z')"));
+    check('row plays the track', h.includes("playTrackUri('spotify:track:Z'"));
     check('title opens the album', h.includes("openAlbum('al1')"));
     check('artist opens the artist', h.includes("openArtist('ar1')"));
     check('row has + Queue button', h.includes("queueTrack(this, 'spotify:track:Z')"));
@@ -439,10 +443,10 @@ async function behaviourChecks() {
     await app.ctx.openCurrentAlbum();
     await flush();
     check('now-playing title opens the album inline (fetches /albums/al1)', !!app.fetchCalls.find(c => c.url.includes('/albums/al1')));
-    let opened = '';
-    app.ctx.open = (u) => { opened = u; };
-    app.ctx.openCurrentArtist();
-    check('now-playing artist deep-links to the artist', opened.includes('/artist/ar1'), opened);
+    app.queueResp({ status: 200, body: { items: [{ id: 'alX', name: 'A', images: [{ url: 'a' }], artists: [{ id: 'ar1', name: 'Daft Punk' }] }] } });
+    await app.ctx.openCurrentArtist();
+    await flush();
+    check('now-playing artist opens artist inline (fetches /artists/ar1/albums)', !!app.fetchCalls.find(c => c.url.includes('/artists/ar1/albums')));
   }
 
   // 16. Searching collapses now-playing (frees room → no awkward scroll while driving)
@@ -486,9 +490,53 @@ async function behaviourChecks() {
     const h = app.getEl('results-list').innerHTML;
     check('album tap fetches /albums/{id}', !!app.fetchCalls.find(c => c.url.includes('/albums/al1')));
     check('album view shows the album name', h.includes('Discovery'));
-    check('album tracks are play-tappable', h.includes("playTrackUri('spotify:track:a')") && h.includes("playTrackUri('spotify:track:b')"));
+    check('album tracks are play-tappable', h.includes("playTrackUri('spotify:track:a'") && h.includes("playTrackUri('spotify:track:b'"));
     check('album tracks have queue buttons', h.includes("queueTrack(this, 'spotify:track:a')"));
     check('album view has a back button', /results-back/.test(h));
+  }
+
+  // 19. Tapping an artist loads their albums inline (in-app, never the Spotify app)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { items: [
+      { id: 'al1', name: 'Discovery', album_type: 'album', total_tracks: 14, images: [{ url: 'a' }], artists: [{ id: 'ar1', name: 'Daft Punk' }] },
+      { id: 'al2', name: 'Homework', album_type: 'album', total_tracks: 16, images: [{ url: 'b' }], artists: [{ id: 'ar1', name: 'Daft Punk' }] },
+    ] } });
+    await app.ctx.openArtist('ar1');
+    await flush();
+    const h = app.getEl('results-list').innerHTML;
+    check('artist tap fetches /artists/{id}/albums', !!app.fetchCalls.find(c => c.url.includes('/artists/ar1/albums')));
+    check('artist view shows the artist name', h.includes('Daft Punk'));
+    check('artist albums drill into the album', h.includes("openAlbum('al1')") && h.includes("openAlbum('al2')"));
+    check('artist view never opens the Spotify app', !/open\.spotify\.com/.test(h));
+  }
+
+  // 20. Queue view: see what's queued up
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { currently_playing: { name: 'Now', uri: 'spotify:track:now' }, queue: [
+      { uri: 'spotify:track:q1', name: 'Q1', artists: [{ name: 'A' }], album: { images: [{}, {}, { url: 'u' }] } },
+      { uri: 'spotify:track:q2', name: 'Q2', artists: [{ name: 'B' }], album: { images: [{}, {}, { url: 'u' }] } },
+    ] } });
+    await app.ctx.showQueue();
+    await flush();
+    const h = app.getEl('results-list').innerHTML;
+    check('queue view fetches /me/player/queue', !!app.fetchCalls.find(c => c.url.endsWith('/me/player/queue')));
+    check('queue view lists upcoming tracks', h.includes('Q1') && h.includes('Q2'));
+    check('queue items are tappable to jump', h.includes("playTrackUri('spotify:track:q1'"));
+  }
+
+  // 21. Playing a track uses its album context (so it doesn't loop / re-play one song)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 200 });
+    await app.ctx.playTrackUri('spotify:track:T', 'spotify:album:AL');
+    await flush();
+    const play = app.fetchCalls.find(c => c.url.includes('/me/player/play'));
+    check('play uses album context_uri + offset (not a context-less single track)',
+      play && play.body && play.body.context_uri === 'spotify:album:AL' && play.body.offset && play.body.offset.uri === 'spotify:track:T',
+      play && JSON.stringify(play.body));
   }
 }
 
