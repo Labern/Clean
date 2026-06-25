@@ -932,7 +932,7 @@ async function playTrackUri(uri) {
 
 // Add a track to the Spotify play queue (the "+ Queue" button on each result).
 async function queueTrack(btn, uri) {
-  // Optimistic: flip to the green ✓ Queued state immediately, revert if it fails.
+  // Optimistic: flip to the green "Queued" state immediately, revert if it fails.
   let prevHTML = null;
   if (btn && btn.classList) {
     prevHTML = btn.innerHTML;
