@@ -47,12 +47,12 @@ control that misfires. Spotify Drive is the opposite — **size and tap-safety f
 - **Light / Dark** — icon-only toggle that composes with BMW Mode.
 
 <p align="center">
-  <img src="docs/screenshots/bmw.png" alt="BMW Mode" width="280">
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/neo.png" alt="Neo UI experiment" width="280">
+  <img src="docs/screenshots/bmw.png" alt="BMW Mode" width="250">
+  &nbsp;
+  <img src="docs/screenshots/paradox.png" alt="PARADOX edition" width="250">
 </p>
 
-<p align="center"><em>Left: BMW Mode. Right: the “Neo” UI experiment (Space Grotesk + squircle buttons) on the <code>ui-experiment</code> branch.</em></p>
+<p align="center"><em>Left: BMW Mode. Right: <strong>PARADOX edition</strong> — the whole app reskinned as a terminal (★★★★★ × PARADOX style), on the <code>paradox-edition</code> branch.</em></p>
 
 ## How it works
 
@@ -106,8 +106,13 @@ SpotifyDrive/
 └── README.md
 ```
 
-The `neo` variant lives on the **`ui-experiment`** branch — same layout and logic,
-different fonts (Space Grotesk + Inter) and squircle buttons.
+Alternate looks live on their own branches — same layout and logic, demo-mode previews:
+
+- **PARADOX edition** (`paradox-edition`) — the app rendered as a *terminal*: monospace,
+  xterm-256 palette, window chrome + traffic lights + blinking cursor on an animated
+  purple gradient. → [preview](https://labern.github.io/Clean/SpotifyDrive/paradox/index.html)
+- **Neo** (`ui-experiment`) — Space Grotesk + Inter, squircle buttons.
+  → [preview](https://labern.github.io/Clean/SpotifyDrive/neo/index.html)
 
 ---
 

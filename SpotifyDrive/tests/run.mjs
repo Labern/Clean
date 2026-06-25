@@ -254,6 +254,8 @@ function staticChecks() {
   check('Clear-queue button on the queue page', /function clearQueue/.test(html) && /onclick="clearQueue\(\)"/.test(html));
   check('last queued track continues into its album', /function maybeContinueAlbum/.test(html) && /myQueued/.test(html));
   check('light mode has themed (dark) text — #app sets color', /#app\s*\{[^}]*color:\s*var\(--text\)/.test(html));
+  // a custom property must never reference itself (a perl replace-all bit us once)
+  check('no self-referential CSS tokens', !/--(\w[\w-]*):\s*var\(--\1\)\s*;/.test(html));
   check('light/dark toggle, icon-only, composes with BMW', /id="theme-toggle"/.test(html) && /#app\.light/.test(html) && /function toggleTheme/.test(html) && /ICONS\.sun/.test(html));
   check('error back button full-width', /\.err-back\s*\{[^}]*width:\s*100%/.test(html));
   check('queue button border follows the theme (BMW recolours it)', /\.result-queue\s*\{[^}]*border:\s*1px solid var\(--green\)/.test(html));
