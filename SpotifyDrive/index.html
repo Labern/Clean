@@ -300,7 +300,8 @@
     #main.searching #now-playing { padding: 6px 24px 2px; gap: 4px; }
 
     /* ── BMW Mode (optional theme) ─────────────────────────── */
-    #mode-bar { display: flex; justify-content: flex-end; padding: 6px 16px 0; flex-shrink: 0; }
+    #mode-bar { display: flex; justify-content: flex-end; padding: 8px 16px 2px; flex-shrink: 0; }
+    #header { display: none; }   /* mobile: skip the device pill / off button — straight to album art */
     #bmw-toggle {
       background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
       border-radius: 500px; padding: 7px 16px; font-size: 0.8rem; font-weight: 700;
@@ -438,8 +439,8 @@
       <button class="sec" id="like-btn" onclick="toggleLike()">
         <span class="icon"></span><span>Like</span>
       </button>
-      <button class="sec" onclick="jamTap()">
-        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 11a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm-8 0a3 3 0 1 0-3-3 3 3 0 0 0 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05A4.4 4.4 0 0 1 17 16.5V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg></span><span>Jam</span>
+      <button class="sec" onclick="showQueue()">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 6h11v2H3zm0 5h11v2H3zm0 5h7v2H3zM16 9l5 3-5 3z"/></svg></span><span>Queue</span>
       </button>
     </div>
 
@@ -903,7 +904,7 @@ function renderResults(tracks) {
     const albumId = t.album?.id || '';
     const artistId = t.artists?.[0]?.id || '';
     return `
-      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}')">
+      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
         <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div class="result-meta">
           <div class="result-track" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')">${esc(t.name)}</div>
@@ -918,10 +919,13 @@ function clearSearch() {
   renderResults(null);
 }
 
-async function playTrackUri(uri) {
+async function playTrackUri(uri, contextUri) {
   let dev = await ensureActiveDevice();
+  // Play the track WITHIN its album context (+offset) so playback continues naturally
+  // afterwards, instead of a context-less single track that loops / re-plays.
+  const body = contextUri ? { context_uri: contextUri, offset: { uri } } : { uris: [uri] };
   try {
-    await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', { uris: [uri] });
+    await api('/me/player/play' + (dev ? `?device_id=${dev}` : ''), 'PUT', body);
     setTimeout(fetchState, 800);
   } catch(e) {
     if (e && e.status === 404) {            // device went inactive — refetch + retry once
@@ -929,7 +933,7 @@ async function playTrackUri(uri) {
       dev = await ensureActiveDevice();
       if (dev) {
         try {
-          await api(`/me/player/play?device_id=${dev}`, 'PUT', { uris: [uri] });
+          await api(`/me/player/play?device_id=${dev}`, 'PUT', body);
           setTimeout(fetchState, 800);
           return;
         } catch(e2) { e = e2; }
@@ -983,7 +987,7 @@ function renderAlbum(album) {
   const tracks = album.tracks?.items || [];
   const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title">${esc(album.name)}</div></div>`;
   const rows = tracks.map(t => `
-      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}')">
+      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}', '${esc(album.uri || '')}')">
         <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div class="result-meta">
           <div class="result-track">${esc(t.name)}</div>
@@ -993,10 +997,68 @@ function renderAlbum(album) {
       </div>`).join('');
   $('results-list').innerHTML = head + rows;
 }
-// Artist: Spotify dev-mode removed /artists/{id}/top-tracks, so deep-link out for now.
-function openArtist(id) { if (id) window.open('https://open.spotify.com/artist/' + id, '_blank'); }
+// In-app artist view: list the artist's albums (dev-mode removed /top-tracks, so use albums).
+async function openArtist(id) {
+  if (!id) return;
+  const list = $('results-list');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  list.innerHTML = '<div class="hint">Loading artist…</div>';
+  try {
+    const d = await api('/artists/' + id + '/albums?include_groups=album,single&limit=30');
+    const items = d?.items || [];
+    const name = ((items[0]?.artists || []).find(a => a.id === id) || (items[0]?.artists || [])[0] || {}).name || 'Artist';
+    renderArtistAlbums(items, name);
+  } catch(e) {
+    if (e && e.status === 401) return;
+    list.innerHTML = '<div class="hint">Couldn\'t load this artist.</div>';
+  }
+}
+function renderArtistAlbums(items, title) {
+  const seen = new Set();
+  const albums = items.filter(a => { const k = (a.name || '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+  const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title">${esc(title)}</div></div>`;
+  const rows = albums.map(al => `
+      <div class="result-row" onclick="openAlbum('${esc(al.id)}')">
+        <img class="result-art" src="${esc(al.images?.[1]?.url || al.images?.[0]?.url || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(al.name)}</div>
+          <div class="result-artist">${al.album_type === 'single' ? 'Single' : 'Album'}${al.total_tracks ? ' · ' + al.total_tracks + ' tracks' : ''}${al.release_date ? ' · ' + String(al.release_date).slice(0, 4) : ''}</div>
+        </div>
+      </div>`).join('');
+  $('results-list').innerHTML = head + rows;
+}
 function openCurrentAlbum()  { openAlbum(S.albumId); }
 function openCurrentArtist() { openArtist(S.artistId); }
+
+// Queue view: see what's coming up next on the active Spotify device.
+async function showQueue() {
+  const list = $('results-list');
+  const main = document.getElementById('main'); if (main) main.classList.add('searching');
+  list.innerHTML = '<div class="hint">Loading queue…</div>';
+  try {
+    renderQueue(await api('/me/player/queue'));
+  } catch(e) {
+    if (e && e.status === 401) return;
+    list.innerHTML = '<div class="hint">Couldn\'t load the queue.</div>';
+  }
+}
+function renderQueue(d) {
+  const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title">Up next</div></div>`;
+  const items = (d && d.queue) || [];
+  if (!items.length) { $('results-list').innerHTML = head + '<div class="hint">Nothing queued.</div>'; return; }
+  const rows = items.map(t => {
+    const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+    return `
+      <div class="result-row" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
+        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+        <div class="result-meta">
+          <div class="result-track">${esc(t.name)}</div>
+          <div class="result-artist">${esc((t.artists || []).map(a => a.name).join(', '))}</div>
+        </div>
+      </div>`;
+  }).join('');
+  $('results-list').innerHTML = head + rows;
+}
 
 // ── Jam ───────────────────────────────────────────────────────────
 function jamTap() {
