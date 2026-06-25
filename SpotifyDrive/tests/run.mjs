@@ -213,6 +213,8 @@ function staticChecks() {
   check('plays-this-week stat (local play log)', /id="stat-plays"/.test(html) && /function playsThisWeek/.test(html));
   check('dashboard scopes requested (recently-played + playlists)',
     /user-read-recently-played/.test(html) && /playlist-read-private/.test(html));
+  check('one-time scope upgrade for existing users',
+    /SCOPE_VER/.test(html) && /function missingScopes/.test(html) && /scope_try/.test(html));
   check('footer credit present', /Made by Labern/.test(html));
   check('BMW Mode toggle present', /id="bmw-toggle"/.test(html) && /BMW Mode/.test(html));
   check('BMW palette + roundel defined', /#app\.bmw/.test(html) && /#0166B1/i.test(html) && /BMW_ROUNDEL/.test(html));
@@ -643,6 +645,25 @@ async function behaviourChecks() {
       item: { id: 'songX', name: 'X', duration_ms: 200000, artists: [{ name: 'A' }], album: { images: [{ url: 'art' }] } } } });
     await app.ctx.fetchState(); await flush();
     check('fetchState updates the plays-this-week stat to 1', app.getEl('stat-plays').textContent === '1', app.getEl('stat-plays').textContent);
+  }
+
+  // 28. Scope upgrade: an old token missing new scopes is detected; a full grant clears it
+  {
+    const app = load();
+    app.ls.setItem('granted_scope', 'user-read-playback-state user-modify-playback-state');
+    const miss = app.ctx.missingScopes();
+    check('missingScopes flags newly-added dashboard scopes',
+      miss.includes('user-read-recently-played') && miss.includes('playlist-read-private'), JSON.stringify(miss));
+    app.ls.setItem('granted_scope',
+      'user-read-playback-state user-modify-playback-state user-read-currently-playing user-read-recently-played playlist-read-private user-library-read user-library-modify');
+    check('missingScopes clears once all scopes are granted', app.ctx.missingScopes().length === 0, JSON.stringify(app.ctx.missingScopes()));
+  }
+
+  // 29. storeTokens persists the granted scope (so the upgrade check works)
+  {
+    const app = load();
+    app.ctx.storeTokens({ access_token: 'A', expires_in: 3600, scope: 'user-read-playback-state user-read-recently-played' });
+    check('storeTokens persists granted_scope', app.ls.getItem('granted_scope') === 'user-read-playback-state user-read-recently-played', app.ls.getItem('granted_scope'));
   }
 }
 
