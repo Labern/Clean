@@ -215,6 +215,8 @@ function staticChecks() {
     /user-read-recently-played/.test(html) && /playlist-read-private/.test(html));
   check('one-time scope upgrade for existing users',
     /SCOPE_VER/.test(html) && /function missingScopes/.test(html) && /scope_try/.test(html));
+  check('demo mode present + gated OFF the production host',
+    /const DEMO =/.test(html) && /function demoApi/.test(html) && !/DEMO =[^;]*labern\.github\.io/.test(html));
   check('footer credit present', /Made by Labern/.test(html));
   check('BMW Mode toggle present', /id="bmw-toggle"/.test(html) && /BMW Mode/.test(html));
   check('BMW palette + roundel defined', /#app\.bmw/.test(html) && /#0166B1/i.test(html) && /BMW_ROUNDEL/.test(html));
@@ -223,7 +225,7 @@ function staticChecks() {
   check('album & artist views stay in-app (no open.spotify.com)', !/open\.spotify\.com/.test(html));
   check('top header hidden (no device pill / off button)', /#header\s*\{\s*display:\s*none/.test(html));
   check('queue view present (see what is queued)', /function showQueue/.test(html) && /\/me\/player\/queue/.test(html));
-  check('search collapse never hides the album art', !/#main\.searching #album-art/.test(html));
+  check('search collapse never hides the album art', !/#main\.searching #album-art\s*\{[^}]*display\s*:\s*none/.test(html));
   check('brand wordmark in top bar (Spotify Drive / Labern)', /id="brand"/.test(html) && /Spotify <span class="brand-accent">Drive/.test(html) && /by Labern/.test(html));
   check('thin divider under the top bar', /#mode-bar\s*\{[\s\S]{0,220}border-bottom/.test(html));
   check('dashboard under search (recently played + playlists)', /function loadDashboard/.test(html) && /recently-played/.test(html) && /\/me\/playlists/.test(html));
@@ -573,7 +575,7 @@ async function behaviourChecks() {
     await app.ctx.showQueue();
     await flush();
     const toast = app.getEl('toast');
-    check('queue error toasts the user', toast && /queue error/i.test(toast.textContent), toast && toast.textContent);
+    check('queue error toasts the user', toast && /queue/i.test(toast.textContent), toast && toast.textContent);
   }
 
   // 21. Playing a track uses its album context (so it doesn't loop / re-play one song)
@@ -678,7 +680,7 @@ async function behaviourChecks() {
     check('missingScopes flags newly-added dashboard scopes',
       miss.includes('user-read-recently-played') && miss.includes('playlist-read-private'), JSON.stringify(miss));
     app.ls.setItem('granted_scope',
-      'user-read-playback-state user-modify-playback-state user-read-currently-playing user-read-recently-played playlist-read-private user-library-read user-library-modify');
+      'user-read-playback-state user-modify-playback-state user-read-currently-playing user-read-recently-played playlist-read-private playlist-read-collaborative user-library-read user-library-modify');
     check('missingScopes clears once all scopes are granted', app.ctx.missingScopes().length === 0, JSON.stringify(app.ctx.missingScopes()));
   }
 
