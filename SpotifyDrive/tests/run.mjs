@@ -250,6 +250,7 @@ function staticChecks() {
   check('progress bar is chunky + rounded', /#progress-wrap\s*\{[^}]*height:\s*1[0-4]px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
   check('touch-to-scrub the progress bar (grows + seeks)', /#progress-wrap\.scrubbing/.test(html) && /function setupScrub/.test(html) && /player\/seek\?position_ms=/.test(html));
   check('swipe rows: left=play, right=queue', /function setupSwipe/.test(html) && /data-uri=/.test(html));
+  check('queue-view rows marked no-requeue (Spotify has no un-queue)', /data-noqueue="1"/.test(html) && /dataset\.noqueue/.test(html));
   check('light/dark toggle, icon-only, composes with BMW', /id="theme-toggle"/.test(html) && /#app\.light/.test(html) && /function toggleTheme/.test(html) && /ICONS\.sun/.test(html));
   check('error back button full-width', /\.err-back\s*\{[^}]*width:\s*100%/.test(html));
   check('queue button border follows the theme (BMW recolours it)', /\.result-queue\s*\{[^}]*border:\s*1px solid var\(--green\)/.test(html));
