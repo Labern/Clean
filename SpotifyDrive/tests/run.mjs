@@ -172,7 +172,9 @@ function staticChecks() {
   for (const r of refs) check(`element id exists: ${r}`, ids.has(r));
 
   // no emoji anywhere
-  check('no emoji', !/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F6FF}]/u.test(html));
+  // one intentional emoji is allowed: the credit squirrel
+  const htmlSansCredit = html.replace(/Made by Labern[^<]*/, '');
+  check('no emoji (besides the credit squirrel)', !/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F300}-\u{1F6FF}]/u.test(htmlSansCredit));
 
   // search limit must be <= 10 (Spotify cap)
   const lim = html.match(/[?&]limit=(\d+)/);
@@ -208,6 +210,9 @@ function staticChecks() {
   check('add-to-queue wired to /me/player/queue', /queueTrack\(/.test(html) && /\/me\/player\/queue/.test(html));
   check('title→album and artist→artist openers exist', /function openAlbum/.test(html) && /function openArtist/.test(html));
   check('uptime readout present', /id="uptime"/.test(html) && /Open for/.test(html));
+  check('footer credit present', /Made by Labern/.test(html));
+  check('BMW Mode toggle present', /id="bmw-toggle"/.test(html) && /BMW Mode/.test(html));
+  check('BMW palette + roundel defined', /#app\.bmw/.test(html) && /#0166B1/i.test(html) && /BMW_ROUNDEL/.test(html));
 
   // Progress time + now-playing deep-links + queue animation
   check('progress bar is chunky + rounded', /height:\s*9px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
@@ -423,6 +428,32 @@ async function behaviourChecks() {
     check('now-playing title opens current album', opened.includes('/album/al1'), opened);
     app.ctx.openCurrentArtist();
     check('now-playing artist opens current artist', opened.includes('/artist/ar1'), opened);
+  }
+
+  // 16. Searching collapses now-playing (frees room → no awkward scroll while driving)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { tracks: { items: [
+      { uri: 'spotify:track:1', name: 'S', id: 't', artists: [{ name: 'A', id: 'a' }], album: { id: 'b', name: 'Al', images: [{}, {}, { url: 'u' }] } },
+    ] } } });
+    await app.ctx.runSearch('x');
+    await flush();
+    check('search mode collapses now-playing (searching class on #main)', app.getEl('main').classList.contains('searching'));
+    app.ctx.clearSearch();
+    check('clearing search exits search mode', !app.getEl('main').classList.contains('searching'));
+  }
+
+  // 17. BMW Mode: blue theme + roundel play button, persisted across loads
+  {
+    const app = load(); app.auth();
+    app.ctx.toggleBmw();
+    check('BMW toggle adds bmw class to #app', app.getEl('app').classList.contains('bmw'));
+    check('BMW mode persisted to localStorage', app.ls.getItem('bmw_mode') === '1');
+    app.ctx.renderPlayBtn();
+    const btn = app.getEl('play-btn');
+    check('play button becomes BMW roundel', /bmw-roundel/.test(btn.innerHTML) && /0166B1/i.test(btn.innerHTML), btn.innerHTML.slice(0, 50));
+    app.ctx.toggleBmw();
+    check('BMW toggle off restores default', !app.getEl('app').classList.contains('bmw') && app.ls.getItem('bmw_mode') === '0');
   }
 }
 

@@ -37,6 +37,15 @@ A living list of features we want, roughly prioritised. Status legend:
 - 📋 **Mini dashboard** — "recently played" (`GET /me/player/recently-played`) + quick stats,
   shown below the search bar for now; final placement TBD. Build functionality first,
   decide position later. (Requested 2026-06-25.)
+- 💡 **In-app album / artist view** — tapping a song title or artist currently opens the
+  Spotify app (universal link). Ideally show the album/artist tracks inline in our own UI
+  instead of leaving the app. Deferred. (Noted 2026-06-25.)
+- 💡 **Play-count stats** — "played X times this week" and similar listening stats at the
+  bottom of the page. (Requested 2026-06-25.)
+- 💡 **Add to playlist** — a button to add the current or a searched track to a chosen
+  playlist (`POST /playlists/{id}/tracks`). (Requested 2026-06-25.)
+- 🚧 **BMW Mode** — optional theme toggle: BMW blue/white/black palette + the play button
+  rebuilt as the BMW roundel. In progress 2026-06-25.
 - 💡 **Jam automation** — best-effort flow to start/share a Spotify Jam (limited by
   the lack of a Jam API — see `KNOWN_ISSUES.md`).
 - 💡 **Bigger album art / glance mode** — a stripped, maximally-legible mode for at-speed glances.
