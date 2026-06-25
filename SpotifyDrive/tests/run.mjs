@@ -218,6 +218,7 @@ function staticChecks() {
   check('album & artist views stay in-app (no open.spotify.com)', !/open\.spotify\.com/.test(html));
   check('top header hidden (no device pill / off button)', /#header\s*\{\s*display:\s*none/.test(html));
   check('queue view present (see what is queued)', /function showQueue/.test(html) && /\/me\/player\/queue/.test(html));
+  check('search collapse never hides the album art', !/#main\.searching #album-art/.test(html));
 
   // Progress time + now-playing deep-links + queue animation
   check('progress bar is chunky + rounded', /height:\s*9px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
