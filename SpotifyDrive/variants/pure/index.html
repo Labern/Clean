@@ -11,14 +11,14 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
-      --bg:     #000000;
-      --bg2:    #121212;
-      --bg3:    #1f1f1f;
+      --bg:     #0c0f17;
+      --bg2:    #141926;
+      --bg3:    #1c2332;
       --green:  #1DB954;
       --green2: #1ed760;
       --text:   #FFFFFF;
-      --muted:  #B3B3B3;
-      --border: rgba(255,255,255,0.10);
+      --muted:  #aeb6c4;
+      --border: rgba(255,255,255,0.09);
     }
 
     html, body {
@@ -41,7 +41,7 @@
     #toast {
       position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom, 0px) + 96px);
       transform: translateX(-50%); z-index: 300;
-      background: #2a2a2a; color: var(--text);
+      background: #283042; color: var(--text);
       border: 1px solid var(--border); border-radius: 12px;
       padding: 13px 18px; font-size: 0.95rem; font-weight: 600;
       max-width: 86vw; text-align: center; line-height: 1.35;
@@ -90,7 +90,7 @@
       font-size: 0.92rem; font-weight: 600; color: var(--green); min-width: 0;
       transition: background 0.15s;
     }
-    #device-pill:active { background: #2a2a2a; }
+    #device-pill:active { background: #283042; }
     #device-pill #device-icon { display: flex; flex-shrink: 0; }
     #device-pill #device-icon svg { width: 20px; height: 20px; }
     #device-pill .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
@@ -110,7 +110,7 @@
       padding: 8px 24px 6px; gap: 8px; text-align: center;
     }
     #album-art {
-      width: min(112px, 26vw); height: min(112px, 26vw);
+      width: min(168px, 40vw); height: min(168px, 40vw);
       border-radius: 10px; object-fit: cover;
       background: var(--bg3);
       box-shadow: 0 12px 34px rgba(0,0,0,0.6);
@@ -120,24 +120,31 @@
     #track-name {
       font-size: clamp(1.2rem, 5vw, 1.7rem); font-weight: 800;
       line-height: 1.15; letter-spacing: -0.02em; max-width: 92%;
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
     }
-    #artist-name { font-size: clamp(0.95rem, 3.6vw, 1.2rem); font-weight: 500; color: var(--muted); }
+    #track-name:active { color: var(--green); }
+    #artist-name { font-size: clamp(0.95rem, 3.6vw, 1.2rem); font-weight: 500; color: var(--muted); cursor: pointer; }
+    #artist-name:active { color: var(--green); }
     #progress-wrap {
-      width: 100%; max-width: 420px; height: 5px;
-      background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden;
-      margin-top: 4px;
+      width: 100%; max-width: 420px; height: 9px;
+      background: rgba(255,255,255,0.16); border-radius: 999px; overflow: hidden;
+      margin-top: 6px;
     }
     #progress-fill {
       height: 100%; width: 0%;
       background: var(--text);
-      border-radius: 3px; transition: width 1s linear;
+      border-radius: 999px; transition: width 1s linear;
+    }
+    #time-row {
+      width: 100%; max-width: 420px; display: flex; justify-content: space-between;
+      font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums;
+      margin-top: 4px;
     }
 
     /* ── Gauge play button (ring-wrapped), grafted from Dashboard ── */
     #gauge {
       position: relative; flex-shrink: 0;
-      width: min(208px, 56vw); height: min(208px, 56vw);
+      width: min(190px, 52vw); height: min(190px, 52vw);
       display: flex; align-items: center; justify-content: center;
     }
     #gauge-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
@@ -199,7 +206,7 @@
     .sec .icon svg { width: 24px; height: 24px; }
     .sec.on { color: var(--green); border-color: rgba(29,185,84,0.45); }
     .sec.liked { color: var(--green); border-color: rgba(29,185,84,0.45); }
-    .sec:active { background: #2a2a2a; }
+    .sec:active { background: #283042; }
 
     /* ── Search Bar ────────────────────────────────────────── */
     #search-bar {
@@ -219,7 +226,7 @@
       cursor: pointer; display: flex; align-items: center; justify-content: center;
     }
     #search-clear svg { width: 30px; height: 30px; }
-    #search-clear:active { background: #2a2a2a; }
+    #search-clear:active { background: #283042; }
 
     /* ── Inline results (scroll area; play controls stay above) ── */
     #results-list {
@@ -233,10 +240,10 @@
       border-radius: 14px; border: 1px solid var(--border); flex-shrink: 0;
       cursor: pointer;
     }
-    .result-row:active { background: #2a2a2a; }
+    .result-row:active { background: #283042; }
     .result-art {
       width: 56px; height: 56px; border-radius: 8px; flex-shrink: 0;
-      object-fit: cover; cursor: pointer; background: #2a2a2a;
+      object-fit: cover; cursor: pointer; background: #283042;
     }
     .result-meta { flex: 1; min-width: 0; }
     .result-track {
@@ -252,8 +259,16 @@
       flex-shrink: 0; background: none; border: 1px solid rgba(29,185,84,0.5);
       color: var(--green); border-radius: 500px; padding: 12px 16px;
       font-size: 0.9rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+      display: flex; align-items: center; gap: 6px;
+      transition: background 0.2s, color 0.2s, border-color 0.2s, transform 0.15s;
     }
+    .result-queue svg { width: 18px; height: 18px; }
     .result-queue:active { background: rgba(29,185,84,0.12); }
+    .result-queue.queued {
+      background: var(--green); color: #000; border-color: var(--green);
+      animation: queuePop 0.32s ease;
+    }
+    @keyframes queuePop { 0% { transform: scale(0.92); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
     #uptime {
       flex-shrink: 0; text-align: center; color: var(--muted);
       font-size: 0.72rem; padding: 6px 0 8px; letter-spacing: 0.04em;
@@ -346,9 +361,10 @@
 
     <div id="now-playing">
       <img id="album-art" class="hidden" src="" alt="">
-      <div id="track-name">Nothing playing</div>
-      <div id="artist-name">&mdash;</div>
+      <div id="track-name" onclick="openCurrentAlbum()">Nothing playing</div>
+      <div id="artist-name" onclick="openCurrentArtist()">&mdash;</div>
       <div id="progress-wrap"><div id="progress-fill"></div></div>
+      <div id="time-row"><span id="time-elapsed">0:00</span><span id="time-remaining">0:00</span></div>
     </div>
 
     <div id="controls">
@@ -683,6 +699,8 @@ async function fetchState() {
     S.shuffle     = d.shuffle_state;
     S.progressMs  = d.progress_ms;
     S.durationMs  = t.duration_ms;
+    S.albumId     = t.album?.id || null;
+    S.artistId    = t.artists?.[0]?.id || null;
     if (d.device) S.deviceId = d.device.id;
 
     $('track-name').textContent  = t.name;
@@ -707,6 +725,10 @@ async function fetchState() {
 
 // circumference of r=46 ring used by stroke-dasharray/offset
 const RING_CIRC = 2 * Math.PI * 46;
+function fmtTime(ms) {
+  const s = Math.max(0, Math.floor((ms || 0) / 1000));
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
 function renderProgress() {
   if (!S.durationMs) return;
   const frac = Math.max(0, Math.min(1, S.progressMs / S.durationMs));
@@ -716,6 +738,10 @@ function renderProgress() {
     ring.style.strokeDasharray  = RING_CIRC;
     ring.style.strokeDashoffset = RING_CIRC * (1 - frac);
   }
+  const el = document.getElementById('time-elapsed');
+  if (el) el.textContent = fmtTime(S.progressMs);
+  const rm = document.getElementById('time-remaining');
+  if (rm) rm.textContent = '-' + fmtTime(S.durationMs - S.progressMs);
 }
 function tickProgress() {
   if (!S.playing || !S.durationMs) return;
@@ -814,7 +840,7 @@ function renderResults(tracks) {
           <div class="result-track" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')">${esc(t.name)}</div>
           <div class="result-artist" onclick="event.stopPropagation();openArtist('${esc(artistId)}')">${esc(t.artists.map(a => a.name).join(', '))}</div>
         </div>
-        <button class="result-queue" onclick="event.stopPropagation();queueTrack('${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
       </div>`;
   }).join('');
 }
@@ -845,17 +871,24 @@ async function playTrackUri(uri) {
 }
 
 // Add a track to the Spotify play queue (the "+ Queue" button on each result).
-async function queueTrack(uri) {
+async function queueTrack(btn, uri) {
   const dev = await ensureActiveDevice();
   try {
     await api('/me/player/queue?uri=' + encodeURIComponent(uri) + (dev ? `&device_id=${dev}` : ''), 'POST');
-    toast('Added to queue');
+    if (btn && btn.classList) {
+      btn.classList.add('queued');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg><span>Queued</span>';
+    } else {
+      toast('Added to queue');
+    }
   } catch(e) { handlePlaybackError(e, 'Queue'); }
 }
 
 // Open the album / artist in Spotify (universal links open the app on iOS).
 function openAlbum(id)  { if (id) window.open('https://open.spotify.com/album/'  + id, '_blank'); }
 function openArtist(id) { if (id) window.open('https://open.spotify.com/artist/' + id, '_blank'); }
+function openCurrentAlbum()  { openAlbum(S.albumId); }
+function openCurrentArtist() { openArtist(S.artistId); }
 
 // ── Jam ───────────────────────────────────────────────────────────
 function jamTap() {

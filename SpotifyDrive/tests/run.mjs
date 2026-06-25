@@ -208,6 +208,12 @@ function staticChecks() {
   check('add-to-queue wired to /me/player/queue', /queueTrack\(/.test(html) && /\/me\/player\/queue/.test(html));
   check('title→album and artist→artist openers exist', /function openAlbum/.test(html) && /function openArtist/.test(html));
   check('uptime readout present', /id="uptime"/.test(html) && /Open for/.test(html));
+
+  // Progress time + now-playing deep-links + queue animation
+  check('progress bar is chunky + rounded', /height:\s*9px/.test(html) && /#progress-fill[\s\S]{0,120}border-radius:\s*999px/.test(html));
+  check('time readout under the bar', /id="time-elapsed"/.test(html) && /id="time-remaining"/.test(html));
+  check('now-playing title→album & artist→artist', /id="track-name" onclick="openCurrentAlbum/.test(html) && /id="artist-name" onclick="openCurrentArtist/.test(html));
+  check('queued animation (green QUEUED + tick)', /\.result-queue\.queued/.test(html) && /@keyframes queuePop/.test(html));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -351,7 +357,7 @@ async function behaviourChecks() {
     check('row plays the track', h.includes("playTrackUri('spotify:track:Z')"));
     check('title opens the album', h.includes("openAlbum('al1')"));
     check('artist opens the artist', h.includes("openArtist('ar1')"));
-    check('row has + Queue button', h.includes("queueTrack('spotify:track:Z')"));
+    check('row has + Queue button', h.includes("queueTrack(this, 'spotify:track:Z')"));
   }
 
   // 12. queueTrack POSTs to /me/player/queue with the uri (empty body must be fine)
@@ -359,14 +365,14 @@ async function behaviourChecks() {
     const app = load(); app.auth();
     app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
     app.queueResp({ status: 200 }); // queue add → empty body
-    await app.ctx.queueTrack('spotify:track:9');
+    const btn = app.ctx.document.createElement('button');
+    await app.ctx.queueTrack(btn, 'spotify:track:9');
     await flush();
     const q = app.fetchCalls.find(c => c.url.includes('/me/player/queue'));
     check('queueTrack hits /me/player/queue', !!q);
     check('queueTrack uses POST', q && q.method === 'POST', q && q.method);
     check('queueTrack passes the uri', q && q.url.includes(encodeURIComponent('spotify:track:9')), q && q.url);
-    const toast = app.getEl('toast');
-    check('queue add confirms with a toast', toast && /queue/i.test(toast.textContent) && !toast.className.includes('err'));
+    check('success animates button to QUEUED + tick', btn.className.includes('queued') && /queued/i.test(btn.innerHTML) && btn.innerHTML.includes('<svg'), btn.className + ' / ' + btn.innerHTML.slice(0, 40));
   }
 
   // 13. Clearing the query empties the inline results
@@ -395,6 +401,26 @@ async function behaviourChecks() {
     app.ctx.tickProgress();
     const after = parseFloat(app.getEl('progress-fill').style.width);
     check('progress advances on tick', after > before, `${before} -> ${after}`);
+  }
+
+  // 15. Time readout + now-playing title/artist deep-links
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: {
+      is_playing: true, progress_ms: 30000, shuffle_state: false,
+      device: { id: 'd1', name: 'Mac', type: 'Computer' },
+      item: { id: 't1', name: 'Song', duration_ms: 95000, artists: [{ name: 'A', id: 'ar1' }], album: { id: 'al1', images: [{ url: 'art' }] } },
+    } });
+    await app.ctx.fetchState();
+    await flush();
+    check('elapsed time shows 0:30', app.getEl('time-elapsed').textContent === '0:30', app.getEl('time-elapsed').textContent);
+    check('remaining time shows -1:05', app.getEl('time-remaining').textContent === '-1:05', app.getEl('time-remaining').textContent);
+    let opened = '';
+    app.ctx.open = (u) => { opened = u; };
+    app.ctx.openCurrentAlbum();
+    check('now-playing title opens current album', opened.includes('/album/al1'), opened);
+    app.ctx.openCurrentArtist();
+    check('now-playing artist opens current artist', opened.includes('/artist/ar1'), opened);
   }
 }
 
