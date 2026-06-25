@@ -217,6 +217,8 @@ function staticChecks() {
     /SCOPE_VER/.test(html) && /function missingScopes/.test(html) && /scope_try/.test(html));
   check('demo mode present + gated OFF the production host',
     /const DEMO =/.test(html) && /function demoApi/.test(html) && !/DEMO =[^;]*labern\.github\.io/.test(html));
+  check('voice dictation mic button + handler', /id="mic-btn"/.test(html) && /function startDictation/.test(html));
+  check('dictation uses Web Speech (webkitSpeechRecognition)', /webkitSpeechRecognition/.test(html));
   check('footer credit present', /Made by Labern/.test(html));
   check('BMW Mode toggle present', /id="bmw-toggle"/.test(html) && /BMW Mode/.test(html));
   check('BMW palette + roundel defined', /#app\.bmw/.test(html) && /#0166B1/i.test(html) && /BMW_ROUNDEL/.test(html));
@@ -707,6 +709,44 @@ async function behaviourChecks() {
     check('playlist tracks have queue buttons', h.includes("queueTrack(this, 'spotify:track:pt1')"));
     check('playlist view has a Play all button', h.includes("playContext('spotify:playlist:pl1')"));
     check('playlist view has a back button', /results-back/.test(h));
+  }
+
+  // 31. Dictation: no Web Speech (installed-PWA case) → graceful keyboard fallback, no throw
+  {
+    const app = load(); app.auth();
+    let threw = false;
+    try { app.ctx.startDictation(); } catch(e) { threw = true; }
+    await flush();
+    check('startDictation never throws when Web Speech is absent', !threw);
+    check('fallback enters search mode', app.getEl('main').classList.contains('searching'));
+    const toast = app.getEl('toast');
+    check('fallback tells user to use the keyboard mic', toast && /keyboard/i.test(toast.textContent), toast && toast.textContent);
+  }
+
+  // 32. Dictation with Web Speech present: wipes prior text, fills from speech, runs search
+  {
+    const app = load(); app.auth();
+    app.ctx.document.getElementById('search-input').value = 'wrong previous text';
+    let started = false, instance = null;
+    // minimal SpeechRecognition mock
+    app.ctx.window.webkitSpeechRecognition = function () {
+      instance = this;
+      this.start = () => { started = true; };
+      this.stop = () => { if (this.onend) this.onend(); };
+    };
+    app.ctx.startDictation();
+    check('mic wipes the previous (wrong) dictation on a fresh tap', app.getEl('search-input').value === '');
+    check('recognition started', started);
+    // simulate a spoken result
+    app.queueResp({ status: 200, body: { tracks: { items: [
+      { uri: 'spotify:track:V', name: 'Voiced', id: 'tv', artists: [{ name: 'A', id: 'a' }], album: { id: 'b', images: [{}, {}, { url: 'u' }] } },
+    ] } } });
+    instance.onresult({ results: [[{ transcript: 'redbone' }]] });
+    await flush();
+    check('spoken words fill the search box', app.getEl('search-input').value === 'redbone');
+    instance.onend();
+    await flush();
+    check('mic listening state cleared on end', !app.getEl('mic-btn').classList.contains('listening'));
   }
 }
 
