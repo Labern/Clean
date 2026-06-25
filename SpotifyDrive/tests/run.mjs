@@ -125,7 +125,7 @@ function load() {
   vm.runInContext(scriptSrc, ctx, { filename: 'spotifydrive-app.js' });
 
   return {
-    ctx, fetchCalls, els,
+    ctx, fetchCalls, els, ls: localStorage,
     getEl: id => (els.has(id) ? els.get(id) : null),
     queueResp: r => queue.push(r),
     auth() {
@@ -191,6 +191,12 @@ function staticChecks() {
     /localStorage\.setItem\('pkce_v'/.test(html) && !/sessionStorage\.\w+Item\('pkce_v'/.test(html));
   check('viewport-fit=cover present (safe-area insets)', /viewport-fit=cover/.test(html));
   check('handles 403 PREMIUM_REQUIRED', /status === 403/.test(html) && /premium/i.test(html));
+
+  // Auth recovery + remaining playback hardening (from the audit)
+  check('refresh checks res.ok (no Bearer-undefined cascade)', /refreshAccessToken[\s\S]{0,600}?!res\.ok/.test(html));
+  check('api() retries once on 401 then re-auths', /status === 401/.test(html) && /_retried/.test(html));
+  check('pickDevice starts playback (play:true)', /device_ids:\s*\[id\],\s*play:\s*true/.test(html));
+  check('no remaining catch(console.warn) silent swallows', !/catch\(console\.warn\)/.test(html));
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -275,6 +281,41 @@ async function behaviourChecks() {
     await flush(); await flush();
     const toast = app.getEl('toast');
     check('403 surfaces a Premium message', toast && /premium/i.test(toast.textContent), toast && toast.textContent);
+  }
+
+  // 7. Expired/revoked refresh token → poisoned creds cleared, bounced to Connect
+  {
+    const app = load();
+    app.ls.setItem('refresh_token', 'BADRT');
+    app.ls.setItem('access_token', 'OLD');
+    app.ls.setItem('token_expiry', String(Date.now() - 1000)); // expired → forces a refresh
+    app.queueResp({ status: 400, body: { error: 'invalid_grant' } }); // refresh rejected
+    try { await app.ctx.fetchState(); } catch {}
+    await flush(); await flush();
+    check('failed refresh clears the poisoned access_token', app.ls.getItem('access_token') === null);
+    check('failed refresh clears the refresh_token', app.ls.getItem('refresh_token') === null);
+  }
+
+  // 8. pickDevice transfers with play:true (a paused remote actually starts)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: {} });
+    app.ctx.pickDevice('dev2', 'Speaker', 'Speaker');
+    await flush();
+    const tr = app.fetchCalls.find(c => c.method === 'PUT' && c.body && c.body.device_ids);
+    check('pickDevice issues a transfer', !!tr);
+    check('pickDevice transfer sets play:true', tr && tr.body.play === true, tr && JSON.stringify(tr.body));
+  }
+
+  // 9. toggleShuffle failure reverts + surfaces (no silent desync)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 404, body: { error: { message: 'No active device found' } } });
+    await app.ctx.toggleShuffle();
+    await flush(); await flush();
+    const toast = app.getEl('toast');
+    check('toggleShuffle surfaces failure via toast', toast && toast.className.includes('err') && toast.textContent.length > 0);
   }
 }
 
