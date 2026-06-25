@@ -787,6 +787,40 @@ async function behaviourChecks() {
     await flush();
     check('togglePlay survives a non-JSON 200 body (no crash/parse error)', !threw);
   }
+
+  // 35. Re-tapping a Queued button doesn't add a duplicate (Spotify has no un-queue API)
+  {
+    const app = load(); app.auth();
+    const btn = app.ctx.document.createElement('button');
+    btn.classList.add('queued');
+    btn.innerHTML = 'Queued';
+    await app.ctx.queueTrack(btn, 'spotify:track:dup');
+    await flush();
+    check('re-tapping Queued issues no second queue POST', !app.fetchCalls.find(c => c.url.includes('/me/player/queue')));
+    const toast = app.getEl('toast');
+    check('re-tap explains Spotify cannot un-queue', toast && /un-?queue/i.test(toast.textContent), toast && toast.textContent);
+  }
+
+  // 36. Dictation normalizes the phrase (strips lead command word + trailing punctuation)
+  {
+    const app = load();
+    check('cleanDictation strips "play"/"search for" + trailing punctuation',
+      app.ctx.cleanDictation('play Redbone') === 'Redbone' &&
+      app.ctx.cleanDictation('search for Daft Punk.') === 'Daft Punk' &&
+      app.ctx.cleanDictation('  Tame Impala  ') === 'Tame Impala',
+      [app.ctx.cleanDictation('play Redbone'), app.ctx.cleanDictation('search for Daft Punk.')].join(' | '));
+  }
+
+  // 37. Dictation that captures nothing prompts a retry (no silent dead-end)
+  {
+    const app = load(); app.auth();
+    let inst = null;
+    app.ctx.window.webkitSpeechRecognition = function () { inst = this; this.start = () => {}; this.stop = () => {}; };
+    app.ctx.startDictation();
+    inst.onend();                         // ended with no speech captured
+    const toast = app.getEl('toast');
+    check('empty dictation prompts the user to retry', toast && /didn.t catch/i.test(toast.textContent), toast && toast.textContent);
+  }
 }
 
 // ── run ──────────────────────────────────────────────────────────────
