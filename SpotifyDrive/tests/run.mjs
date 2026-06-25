@@ -251,6 +251,9 @@ function staticChecks() {
   check('touch-to-scrub the progress bar (grows + seeks)', /#progress-wrap\.scrubbing/.test(html) && /function setupScrub/.test(html) && /player\/seek\?position_ms=/.test(html));
   check('swipe rows: left=play, right=queue', /function setupSwipe/.test(html) && /data-uri=/.test(html));
   check('queue-view rows marked no-requeue (Spotify has no un-queue)', /data-noqueue="1"/.test(html) && /dataset\.noqueue/.test(html));
+  check('Clear-queue button on the queue page', /function clearQueue/.test(html) && /onclick="clearQueue\(\)"/.test(html));
+  check('last queued track continues into its album', /function maybeContinueAlbum/.test(html) && /myQueued/.test(html));
+  check('light mode has themed (dark) text — #app sets color', /#app\s*\{[^}]*color:\s*var\(--text\)/.test(html));
   check('light/dark toggle, icon-only, composes with BMW', /id="theme-toggle"/.test(html) && /#app\.light/.test(html) && /function toggleTheme/.test(html) && /ICONS\.sun/.test(html));
   check('error back button full-width', /\.err-back\s*\{[^}]*width:\s*100%/.test(html));
   check('queue button border follows the theme (BMW recolours it)', /\.result-queue\s*\{[^}]*border:\s*1px solid var\(--green\)/.test(html));
@@ -888,6 +891,39 @@ async function behaviourChecks() {
     let threw = false;
     try { app.ctx.setupSwipe(); app.ctx.setupScrub(); } catch(e) { threw = true; }
     check('setupSwipe + setupScrub wire up without throwing', !threw);
+  }
+
+  // 43. Last queued track continues into its album when nothing else is queued
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } });
+    app.queueResp({ status: 200 });                              // queue add (records Q1)
+    await app.ctx.queueTrack(app.ctx.document.createElement('button'), 'spotify:track:Q1');
+    await flush();
+    app.queueResp({ status: 200, body: { queue: [] } });        // GET queue → empty (Q1 is the last)
+    app.queueResp({ status: 200, body: { tracks: { items: [
+      { id: 'Q1', uri: 'spotify:track:Q1' }, { id: 'Q2', uri: 'spotify:track:Q2' }, { id: 'Q3', uri: 'spotify:track:Q3' },
+    ] } } });                                                    // GET album
+    app.queueResp({ status: 200 }); app.queueResp({ status: 200 });   // queue Q2, Q3
+    await app.ctx.maybeContinueAlbum({ id: 'Q1', album: { id: 'albX' } });
+    await flush(); await flush();
+    const posts = app.fetchCalls.filter(c => c.method === 'POST' && c.url.includes('/me/player/queue'));
+    check('last queued song queues the rest of its album', posts.some(c => decodeURIComponent(c.url).includes('spotify:track:Q2')), posts.map(c => c.url).join(' | '));
+  }
+
+  // 44. Clear queue re-issues the current context (the only way Spotify can wipe the queue)
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { is_playing: true, progress_ms: 5000, shuffle_state: false,
+      context: { uri: 'spotify:album:CTX' }, device: { id: 'd1', name: 'M', type: 'Computer' },
+      item: { id: 'cur', name: 'Cur', duration_ms: 200000, artists: [{ name: 'A' }], album: { id: 'albCur', images: [{ url: 'a' }] } } } });
+    await app.ctx.fetchState(); await flush();                  // populates S (track, context, device)
+    app.queueResp({ status: 200 });                             // play (clear) — device already known, no /devices call
+    app.queueResp({ status: 200 });                             // repeat
+    app.queueResp({ status: 200 });                             // seek (pos > 1500)
+    await app.ctx.clearQueue(); await flush();
+    const play = app.fetchCalls.find(c => c.url.includes('/me/player/play') && c.method === 'PUT' && c.body && c.body.context_uri === 'spotify:album:CTX');
+    check('clearQueue re-issues the current context to wipe the queue', !!play, app.fetchCalls.filter(c => c.method === 'PUT').map(c => c.url).join(' | '));
   }
 }
 
