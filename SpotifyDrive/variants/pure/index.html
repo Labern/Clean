@@ -675,6 +675,68 @@
     /* Bigger fast-forward / next (skip) buttons. */
     .ctrl.skip { width: 88px; height: 88px; }
     .ctrl.skip svg { width: 52px; height: 52px; }
+
+    /* ════════════════ DISCOVER (visual song-finding) ════════════════
+       Top-left summon button (bare icon, fixed, outside #main so it doesn't scroll) opens an
+       80%-width pullover from the LEFT with personalised + catalog discovery sections. */
+    #discover-toggle {
+      position: fixed; top: 13px; left: max(12px, calc(50vw - 215px + 12px)); z-index: 178;
+      background: none; border: none; padding: 4px; color: var(--text);
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      opacity: 0.85; transition: opacity 0.2s ease, transform 0.15s ease;
+    }
+    #discover-toggle svg { width: 27px; height: 27px; }
+    #discover-toggle:active { transform: scale(0.86); }
+    #main.discover-open ~ #discover-toggle { opacity: 0; pointer-events: none; }
+    #main.hidden ~ #discover-toggle, #main.hidden ~ #discover-backdrop, #main.hidden ~ #discover-panel { display: none; }
+    /* Never let both pullovers open at once — hide each summon icon while the other is open. */
+    #main.discover-open ~ #mini-toggle { opacity: 0; pointer-events: none; }
+    #main.menu-open ~ #discover-toggle { opacity: 0; pointer-events: none; }
+    #discover-backdrop {
+      position: fixed; inset: 0; z-index: 152; background: rgba(0,0,0,0.45);
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+    }
+    #main.discover-open ~ #discover-backdrop { opacity: 1; pointer-events: auto; }
+    #discover-panel {
+      position: fixed; top: 0; bottom: 0; left: max(0px, calc(50vw - 215px)); z-index: 168;
+      width: min(80vw, 344px); box-sizing: border-box;
+      display: flex; flex-direction: column;
+      background: var(--bg); border-right: 1px solid var(--border);
+      box-shadow: 18px 0 55px rgba(0,0,0,0.55);
+      transform: translateX(-110%); transition: transform 0.32s cubic-bezier(.4,0,.2,1);
+    }
+    #main.discover-open ~ #discover-panel { transform: translateX(0); }
+    .discover-head {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 10px; flex-shrink: 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .discover-title { font-size: 1.3rem; font-weight: 800; letter-spacing: -0.01em; }
+    .discover-close {
+      background: none; border: none; color: var(--text); cursor: pointer;
+      padding: 6px; display: flex; opacity: 0.8;
+    }
+    .discover-close svg { width: 22px; height: 22px; }
+    #discover-content { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 8px 0 24px; }
+    .disc-section-head { padding: 14px 14px 8px; font-size: 0.95rem; font-weight: 800; color: var(--muted); letter-spacing: 0.02em; }
+    .preset-tile.circle, .preset-tile.circle img { border-radius: 50%; }
+    .preset-tile.circle .preset-label { border-radius: 0; bottom: -22px; left: 0; right: 0; padding: 4px 6px 0; text-align: center; background: none; color: var(--text); position: absolute; }
+    .disc-grid-artists { padding-bottom: 26px; }
+    #app.paradox #discover-toggle { color: var(--gold); }
+
+    /* Album view: Add-to-Library + Download actions, pinned to the right of the header. */
+    .results-head .results-title { flex: 1; }
+    .album-actions { margin-left: auto; display: flex; gap: 8px; flex-shrink: 0; }
+    .album-act {
+      background: none; border: 1px solid var(--border); color: var(--text);
+      border-radius: 500px; width: 42px; height: 42px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s;
+    }
+    .album-act svg { width: 20px; height: 20px; }
+    .album-act:active { transform: scale(0.92); }
+    .album-act.saved { color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); }
+    #app.paradox .album-act { border-radius: 3px; }
   </style>
 </head>
 <body>
@@ -810,6 +872,22 @@
     </div>
   </div>
 
+  <!-- ── Discover (visual song-finding) — top-left button → 80%-width pullover from the left.
+       Outside #main so the fixed button doesn't scroll. ── -->
+  <button id="discover-toggle" onclick="openDiscover()" aria-label="Discover">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5" fill="currentColor" stroke="none"/></svg>
+  </button>
+  <div id="discover-backdrop" onclick="closeDiscover()"></div>
+  <div id="discover-panel" aria-label="Discover">
+    <div class="discover-head">
+      <div class="discover-title">Discover</div>
+      <button class="discover-close" onclick="closeDiscover()" aria-label="Close discover">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div id="discover-content"><div class="hint">Open it to explore.</div></div>
+  </div>
+
   <!-- ── Device Sheet ───────────────────────────────────────── -->
   <div id="device-overlay" class="hidden" onclick="closeDevicesOnBg(event)">
     <div id="device-sheet">
@@ -860,12 +938,13 @@ const SCOPES = [
   'playlist-read-collaborative',     // dashboard: "Your playlists" (collaborative)
   'user-library-read',
   'user-library-modify',
+  'user-top-read',                   // Discover: "Your top artists" / "Your top tracks"
 ].join(' ');
 
 // Bump when SCOPES changes: existing users granted scopes ONCE at first connect,
 // and refresh tokens never pick up scopes added later — so a new scope needs a
 // fresh consent. missingScopes() drives a one-time auto-reconnect on load.
-const SCOPE_VER = 'v4-library';
+const SCOPE_VER = 'v5-discover';
 function missingScopes() {
   const have = new Set((localStorage.getItem('granted_scope') || '').split(/\s+/).filter(Boolean));
   return SCOPES.split(' ').filter(s => !have.has(s));
@@ -1664,7 +1743,14 @@ function renderAlbum(album) {
   const year = (album.release_date || '').slice(0, 4);
   const meta = [tracks.length + (tracks.length === 1 ? ' song' : ' songs'), mins ? mins + ' min' : '', year]
     .filter(Boolean).join('  ·  ');
-  const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title">${esc(album.name)}</div></div>`;
+  const head = `<div class="results-head">
+      <button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button>
+      <div class="results-title">${esc(album.name)}</div>
+      <div class="album-actions">
+        <button id="album-save-btn" class="album-act" onclick="saveAlbum('${esc(album.id)}', this)" aria-label="Add album to library"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+        <button class="album-act" onclick="downloadAlbum('${esc(album.id)}')" aria-label="Download album"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 11l5 5 5-5M5 21h14"/></svg></button>
+      </div>
+    </div>`;
   const sub = meta ? `<div class="album-meta">${esc(meta)}</div>` : '';
   // Track number to the far left (use the real track_number, fall back to position).
   const rows = tracks.map((t, i) => `
@@ -1678,6 +1764,84 @@ function renderAlbum(album) {
         <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
       </div>`).join('');
   $('results-list').innerHTML = head + sub + rows;
+  checkAlbumSaved(album.id, $('album-save-btn'));
+}
+
+// ── Album actions: Add to Library (real API) + Download (opens Spotify, where offline lives) ──
+const ALBUM_PLUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
+const ALBUM_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 6.5"/></svg>';
+async function checkAlbumSaved(id, btn) {
+  if (!id || !btn) return;
+  try {
+    const r = await api('/me/albums/contains?ids=' + id);
+    if (Array.isArray(r) && r[0]) { btn.classList.add('saved'); btn.innerHTML = ALBUM_CHECK; }
+  } catch (_) { /* non-fatal: leave it as "add" */ }
+}
+async function saveAlbum(id, btn) {
+  if (!id) return;
+  const saving = !(btn && btn.classList.contains('saved'));
+  if (btn) { btn.classList.toggle('saved', saving); btn.innerHTML = saving ? ALBUM_CHECK : ALBUM_PLUS; }  // optimistic
+  try {
+    await api('/me/albums?ids=' + id, saving ? 'PUT' : 'DELETE');
+    toast(saving ? 'Album added to your Library' : 'Removed from your Library');
+  } catch (e) {
+    if (btn) { btn.classList.toggle('saved', !saving); btn.innerHTML = !saving ? ALBUM_CHECK : ALBUM_PLUS; }  // revert
+    if (e && e.status === 401) return;
+    if (e && e.status === 403) { toast('Spotify blocked the Library change (403). Reconnect from the header.', true); return; }
+    toast('Couldn’t update Library (' + (e && e.status || '?') + ').', true);
+  }
+}
+function downloadAlbum(id) {
+  // Spotify's Web API has NO download/offline endpoint — offline is native-app + Premium only.
+  // So we open the album in Spotify, where Download actually lives. Honest about the mechanism.
+  if (!id) return;
+  toast('Opening in Spotify — tap Download there (offline needs Premium + the app).');
+  try { window.open('https://open.spotify.com/album/' + id, '_blank'); } catch (_) {}
+}
+
+// ── Discover: visual song-finding via the left pullover. Related-artists & recommendations are
+//    deprecated for new apps (403), so we surface what DOES work — the current artist's catalog,
+//    your top artists/tracks (user-top-read), and new releases. Each section degrades gracefully. ──
+function openDiscover() { document.getElementById('main').classList.add('discover-open'); loadDiscover(); }
+function closeDiscover() { document.getElementById('main').classList.remove('discover-open'); }
+function discAlbumTile(al) {
+  const art = ((al.images && (al.images[1] || al.images[0])) || {}).url || '';
+  return `<div class="preset-tile" onclick="closeDiscover();openAlbum('${esc(al.id)}')">${art ? `<img src="${esc(art)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}<div class="preset-label">${esc(al.name)}</div></div>`;
+}
+function discArtistTile(ar) {
+  const art = ((ar.images && (ar.images[1] || ar.images[0])) || {}).url || '';
+  return `<div class="preset-tile circle" onclick="closeDiscover();openArtist('${esc(ar.id)}')">${art ? `<img src="${esc(art)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}<div class="preset-label">${esc(ar.name)}</div></div>`;
+}
+function discTrackRow(t) {
+  const art = ((t.album && t.album.images && (t.album.images[2] || t.album.images[0])) || {}).url || '';
+  const ctx = (t.album && t.album.uri) || '';
+  return `<div class="result-row" onclick="closeDiscover();playTrackUri('${esc(t.uri)}','${esc(ctx)}')"><img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><div class="result-meta"><div class="result-track">${esc(t.name)}</div><div class="result-artist">${esc((t.artists || []).map(a => a.name).join(', '))}</div></div></div>`;
+}
+async function loadDiscover() {
+  const c = $('discover-content');
+  if (!c) return;
+  c.innerHTML = '<div class="hint">Finding things you might like…</div>';
+  const artistId = S.artistId;
+  // All independent — any 403/empty section is simply omitted (no related-artists/recs available).
+  const [fromArtist, topArtists, topTracks, fresh] = await Promise.all([
+    artistId ? api('/artists/' + artistId + '/albums?include_groups=album,single&limit=10').catch(() => null) : Promise.resolve(null),
+    api('/me/top/artists?limit=10').catch(() => null),
+    api('/me/top/tracks?limit=10').catch(() => null),
+    api('/browse/new-releases?limit=10').catch(() => null),
+  ]);
+  const sections = [];
+  if (topArtists && topArtists.items && topArtists.items.length)
+    sections.push('<div class="disc-section-head">Your top artists</div><div class="preset-grid disc-grid-artists">' + topArtists.items.map(discArtistTile).join('') + '</div>');
+  if (fromArtist && fromArtist.items && fromArtist.items.length) {
+    const who = (((fromArtist.items[0] || {}).artists || [])[0] || {}).name || 'this artist';
+    sections.push(`<div class="disc-section-head">More from ${esc(who)}</div><div class="preset-grid">` + fromArtist.items.map(discAlbumTile).join('') + '</div>');
+  }
+  if (topTracks && topTracks.items && topTracks.items.length)
+    sections.push('<div class="disc-section-head">Your top tracks</div>' + topTracks.items.map(discTrackRow).join(''));
+  if (fresh && fresh.albums && fresh.albums.items && fresh.albums.items.length)
+    sections.push('<div class="disc-section-head">New releases</div><div class="preset-grid">' + fresh.albums.items.map(discAlbumTile).join('') + '</div>');
+  c.innerHTML = sections.length ? sections.join('')
+    : '<div class="hint">Couldn’t load discovery right now. (Spotify deprecated related-artists / recommendations for new apps, so this leans on your top artists + new releases.)</div>';
 }
 // In-app artist view: list the artist's albums (dev-mode removed /top-tracks, so use albums).
 async function openArtist(id) {

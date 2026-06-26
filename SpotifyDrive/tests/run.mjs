@@ -201,6 +201,9 @@ function staticChecks() {
     [/api\([`'"]\/me\/playlists/,                                'playlist-read-private',     'your playlists'],
     [/\/me\/player\/(play|pause|next|previous|shuffle|seek|queue|repeat)/, 'user-modify-playback-state', 'playback control'],
     [/\/me\/player['"`?]/,                                       'user-read-playback-state',  'read playback state'],
+    [/\/me\/top\/(artists|tracks)/,                              'user-top-read',             'discover: your top artists/tracks'],
+    [/\/me\/albums\?ids=/,                                       'user-library-modify',       'save / remove album'],
+    [/\/me\/albums\/contains/,                                   'user-library-read',         'album saved-state'],
   ];
   for (const [pat, sc, label] of scopeNeeds) {
     if (pat.test(html)) check(`scope coverage: "${label}" requires ${sc}`, html.includes(sc));
@@ -256,7 +259,10 @@ function staticChecks() {
   check('BMW palette + roundel defined', /#app\.bmw/.test(html) && /#0166B1/i.test(html) && /BMW_ROUNDEL/.test(html));
   check('in-app album view (fetches /albums/ + renders tracks)', /\/albums\//.test(html) && /function renderAlbum/.test(html));
   check('in-app artist view (artist albums)', /function renderArtistAlbums/.test(html) && /\/artists\//.test(html));
-  check('album & artist views stay in-app (no open.spotify.com)', !/open\.spotify\.com/.test(html));
+  // Browsing stays in-app; the ONLY external Spotify link is the deliberate album Download
+  // deep-link (Web API has no offline/download endpoint, so Download opens the app).
+  check('only external Spotify link is the deliberate album download deep-link',
+    (html.match(/open\.spotify\.com/g) || []).length === 1 && /window\.open\('https:\/\/open\.spotify\.com\/album\//.test(html));
   check('top header hidden (no device pill / off button)', /#header\s*\{\s*display:\s*none/.test(html));
   check('queue view present (see what is queued)', /function showQueue/.test(html) && /\/me\/player\/queue/.test(html));
   check('search collapse never hides the album art', !/#main\.searching #album-art\s*\{[^}]*display\s*:\s*none/.test(html));
@@ -743,7 +749,7 @@ async function behaviourChecks() {
     check('missingScopes flags newly-added dashboard scopes',
       miss.includes('user-read-recently-played') && miss.includes('playlist-read-private'), JSON.stringify(miss));
     app.ls.setItem('granted_scope',
-      'user-read-playback-state user-modify-playback-state user-read-currently-playing user-read-recently-played playlist-read-private playlist-read-collaborative user-library-read user-library-modify');
+      'user-read-playback-state user-modify-playback-state user-read-currently-playing user-read-recently-played playlist-read-private playlist-read-collaborative user-library-read user-library-modify user-top-read');
     check('missingScopes clears once all scopes are granted', app.ctx.missingScopes().length === 0, JSON.stringify(app.ctx.missingScopes()));
   }
 
@@ -1149,6 +1155,48 @@ async function behaviourChecks() {
     const play = app.fetchCalls.find(c => c.url.includes('/me/player/play'));
     check('playFromAlbum plays the chosen track as a single uri (clean queue)',
       play && play.body && Array.isArray(play.body.uris) && play.body.uris[0] === 'spotify:track:t3', play && JSON.stringify(play.body));
+  }
+
+  // O. saveAlbum: adds the album to the user's Library (PUT /me/albums), flips the button state
+  {
+    const app = load(); app.auth();
+    const btn = app.ctx.document.createElement('button');
+    app.queueResp({ status: 200, body: {} });
+    await app.ctx.saveAlbum('ALB123', btn);
+    await flush();
+    const put = app.fetchCalls.find(c => c.url.includes('/me/albums?ids=ALB123') && c.method === 'PUT');
+    check('saveAlbum PUTs the album to /me/albums', !!put, app.fetchCalls.map(c => c.method + ' ' + c.url).join(' | '));
+    check('saveAlbum marks the button saved', btn.classList.contains('saved'));
+  }
+
+  // P. Discover: loadDiscover pulls top artists / top tracks / new releases and renders sections
+  {
+    const app = load(); app.auth();
+    // No track playing → S.artistId unset → "from this artist" makes no call. Order: top artists, top tracks, new releases.
+    app.queueResp({ status: 200, body: { items: [{ id: 'a1', name: 'Top Artist', images: [{}, { url: 'u' }] }] } });
+    app.queueResp({ status: 200, body: { items: [{ id: 't1', name: 'Top Track', uri: 'spotify:track:t1', artists: [{ name: 'A' }], album: { uri: 'spotify:album:x', images: [{}, {}, { url: 'u' }] } }] } });
+    app.queueResp({ status: 200, body: { albums: { items: [{ id: 'al1', name: 'Fresh Album', images: [{}, { url: 'u' }] }] } } });
+    await app.ctx.loadDiscover();
+    await flush();
+    const urls = app.fetchCalls.map(c => c.url).join(' | ');
+    check('discover fetches your top artists (limit<=10)', urls.includes('/me/top/artists?limit=10'));
+    check('discover fetches new releases', urls.includes('/browse/new-releases?limit=10'));
+    const dc = app.getEl('discover-content').innerHTML;
+    check('discover renders top-artists + new-releases sections',
+      /Your top artists/.test(dc) && /New releases/.test(dc) && dc.includes('Top Artist'), dc.slice(0, 90));
+  }
+
+  // Q. Discover degrades gracefully when a section 403s (deprecated/insufficient) — section omitted
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 403, body: { error: { message: 'insufficient' } } });   // top artists fails
+    app.queueResp({ status: 403, body: { error: { message: 'insufficient' } } });   // top tracks fails
+    app.queueResp({ status: 200, body: { albums: { items: [{ id: 'al1', name: 'Fresh', images: [{ url: 'u' }] }] } } }); // new releases ok
+    await app.ctx.loadDiscover();
+    await flush();
+    const dc = app.getEl('discover-content').innerHTML;
+    check('discover shows the surviving section and omits failed ones',
+      /New releases/.test(dc) && !/Your top artists/.test(dc), dc.slice(0, 90));
   }
 }
 
