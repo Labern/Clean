@@ -660,13 +660,13 @@
 
     /* Breathing room up top, then a big album art. */
     #now-playing { padding-top: 56px; }
-    #album-art { width: min(300px, 70vw); height: min(300px, 70vw); }
-    /* Smaller song title; album title stays big; tighter album-title → artist gap. */
+    #album-art { width: min(272px, 65vw); height: min(272px, 65vw); }
+    /* Smaller song title; album title nudged up; tighter album-title → artist gap. */
     #track-name { font-size: clamp(1.35rem, 5.2vw, 1.85rem); }
-    #album-name { font-size: clamp(1.2rem, 5vw, 1.7rem); }
+    #album-name { font-size: clamp(1.2rem, 5vw, 1.7rem); margin-top: -4px; }
     #artist-name { margin-top: -5px; }
-    /* Nudge the play controls up a little, closer to the art. */
-    #controls { margin-top: -10px; }
+    /* Pull the play controls up, closer to the progress bar. */
+    #controls { margin-top: -18px; }
     /* Bigger fast-forward / next (skip) buttons. */
     .ctrl.skip { width: 88px; height: 88px; }
     .ctrl.skip svg { width: 52px; height: 52px; }
