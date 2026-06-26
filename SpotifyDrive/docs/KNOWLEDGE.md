@@ -271,15 +271,18 @@ The per-row action cluster (Artist / Album / Queue) is rendered by ONE shared he
 (`trackRowHTML`). **The cluster is the default for every song row shown** (user: "that's
 the default for all songs being shown"). Edit the helper once → all rows change together.
 
-Two layouts have been built; the helper currently renders Model B:
-- **Model A — horizontal full-width row** (rejected, kept as a known option): Artist · Album ·
-  Queue as three equal flex:1 buttons wrapped onto their own full-width line *below* the
-  track (`.result-row{flex-wrap:wrap}`, `.row-actions{flex-basis:100%}`). Shorter rows, but
-  not the wanted shape.
-- **Model B — stacked + tall queue (CURRENT)**: Artist and Album stacked vertically in
-  `.aa-stack` (a flex column), sitting to the LEFT of a single tall Queue button; the whole
-  cluster sits on the RIGHT of the row (`.row-actions{flex-direction:row;align-items:stretch}`,
-  no row wrap). Queue stretches to the stack's full height via `align-items:stretch`.
+Three layouts have been built; the helper currently renders **Model C**:
+- **Model A — horizontal full-width row** (known option): Artist · Album · Queue as three
+  equal flex:1 buttons wrapped onto their own full-width line *below* the track
+  (`.result-row{flex-wrap:wrap}`, `.row-actions{flex-basis:100%}`). Shorter rows.
+- **Model B — stacked + tall queue** (known option): Artist and Album stacked vertically in
+  `.aa-stack` (a flex column), to the LEFT of a single tall Queue button; cluster on the RIGHT
+  (`.row-actions{flex-direction:row;align-items:stretch}`). Queue stretches to the stack height.
+- **Model C — inline horizontal (CURRENT)**: Artist · Album · +Queue as three compact buttons
+  in one horizontal row to the RIGHT of the title (`.row-actions{flex-direction:row;
+  align-items:center}`, padding `9px 11px`, `font-size:0.8rem`, 16px icons). Title meta
+  shrinks/ellipsises to make room. User: "to the right of song title on the row, have artist,
+  album, queue."
 
 To switch back to Model A: re-add `flex-wrap:wrap` to `.result-row`, set `.row-actions` to
 `flex-basis:100%;width:100%`, make the three buttons `flex:1`, and drop the `.aa-stack`
