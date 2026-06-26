@@ -342,7 +342,7 @@
     .preset-tile .preset-play svg { width: 18px; height: 18px; }
     .preset-tile:active { transform: scale(0.97); }
     .result-row {
-      display: flex; align-items: center; gap: 12px;
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: relative;
       padding: 12px; background: var(--bg3);
       border-radius: 14px; border: 1px solid var(--border); flex-shrink: 0;
       cursor: pointer; touch-action: pan-y;   /* let vertical scroll pass; we handle horizontal swipe */
@@ -371,6 +371,33 @@
       padding: 0 14px 10px; color: var(--muted); font-size: 0.92rem; font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
+    /* While swiping a row: fill it with the action word (left = play, right = queue) */
+    .swipe-label {
+      position: absolute; inset: 0; z-index: 5;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      font-size: 1.4rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+      border-radius: 14px; opacity: 0; pointer-events: none;
+      transition: opacity 0.12s ease;
+    }
+    .swipe-label svg { width: 24px; height: 24px; flex-shrink: 0; }
+    .swipe-label.play  { background: color-mix(in srgb, var(--text) 26%, var(--bg3)); color: var(--text); }
+    .swipe-label.queue { background: color-mix(in srgb, var(--green) 42%, var(--bg3)); color: var(--text); }
+    /* Back-to-top: classic arrow-in-circle, floats bottom-right of the column after scrolling */
+    #to-top {
+      position: fixed; z-index: 350;
+      bottom: 20px; right: max(16px, calc(50vw - 215px + 16px));
+      width: 52px; height: 52px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      background: color-mix(in srgb, var(--bg3) 85%, var(--text)); color: var(--text);
+      border: 1px solid var(--border); cursor: pointer;
+      box-shadow: 0 6px 22px rgba(0,0,0,0.45);
+      opacity: 0; transform: translateY(12px) scale(0.9); pointer-events: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    #to-top.show { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+    #to-top:active { transform: scale(0.92); }
+    #to-top svg { width: 30px; height: 30px; }
+    #app.paradox #to-top { border-radius: 6px; border-color: var(--gold); color: var(--gold); }
     .result-queue {
       flex-shrink: 0; background: none; border: 1px solid var(--green);
       color: var(--green); border-radius: 500px; padding: 12px 16px;
@@ -385,19 +412,18 @@
       animation: queuePop 0.32s ease;
     }
     @keyframes queuePop { 0% { transform: scale(0.92); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
-    /* Per-row action stack (search results): Artist · Album · Queue · Radio */
-    .row-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; align-items: stretch; }
-    .row-actions .result-queue, .row-actions .result-album, .row-actions .result-artist-btn, .row-actions .result-radio { width: 100%; justify-content: center; padding: 11px 14px; }
-    .result-album, .result-artist-btn, .result-radio {
+    /* Per-row actions (search results): Artist · Album · Queue, one full-width row under the track */
+    .row-actions { display: flex; flex-direction: row; gap: 8px; flex-basis: 100%; width: 100%; align-items: stretch; }
+    .row-actions .result-queue, .row-actions .result-album, .row-actions .result-artist-btn { flex: 1; width: auto; justify-content: center; padding: 12px 14px; }
+    .result-album, .result-artist-btn {
       flex-shrink: 0; background: none; border: 1px solid var(--border);
       color: var(--text); border-radius: 500px; padding: 11px 14px;
       font-size: 0.9rem; font-weight: 700; cursor: pointer; white-space: nowrap;
       display: flex; align-items: center; gap: 6px;
       transition: background 0.2s, transform 0.15s;
     }
-    .result-album svg, .result-artist-btn svg, .result-radio svg { width: 18px; height: 18px; flex-shrink: 0; }
-    .result-album:active, .result-artist-btn:active, .result-radio:active { background: var(--active); transform: scale(0.96); }
-    .result-radio { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }  /* experimental: subtle green for "discovery" */
+    .result-album svg, .result-artist-btn svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .result-album:active, .result-artist-btn:active { background: var(--active); transform: scale(0.96); }
     /* ── Stats and Facts (live drive stats above the browse list) ── */
     #stats { flex-shrink: 0; padding: 0 12px 2px; }
     .stat-grid { display: flex; gap: 12px; padding: 2px 0 8px; }
@@ -581,7 +607,7 @@
       color:transparent; -webkit-text-fill-color:transparent;
       animation:paradoxShimmer 18s linear infinite; font-weight:700;  /* slower drift = less distraction */
       font-family:var(--font-para);  /* PARADOX now-playing font (Space Mono) */
-      font-size:clamp(1.55rem,6vw,2.1rem); letter-spacing:-0.01em; line-height:1.12;
+      font-size:clamp(1.55rem,6vw,2.1rem); letter-spacing:1px; line-height:1.12;
     }
     #app.paradox #album-name, #app.paradox #artist-name { font-family:var(--font-para); }
     @keyframes paradoxShimmer { to{background-position:300% center;} }
@@ -729,6 +755,11 @@
   </div>
 
   <!-- Search results render inline under the controls (see #results-list in #main) -->
+
+  <!-- ── Back to top (appears after scrolling down the results) ── -->
+  <button id="to-top" aria-label="Back to top" onclick="scrollResultsTop()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M12 16V8M8.5 11.5L12 8l3.5 3.5"></path></svg>
+  </button>
 
 </div><!-- /app -->
 
@@ -1401,7 +1432,6 @@ function renderResults(tracks) {
           <button class="result-artist-btn" onclick="event.stopPropagation();openArtist('${esc(artistId)}')" aria-label="Go to artist"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z"/></svg><span>Artist</span></button>
           <button class="result-album" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')" aria-label="Go to album"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7zm0-2a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg><span>Album</span></button>
           <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
-          <button class="result-radio" onclick="event.stopPropagation();startRadio('${esc(t.uri)}','${esc(t.id || '')}','${esc(artistId)}','${esc(t.name)}')" aria-label="Start radio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M7.8 7.8a6 6 0 000 8.4M16.2 7.8a6 6 0 010 8.4M5 5a10 10 0 000 14M19 5a10 10 0 010 14"/></svg><span>Radio</span></button>
         </div>
       </div>`;
   }).join('');
@@ -1456,11 +1486,12 @@ function setRepeatContext(dev) {
   api('/me/player/repeat?state=context' + (dev ? `&device_id=${dev}` : ''), 'PUT').catch(() => {});
 }
 
-// When a track WE queued becomes current and nothing else is queued behind it (it's the
-// last item), continue into THAT song's album so the music doesn't just stop. Only fires
-// when the queue is empty — if a real context is playing, Spotify already continues it.
+// When the current track has NOTHING queued behind it, continue into THAT song's album so
+// the music doesn't just loop the same song. Fires for ANY current track (not only ones we
+// queued) — but only when the queue is truly empty: if a real album/playlist context is
+// playing, Spotify's queue endpoint returns the upcoming tracks, so we leave it alone.
 async function maybeContinueAlbum(t) {
-  if (!t || !t.id || !myQueued.has(t.id) || continuedAlbums.has(t.id)) return;
+  if (!t || !t.id || continuedAlbums.has(t.id)) return;
   const albumId = t.album && t.album.id;
   if (!albumId) return;
   try {
@@ -1965,15 +1996,35 @@ function setupViewport() {
 }
 
 // ── Swipe a song row: LEFT = play, RIGHT = add to queue (with feedback) ──
+// ── Back to top: show a classic arrow once the results scroll down a screen ──
+function scrollResultsTop() {
+  const m = document.getElementById('main');
+  if (!m) return;
+  if (m.scrollTo) m.scrollTo({ top: 0, behavior: 'smooth' }); else m.scrollTop = 0;
+}
+function setupBackToTop() {
+  const m = document.getElementById('main'), btn = document.getElementById('to-top');
+  if (!m || !btn || !m.addEventListener) return;
+  const onScroll = () => { btn.classList.toggle('show', m.scrollTop > 480); };
+  m.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+}
+
 function setupSwipe() {
   const list = document.getElementById('results-list');
   if (!list || !list.addEventListener) return;
   const THRESH = 78;                       // px past which the action fires
   let row = null, x0 = 0, y0 = 0, dx = 0, decided = false, swiping = false, suppress = false;
+  // Big action word that fills the row while you swipe (left = play, right = queue).
+  const label = document.createElement('div');
+  const PLAY_HTML  = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg><span>Play now</span>';
+  const QUEUE_HTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Queue</span>';
   list.addEventListener('touchstart', (e) => {
     const t = e.target && e.target.closest && e.target.closest('.result-row[data-uri]');
     row = t || null; dx = 0; decided = false; swiping = false;
     if (!row || !e.touches) return;
+    label.className = 'swipe-label'; label.style.opacity = '0';
+    row.appendChild(label);                       // move the singleton onto this row, hidden
     x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
   }, { passive: true });
   list.addEventListener('touchmove', (e) => {
@@ -1985,12 +2036,12 @@ function setupSwipe() {
     }
     if (!swiping) return;
     e.preventDefault();
-    dx = Math.max(-130, Math.min(130, ddx));
+    dx = Math.max(-118, Math.min(118, ddx));
     row.style.transition = 'none';
     row.style.transform = 'translateX(' + dx + 'px)';
-    if (dx <= -THRESH)     row.style.background = 'color-mix(in srgb, var(--text) 22%, var(--bg3))';    // left → play
-    else if (dx >= THRESH) row.style.background = 'color-mix(in srgb, var(--green) 34%, var(--bg3))';   // right → queue
-    else                   row.style.background = '';
+    if (dx < 0)      { label.className = 'swipe-label play';  if (label.innerHTML !== PLAY_HTML)  label.innerHTML = PLAY_HTML; }
+    else if (dx > 0) { label.className = 'swipe-label queue'; if (label.innerHTML !== QUEUE_HTML) label.innerHTML = QUEUE_HTML; }
+    label.style.opacity = String(Math.min(1, Math.abs(dx) / THRESH));   // fills in as you pull
   }, { passive: false });
   list.addEventListener('touchend', () => {
     if (!row || !swiping) { row = null; return; }
@@ -1998,6 +2049,7 @@ function setupSwipe() {
     const uri = r.dataset.uri, ctx = r.dataset.ctx || '', name = r.dataset.name || 'track';
     r.style.transition = 'transform 0.2s ease, background 0.2s ease';
     r.style.transform = ''; r.style.background = '';
+    label.style.opacity = '0';
     if (fire) {
       suppress = true; setTimeout(() => { suppress = false; }, 450);   // don't also fire the tap
       if (left) { playTrackUri(uri, ctx); toast('Playing ' + name); }
@@ -2125,6 +2177,7 @@ function updateBeat(t) {
   setupViewport();
   setupSwipe();
   setupScrub();
+  setupBackToTop();
   setupTapFeedback();
   // Seed default icons so buttons aren't empty before first state fetch.
   if (localStorage.getItem('bmw_mode') === '1') {
