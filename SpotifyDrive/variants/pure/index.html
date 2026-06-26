@@ -342,7 +342,7 @@
     .preset-tile .preset-play svg { width: 18px; height: 18px; }
     .preset-tile:active { transform: scale(0.97); }
     .result-row {
-      display: flex; align-items: center; gap: 12px; flex-wrap: wrap; position: relative;
+      display: flex; align-items: center; gap: 12px; position: relative;
       padding: 12px; background: var(--bg3);
       border-radius: 14px; border: 1px solid var(--border); flex-shrink: 0;
       cursor: pointer; touch-action: pan-y;   /* let vertical scroll pass; we handle horizontal swipe */
@@ -412,9 +412,11 @@
       animation: queuePop 0.32s ease;
     }
     @keyframes queuePop { 0% { transform: scale(0.92); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
-    /* Per-row actions (search results): Artist · Album · Queue, one full-width row under the track */
-    .row-actions { display: flex; flex-direction: row; gap: 8px; flex-basis: 100%; width: 100%; align-items: stretch; }
-    .row-actions .result-queue, .row-actions .result-album, .row-actions .result-artist-btn { flex: 1; width: auto; justify-content: center; padding: 12px 14px; }
+    /* Per-row actions (default for every song row): [Artist / Album stacked] left of a tall Queue, clustered right */
+    .row-actions { display: flex; flex-direction: row; gap: 8px; flex-shrink: 0; align-items: stretch; }
+    .aa-stack { display: flex; flex-direction: column; gap: 8px; }
+    .row-actions .result-album, .row-actions .result-artist-btn { width: 100%; justify-content: center; padding: 9px 12px; font-size: 0.85rem; }
+    .row-actions .result-queue { justify-content: center; padding: 11px 16px; }
     .result-album, .result-artist-btn {
       flex-shrink: 0; background: none; border: 1px solid var(--border);
       color: var(--text); border-radius: 500px; padding: 11px 14px;
@@ -1428,13 +1430,23 @@ function renderResults(tracks) {
           <div class="result-track" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')">${esc(t.name)}</div>
           <div class="result-artist" onclick="event.stopPropagation();openArtist('${esc(artistId)}')">${esc(t.artists.map(a => a.name).join(', '))}</div>
         </div>
-        <div class="row-actions">
-          <button class="result-artist-btn" onclick="event.stopPropagation();openArtist('${esc(artistId)}')" aria-label="Go to artist"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z"/></svg><span>Artist</span></button>
-          <button class="result-album" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')" aria-label="Go to album"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7zm0-2a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg><span>Album</span></button>
-          <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
-        </div>
+        ${rowActionsHTML(t)}
       </div>`;
   }).join('');
+}
+// Shared action cluster for ANY song row (search, recently played, …): Artist/Album
+// stacked, to the left of a tall Queue button — the default for all songs shown.
+function rowActionsHTML(t) {
+  const albumId = (t.album && t.album.id) || '';
+  const artistId = (t.artists && t.artists[0] && t.artists[0].id) || '';
+  return `
+        <div class="row-actions">
+          <div class="aa-stack">
+            <button class="result-artist-btn" onclick="event.stopPropagation();openArtist('${esc(artistId)}')" aria-label="Go to artist"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z"/></svg><span>Artist</span></button>
+            <button class="result-album" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')" aria-label="Go to album"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7zm0-2a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg><span>Album</span></button>
+          </div>
+          <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+        </div>`;
 }
 // Radio: play this track now, then build a station behind it. Spotify deprecated
 // /recommendations for new apps (same Nov-2024 cutoff that 403s our audio-features),
@@ -1736,14 +1748,16 @@ function showDashboard() {
 }
 function trackRowHTML(t) {
   const art = t.album?.images?.[2]?.url || t.album?.images?.[0]?.url || '';
+  const albumId = t.album?.id || '';
+  const artistId = t.artists?.[0]?.id || '';
   return `
       <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(t.album?.uri || '')}" data-name="${esc(t.name)}" onclick="playTrackUri('${esc(t.uri)}', '${esc(t.album?.uri || '')}')">
         <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div class="result-meta">
-          <div class="result-track">${esc(t.name)}</div>
-          <div class="result-artist">${esc((t.artists || []).map(a => a.name).join(', '))}</div>
+          <div class="result-track" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')">${esc(t.name)}</div>
+          <div class="result-artist" onclick="event.stopPropagation();openArtist('${esc(artistId)}')">${esc((t.artists || []).map(a => a.name).join(', '))}</div>
         </div>
-        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+        ${rowActionsHTML(t)}
       </div>`;
 }
 function presetTileHTML(p) {
