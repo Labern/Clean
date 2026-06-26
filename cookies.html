@@ -55,11 +55,13 @@
   .bubble {
     position: relative;
     background: rgba(255,255,255,0.97);
-    border: 5px solid #2a2a2a;
+    border: 5px solid #000000;
     border-radius: 30px;
     padding: clamp(1.4rem, 5vw, 2.4rem);
     width: 100%;
     max-width: 620px;
+    /* extra room below so the tail clears Sol (incl. his bob) */
+    margin-bottom: clamp(2.2rem, 7vw, 3rem);
     box-shadow: 0 16px 36px rgba(0,0,0,0.28);
   }
   /* tail pointing down toward Sol */
@@ -70,7 +72,7 @@
     transform: translateX(-50%);
     border-left: 24px solid transparent;
     border-right: 24px solid transparent;
-    border-top: 28px solid #2a2a2a;
+    border-top: 28px solid #000000;
   }
   .bubble::before {
     content: "";
