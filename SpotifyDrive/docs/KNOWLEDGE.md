@@ -271,7 +271,11 @@ The per-row action cluster (Artist / Album / Queue) is rendered by ONE shared he
 (`trackRowHTML`). **The cluster is the default for every song row shown** (user: "that's
 the default for all songs being shown"). Edit the helper once → all rows change together.
 
-Three layouts have been built; the helper currently renders **Model C**:
+Four layouts have been built; the helper currently renders **Model D**:
+- **Model D — all three stacked on the right (CURRENT)**: Artist / Album / Queue stacked
+  vertically (`.row-actions{flex-direction:column;align-items:stretch}`), each full-width of
+  the column, on the RIGHT of the row. User: "Artist, Album, queue, all on the right, three
+  things stacked on top of each other."
 - **Model A — horizontal full-width row** (known option): Artist · Album · Queue as three
   equal flex:1 buttons wrapped onto their own full-width line *below* the track
   (`.result-row{flex-wrap:wrap}`, `.row-actions{flex-basis:100%}`). Shorter rows.
