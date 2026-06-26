@@ -510,9 +510,12 @@ async function behaviourChecks() {
     const ring = app.getEl('#gauge-ring .fill');
     check('ring offset set (between empty and full)', ring && parseFloat(ring.style.strokeDashoffset) > 0 && parseFloat(ring.style.strokeDashoffset) < 289, ring && ring.style.strokeDashoffset);
     const before = parseFloat(app.getEl('progress-fill').style.width);
+    // livePos() interpolates from a wall-clock anchor (S.progressAt set in fetchState), so
+    // nothing moves within the same instant — let real time elapse, then tick.
+    await new Promise(r => globalThis.setTimeout(r, 40));
     app.ctx.tickProgress();
     const after = parseFloat(app.getEl('progress-fill').style.width);
-    check('progress advances on tick', after > before, `${before} -> ${after}`);
+    check('progress advances on tick (wall-clock interpolation)', after > before, `${before} -> ${after}`);
   }
 
   // 15. Time readout + now-playing title/artist deep-links
@@ -579,7 +582,7 @@ async function behaviourChecks() {
     const h = app.getEl('results-list').innerHTML;
     check('album tap fetches /albums/{id}', !!app.fetchCalls.find(c => c.url.includes('/albums/al1')));
     check('album view shows the album name', h.includes('Discovery'));
-    check('album tracks are play-tappable', h.includes("playTrackUri('spotify:track:a'") && h.includes("playTrackUri('spotify:track:b'"));
+    check('album tracks are play-tappable (playFromAlbum → seeds the album queue)', h.includes("playFromAlbum('spotify:track:a'") && h.includes("playFromAlbum('spotify:track:b'"));
     check('album tracks have queue buttons', h.includes("queueTrack(this, 'spotify:track:a')"));
     check('album view has a back button', /results-back/.test(h));
   }
@@ -1123,6 +1126,29 @@ async function behaviourChecks() {
     check('fetchState renders the track name', app.getEl('track-name').textContent === 'My Song', app.getEl('track-name').textContent);
     check('fetchState joins multiple artists', app.getEl('artist-name').textContent === 'Art1, Art2', app.getEl('artist-name').textContent);
     check('fetchState shows album art', app.getEl('album-art').src === 'art' && !app.getEl('album-art').classList.contains('hidden'));
+  }
+
+  // N. playFromAlbum: play a track, then seed the queue with the rest of the album, wrapping
+  {
+    const app = load(); app.auth();
+    app.queueResp({ status: 200, body: { devices: [{ id: 'd1', is_active: true, type: 'Computer', name: 'Mac' }] } }); // ensureActiveDevice
+    app.queueResp({ status: 200, body: {} });                                                                          // play ok
+    app.queueResp({ status: 200, body: {} });                                                                          // setRepeatContext (fire-and-forget)
+    app.queueResp({ status: 200, body: { tracks: { items: [
+      { uri: 'spotify:track:t1' }, { uri: 'spotify:track:t2' }, { uri: 'spotify:track:t3' },
+      { uri: 'spotify:track:t4' }, { uri: 'spotify:track:t5' },
+    ] } } });                                                                                                          // GET /albums/ALB
+    await app.ctx.playFromAlbum('spotify:track:t3', 'ALB');
+    await flush();
+    const queued = app.fetchCalls
+      .filter(c => c.url.includes('/me/player/queue?uri='))
+      .map(c => decodeURIComponent(c.url.split('uri=')[1].split('&')[0]));
+    check('playFromAlbum queues the album remainder in rotation (X+1..N, then 1..X-1)',
+      JSON.stringify(queued) === JSON.stringify(['spotify:track:t4', 'spotify:track:t5', 'spotify:track:t1', 'spotify:track:t2']),
+      queued.join(',') || '(none)');
+    const play = app.fetchCalls.find(c => c.url.includes('/me/player/play'));
+    check('playFromAlbum plays the chosen track as a single uri (clean queue)',
+      play && play.body && Array.isArray(play.body.uris) && play.body.uris[0] === 'spotify:track:t3', play && JSON.stringify(play.body));
   }
 }
 
