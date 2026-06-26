@@ -580,7 +580,7 @@
       --green:#87d7d7; --green2:#ffd75f; --text:#cfcae6; --muted:#8787af;
       --border:rgba(135,95,215,0.30); --active:#2c2552; --track:rgba(135,95,215,0.22);
       --violet:#af87ff; --pink:#ff87ff; --gold:#ffd75f; --dim:#6c6c8a;
-      font-family:'Menlo','SF Mono','Consolas',monospace;
+      /* Fonts + sizes now inherit normal mode (no monospace); PARADOX keeps only its colours. */
     }
     #app.paradox input, #app.paradox button { font-family: inherit; }
     /* clean flat dark-purple backdrop (no window, no gradient) */
@@ -658,12 +658,15 @@
     #header-region #mode-bar { margin-bottom: 0; }   /* overlay now — no gap needed below the bar */
     #main.menu-open #to-top { display: none; }   /* don't float the back-to-top over the header */
 
-    /* Breathing room: just the icon up top, then space down to the album art. */
-    #now-playing { padding-top: 60px; }
-    /* Bigger album / title type; tighter album-title → artist gap. */
-    #track-name { font-size: clamp(1.95rem, 8vw, 2.8rem); }
+    /* Breathing room up top, then a big album art. */
+    #now-playing { padding-top: 56px; }
+    #album-art { width: min(300px, 70vw); height: min(300px, 70vw); }
+    /* Smaller song title; album title stays big; tighter album-title → artist gap. */
+    #track-name { font-size: clamp(1.35rem, 5.2vw, 1.85rem); }
     #album-name { font-size: clamp(1.2rem, 5vw, 1.7rem); }
     #artist-name { margin-top: -5px; }
+    /* Nudge the play controls up a little, closer to the art. */
+    #controls { margin-top: -10px; }
     /* Bigger fast-forward / next (skip) buttons. */
     .ctrl.skip { width: 88px; height: 88px; }
     .ctrl.skip svg { width: 52px; height: 52px; }
