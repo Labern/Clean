@@ -177,3 +177,90 @@ Spotify device (phone / CarPlay / speaker) through the Spotify Web API.
 - **Don't over-use multi-agent workflows** on a single-file app — parallel agents
   collide and need conflict-merging; sequential is faster here.
 - Keep responses short; surface cost/footguns proactively.
+
+---
+
+## 10. Scope contract & working protocol (added 2026-06-25)
+
+- **Default scope = PARADOX** unless the user names another mode. He locked **normal mode
+  as approved — do NOT restyle it** without an explicit ask.
+- **Styling** (typography / colour / layout of a *themed surface*) = **mode-scoped**.
+  **Features / bug-fixes** (new buttons, data, API, fixes) = **app-wide** unless told.
+- **No screenshots** (headless Chrome / reading PNGs) unless explicitly asked — verify via
+  code/diff/`node --check`/CDN-poll instead.
+- **Fast-build:** don't reflexively run/write the full test suite; **batch edits → one
+  deploy**; keep replies terse. (Conflicts with "ultracode" mode — that should be OFF here.)
+- Before editing when a request doesn't name a mode, **state the target in one line**
+  ("doing this on PARADOX") so a wrong assumption is caught before deploy.
+- A message arriving **mid-task may be a correction** — reconcile before firing more work.
+- Full cue protocol in the auto-memory `feedback-scope-transitions`.
+
+## 11. Session log — 2026-06-25 (typography, search cluster, lag, scopes)
+
+### Now-playing typography
+- Tried **Bricolage Grotesque** on the *normal* title — user wanted it on **PARADOX only**,
+  so reverted normal byte-for-byte and moved on. PARADOX title/album/artist now use
+  **Space Mono** via a `--font-para` token; title `clamp(1.55rem,6vw,2.1rem)`; shimmer
+  **softened** to teal→violet (dropped hot pink), **slowed 7s→18s**, `background-size:200%`.
+
+### Search-row action cluster — Artist · Album · Queue · Radio
+- Each search result row has a vertical `.row-actions` stack:
+  **Artist** (`openArtist`), **Album** (`openAlbum`), **+ Queue** (`queueTrack`),
+  **Radio** (`startRadio`). Classes `.result-artist-btn` / `.result-album` / `.result-radio`
+  (neutral pills; radio gets a subtle green border). The in-app album/artist views already
+  existed (`openAlbum`/`openArtist`); "Go to album" was praised as working great.
+
+### Radio — HARD LIMIT (important)
+- Spotify's public Web API has **no create-radio-station endpoint** (native "Song Radio" is
+  a *private* endpoint). **`/recommendations` is DEPRECATED** for apps created after
+  **2024-11-27** (same cutoff that 403s audio-features / related-artists). So **true radio
+  is impossible** for this app. `startRadio()` plays the seed, tries `/recommendations`
+  (403s), and falls back to the **artist's top-tracks** ("artist mix"). Closest-to-native
+  alternative = **Spotify Autoplay** (play the seed ALONE, no queue) — only works if the
+  user's Autoplay setting is on, which we can't toggle via API. Button may be cut.
+
+### Lag fix — wall-clock anchoring (the right pattern)
+- **Root cause:** `tickProgress` added `+1000ms` per `setInterval` tick (drifts late under
+  load) and only corrected every 5s → the bar/clock fell **1–5s behind** the song.
+- **Fix:** anchor `S.progressAt = Date.now()` at each sync; `livePos()` returns
+  `progressMs + (playing ? now − progressAt : 0)`, clamped. `renderProgress`/`tickProgress`
+  read `livePos()` (no mutation, no drift). Poll **5s→3s**. Near the end
+  (`durationMs − livePos() < 1200`) fire an immediate `fetchState` (debounced 4s) so the
+  **next track appears instantly**. Seek/scrub/`clearQueue` re-anchor `progressAt` / use `livePos()`.
+
+### Like fix — 403 self-heal + coloured success
+- `PUT/DELETE /me/tracks` needs `user-library-modify`. **`granted_scope` can CLAIM a scope
+  the live token actually lacks** → 403. Fix: on 403, clear the scope guard + **re-authorize
+  ONCE** (persisted `like_reauth` flag prevents a loop; cleared on success). Bumped
+  `SCOPE_VER` `v3-playlist`→`v4-library` (the one-time-reconnect guard `scope_try===SCOPE_VER`
+  was blocking re-consent for already-"tried" tokens). Coloured liked state
+  (`.sec.liked` tint + `.just-liked` `likePop` pop); error toast now shows the real status.
+- **Test lesson the user (rightly) pushed:** a mocked fetch always "succeeds", so a logic
+  test can NEVER catch a missing OAuth scope. Added a **static scope-coverage map**
+  (endpoint regex → required scope): if the code calls the endpoint, the scope must be in
+  `SCOPES`. That's the assertion that would have caught this without a live account.
+
+### Dashboard
+- **Quick Play moved to the BOTTOM.** "Your playlists" now render as **square tiles**
+  (`.preset-tile` reused, `openPlaylist`, no play overlay) instead of rows.
+
+### Playlist open 403 → play
+- Curated/algorithmic playlists (Discover Weekly, Daily Mix, Release Radar) **can't have
+  their tracks read** via the API for new apps (403, same deprecation family). `openPlaylist`
+  now **falls back to `playContext(uri)`** on 403 instead of showing a dead error.
+
+### Layout
+- **Search row swapped above** the shuffle/like/queue (`#secondary`) row — search is used more.
+
+## 12. Deploy / cache gotcha (reinforced)
+- GitHub Pages serves the HTML with **`Cache-Control: max-age=600`** → the user's browser
+  replays a **stale copy for up to 10 min** even after the CDN itself updates; an installed
+  PWA caches longer. "Looks exactly the same" usually = they're on the cached file, not a
+  failed deploy. To let them see a change *now*, hand a **cache-busted link**
+  (`?v=N`, or `?paradox=1&v=N`). Always poll the live `labern.github.io` URL for a unique
+  marker before saying it's ready.
+
+## 13. Test-harness facts (tests/run.mjs)
+- `setTimeout` is **stubbed to a no-op** and `location` is a **mock object** — so functions
+  that schedule a redirect (e.g. `authorize` via `setTimeout`) are safe to exercise in tests.
+- `app.ls` IS the localStorage the app code reads; `flush = () => new Promise(setImmediate)`.

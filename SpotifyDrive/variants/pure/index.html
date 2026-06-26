@@ -362,6 +362,15 @@
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
     .result-track:active, .result-artist:active { color: var(--green); }
+    /* Album view: track number (far left) + album length/year header */
+    .track-num {
+      flex-shrink: 0; width: 22px; text-align: center; font-variant-numeric: tabular-nums;
+      font-weight: 700; font-size: 1rem; color: var(--muted);
+    }
+    .album-meta {
+      padding: 0 14px 10px; color: var(--muted); font-size: 0.92rem; font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
     .result-queue {
       flex-shrink: 0; background: none; border: 1px solid var(--green);
       color: var(--green); border-radius: 500px; padding: 12px 16px;
@@ -1555,9 +1564,18 @@ async function openAlbum(id) {
 function renderAlbum(album) {
   const art = album.images?.[1]?.url || album.images?.[0]?.url || '';
   const tracks = album.tracks?.items || [];
+  // Album header: total length + release year (respect the album, not just the songs).
+  const totalMs = tracks.reduce((s, t) => s + (t.duration_ms || 0), 0);
+  const mins = Math.round(totalMs / 60000);
+  const year = (album.release_date || '').slice(0, 4);
+  const meta = [tracks.length + (tracks.length === 1 ? ' song' : ' songs'), mins ? mins + ' min' : '', year]
+    .filter(Boolean).join('  ·  ');
   const head = `<div class="results-head"><button class="results-back" onclick="clearSearch()" aria-label="Back">${BACK_SVG}</button><div class="results-title">${esc(album.name)}</div></div>`;
-  const rows = tracks.map(t => `
+  const sub = meta ? `<div class="album-meta">${esc(meta)}</div>` : '';
+  // Track number to the far left (use the real track_number, fall back to position).
+  const rows = tracks.map((t, i) => `
       <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(album.uri || '')}" data-name="${esc(t.name)}" onclick="playTrackUri('${esc(t.uri)}', '${esc(album.uri || '')}')">
+        <div class="track-num">${t.track_number || (i + 1)}</div>
         <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div class="result-meta">
           <div class="result-track">${esc(t.name)}</div>
@@ -1565,7 +1583,7 @@ function renderAlbum(album) {
         </div>
         <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
       </div>`).join('');
-  $('results-list').innerHTML = head + rows;
+  $('results-list').innerHTML = head + sub + rows;
 }
 // In-app artist view: list the artist's albums (dev-mode removed /top-tracks, so use albums).
 async function openArtist(id) {
