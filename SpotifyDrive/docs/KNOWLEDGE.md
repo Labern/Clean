@@ -294,3 +294,12 @@ wrapper in `rowActionsHTML`.
 
 Note: album/artist/playlist/queue *context* views still use their own single Queue button
 (not the shared cluster) — extend them to `rowActionsHTML` if "all songs" should include those too.
+
+## 15. Future ideas (backlog)
+- **Listening-stats page (per-song play counts).** The minimal header star icon (or a dedicated
+  button) could open a full page of listening stats — headline: "how many times have I listened to
+  this song." Feasible from data we ALREADY keep locally: `PLAY_LOG_KEY = 'play_log_v1'` logs every
+  track-change timestamp (seeded from recently-played's `played_at`, appended live). So we can show
+  per-track all-time / this-week counts, top songs, listening streaks — no extra API (Spotify has no
+  play-count endpoint). Status: idea only (user, 2026-06-26), deferred. Build it as its own view
+  (like the album view) opened from the minimal star, or a new icon.

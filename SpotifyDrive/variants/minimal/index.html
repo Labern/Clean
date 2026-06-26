@@ -629,23 +629,24 @@
        behind one top-right icon; tapping the icon slides the real header out exactly as it was.
        Selecting an option, or the backdrop, slides it back. Plus more top breathing room, bigger
        album type, tighter title→artist gap, bigger skip buttons. */
+    /* Bare star icon, no circle — and it lives OUTSIDE #main (markup), so position:fixed is truly
+       viewport-fixed and the icon doesn't scroll with content on iOS. Sibling combinators (~) drive
+       its open/closed state off #main's classes since it's no longer a descendant of #main. */
     #mini-toggle {
-      position: fixed; top: 14px; right: max(14px, calc(50vw - 215px + 14px)); z-index: 180;
-      width: 46px; height: 46px; border-radius: 50%;
-      background: color-mix(in srgb, var(--bg3) 78%, transparent); color: var(--text);
-      border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
-      cursor: pointer; -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
-      transition: opacity 0.2s ease, transform 0.15s ease;
+      position: fixed; top: 13px; right: max(12px, calc(50vw - 215px + 12px)); z-index: 180;
+      background: none; border: none; padding: 4px; color: var(--text);
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      opacity: 0.8; transition: opacity 0.2s ease, transform 0.15s ease;
     }
-    #mini-toggle svg { width: 24px; height: 24px; }
-    #mini-toggle:active { transform: scale(0.9); }
-    /* When the header is out, its own toggles take over the top-right — hide the summon icon. */
-    #main.menu-open #mini-toggle { opacity: 0; pointer-events: none; }
+    #mini-toggle svg { width: 26px; height: 26px; }
+    #mini-toggle:active { transform: scale(0.86); }
+    /* When the header is out, its own toggles take over the top-right — hide the summon star. */
+    #main.menu-open ~ #mini-toggle { opacity: 0; pointer-events: none; }
     #mini-backdrop {
       position: fixed; inset: 0; z-index: 150; background: rgba(0,0,0,0.4);
       opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
     }
-    #main.menu-open #mini-backdrop { opacity: 1; pointer-events: auto; }
+    #main.menu-open ~ #mini-backdrop { opacity: 1; pointer-events: auto; }
     /* The real header, untouched — just parked off-screen until summoned, then slid back in. */
     #header-region {
       position: fixed; top: 0; left: max(0px, calc(50vw - 215px)); z-index: 160;
@@ -654,9 +655,11 @@
       transform: translateX(110%); opacity: 0; pointer-events: none;
       transition: transform 0.3s cubic-bezier(.4,0,.2,1), opacity 0.3s ease;
     }
-    #main.menu-open #header-region { transform: translateX(0); opacity: 1; pointer-events: auto; }
+    #main.menu-open ~ #header-region { transform: translateX(0); opacity: 1; pointer-events: auto; }
     #header-region #mode-bar { margin-bottom: 0; }   /* overlay now — no gap needed below the bar */
-    #main.menu-open #to-top { display: none; }   /* don't float the back-to-top over the header */
+    #main.menu-open ~ #to-top { display: none; }   /* don't float the back-to-top over the header */
+    /* Logged out (#main.hidden) → no header controls at all. */
+    #main.hidden ~ #mini-toggle, #main.hidden ~ #mini-backdrop, #main.hidden ~ #header-region { display: none; }
 
     /* Breathing room up top, then a big album art. */
     #now-playing { padding-top: 56px; }
@@ -667,6 +670,8 @@
     #artist-name { margin-top: -5px; }
     /* Pull the play controls up, closer to the progress bar. */
     #controls { margin-top: -18px; }
+    /* Experiment: smaller play/pause gauge so the rows below (search + shuffle/like/queue) fit. */
+    #gauge { width: min(150px, 42vw); height: min(150px, 42vw); }
     /* Bigger fast-forward / next (skip) buttons. */
     .ctrl.skip { width: 88px; height: 88px; }
     .ctrl.skip svg { width: 52px; height: 52px; }
@@ -695,37 +700,8 @@
   <!-- ── Main UI ────────────────────────────────────────────── -->
   <div id="main" class="hidden">
 
-    <!-- Minimal: the ORIGINAL header (mode-bar + device header, verbatim) is hidden by default
-         behind one top-right icon. Tap the icon → it slides out exactly as it was. Selecting an
-         option (or tapping the backdrop) slides it back. -->
-    <button id="mini-toggle" onclick="document.getElementById('main').classList.toggle('menu-open')" aria-label="Show header">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
-    </button>
-    <div id="mini-backdrop" onclick="document.getElementById('main').classList.remove('menu-open')"></div>
-    <div id="header-region">
-      <div id="mode-bar">
-        <div id="brand">
-          <div class="brand-name">Spotify <span class="brand-accent">Drive</span></div>
-          <div class="brand-by">by Labern</div>
-        </div>
-        <div id="mode-toggles">
-          <button id="paradox-toggle" onclick="document.getElementById('main').classList.remove('menu-open');toggleParadox()" aria-label="PARADOX theme">&#9733;</button>
-          <button id="theme-toggle" onclick="document.getElementById('main').classList.remove('menu-open');toggleTheme()" aria-label="Toggle light / dark"></button>
-          <button id="bmw-toggle" onclick="document.getElementById('main').classList.remove('menu-open');toggleBmw()">BMW Mode</button>
-        </div>
-      </div>
-
-      <div id="header">
-        <div id="device-pill" onclick="document.getElementById('main').classList.remove('menu-open');openDevices()">
-          <span id="device-icon"></span>
-          <span id="device-label" class="label">Select device</span>
-          <span class="caret">&#9662;</span>
-        </div>
-        <button id="logout-btn" onclick="document.getElementById('main').classList.remove('menu-open');logout()" title="Disconnect" aria-label="Disconnect">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>
-        </button>
-      </div>
-    </div>
+    <!-- Minimal header controls (summon icon + slide-out header) live just AFTER </main>,
+         outside the scrolling #main — so the fixed icon stays put instead of scrolling. -->
 
     <div id="no-device" class="hidden">
       Open Spotify on any device first, then select it above &#8593;
@@ -802,6 +778,37 @@
     <div id="credit">Made by Labern 🐿️</div>
 
   </div><!-- /main -->
+
+  <!-- Minimal header controls — OUTSIDE #main so the fixed star icon never scrolls.
+       Tap the star → the original header slides out; select an option / backdrop → slides back. -->
+  <button id="mini-toggle" onclick="document.getElementById('main').classList.toggle('menu-open')" aria-label="Show header">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2.6l2.7 5.86 6.32.62-4.74 4.2 1.36 6.18L12 16.9l-5.64 3.56 1.36-6.18L3 10.08l6.32-.62z"/></svg>
+  </button>
+  <div id="mini-backdrop" onclick="document.getElementById('main').classList.remove('menu-open')"></div>
+  <div id="header-region">
+    <div id="mode-bar">
+      <div id="brand">
+        <div class="brand-name">Spotify <span class="brand-accent">Drive</span></div>
+        <div class="brand-by">by Labern</div>
+      </div>
+      <div id="mode-toggles">
+        <button id="paradox-toggle" onclick="document.getElementById('main').classList.remove('menu-open');toggleParadox()" aria-label="PARADOX theme">&#9733;</button>
+        <button id="theme-toggle" onclick="document.getElementById('main').classList.remove('menu-open');toggleTheme()" aria-label="Toggle light / dark"></button>
+        <button id="bmw-toggle" onclick="document.getElementById('main').classList.remove('menu-open');toggleBmw()">BMW Mode</button>
+      </div>
+    </div>
+
+    <div id="header">
+      <div id="device-pill" onclick="document.getElementById('main').classList.remove('menu-open');openDevices()">
+        <span id="device-icon"></span>
+        <span id="device-label" class="label">Select device</span>
+        <span class="caret">&#9662;</span>
+      </div>
+      <button id="logout-btn" onclick="document.getElementById('main').classList.remove('menu-open');logout()" title="Disconnect" aria-label="Disconnect">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>
+      </button>
+    </div>
+  </div>
 
   <!-- ── Device Sheet ───────────────────────────────────────── -->
   <div id="device-overlay" class="hidden" onclick="closeDevicesOnBg(event)">
