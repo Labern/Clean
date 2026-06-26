@@ -412,10 +412,10 @@
       animation: queuePop 0.32s ease;
     }
     @keyframes queuePop { 0% { transform: scale(0.92); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
-    /* Per-row actions (default for every song row): Artist · Album · Queue inline to the right of the title */
-    .row-actions { display: flex; flex-direction: row; gap: 6px; flex-shrink: 0; align-items: center; }
+    /* Per-row actions (default for every song row): Artist / Album / Queue all stacked on the right */
+    .row-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; align-items: stretch; }
     .row-actions .result-album, .row-actions .result-artist-btn, .row-actions .result-queue {
-      justify-content: center; padding: 9px 11px; font-size: 0.8rem; gap: 5px;
+      width: 100%; justify-content: center; padding: 9px 12px; font-size: 0.82rem; gap: 6px;
     }
     .row-actions svg { width: 16px !important; height: 16px !important; }
     .result-album, .result-artist-btn {
