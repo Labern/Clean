@@ -460,14 +460,14 @@
     #secondary      { transition: padding 0.28s ease; }
 
     #main.searching #now-playing { padding: 6px 16px 4px; gap: 6px; }
-    #main.searching #album-art   { width: min(96px, 24vw) !important; height: min(96px, 24vw) !important; }
+    #main.searching #album-art   { display: none !important; }   /* browse views: drop the art so the play button doesn't collide with it (temporary) */
     #main.searching #track-name  { font-size: clamp(0.95rem, 3.2vw, 1.2rem); -webkit-line-clamp: 1; }
     #main.searching #album-name,
     #main.searching #artist-name,
     #main.searching #progress-wrap,
     #main.searching #time-row    { display: none; }
     #main.searching #gauge       { width: min(116px, 31vw) !important; height: min(116px, 31vw) !important; }
-    #main.searching #controls    { padding: 4px 12px; gap: 14px; }
+    #main.searching #controls    { padding: 4px 12px; gap: 14px; margin-top: 0; }   /* cancel the -18px pull in browse views */
     #main.searching .ctrl.skip   { width: 66px; height: 66px; }
     #main.searching .ctrl.skip svg { width: 38px; height: 38px; }
     #main.searching #secondary   { padding: 6px 14px 10px; gap: 10px; }
