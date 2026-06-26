@@ -371,6 +371,18 @@
       animation: queuePop 0.32s ease;
     }
     @keyframes queuePop { 0% { transform: scale(0.92); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
+    /* Per-row action stack (search results): "Album" + "+ Queue" */
+    .row-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; align-items: stretch; }
+    .row-actions .result-queue, .row-actions .result-album { width: 100%; justify-content: center; padding: 11px 14px; }
+    .result-album {
+      flex-shrink: 0; background: none; border: 1px solid var(--border);
+      color: var(--text); border-radius: 500px; padding: 11px 14px;
+      font-size: 0.9rem; font-weight: 700; cursor: pointer; white-space: nowrap;
+      display: flex; align-items: center; gap: 6px;
+      transition: background 0.2s, transform 0.15s;
+    }
+    .result-album svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .result-album:active { background: var(--active); transform: scale(0.96); }
     /* ── Stats and Facts (live drive stats above the browse list) ── */
     #stats { flex-shrink: 0; padding: 0 12px 2px; }
     .stat-grid { display: flex; gap: 12px; padding: 2px 0 8px; }
@@ -549,12 +561,12 @@
     #app.paradox .brand-by { letter-spacing:3px; }
     /* shimmer track title */
     #app.paradox #track-name {
-      background:linear-gradient(90deg,#5eead4,#a78bfa,#f472b6,#5eead4);
-      background-size:300% auto; -webkit-background-clip:text; background-clip:text;
+      background:linear-gradient(90deg,#8fd9d9,#b39bff,#8fd9d9);  /* calmer: teal→violet, no hot pink */
+      background-size:200% auto; -webkit-background-clip:text; background-clip:text;
       color:transparent; -webkit-text-fill-color:transparent;
-      animation:paradoxShimmer 7s linear infinite; font-weight:700;
+      animation:paradoxShimmer 18s linear infinite; font-weight:700;  /* slower drift = less distraction */
       font-family:var(--font-para);  /* PARADOX now-playing font (Space Mono) */
-      font-size:clamp(1.3rem,5vw,1.8rem); letter-spacing:-0.01em; line-height:1.12;
+      font-size:clamp(1.55rem,6vw,2.1rem); letter-spacing:-0.01em; line-height:1.12;
     }
     #app.paradox #album-name, #app.paradox #artist-name { font-family:var(--font-para); }
     @keyframes paradoxShimmer { to{background-position:300% center;} }
@@ -1330,7 +1342,10 @@ function renderResults(tracks) {
           <div class="result-track" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')">${esc(t.name)}</div>
           <div class="result-artist" onclick="event.stopPropagation();openArtist('${esc(artistId)}')">${esc(t.artists.map(a => a.name).join(', '))}</div>
         </div>
-        <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+        <div class="row-actions">
+          <button class="result-album" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')" aria-label="Go to album"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7zm0-2a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg><span>Album</span></button>
+          <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+        </div>
       </div>`;
   }).join('');
 }
