@@ -9,14 +9,13 @@
   <title>Drive</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
       --bg:     #000000;
       --font-spotify: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-para: 'Space Mono', 'Menlo', 'SF Mono', monospace;  /* PARADOX now-playing font */
       --bg2:    #161519;
       --bg3:    #242329;
       --green:  #1DB954;
@@ -605,14 +604,13 @@
     #app.paradox .brand-by { letter-spacing:3px; }
     /* shimmer track title */
     #app.paradox #track-name {
-      background:linear-gradient(90deg,#8fd9d9,#b39bff,#8fd9d9);  /* calmer: teal→violet, no hot pink */
+      /* PARADOX keeps only its COLOUR identity here (shimmer gradient); font-family, size,
+         weight, spacing all inherit from normal mode's #track-name. */
+      background:linear-gradient(90deg,#8fd9d9,#b39bff,#8fd9d9);
       background-size:200% auto; -webkit-background-clip:text; background-clip:text;
       color:transparent; -webkit-text-fill-color:transparent;
-      animation:paradoxShimmer 18s linear infinite; font-weight:700;  /* slower drift = less distraction */
-      font-family:var(--font-para);  /* PARADOX now-playing font (Space Mono) */
-      font-size:clamp(1.55rem,6vw,2.1rem); letter-spacing:1px; line-height:1.12;
+      animation:paradoxShimmer 18s linear infinite;
     }
-    #app.paradox #album-name, #app.paradox #artist-name { font-family:var(--font-para); }
     @keyframes paradoxShimmer { to{background-position:300% center;} }
     /* gold play block + teal ring + pink→gold progress */
     #app.paradox:not(.bmw) #gauge #play-btn { background:var(--gold); color:var(--bg); box-shadow:0 0 40px rgba(255,215,95,0.45); }
@@ -1273,7 +1271,7 @@ async function openDevices() {
         <span class="device-icon">${deviceSvg(dev.type)}</span>
         <div>
           <div class="device-name">${esc(dev.name)}</div>
-          <div class="device-type">${dev.type}${dev.is_active ? ' · active' : ''}</div>
+          <div class="device-type">${esc(dev.type)}${dev.is_active ? ' · active' : ''}</div>
         </div>
         ${dev.id === S.deviceId ? '<span class="device-check">' + ICONS.check + '</span>' : ''}
       </div>
@@ -1447,32 +1445,23 @@ function rowActionsHTML(t) {
           <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
         </div>`;
 }
-// Radio: play this track now, then build a station behind it. Spotify deprecated
-// /recommendations for new apps (same Nov-2024 cutoff that 403s our audio-features),
-// so we TRY it and fall back to the artist's top tracks — the button always does something.
-async function startRadio(seedUri, trackId, artistId, name) {
-  toast('Starting radio…');
+// Play a track AND seed the queue with the rest of its album, wrapping around, so that
+// doing nothing plays the whole album once through starting from this track. Used by the
+// album view's "play now" — the user cares deeply about album order/authenticity.
+async function playFromAlbum(uri, albumId) {
+  if (!albumId) return playTrackUri(uri, '');
+  await playTrackUri(uri, '');                 // play just this track → clean slate queue
   try {
-    await ensureActiveDevice();
-    const dq = S.deviceId ? '?device_id=' + S.deviceId : '';
-    await api('/me/player/play' + dq, 'PUT', { uris: [seedUri] });   // seed plays now
-    let uris = [];
-    try {
-      const rec = await api('/recommendations?limit=10&seed_tracks=' + trackId);
-      uris = ((rec && rec.tracks) || []).map(x => x.uri);
-    } catch (_) { /* recommendations unavailable for this app → fall back */ }
-    const artistMix = !uris.length;
-    if (artistMix && artistId) {
-      const top = await api('/artists/' + artistId + '/top-tracks?market=from_token').catch(() => null);
-      uris = (((top && top.tracks) || []).map(x => x.uri)).filter(u => u !== seedUri);
+    const al = await api('/albums/' + albumId);
+    const items = (al && al.tracks && al.tracks.items) || [];
+    const idx = items.findIndex(x => x && x.uri === uri);
+    if (idx < 0) return;
+    const rotation = items.slice(idx + 1).concat(items.slice(0, idx));   // X+1…N, then 1…X-1
+    if (uri) continuedAlbums.add(uri.split(':').pop());                  // suppress the empty-queue auto-continue
+    for (const nt of rotation.slice(0, 40)) {                           // bound: pathological 50-track comps
+      if (nt && nt.uri) await api('/me/player/queue?uri=' + encodeURIComponent(nt.uri) + (S.deviceId ? '&device_id=' + S.deviceId : ''), 'POST').catch(() => {});
     }
-    for (const u of uris.slice(0, 10)) {
-      await api('/me/player/queue?uri=' + encodeURIComponent(u) + (S.deviceId ? '&device_id=' + S.deviceId : ''), 'POST').catch(() => {});
-    }
-    setTimeout(fetchState, 700);
-    if (uris.length) toast('Radio: ' + (name || 'station') + (artistMix ? ' (artist mix)' : ''));
-    else toast('Couldn’t build a radio station for this track.', true);
-  } catch (e) { handlePlaybackError(e, 'Radio'); }
+  } catch (e) { /* best-effort — the track still plays even if the queue fill fails */ }
 }
 function clearSearch() {
   const inp = $('search-input');
@@ -1616,7 +1605,7 @@ function renderAlbum(album) {
   const sub = meta ? `<div class="album-meta">${esc(meta)}</div>` : '';
   // Track number to the far left (use the real track_number, fall back to position).
   const rows = tracks.map((t, i) => `
-      <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(album.uri || '')}" data-name="${esc(t.name)}" onclick="playTrackUri('${esc(t.uri)}', '${esc(album.uri || '')}')">
+      <div class="result-row" data-uri="${esc(t.uri)}" data-ctx="${esc(album.uri || '')}" data-name="${esc(t.name)}" onclick="playFromAlbum('${esc(t.uri)}', '${esc(album.id || '')}')">
         <div class="track-num">${t.track_number || (i + 1)}</div>
         <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div class="result-meta">
@@ -1653,7 +1642,7 @@ function renderArtistAlbums(items, title) {
         <img class="result-art" src="${esc(al.images?.[1]?.url || al.images?.[0]?.url || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
         <div class="result-meta">
           <div class="result-track">${esc(al.name)}</div>
-          <div class="result-artist">${al.album_type === 'single' ? 'Single' : 'Album'}${al.total_tracks ? ' · ' + al.total_tracks + ' tracks' : ''}${al.release_date ? ' · ' + String(al.release_date).slice(0, 4) : ''}</div>
+          <div class="result-artist">${al.album_type === 'single' ? 'Single' : 'Album'}${al.total_tracks ? ' · ' + al.total_tracks + ' tracks' : ''}${al.release_date ? ' · ' + esc(String(al.release_date).slice(0, 4)) : ''}</div>
         </div>
       </div>`).join('');
   $('results-list').innerHTML = head + rows;
