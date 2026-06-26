@@ -9,14 +9,14 @@
   <title>Drive</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700;12..96,800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
     :root {
       --bg:     #000000;
       --font-spotify: 'Manrope', -apple-system, BlinkMacSystemFont, sans-serif;
-      --font-title: 'Bricolage Grotesque', 'Manrope', -apple-system, sans-serif;
+      --font-para: 'Space Mono', 'Menlo', 'SF Mono', monospace;  /* PARADOX now-playing font */
       --bg2:    #161519;
       --bg3:    #242329;
       --green:  #1DB954;
@@ -553,9 +553,10 @@
       background-size:300% auto; -webkit-background-clip:text; background-clip:text;
       color:transparent; -webkit-text-fill-color:transparent;
       animation:paradoxShimmer 7s linear infinite; font-weight:700;
-      font-family:var(--font-title);  /* PARADOX gets the new font (Bricolage Grotesque) */
-      font-size:clamp(1.85rem,7.4vw,2.6rem); letter-spacing:-0.015em; line-height:1.08;
+      font-family:var(--font-para);  /* PARADOX now-playing font (Space Mono) */
+      font-size:clamp(1.3rem,5vw,1.8rem); letter-spacing:-0.01em; line-height:1.12;
     }
+    #app.paradox #album-name, #app.paradox #artist-name { font-family:var(--font-para); }
     @keyframes paradoxShimmer { to{background-position:300% center;} }
     /* gold play block + teal ring + pink→gold progress */
     #app.paradox:not(.bmw) #gauge #play-btn { background:var(--gold); color:var(--bg); box-shadow:0 0 40px rgba(255,215,95,0.45); }
