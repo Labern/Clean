@@ -512,7 +512,7 @@ async function behaviourChecks() {
     const before = parseFloat(app.getEl('progress-fill').style.width);
     // livePos() interpolates from a wall-clock anchor (S.progressAt set in fetchState), so
     // nothing moves within the same instant — let real time elapse, then tick.
-    await new Promise(r => globalThis.setTimeout(r, 40));
+    await new Promise(r => globalThis.setTimeout(r, 80));
     app.ctx.tickProgress();
     const after = parseFloat(app.getEl('progress-fill').style.width);
     check('progress advances on tick (wall-clock interpolation)', after > before, `${before} -> ${after}`);
