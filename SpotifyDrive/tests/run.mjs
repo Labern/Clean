@@ -265,7 +265,10 @@ function staticChecks() {
     (html.match(/open\.spotify\.com/g) || []).length === 1 && /window\.open\('https:\/\/open\.spotify\.com\/album\//.test(html));
   check('top header hidden (no device pill / off button)', /#header\s*\{\s*display:\s*none/.test(html));
   check('queue view present (see what is queued)', /function showQueue/.test(html) && /\/me\/player\/queue/.test(html));
-  check('search collapse never hides the album art', !/#main\.searching #album-art\s*\{[^}]*display\s*:\s*none/.test(html));
+  // Browse/search views intentionally HIDE the now-playing album art (it collided with the
+  // play button); they must still keep the play controls visible.
+  check('browse views hide the album art but keep the play controls',
+    /#main\.searching #album-art\s*\{[^}]*display\s*:\s*none/.test(html) && !/#main\.searching #controls\s*\{[^}]*display\s*:\s*none/.test(html));
   check('brand wordmark in top bar (Spotify Drive / Labern)', /id="brand"/.test(html) && /Spotify <span class="brand-accent">Drive/.test(html) && /by Labern/.test(html));
   check('thin divider under the top bar', /#mode-bar\s*\{[\s\S]{0,220}border-bottom/.test(html));
   check('dashboard under search (recently played + playlists)', /function loadDashboard/.test(html) && /recently-played/.test(html) && /\/me\/playlists/.test(html));
@@ -512,7 +515,8 @@ async function behaviourChecks() {
     await app.ctx.fetchState();
     await flush();
     const fill = app.getEl('progress-fill');
-    check('horizontal progress set to 50% after fetchState', fill && fill.style.width === '50%', fill && fill.style.width);
+    // ~50% — livePos() may already have interpolated a few ms past the anchor, so allow a small margin.
+    check('horizontal progress set to ~50% after fetchState', fill && Math.abs(parseFloat(fill.style.width) - 50) < 1, fill && fill.style.width);
     const ring = app.getEl('#gauge-ring .fill');
     check('ring offset set (between empty and full)', ring && parseFloat(ring.style.strokeDashoffset) > 0 && parseFloat(ring.style.strokeDashoffset) < 289, ring && ring.style.strokeDashoffset);
     const before = parseFloat(app.getEl('progress-fill').style.width);
