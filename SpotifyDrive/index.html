@@ -663,7 +663,7 @@
 
     /* Breathing room up top, then a big album art. */
     #now-playing { padding-top: 56px; }
-    #album-art { width: min(272px, 65vw); height: min(272px, 65vw); }
+    #album-art { width: min(240px, 58vw); height: min(240px, 58vw); }
     /* Smaller song title; album title nudged up; tighter album-title → artist gap. */
     #track-name { font-size: clamp(1.35rem, 5.2vw, 1.85rem); }
     #album-name { font-size: clamp(1.2rem, 5vw, 1.7rem); margin-top: -4px; }
@@ -689,6 +689,18 @@
     #discover-toggle:active { transform: scale(0.86); }
     #main.discover-open ~ #discover-toggle { opacity: 0; pointer-events: none; }
     #main.hidden ~ #discover-toggle, #main.hidden ~ #discover-backdrop, #main.hidden ~ #discover-panel { display: none; }
+    /* Current-album button: just to the right of the Discover button (top-left), bare icon. */
+    #current-album-btn {
+      position: fixed; top: 13px; left: max(54px, calc(50vw - 215px + 54px)); z-index: 178;
+      background: none; border: none; padding: 4px; color: var(--text);
+      display: flex; align-items: center; justify-content: center; cursor: pointer;
+      opacity: 0.85; transition: opacity 0.2s ease, transform 0.15s ease;
+    }
+    #current-album-btn svg { width: 26px; height: 26px; }
+    #current-album-btn:active { transform: scale(0.86); }
+    #main.hidden ~ #current-album-btn { display: none; }
+    #main.discover-open ~ #current-album-btn, #main.menu-open ~ #current-album-btn { opacity: 0; pointer-events: none; }
+    #app.paradox #current-album-btn { color: var(--gold); }
     /* Never let both pullovers open at once — hide each summon icon while the other is open. */
     #main.discover-open ~ #mini-toggle { opacity: 0; pointer-events: none; }
     #main.menu-open ~ #discover-toggle { opacity: 0; pointer-events: none; }
@@ -876,6 +888,10 @@
        Outside #main so the fixed button doesn't scroll. ── -->
   <button id="discover-toggle" onclick="openDiscover()" aria-label="Discover">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polygon points="15.5 8.5 10.5 10.5 8.5 15.5 13.5 13.5" fill="currentColor" stroke="none"/></svg>
+  </button>
+  <!-- Current-album button — opens the now-playing track's full album page (info + all tracks). -->
+  <button id="current-album-btn" onclick="openCurrentAlbum()" aria-label="Current album">
+    <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7zm0-2a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg>
   </button>
   <div id="discover-backdrop" onclick="closeDiscover()"></div>
   <div id="discover-panel" aria-label="Discover">
@@ -1874,7 +1890,7 @@ function renderArtistAlbums(items, title) {
       </div>`).join('');
   $('results-list').innerHTML = head + rows;
 }
-function openCurrentAlbum()  { openAlbum(S.albumId); }
+function openCurrentAlbum()  { if (!S.albumId) { toast('Nothing playing yet.'); return; } openAlbum(S.albumId); }
 function openCurrentArtist() { openArtist(S.artistId); }
 
 // ── Play history → "played X times this week" ──────────────────────
