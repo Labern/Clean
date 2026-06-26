@@ -665,18 +665,6 @@
       </button>
     </div>
 
-    <div id="secondary">
-      <button class="sec" id="shuffle-btn" onclick="toggleShuffle()">
-        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></span><span>Shuffle</span>
-      </button>
-      <button class="sec" id="like-btn" onclick="toggleLike()">
-        <span class="icon"></span><span>Like</span>
-      </button>
-      <button class="sec" onclick="showQueue()">
-        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 6h11v2H3zm0 5h11v2H3zm0 5h7v2H3zM16 9l5 3-5 3z"/></svg></span><span>Queue</span>
-      </button>
-    </div>
-
     <div id="search-bar">
       <button id="mic-btn" onclick="startDictation()" aria-label="Search by voice">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
@@ -689,6 +677,18 @@
              onkeydown="if(event.key==='Enter'){event.preventDefault();runSearch(this.value);}">
       <button id="search-clear" onclick="clearSearch()" aria-label="Clear search">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+
+    <div id="secondary">
+      <button class="sec" id="shuffle-btn" onclick="toggleShuffle()">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10.59 9.17 5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg></span><span>Shuffle</span>
+      </button>
+      <button class="sec" id="like-btn" onclick="toggleLike()">
+        <span class="icon"></span><span>Like</span>
+      </button>
+      <button class="sec" onclick="showQueue()">
+        <span class="icon"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 6h11v2H3zm0 5h11v2H3zm0 5h7v2H3zM16 9l5 3-5 3z"/></svg></span><span>Queue</span>
       </button>
     </div>
 
@@ -1727,11 +1727,17 @@ async function openPlaylist(id, uri) {
     renderPlaylistTracks(id, uri || '', tr);
   } catch(e) {
     if (e && e.status === 401) return;
-    const msg = (e && e.status === 403)
-      ? 'Can’t open this playlist (403). Spotify-curated playlists (Discover Weekly, Daily Mix, etc.) can’t be read via the API — but you can still tap its Quick-play tile to play it.'
-      : 'Couldn\'t load playlist (' + (e && e.status || 'err') + ': ' + (e && e.message || 'unknown') + ')';
+    // Spotify blocks reading the TRACKS of curated/algorithmic playlists (Discover Weekly,
+    // Daily Mix, Release Radar…) for newer apps → 403. It can still PLAY them, so don't
+    // dead-end: fall back to playing the playlist instead of showing an error.
+    if (e && e.status === 403 && uri) {
+      toast('Curated playlist — Spotify won’t list its songs, so playing it instead.');
+      playContext(uri);
+      return;
+    }
+    const msg = 'Couldn\'t load playlist (' + (e && e.status || 'err') + ': ' + (e && e.message || 'unknown') + ')';
     list.innerHTML = inlineErr(msg);
-    toast('Playlist: ' + (e && e.status === 403 ? 'curated playlist, can’t open' : (e && e.message || 'error')), true);
+    toast('Playlist: ' + (e && e.message || 'error'), true);
   }
 }
 function renderPlaylistTracks(id, uri, tr) {
