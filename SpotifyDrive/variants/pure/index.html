@@ -23,7 +23,6 @@
       --green2: #1ed760;
       --text:   #FFFFFF;
       --muted:  #aeb6c4;
-      --faint:  color-mix(in srgb, var(--muted) 74%, var(--bg));  /* secondary text — fades toward bg, auto-themes */
       --border: rgba(255,255,255,0.09);
       --active: #2f2e36;
       --track:  rgba(255,255,255,0.16);
@@ -129,7 +128,7 @@
     #now-playing {
       flex-shrink: 0; display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      padding: 10px 24px 2px; gap: 8px; text-align: center;
+      padding: 12px 24px 6px; gap: 8px; text-align: center;
     }
     #album-art {
       width: min(200px, 48vw); height: min(200px, 48vw);
@@ -140,26 +139,25 @@
     }
     #album-art.hidden { display: none; }
     #track-name {
-      font-family: var(--font-title);
-      font-size: clamp(1.85rem, 7.4vw, 2.6rem); font-weight: 700;
-      line-height: 1.08; letter-spacing: -0.015em; max-width: 96%; cursor: pointer;
+      font-size: clamp(1.5rem, 6.2vw, 2.15rem); font-weight: 800;
+      line-height: 1.14; letter-spacing: -0.02em; max-width: 94%; cursor: pointer;
       overflow-wrap: anywhere; word-break: break-word;
       display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
     }
     #track-name:active { color: var(--green); }
     #album-name {
-      font-size: clamp(1.05rem, 4.2vw, 1.4rem); font-weight: 500; color: var(--faint);
-      max-width: 100%; cursor: pointer; line-height: 1.2;
+      font-size: clamp(1.05rem, 4.2vw, 1.4rem); font-weight: 600; color: var(--muted);
+      max-width: 92%; cursor: pointer; line-height: 1.2;
       overflow-wrap: anywhere; word-break: break-word;
     }
     #album-name:empty { display: none; }
     #album-name:active { color: var(--green); }
-    #artist-name { font-size: clamp(1.1rem, 4.4vw, 1.5rem); font-weight: 500; color: var(--faint); cursor: pointer; }
+    #artist-name { font-size: clamp(1.1rem, 4.4vw, 1.5rem); font-weight: 500; color: var(--muted); cursor: pointer; }
     #artist-name:active { color: var(--green); }
     #progress-wrap {
       width: 100%; max-width: 420px; height: 12px;
       background: var(--track); border-radius: 999px; overflow: hidden;
-      margin-top: 10px; cursor: pointer;
+      margin-top: 16px; cursor: pointer;
       touch-action: none;                 /* we handle drag-to-scrub ourselves */
       transition: height 0.15s ease;
     }
@@ -215,7 +213,7 @@
     /* ── Big Controls ──────────────────────────────────────── */
     #controls {
       display: flex; align-items: center; justify-content: center;
-      gap: 16px; padding: 0 16px 6px; flex-shrink: 0;
+      gap: 16px; padding: 6px 16px; flex-shrink: 0;
     }
     .ctrl {
       border-radius: 50%; border: none;
@@ -555,7 +553,8 @@
       background-size:300% auto; -webkit-background-clip:text; background-clip:text;
       color:transparent; -webkit-text-fill-color:transparent;
       animation:paradoxShimmer 7s linear infinite; font-weight:700;
-      font-family:'Menlo','SF Mono','Consolas',monospace;  /* keep terminal mono — overrides --font-title */
+      font-family:var(--font-title);  /* PARADOX gets the new font (Bricolage Grotesque) */
+      font-size:clamp(1.85rem,7.4vw,2.6rem); letter-spacing:-0.015em; line-height:1.08;
     }
     @keyframes paradoxShimmer { to{background-position:300% center;} }
     /* gold play block + teal ring + pink→gold progress */
