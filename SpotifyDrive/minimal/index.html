@@ -625,37 +625,38 @@
     #app.paradox .stat-value { color:var(--green); }
 
     /* ════════════════ MINIMAL VARIANT ════════════════
-       Whole header → one icon (top-right); tap to slide a settings panel out horizontally.
-       Plus more top breathing room, bigger album type, tighter title→artist gap, bigger skips. */
+       The ORIGINAL header (#header-region = #mode-bar + #header, verbatim) is hidden by default
+       behind one top-right icon; tapping the icon slides the real header out exactly as it was.
+       Selecting an option, or the backdrop, slides it back. Plus more top breathing room, bigger
+       album type, tighter title→artist gap, bigger skip buttons. */
     #mini-toggle {
-      position: fixed; top: 14px; right: max(14px, calc(50vw - 215px + 14px)); z-index: 170;
+      position: fixed; top: 14px; right: max(14px, calc(50vw - 215px + 14px)); z-index: 180;
       width: 46px; height: 46px; border-radius: 50%;
       background: color-mix(in srgb, var(--bg3) 78%, transparent); color: var(--text);
       border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
       cursor: pointer; -webkit-backdrop-filter: blur(7px); backdrop-filter: blur(7px);
-      transition: transform 0.15s ease;
+      transition: opacity 0.2s ease, transform 0.15s ease;
     }
     #mini-toggle svg { width: 24px; height: 24px; }
     #mini-toggle:active { transform: scale(0.9); }
-    #main.menu-open #mini-toggle { background: var(--bg3); }
+    /* When the header is out, its own toggles take over the top-right — hide the summon icon. */
+    #main.menu-open #mini-toggle { opacity: 0; pointer-events: none; }
     #mini-backdrop {
       position: fixed; inset: 0; z-index: 150; background: rgba(0,0,0,0.4);
       opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
     }
     #main.menu-open #mini-backdrop { opacity: 1; pointer-events: auto; }
-    #mini-panel {
-      position: fixed; top: 0; bottom: 0; right: max(0px, calc(50vw - 215px)); z-index: 160;
-      width: min(300px, 86vw); box-sizing: border-box;
-      display: flex; flex-direction: column; gap: 16px;
-      padding: 70px 18px 20px; background: var(--bg); border-left: 1px solid var(--border);
-      box-shadow: -20px 0 55px rgba(0,0,0,0.5);
-      transform: translateX(110%); transition: transform 0.3s cubic-bezier(.4,0,.2,1);
+    /* The real header, untouched — just parked off-screen until summoned, then slid back in. */
+    #header-region {
+      position: fixed; top: 0; left: max(0px, calc(50vw - 215px)); z-index: 160;
+      width: min(430px, 100vw); box-sizing: border-box;
+      background: var(--bg); box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+      transform: translateX(110%); opacity: 0; pointer-events: none;
+      transition: transform 0.3s cubic-bezier(.4,0,.2,1), opacity 0.3s ease;
     }
-    #main.menu-open #mini-panel { transform: translateX(0); }
-    #mini-panel .mini-brand { font-size: 1.05rem; font-weight: 800; letter-spacing: -0.01em; }
-    #mini-panel #header { display: flex !important; align-items: center; gap: 10px; }
-    #mini-panel #mode-toggles { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-    #main.menu-open #to-top { display: none; }   /* don't float the back-to-top over the panel */
+    #main.menu-open #header-region { transform: translateX(0); opacity: 1; pointer-events: auto; }
+    #header-region #mode-bar { margin-bottom: 0; }   /* overlay now — no gap needed below the bar */
+    #main.menu-open #to-top { display: none; }   /* don't float the back-to-top over the header */
 
     /* Breathing room: just the icon up top, then space down to the album art. */
     #now-playing { padding-top: 60px; }
@@ -691,30 +692,35 @@
   <!-- ── Main UI ────────────────────────────────────────────── -->
   <div id="main" class="hidden">
 
-    <!-- Minimal: the whole header collapses into ONE icon (top-right); tap it to slide the panel out -->
-    <button id="mini-toggle" onclick="document.getElementById('main').classList.toggle('menu-open')" aria-label="Menu and settings">
+    <!-- Minimal: the ORIGINAL header (mode-bar + device header, verbatim) is hidden by default
+         behind one top-right icon. Tap the icon → it slides out exactly as it was. Selecting an
+         option (or tapping the backdrop) slides it back. -->
+    <button id="mini-toggle" onclick="document.getElementById('main').classList.toggle('menu-open')" aria-label="Show header">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
     <div id="mini-backdrop" onclick="document.getElementById('main').classList.remove('menu-open')"></div>
-    <div id="mini-panel">
-      <div id="brand" class="mini-brand">
-        <div class="brand-name">Spotify <span class="brand-accent">Drive</span></div>
-        <div class="brand-by">by Labern</div>
+    <div id="header-region">
+      <div id="mode-bar">
+        <div id="brand">
+          <div class="brand-name">Spotify <span class="brand-accent">Drive</span></div>
+          <div class="brand-by">by Labern</div>
+        </div>
+        <div id="mode-toggles">
+          <button id="paradox-toggle" onclick="document.getElementById('main').classList.remove('menu-open');toggleParadox()" aria-label="PARADOX theme">&#9733;</button>
+          <button id="theme-toggle" onclick="document.getElementById('main').classList.remove('menu-open');toggleTheme()" aria-label="Toggle light / dark"></button>
+          <button id="bmw-toggle" onclick="document.getElementById('main').classList.remove('menu-open');toggleBmw()">BMW Mode</button>
+        </div>
       </div>
+
       <div id="header">
         <div id="device-pill" onclick="document.getElementById('main').classList.remove('menu-open');openDevices()">
           <span id="device-icon"></span>
           <span id="device-label" class="label">Select device</span>
           <span class="caret">&#9662;</span>
         </div>
-        <button id="logout-btn" onclick="logout()" title="Disconnect" aria-label="Disconnect">
+        <button id="logout-btn" onclick="document.getElementById('main').classList.remove('menu-open');logout()" title="Disconnect" aria-label="Disconnect">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 3v9"/><path d="M6.6 6.6a8 8 0 1 0 10.8 0"/></svg>
         </button>
-      </div>
-      <div id="mode-toggles">
-        <button id="paradox-toggle" onclick="toggleParadox()" aria-label="PARADOX theme">&#9733;</button>
-        <button id="theme-toggle" onclick="toggleTheme()" aria-label="Toggle light / dark"></button>
-        <button id="bmw-toggle" onclick="toggleBmw()">BMW Mode</button>
       </div>
     </div>
 
