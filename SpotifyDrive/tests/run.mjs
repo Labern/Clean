@@ -190,6 +190,21 @@ function staticChecks() {
   for (const sc of ['user-read-playback-state', 'user-modify-playback-state']) {
     check(`scope present: ${sc}`, html.includes(sc));
   }
+  // Scope coverage: every privileged endpoint the app calls must have its OAuth scope in
+  // SCOPES. This is the assertion that would have caught the Like 403 without a live account
+  // — a mocked fetch always "succeeds", so only a static endpoint→scope map can catch a
+  // forgotten/insufficient scope. If we call the endpoint, we MUST request its scope.
+  const scopeNeeds = [
+    [/\/me\/tracks\?ids=/,                                       'user-library-modify',       'like / unlike'],
+    [/\/me\/tracks\/contains/,                                   'user-library-read',         'checkLiked'],
+    [/\/me\/player\/recently-played/,                            'user-read-recently-played', 'recently played'],
+    [/api\([`'"]\/me\/playlists/,                                'playlist-read-private',     'your playlists'],
+    [/\/me\/player\/(play|pause|next|previous|shuffle|seek|queue|repeat)/, 'user-modify-playback-state', 'playback control'],
+    [/\/me\/player['"`?]/,                                       'user-read-playback-state',  'read playback state'],
+  ];
+  for (const [pat, sc, label] of scopeNeeds) {
+    if (pat.test(html)) check(`scope coverage: "${label}" requires ${sc}`, html.includes(sc));
+  }
 
   // regression: playback errors must NOT be silently swallowed to console only
   check('no silent console.warn in playTrackUri',
@@ -999,6 +1014,27 @@ async function behaviourChecks() {
     app.queueResp({ status: 200 });
     await app.ctx.toggleLike(); await flush();
     check('toggleLike adds to Liked Songs (PUT /me/tracks)', !!app.fetchCalls.find(c => c.url.includes('/me/tracks?ids=tL') && c.method === 'PUT'));
+    check('toggleLike colours the like button on success', app.getEl('like-btn').classList.contains('liked'));
+  }
+  // 48b. A 403 on the like (missing/stale library-modify consent) reverts the button and
+  // triggers a ONE-TIME re-consent (clears the scope guard, sets the persisted like_reauth).
+  {
+    const app = load(); app.auth();
+    await withTrack(app, 'tF', false);
+    app.queueResp({ status: 403, body: { error: { status: 403, message: 'Insufficient client scope' } } });
+    await app.ctx.toggleLike(); await flush();
+    check('like 403 reverts the button (not left in liked state)', !app.getEl('like-btn').classList.contains('liked'));
+    check('like 403 arms one-time re-consent (like_reauth + scope_try cleared)',
+      app.ls.getItem('like_reauth') === '1' && app.ls.getItem('scope_try') === '');
+  }
+  // 48c. A second 403 after re-consent does NOT loop — it shows an honest message instead.
+  {
+    const app = load(); app.auth();
+    app.ls.setItem('like_reauth', '1');                         // already reconnected once
+    await withTrack(app, 'tF2', false);
+    app.queueResp({ status: 403, body: { error: { status: 403, message: 'Insufficient client scope' } } });
+    await app.ctx.toggleLike(); await flush();
+    check('like 403 after reconnect does not re-arm (no loop)', app.ls.getItem('scope_try') !== '' || app.ls.getItem('scope_try') === null);
   }
   {
     const app = load(); app.auth();

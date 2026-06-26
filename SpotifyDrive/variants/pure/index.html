@@ -249,7 +249,12 @@
     .sec .icon { display: flex; align-items: center; justify-content: center; }
     .sec .icon svg { width: 19px; height: 19px; }
     .sec.on { color: var(--green); border-color: var(--green); }
-    .sec.liked { color: var(--green); border-color: var(--green); }
+    .sec.liked {
+      color: var(--green); border-color: var(--green);
+      background: color-mix(in srgb, var(--green) 16%, transparent);   /* clearly coloured when liked */
+    }
+    .sec.just-liked { animation: likePop 0.45s ease; }
+    @keyframes likePop { 0% { transform: scale(1); } 35% { transform: scale(1.18); } 100% { transform: scale(1); } }
     .sec:active { background: var(--active); }
 
     /* ── Search Bar ────────────────────────────────────────── */
@@ -371,18 +376,19 @@
       animation: queuePop 0.32s ease;
     }
     @keyframes queuePop { 0% { transform: scale(0.92); } 55% { transform: scale(1.08); } 100% { transform: scale(1); } }
-    /* Per-row action stack (search results): "Album" + "+ Queue" */
+    /* Per-row action stack (search results): Artist · Album · Queue · Radio */
     .row-actions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; align-items: stretch; }
-    .row-actions .result-queue, .row-actions .result-album { width: 100%; justify-content: center; padding: 11px 14px; }
-    .result-album {
+    .row-actions .result-queue, .row-actions .result-album, .row-actions .result-artist-btn, .row-actions .result-radio { width: 100%; justify-content: center; padding: 11px 14px; }
+    .result-album, .result-artist-btn, .result-radio {
       flex-shrink: 0; background: none; border: 1px solid var(--border);
       color: var(--text); border-radius: 500px; padding: 11px 14px;
       font-size: 0.9rem; font-weight: 700; cursor: pointer; white-space: nowrap;
       display: flex; align-items: center; gap: 6px;
       transition: background 0.2s, transform 0.15s;
     }
-    .result-album svg { width: 18px; height: 18px; flex-shrink: 0; }
-    .result-album:active { background: var(--active); transform: scale(0.96); }
+    .result-album svg, .result-artist-btn svg, .result-radio svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .result-album:active, .result-artist-btn:active, .result-radio:active { background: var(--active); transform: scale(0.96); }
+    .result-radio { color: var(--green); border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }  /* experimental: subtle green for "discovery" */
     /* ── Stats and Facts (live drive stats above the browse list) ── */
     #stats { flex-shrink: 0; padding: 0 12px 2px; }
     .stat-grid { display: flex; gap: 12px; padding: 2px 0 8px; }
@@ -755,7 +761,7 @@ const SCOPES = [
 // Bump when SCOPES changes: existing users granted scopes ONCE at first connect,
 // and refresh tokens never pick up scopes added later — so a new scope needs a
 // fresh consent. missingScopes() drives a one-time auto-reconnect on load.
-const SCOPE_VER = 'v3-playlist';
+const SCOPE_VER = 'v4-library';
 function missingScopes() {
   const have = new Set((localStorage.getItem('granted_scope') || '').split(/\s+/).filter(Boolean));
   return SCOPES.split(' ').filter(s => !have.has(s));
@@ -934,6 +940,7 @@ const S = {
   playing: false, shuffle: false, liked: false,
   trackId: null, deviceId: null,
   progressMs: 0, durationMs: 0,
+  progressAt: 0,        // wall-clock (Date.now) when progressMs was last synced — drives drift-free interpolation
 };
 let pollTimer = null, tickTimer = null;
 // Tracks the track-ids WE added to the queue, so the LAST one can flow into its
@@ -1019,11 +1026,36 @@ async function toggleLike() {
   S.liked = !S.liked;
   renderLikeBtn();
   const method = S.liked ? 'PUT' : 'DELETE';
-  await api(`/me/tracks?ids=${S.trackId}`, method).catch(e => {
-    S.liked = !S.liked; renderLikeBtn(); // revert on error
+  try {
+    await api(`/me/tracks?ids=${S.trackId}`, method);
+    lsSet('like_reauth', '');                          // clear the recovery guard on any success
+    if (S.liked) flashLike();                          // visible coloured confirmation on success
+    toast(S.liked ? 'Added to Liked Songs' : 'Removed from Liked Songs');
+  } catch (e) {
+    S.liked = !S.liked; renderLikeBtn();               // revert on error
     if (e && e.status === 401) return;
-    toast('Couldn’t update Liked Songs.', true);
-  });
+    if (e && e.status === 403) {
+      // 403 on a library write == missing/stale user-library-modify consent. granted_scope
+      // can CLAIM the scope while the live token lacks it, so re-consent on the first 403
+      // regardless of what we think we have. Guarded to once (persisted) so it can't loop.
+      if (ls('like_reauth') !== '1') {
+        lsSet('like_reauth', '1');
+        lsSet('scope_try', '');                        // clear the one-time guard so re-consent fires
+        toast('Reconnecting to enable Liked Songs…', true);
+        setTimeout(authorize, 700);
+        return;
+      }
+      toast('Spotify still blocked the like (403) after reconnect.', true);
+      return;
+    }
+    toast('Couldn’t update Liked Songs (' + (e && e.status || '?') + ').', true);
+  }
+}
+// Brief coloured pop on the Like button when a like succeeds.
+function flashLike() {
+  const btn = $('like-btn'); if (!btn) return;
+  btn.classList.remove('just-liked'); void btn.offsetWidth; btn.classList.add('just-liked');
+  setTimeout(() => btn.classList.remove('just-liked'), 500);
 }
 
 // ── Device icon helper ────────────────────────────────────────────
@@ -1084,6 +1116,7 @@ async function fetchState() {
     S.playing     = d.is_playing;
     S.shuffle     = d.shuffle_state;
     S.progressMs  = d.progress_ms;
+    S.progressAt  = Date.now();           // anchor the server position to wall-clock for interpolation
     S.durationMs  = t.duration_ms;
     S.albumId     = t.album?.id || null;
     S.artistId    = t.artists?.[0]?.id || null;
@@ -1117,9 +1150,18 @@ function fmtTime(ms) {
   const s = Math.max(0, Math.floor((ms || 0) / 1000));
   return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
 }
+// Live playback position: the last synced server position + the REAL wall-clock time
+// elapsed since that sync (while playing). Drift-free, so the bar/clock can't fall 1–5s
+// behind the song the way a plain "+1000ms per setInterval tick" does.
+function livePos() {
+  let p = S.progressMs || 0;
+  if (S.playing && S.progressAt) p += Date.now() - S.progressAt;
+  return Math.max(0, Math.min(p, S.durationMs || p));
+}
 function renderProgress() {
   if (!S.durationMs) return;
-  const frac = Math.max(0, Math.min(1, S.progressMs / S.durationMs));
+  const cur = livePos();
+  const frac = Math.max(0, Math.min(1, cur / S.durationMs));
   $('progress-fill').style.width = (frac * 100) + '%';
   const ring = document.querySelector('#gauge-ring .fill');
   if (ring) {
@@ -1127,9 +1169,9 @@ function renderProgress() {
     ring.style.strokeDashoffset = RING_CIRC * (1 - frac);
   }
   const el = document.getElementById('time-elapsed');
-  if (el) el.textContent = fmtTime(S.progressMs);
+  if (el) el.textContent = fmtTime(cur);
   const rm = document.getElementById('time-remaining');
-  if (rm) rm.textContent = '-' + fmtTime(S.durationMs - S.progressMs);
+  if (rm) rm.textContent = '-' + fmtTime(S.durationMs - cur);
 }
 // On a NEW track, jump the bar/ring to the new position with NO transition so it doesn't
 // animate backwards ("rewind"); then restore transitions for the per-second ticks.
@@ -1146,9 +1188,13 @@ function snapProgress() {
 function tickProgress() {
   if (S.scrubbing) return;                 // don't fight the user's drag
   if (!S.playing || !S.durationMs) return;
-  S.progressMs = Math.min(S.progressMs + 1000, S.durationMs);
   $('progress-fill').style.transition = 'width 1s linear';
-  renderProgress();
+  renderProgress();                        // position is livePos() (wall-clock) — no drift, no lag
+  // Near the end → sync NOW so the next track shows instantly, not on the next poll.
+  if (S.durationMs - livePos() < 1200 && Date.now() - (S._endSync || 0) > 4000) {
+    S._endSync = Date.now();
+    fetchState();
+  }
 }
 async function checkLiked() {
   if (!S.trackId) return;
@@ -1162,7 +1208,7 @@ async function checkLiked() {
 function startPolling() {
   clearInterval(pollTimer); clearInterval(tickTimer);
   fetchState();
-  pollTimer = setInterval(fetchState, 5000);
+  pollTimer = setInterval(fetchState, 3000);
   tickTimer = setInterval(tickProgress, 1000);
 }
 
@@ -1343,11 +1389,40 @@ function renderResults(tracks) {
           <div class="result-artist" onclick="event.stopPropagation();openArtist('${esc(artistId)}')">${esc(t.artists.map(a => a.name).join(', '))}</div>
         </div>
         <div class="row-actions">
+          <button class="result-artist-btn" onclick="event.stopPropagation();openArtist('${esc(artistId)}')" aria-label="Go to artist"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-5 0-9 2.5-9 6v2h18v-2c0-3.5-4-6-9-6z"/></svg><span>Artist</span></button>
           <button class="result-album" onclick="event.stopPropagation();openAlbum('${esc(albumId)}')" aria-label="Go to album"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 3a9 9 0 100 18 9 9 0 000-18zm0 12.5a3.5 3.5 0 110-7 3.5 3.5 0 010 7zm0-2a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/></svg><span>Album</span></button>
           <button class="result-queue" onclick="event.stopPropagation();queueTrack(this, '${esc(t.uri)}')" aria-label="Add to queue">+ Queue</button>
+          <button class="result-radio" onclick="event.stopPropagation();startRadio('${esc(t.uri)}','${esc(t.id || '')}','${esc(artistId)}','${esc(t.name)}')" aria-label="Start radio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><path d="M7.8 7.8a6 6 0 000 8.4M16.2 7.8a6 6 0 010 8.4M5 5a10 10 0 000 14M19 5a10 10 0 010 14"/></svg><span>Radio</span></button>
         </div>
       </div>`;
   }).join('');
+}
+// Radio: play this track now, then build a station behind it. Spotify deprecated
+// /recommendations for new apps (same Nov-2024 cutoff that 403s our audio-features),
+// so we TRY it and fall back to the artist's top tracks — the button always does something.
+async function startRadio(seedUri, trackId, artistId, name) {
+  toast('Starting radio…');
+  try {
+    await ensureActiveDevice();
+    const dq = S.deviceId ? '?device_id=' + S.deviceId : '';
+    await api('/me/player/play' + dq, 'PUT', { uris: [seedUri] });   // seed plays now
+    let uris = [];
+    try {
+      const rec = await api('/recommendations?limit=10&seed_tracks=' + trackId);
+      uris = ((rec && rec.tracks) || []).map(x => x.uri);
+    } catch (_) { /* recommendations unavailable for this app → fall back */ }
+    const artistMix = !uris.length;
+    if (artistMix && artistId) {
+      const top = await api('/artists/' + artistId + '/top-tracks?market=from_token').catch(() => null);
+      uris = (((top && top.tracks) || []).map(x => x.uri)).filter(u => u !== seedUri);
+    }
+    for (const u of uris.slice(0, 10)) {
+      await api('/me/player/queue?uri=' + encodeURIComponent(u) + (S.deviceId ? '&device_id=' + S.deviceId : ''), 'POST').catch(() => {});
+    }
+    setTimeout(fetchState, 700);
+    if (uris.length) toast('Radio: ' + (name || 'station') + (artistMix ? ' (artist mix)' : ''));
+    else toast('Couldn’t build a radio station for this track.', true);
+  } catch (e) { handlePlaybackError(e, 'Radio'); }
 }
 function clearSearch() {
   const inp = $('search-input');
@@ -1589,14 +1664,14 @@ async function loadDashboard() {
     mergeRecentIntoLog(recent && recent.items);   // grow the plays-this-week log
     let html = '';
     const playlists = ((pls && pls.items) || []).filter(Boolean);
-    // Quick-play tiles: big one-tap buttons for your playlists (no searching while driving)
-    const presets = playlists.slice(0, 4);
-    if (presets.length) html += '<div class="dash-head">Quick play</div><div class="preset-grid">' + presets.map(presetTileHTML).join('') + '</div>';
     const seen = new Set();
     const recentTracks = ((recent && recent.items) || [])
       .map(i => i.track).filter(t => t && t.uri && !seen.has(t.uri) && seen.add(t.uri)).slice(0, 5);
     if (recentTracks.length) html += '<div class="dash-head">Recently played</div>' + recentTracks.map(trackRowHTML).join('');
-    if (playlists.length) html += '<div class="dash-head">Your playlists</div>' + playlists.map(playlistRowHTML).join('');
+    if (playlists.length) html += '<div class="dash-head">Your playlists</div><div class="preset-grid">' + playlists.map(playlistRowHTML).join('') + '</div>';
+    // Quick-play tiles: big one-tap buttons for your playlists — moved to the BOTTOM.
+    const presets = playlists.slice(0, 4);
+    if (presets.length) html += '<div class="dash-head">Quick play</div><div class="preset-grid">' + presets.map(presetTileHTML).join('') + '</div>';
     dashHTML = html || '<div class="hint">Search above to start playing.</div>';
   } catch(e) {
     if (e && e.status === 401) return;
@@ -1631,17 +1706,15 @@ function presetTileHTML(p) {
       <div class="preset-label">${esc(p.name)}</div>
     </div>`;
 }
+// Playlists render as SQUARE tiles (like Quick Play) but OPEN the playlist on tap
+// (no play overlay) instead of playing it.
 function playlistRowHTML(p) {
   const art = (p.images && p.images[0] && p.images[0].url) || '';
-  const sub = (p.tracks && p.tracks.total != null) ? p.tracks.total + ' tracks' : 'Playlist';
   return `
-      <div class="result-row" onclick="openPlaylist('${esc(p.id)}', '${esc(p.uri)}')">
-        <img class="result-art" src="${esc(art)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
-        <div class="result-meta">
-          <div class="result-track">${esc(p.name)}</div>
-          <div class="result-artist">${esc(sub)}</div>
-        </div>
-      </div>`;
+    <div class="preset-tile" onclick="openPlaylist('${esc(p.id)}', '${esc(p.uri)}')">
+      ${art ? `<img src="${esc(art)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}
+      <div class="preset-label">${esc(p.name)}</div>
+    </div>`;
 }
 // Open a playlist's tracks inline (row click); "Play all" button in the header plays the context.
 async function openPlaylist(id, uri) {
@@ -1708,7 +1781,7 @@ async function clearQueue() {
   if (!S.trackId) { toast('Nothing playing to clear around.', true); return; }
   const trackUri = 'spotify:track:' + S.trackId;
   const ctx = S.contextUri || (S.albumId ? 'spotify:album:' + S.albumId : null);
-  const pos = S.progressMs || 0;
+  const pos = livePos();   // resume at the true current position, not a stale anchor
   const dev = await ensureActiveDevice();
   const body = ctx ? { context_uri: ctx, offset: { uri: trackUri } } : { uris: [trackUri] };
   try {
@@ -1946,7 +2019,7 @@ function setupScrub() {
     if (!dragging) return;
     dragging = false; wrap.classList.remove('scrubbing');
     const ms = frac(x) * (S.durationMs || 0);
-    S.progressMs = ms;
+    S.progressMs = ms; S.progressAt = Date.now();   // re-anchor so interpolation continues from the new spot
     seekTo(ms);
     setTimeout(() => { S.scrubbing = false; }, 700);   // let the seek land before the tick resumes
   };
