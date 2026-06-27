@@ -1202,6 +1202,23 @@ async function behaviourChecks() {
     check('discover shows the surviving section and omits failed ones',
       /New releases/.test(dc) && !/Your top artists/.test(dc), dc.slice(0, 90));
   }
+
+  // R. Disconnect tolerance: a single blank /me/player poll must NOT flip to "Nothing playing"
+  {
+    const app = load(); app.auth();
+    const playing = { status: 200, body: { is_playing: true, progress_ms: 1000,
+      item: { id: 'x1', name: 'Held Song', duration_ms: 60000, artists: [{ name: 'A' }], album: { images: [{ url: 'art' }] } },
+      device: { id: 'd1', name: 'Phone', type: 'Smartphone' } } };
+    app.queueResp(playing); await app.ctx.fetchState(); await flush();        // establish a track (emptyPolls=0)
+    app.queueResp({ status: 200, body: {} }); await app.ctx.fetchState(); await flush();   // 1 blank
+    check('one blank /me/player poll holds the track (no disconnect)',
+      app.getEl('track-name').textContent === 'Held Song' && app.getEl('no-device').classList.contains('hidden'),
+      app.getEl('track-name').textContent);
+    for (let i = 0; i < 3; i++) { app.queueResp({ status: 200, body: {} }); await app.ctx.fetchState(); await flush(); }  // 3 more → 4 in a row
+    check('several consecutive blanks fall back to Nothing playing',
+      app.getEl('track-name').textContent === 'Nothing playing' && !app.getEl('no-device').classList.contains('hidden'),
+      app.getEl('track-name').textContent);
+  }
 }
 
 // ── run ──────────────────────────────────────────────────────────────

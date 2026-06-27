@@ -1299,14 +1299,22 @@ async function fetchState() {
   try {
     const d = await api('/me/player');
     if (!d || !d.item) {
-      $('track-name').textContent = 'Nothing playing';
-      $('album-name').textContent = '';
-      $('artist-name').textContent = '—';
-      $('album-art').classList.add('hidden');
-      $('beat').classList.add('hidden');
-      $('no-device').classList.remove('hidden');
+      // Spotify's /me/player flaps to empty/204 intermittently even MID-PLAYBACK (a backgrounded
+      // phone especially). A single blank poll is NOT a disconnect — hold the last-known track and
+      // only fall back to "Nothing playing" after several blanks in a row (~12s). This is the fix
+      // for "it disconnects every ~20 seconds" — the UI was flipping on every transient blank.
+      S.emptyPolls = (S.emptyPolls || 0) + 1;
+      if (S.emptyPolls >= 4) {
+        $('track-name').textContent = 'Nothing playing';
+        $('album-name').textContent = '';
+        $('artist-name').textContent = '—';
+        $('album-art').classList.add('hidden');
+        $('beat').classList.add('hidden');
+        $('no-device').classList.remove('hidden');
+      }
       return;
     }
+    S.emptyPolls = 0;
     $('no-device').classList.add('hidden');
 
     const t = d.item;

@@ -1,74 +1,70 @@
-# SpotifyDrive — v1 Retro & v2 Direction
+# SpotifyDrive — v1 Retro & v2 Brief
 
-Status: v1.0 tagged + frozen at `/SpotifyDrive/v1/`. v2 is a driving-first overhaul.
-Verdict from the first real drive (2026-06-26): **looks great, well thought-out, fundamentally
-unfit for purpose while driving.** This doc captures *why*, what to keep, and the v2 north-star.
+v1.0 tagged + frozen at `/SpotifyDrive/v1/`. v2 = driving-first overhaul on the same engine.
+Verdict from real drives: **looks great, fundamentally unfit for purpose while driving.**
+*"It wasn't working at 30mph, let alone 70. I couldn't see at a glance what I needed and I
+didn't even know how or if I could see what I needed: music."*
 
----
+## The one-line diagnosis
+v1 optimised for **impressive** (dense, rich, prettier than CarPlay). Driving needs
+**operable-without-looking**. The density that impressed on a desk is the exact thing that
+fails at speed. v2 inverts: **comically big, glanceable, one-tap, fixed.** Less, not more.
 
-## 0. The central flaw — the thesis was the bug
-v1's whole differentiator was **"more info, denser, richer than CarPlay's Spotify."** That's a
-great desk demo and a *liability at 70mph*. Driving wants the **opposite** of density: the fewer
-things on screen, the fewer glances, the better. The very things that impressed (information
-density, deep navigation, the discover pullover) are what make it unusable while moving.
+## What actually failed (from the driver — authoritative)
+1. **Disconnects every ~20s.** [BUG — root cause found + fixed.] `fetchState` polled
+   `GET /me/player` every 3s and flipped to "Nothing playing" on ANY empty/204 response;
+   Spotify flaps to 204 intermittently mid-playback (backgrounded phone). Fix: tolerance — hold
+   the last track through transient blanks, only disconnect after ~12s of consecutive blanks.
+   Shipped to the live app. (Verify on the next drive.)
+2. **Big play button is the right idea but still doesn't work** — needs to be far bigger / dead
+   simple; the ring/gauge framing and surrounding clutter dilute it.
+3. **Fonts look good parked, far too small driving.** Everything needs to be **comically big.**
+4. **Function over form. Huge targets + huge text, ~100% width.** Taking a hand off the wheel to
+   tap → the target must be enormous. Names (track / album / artist) must be **ridiculously big,
+   basically full-width.**
+5. **Strip non-driving features** — like button, per-row action clusters, etc. Cool, not useful
+   at the wheel.
+6. **THE KILLER FEATURE (biggest gap):** show recently-played **albums & playlists** like the
+   native app, and **one tap to start a new album/playlist playing instantly.** That — not search
+   — is the core loop. Search is fine for a long road trip, not a normal drive.
+7. **Glanceability failed.** Couldn't tell at a glance what's playing or how to change it. If you
+   have to *study* the screen, it's already failed.
 
-**v2 inverts the thesis:** glanceable, huge, eyes-free-first. Less, not more. The win over
-CarPlay is no longer "richer" — it's "you barely have to look."
+## Keep / Scrap
+- **KEEP — the engine:** PKCE auth + refresh, playback control, wall-clock progress, device
+  handling, album-continue/queue logic, `playContext()` (one-tap album play already exists!),
+  recently-played + playlists endpoints, themeable tokens, test harness, deploy pipeline.
+- **SCRAP — the surface:** the entire layout, discover pullover, slide-out header, dense search
+  rows, per-row clusters, like button, BPM, stats, album library/download (move to a non-driving
+  spot if kept at all). Small corner icons. Morphing layouts.
 
-## 1. Concrete failure-modes (designer's view — what I can infer from the build)
-1. **Reading required everywhere.** Track/album/artist text, multi-line search rows, the discover
-   pullover (a wall of tiles + labels), album track lists. Reading = eyes off road.
-2. **Small, precise targets.** Corner icons (i / discover / album), the slide-out header, the
-   stacked per-row Artist/Album/Queue actions, search rows. Driving = imprecise thumb + peripheral
-   vision only; these demand aimed taps.
-3. **Too many steps per task.** "Find/queue a song" = open panel → read → scroll → tap → maybe open
-   album → tap track. Every step is a glance. Core tasks must be ~1 action, 0–1 glances.
-4. **Hidden / morphing affordances.** Header hidden behind an icon; layout changes between
-   player / search / album / discover / header-out (art appears & disappears, controls shift). A
-   layout that moves forces you to look just to re-orient.
-5. **No working eyes-free path.** Voice/dictation was the intended hands-free route, but Web Speech
-   breaks in installed iOS PWAs — so there is no reliable eyes-free control. For driving, voice/
-   eyes-free isn't a feature, it's THE interface. This is the biggest single gap.
-6. **State ambiguity.** Several modes; at a glance you can't always tell where you are or what a tap
-   will do.
-7. **Confirmation glances.** Any doubt that a tap registered makes you look again.
+## THE primary action (everything else is secondary)
+**See the name of what's playing → pick the next thing.** That's the loop. NOT pause/play — when
+the user wants quiet they turn the *volume* down, not pause. So: a giant always-visible song name,
+and one-tap "play this next thing" from recent albums/playlists. Pause/play and skip exist but are
+NOT the headline; don't let them dominate the screen.
 
-## 2. What I CANNOT know — needs your lived input (the real ground truth)
-I built it; I didn't drive it. These reframe everything below:
-- **The task:** what were you actually trying to do when it failed — skip? pause? change the vibe?
-  find a specific song? discover something new? (Rank them by how often, in the car.)
-- **Failure type:** mostly **precision** (couldn't hit controls) or **cognition** (too much to
-  parse) or both?
-- **Worst moment:** the single screen/action that felt most dangerous or annoying.
-- **Look-budget:** how much do you want to look at the screen at all — vs. operate it blind / by
-  voice / by feel?
-- **Physical setup:** phone mounted? where, and how big is it in your field of view?
+## v2 v0 spec (build this)
+- **ONE screen, no modes.** Top half: the **giant song name** (+ artist) of what's playing —
+  comically big, ~100% width, auto-fitting. Bottom half: **"Pick next"** — your recent
+  **albums + playlists** as huge art-forward tiles, **one tap = play it now** (`playContext(uri)`).
+- **Controls are minimal + secondary.** Skip-next as a big zone; pause/play small (rarely used).
+  No like, no queue clutter, no shuffle front-and-centre.
+- **The glance test (the bar v2 must pass):** in <0.5s, eyes-forward-ish, you can (a) see what's
+  playing and (b) know how to change it. If a feature doesn't survive that test, it's not on the
+  driving screen.
+- **Fixed, non-morphing layout.** Same control, same place, always.
+- **Search:** one button, long-trips only. Not primary.
+- **Later:** eyes-free / voice layer once PWA speech is solved (native wrapper likely).
 
-## 3. Keep / Scrap / Rebuild (initial — will refine after your input)
-- **KEEP — the engine (solid, hard-won):** Spotify PKCE auth + token refresh, playback control,
-  wall-clock progress interpolation, device handling, the album-continue/queue logic, like/library
-  writes, the scope contract, themeable design tokens, the zero-dep test harness, the deploy
-  pipeline. None of this is the problem.
-- **SCRAP / RETHINK — the surface:** the visual layout, the discover pullover (reading-heavy), the
-  slide-out header, dense search rows, multi-step navigation, small corner icons.
-- **v2 = a new skin + a new interaction model on the same engine.** We are not rewriting the Spotify
-  plumbing; we're replacing how a human operates it while driving.
+## Process for v2
+- **No test suites while iterating** (user: "forget test suites as we develop next version; focus
+  on iterating"). Build → `node --check` for syntax → deploy → react. The engine's existing tests
+  stay green as a safety net, but we don't grow them per-change during the v2 surface rebuild.
 
-## 4. v2 north-star (driving-first principles)
-- **Eyes-free-first.** Voice and/or a few enormous fixed zones you can hit blind.
-- **Glanceable.** At most one word/number changes; no reading to operate.
-- **1 action per core task.** The 3 core tasks (play/pause, skip, "more / next vibe") reachable
-  without looking.
-- **Fixed, non-morphing layout.** The same control is always in the same place, every mode.
-- **Big, edge-anchored hit zones.** Thumb-reachable, findable in peripheral vision.
-- **Solve eyes-free input explicitly.** If Web Speech is dead in PWAs, name the real path: native
-  wrapper for proper speech? big preset buttons? a steering/hardware trigger? Don't hand-wave it.
-
-## 5. Open question for v2's shape (decide before building)
-Two broad directions (not mutually exclusive):
-- **A. Eyes-free / voice + gesture** — minimal screen; you talk or swipe big zones; screen is mostly
-  feedback. Highest ceiling, depends on solving voice.
-- **B. Giant-zone touch** — 2–4 full-screen-quadrant buttons; no text to read; everything is one
-  big blind-tappable target. Lower ceiling, but works today with zero new tech.
-
-Likely v2 = **B as the floor, A layered on top.** Confirm after the Section 2 answers.
+## Status
+- [x] v1 frozen + tagged; v2 branch + this brief.
+- [x] Disconnect bug fixed (engine) + tested + shipped to main.
+- [ ] Build HOME ("Jump back in", one-tap album/playlist play).
+- [ ] Build comically-big NOW PLAYING.
+- [ ] Strip the non-driving surface.
