@@ -753,9 +753,8 @@
     /* ════════════════ v2 — DRIVING-FIRST (giant name + one-tap pick-next) ════════════════
        Primary action: SEE the song name → PICK the next thing. Strip everything else off the
        home screen; comically big text + targets; one screen, no modes. */
-    /* Strip non-driving clutter — KEEP album art (the glance), big play, progress bar, artist, search. */
-    #now-playing #beat, #secondary, #stats, .section-divider, #credit,
-    #discover-toggle, #current-album-btn, #discover-panel, #discover-backdrop { display: none !important; }
+    /* Only stay-hidden: Like (you said cut it), the BPM beat pulse, the section divider. */
+    #now-playing #beat, #like-btn, .section-divider { display: none !important; }
     /* Now playing (home): big album art + big name + BIG play. */
     #main:not(.searching) #now-playing { padding: 16px 12px 4px; gap: 6px; }
     #main:not(.searching) #album-art {
@@ -2029,8 +2028,15 @@ async function loadDashboard() {
       .filter(a => a && a.uri && a.id && !seenA.has(a.id) && seenA.add(a.id))
       .slice(0, 24);
     const playlists = playlistItems.filter(Boolean).slice(0, 24);
+    // Recently-played TRACKS (deduped) — shown under the albums; tap a row to play that track.
+    const seenT = new Set();
+    const tracks = recentItems
+      .map(i => i.track)
+      .filter(t => t && t.uri && t.id && !seenT.has(t.id) && seenT.add(t.id))
+      .slice(0, 15);
     let html = '';
-    if (albums.length)    html += '<div class="dash-head">Recent albums &mdash; tap to play</div><div class="pick-grid">' + albums.map(pickTileHTML).join('') + '</div>';
+    if (albums.length)    html += '<div class="dash-head">Recent albums &mdash; tap to open</div><div class="pick-grid">' + albums.map(pickTileHTML).join('') + '</div>';
+    if (tracks.length)    html += '<div class="dash-head">Recently played</div>' + tracks.map(trackRowHTML).join('');
     if (playlists.length) html += '<div class="dash-head">Your playlists</div><div class="pick-grid">' + playlists.map(pickTileHTML).join('') + '</div>';
     dashHTML = html || '<div class="hint">Play something on Spotify once, then your albums show up here.</div>';
   } catch(e) {
@@ -2043,7 +2049,11 @@ async function loadDashboard() {
 // One tile for an album OR a playlist (both have images / uri / name). Tap = play it now.
 function pickTileHTML(x) {
   const art = ((x.images && (x.images[0] || x.images[1])) || {}).url || '';
-  return `<div class="pick-tile" onclick="playContext('${esc(x.uri)}')">${art ? `<img src="${esc(art)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}<div class="pick-label">${esc(x.name)}</div></div>`;
+  // Tap OPENS it (album/playlist view) so you can see + pick a track — don't blind-play.
+  const open = x.type === 'playlist'
+    ? `openPlaylist('${esc(x.id)}', '${esc(x.uri)}')`
+    : `openAlbum('${esc(x.id)}')`;
+  return `<div class="pick-tile" onclick="${open}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}<div class="pick-label">${esc(x.name)}</div></div>`;
 }
 // v2: search hides behind one button (top-left). Toggle it open/closed.
 function toggleSearch() {
