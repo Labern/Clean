@@ -754,7 +754,7 @@
        Primary action: SEE the song name → PICK the next thing. Strip everything else off the
        home screen; comically big text + targets; one screen, no modes. */
     /* Strip non-driving clutter — KEEP album art (the glance), big play, progress bar, artist, search. */
-    #now-playing #album-name, #now-playing #beat, #secondary, #stats, .section-divider, #credit,
+    #now-playing #beat, #secondary, #stats, .section-divider, #credit,
     #discover-toggle, #current-album-btn, #discover-panel, #discover-backdrop { display: none !important; }
     /* Now playing (home): big album art + big name + BIG play. */
     #main:not(.searching) #now-playing { padding: 16px 12px 4px; gap: 6px; }
@@ -767,6 +767,7 @@
       line-height: 1.05; letter-spacing: -0.02em; width: 100%; max-width: 100%; text-align: center;
       -webkit-line-clamp: 2;
     }
+    #main:not(.searching) #album-name { font-size: clamp(1.1rem, 4.6vw, 1.55rem); font-weight: 600; }
     #main:not(.searching) #artist-name { font-size: clamp(1.4rem, 6vw, 2.1rem); font-weight: 600; }
     /* Controls: BIG central play (dominant), big skips. */
     #main:not(.searching) #controls { margin-top: 6px; gap: 14px; padding: 4px 8px; }
