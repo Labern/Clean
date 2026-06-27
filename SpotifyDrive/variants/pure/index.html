@@ -1655,19 +1655,11 @@ function rowActionsHTML(t) {
 // doing nothing plays the whole album once through starting from this track. Used by the
 // album view's "play now" — the user cares deeply about album order/authenticity.
 async function playFromAlbum(uri, albumId) {
-  if (!albumId) return playTrackUri(uri, '');
-  await playTrackUri(uri, '');                 // play just this track → clean slate queue
-  try {
-    const al = await api('/albums/' + albumId);
-    const items = (al && al.tracks && al.tracks.items) || [];
-    const idx = items.findIndex(x => x && x.uri === uri);
-    if (idx < 0) return;
-    const rotation = items.slice(idx + 1).concat(items.slice(0, idx));   // X+1…N, then 1…X-1
-    if (uri) continuedAlbums.add(uri.split(':').pop());                  // suppress the empty-queue auto-continue
-    for (const nt of rotation.slice(0, 40)) {                           // bound: pathological 50-track comps
-      if (nt && nt.uri) await api('/me/player/queue?uri=' + encodeURIComponent(nt.uri) + (S.deviceId ? '&device_id=' + S.deviceId : ''), 'POST').catch(() => {});
-    }
-  } catch (e) { /* best-effort — the track still plays even if the queue fill fails */ }
+  // Tap a track in the album = PLAY THE ALBUM FROM THIS POINT: Spotify context playback with an
+  // offset plays X → end natively and the queue shows the rest of the album after this track.
+  // The ONLY thing that overrides this queue is an explicit "+ Queue" add (queueTrack), which
+  // just appends a song on top of the album context — exactly the user's one exception.
+  return playTrackUri(uri, albumId ? ('spotify:album:' + albumId) : '');
 }
 function clearSearch() {
   const inp = $('search-input');
