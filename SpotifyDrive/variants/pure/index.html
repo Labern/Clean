@@ -1999,18 +1999,35 @@ let dashHTML = '';
 // it now. This — not search — is the core driving loop (see the giant name above → tap a tile).
 async function loadDashboard() {
   try {
-    const [recent, pls] = await Promise.all([
-      api('/me/player/recently-played?limit=10').catch(() => null),
-      api('/me/playlists?limit=10').catch(() => null),
-    ]);
-    mergeRecentIntoLog(recent && recent.items);   // grow the plays-this-week log
+    // Recently-played caps at 10 TRACKS/call, which dedupe to just a few albums (you play whole
+    // albums). Walk back several pages via the `before` cursor to gather LOTS of distinct albums.
+    let recentItems = [];
+    let before = null;
+    for (let p = 0; p < 8 && recentItems.length < 80; p++) {
+      const page = await api('/me/player/recently-played?limit=10' + (before ? '&before=' + before : '')).catch(() => null);
+      const items = (page && page.items) || [];
+      if (!items.length) break;
+      recentItems = recentItems.concat(items);
+      before = page.cursors && page.cursors.before;
+      if (!before) break;
+    }
+    // Playlists — page a couple of times too so you get plenty, not just 10.
+    let playlistItems = [];
+    for (let off = 0; off < 30; off += 10) {
+      const page = await api('/me/playlists?limit=10&offset=' + off).catch(() => null);
+      const items = (page && page.items) || [];
+      if (!items.length) break;
+      playlistItems = playlistItems.concat(items);
+      if (items.length < 10) break;
+    }
+    mergeRecentIntoLog(recentItems);   // grow the plays-this-week log
     // Recent ALBUMS — dedupe recently-played tracks down to their albums.
     const seenA = new Set();
-    const albums = ((recent && recent.items) || [])
+    const albums = recentItems
       .map(i => i.track && i.track.album)
       .filter(a => a && a.uri && a.id && !seenA.has(a.id) && seenA.add(a.id))
-      .slice(0, 12);
-    const playlists = ((pls && pls.items) || []).filter(Boolean).slice(0, 12);
+      .slice(0, 24);
+    const playlists = playlistItems.filter(Boolean).slice(0, 24);
     let html = '';
     if (albums.length)    html += '<div class="dash-head">Recent albums &mdash; tap to play</div><div class="pick-grid">' + albums.map(pickTileHTML).join('') + '</div>';
     if (playlists.length) html += '<div class="dash-head">Your playlists</div><div class="pick-grid">' + playlists.map(pickTileHTML).join('') + '</div>';
