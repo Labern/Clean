@@ -1,0 +1,10 @@
+# Local Claude Code state (worktrees, local settings)
+.claude/
+
+# Nested git repositories with their own remotes — not tracked here
+# ClaudeUsageMonitor → github.com/Labern/usage
+ClaudeUsageMonitor/
+Legacy/
+
+# OS cruft
+.DS_Store
