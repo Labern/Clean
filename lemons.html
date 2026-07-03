@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lemon Counter</title>
+<style>
+  :root {
+    --r: #ff595e; --o: #ff924c; --y: #ffca3a;
+    --g: #8ac926; --b: #1982c4; --i: #6a4c93; --v: #b15ee3;
+    --gold: #ffec99;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: 100%; }
+  /* body must be free to grow with content — a fixed height leaves white
+     canvas below the fold (the gradient only paints the body box) */
+
+  body {
+    font-family: "Comic Sans MS", "Chalkboard SE", "Marker Felt", system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 5vh 5vw 12vh;
+    color: #222;
+    background: linear-gradient(
+      180deg,
+      var(--r) 0%, var(--o) 16%, var(--y) 33%, var(--g) 50%,
+      var(--b) 67%, var(--i) 84%, var(--v) 100%
+    );
+    background-attachment: fixed;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 8vw, 5rem);
+    line-height: 1.1;
+    color: #fff;
+    font-weight: 900;
+    text-shadow: 3px 3px 0 #6a4c93, -2px -2px 0 #ff595e, 0 0 18px rgba(0,0,0,0.25);
+    margin-bottom: 0.4rem;
+  }
+
+  .tagline {
+    color: #fff;
+    font-weight: 900;
+    font-size: clamp(1rem, 4vw, 1.5rem);
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.25);
+    margin-bottom: clamp(1rem, 4vw, 1.8rem);
+  }
+
+  .stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 860px;
+    gap: clamp(1rem, 4vw, 1.8rem);
+  }
+
+  /* ---- Speech bubble ---- */
+  .bubble {
+    position: relative;
+    background: rgba(255,255,255,0.97);
+    border: 5px solid #000000;
+    border-radius: 30px;
+    padding: clamp(1.4rem, 5vw, 2.2rem);
+    width: 100%;
+    max-width: 620px;
+    margin-bottom: clamp(2.2rem, 7vw, 3rem);
+    box-shadow: 0 16px 36px rgba(0,0,0,0.28);
+  }
+  .bubble::after {
+    content: "";
+    position: absolute;
+    bottom: -26px; left: 50%;
+    transform: translateX(-50%);
+    border-left: 24px solid transparent;
+    border-right: 24px solid transparent;
+    border-top: 28px solid #000000;
+  }
+  .bubble::before {
+    content: "";
+    position: absolute;
+    bottom: -17px; left: 50%;
+    transform: translateX(-50%);
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-top: 20px solid rgba(255,255,255,0.97);
+    z-index: 1;
+  }
+
+  .headline {
+    font-size: clamp(1.5rem, 6vw, 2.6rem);
+    line-height: 1.25;
+    font-weight: 900;
+    color: #1a1a1a;
+  }
+  .headline b {
+    display: inline-block;
+    color: #6a4c93;
+    text-shadow: 2px 2px 0 var(--gold);
+    animation: pop 2.6s ease-in-out infinite;
+  }
+  @keyframes pop {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.12) rotate(-2deg); }
+  }
+
+  .ticker {
+    margin-top: 0.8rem;
+    font-size: clamp(0.95rem, 3.6vw, 1.3rem);
+    font-weight: 800;
+    color: #5a3d86;
+    letter-spacing: 0.3px;
+  }
+  .ticker b {
+    display: inline-block;
+    min-width: 1.2em;
+    color: #1982c4;
+  }
+
+  /* Sol the lemon */
+  .sol {
+    width: clamp(140px, 38vw, 230px);
+    height: auto;
+    filter: drop-shadow(0 12px 18px rgba(0,0,0,0.35));
+    animation: bob 3s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0) rotate(-1deg); }
+    50%      { transform: translateY(-12px) rotate(1deg); }
+  }
+
+  /* ---- The counter itself ---- */
+  .counter-card {
+    width: 100%;
+    background: rgba(255,255,255,0.55);
+    border: 4px solid #fff;
+    border-radius: 26px;
+    padding: clamp(1rem, 4vw, 1.8rem);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.22);
+  }
+  .counter-title {
+    font-weight: 900;
+    color: #5a3d86;
+    font-size: clamp(1rem, 3.8vw, 1.35rem);
+    margin-bottom: clamp(0.7rem, 3vw, 1.1rem);
+  }
+  .lemons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(0.3rem, 1.6vw, 0.7rem);
+  }
+
+  .lemon {
+    font-size: clamp(2rem, 8.5vw, 3rem);
+    line-height: 1;
+    display: inline-block;
+    cursor: default;
+    animation: bob 3.4s ease-in-out infinite;
+    transition: transform 0.25s ease, filter 0.4s ease, opacity 0.4s ease;
+  }
+  .lemon svg {
+    width: 1.15em;
+    height: 1.15em;
+    display: block;
+    overflow: visible;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.22));
+  }
+  .lemon:hover { transform: scale(1.18) rotate(6deg); }
+
+  /* a day already gone — squeezed flat */
+  .lemon.done {
+    filter: grayscale(0.85);
+    opacity: 0.35;
+    animation: none;
+    transform: rotate(80deg) scale(1, 0.62);
+  }
+  .lemon.done:hover { transform: rotate(80deg) scale(1, 0.62); }
+
+  /* today's lemon — living on borrowed time */
+  .lemon.today {
+    animation: wobble 1.6s ease-in-out infinite;
+    filter: drop-shadow(0 0 14px var(--gold));
+  }
+  @keyframes wobble {
+    0%, 100% { transform: rotate(-7deg) scale(1.05); }
+    50%      { transform: rotate(7deg) scale(1.14); }
+  }
+
+  .lemon.squish { animation: squish 0.5s ease; }
+  @keyframes squish {
+    0%   { transform: scale(1, 1); }
+    40%  { transform: scale(1.3, 0.5); }
+    100% { transform: scale(1, 1); }
+  }
+
+  .legend {
+    margin-top: clamp(0.7rem, 3vw, 1rem);
+    font-weight: 800;
+    font-size: clamp(0.8rem, 3vw, 1rem);
+    color: #5a3d86;
+    opacity: 0.85;
+  }
+
+  /* ---- Squeeze button ---- */
+  .open-btn {
+    font-family: inherit;
+    display: inline-block;
+    text-decoration: none;
+    font-weight: 900;
+    font-size: clamp(1.1rem, 4.5vw, 1.6rem);
+    color: #6a4c93;
+    background: #fffdf5;
+    border: 4px solid #fff;
+    border-radius: 999px;
+    padding: 0.7em 1.4em;
+    cursor: pointer;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.18), 0 12px 24px rgba(0,0,0,0.22);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .open-btn:hover { transform: translateY(-2px); }
+  .open-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 4px 0 rgba(0,0,0,0.18), 0 6px 12px rgba(0,0,0,0.22);
+  }
+  .open-btn small {
+    display: block;
+    font-size: 0.62em;
+    font-weight: 800;
+    opacity: 0.75;
+  }
+
+  /* ---- Meeting date banner ---- */
+  .date-pill {
+    font-weight: 900;
+    font-size: clamp(1rem, 4vw, 1.4rem);
+    color: #6a4c93;
+    background: #fffdf5;
+    border: 4px solid #fff;
+    border-radius: 999px;
+    padding: 0.6em 1.4em;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.18), 0 12px 24px rgba(0,0,0,0.22);
+  }
+  .date-pill span { color: #ff595e; }
+
+  /* ---- Floating sparkles ---- */
+  .spark {
+    position: fixed;
+    font-size: clamp(0.9rem, 3vw, 1.4rem);
+    pointer-events: none;
+    animation: twinkle 4s ease-in-out infinite;
+    z-index: 0;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.15; transform: translateY(0) scale(0.9); }
+    50%      { opacity: 0.9;  transform: translateY(-14px) scale(1.15); }
+  }
+
+  /* ---- Meeting-day rain ---- */
+  .rain {
+    position: fixed;
+    top: -8vh;
+    font-size: clamp(1.4rem, 5vw, 2.4rem);
+    pointer-events: none;
+    animation: fall linear forwards;
+    z-index: 2;
+  }
+  @keyframes fall {
+    to { transform: translateY(115vh) rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+  <h1>Lemon Counter</h1>
+  <div class="tagline">🍋 one lemon squeezed every sunrise until the lemon and the girl meet 🍋</div>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <radialGradient id="lemonGrad" cx="38%" cy="34%" r="75%">
+        <stop offset="0%" stop-color="#fff9c4"/>
+        <stop offset="45%" stop-color="#ffe14d"/>
+        <stop offset="100%" stop-color="#f2b705"/>
+      </radialGradient>
+      <g id="lemonShape">
+        <g transform="rotate(-18 60 62)">
+          <ellipse cx="24" cy="62" rx="7" ry="5.5" fill="#f2b705"/>
+          <ellipse cx="96" cy="62" rx="7" ry="5.5" fill="#f2b705"/>
+          <ellipse cx="60" cy="62" rx="38" ry="29" fill="url(#lemonGrad)" stroke="#d99a00" stroke-width="2.5"/>
+          <ellipse cx="46" cy="50" rx="12" ry="7" fill="#ffffff" opacity="0.38" transform="rotate(-14 46 50)"/>
+          <path d="M 92 40 Q 99 28 112 26 Q 108 40 96 44 Z" fill="#8ac926" stroke="#5f9718" stroke-width="2"/>
+          <path d="M 90 44 Q 93 38 97 35" fill="none" stroke="#7a5230" stroke-width="3" stroke-linecap="round"/>
+        </g>
+      </g>
+    </defs>
+  </svg>
+
+  <div class="stage">
+    <div class="bubble">
+      <div class="headline" id="headline">&hellip;</div>
+      <div class="ticker" id="ticker"></div>
+    </div>
+
+    <img class="sol" src="sol-lemon.png" alt="Sol the lemon" />
+
+    <a class="open-btn" id="squeezeBtn" href="#" target="_blank" rel="noopener">🍋 Squeeze the lemon<small>sends Sol a WhatsApp with the days left</small></a>
+
+    <div class="counter-card">
+      <div class="counter-title" id="counterTitle">The counter</div>
+      <div class="lemons" id="lemons"></div>
+      <div class="legend">a bright lemon = a day still to go &middot; a squeezed lemon = a day done ✨</div>
+    </div>
+
+    <div class="date-pill"><span>Tuesday 21 July</span> &middot; around 6pm 💛</div>
+  </div>
+
+<script>
+  // The day — 21 July, meeting around 6pm.
+  const MEETING_DAY = new Date(2026, 6, 21);        // months are 0-indexed: 6 = July
+  const MEETING = new Date(2026, 6, 21, 18, 0, 0);  // ~6pm — what the ticker counts to
+  const COUNTER_BORN = new Date(2026, 6, 3);        // the day the counter started
+  const DAY = 86400000;
+
+  const WA_NUMBER = '447476897931'; // Labern — same number Combray's openWhatsApp uses
+
+  const headlineEl = document.getElementById('headline');
+  const squeezeBtn = document.getElementById('squeezeBtn');
+  const tickerEl = document.getElementById('ticker');
+  const lemonsEl = document.getElementById('lemons');
+  const counterTitleEl = document.getElementById('counterTitle');
+
+  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const daysLeft = () => Math.round((MEETING_DAY - startOfDay(new Date())) / DAY);
+  const totalDays = Math.round((MEETING_DAY - COUNTER_BORN) / DAY); // 18
+
+  const niceDate = d => d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+
+  let renderedFor = -1;
+
+  function buildLemons(left) {
+    lemonsEl.innerHTML = '';
+    for (let i = 0; i < totalDays; i++) {
+      const s = document.createElement('span');
+      const dayDate = new Date(COUNTER_BORN.getTime() + i * DAY);
+      const gone = i < totalDays - left;
+      s.className = 'lemon' + (gone ? ' done' : '');
+      if (!gone && i === totalDays - left) s.classList.add('today');
+      s.innerHTML = '<svg viewBox="0 0 120 120"><use href="#lemonShape"/></svg>';
+      s.title = niceDate(dayDate) + (gone ? ' — squeezed!' : (i === totalDays - left ? ' — today!' : ''));
+      s.style.animationDelay = (i * 0.18) + 's';
+      s.addEventListener('click', () => {
+        s.classList.remove('squish'); void s.offsetWidth; s.classList.add('squish');
+      });
+      lemonsEl.appendChild(s);
+    }
+  }
+
+  function celebrate(now) {
+    headlineEl.innerHTML = 'IT&rsquo;S TODAY!! 💛';
+    if (now < MEETING) {
+      const ms = MEETING - now;
+      const h = Math.floor(ms / 3600000);
+      const m = Math.floor((ms % 3600000) / 60000);
+      const s = Math.floor((ms % 60000) / 1000);
+      tickerEl.innerHTML = '<b>' + h + '</b> hrs &middot; <b>' + m + '</b> min &middot; <b>' +
+        s + '</b> sec until the lemon and the girl meet 🍋💛';
+    } else {
+      tickerEl.textContent = 'the lemon and the girl, together right now 🍋💛';
+    }
+    counterTitleEl.textContent = 'Every lemon squeezed. The counter is complete.';
+    document.querySelectorAll('.lemon').forEach(l => l.classList.add('done'));
+    // lemon rain
+    if (!document.querySelector('.rain')) {
+      for (let i = 0; i < 26; i++) {
+        const r = document.createElement('span');
+        r.className = 'rain';
+        r.textContent = Math.random() < 0.8 ? '🍋' : '💛';
+        r.style.left = Math.random() * 100 + 'vw';
+        r.style.animationDuration = (3.5 + Math.random() * 4) + 's';
+        r.style.animationDelay = (Math.random() * 5) + 's';
+        document.body.appendChild(r);
+      }
+    }
+  }
+
+  function tick() {
+    const now = new Date();
+    const left = daysLeft();
+
+    const waMsg = left <= 0
+      ? "🍋 IT'S TODAY!!"
+      : '🍋 ' + left + (left === 1 ? ' day' : ' days') + ' to go!';
+    squeezeBtn.href = 'https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(waMsg);
+
+    if (left !== renderedFor) {
+      renderedFor = left;
+      if (left > 0) buildLemons(left);
+    }
+
+    if (left <= 0) {
+      if (startOfDay(now) - MEETING_DAY >= DAY) {
+        headlineEl.innerHTML = 'They met 💛';
+        tickerEl.textContent = 'The Lemon Counter did its job. ' + niceDate(MEETING_DAY) + ', forever.';
+        counterTitleEl.textContent = 'Every lemon squeezed.';
+        document.querySelectorAll('.lemon').forEach(l => l.classList.add('done'));
+      } else {
+        celebrate(now);
+      }
+      return;
+    }
+
+    headlineEl.innerHTML =
+      '<b>' + left + '</b> lemon' + (left === 1 ? '' : 's') + ' until the lemon and the girl meet!';
+
+    const ms = MEETING - now;
+    const d = Math.floor(ms / DAY);
+    const h = Math.floor((ms % DAY) / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    tickerEl.innerHTML =
+      '<b>' + d + '</b> days &middot; <b>' + h + '</b> hrs &middot; <b>' +
+      m + '</b> min &middot; <b>' + s + '</b> sec to go';
+
+    counterTitleEl.textContent =
+      'The counter — ' + (totalDays - left) + ' squeezed, ' + left + ' to go';
+  }
+
+  // gentle fixed sparkles around the page
+  const SPOTS = [[6,18],[90,12],[12,68],[86,74],[48,6],[70,40],[26,38],[60,86]];
+  SPOTS.forEach(([x, y], i) => {
+    const sp = document.createElement('span');
+    sp.className = 'spark';
+    sp.textContent = i % 2 ? '✨' : '⭐';
+    sp.style.left = x + 'vw';
+    sp.style.top = y + 'vh';
+    sp.style.animationDelay = (i * 0.6) + 's';
+    document.body.appendChild(sp);
+  });
+
+  tick();
+  setInterval(tick, 1000);
+</script>
+</body>
+</html>
