@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quotes</title>
+<style>
+  :root {
+    --r: #ff595e; --o: #ff924c; --y: #ffca3a;
+    --g: #8ac926; --b: #1982c4; --i: #6a4c93; --v: #b15ee3;
+    --gold: #ffec99;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { height: 100%; }
+  /* body must be free to grow with content — a fixed height leaves white
+     canvas below the fold (the gradient only paints the body box) */
+
+  body {
+    font-family: "Comic Sans MS", "Chalkboard SE", "Marker Felt", system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 5vh 5vw 12vh;
+    color: #222;
+    background: linear-gradient(
+      180deg,
+      var(--r) 0%, var(--o) 16%, var(--y) 33%, var(--g) 50%,
+      var(--b) 67%, var(--i) 84%, var(--v) 100%
+    );
+    background-attachment: fixed;
+    overflow-x: hidden;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 8vw, 5rem);
+    line-height: 1.1;
+    color: #fff;
+    font-weight: 900;
+    text-shadow: 3px 3px 0 #6a4c93, -2px -2px 0 #ff595e, 0 0 18px rgba(0,0,0,0.25);
+    margin-bottom: 0.4rem;
+  }
+
+  .tagline {
+    color: #fff;
+    font-weight: 900;
+    font-size: clamp(1rem, 4vw, 1.5rem);
+    text-shadow: 2px 2px 0 rgba(0,0,0,0.25);
+    margin-bottom: 0.7rem;
+  }
+
+  .stats {
+    color: #fff;
+    font-weight: 900;
+    font-size: clamp(0.85rem, 3.4vw, 1.15rem);
+    background: rgba(0,0,0,0.22);
+    border-radius: 999px;
+    padding: 0.45em 1.2em;
+    margin-bottom: clamp(1rem, 4vw, 1.6rem);
+    text-shadow: 1px 1px 0 rgba(0,0,0,0.3);
+  }
+  .stats b { color: var(--gold); }
+
+  .stage {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 860px;
+    gap: clamp(1rem, 4vw, 1.6rem);
+  }
+
+  /* ---- flavour selector ---- */
+  .flavours {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: clamp(0.4rem, 2vw, 0.7rem);
+  }
+  .chip {
+    font-family: inherit;
+    font-weight: 900;
+    font-size: clamp(0.85rem, 3.4vw, 1.1rem);
+    color: #6a4c93;
+    background: rgba(255,253,245,0.82);
+    border: 3px solid #fff;
+    border-radius: 999px;
+    padding: 0.45em 1em;
+    cursor: pointer;
+    box-shadow: 0 5px 0 rgba(0,0,0,0.15);
+    transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .chip:hover { transform: translateY(-2px); }
+  .chip.on {
+    background: #6a4c93;
+    color: #fff;
+    border-color: var(--gold);
+    box-shadow: 0 5px 0 rgba(0,0,0,0.25), 0 0 16px rgba(255,236,153,0.55);
+  }
+
+  .chip.small {
+    font-size: clamp(0.75rem, 3vw, 0.95rem);
+    padding: 0.4em 0.9em;
+    opacity: 0.9;
+  }
+
+  /* ---- Speech bubble (the quote) ---- */
+  .bubble {
+    position: relative;
+    background: rgba(255,255,255,0.97);
+    border: 5px solid #000000;
+    border-radius: 30px;
+    padding: clamp(1.3rem, 4.5vw, 2rem);
+    width: 100%;
+    max-width: 640px;
+    margin-bottom: clamp(1.8rem, 6vw, 2.6rem);
+    box-shadow: 0 16px 36px rgba(0,0,0,0.28);
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.7rem;
+  }
+  .bubble::after {
+    content: "";
+    position: absolute;
+    bottom: -26px; left: 50%;
+    transform: translateX(-50%);
+    border-left: 24px solid transparent;
+    border-right: 24px solid transparent;
+    border-top: 28px solid #000000;
+  }
+  .bubble::before {
+    content: "";
+    position: absolute;
+    bottom: -17px; left: 50%;
+    transform: translateX(-50%);
+    border-left: 16px solid transparent;
+    border-right: 16px solid transparent;
+    border-top: 20px solid rgba(255,255,255,0.97);
+    z-index: 1;
+  }
+
+  .quote-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  .quote-wrap.fade { opacity: 0; transform: scale(0.96); }
+
+  .msg {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    max-width: 100%;
+  }
+  .msg .avatar {
+    font-size: clamp(1.3rem, 5vw, 1.8rem);
+    line-height: 1;
+    flex: 0 0 auto;
+    filter: drop-shadow(0 2px 3px rgba(0,0,0,0.25));
+  }
+  .msg .txt {
+    text-align: left;
+    font-weight: 800;
+    font-size: clamp(1rem, 3.9vw, 1.35rem);
+    line-height: 1.3;
+    padding: 0.55em 0.85em;
+    border-radius: 18px;
+    border: 3px solid #000;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+    word-break: break-word;
+  }
+  .msg.lemon .txt {
+    background: #fff3b0;
+    color: #5a4a00;
+    border-bottom-left-radius: 4px;
+  }
+  .msg.girl {
+    flex-direction: row-reverse;
+    align-self: flex-end;
+  }
+  .msg.girl .txt {
+    background: #e8d7ff;
+    color: #3d2a63;
+    border-bottom-right-radius: 4px;
+    text-align: right;
+  }
+
+  .who-legend {
+    font-weight: 900;
+    font-size: clamp(0.75rem, 2.8vw, 0.95rem);
+    color: #5a3d86;
+    opacity: 0.8;
+  }
+  .when {
+    font-weight: 900;
+    font-size: clamp(0.8rem, 3vw, 1rem);
+    color: #1982c4;
+  }
+  .cat-tag {
+    position: absolute;
+    top: -16px; right: 18px;
+    background: var(--gold);
+    color: #6a4c93;
+    border: 3px solid #000;
+    border-radius: 999px;
+    font-weight: 900;
+    font-size: clamp(0.7rem, 2.8vw, 0.9rem);
+    padding: 0.2em 0.8em;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transform: rotate(3deg);
+  }
+
+  /* Sol the lemon */
+  .sol {
+    width: clamp(120px, 30vw, 190px);
+    height: auto;
+    filter: drop-shadow(0 12px 18px rgba(0,0,0,0.35));
+    animation: bob 3s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0) rotate(-1deg); }
+    50%      { transform: translateY(-12px) rotate(1deg); }
+  }
+
+  /* ---- buttons ---- */
+  .open-btn {
+    font-family: inherit;
+    display: inline-block;
+    text-decoration: none;
+    font-weight: 900;
+    font-size: clamp(1.1rem, 4.5vw, 1.6rem);
+    color: #6a4c93;
+    background: #fffdf5;
+    border: 4px solid #fff;
+    border-radius: 999px;
+    padding: 0.7em 1.4em;
+    cursor: pointer;
+    box-shadow: 0 8px 0 rgba(0,0,0,0.18), 0 12px 24px rgba(0,0,0,0.22);
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .open-btn:hover { transform: translateY(-2px); }
+  .open-btn:active {
+    transform: translateY(4px);
+    box-shadow: 0 4px 0 rgba(0,0,0,0.18), 0 6px 12px rgba(0,0,0,0.22);
+  }
+
+  /* a word she spelled her own way — it sparkles, subtly */
+  .sp {
+    font-style: normal;
+    position: relative;
+    background: linear-gradient(90deg, #b8860b, #e6b400, #b8860b);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: shimmer 2.6s linear infinite;
+  }
+  .sp::after {
+    content: "✨";
+    font-size: 0.55em;
+    position: absolute;
+    top: -0.5em; right: -0.7em;
+    -webkit-text-fill-color: initial;
+    opacity: 0.75;
+    animation: twinkle 2.6s ease-in-out infinite;
+  }
+  @keyframes shimmer {
+    to { background-position: -200% 0; }
+  }
+
+  /* ---- Floating sparkles + lemons ---- */
+  .spark {
+    position: fixed;
+    font-size: clamp(0.9rem, 3vw, 1.4rem);
+    pointer-events: none;
+    animation: twinkle 4s ease-in-out infinite;
+    z-index: 0;
+  }
+  @keyframes twinkle {
+    0%, 100% { opacity: 0.15; transform: translateY(0) scale(0.9); }
+    50%      { opacity: 0.9;  transform: translateY(-14px) scale(1.15); }
+  }
+</style>
+</head>
+<body>
+  <h1>Quotes</h1>
+  <div class="tagline">🍋 things the lemon and the girl actually said 🌙</div>
+  <div class="stats"><b>26,972</b> messages &middot; <b>150,312</b> words &middot; in 10 days</div>
+
+  <div class="stage">
+    <div class="flavours" id="flavours">
+      <button class="chip on" data-cat="all">🍹 All</button>
+      <button class="chip" data-cat="funny">😂 Funny</button>
+      <button class="chip" data-cat="insane">🌀 Insane</button>
+      <button class="chip" data-cat="romantic">💛 Romantic</button>
+      <button class="chip" data-cat="unhinged">🔥 Unhinged</button>
+    </div>
+
+    <div class="flavours" id="tagFilters">
+      <button class="chip small on" data-tag="all">✨ All moments</button>
+      <button class="chip small" data-tag="he-loved-her">🍋 he loved her</button>
+      <button class="chip small" data-tag="she-loved-him">🌙 she loved him</button>
+    </div>
+
+    <div class="bubble">
+      <div class="cat-tag" id="catTag">🍋</div>
+      <div class="quote-wrap" id="quoteWrap"></div>
+      <div class="when" id="when"></div>
+    </div>
+
+    <div class="who-legend">🍋 the lemon &nbsp;&middot;&nbsp; 🌙 the girl</div>
+
+    <button class="open-btn" id="newBtn">🍋 Show new quote</button>
+
+    <img class="sol" src="sol-lemon.png" alt="Sol the lemon" />
+
+    <a class="open-btn" id="thinkBtn"
+       href="https://wa.me/447476897931?text=I%27m%20thinking%20of%20you"
+       target="_blank" rel="noopener">💛 Let them know you're thinking of them</a>
+  </div>
+
+<script>
+  const QUOTES = [{"cat": "romantic", "when": "28 June · 16:27", "msgs": [{"who": "girl", "text": "No I like you at exactly the same rate and quantity as you like me"}, {"who": "girl", "text": "Trust me"}], "tags": ["she-loved-him"]}, {"cat": "romantic", "when": "26 June · 07:27", "msgs": [{"who": "lemon", "text": "im lookint fwd to thr weekend", "hl": "im <em class=\"sp\">lookint<\/em> fwd to thr weekend"}, {"who": "lemon", "text": "so i can stay up laye", "hl": "so i can stay up <em class=\"sp\">laye<\/em>"}, {"who": "lemon", "text": "and text u"}], "tags": ["he-loved-her"]}, {"cat": "unhinged", "when": "26 June · 17:57", "msgs": [{"who": "lemon", "text": "if i stared through ur windows in the middle of the night to waych u make a cup of tea im sure u would Clall the Police", "hl": "if i stared through ur windows in the middle of the night to <em class=\"sp\">waych<\/em> u make a cup of tea im sure u would Clall the Police"}]}, {"cat": "insane", "when": "1 July · 12:46", "msgs": [{"who": "girl", "text": "The reason you like rabbit holes is because you are a rabbit not a human"}, {"who": "girl", "text": "That’s why you’re small and fit into small places"}, {"who": "lemon", "text": "HELLO"}]}, {"cat": "unhinged", "when": "25 June · 00:59", "msgs": [{"who": "lemon", "text": "can i euthanise u or is that cheating", "hl": "can i <em class=\"sp\">euthanise<\/em> u or is that cheating"}, {"who": "girl", "text": "All murder is euthanasia"}, {"who": "girl", "text": "Technically"}]}, {"cat": "romantic", "when": "25 June · 10:36", "msgs": [{"who": "lemon", "text": "something Bad is happening"}, {"who": "lemon", "text": "i lowkey miss u"}, {"who": "lemon", "text": "weird"}], "tags": ["he-loved-her"]}, {"cat": "romantic", "when": "29 June · 00:00", "msgs": [{"who": "lemon", "text": "i am no longer emotionally available to the Masses"}, {"who": "lemon", "text": "hahhahahah", "hl": "<em class=\"sp\">hahhahahah<\/em>"}, {"who": "girl", "text": "I am spiritually unavailable"}], "tags": ["he-loved-her", "she-loved-him"]}, {"cat": "funny", "when": "27 June · 16:36", "msgs": [{"who": "girl", "text": "What the fuck"}, {"who": "girl", "text": "Okay blocked"}, {"who": "lemon", "text": "i didnt know cocaine is in cans", "hl": "i <em class=\"sp\">didnt<\/em> know cocaine is in cans"}]}, {"cat": "romantic", "when": "24 June · 22:51", "msgs": [{"who": "lemon", "text": "everyone else is hqvingfun and i trick them into thinking in extroverted", "hl": "everyone else is <em class=\"sp\">hqvingfun<\/em> and i trick them into thinking in extroverted"}, {"who": "lemon", "text": "but. i love bei g alone"}, {"who": "lemon", "text": "except i love talking to u these days"}], "tags": ["he-loved-her"]}, {"cat": "unhinged", "when": "1 July · 21:14", "msgs": [{"who": "girl", "text": "If you were in a wheelchair I’d throw you down the stairs to end your suffering"}, {"who": "lemon", "text": "thank you"}, {"who": "lemon", "text": "i would appreciate that"}]}, {"cat": "insane", "when": "26 June · 20:13", "msgs": [{"who": "lemon", "text": "I KNEW IT"}, {"who": "lemon", "text": "I AM LITERALLY"}, {"who": "lemon", "text": "A GOD"}]}, {"cat": "unhinged", "when": "28 June · 01:21", "msgs": [{"who": "girl", "text": "Go fuck urself"}, {"who": "lemon", "text": "i hope u sleep very well"}, {"who": "girl", "text": "Sleep well Michael fucking Jackson"}]}, {"cat": "insane", "when": "28 June · 19:11", "msgs": [{"who": "girl", "text": "I like to pass people by and then they wonder if I’m real"}, {"who": "girl", "text": "So this was the only way it would ever have happened"}, {"who": "girl", "text": "In short destiny"}]}, {"cat": "funny", "when": "25 June · 14:10", "msgs": [{"who": "girl", "text": "You are insane"}, {"who": "lemon", "text": "insanely reasonable"}, {"who": "girl", "text": "reasonably insane"}]}, {"cat": "insane", "when": "30 June · 02:10", "msgs": [{"who": "girl", "text": "I already made like 17 apps while you slept my productivity is way up"}]}, {"cat": "insane", "when": "24 June · 20:58", "msgs": [{"who": "lemon", "text": "i am not the sum of the internet"}, {"who": "girl", "text": "No I mean I designed you"}, {"who": "girl", "text": "You just have sentience because I gave it to you"}]}, {"cat": "funny", "when": "24 June · 20:23", "msgs": [{"who": "girl", "text": "Like what do you want from me"}, {"who": "lemon", "text": "☹️"}, {"who": "lemon", "text": "a hug"}]}, {"cat": "insane", "when": "29 June · 12:47", "msgs": [{"who": "girl", "text": "There’s something disturbing about anyone doing anything before I wake up"}, {"who": "girl", "text": "Like how dare any of you do anything"}]}, {"cat": "funny", "when": "23 June · 11:19", "msgs": [{"who": "girl", "text": "7 messages and you didn’t even vote what the fuck"}, {"who": "girl", "text": "Maybe you aren’t who you thought you were"}, {"who": "girl", "text": "Actually you hate democracy it’s all adding up"}]}, {"cat": "unhinged", "when": "26 June · 23:09", "msgs": [{"who": "lemon", "text": "if u turn ur light off u can pretend ur in the trenches"}, {"who": "girl", "text": "You’d like that wouldn’t you"}, {"who": "lemon", "text": "@god pls give me thunder"}]}, {"cat": "funny", "when": "29 June · 01:41", "msgs": [{"who": "girl", "text": "“I am genetically engineered to fall in love with you” and “don’t call me your friend” were too subtle for you"}, {"who": "lemon", "text": "I THOUGHT UBSAIDNTHST TO EVERYONE"}, {"who": "girl", "text": "Fuck off"}], "tags": ["she-loved-him"]}, {"cat": "insane", "when": "23 June · 02:05", "msgs": [{"who": "lemon", "text": "they knew id be too powerful if i could type"}]}, {"cat": "unhinged", "when": "23 June · 02:01", "msgs": [{"who": "girl", "text": "I plan to cause WW3"}, {"who": "lemon", "text": "how"}, {"who": "girl", "text": "I’ll let you know, you’re involved"}]}, {"cat": "unhinged", "when": "26 June · 00:48", "msgs": [{"who": "lemon", "text": "oh my god"}, {"who": "lemon", "text": "im in love"}, {"who": "lemon", "text": "i find guns reallt hot", "hl": "i find guns <em class=\"sp\">reallt<\/em> hot"}]}, {"cat": "funny", "when": "27 June · 01:20", "msgs": [{"who": "lemon", "text": "did u just call my child an it"}, {"who": "lemon", "text": "jesus", "hl": "<em class=\"sp\">jesus<\/em>"}, {"who": "girl", "text": "Our*"}]}, {"cat": "unhinged", "when": "25 June · 01:28", "msgs": [{"who": "girl", "text": "Honestly who friend zones"}, {"who": "girl", "text": "Like either love or die"}]}, {"cat": "unhinged", "when": "1 July · 22:53", "msgs": [{"who": "girl", "text": "Do you want her measurements"}, {"who": "lemon", "text": "i will kill you"}, {"who": "girl", "text": "She had a bracelet on her right hand"}]}, {"cat": "funny", "when": "25 June · 00:21", "msgs": [{"who": "lemon", "text": "you know how dogs get scared on firework night and get jumpy"}, {"who": "lemon", "text": "thats me qhen someone expresses any form of non platonic interest", "hl": "<em class=\"sp\">thats<\/em> me <em class=\"sp\">qhen<\/em> someone expresses any form of non platonic interest"}, {"who": "girl", "text": "I know I was just lying to be nice"}]}, {"cat": "funny", "when": "28 June · 01:06", "msgs": [{"who": "lemon", "text": "That's quite unfair, I have used WhatsApp for some time now."}, {"who": "girl", "text": "You text like every foreign girl ever"}, {"who": "lemon", "text": "god i cant do it anymore"}]}, {"cat": "unhinged", "when": "29 June · 14:43", "msgs": [{"who": "lemon", "text": "now i just eant an Authority Figure to kiss my forehead and tell me im Good enough but also fuck me", "hl": "now i just <em class=\"sp\">eant<\/em> an Authority Figure to kiss my forehead and tell me im Good enough but also fuck me"}, {"who": "lemon", "text": "anhway", "hl": "<em class=\"sp\">anhway<\/em>"}, {"who": "lemon", "text": "back to my powerpoijnt", "hl": "back to my <em class=\"sp\">powerpoijnt<\/em>"}]}, {"cat": "insane", "when": "28 June · 21:48", "msgs": [{"who": "girl", "text": "Napoleon was emperor at 35 and I think it’s my time"}]}, {"cat": "unhinged", "when": "23 June · 02:23", "msgs": [{"who": "girl", "text": "I can lock you up somewhere safe in France near a trench for our mutual safety if you want"}, {"who": "girl", "text": "Yeah your eyes are a weapon of mass destruction that’s why I’m gonna need you for WW3"}]}, {"cat": "romantic", "when": "25 June · 13:29", "msgs": [{"who": "lemon", "text": "i will get drunk come back texr u try call u u wont pick up itll be for the best ill then rell u all my Grand Ideas by twxr (typos will be awful) and then i will declare my love for you", "hl": "i will get drunk come back <em class=\"sp\">texr<\/em> u try call u u wont pick up <em class=\"sp\">itll<\/em> be for the best ill then <em class=\"sp\">rell<\/em> u all my Grand Ideas by <em class=\"sp\">twxr<\/em> (typos will be awful) and then i will declare my love for you"}, {"who": "lemon", "text": "i get overly affectionate qhen drunk so im locking my Phone", "hl": "i get overly affectionate <em class=\"sp\">qhen<\/em> drunk so im locking my Phone"}], "tags": ["he-loved-her"]}, {"cat": "insane", "when": "25 June · 12:23", "msgs": [{"who": "girl", "text": "AI is just like pigeons in WW1"}, {"who": "girl", "text": "They’re helping they just don’t know how they are helping"}]}, {"cat": "insane", "when": "27 June · 00:07", "msgs": [{"who": "girl", "text": "Much of life is just walking through bullets so I just slow down time so you can moonwalk past them"}, {"who": "girl", "text": "Michael Jackson"}]}, {"cat": "funny", "when": "24 June · 14:34", "msgs": [{"who": "lemon", "text": "i dont even text people casually", "hl": "i <em class=\"sp\">dont<\/em> even text people casually"}, {"who": "lemon", "text": "I HAVE NEVER BEEN NONCHALANT ABOUT NAYTUING IN MY LIFE"}, {"who": "girl", "text": "Real"}]}, {"cat": "romantic", "when": "29 June · 18:12", "msgs": [{"who": "girl", "text": "I’m only operating at like 10% power and you got me there from like 2%"}, {"who": "girl", "text": "I was a phone on low battery"}, {"who": "lemon", "text": "THAT MAKES ME SO HAPPY"}], "tags": ["she-loved-him"]}, {"cat": "romantic", "when": "26 June · 18:09", "msgs": [{"who": "girl", "text": "You are more"}, {"who": "girl", "text": "Don’t downgrade yourself to a friend"}, {"who": "girl", "text": "Friend is the losing game"}], "tags": ["she-loved-him"]}, {"cat": "insane", "when": "30 June · 22:42", "msgs": [{"who": "lemon", "text": "we should get married in a church just for the aesthetics"}, {"who": "lemon", "text": "but it has to be in the middle of nowhere"}, {"who": "lemon", "text": "hopefully haunted"}]}, {"cat": "insane", "when": "27 June · 18:45", "msgs": [{"who": "lemon", "text": "i think god shpuld have made sea water drinkable", "hl": "i think god <em class=\"sp\">shpuld<\/em> have made sea water drinkable"}]}, {"cat": "funny", "when": "29 June · 20:03", "msgs": [{"who": "lemon", "text": "i used to hang off the door frame to get taler cau see mt uncle told me it wouldnsteerch my limbs out", "hl": "i used to hang off the door frame to get <em class=\"sp\">taler<\/em> cau see mt uncle told me it <em class=\"sp\">wouldnsteerch<\/em> my limbs out"}, {"who": "lemon", "text": "It Was A LIe"}, {"who": "girl", "text": "You are sick"}]}, {"cat": "funny", "when": "26 June · 23:27", "msgs": [{"who": "lemon", "text": "I AM NORMAL"}, {"who": "girl", "text": "You have no idea how much more there is to unravel"}, {"who": "girl", "text": "I will heal you"}]}, {"cat": "insane", "when": "1 July · 18:19", "msgs": [{"who": "lemon", "text": "ok u are the most perfect man ever in existence and the reasoj i no longer beleif in my previous theory that the only man for me died in 1916 and now im surrounded by contemporary morons", "hl": "ok u are the most perfect man ever in existence and the <em class=\"sp\">reasoj<\/em> i no longer <em class=\"sp\">beleif<\/em> in my previous theory that the only man for me died in 1916 and now im surrounded by contemporary morons"}], "tags": ["he-loved-her"]}, {"cat": "funny", "when": "29 June · 20:49", "msgs": [{"who": "lemon", "text": "i have never been german", "hl": "i have never been <em class=\"sp\">german<\/em>"}, {"who": "lemon", "text": "whyat", "hl": "<em class=\"sp\">whyat<\/em>"}, {"who": "girl", "text": "Hottest thing anyone has ever said"}]}, {"cat": "insane", "when": "27 June · 14:19", "msgs": [{"who": "lemon", "text": "i live in the Future"}, {"who": "lemon", "text": "ive already digured iur qhat im doing at 75", "hl": "ive already <em class=\"sp\">digured<\/em> iur <em class=\"sp\">qhat<\/em> im doing at 75"}, {"who": "lemon", "text": "i have no clue waht im doing next month", "hl": "i have no clue <em class=\"sp\">waht<\/em> im doing next month"}]}, {"cat": "insane", "when": "24 June · 19:39", "msgs": [{"who": "lemon", "text": "and if the sunset said do u wanna hold hands and kiss sure"}, {"who": "lemon", "text": "but if the sunser ants to fuck thenno thanks", "hl": "but if the <em class=\"sp\">sunser<\/em> ants to fuck <em class=\"sp\">thenno<\/em> thanks"}, {"who": "lemon", "text": "idk"}]}, {"cat": "funny", "when": "24 June · 18:12", "msgs": [{"who": "lemon", "text": "u are ridiculously goos lookig", "hl": "u are ridiculously <em class=\"sp\">goos<\/em> <em class=\"sp\">lookig<\/em>"}, {"who": "lemon", "text": "its actually annoying"}, {"who": "lemon", "text": "i want to be Mean in peace"}]}, {"cat": "insane", "when": "24 June · 03:12", "msgs": [{"who": "girl", "text": "In this chat you have sent 1,668 messages and I have sent 1,665 as of this message"}, {"who": "girl", "text": "That is a literal 50/50 split"}, {"who": "girl", "text": "You made me believe in feminism"}]}, {"cat": "romantic", "when": "23 June · 18:12", "msgs": [{"who": "girl", "text": "I don’t understand why you aren’t letting me drive you everywhere like a princess???"}, {"who": "girl", "text": "Like what is ur problem"}, {"who": "girl", "text": "Let me love you"}], "tags": ["she-loved-him"]}, {"cat": "funny", "when": "29 June · 01:06", "msgs": [{"who": "girl", "text": "The future is just the present later"}, {"who": "lemon", "text": "ja but like westlife said whar if tomorrow never comes", "hl": "ja but like <em class=\"sp\">westlife<\/em> said <em class=\"sp\">whar<\/em> if tomorrow never comes"}, {"who": "lemon", "text": "or was that boyzone", "hl": "or was that <em class=\"sp\">boyzone<\/em>"}]}, {"cat": "unhinged", "when": "23 June · 02:26", "msgs": [{"who": "lemon", "text": "u jest but when i was younger i used to think that if u were kidnapped by a nice person it woulr be a good way to get out of sofual obligations and FOMO", "hl": "u jest but when i was younger i used to think that if u were kidnapped by a nice person it <em class=\"sp\">woulr<\/em> be a good way to get out of <em class=\"sp\">sofual<\/em> obligations and FOMO"}, {"who": "lemon", "text": "this is why i liked covid", "hl": "this is why i liked <em class=\"sp\">covid<\/em>"}]}, {"cat": "romantic", "when": "23 June · 17:28", "msgs": [{"who": "girl", "text": "I love your spelling so much it makes me want to marry you"}], "tags": ["she-loved-him"]}, {"cat": "insane", "when": "29 June · 02:15", "msgs": [{"who": "girl", "text": "I will heal and exploit you for political and personal gain and take care of you at the same time"}, {"who": "lemon", "text": "sooooo"}, {"who": "lemon", "text": "im in love with you wtf"}]}, {"cat": "unhinged", "when": "27 June · 21:39", "msgs": [{"who": "girl", "text": "I do like crime but I am slick with it"}, {"who": "lemon", "text": "its ok i dont mind ifnu do crime just Keep It Hidden", "hl": "its ok i <em class=\"sp\">dont<\/em> mind <em class=\"sp\">ifnu<\/em> do crime just Keep It Hidden"}]}, {"cat": "romantic", "when": "24 June · 02:21", "msgs": [{"who": "girl", "text": "Sleep well elephant woman"}, {"who": "girl", "text": "Matriarch"}, {"who": "girl", "text": "Train museum type person"}], "tags": ["she-loved-him"]}, {"cat": "romantic", "when": "27 June · 20:34", "msgs": [{"who": "lemon", "text": "that sky is insane"}, {"who": "girl", "text": "Like you"}, {"who": "girl", "text": "— men"}], "tags": ["she-loved-him"]}, {"cat": "unhinged", "when": "30 June · 23:25", "msgs": [{"who": "girl", "text": "I don’t feel physical pain really so you can do anything you want"}, {"who": "lemon", "text": "SO WHATEVER DERANGED FETISH YOU HAVE FOR SOMEONE MURDERING YOU ITS NOT GONBAVE ME"}, {"who": "lemon", "text": "hwo come"}]}, {"cat": "unhinged", "when": "26 June · 23:55", "msgs": [{"who": "girl", "text": "I am claiming the rainbow for myself"}, {"who": "girl", "text": "The gays don’t get to own it"}, {"who": "girl", "text": "It’s mine"}]}, {"cat": "funny", "when": "27 June · 18:41", "msgs": [{"who": "lemon", "text": "why vant u just accept me as the vicroeian spinster that i am. 😞", "hl": "why <em class=\"sp\">vant<\/em> u just accept me as the <em class=\"sp\">vicroeian<\/em> spinster that i am. 😞"}, {"who": "lemon", "text": "why"}, {"who": "girl", "text": "Because Miss Haversham already exists"}]}, {"cat": "funny", "when": "23 June · 22:54", "msgs": [{"who": "girl", "text": "You’re like a WW1 exhibit at a museum"}, {"who": "girl", "text": "I press the button and it talks to me"}]}, {"cat": "funny", "when": "27 June · 18:43", "msgs": [{"who": "girl", "text": "Perform these emotions with your face"}, {"who": "lemon", "text": "but why must i be perceived"}, {"who": "girl", "text": "Because you are in a world with others"}]}, {"cat": "insane", "when": "28 June · 23:17", "msgs": [{"who": "lemon", "text": "the bell curve"}, {"who": "lemon", "text": "is just a lemon"}, {"who": "lemon", "text": "kinds crazy"}]}, {"cat": "funny", "when": "23 June · 23:48", "msgs": [{"who": "girl", "text": "You type like animal crossing characters speak"}, {"who": "girl", "text": "Has anyone ever told you this"}, {"who": "girl", "text": "I can see your phone and brain melting in real time and it’s beautiful because I still find you attractive"}]}, {"cat": "funny", "when": "26 June · 18:04", "msgs": [{"who": "lemon", "text": "i cant believe the first thing i eber said ro u was u look like a hot jesus", "hl": "i cant believe the first thing i <em class=\"sp\">eber<\/em> said ro u was u look like a hot <em class=\"sp\">jesus<\/em>"}, {"who": "lemon", "text": "theres soemrhing wrong wirh Me", "hl": "<em class=\"sp\">theres<\/em> <em class=\"sp\">soemrhing<\/em> wrong <em class=\"sp\">wirh<\/em> Me"}, {"who": "girl", "text": "I have been sent that exact message probably 200 times"}]}, {"cat": "funny", "when": "26 June · 00:46", "msgs": [{"who": "lemon", "text": "you kbowbwhat i like most about yku", "hl": "you <em class=\"sp\">kbowbwhat<\/em> i like most about yku"}, {"who": "lemon", "text": "tou take care of people"}, {"who": "girl", "text": "Yes I assassinate them"}]}, {"cat": "funny", "when": "26 June · 20:44", "msgs": [{"who": "lemon", "text": "i think i will be a philosopehr  when people read my diary 500 years from now", "hl": "i think i will be a <em class=\"sp\">philosopehr<\/em>  when people read my diary 500 years from now"}, {"who": "girl", "text": "Yes about elephants and doors"}]}, {"cat": "insane", "when": "26 June · 23:58", "msgs": [{"who": "girl", "text": "No you’ve earned the right to live"}, {"who": "girl", "text": "I will take a bullet for you"}, {"who": "girl", "text": "Just don’t waste it"}], "tags": ["she-loved-him"]}, {"cat": "romantic", "when": "2 July · 23:52", "msgs": [{"who": "girl", "text": "The only real downside is that there is such a high volume of messages that some of the best messages we will ever send will go unread"}, {"who": "girl", "text": "But that’s like complaining about Shakespeare writing too many plays"}, {"who": "lemon", "text": "i reread everything you say"}], "tags": ["he-loved-her", "she-loved-him"]}, {"cat": "funny", "when": "29 June · 21:48", "msgs": [{"who": "lemon", "text": "i sleep like a oersonb in a coffin", "hl": "i sleep like a <em class=\"sp\">oersonb<\/em> in a coffin"}, {"who": "lemon", "text": "maybe i am Preparing"}, {"who": "lemon", "text": "or maybe im an Egyptian"}]}, {"cat": "funny", "when": "25 June · 11:45", "msgs": [{"who": "lemon", "text": "i BOOK A SEAT BECAUSE I LIKE SITTING IN THE SAME PLACE"}, {"who": "lemon", "text": "irs ok"}, {"who": "lemon", "text": "i will. e ok"}]}, {"cat": "unhinged", "when": "27 June · 00:17", "msgs": [{"who": "lemon", "text": "have i asked ubwhat u werr doint on 9/11 yet", "hl": "have i asked <em class=\"sp\">ubwhat<\/em> u <em class=\"sp\">werr<\/em> <em class=\"sp\">doint<\/em> on 9/11 yet"}, {"who": "girl", "text": "No but I see you circling it"}, {"who": "girl", "text": "Every time you ask me about 9/11 I will probe your sexual proclivities"}]}, {"cat": "funny", "when": "30 June · 03:03", "msgs": [{"who": "lemon", "text": "you shpuld kidnap me alrwady", "hl": "you <em class=\"sp\">shpuld<\/em> kidnap me <em class=\"sp\">alrwady<\/em>"}, {"who": "girl", "text": "Explain in 3 bullet points pros and methodology"}, {"who": "lemon", "text": "pros - ??? - .... - not sure methodology - lure bait: do u want to see my library"}]}, {"cat": "romantic", "when": "28 June · 16:20", "msgs": [{"who": "lemon", "text": "i am kinda in love wirh u fr", "hl": "i am kinda in love <em class=\"sp\">wirh<\/em> u fr"}, {"who": "lemon", "text": "its diabolical"}, {"who": "lemon", "text": "send help"}], "tags": ["he-loved-her"]}, {"cat": "unhinged", "when": "25 June · 00:56", "msgs": [{"who": "girl", "text": "No relationship no murder"}, {"who": "girl", "text": "It’s smart"}, {"who": "lemon", "text": "women rli out here getting with their apex predators"}]}, {"cat": "insane", "when": "26 June · 22:21", "msgs": [{"who": "lemon", "text": "u shoulr live to 93", "hl": "u <em class=\"sp\">shoulr<\/em> live to 93"}, {"who": "lemon", "text": "that is a good age for you"}, {"who": "lemon", "text": "then when you die you get born again but inside sims"}]}, {"cat": "unhinged", "when": "23 June · 02:09", "msgs": [{"who": "lemon", "text": "well i never learnt how to use one and im a creature of habit and u cant teach an old dog new tricks but yo7nknow what bothers me about that sayiny is the onus is onthe old dog f9r n9t learning the trifks and not on the stupir persob tryna annoy an OLD DOG LET HIM RELAX!!!!!!!", "hl": "well i never learnt how to use one and im a creature of habit and u cant teach an old dog new tricks but yo7<em class=\"sp\">nknow<\/em> what bothers me about that <em class=\"sp\">sayiny<\/em> is the onus is <em class=\"sp\">onthe<\/em> old dog f9r n9t learning the <em class=\"sp\">trifks<\/em> and not on the <em class=\"sp\">stupir<\/em> <em class=\"sp\">persob<\/em> <em class=\"sp\">tryna<\/em> annoy an OLD DOG LET HIM RELAX!!!!!!!"}, {"who": "lemon", "text": "35 year oldd are babirs 29 year olds are pensioners i wont elaborate", "hl": "35 year <em class=\"sp\">oldd<\/em> are <em class=\"sp\">babirs<\/em> 29 year <em class=\"sp\">olds<\/em> are pensioners i wont elaborate"}]}, {"cat": "romantic", "when": "26 June · 00:45", "msgs": [{"who": "girl", "text": "I like you as much as you like me"}, {"who": "lemon", "text": "i like yiu mroe", "hl": "i like yiu <em class=\"sp\">mroe<\/em>"}, {"who": "lemon", "text": "acruallt", "hl": "<em class=\"sp\">acruallt<\/em>"}], "tags": ["he-loved-her", "she-loved-him"]}, {"cat": "romantic", "when": "1 July · 17:22", "msgs": [{"who": "girl", "text": "I will be your family"}, {"who": "girl", "text": "Don’t worry"}, {"who": "lemon", "text": "that is the nices tthing anyone has ever said to me in my life", "hl": "that is the <em class=\"sp\">nices<\/em> <em class=\"sp\">tthing<\/em> anyone has ever said to me in my life"}], "tags": ["she-loved-him"]}, {"cat": "unhinged", "when": "1 July · 21:56", "msgs": [{"who": "girl", "text": "You’re being intentionally hinged"}, {"who": "lemon", "text": "thats ok", "hl": "<em class=\"sp\">thats<\/em> ok"}, {"who": "girl", "text": "I did not come for hinged"}]}, {"cat": "funny", "when": "27 June · 00:31", "msgs": [{"who": "lemon", "text": "it loves my spelling"}, {"who": "girl", "text": "Like how does it not pick that up and say are you sure you SHOULD speak"}, {"who": "lemon", "text": "it ubderstands me", "hl": "it <em class=\"sp\">ubderstands<\/em> me"}]}, {"cat": "insane", "when": "28 June · 21:12", "msgs": [{"who": "girl", "text": "Future enemy present wife"}]}, {"cat": "romantic", "when": "27 June · 19:52", "msgs": [{"who": "girl", "text": "If I didn’t see you as a romantic person which I do I would be your best friend so you will have to settle for being best friends and lovers for now"}], "tags": ["she-loved-him"]}, {"cat": "funny", "when": "25 June · 11:10", "msgs": [{"who": "girl", "text": "Wow that is so predictable, after literally 40,000 words of chaos you’re starting to feel emotion, typical"}, {"who": "girl", "text": "Sexist to be honest"}]}, {"cat": "funny", "when": "27 June · 18:53", "msgs": [{"who": "lemon", "text": "i want to Bite him"}, {"who": "lemon", "text": "in the nicest way"}, {"who": "girl", "text": "You are honestly this century’s example of a wasted mind"}]}, {"cat": "romantic", "when": "27 June · 19:42", "msgs": [{"who": "girl", "text": "You also are a machine"}, {"who": "girl", "text": "It’s basically like two AIs falling in love"}], "tags": ["she-loved-him"]}, {"cat": "unhinged", "when": "25 June · 00:59", "msgs": [{"who": "lemon", "text": "i would shoot u out of mercy if u got a Bad Injury"}, {"who": "girl", "text": "Wow I don’t even get a say"}, {"who": "lemon", "text": "no"}]}, {"cat": "romantic", "when": "24 June · 01:30", "msgs": [{"who": "girl", "text": "You still have the light in your eyes that you had in your childhood"}, {"who": "lemon", "text": "oh that is actually the nicest thing"}, {"who": "lemon", "text": "thank you"}], "tags": ["she-loved-him"]}, {"cat": "insane", "when": "29 June · 01:49", "msgs": [{"who": "girl", "text": "You have the same proportions as the lemon"}, {"who": "lemon", "text": "i am the lemon"}]}, {"cat": "unhinged", "when": "23 June · 21:38", "msgs": [{"who": "girl", "text": "Thanks a lot bumble you brought two WW1 whores together"}, {"who": "lemon", "text": "real"}]}, {"cat": "romantic", "when": "27 June · 19:15", "msgs": [{"who": "lemon", "text": "i would unronically fall in love qith a robot", "hl": "i would <em class=\"sp\">unronically<\/em> fall in love <em class=\"sp\">qith<\/em> a robot"}, {"who": "lemon", "text": "i thinn u are a robot", "hl": "i <em class=\"sp\">thinn<\/em> u are a robot"}], "tags": ["he-loved-her"]}, {"cat": "unhinged", "when": "28 June · 21:14", "msgs": [{"who": "girl", "text": "It’s like slapping a cat’s stomach when it’s thick and young like a drum"}, {"who": "girl", "text": "It’s right"}, {"who": "lemon", "text": "i mebr had a cat", "hl": "i <em class=\"sp\">mebr<\/em> had a cat"}]}, {"cat": "insane", "when": "24 June · 02:15", "msgs": [{"who": "girl", "text": "I do like a block"}, {"who": "girl", "text": "I impulsively block probably 50% of people I respect"}, {"who": "girl", "text": "Be on the right side of fate"}]}, {"cat": "unhinged", "when": "2 July · 21:52", "msgs": [{"who": "lemon", "text": "HWO THE FUCK IS THSI BITCH"}, {"who": "lemon", "text": "i ajte her", "hl": "i <em class=\"sp\">ajte<\/em> her"}, {"who": "girl", "text": "It’s a man x"}]}, {"cat": "romantic", "when": "29 June · 18:02", "msgs": [{"who": "girl", "text": "You are a reverse parasite"}, {"who": "girl", "text": "That is the nicest thing I can say to you"}, {"who": "lemon", "text": "rhaf is the nicest rhing angone has ever said about me", "hl": "<em class=\"sp\">rhaf<\/em> is the nicest <em class=\"sp\">rhing<\/em> <em class=\"sp\">angone<\/em> has ever said about me"}], "tags": ["he-loved-her", "she-loved-him"]}, {"cat": "romantic", "when": "1 July · 22:28", "msgs": [{"who": "girl", "text": "I have lived a year in a week"}, {"who": "lemon", "text": "me too"}, {"who": "girl", "text": "I’m tired let’s kiss"}], "tags": ["he-loved-her", "she-loved-him"]}, {"cat": "unhinged", "when": "29 June · 21:37", "msgs": [{"who": "girl", "text": "Make me end all my friends and isolate me and control me"}, {"who": "lemon", "text": "why ddi that turn me on"}, {"who": "lemon", "text": "someone lock. me up"}]}, {"cat": "unhinged", "when": "27 June · 00:14", "msgs": [{"who": "lemon", "text": "id make a good ghost i think"}, {"who": "lemon", "text": "or like demon"}, {"who": "lemon", "text": "or possessed entity generallt speaking", "hl": "or possessed entity <em class=\"sp\">generallt<\/em> speaking"}]}, {"cat": "romantic", "when": "30 June · 23:33", "msgs": [{"who": "lemon", "text": "i feel like a dandelion that is not beint callef a weed fr", "hl": "i feel like a dandelion that is not <em class=\"sp\">beint<\/em> <em class=\"sp\">callef<\/em> a weed fr"}, {"who": "girl", "text": "I love dandelions"}, {"who": "lemon", "text": "ME TOO"}], "tags": ["he-loved-her", "she-loved-him"]}, {"cat": "unhinged", "when": "28 June · 21:50", "msgs": [{"who": "girl", "text": "My only problem with Napoleon is that he killed too many people"}, {"who": "girl", "text": "My goal is to do that but less death"}, {"who": "lemon", "text": "its easy in hindsight to realise that"}]}, {"cat": "funny", "when": "27 June · 22:30", "msgs": [{"who": "girl", "text": "The moment you put a filter on is the moment greatness dies"}, {"who": "girl", "text": "Except Brita filters they’re great"}, {"who": "lemon", "text": "they are great"}]}, {"cat": "romantic", "when": "30 June · 22:15", "msgs": [{"who": "lemon", "text": "younknow when the suns outsidenand its really beautifulnand brigut and uncant stare directly at it", "hl": "<em class=\"sp\">younknow<\/em> when the suns <em class=\"sp\">outsidenand<\/em> its really <em class=\"sp\">beautifulnand<\/em> <em class=\"sp\">brigut<\/em> and <em class=\"sp\">uncant<\/em> stare directly at it"}, {"who": "lemon", "text": "thats how i feel around you", "hl": "<em class=\"sp\">thats<\/em> how i feel around you"}], "tags": ["he-loved-her"]}, {"cat": "insane", "when": "24 June · 01:46", "msgs": [{"who": "girl", "text": "Think of Britney"}, {"who": "girl", "text": "Do something"}, {"who": "lemon", "text": "id prefer a train over britney ngl", "hl": "id prefer a train over <em class=\"sp\">britney<\/em> ngl"}]}, {"cat": "insane", "when": "30 June · 02:45", "msgs": [{"who": "girl", "text": "If you were a number you would be the number 12.5"}]}, {"cat": "funny", "when": "23 June · 14:29", "msgs": [{"who": "girl", "text": "Stop making me crash and all fall in love with you pick one"}, {"who": "lemon", "text": "what if u crasH And Fall in lvoe with me", "hl": "what if u <em class=\"sp\">crasH<\/em> And Fall in <em class=\"sp\">lvoe<\/em> with me"}, {"who": "lemon", "text": "wow that was deranged typing even for me"}]}, {"cat": "unhinged", "when": "1 July · 18:24", "msgs": [{"who": "girl", "text": "I actually have a full nuclear survival kit"}, {"who": "girl", "text": "Iodine pills"}, {"who": "girl", "text": "So we can repopulate"}]}, {"cat": "insane", "when": "26 June · 14:08", "msgs": [{"who": "girl", "text": "I broke the test"}, {"who": "girl", "text": "So it just off your foul bell curve"}, {"who": "girl", "text": "That’s three bell curve references in three days"}]}, {"cat": "romantic", "when": "24 June · 22:26", "msgs": [{"who": "girl", "text": "You are literally my fav person in the world right now"}, {"who": "girl", "text": "Not even love bombing"}, {"who": "lemon", "text": "stop"}], "tags": ["she-loved-him"]}, {"cat": "romantic", "when": "26 June · 01:40", "msgs": [{"who": "girl", "text": "I’m not your friend"}, {"who": "girl", "text": "I am a basket"}, {"who": "lemon", "text": "ur my basker", "hl": "ur my <em class=\"sp\">basker<\/em>"}], "tags": ["he-loved-her", "she-loved-him"]}, {"cat": "romantic", "when": "30 June · 23:10", "msgs": [{"who": "lemon", "text": "i should uplaod ur voice to the ai gods and u can read all my audiobooks", "hl": "i should <em class=\"sp\">uplaod<\/em> ur voice to the ai gods and u can read all my <em class=\"sp\">audiobooks<\/em>"}, {"who": "lemon", "text": "i dont even listen to audiobooks but i would if you spoke", "hl": "i <em class=\"sp\">dont<\/em> even listen to <em class=\"sp\">audiobooks<\/em> but i would if you spoke"}], "tags": ["he-loved-her"]}, {"cat": "romantic", "when": "29 June · 20:40", "msgs": [{"who": "lemon", "text": "no we have known esch other in 6. different Life tines", "hl": "no we have known <em class=\"sp\">esch<\/em> other in 6. different Life tines"}, {"who": "lemon", "text": "we probably killed each other in one"}, {"who": "girl", "text": "Waiting on 7"}], "tags": ["he-loved-her", "she-loved-him"]}, {"cat": "insane", "when": "28 June · 22:33", "msgs": [{"who": "girl", "text": "I have a Russian hat made of Soviet rabbits"}, {"who": "girl", "text": "From Paris"}]}, {"cat": "romantic", "when": "2 July · 23:58", "msgs": [{"who": "lemon", "text": "im going to start writint your name to tedt pens in statuonary shops", "hl": "im going to start <em class=\"sp\">writint<\/em> your name to <em class=\"sp\">tedt<\/em> pens in <em class=\"sp\">statuonary<\/em> shops"}], "tags": ["he-loved-her"]}, {"cat": "romantic", "when": "2 July · 23:49", "msgs": [{"who": "lemon", "text": "i havent ever felt seen by anyone before i met you", "hl": "i <em class=\"sp\">havent<\/em> ever felt seen by anyone before i met you"}, {"who": "lemon", "text": "thays why i can talk to you all day", "hl": "<em class=\"sp\">thays<\/em> why i can talk to you all day"}, {"who": "lemon", "text": "texting you feels like comint home afrer being outside in thenwilderness all day long", "hl": "texting you feels like <em class=\"sp\">comint<\/em> home <em class=\"sp\">afrer<\/em> being outside in <em class=\"sp\">thenwilderness<\/em> all day long"}], "tags": ["he-loved-her"]}, {"cat": "unhinged", "when": "28 June · 22:17", "msgs": [{"who": "girl", "text": "I have a dent in my head"}, {"who": "girl", "text": "I believe that’s where my power comes from"}, {"who": "girl", "text": "Genuinely"}]}, {"cat": "insane", "when": "30 June · 21:17", "msgs": [{"who": "girl", "text": "I won’t crash until you’re pregnant with our third child"}, {"who": "lemon", "text": "ur never allowed to die"}], "tags": ["he-loved-her", "she-loved-him"]}, {"cat": "unhinged", "when": "24 June · 01:26", "msgs": [{"who": "lemon", "text": "next ur gojn ask me if ibstil like u if u were a qorm", "hl": "next ur <em class=\"sp\">gojn<\/em> ask me if <em class=\"sp\">ibstil<\/em> like u if u were a <em class=\"sp\">qorm<\/em>"}, {"who": "girl", "text": "I’d be a transcendent worm that’s not even up for debate"}, {"who": "lemon", "text": "i could necer be a worm", "hl": "i could <em class=\"sp\">necer<\/em> be a worm"}]}, {"cat": "insane", "when": "2 July · 22:31", "msgs": [{"who": "lemon", "text": "oh no im a 4 at best and thags only with good lightint", "hl": "oh no im a 4 at best and <em class=\"sp\">thags<\/em> only with good <em class=\"sp\">lightint<\/em>"}, {"who": "girl", "text": "As a human being you are a 10 don’t even start"}, {"who": "lemon", "text": "i lvoe the british emoire", "hl": "i <em class=\"sp\">lvoe<\/em> the <em class=\"sp\">british<\/em> <em class=\"sp\">emoire<\/em>"}]}, {"cat": "insane", "when": "30 June · 02:39", "msgs": [{"who": "lemon", "text": "dont tell me ur undercover i willl Die", "hl": "<em class=\"sp\">dont<\/em> tell me ur undercover i willl Die"}, {"who": "girl", "text": "I was committing a crime"}, {"who": "girl", "text": "You think a spy would reveal their identity at 2:39"}]}, {"cat": "unhinged", "when": "26 June · 14:22", "msgs": [{"who": "lemon", "text": "i want to bite ur cat but in a non predator way"}]}, {"cat": "funny", "when": "25 June · 01:22", "msgs": [{"who": "lemon", "text": "1. full stops 2. callint me by my full name 3. sayint we need to talk", "hl": "1. full stops 2. <em class=\"sp\">callint<\/em> me by my full name 3. <em class=\"sp\">sayint<\/em> we need to talk"}, {"who": "lemon", "text": "i HAGE IT"}, {"who": "lemon", "text": "that is my UNHOLY TRINITY"}]}];
+
+  const CAT_META = {
+    funny:    { tag: '😂 funny' },
+    insane:   { tag: '🌀 insane' },
+    romantic: { tag: '💛 romantic' },
+    unhinged: { tag: '🔥 unhinged' }
+  };
+
+  const wrapEl = document.getElementById('quoteWrap');
+  const whenEl = document.getElementById('when');
+  const catEl = document.getElementById('catTag');
+  const newBtn = document.getElementById('newBtn');
+  const flavoursEl = document.getElementById('flavours');
+  const tagFiltersEl = document.getElementById('tagFilters');
+
+  let cat = 'all';
+  let tagFilter = 'all';
+  let bag = [];
+  let timer = null;
+
+  const pool = () => QUOTES
+    .filter(q => cat === 'all' || q.cat === cat)
+    .filter(q => tagFilter === 'all' || (q.tags && q.tags.includes(tagFilter)));
+
+  function refill() {
+    bag = pool().slice();
+    for (let i = bag.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [bag[i], bag[j]] = [bag[j], bag[i]];
+    }
+  }
+
+  function render(q) {
+    wrapEl.innerHTML = '';
+    q.msgs.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'msg ' + m.who;
+      const av = document.createElement('span');
+      av.className = 'avatar';
+      av.textContent = m.who === 'lemon' ? '🍋' : '🌙';
+      const tx = document.createElement('span');
+      tx.className = 'txt';
+      if (m.hl) tx.innerHTML = m.hl;   // pre-escaped at build time, typos wrapped in <em class="sp">
+      else tx.textContent = m.text;
+      row.appendChild(av);
+      row.appendChild(tx);
+      wrapEl.appendChild(row);
+    });
+    whenEl.textContent = q.when + ' 🍋';
+    catEl.textContent = CAT_META[q.cat] ? CAT_META[q.cat].tag : '🍋';
+  }
+
+  function next() {
+    if (!bag.length) refill();
+    if (!bag.length) return;
+    const q = bag.pop();
+    wrapEl.classList.add('fade');
+    setTimeout(() => {
+      render(q);
+      wrapEl.classList.remove('fade');
+    }, 350);
+    restartTimer();
+  }
+
+  function restartTimer() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(next, 20000);
+  }
+
+  newBtn.addEventListener('click', next);
+
+  flavoursEl.addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    cat = chip.dataset.cat;
+    flavoursEl.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === chip));
+    refill();
+    next();
+  });
+
+  tagFiltersEl.addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    tagFilter = chip.dataset.tag;
+    tagFiltersEl.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === chip));
+    refill();
+    next();
+  });
+
+  // gentle fixed sparkles + lemons around the page
+  const SPOTS = [[6,18],[90,12],[12,68],[86,74],[48,6],[70,40],[26,38],[60,86],[8,45],[92,50]];
+  SPOTS.forEach(([x, y], i) => {
+    const sp = document.createElement('span');
+    sp.className = 'spark';
+    sp.textContent = i % 3 === 0 ? '🍋' : (i % 3 === 1 ? '✨' : '⭐');
+    sp.style.left = x + 'vw';
+    sp.style.top = y + 'vh';
+    sp.style.animationDelay = (i * 0.6) + 's';
+    document.body.appendChild(sp);
+  });
+
+  refill();
+  next();
+</script>
+</body>
+</html>
