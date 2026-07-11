@@ -749,6 +749,46 @@
     .album-act:active { transform: scale(0.92); }
     .album-act.saved { color: var(--green); border-color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent); }
     #app.paradox .album-act { border-radius: 3px; }
+
+    /* ════════════════ v2 — DRIVING-FIRST (giant name + one-tap pick-next) ════════════════
+       Primary action: SEE the song name → PICK the next thing. Strip everything else off the
+       home screen; comically big text + targets; one screen, no modes. */
+    /* Only stay-hidden: Like (you said cut it), the BPM beat pulse, the section divider. */
+    #now-playing #beat, #like-btn, .section-divider { display: none !important; }
+    /* Now playing (home): big album art + big name + BIG play. */
+    #main:not(.searching) #now-playing { padding: 16px 12px 4px; gap: 6px; }
+    #main:not(.searching) #album-art {
+      display: block; width: min(210px, 48vw); height: min(210px, 48vw);
+      border-radius: 16px; object-fit: cover; box-shadow: 0 16px 42px rgba(0,0,0,0.6);
+    }
+    #main:not(.searching) #track-name {
+      font-size: clamp(1.9rem, 8.5vw, 3rem); font-weight: 800;
+      line-height: 1.05; letter-spacing: -0.02em; width: 100%; max-width: 100%; text-align: center;
+      -webkit-line-clamp: 2;
+    }
+    #main:not(.searching) #album-name { font-size: clamp(1.1rem, 4.6vw, 1.55rem); font-weight: 600; }
+    #main:not(.searching) #artist-name { font-size: clamp(1.4rem, 6vw, 2.1rem); font-weight: 600; }
+    /* Controls: BIG central play (dominant), big skips. */
+    #main:not(.searching) #controls { margin-top: 6px; gap: 14px; padding: 4px 8px; }
+    #main:not(.searching) #controls .ctrl.skip { width: 86px; height: 86px; }
+    #main:not(.searching) #controls .ctrl.skip svg { width: 50px; height: 50px; }
+    #main:not(.searching) #gauge { width: min(150px, 42vw); height: min(150px, 42vw); }
+    /* PICK NEXT — recent albums + playlists, ONE TAP = play. Smaller tiles, 3 across, fit as many as possible. */
+    .pick-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; padding: 0 10px 24px; }
+    .pick-tile {
+      position: relative; aspect-ratio: 1 / 1; border-radius: 10px; overflow: hidden;
+      background: var(--bg3); border: 1px solid var(--border); cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .pick-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .pick-tile:active { transform: scale(0.95); }
+    .pick-label {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 16px 6px 6px;
+      font-size: 0.74rem; font-weight: 700; line-height: 1.1; color: #fff; text-align: left;
+      background: linear-gradient(transparent, rgba(0,0,0,0.9));
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    #main:not(.searching) .dash-head { font-size: 1.05rem; font-weight: 800; padding: 16px 12px 9px; color: var(--text); letter-spacing: 0; }
   </style>
 </head>
 <body>
@@ -1299,14 +1339,22 @@ async function fetchState() {
   try {
     const d = await api('/me/player');
     if (!d || !d.item) {
-      $('track-name').textContent = 'Nothing playing';
-      $('album-name').textContent = '';
-      $('artist-name').textContent = '—';
-      $('album-art').classList.add('hidden');
-      $('beat').classList.add('hidden');
-      $('no-device').classList.remove('hidden');
+      // Spotify's /me/player flaps to empty/204 intermittently even MID-PLAYBACK (a backgrounded
+      // phone especially). A single blank poll is NOT a disconnect — hold the last-known track and
+      // only fall back to "Nothing playing" after several blanks in a row (~12s). This is the fix
+      // for "it disconnects every ~20 seconds" — the UI was flipping on every transient blank.
+      S.emptyPolls = (S.emptyPolls || 0) + 1;
+      if (S.emptyPolls >= 4) {
+        $('track-name').textContent = 'Nothing playing';
+        $('album-name').textContent = '';
+        $('artist-name').textContent = '—';
+        $('album-art').classList.add('hidden');
+        $('beat').classList.add('hidden');
+        $('no-device').classList.remove('hidden');
+      }
       return;
     }
+    S.emptyPolls = 0;
     $('no-device').classList.add('hidden');
 
     const t = d.item;
@@ -1607,19 +1655,11 @@ function rowActionsHTML(t) {
 // doing nothing plays the whole album once through starting from this track. Used by the
 // album view's "play now" — the user cares deeply about album order/authenticity.
 async function playFromAlbum(uri, albumId) {
-  if (!albumId) return playTrackUri(uri, '');
-  await playTrackUri(uri, '');                 // play just this track → clean slate queue
-  try {
-    const al = await api('/albums/' + albumId);
-    const items = (al && al.tracks && al.tracks.items) || [];
-    const idx = items.findIndex(x => x && x.uri === uri);
-    if (idx < 0) return;
-    const rotation = items.slice(idx + 1).concat(items.slice(0, idx));   // X+1…N, then 1…X-1
-    if (uri) continuedAlbums.add(uri.split(':').pop());                  // suppress the empty-queue auto-continue
-    for (const nt of rotation.slice(0, 40)) {                           // bound: pathological 50-track comps
-      if (nt && nt.uri) await api('/me/player/queue?uri=' + encodeURIComponent(nt.uri) + (S.deviceId ? '&device_id=' + S.deviceId : ''), 'POST').catch(() => {});
-    }
-  } catch (e) { /* best-effort — the track still plays even if the queue fill fails */ }
+  // Tap a track in the album = PLAY THE ALBUM FROM THIS POINT: Spotify context playback with an
+  // offset plays X → end natively and the queue shows the rest of the album after this track.
+  // The ONLY thing that overrides this queue is an explicit "+ Queue" add (queueTrack), which
+  // just appends a song on top of the album context — exactly the user's one exception.
+  return playTrackUri(uri, albumId ? ('spotify:album:' + albumId) : '');
 }
 function clearSearch() {
   const inp = $('search-input');
@@ -1947,30 +1987,72 @@ function updateStats() {
 
 // ── Dashboard (recently played + your playlists, shown under search by default) ──
 let dashHTML = '';
+// v2 HOME = "Pick next": your recently-played ALBUMS + your playlists as big tiles, ONE TAP plays
+// it now. This — not search — is the core driving loop (see the giant name above → tap a tile).
 async function loadDashboard() {
   try {
-    const [recent, pls] = await Promise.all([
-      api('/me/player/recently-played?limit=10').catch(() => null),
-      api('/me/playlists?limit=10').catch(() => null),
-    ]);
-    mergeRecentIntoLog(recent && recent.items);   // grow the plays-this-week log
+    // Recently-played caps at 10 TRACKS/call, which dedupe to just a few albums (you play whole
+    // albums). Walk back several pages via the `before` cursor to gather LOTS of distinct albums.
+    let recentItems = [];
+    let before = null;
+    for (let p = 0; p < 8 && recentItems.length < 80; p++) {
+      const page = await api('/me/player/recently-played?limit=10' + (before ? '&before=' + before : '')).catch(() => null);
+      const items = (page && page.items) || [];
+      if (!items.length) break;
+      recentItems = recentItems.concat(items);
+      before = page.cursors && page.cursors.before;
+      if (!before) break;
+    }
+    // Playlists — page a couple of times too so you get plenty, not just 10.
+    let playlistItems = [];
+    for (let off = 0; off < 30; off += 10) {
+      const page = await api('/me/playlists?limit=10&offset=' + off).catch(() => null);
+      const items = (page && page.items) || [];
+      if (!items.length) break;
+      playlistItems = playlistItems.concat(items);
+      if (items.length < 10) break;
+    }
+    mergeRecentIntoLog(recentItems);   // grow the plays-this-week log
+    // Recent ALBUMS — dedupe recently-played tracks down to their albums.
+    const seenA = new Set();
+    const albums = recentItems
+      .map(i => i.track && i.track.album)
+      .filter(a => a && a.uri && a.id && !seenA.has(a.id) && seenA.add(a.id))
+      .slice(0, 24);
+    const playlists = playlistItems.filter(Boolean).slice(0, 24);
+    // Recently-played TRACKS (deduped) — shown under the albums; tap a row to play that track.
+    const seenT = new Set();
+    const tracks = recentItems
+      .map(i => i.track)
+      .filter(t => t && t.uri && t.id && !seenT.has(t.id) && seenT.add(t.id))
+      .slice(0, 15);
     let html = '';
-    const playlists = ((pls && pls.items) || []).filter(Boolean);
-    const seen = new Set();
-    const recentTracks = ((recent && recent.items) || [])
-      .map(i => i.track).filter(t => t && t.uri && !seen.has(t.uri) && seen.add(t.uri)).slice(0, 5);
-    if (recentTracks.length) html += '<div class="dash-head">Recently played</div>' + recentTracks.map(trackRowHTML).join('');
-    if (playlists.length) html += '<div class="dash-head">Your playlists</div><div class="preset-grid">' + playlists.map(playlistRowHTML).join('') + '</div>';
-    // Quick-play tiles: big one-tap buttons for your playlists — moved to the BOTTOM.
-    const presets = playlists.slice(0, 4);
-    if (presets.length) html += '<div class="dash-head">Quick play</div><div class="preset-grid">' + presets.map(presetTileHTML).join('') + '</div>';
-    dashHTML = html || '<div class="hint">Search above to start playing.</div>';
+    if (albums.length)    html += '<div class="dash-head">Recent albums &mdash; tap to open</div><div class="pick-grid">' + albums.map(pickTileHTML).join('') + '</div>';
+    if (tracks.length)    html += '<div class="dash-head">Recently played</div>' + tracks.map(trackRowHTML).join('');
+    if (playlists.length) html += '<div class="dash-head">Your playlists</div><div class="pick-grid">' + playlists.map(pickTileHTML).join('') + '</div>';
+    dashHTML = html || '<div class="hint">Play something on Spotify once, then your albums show up here.</div>';
   } catch(e) {
     if (e && e.status === 401) return;
-    dashHTML = '<div class="hint">Search above to start playing.</div>';
+    dashHTML = '<div class="hint">Play something on Spotify once, then your albums show up here.</div>';
   }
   updateStats();
   showDashboard();
+}
+// One tile for an album OR a playlist (both have images / uri / name). Tap = play it now.
+function pickTileHTML(x) {
+  const art = ((x.images && (x.images[0] || x.images[1])) || {}).url || '';
+  // Tap OPENS it (album/playlist view) so you can see + pick a track — don't blind-play.
+  const open = x.type === 'playlist'
+    ? `openPlaylist('${esc(x.id)}', '${esc(x.uri)}')`
+    : `openAlbum('${esc(x.id)}')`;
+  return `<div class="pick-tile" onclick="${open}">${art ? `<img src="${esc(art)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ''}<div class="pick-label">${esc(x.name)}</div></div>`;
+}
+// v2: search hides behind one button (top-left). Toggle it open/closed.
+function toggleSearch() {
+  const m = document.getElementById('main');
+  const on = m.classList.toggle('search-on');
+  if (on) { const i = $('search-input'); if (i && i.focus) i.focus(); }
+  else { clearSearch(); }
 }
 function showDashboard() {
   const main = document.getElementById('main'); if (main) main.classList.remove('searching');
