@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Conversation Calendar Live — Claude",
+  "version": "1.0.0",
+  "description": "Reads your Claude conversation history from claude.ai and streams it to Conversation Calendar. Nothing leaves your browser.",
+  "permissions": [],
+  "host_permissions": ["https://claude.ai/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://labern.github.io/Clean/claude-calendar/*"],
+      "js": ["bridge.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "action": { "default_title": "Conversation Calendar Live — Claude" }
+}
