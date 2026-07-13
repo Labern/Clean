@@ -1186,35 +1186,47 @@ function handlePlaybackError(e, what) {
   }
 }
 
+// Send a player command on the resolved device; if it 404s (device dropped or handed off), the
+// cached id is stale — clear it, re-resolve a fresh active device, and retry ONCE. Without this,
+// the driver's first Skip/Play/Shuffle tap after a device change silently fails and needs a second
+// tap. (playTrackUri/queueTrack already did this retry; the transport controls didn't.)
+async function playerCmd(pathFor, method) {
+  let dev = await ensureActiveDevice();
+  try {
+    await api(pathFor(dev), method);
+  } catch (e) {
+    if (e && e.status === 404) {
+      S.deviceId = null;
+      dev = await ensureActiveDevice();
+      if (dev) { await api(pathFor(dev), method); return; }   // retry on the fresh device
+    }
+    throw e;   // let the caller's catch → handlePlaybackError
+  }
+}
 async function togglePlay() {
   try {
-    const dev = await ensureActiveDevice();
-    const q = dev ? `?device_id=${dev}` : '';
-    await api('/me/player/' + (S.playing ? 'pause' : 'play') + q, 'PUT');
+    await playerCmd(d => '/me/player/' + (S.playing ? 'pause' : 'play') + (d ? `?device_id=${d}` : ''), 'PUT');
     S.playing = !S.playing;
     renderPlayBtn();
   } catch(e) { handlePlaybackError(e, 'Play/pause'); }
 }
 async function next() {
   try {
-    const dev = await ensureActiveDevice();
-    await api('/me/player/next' + (dev ? `?device_id=${dev}` : ''), 'POST');
+    await playerCmd(d => '/me/player/next' + (d ? `?device_id=${d}` : ''), 'POST');
     setTimeout(fetchState, 600);
   } catch(e) { handlePlaybackError(e, 'Skip'); }
 }
 async function prev() {
   try {
-    const dev = await ensureActiveDevice();
-    await api('/me/player/previous' + (dev ? `?device_id=${dev}` : ''), 'POST');
+    await playerCmd(d => '/me/player/previous' + (d ? `?device_id=${d}` : ''), 'POST');
     setTimeout(fetchState, 600);
   } catch(e) { handlePlaybackError(e, 'Skip'); }
 }
 async function toggleShuffle() {
-  const dev = await ensureActiveDevice();
   S.shuffle = !S.shuffle;
   renderShuffleBtn();
   try {
-    await api('/me/player/shuffle?state=' + S.shuffle + (dev ? `&device_id=${dev}` : ''), 'PUT');
+    await playerCmd(d => '/me/player/shuffle?state=' + S.shuffle + (d ? `&device_id=${d}` : ''), 'PUT');
   } catch(e) {
     S.shuffle = !S.shuffle; renderShuffleBtn();
     handlePlaybackError(e, 'Shuffle');
