@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Conversation Calendar</title>
+<meta name="description" content="Explore your Claude conversation history by date — read live, stored only in your browser." />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 38 38'%3E%3Crect width='38' height='38' fill='%230a0a0a'/%3E%3Ctext x='19' y='27' font-family='Georgia,serif' font-size='22' fill='%23f5f5f0' text-anchor='middle'%3EC%3C/text%3E%3C/svg%3E" />
+<style>
+:root { --ink: #0a0a0a; --paper: #f5f5f0; --line: #c9c9c2; --soft: #e7e7e1; }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--paper); color: var(--ink); }
+body { font-family: Arial, Helvetica, sans-serif; }
+button, input, select { font: inherit; }
+button { color: inherit; }
+.loading { min-height: 100vh; display: grid; place-items: center; font: 700 11px/1 monospace; letter-spacing: .15em; }
+.app-shell { min-height: 100vh; background: var(--paper); }
+.topbar { height: 78px; border-bottom: 1px solid var(--ink); display: flex; justify-content: space-between; align-items: center; padding: 0 28px; position: sticky; top: 0; background: rgba(245,245,240,.94); backdrop-filter: blur(14px); z-index: 20; }
+.brand { border: 0; background: none; padding: 0; display: flex; gap: 13px; align-items: center; font-size: 11px; font-weight: 800; line-height: 1.05; letter-spacing: -.02em; text-align: left; cursor: pointer; }
+.brand-mark { width: 38px; height: 38px; display: grid; place-items: center; background: var(--ink); color: var(--paper); font-family: Georgia, serif; font-size: 20px; font-weight: 400; }
+.top-actions { display: flex; align-items: center; gap: 12px; }
+.search-wrap { border-bottom: 1px solid var(--ink); width: min(360px, 30vw); height: 40px; display: flex; align-items: center; gap: 8px; }
+.search-wrap > span { font-size: 23px; transform: rotate(-15deg); }
+.search-wrap input { flex: 1; border: 0; outline: 0; background: transparent; font-size: 13px; min-width: 0; }
+kbd { font: 10px/1 monospace; border: 1px solid var(--line); padding: 4px 6px; color: #555; }
+.sync-status { font: 700 8px/1.35 monospace; letter-spacing: .05em; color: #555; max-width: 210px; text-align: right; }
+.sync-status:empty { display: none; }
+.button { border: 1px solid var(--ink); background: transparent; min-height: 40px; padding: 0 18px; font-size: 10px; font-weight: 800; letter-spacing: .08em; cursor: pointer; }
+.button:hover { background: var(--ink); color: var(--paper); }
+.button[disabled] { opacity: .5; cursor: progress; }
+.button[disabled]:hover { background: transparent; color: inherit; }
+.workspace { display: grid; grid-template-columns: 190px 1fr; min-height: calc(100vh - 78px); }
+.sidebar { border-right: 1px solid var(--ink); padding: 30px 22px 24px; display: flex; flex-direction: column; }
+.archive-label > span, .archive-label > small { display: block; font: 700 9px/1.2 monospace; letter-spacing: .12em; color: #666; }
+.archive-label > strong { display: block; font-family: Georgia, serif; font-size: 42px; font-weight: 400; line-height: 1; margin: 13px 0 4px; }
+.year-list { border-top: 1px solid var(--line); margin-top: 34px; }
+.year-list button { width: 100%; height: 43px; display: flex; align-items: center; justify-content: space-between; border: 0; border-bottom: 1px solid var(--line); background: none; padding: 0 7px; cursor: pointer; }
+.year-list button span { font: 700 12px/1 monospace; }
+.year-list button em { font: 10px/1 monospace; font-style: normal; color: #6d6d68; }
+.year-list button:hover, .year-list button.active { background: var(--ink); color: var(--paper); }
+.year-list button.active em { color: #aaa; }
+.sidebar-stats { margin-top: auto; padding-top: 32px; }
+.sidebar-stats > div { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 0; border-top: 1px solid var(--line); }
+.sidebar-stats span { font: 700 8px/1 monospace; letter-spacing: .08em; color: #666; }
+.sidebar-stats strong { font: 18px/1 Georgia, serif; font-weight: 400; }
+.sidebar-stats p { font-size: 10px; color: #666; margin: 18px 0 9px; }
+.sidebar-stats button { border: 0; border-bottom: 1px solid #777; background: transparent; padding: 0 0 2px; font: 700 8px/1 monospace; cursor: pointer; }
+.calendar-panel { padding: 35px 38px 52px; min-width: 0; }
+.calendar-heading { display: flex; align-items: end; justify-content: space-between; margin-bottom: 23px; }
+.calendar-heading p { margin: 0 0 8px; font: 700 9px/1 monospace; letter-spacing: .12em; color: #6b6b66; }
+.calendar-heading h1 { margin: 0; font: 400 clamp(40px, 5vw, 72px)/.9 Georgia, 'Times New Roman', serif; letter-spacing: -.055em; }
+.calendar-heading h1 span { color: #9c9c95; }
+.month-controls { display: flex; height: 40px; border: 1px solid var(--ink); }
+.month-controls button { width: 42px; border: 0; background: transparent; cursor: pointer; font-size: 17px; }
+.month-controls button:hover { background: var(--ink); color: var(--paper); }
+.month-controls select { border: 0; border-left: 1px solid var(--ink); border-right: 1px solid var(--ink); border-radius: 0; background: transparent; padding: 0 26px 0 12px; font-size: 10px; font-weight: 800; text-transform: uppercase; outline: none; }
+.month-summary { height: 31px; display: flex; align-items: center; gap: 15px; border-top: 1px solid var(--ink); font: 700 8px/1 monospace; letter-spacing: .1em; }
+.month-summary i { height: 1px; background: var(--line); flex: 1; }
+.calendar { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-top: 1px solid var(--ink); border-left: 1px solid var(--ink); }
+.weekday { height: 30px; display: grid; place-items: center; border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); font: 700 8px/1 monospace; letter-spacing: .14em; }
+.day { min-height: 118px; border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 8px; overflow: hidden; }
+.day.muted { background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(0,0,0,.035) 6px 7px); }
+.day-number { display: flex; justify-content: space-between; align-items: center; font: 700 9px/1 monospace; color: #73736e; }
+.day-number em { border: 1px solid var(--line); border-radius: 99px; padding: 3px 5px; font-style: normal; font-size: 7px; }
+.conversation-squares { display: grid; grid-template-columns: repeat(auto-fill, minmax(15px, 1fr)); gap: 4px; margin-top: 12px; }
+.conversation-squares button { position: relative; aspect-ratio: 1; min-width: 0; border: 1px solid var(--ink); background: var(--ink); padding: 0; cursor: pointer; opacity: 0; animation: square-in .25s ease forwards; animation-delay: var(--delay); }
+.conversation-squares button:nth-child(3n+2) { background: transparent; }
+.conversation-squares button:nth-child(5n) { background: #85857f; border-color: #85857f; }
+.conversation-squares button:hover, .conversation-squares button:focus-visible { background: #fff; outline: 2px solid var(--ink); outline-offset: 1px; z-index: 3; }
+.conversation-squares button span { position: absolute; pointer-events: none; opacity: 0; left: 50%; bottom: calc(100% + 7px); transform: translateX(-50%); width: max-content; max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 7px 8px; background: var(--ink); color: white; font: 10px/1.2 Arial, sans-serif; z-index: 8; }
+.conversation-squares button:hover span { opacity: 1; }
+@keyframes square-in { to { opacity: 1; } }
+.modal-backdrop, .reader-backdrop { position: fixed; inset: 0; z-index: 50; background: rgba(10,10,10,.72); backdrop-filter: blur(5px); display: grid; place-items: center; padding: 20px; }
+.import-modal { background: var(--paper); width: min(620px, 100%); border: 1px solid var(--ink); padding: 48px; position: relative; box-shadow: 12px 12px 0 #000; max-height: 92vh; overflow: auto; }
+.close { position: absolute; right: 14px; top: 11px; border: 0; background: none; font-size: 25px; cursor: pointer; }
+.eyebrow { font: 700 9px/1 monospace; letter-spacing: .16em; }
+.import-modal h2 { font: 400 clamp(38px, 7vw, 65px)/.9 Georgia, serif; letter-spacing: -.055em; margin: 27px 0 23px; }
+.import-modal > p { max-width: 460px; font-size: 14px; line-height: 1.55; color: #464643; }
+.button.primary { width: 100%; background: var(--ink); color: var(--paper); height: 54px; margin: 18px 0 8px; display: flex; justify-content: space-between; align-items: center; text-decoration: none; }
+.button.primary:hover { background: #333; }
+.button.primary[disabled] { background: #555; cursor: progress; }
+.import-status { font: 10px/1.5 monospace; padding: 10px 0; min-height: 14px; }
+.import-status:empty { display: none; }
+.archive-fallback { border: 0; border-bottom: 1px solid #777; background: transparent; padding: 0 0 2px; margin-top: 14px; font-size: 10px; color: #555; cursor: pointer; }
+.step-list { list-style: none; margin: 20px 0 6px; padding: 0; border-top: 1px solid var(--line); }
+.step-list li { border-bottom: 1px solid var(--line); padding: 12px 2px; font-size: 12.5px; line-height: 1.5; display: flex; gap: 13px; align-items: baseline; }
+.step-list li b { font: 700 9px/1 monospace; color: #777; min-width: 12px; }
+.step-list code { font: 700 11px/1 monospace; }
+.download-companion { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ink); background: transparent; padding: 9px 13px; font: 700 9px/1 monospace; letter-spacing: .08em; text-decoration: none; color: var(--ink); }
+.download-companion:hover { background: var(--ink); color: var(--paper); }
+.reader-backdrop { place-items: stretch end; padding: 0; }
+.reader { height: 100%; width: min(1120px, 86vw); background: var(--paper); border-left: 1px solid var(--ink); overflow: auto; animation: slide-in .22s ease-out; }
+@keyframes slide-in { from { transform: translateX(30px); opacity: .4; } }
+.reader > header { min-height: 68px; border-bottom: 1px solid var(--ink); display: flex; justify-content: space-between; align-items: center; padding: 0 48px; position: sticky; top: 0; background: rgba(245,245,240,.95); backdrop-filter: blur(8px); z-index: 3; }
+.reader > header > button { border: 0; background: none; padding: 0; font: 700 11px/1 monospace; letter-spacing: .08em; cursor: pointer; }
+.reader-head-right { display: flex; align-items: center; gap: 18px; }
+.reader-head-right span { font: 11px/1 monospace; color: #666; }
+.reader-open-live { border: 0; background: none; padding: 0; font: 700 10px/1 monospace; letter-spacing: .05em; cursor: pointer; text-decoration: underline; }
+.reader-title { padding: 54px 68px 38px; border-bottom: 1px solid var(--ink); }
+.reader-title > span { font: 700 10px/1 monospace; letter-spacing: .14em; }
+.reader-title h2 { font: 400 clamp(44px, 5vw, 72px)/.95 Georgia, serif; letter-spacing: -.045em; margin: 22px 0 16px; overflow-wrap: anywhere; }
+.reader-title p { font: 11px/1.4 monospace; text-transform: uppercase; color: #666; }
+.reader-title input { width: 100%; background: transparent; border: 0; border-bottom: 1px solid var(--ink); outline: 0; padding: 16px 0 11px; margin-top: 18px; font-size: 15px; }
+.transcript { padding: 0 68px 100px; }
+.message { display: grid; grid-template-columns: 72px 1fr; gap: 22px; padding: 36px 0; border-bottom: 1px solid var(--line); }
+.message-meta { display: flex; flex-direction: column; gap: 7px; }
+.message-meta strong { font: 700 11px/1 monospace; }
+.message-meta time { font: 9px/1.5 monospace; color: #777; }
+.message-copy { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 18px; line-height: 1.72; }
+.message.assistant .message-copy { font-family: Georgia, serif; font-size: 19px; line-height: 1.72; }
+.message.assistant .message-meta strong { background: var(--ink); color: white; width: fit-content; padding: 4px; }
+.no-results { padding: 40px 0; font-size: 12px; color: #666; }
+
+@media (max-width: 800px) {
+  .topbar { height: auto; min-height: 68px; padding: 12px 16px; gap: 12px; flex-wrap: wrap; }
+  .brand { font-size: 9px; }
+  .brand-mark { width: 34px; height: 34px; }
+  .search-wrap { width: 40vw; }
+  .search-wrap kbd { display: none; }
+  .sync-status { display: none; }
+  .workspace { display: block; }
+  .sidebar { border-right: 0; border-bottom: 1px solid var(--ink); padding: 13px 16px; display: block; }
+  .archive-label, .sidebar-stats { display: none; }
+  .year-list { margin: 0; border: 0; display: flex; gap: 5px; overflow-x: auto; }
+  .year-list button { min-width: 70px; height: 33px; border: 1px solid var(--ink); padding: 0 8px; }
+  .calendar-panel { padding: 25px 14px 40px; overflow-x: auto; }
+  .calendar-heading { align-items: flex-end; }
+  .calendar-heading h1 { font-size: 40px; }
+  .month-controls select { display: none; }
+  .calendar, .month-summary { min-width: 650px; }
+  .day { min-height: 96px; padding: 6px; }
+  .conversation-squares { gap: 3px; margin-top: 9px; }
+  .import-modal { padding: 34px 25px; box-shadow: 7px 7px 0 #000; }
+  .reader { width: 100%; }
+  .reader > header { padding: 0 22px; }
+  .reader-title, .transcript { padding-left: 24px; padding-right: 24px; }
+  .reader-title h2 { font-size: 42px; }
+  .message { grid-template-columns: 54px 1fr; gap: 14px; }
+  .message-copy, .message.assistant .message-copy { font-size: 17px; }
+}
+
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div id="root"><main class="loading">OPENING ARCHIVE…</main></div>
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * Conversation Calendar — Claude edition (live)
+ * A date-first archive of every Claude conversation. Reads your
+ * history straight from claude.ai via the companion extension — no
+ * export, nothing uploaded. Everything is cached only in this browser
+ * (IndexedDB). Vanilla single-file port of the original dashboard.
+ * ------------------------------------------------------------------ */
+
+const DB_NAME = "claude-conversation-calendar";
+const STORE = "archives";
+const ARCHIVE_KEY = "primary";
+const TIME_ZONE = "Europe/London";
+const CLAUDE_CHAT_URL = "https://claude.ai/chat/";
+const COMPANION_ZIP = "claude-conversation-calendar-live.zip";
+const weekDays = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+const monthNames = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+const esc = (value) => String(value).replace(/[&<>"']/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+));
+
+/* ---------------------------- storage ----------------------------- */
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(STORE);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function loadArchive() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readonly");
+    const request = tx.objectStore(STORE).get(ARCHIVE_KEY);
+    request.onsuccess = () => resolve(request.result || null);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function saveArchive(items) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).put(items, ARCHIVE_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function clearArchive() {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE, "readwrite");
+    tx.objectStore(STORE).delete(ARCHIVE_KEY);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+/* --------------------------- parsing ------------------------------ *
+ * Claude conversations arrive either as index summaries (no messages)
+ * or as full conversations with a flat chat_messages array:
+ *   { uuid, name, created_at, updated_at, chat_messages: [
+ *       { uuid, sender: "human"|"assistant", text, index, created_at,
+ *         content: [{ type: "text", text }] } ] }
+ * Timestamps are ISO 8601 strings; normalised to unix seconds so the
+ * calendar math matches the original. NOTE: a message's `text` is often
+ * empty even when it has content — the real text lives in content[].
+ * ------------------------------------------------------------------ */
+
+function toSeconds(value) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value > 1e12 ? Math.floor(value / 1000) : value;
+  }
+  if (typeof value === "string" && value) {
+    const ms = Date.parse(value);
+    if (Number.isFinite(ms)) return Math.floor(ms / 1000);
+  }
+  return 0;
+}
+
+function textFromBlock(block) {
+  if (typeof block === "string") return block;
+  if (!block || typeof block !== "object") return "";
+  if (block.type && block.type !== "text") return ""; // skip thinking / tool_use / tool_result
+  if (typeof block.text === "string") return block.text;
+  return "";
+}
+
+function messageText(message) {
+  const blocks = Array.isArray(message.content) ? message.content : [];
+  const fromBlocks = blocks.map(textFromBlock).filter(Boolean).join("\n").trim();
+  if (fromBlocks) return fromBlocks;
+  if (typeof message.text === "string") return message.text.trim();
+  return "";
+}
+
+function orderedMessages(conversation) {
+  const raw = Array.isArray(conversation.chat_messages) ? conversation.chat_messages : [];
+  const ordered = raw.every((m) => typeof m.index === "number")
+    ? [...raw].sort((a, b) => a.index - b.index)
+    : [...raw].sort((a, b) => toSeconds(a.created_at) - toSeconds(b.created_at));
+  return ordered.flatMap((message, index) => {
+    if (!message || typeof message !== "object") return [];
+    const text = messageText(message);
+    if (!text) return [];
+    const sender = message.sender || "unknown";
+    const role = sender === "human" ? "user" : sender === "assistant" ? "assistant" : sender;
+    return [{
+      id: message.uuid || `message-${index}`,
+      role,
+      text,
+      time: message.created_at ? toSeconds(message.created_at) : null,
+    }];
+  });
+}
+
+function normalizeOne(item, index) {
+  const created = toSeconds(item.created_at) || toSeconds(item.updated_at) || 0;
+  const messages = orderedMessages(item);
+  const title = (item.name || "").trim() || "Untitled conversation";
+  return {
+    id: item.uuid || item.conversation_id || `conversation-${index || 0}`,
+    title,
+    created,
+    updated: toSeconds(item.updated_at) || created,
+    messages,
+    search: `${title}\n${messages.map((m) => m.text).join("\n")}`.toLowerCase(),
+    live: true,
+  };
+}
+
+/* --------------------------- calendar ----------------------------- */
+
+function calendarParts(seconds) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TIME_ZONE, year: "numeric", month: "numeric", day: "numeric",
+  }).formatToParts(new Date(seconds * 1000));
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return { year: Number(value.year), month: Number(value.month) - 1, day: Number(value.day) };
+}
+
+function dateKey(seconds) {
+  const date = calendarParts(seconds);
+  return `${date.year}-${date.month}-${date.day}`;
+}
+
+function formatDate(seconds, includeTime) {
+  return new Intl.DateTimeFormat("en-GB", includeTime
+    ? { timeZone: TIME_ZONE, day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" }
+    : { timeZone: TIME_ZONE, day: "numeric", month: "long", year: "numeric" }
+  ).format(new Date(seconds * 1000));
+}
+
+function initials(role) {
+  if (role === "user") return "YOU";
+  if (role === "assistant") return "AI";
+  return role.toUpperCase().slice(0, 4);
+}
+
+/* ----------------------------- state ------------------------------ */
+
+const now = new Date();
+const state = {
+  conversations: [],
+  loaded: false,
+  status: "",
+  query: "",
+  selected: null,
+  readerSearch: "",
+  month: now.getMonth(),
+  year: now.getFullYear(),
+  showConnect: false,
+  installVisible: false,
+  syncing: false,
+  extensionReady: false,
+};
+
+const byId = (id) => state.conversations.find((item) => item.id === id) || null;
+
+/* --------------------------- selectors ---------------------------- */
+
+function yearsList() {
+  const values = new Set(state.conversations.map((item) => calendarParts(item.created).year));
+  return [...values].sort((a, b) => b - a);
+}
+
+function filteredConversations() {
+  const term = state.query.trim().toLowerCase();
+  return term ? state.conversations.filter((item) => item.search.includes(term)) : state.conversations;
+}
+
+function stats() {
+  const messages = state.conversations.reduce((sum, item) => sum + item.messages.length, 0);
+  const activeDays = new Set(state.conversations.map((item) => dateKey(item.created))).size;
+  return { messages, activeDays };
+}
+
+/* --------------------------- rendering ---------------------------- */
+
+const root = document.getElementById("root");
+
+function renderShell() {
+  root.innerHTML = `
+    <main class="app-shell">
+      <header class="topbar">
+        <button class="brand" id="brand">
+          <span class="brand-mark">C</span>
+          <span>CONVERSATION<br />CALENDAR</span>
+        </button>
+        <div class="top-actions">
+          <label class="search-wrap" for="archive-search">
+            <span>⌕</span>
+            <input id="archive-search" placeholder="Search every conversation" />
+            <kbd>⌘ K</kbd>
+          </label>
+          <span class="sync-status" id="sync-status"></span>
+          <button class="button" id="sync-live">SYNC LIVE</button>
+        </div>
+      </header>
+      <div class="workspace">
+        <aside class="sidebar" id="sidebar"></aside>
+        <section class="calendar-panel" id="calendar-panel"></section>
+      </div>
+    </main>
+    <div id="overlays"></div>`;
+
+  document.getElementById("brand").addEventListener("click", () => {
+    state.query = "";
+    state.selected = null;
+    document.getElementById("archive-search").value = "";
+    renderOverlays();
+    renderCalendar();
+  });
+
+  const search = document.getElementById("archive-search");
+  search.value = state.query;
+  search.addEventListener("input", (event) => {
+    state.query = event.target.value;
+    renderCalendar();
+  });
+
+  document.getElementById("sync-live").addEventListener("click", startSync);
+
+  renderSidebar();
+  renderCalendar();
+}
+
+function renderSidebar() {
+  const sidebar = document.getElementById("sidebar");
+  if (!sidebar) return;
+  const years = yearsList();
+  const { messages, activeDays } = stats();
+  sidebar.innerHTML = `
+    <section class="archive-label">
+      <span>YOUR ARCHIVE</span>
+      <strong>${state.conversations.length.toLocaleString()}</strong>
+      <small>CONVERSATIONS</small>
+    </section>
+    <nav class="year-list" aria-label="Years">
+      ${years.map((value) => {
+        const count = state.conversations.filter((item) => calendarParts(item.created).year === value).length;
+        return `<button data-year="${value}" class="${state.year === value ? "active" : ""}"><span>${value}</span><em>${count}</em></button>`;
+      }).join("")}
+    </nav>
+    ${state.conversations.length ? `
+      <div class="sidebar-stats">
+        <div><span>MESSAGES</span><strong>${messages.toLocaleString()}</strong></div>
+        <div><span>ACTIVE DAYS</span><strong>${activeDays.toLocaleString()}</strong></div>
+        <p>Read live from claude.ai · stored only in this browser.</p>
+        <button id="forget-archive">FORGET ARCHIVE</button>
+      </div>` : ""}`;
+
+  sidebar.querySelectorAll("[data-year]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.year = Number(button.dataset.year);
+      renderSidebar();
+      renderCalendar();
+    });
+  });
+  const forget = document.getElementById("forget-archive");
+  if (forget) forget.addEventListener("click", forgetArchive);
+}
+
+function renderCalendar() {
+  const panel = document.getElementById("calendar-panel");
+  if (!panel) return;
+  const filtered = filteredConversations();
+
+  const grouped = new Map();
+  for (const item of filtered) {
+    const key = dateKey(item.created);
+    grouped.set(key, [...(grouped.get(key) || []), item]);
+  }
+
+  const monthItems = filtered.filter((item) => {
+    const d = calendarParts(item.created);
+    return d.year === state.year && d.month === state.month;
+  });
+
+  const count = new Date(state.year, state.month + 1, 0).getDate();
+  const mondayOffset = (new Date(state.year, state.month, 1).getDay() + 6) % 7;
+  const calendarDays = [
+    ...Array.from({ length: mondayOffset }, () => null),
+    ...Array.from({ length: count }, (_, i) => i + 1),
+  ];
+
+  panel.innerHTML = `
+    <div class="calendar-heading">
+      <div>
+        <p>ARCHIVE / ${state.year}</p>
+        <h1>${monthNames[state.month]} <span>${state.year}</span></h1>
+      </div>
+      <div class="month-controls">
+        <button aria-label="Previous month" data-nav="-1">←</button>
+        <select aria-label="Choose month" id="month-select">
+          ${monthNames.map((name, index) => `<option value="${index}" ${index === state.month ? "selected" : ""}>${name}</option>`).join("")}
+        </select>
+        <button aria-label="Next month" data-nav="1">→</button>
+      </div>
+    </div>
+    <div class="month-summary">
+      <span>${monthItems.length.toLocaleString()} CONVERSATIONS</span>
+      ${state.query ? `<span>${filtered.length.toLocaleString()} MATCHES ARCHIVE-WIDE</span>` : ""}
+      <i></i>
+      <span>ONE SQUARE = ONE THREAD</span>
+    </div>
+    <div class="calendar" role="grid" aria-label="${monthNames[state.month]} ${state.year}">
+      ${weekDays.map((day) => `<div class="weekday">${day}</div>`).join("")}
+      ${calendarDays.map((day) => {
+        if (!day) return `<div class="day muted"></div>`;
+        const items = grouped.get(`${state.year}-${state.month}-${day}`) || [];
+        return `
+          <div class="day ${items.length ? "has-items" : ""}" role="gridcell">
+            <div class="day-number"><span>${String(day).padStart(2, "0")}</span>${items.length ? `<em>${items.length}</em>` : ""}</div>
+            <div class="conversation-squares">
+              ${items.map((item, itemIndex) => `
+                <button data-open="${esc(item.id)}"
+                  style="--delay:${Math.min(itemIndex * 12, 240)}ms"
+                  aria-label="${esc(item.title)}, ${formatDate(item.created, true)}"
+                  title="${esc(item.title)}"><span>${esc(item.title)}</span></button>`).join("")}
+            </div>
+          </div>`;
+      }).join("")}
+    </div>`;
+
+  panel.querySelectorAll("[data-nav]").forEach((button) => {
+    button.addEventListener("click", () => navigate(Number(button.dataset.nav)));
+  });
+  const select = document.getElementById("month-select");
+  if (select) select.addEventListener("change", (event) => {
+    state.month = Number(event.target.value);
+    renderCalendar();
+  });
+  panel.querySelectorAll("[data-open]").forEach((button) => {
+    button.addEventListener("click", () => openConversation(button.dataset.open));
+  });
+}
+
+function openConversation(id) {
+  const item = byId(id);
+  if (!item) return;
+  if (item.messages && item.messages.length) {
+    state.selected = item;
+    state.readerSearch = "";
+    renderOverlays();
+  } else {
+    // Transcript not loaded yet — open the real conversation on claude.ai.
+    window.open(`${CLAUDE_CHAT_URL}${item.id}`, "_blank", "noopener,noreferrer");
+  }
+}
+
+function navigate(delta) {
+  const next = new Date(state.year, state.month + delta, 1);
+  state.year = next.getFullYear();
+  state.month = next.getMonth();
+  renderSidebar();
+  renderCalendar();
+}
+
+/* --------------------------- overlays ----------------------------- */
+
+function renderOverlays() {
+  const overlays = document.getElementById("overlays");
+  if (!overlays) return;
+  overlays.innerHTML = `${renderConnect()}${renderReader()}`;
+  wireConnect();
+  wireReader();
+}
+
+function renderConnect() {
+  if (!state.showConnect) return "";
+  const dismissible = state.conversations.length > 0;
+  return `
+    <div class="modal-backdrop" id="connect-backdrop">
+      <section class="import-modal" role="dialog" aria-modal="true" aria-labelledby="connect-title">
+        ${dismissible ? `<button class="close" id="connect-close" aria-label="Close">×</button>` : ""}
+        <span class="eyebrow">CLAUDE ARCHIVE · LIVE</span>
+        <h2 id="connect-title">Every<br />conversation.</h2>
+        <p>This reads your conversation history straight from <strong>claude.ai</strong> in this browser — no export, nothing uploaded. It lands here and is stored only in your browser.</p>
+        <button class="button primary" id="sync-primary" ${state.syncing ? "disabled" : ""}>${state.syncing ? "SYNCING…" : "SYNC LIVE"} <span>↗</span></button>
+        <div class="import-status" id="connect-status">${esc(state.status)}</div>
+        ${state.installVisible ? `
+          <ol class="step-list">
+            <li><b>1</b><span>Download the companion: <a class="download-companion" href="${COMPANION_ZIP}" download>COMPANION.ZIP ↓</a></span></li>
+            <li><b>2</b><span>Unzip it anywhere you'll remember.</span></li>
+            <li><b>3</b><span>Open <code>chrome://extensions</code> and turn on <strong>Developer mode</strong> (top-right).</span></li>
+            <li><b>4</b><span>Click <strong>Load unpacked</strong> and pick the unzipped folder.</span></li>
+            <li><b>5</b><span>Come back here and press <strong>Sync Live</strong>.</span></li>
+          </ol>` : `<button class="archive-fallback" id="show-install">First time? Set up the companion ↗</button>`}
+      </section>
+    </div>`;
+}
+
+function wireConnect() {
+  const backdrop = document.getElementById("connect-backdrop");
+  if (!backdrop) return;
+  backdrop.addEventListener("mousedown", (event) => {
+    if (event.target === backdrop && state.conversations.length) {
+      state.showConnect = false;
+      renderOverlays();
+    }
+  });
+  const close = document.getElementById("connect-close");
+  if (close) close.addEventListener("click", () => { state.showConnect = false; renderOverlays(); });
+  const primary = document.getElementById("sync-primary");
+  if (primary) primary.addEventListener("click", startSync);
+  const show = document.getElementById("show-install");
+  if (show) show.addEventListener("click", () => { state.installVisible = true; renderOverlays(); });
+}
+
+function renderReader() {
+  const selected = state.selected;
+  if (!selected) return "";
+  return `
+    <div class="reader-backdrop" id="reader-backdrop">
+      <article class="reader" role="dialog" aria-modal="true" aria-labelledby="reader-title">
+        <header>
+          <button id="reader-close" aria-label="Close conversation">← BACK TO CALENDAR</button>
+          <div class="reader-head-right">
+            ${selected.live ? `<button class="reader-open-live" data-openlive="${esc(selected.id)}">OPEN ON CLAUDE.AI ↗</button>` : ""}
+            <span>${formatDate(selected.created, true)}</span>
+          </div>
+        </header>
+        <div class="reader-title">
+          <span>CONVERSATION</span>
+          <h2 id="reader-title">${esc(selected.title)}</h2>
+          <p id="reader-count">${selected.messages.length} messages · updated ${formatDate(selected.updated)}</p>
+          <input id="reader-search" placeholder="Find inside this conversation" aria-label="Find inside conversation" />
+        </div>
+        <div class="transcript" id="transcript">${transcriptHtml()}</div>
+      </article>
+    </div>`;
+}
+
+function transcriptHtml() {
+  const selected = state.selected;
+  if (!selected) return "";
+  const term = state.readerSearch.trim().toLowerCase();
+  const visible = selected.messages.filter((message) => !term || message.text.toLowerCase().includes(term));
+  if (!visible.length) return `<p class="no-results">No messages match that search.</p>`;
+  return visible.map((message) => `
+    <section class="message ${esc(message.role)}">
+      <div class="message-meta"><strong>${esc(initials(message.role))}</strong>${message.time ? `<time>${formatDate(message.time, true)}</time>` : ""}</div>
+      <div class="message-copy">${esc(message.text)}</div>
+    </section>`).join("");
+}
+
+function wireReader() {
+  const backdrop = document.getElementById("reader-backdrop");
+  if (!backdrop) return;
+  backdrop.addEventListener("mousedown", (event) => {
+    if (event.target === backdrop) { state.selected = null; renderOverlays(); }
+  });
+  document.getElementById("reader-close").addEventListener("click", () => {
+    state.selected = null;
+    renderOverlays();
+  });
+  const openLive = backdrop.querySelector("[data-openlive]");
+  if (openLive) openLive.addEventListener("click", () => {
+    window.open(`${CLAUDE_CHAT_URL}${openLive.dataset.openlive}`, "_blank", "noopener,noreferrer");
+  });
+  const search = document.getElementById("reader-search");
+  search.value = state.readerSearch;
+  search.addEventListener("input", (event) => {
+    state.readerSearch = event.target.value;
+    document.getElementById("transcript").innerHTML = transcriptHtml();
+  });
+}
+
+/* ----------------------------- sync ------------------------------- */
+
+function setStatus(message) {
+  state.status = message;
+  const bar = document.getElementById("sync-status");
+  if (bar) bar.textContent = message;
+  const modal = document.getElementById("connect-status");
+  if (modal) modal.textContent = message;
+}
+
+function setSyncButton() {
+  const button = document.getElementById("sync-live");
+  if (button) {
+    button.textContent = state.syncing ? "SYNCING…" : "SYNC LIVE";
+    button.disabled = state.syncing;
+  }
+  const primary = document.getElementById("sync-primary");
+  if (primary) {
+    primary.disabled = state.syncing;
+    primary.innerHTML = `${state.syncing ? "SYNCING…" : "SYNC LIVE"} <span>↗</span>`;
+  }
+}
+
+function startSync() {
+  if (state.syncing) return;
+  if (!state.extensionReady) {
+    // The bridge may have loaded after us — ask it to re-announce, then wait briefly.
+    window.dispatchEvent(new CustomEvent("conversation-calendar:page-ready"));
+    setStatus("Looking for the companion…");
+    setTimeout(() => {
+      if (state.extensionReady) {
+        fireSync();
+      } else {
+        state.showConnect = true;
+        state.installVisible = true;
+        renderOverlays();
+        setStatus("Companion not found. Set it up below, then press Sync Live.");
+      }
+    }, 700);
+    return;
+  }
+  fireSync();
+}
+
+function fireSync() {
+  state.syncing = true;
+  state.installVisible = false;
+  setSyncButton();
+  setStatus("Starting live sync…");
+  window.dispatchEvent(new CustomEvent("conversation-calendar:sync-request"));
+}
+
+let saveTimer = null;
+let lastSave = 0;
+function scheduleSave() {
+  const elapsed = Date.now() - lastSave;
+  if (elapsed > 2500) {
+    lastSave = Date.now();
+    saveArchive(state.conversations).catch(() => {});
+    return;
+  }
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    lastSave = Date.now();
+    saveArchive(state.conversations).catch(() => {});
+  }, 2500);
+}
+
+function applyIndex(items) {
+  const list = Array.isArray(items) ? items : [];
+  const previous = new Map(state.conversations.map((c) => [c.id, c]));
+  const normalized = list
+    .map((item, index) => normalizeOne(item, index))
+    .filter((c) => c.created)
+    .sort((a, b) => b.created - a.created);
+  // Keep any transcripts we already loaded until fresh ones stream in.
+  normalized.forEach((c) => {
+    const old = previous.get(c.id);
+    if (old && old.messages.length && !c.messages.length) {
+      c.messages = old.messages;
+      c.search = old.search;
+    }
+  });
+  state.conversations = normalized;
+  if (normalized.length) {
+    const latest = calendarParts(normalized[0].created);
+    state.year = latest.year;
+    state.month = latest.month;
+  }
+  state.showConnect = false;
+  renderSidebar();
+  renderCalendar();
+  renderOverlays();
+  setSyncButton();
+  scheduleSave();
+}
+
+function mergeConversation(raw) {
+  if (!raw || typeof raw !== "object") return;
+  const one = normalizeOne(raw);
+  const existing = byId(one.id);
+  if (existing) {
+    existing.messages = one.messages;
+    existing.search = one.search;
+    if (one.title) existing.title = one.title;
+    if (one.updated) existing.updated = one.updated;
+    if (state.selected && state.selected.id === one.id) {
+      state.selected = existing;
+      const transcript = document.getElementById("transcript");
+      if (transcript) transcript.innerHTML = transcriptHtml();
+      const countLine = document.getElementById("reader-count");
+      if (countLine) countLine.textContent = `${existing.messages.length} messages · updated ${formatDate(existing.updated)}`;
+    }
+  } else {
+    state.conversations.push(one);
+  }
+  scheduleSave();
+}
+
+function finishSync(total) {
+  state.syncing = false;
+  setSyncButton();
+  const count = state.conversations.length.toLocaleString();
+  setStatus(`Synced ${count} conversations.`);
+  renderSidebar();
+  saveArchive(state.conversations).catch(() => {});
+}
+
+window.addEventListener("conversation-calendar:extension-ready", () => {
+  state.extensionReady = true;
+});
+
+window.addEventListener("conversation-calendar:sync-event", (event) => {
+  const message = event.detail;
+  if (!message || typeof message !== "object") return;
+  if (message.type === "status") setStatus(message.message || "");
+  else if (message.type === "index") applyIndex(message.items);
+  else if (message.type === "conversation") mergeConversation(message.raw);
+  else if (message.type === "complete") finishSync(message.total);
+  else if (message.type === "error") {
+    state.syncing = false;
+    setSyncButton();
+    setStatus(message.message || "Live sync failed.");
+    if (!state.conversations.length) {
+      state.showConnect = true;
+      state.installVisible = true;
+      renderOverlays();
+    }
+  }
+});
+
+/* ---------------------------- actions ----------------------------- */
+
+async function forgetArchive() {
+  await clearArchive();
+  state.conversations = [];
+  state.selected = null;
+  state.showConnect = true;
+  renderSidebar();
+  renderCalendar();
+  renderOverlays();
+}
+
+/* ---------------------------- keyboard ---------------------------- */
+
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    if (state.selected || (state.showConnect && state.conversations.length)) {
+      state.selected = null;
+      state.showConnect = false;
+      renderOverlays();
+    }
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    const search = document.getElementById("archive-search");
+    if (search) search.focus();
+  }
+});
+
+/* ------------------------------ boot ------------------------------ */
+
+loadArchive()
+  .then((items) => {
+    if (items && items.length) {
+      state.conversations = items;
+      const latest = calendarParts(items[0].created);
+      state.year = latest.year;
+      state.month = latest.month;
+    } else {
+      state.showConnect = true;
+    }
+  })
+  .catch(() => { state.showConnect = true; })
+  .finally(() => {
+    state.loaded = true;
+    renderShell();
+    renderOverlays();
+    // Let the companion bridge know we're here so it announces itself.
+    window.dispatchEvent(new CustomEvent("conversation-calendar:page-ready"));
+  });
+</script>
+</body>
+</html>
