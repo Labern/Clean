@@ -102,3 +102,10 @@ user did *not* want as the headline metric).
 - Don't introduce a framework/bundler for what is currently a one-page demo.
 - Don't delete `file` or `index.html` without checking with the user first —
   this directory's contents were built interactively and may still be in use.
+- NEVER create or write a file via shell redirection (`>`, `tee`, etc.) or any
+  other method that silently overwrites, without first checking whether the
+  file already exists and reading it if it does. A session once ran
+  `printf ... > .gitignore` and wiped the repo's existing .gitignore. Use the
+  Read-then-Write/Edit tools for file changes — their overwrite guard exists
+  for exactly this reason. The same applies to remote refs: check what exists
+  before pushing (a gh-pages branch with live sites already existed here).
