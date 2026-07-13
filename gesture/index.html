@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>☝️ One Finger Trigger</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background: radial-gradient(ellipse at 20% 0%, #1e1b4b 0%, #0f172a 45%, #020617 100%);
+    color: #e2e8f0;
+    font-family: "SF Mono", ui-monospace, Menlo, Monaco, "Cascadia Code", monospace;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem 1rem 3rem;
+  }
+
+  h1 {
+    font-size: 1.4rem;
+    letter-spacing: 0.05em;
+    background: linear-gradient(90deg, #5eead4, #a78bfa, #f472b6);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin-bottom: 0.4rem;
+  }
+
+  .subtitle { color: #64748b; font-size: 0.8rem; margin-bottom: 1.5rem; text-align: center; }
+
+  .stage {
+    position: relative;
+    width: min(720px, 94vw);
+    aspect-ratio: 4 / 3;
+    border: 1px solid rgba(94, 234, 212, 0.25);
+    border-radius: 16px;
+    overflow: hidden;
+    background: rgba(15, 23, 42, 0.6);
+    box-shadow: 0 0 60px rgba(167, 139, 250, 0.15);
+  }
+
+  /* mirror both layers so it behaves like a mirror */
+  video, canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+
+  #startBtn {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 240px;
+    height: 64px;
+    font-family: inherit;
+    font-size: 1rem;
+    color: #020617;
+    background: linear-gradient(90deg, #5eead4, #a78bfa);
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    z-index: 3;
+  }
+  #startBtn:hover { filter: brightness(1.1); }
+  #startBtn:disabled { opacity: 0.6; cursor: wait; }
+
+  .flash {
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(94, 234, 212, 0.55), rgba(167, 139, 250, 0.35));
+    opacity: 0;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .flash.on { animation: flashAnim 0.6s ease-out; }
+  @keyframes flashAnim { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+  .hud {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-top: 1.25rem;
+    width: min(720px, 94vw);
+  }
+
+  .card {
+    flex: 1 1 180px;
+    background: rgba(30, 27, 75, 0.35);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 12px;
+    padding: 0.9rem 1.1rem;
+    backdrop-filter: blur(6px);
+  }
+  .card .label { font-size: 0.65rem; letter-spacing: 0.15em; color: #64748b; text-transform: uppercase; }
+  .card .value { font-size: 1.15rem; margin-top: 0.3rem; }
+
+  #status.waiting  { color: #64748b; }
+  #status.hand     { color: #a78bfa; }
+  #status.triggered{ color: #5eead4; text-shadow: 0 0 12px rgba(94, 234, 212, 0.7); }
+
+  #count { color: #f472b6; font-size: 1.6rem; }
+
+  #log {
+    width: min(720px, 94vw);
+    margin-top: 1rem;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    max-height: 10rem;
+    overflow-y: auto;
+  }
+  #log div { padding: 0.15rem 0; border-bottom: 1px dashed rgba(148, 163, 184, 0.12); }
+  #log .t { color: #5eead4; }
+
+  #error {
+    margin-top: 1rem;
+    color: #f472b6;
+    font-size: 0.8rem;
+    max-width: min(720px, 94vw);
+    text-align: center;
+    display: none;
+  }
+
+  .hint { margin-top: 1.5rem; color: #475569; font-size: 0.7rem; text-align: center; max-width: 640px; line-height: 1.6; }
+
+  .mac-setup {
+    width: min(720px, 94vw);
+    margin-top: 1.5rem;
+    background: rgba(30, 27, 75, 0.35);
+    border: 1px solid rgba(167, 139, 250, 0.3);
+    border-radius: 12px;
+    padding: 1.1rem 1.3rem;
+    font-size: 0.8rem;
+    line-height: 1.7;
+    color: #94a3b8;
+  }
+  .mac-setup .label { font-size: 0.65rem; letter-spacing: 0.15em; color: #a78bfa; text-transform: uppercase; margin-bottom: 0.5rem; }
+  .mac-setup pre {
+    background: rgba(2, 6, 23, 0.7);
+    border: 1px solid rgba(94, 234, 212, 0.2);
+    border-radius: 8px;
+    padding: 0.8rem 1rem;
+    margin: 0.6rem 0;
+    color: #5eead4;
+    overflow-x: auto;
+  }
+  .mac-setup a { color: #f472b6; }
+  .mac-setup b { color: #e2e8f0; }
+</style>
+</head>
+<body>
+  <h1>☝️ ONE FINGER TRIGGER</h1>
+  <p class="subtitle">hold up a single finger (index up, others folded) — the page will react</p>
+
+  <div class="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div class="flash" id="flash"></div>
+    <button id="startBtn">▶ start camera</button>
+  </div>
+
+  <div class="hud">
+    <div class="card">
+      <div class="label">status</div>
+      <div class="value waiting" id="status">idle</div>
+    </div>
+    <div class="card">
+      <div class="label">triggers</div>
+      <div class="value" id="count">0</div>
+    </div>
+    <div class="card">
+      <div class="label">gesture</div>
+      <div class="value" id="gestureName">—</div>
+    </div>
+  </div>
+
+  <div id="log"></div>
+  <div id="error"></div>
+
+  <div class="mac-setup">
+    <div class="label">▍get the real launcher on your mac</div>
+    <p>this page is the browser demo — it can't open apps. the python launcher
+    watches your webcam in the background and opens <b>Obsidian</b> when you hold
+    up one finger (edit its <b>GESTURES</b> table to map more apps). in Terminal:</p>
+    <pre>curl -O https://labern.github.io/Clean/gesture/gesture_launcher.py
+pip3 install mediapipe
+python3 gesture_launcher.py</pre>
+    <p>macOS will ask for camera access for Terminal on first run.
+    add <b>--preview</b> to see a live tracking window, or download directly:
+    <a href="gesture_launcher.py" download>gesture_launcher.py</a></p>
+  </div>
+
+  <p class="hint">
+    everything runs 100% locally — this page never uploads video anywhere
+    (MediaPipe's model downloads once from Google's CDN).
+  </p>
+
+<script type="module">
+import {
+  GestureRecognizer,
+  FilesetResolver,
+  DrawingUtils
+} from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14";
+
+const video   = document.getElementById("video");
+const canvas  = document.getElementById("overlay");
+const ctx     = canvas.getContext("2d");
+const statusEl  = document.getElementById("status");
+const countEl   = document.getElementById("count");
+const gestureEl = document.getElementById("gestureName");
+const flashEl   = document.getElementById("flash");
+const logEl     = document.getElementById("log");
+const errorEl   = document.getElementById("error");
+const startBtn  = document.getElementById("startBtn");
+
+let recognizer = null;
+let drawer = null;
+let triggerCount = 0;
+
+// debounce state: require the gesture held for HOLD_FRAMES, then a
+// cooldown (gesture absent for RELEASE_FRAMES) before it can re-fire.
+const HOLD_FRAMES = 6;
+const RELEASE_FRAMES = 12;
+let heldFrames = 0;
+let releasedFrames = RELEASE_FRAMES;
+let armed = true;
+
+let audioCtx = null;
+
+function showError(msg) {
+  errorEl.style.display = "block";
+  errorEl.textContent = "✖ " + msg;
+}
+
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = "value " + cls;
+}
+
+function chime() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = audioCtx.currentTime;
+    [523.25, 783.99].forEach((freq, i) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, now + i * 0.09);
+      gain.gain.exponentialRampToValueAtTime(0.25, now + i * 0.09 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.09 + 0.45);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now + i * 0.09);
+      osc.stop(now + i * 0.09 + 0.5);
+    });
+  } catch (_) { /* audio is a bonus, never fatal */ }
+}
+
+function fireTrigger() {
+  triggerCount++;
+  countEl.textContent = triggerCount;
+  setStatus("☝ TRIGGERED", "triggered");
+  flashEl.classList.remove("on");
+  void flashEl.offsetWidth; // restart the animation
+  flashEl.classList.add("on");
+  chime();
+  const row = document.createElement("div");
+  row.innerHTML = `<span class="t">[${new Date().toLocaleTimeString()}]</span> one finger detected → trigger #${triggerCount}`;
+  logEl.prepend(row);
+}
+
+// Fallback heuristic on raw landmarks, used when the built-in classifier
+// says "None": index finger extended upward, middle/ring/pinky folded.
+// Landmark y grows downward in normalized image coords.
+function oneFingerUp(lm) {
+  const extendedUp = (tip, pip) => lm[tip].y < lm[pip].y - 0.04;
+  const folded     = (tip, pip) => lm[tip].y > lm[pip].y - 0.01;
+  return extendedUp(8, 6) &&        // index up
+         folded(12, 10) &&          // middle folded
+         folded(16, 14) &&          // ring folded
+         folded(20, 18) &&          // pinky folded
+         lm[8].y < lm[0].y;         // fingertip above wrist
+}
+
+function loop() {
+  if (video.readyState >= 2) {
+    if (canvas.width !== video.videoWidth) {
+      canvas.width  = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
+
+    const result = recognizer.recognizeForVideo(video, performance.now());
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    let detected = false;
+    let handSeen = false;
+
+    if (result.landmarks && result.landmarks.length > 0) {
+      handSeen = true;
+      for (let i = 0; i < result.landmarks.length; i++) {
+        const lm = result.landmarks[i];
+        drawer.drawConnectors(lm, GestureRecognizer.HAND_CONNECTIONS,
+          { color: "rgba(94, 234, 212, 0.8)", lineWidth: 3 });
+        drawer.drawLandmarks(lm, { color: "#a78bfa", lineWidth: 1, radius: 4 });
+
+        const g = result.gestures?.[i]?.[0];
+        const name = g ? g.categoryName : "None";
+        gestureEl.textContent = name === "None" ? "—" : name;
+        if ((name === "Pointing_Up" && g.score > 0.5) || (name === "None" && oneFingerUp(lm))) {
+          detected = true;
+        }
+      }
+    } else {
+      gestureEl.textContent = "—";
+    }
+
+    if (detected) {
+      heldFrames++;
+      releasedFrames = 0;
+      if (armed && heldFrames >= HOLD_FRAMES) {
+        armed = false;
+        fireTrigger();
+      }
+    } else {
+      heldFrames = 0;
+      releasedFrames++;
+      if (releasedFrames >= RELEASE_FRAMES) armed = true;
+      if (!statusEl.className.includes("triggered") || releasedFrames >= RELEASE_FRAMES) {
+        setStatus(handSeen ? "hand detected" : "waiting for hand", handSeen ? "hand" : "waiting");
+      }
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+startBtn.addEventListener("click", async () => {
+  startBtn.disabled = true;
+  startBtn.textContent = "loading model…";
+  try {
+    const vision = await FilesetResolver.forVisionTasks(
+      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+    );
+    recognizer = await GestureRecognizer.createFromOptions(vision, {
+      baseOptions: {
+        modelAssetPath:
+          "https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+        delegate: "GPU"
+      },
+      runningMode: "VIDEO",
+      numHands: 2
+    });
+    drawer = new DrawingUtils(ctx);
+
+    startBtn.textContent = "opening camera…";
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 1280, height: 960, facingMode: "user" },
+      audio: false
+    });
+    video.srcObject = stream;
+    await video.play();
+
+    startBtn.remove();
+    setStatus("waiting for hand", "waiting");
+    requestAnimationFrame(loop);
+  } catch (err) {
+    startBtn.disabled = false;
+    startBtn.textContent = "▶ start camera";
+    if (err.name === "NotAllowedError") {
+      showError("camera permission denied — allow camera access for this page and try again.");
+    } else if (err.name === "NotFoundError") {
+      showError("no camera found on this machine.");
+    } else {
+      showError(err.message + " (if opened via file://, try: python3 -m http.server 8000)");
+    }
+  }
+});
+</script>
+</body>
+</html>
