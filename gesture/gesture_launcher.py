@@ -3,8 +3,13 @@
 gesture_launcher.py — webcam gesture → app launcher for macOS.
 
 Hold up N fingers (index/middle/ring/pinky; thumb is ignored) and the
-matching app opens. Out of the box: one finger = Obsidian. Edit the
-GESTURES table below to map more.
+matching action fires. Out of the box:
+    ☝ 1 finger  → Obsidian
+    ✌ 2 fingers → Claude (desktop app)
+    🤟 3 fingers → Spotify
+Actions can be app names, URLs, or "cmd: <shell command>". Edit the
+GESTURES table below, or create ~/.config/gesture-launcher.json to
+override without touching this file.
 
 Setup (once):
     pip3 install mediapipe
@@ -23,6 +28,7 @@ To keep it running in the background:
 """
 
 import argparse
+import json
 import subprocess
 import sys
 import time
@@ -31,13 +37,20 @@ from collections import deque
 from pathlib import Path
 
 # ── gesture map ──────────────────────────────────────────────────────────
-# finger count (index/middle/ring/pinky held up, thumb ignored) → app name
-# as it appears in /Applications. Add your own:
+# finger count 1–4 (index/middle/ring/pinky held up, thumb ignored) → action.
+# An action can be:
+#   • an app name as it appears in /Applications   → opened with `open -a`
+#   • a URL starting with http:// or https://      → opened in your browser
+#   • "cmd: <shell command>"                       → run as a shell command
+# Override without editing this file by creating
+# ~/.config/gesture-launcher.json, e.g. {"2": "Notes", "4": "https://claude.ai"}
+# (set a key to "" there to disable one of these defaults).
 GESTURES = {
     1: "Obsidian",
-    # 2: "Notes",
-    # 3: "Spotify",
-    # 4: "Slack",
+    2: "Claude",        # the Claude desktop app
+    3: "Spotify",
+    # 4: "https://claude.ai",
+    # 4: "cmd: open ~/Downloads",
 }
 
 # ── tuning ───────────────────────────────────────────────────────────────
@@ -49,6 +62,7 @@ CAMERA_INDEX = 0
 MODEL_URL = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/"
              "hand_landmarker/float16/1/hand_landmarker.task")
 MODEL_PATH = Path.home() / "Library/Caches/gesture-launcher/hand_landmarker.task"
+CONFIG_PATH = Path.home() / ".config/gesture-launcher.json"
 
 # landmark indices (MediaPipe hand model)
 WRIST = 0
@@ -80,11 +94,28 @@ def count_raised_fingers(lm) -> int:
     return count
 
 
-def launch(app: str) -> bool:
-    result = subprocess.run(["open", "-a", app], capture_output=True, text=True)
+def load_gestures() -> dict:
+    """Built-in GESTURES, overridden by ~/.config/gesture-launcher.json."""
+    gestures = dict(GESTURES)
+    if CONFIG_PATH.exists():
+        try:
+            user = json.loads(CONFIG_PATH.read_text())
+            gestures.update({int(k): v for k, v in user.items()})
+        except (ValueError, OSError) as err:
+            print(f"⚠ ignoring {CONFIG_PATH}: {err}")
+    return {k: v for k, v in gestures.items() if v and 1 <= k <= 4}
+
+
+def launch(action: str) -> bool:
+    if action.startswith(("http://", "https://")):
+        cmd, what = ["open", action], f"open “{action}”"
+    elif action.startswith("cmd:"):
+        cmd, what = ["/bin/sh", "-c", action[4:].strip()], f"run “{action[4:].strip()}”"
+    else:
+        cmd, what = ["open", "-a", action], f"open “{action}” — is it installed in /Applications?"
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"✖ couldn't open “{app}”: {result.stderr.strip()}"
-              f" — is it installed in /Applications?")
+        print(f"✖ couldn't {what}: {result.stderr.strip()}")
         return False
     return True
 
@@ -96,9 +127,14 @@ def main() -> int:
     parser.add_argument("--list", action="store_true", help="print gesture map and exit")
     args = parser.parse_args()
 
+    gestures = load_gestures()
+    icons = {1: "☝", 2: "✌", 3: "🤟", 4: "🖖"}
+
     if args.list:
-        for fingers, app in sorted(GESTURES.items()):
-            print(f"  {'☝✌🤟🖖'[fingers - 1]}  {fingers} finger{'s' if fingers > 1 else ''} → {app}")
+        for fingers, action in sorted(gestures.items()):
+            print(f"  {icons[fingers]}  {fingers} finger{'s' if fingers > 1 else ''} → {action}")
+        if CONFIG_PATH.exists():
+            print(f"  (includes overrides from {CONFIG_PATH})")
         return 0
 
     try:
@@ -125,8 +161,8 @@ def main() -> int:
         return 1
 
     print("● watching for gestures — ctrl-C to quit")
-    for fingers, app in sorted(GESTURES.items()):
-        print(f"  {fingers} finger{'s' if fingers > 1 else ''} up → {app}")
+    for fingers, action in sorted(gestures.items()):
+        print(f"  {icons[fingers]}  {fingers} finger{'s' if fingers > 1 else ''} up → {action}")
 
     recent = deque(maxlen=HOLD_FRAMES)
     armed = True
@@ -162,14 +198,14 @@ def main() -> int:
                       and recent[0] > 0)
             if stable and armed:
                 fingers = recent[0]
-                app = GESTURES.get(fingers)
-                if app:
+                action = gestures.get(fingers)
+                if action:
                     now = time.monotonic()
-                    if now - last_fired.get(app, -COOLDOWN_SEC) >= COOLDOWN_SEC:
-                        print(f"☝ {fingers} finger{'s' if fingers > 1 else ''} up "
-                              f"→ opening {app}")
-                        if launch(app):
-                            last_fired[app] = now
+                    if now - last_fired.get(action, -COOLDOWN_SEC) >= COOLDOWN_SEC:
+                        print(f"{icons[fingers]} {fingers} finger{'s' if fingers > 1 else ''} up "
+                              f"→ {action}")
+                        if launch(action):
+                            last_fired[action] = now
                         armed = False   # re-arms after the hand drops
 
             if args.preview:

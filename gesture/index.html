@@ -185,8 +185,10 @@
   <div class="mac-setup">
     <div class="label">▍get the real launcher on your mac</div>
     <p>this page is the browser demo — it can't open apps. the python launcher
-    watches your webcam in the background and opens <b>Obsidian</b> when you hold
-    up one finger (edit its <b>GESTURES</b> table to map more apps). in Terminal:</p>
+    watches your webcam in the background and fires on raised fingers:
+    <b>☝ 1 = Obsidian · ✌ 2 = Claude · 🤟 3 = Spotify</b>. remap via the
+    <b>GESTURES</b> table in the script or <b>~/.config/gesture-launcher.json</b> —
+    actions can be app names, URLs, or shell commands. in Terminal:</p>
     <pre>curl -O https://labern.github.io/Clean/gesture/gesture_launcher.py
 pip3 install mediapipe
 python3 gesture_launcher.py</pre>
