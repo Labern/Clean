@@ -7,7 +7,7 @@ matching action fires. Out of the box:
     ☝ 1 finger  → Obsidian
     ✌ 2 fingers → Claude (desktop app)
     🤟 3 fingers → Spotify
-    🖖 4 fingers → the gesture web page (labern.github.io/Clean/gesture)
+    🖐 open palm → the gesture web page (labern.github.io/Clean/gesture)
 Actions can be app names, URLs, or "cmd: <shell command>". Edit the
 GESTURES table below, or create ~/.config/gesture-launcher.json to
 override without touching this file.
@@ -38,7 +38,8 @@ from collections import deque
 from pathlib import Path
 
 # ── gesture map ──────────────────────────────────────────────────────────
-# finger count 1–4 (index/middle/ring/pinky held up, thumb ignored) → action.
+# gesture id → action. Ids 1–4 are raised fingers (index/middle/ring/pinky,
+# thumb tucked); id 5 is an open palm (all four fingers + thumb extended).
 # An action can be:
 #   • an app name as it appears in /Applications   → opened with `open -a`
 #   • a URL starting with http:// or https://      → opened in your browser
@@ -50,8 +51,8 @@ GESTURES = {
     1: "Obsidian",
     2: "Claude",        # the Claude desktop app
     3: "Spotify",
-    4: "https://labern.github.io/Clean/gesture/",   # back to the web page
-    # other action examples: "cmd: open ~/Downloads", "https://claude.ai"
+    5: "https://labern.github.io/Clean/gesture/",   # open palm → the web page
+    # 4: "cmd: open ~/Downloads",   # four fingers with thumb tucked is free
 }
 
 # ── tuning ───────────────────────────────────────────────────────────────
@@ -67,7 +68,10 @@ CONFIG_PATH = Path.home() / ".config/gesture-launcher.json"
 
 # landmark indices (MediaPipe hand model)
 WRIST = 0
+THUMB_TIP = 4
+INDEX_MCP = 5
 MIDDLE_MCP = 9
+PINKY_MCP = 17
 FINGERS = [(8, 6), (12, 10), (16, 14), (20, 18)]  # (tip, pip): index..pinky
 
 
@@ -95,6 +99,26 @@ def count_raised_fingers(lm) -> int:
     return count
 
 
+def thumb_extended(lm) -> bool:
+    """Thumb sticking out sideways, vs tucked across the palm.
+
+    Compares the thumb tip's distance from the pinky knuckle against the
+    palm width (index knuckle ↔ pinky knuckle): an extended thumb reaches
+    well past the far edge of the palm, a tucked one stays within it.
+    """
+    dist = lambda a, b: ((a.x - b.x) ** 2 + (a.y - b.y) ** 2) ** 0.5
+    palm_width = dist(lm[INDEX_MCP], lm[PINKY_MCP])
+    return dist(lm[THUMB_TIP], lm[PINKY_MCP]) > palm_width * 1.4
+
+
+def classify_gesture(lm) -> int:
+    """0 = nothing, 1–4 = raised fingers (thumb tucked), 5 = open palm."""
+    count = count_raised_fingers(lm)
+    if count == 4 and thumb_extended(lm):
+        return 5
+    return count
+
+
 def load_gestures() -> dict:
     """Built-in GESTURES, overridden by ~/.config/gesture-launcher.json."""
     gestures = dict(GESTURES)
@@ -104,7 +128,7 @@ def load_gestures() -> dict:
             gestures.update({int(k): v for k, v in user.items()})
         except (ValueError, OSError) as err:
             print(f"⚠ ignoring {CONFIG_PATH}: {err}")
-    return {k: v for k, v in gestures.items() if v and 1 <= k <= 4}
+    return {k: v for k, v in gestures.items() if v and 1 <= k <= 5}
 
 
 def launch(action: str) -> bool:
@@ -129,11 +153,13 @@ def main() -> int:
     args = parser.parse_args()
 
     gestures = load_gestures()
-    icons = {1: "☝", 2: "✌", 3: "🤟", 4: "🖖"}
+    icons = {1: "☝", 2: "✌", 3: "🤟", 4: "🖖", 5: "🖐"}
+    names = {1: "1 finger", 2: "2 fingers", 3: "3 fingers",
+             4: "4 fingers (thumb tucked)", 5: "open palm"}
 
     if args.list:
-        for fingers, action in sorted(gestures.items()):
-            print(f"  {icons[fingers]}  {fingers} finger{'s' if fingers > 1 else ''} → {action}")
+        for gid, action in sorted(gestures.items()):
+            print(f"  {icons[gid]}  {names[gid]} → {action}")
         if CONFIG_PATH.exists():
             print(f"  (includes overrides from {CONFIG_PATH})")
         return 0
@@ -162,8 +188,8 @@ def main() -> int:
         return 1
 
     print("● watching for gestures — ctrl-C to quit")
-    for fingers, action in sorted(gestures.items()):
-        print(f"  {icons[fingers]}  {fingers} finger{'s' if fingers > 1 else ''} up → {action}")
+    for gid, action in sorted(gestures.items()):
+        print(f"  {icons[gid]}  {names[gid]} → {action}")
 
     recent = deque(maxlen=HOLD_FRAMES)
     armed = True
@@ -185,7 +211,7 @@ def main() -> int:
 
             count = 0
             if result.hand_landmarks:
-                count = count_raised_fingers(result.hand_landmarks[0])
+                count = classify_gesture(result.hand_landmarks[0])
             recent.append(count)
 
             if count == 0:
@@ -198,13 +224,12 @@ def main() -> int:
             stable = (len(recent) == HOLD_FRAMES and len(set(recent)) == 1
                       and recent[0] > 0)
             if stable and armed:
-                fingers = recent[0]
-                action = gestures.get(fingers)
+                gid = recent[0]
+                action = gestures.get(gid)
                 if action:
                     now = time.monotonic()
                     if now - last_fired.get(action, -COOLDOWN_SEC) >= COOLDOWN_SEC:
-                        print(f"{icons[fingers]} {fingers} finger{'s' if fingers > 1 else ''} up "
-                              f"→ {action}")
+                        print(f"{icons[gid]} {names[gid]} → {action}")
                         if launch(action):
                             last_fired[action] = now
                         armed = False   # re-arms after the hand drops
@@ -215,7 +240,7 @@ def main() -> int:
                     for p in result.hand_landmarks[0]:
                         cv2.circle(frame, (int(p.x * w), int(p.y * h)), 4,
                                    (212, 234, 94), -1)
-                label = f"fingers: {count}" if count else "no gesture"
+                label = ("open palm" if count == 5 else f"fingers: {count}") if count else "no gesture"
                 cv2.putText(frame, label, (16, 40), cv2.FONT_HERSHEY_SIMPLEX,
                             1.0, (250, 139, 167), 2)
                 cv2.imshow("gesture launcher", cv2.flip(frame, 1))
