@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import ServiceManagement
 
 // NB: deliberately not named main.swift — that would conflict with @main.
@@ -77,6 +78,7 @@ final class AppState: ObservableObject {
     let engine = GestureEngine()
     private var lastFired: [String: Date] = [:]
     private var saveWork: DispatchWorkItem?
+    private var bag = Set<AnyCancellable>()
     private let timeFmt: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss"
@@ -88,6 +90,12 @@ final class AppState: ObservableObject {
         engine.holdFrames = max(2, Int(config.holdSeconds * 30))
         engine.onGesture = { [weak self] g, isRepeat in self?.trigger(g, isRepeat: isRepeat) }
         engine.onPose = { [weak self] label in self?.livePose = label }
+        // views observe AppState, not the engine — forward its changes so
+        // the status text / watching dot actually refresh in the UI
+        engine.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &bag)
         if config.enabled { engine.start() }
     }
 
