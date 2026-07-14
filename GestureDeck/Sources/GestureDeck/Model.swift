@@ -112,6 +112,9 @@ struct GestureAction: Codable, Equatable {
 // ── persisted configuration ──────────────────────────────────────────────
 
 struct Config: Codable {
+    // bump when defaultActions change so existing configs pick them up
+    static let currentDefaultsVersion = 3
+
     var enabled = true
     var soundOn = true
     var soundName = "Pop"
@@ -119,6 +122,7 @@ struct Config: Codable {
     var cooldownSeconds = 0.0   // 0 = no cooldown, fire freely
 
     var actions: [String: GestureAction] = Config.defaultActions
+    var defaultsVersion = Config.currentDefaultsVersion
 
     static let soundChoices = ["Pop", "Glass", "Tink", "Ping", "Funk", "Purr", "Submarine", "Bottle"]
 
@@ -126,13 +130,14 @@ struct Config: Codable {
         Gesture.one.rawValue: GestureAction(kind: .url, value: "https://chatgpt.com"),
         Gesture.two.rawValue: GestureAction(kind: .app, value: "Claude"),
         Gesture.three.rawValue: GestureAction(kind: .app, value: "Spotify"),
-        Gesture.palm.rawValue: GestureAction(kind: .deck),
+        Gesture.four.rawValue: GestureAction(kind: .app, value: "Obsidian"),
+        Gesture.palm.rawValue: GestureAction(kind: .url, value: "https://labern.github.io/Clean/gesture/"),
         Gesture.fist.rawValue: GestureAction(kind: .shell,
             value: "osascript -e 'tell application \"Spotify\" to playpause'"),
     ]
 
     enum CodingKeys: String, CodingKey {
-        case enabled, soundOn, soundName, holdSeconds, cooldownSeconds, actions
+        case enabled, soundOn, soundName, holdSeconds, cooldownSeconds, actions, defaultsVersion
     }
 
     init() {}
@@ -146,6 +151,7 @@ struct Config: Codable {
         holdSeconds = (try? c.decode(Double.self, forKey: .holdSeconds)) ?? 0.12
         cooldownSeconds = (try? c.decode(Double.self, forKey: .cooldownSeconds)) ?? 0.0
         actions = (try? c.decode([String: GestureAction].self, forKey: .actions)) ?? Config.defaultActions
+        defaultsVersion = (try? c.decode(Int.self, forKey: .defaultsVersion)) ?? 1
     }
 
     static var fileURL: URL {
@@ -157,7 +163,23 @@ struct Config: Codable {
 
     static func load() -> Config {
         guard let data = try? Data(contentsOf: fileURL),
-              let cfg = try? JSONDecoder().decode(Config.self, from: data) else { return Config() }
+              var cfg = try? JSONDecoder().decode(Config.self, from: data) else { return Config() }
+        // migrate old configs in place — the user should never have to
+        // delete anything to pick up new default mappings or new gestures
+        if cfg.defaultsVersion < currentDefaultsVersion {
+            for (key, action) in defaultActions { cfg.actions[key] = action }
+            if cfg.defaultsVersion < 3 {
+                // v3: instant response — only ever speed up, never undo a
+                // faster setting the user already chose
+                cfg.holdSeconds = min(cfg.holdSeconds, 0.12)
+                cfg.cooldownSeconds = 0.0
+            }
+            cfg.defaultsVersion = currentDefaultsVersion
+            cfg.save()
+        }
+        for (key, action) in defaultActions where cfg.actions[key] == nil {
+            cfg.actions[key] = action
+        }
         return cfg
     }
 
