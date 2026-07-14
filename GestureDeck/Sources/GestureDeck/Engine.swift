@@ -13,7 +13,11 @@ final class GestureEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     let session = AVCaptureSession()
     var holdFrames = 3
     var releaseFrames = 4
-    var onGesture: ((Gesture) -> Void)?
+    // keyboard-style auto-repeat while a pose is held (30 fps frames)
+    var repeatDelayFrames = 13     // ~0.45 s before the first repeat
+    var repeatIntervalFrames = 9   // ~0.3 s between repeats
+    /// (gesture, isRepeat) — isRepeat is true for held-pose auto-repeats
+    var onGesture: ((Gesture, Bool) -> Void)?
     var onPose: ((String?) -> Void)?
 
     private let sessionQueue = DispatchQueue(label: "gd.session")
@@ -28,6 +32,7 @@ final class GestureEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     private var hold = 0
     private var idle = 0
     private var lastFiredPose: Gesture?
+    private var sinceFire = 0
     private var lastLabel: String?
 
     // ── lifecycle ────────────────────────────────────────────────────────
@@ -121,11 +126,22 @@ final class GestureEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputS
             // re-arms instantly — no need to drop the hand in between
             if hold >= holdFrames && g != lastFiredPose {
                 lastFiredPose = g
-                DispatchQueue.main.async { self.onGesture?(g) }
+                sinceFire = 0
+                DispatchQueue.main.async { self.onGesture?(g, false) }
+            } else if g == lastFiredPose {
+                // pose still held past the initial fire → auto-repeat
+                sinceFire += 1
+                if sinceFire >= repeatDelayFrames,
+                   (sinceFire - repeatDelayFrames) % repeatIntervalFrames == 0 {
+                    DispatchQueue.main.async { self.onGesture?(g, true) }
+                }
+            } else {
+                sinceFire = 0
             }
         } else {
             current = nil
             hold = 0
+            sinceFire = 0
             idle += 1
             if idle >= releaseFrames { lastFiredPose = nil }
         }

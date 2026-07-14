@@ -41,14 +41,19 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
+# Sign with a STABLE identity so TCC grants (camera, Automation) survive
+# rebuilds — ad-hoc changes identity every build and re-prompts everything.
 BUNDLE_ID="com.labern.GestureDeck"
-DEV_ID="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -1)"
+IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null)"
+DEV_ID="$(echo "$IDENTITIES" | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -1)"
+APPLE_DEV="$(echo "$IDENTITIES" | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' | head -1)"
 
-if [ -n "$DEV_ID" ]; then
-  codesign --force --options runtime --timestamp --sign "$DEV_ID" --identifier "$BUNDLE_ID" "$APP"
+if [ -n "$DEV_ID" ] && codesign --force --options runtime --timestamp --sign "$DEV_ID" --identifier "$BUNDLE_ID" "$APP" 2>/dev/null; then
   echo "› signed with Apple Developer ID ($DEV_ID) — trusted, notarizable"
+elif [ -n "$APPLE_DEV" ] && codesign --force --timestamp --sign "$APPLE_DEV" --identifier "$BUNDLE_ID" "$APP" 2>/dev/null; then
+  echo "› signed with Apple Development cert ($APPLE_DEV) — stable identity, TCC grants persist"
 else
-  echo "› ad-hoc signing (no Developer ID cert in keychain)"
+  echo "› ad-hoc signing (permission prompts will re-appear after every rebuild)"
   codesign --force --sign - --identifier "$BUNDLE_ID" "$APP"
 fi
 echo "✓ built $APP — launch with:  open $APP"

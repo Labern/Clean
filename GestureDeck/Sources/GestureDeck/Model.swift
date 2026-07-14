@@ -97,6 +97,23 @@ struct GestureAction: Codable, Equatable {
     var kind: ActionKind = .none
     var value: String = ""
     var enabled: Bool = true
+    var repeats: Bool = false   // hold the pose → keyboard-style auto-repeat
+
+    init(kind: ActionKind = .none, value: String = "", enabled: Bool = true, repeats: Bool = false) {
+        self.kind = kind; self.value = value; self.enabled = enabled; self.repeats = repeats
+    }
+
+    // tolerate configs written before newer fields existed — a missing key
+    // must never invalidate the whole saved actions dictionary
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        kind = (try? c.decode(ActionKind.self, forKey: .kind)) ?? .none
+        value = (try? c.decode(String.self, forKey: .value)) ?? ""
+        enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? true
+        repeats = (try? c.decode(Bool.self, forKey: .repeats)) ?? false
+    }
+
+    enum CodingKeys: String, CodingKey { case kind, value, enabled, repeats }
 
     var summary: String {
         switch kind {

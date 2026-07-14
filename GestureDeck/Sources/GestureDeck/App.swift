@@ -82,7 +82,7 @@ final class AppState: ObservableObject {
     private init() {
         config = Config.load()
         engine.holdFrames = max(2, Int(config.holdSeconds * 30))
-        engine.onGesture = { [weak self] g in self?.trigger(g) }
+        engine.onGesture = { [weak self] g, isRepeat in self?.trigger(g, isRepeat: isRepeat) }
         engine.onPose = { [weak self] label in self?.livePose = label }
         if config.enabled { engine.start() }
     }
@@ -96,11 +96,12 @@ final class AppState: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
-    private func trigger(_ gesture: Gesture) {
+    private func trigger(_ gesture: Gesture, isRepeat: Bool = false) {
         guard config.enabled,
               let action = config.actions[gesture.rawValue],
               action.enabled, action.kind != .none,
-              !(action.kind.needsValue && action.value.isEmpty) else { return }
+              !(action.kind.needsValue && action.value.isEmpty),
+              !isRepeat || action.repeats else { return }
         let now = Date()
         if config.cooldownSeconds > 0,
            let last = lastFired[gesture.rawValue],

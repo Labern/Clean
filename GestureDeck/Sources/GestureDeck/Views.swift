@@ -114,18 +114,20 @@ struct GesturesWindow: View {
     }()
 
     var body: some View {
-        ScrollView {
+        // wide, low layout: camera + behavior on the left, gestures on the right
+        HStack(alignment: .top, spacing: 16) {
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    GradientTitle(text: "🖐 GESTUREDECK — GESTURES")
+                    GradientTitle(text: "🖐 GESTUREDECK")
                     Spacer()
                     Text(state.livePose ?? state.engine.statusText)
                         .font(.system(.caption, design: .monospaced))
                         .foregroundColor(.gdViolet)
+                        .lineLimit(1)
                 }
 
                 CameraPreview(session: state.engine.session)
-                    .frame(height: 260)
+                    .frame(width: 400, height: 300)   // native 4:3, nothing cropped
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gdTeal.opacity(0.3)))
 
@@ -165,30 +167,37 @@ struct GesturesWindow: View {
                         }
                 }
 
-                Card {
-                    Text("ONE HAND")
-                        .font(.system(size: 10, design: .monospaced)).foregroundColor(.gdMuted)
-                    ForEach(Gesture.allCases.filter { !$0.isTwoHanded }) { g in
-                        GestureRow(gesture: g, action: state.binding(for: g),
-                                   apps: Self.installedApps) { state.test(g) }
-                    }
-                }
-
-                Card {
-                    Text("BOTH HANDS")
-                        .font(.system(size: 10, design: .monospaced)).foregroundColor(.gdMuted)
-                    ForEach(Gesture.allCases.filter { $0.isTwoHanded }) { g in
-                        GestureRow(gesture: g, action: state.binding(for: g),
-                                   apps: Self.installedApps) { state.test(g) }
-                    }
-                }
+                Spacer(minLength: 0)
 
                 Text("config: ~/Library/Application Support/GestureDeck/config.json")
                     .font(.system(size: 9, design: .monospaced)).foregroundColor(.gdMuted)
             }
-            .padding(20)
+            .frame(width: 400)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Card {
+                        Text("ONE HAND")
+                            .font(.system(size: 10, design: .monospaced)).foregroundColor(.gdMuted)
+                        ForEach(Gesture.allCases.filter { !$0.isTwoHanded }) { g in
+                            GestureRow(gesture: g, action: state.binding(for: g),
+                                       apps: Self.installedApps) { state.test(g) }
+                        }
+                    }
+
+                    Card {
+                        Text("BOTH HANDS")
+                            .font(.system(size: 10, design: .monospaced)).foregroundColor(.gdMuted)
+                        ForEach(Gesture.allCases.filter { $0.isTwoHanded }) { g in
+                            GestureRow(gesture: g, action: state.binding(for: g),
+                                       apps: Self.installedApps) { state.test(g) }
+                        }
+                    }
+                }
+            }
         }
-        .frame(width: 700, height: 860)
+        .padding(20)
+        .frame(width: 1100, height: 640)
         .background(LinearGradient(colors: [.gdBgTop, .gdBgBottom],
                                    startPoint: .topLeading, endPoint: .bottomTrailing))
         .preferredColorScheme(.dark)
