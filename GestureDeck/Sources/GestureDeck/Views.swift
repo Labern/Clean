@@ -80,7 +80,7 @@ struct PopoverView: View {
 
             HStack {
                 Button {
-                    WindowManager.shared.show()
+                    state.showMainWindow()
                 } label: {
                     Label("Gestures…", systemImage: "hand.point.up.left")
                 }
@@ -101,6 +101,7 @@ struct PopoverView: View {
 
 struct GesturesWindow: View {
     @EnvironmentObject var state: AppState
+    @Environment(\.openWindow) private var openWindow
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     private static let installedApps: [String] = {
@@ -201,6 +202,8 @@ struct GesturesWindow: View {
         .background(LinearGradient(colors: [.gdBgTop, .gdBgBottom],
                                    startPoint: .topLeading, endPoint: .bottomTrailing))
         .preferredColorScheme(.dark)
+        // let non-view code (menu button, open-palm gesture) reopen this window
+        .onAppear { state.openWindowAction = { openWindow(id: "main") } }
     }
 }
 
@@ -240,6 +243,14 @@ private struct GestureRow: View {
                         .foregroundColor(.gdMuted)
                 case .playPause:
                     Text("toggles play / pause (Spotify, Music, video…)")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.gdMuted)
+                case .play:
+                    Text("plays music (Spotify / Apple Music)")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.gdMuted)
+                case .pause:
+                    Text("pauses music (Spotify / Apple Music)")
                         .font(.system(.caption, design: .monospaced))
                         .foregroundColor(.gdMuted)
                 case .app:

@@ -4,7 +4,7 @@ import Foundation
 
 enum Gesture: String, CaseIterable, Codable, Identifiable {
     // single hand
-    case one, two, three, four, palm, fist, thumbsUp, rock, callMe, okSign
+    case one, two, three, four, palm, fist, fingerGun, thumbsUp, rock, callMe, okSign
     // both hands
     case twoPalms, twoFists, twoThumbsUp, palmAndFist
 
@@ -18,6 +18,7 @@ enum Gesture: String, CaseIterable, Codable, Identifiable {
         case .four: return "🖖"
         case .palm: return "🖐"
         case .fist: return "✊"
+        case .fingerGun: return "🫰"
         case .thumbsUp: return "👍"
         case .rock: return "🤘"
         case .callMe: return "🤙"
@@ -37,6 +38,7 @@ enum Gesture: String, CaseIterable, Codable, Identifiable {
         case .four: return "Four fingers"
         case .palm: return "Open palm"
         case .fist: return "Fist"
+        case .fingerGun: return "Finger gun"
         case .thumbsUp: return "Thumbs up"
         case .rock: return "Rock sign"
         case .callMe: return "Call me"
@@ -55,7 +57,8 @@ enum Gesture: String, CaseIterable, Codable, Identifiable {
         case .three: return "index + middle + ring up"
         case .four: return "four fingers up, thumb tucked"
         case .palm: return "all five spread"
-        case .fist: return "closed fist, hand upright"
+        case .fist: return "closed fist, thumb wrapped in front"
+        case .fingerGun: return "index points, thumb up (👍 sideways)"
         case .thumbsUp: return "fist with thumb on top"
         case .rock: return "index + pinky up"
         case .callMe: return "thumb + pinky out (shaka)"
@@ -78,7 +81,7 @@ enum Gesture: String, CaseIterable, Codable, Identifiable {
 // ── actions ──────────────────────────────────────────────────────────────
 
 enum ActionKind: String, Codable, CaseIterable, Identifiable {
-    case none, app, url, shell, deck, playPause
+    case none, app, url, shell, deck, playPause, play, pause
     var id: String { rawValue }
     var label: String {
         switch self {
@@ -87,7 +90,9 @@ enum ActionKind: String, Codable, CaseIterable, Identifiable {
         case .url: return "Open URL"
         case .shell: return "Shell command"
         case .deck: return "GestureDeck window"
-        case .playPause: return "Play / Pause"
+        case .playPause: return "Play / Pause (toggle)"
+        case .play: return "Play music"
+        case .pause: return "Pause music"
         }
     }
     /// kinds that need a value typed/picked before they can run
@@ -99,9 +104,12 @@ struct GestureAction: Codable, Equatable {
     var value: String = ""
     var enabled: Bool = true
     var repeats: Bool = false   // hold the pose → keyboard-style auto-repeat
+    var userSet: Bool = false   // user edited this in the UI → never auto-overwrite
 
-    init(kind: ActionKind = .none, value: String = "", enabled: Bool = true, repeats: Bool = false) {
-        self.kind = kind; self.value = value; self.enabled = enabled; self.repeats = repeats
+    init(kind: ActionKind = .none, value: String = "", enabled: Bool = true,
+         repeats: Bool = false, userSet: Bool = false) {
+        self.kind = kind; self.value = value; self.enabled = enabled
+        self.repeats = repeats; self.userSet = userSet
     }
 
     // tolerate configs written before newer fields existed — a missing key
@@ -112,9 +120,10 @@ struct GestureAction: Codable, Equatable {
         value = (try? c.decode(String.self, forKey: .value)) ?? ""
         enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? true
         repeats = (try? c.decode(Bool.self, forKey: .repeats)) ?? false
+        userSet = (try? c.decode(Bool.self, forKey: .userSet)) ?? false
     }
 
-    enum CodingKeys: String, CodingKey { case kind, value, enabled, repeats }
+    enum CodingKeys: String, CodingKey { case kind, value, enabled, repeats, userSet }
 
     var summary: String {
         switch kind {
@@ -124,6 +133,8 @@ struct GestureAction: Codable, Equatable {
         case .shell: return value.isEmpty ? "cmd?" : "$ " + value
         case .deck: return "gesture window"
         case .playPause: return "play / pause"
+        case .play: return "play"
+        case .pause: return "pause"
         }
     }
 }
@@ -132,7 +143,7 @@ struct GestureAction: Codable, Equatable {
 
 struct Config: Codable {
     // bump when defaultActions change so existing configs pick them up
-    static let currentDefaultsVersion = 4
+    static let currentDefaultsVersion = 5
 
     var enabled = true
     var soundOn = true
@@ -155,8 +166,10 @@ struct Config: Codable {
         Gesture.four.rawValue: GestureAction(kind: .app, value: "Obsidian"),
         // open palm → bring GestureDeck itself to the front (the app, not a page)
         Gesture.palm.rawValue: GestureAction(kind: .deck),
-        // closed fist → system media play / pause (Spotify, Music, browser video…)
-        Gesture.fist.rawValue: GestureAction(kind: .playPause),
+        // closed fist → pause music
+        Gesture.fist.rawValue: GestureAction(kind: .pause),
+        // finger gun → play music
+        Gesture.fingerGun.rawValue: GestureAction(kind: .play),
     ]
 
     enum CodingKeys: String, CodingKey {
@@ -187,10 +200,14 @@ struct Config: Codable {
     static func load() -> Config {
         guard let data = try? Data(contentsOf: fileURL),
               var cfg = try? JSONDecoder().decode(Config.self, from: data) else { return Config() }
-        // migrate old configs in place — the user should never have to
-        // delete anything to pick up new default mappings or new gestures
+        // migrate old configs in place — the user should never have to delete
+        // anything to pick up new default mappings or new gestures. Crucially,
+        // a mapping the user edited themselves (userSet) is sacred and is never
+        // overwritten; only untouched defaults roll forward.
         if cfg.defaultsVersion < currentDefaultsVersion {
-            for (key, action) in defaultActions { cfg.actions[key] = action }
+            for (key, action) in defaultActions where !(cfg.actions[key]?.userSet ?? false) {
+                cfg.actions[key] = action
+            }
             if cfg.defaultsVersion < 3 {
                 // v3: instant response — only ever speed up, never undo a
                 // faster setting the user already chose
@@ -200,6 +217,7 @@ struct Config: Codable {
             cfg.defaultsVersion = currentDefaultsVersion
             cfg.save()
         }
+        // fill in any gesture that has no mapping at all (e.g. brand-new poses)
         for (key, action) in defaultActions where cfg.actions[key] == nil {
             cfg.actions[key] = action
         }

@@ -17,10 +17,28 @@ enum ActionRunner {
         case .url:
             openURL(action.value)
         case .deck:
-            DispatchQueue.main.async { WindowManager.shared.show() }
+            DispatchQueue.main.async { AppState.shared.showMainWindow() }
         case .playPause:
             mediaKey(NX_KEYTYPE_PLAY)
+        case .play:
+            mediaControl("play")
+        case .pause:
+            mediaControl("pause")
         }
+    }
+
+    // Distinct play / pause (the hardware key can only toggle). Targets whatever
+    // music app is running — Spotify first, then Apple Music — so "finger gun =
+    // play" and "fist = pause" do exactly what they say.
+    private static func mediaControl(_ verb: String) {
+        let script = """
+        if application "Spotify" is running then
+            tell application "Spotify" to \(verb)
+        else if application "Music" is running then
+            tell application "Music" to \(verb)
+        end if
+        """
+        shell("/usr/bin/osascript", ["-e", script])
     }
 
     // The hardware "play/pause" media key. Posting it as a system-defined HID

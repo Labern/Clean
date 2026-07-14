@@ -9,6 +9,18 @@ struct GestureDeckApp: App {
     @StateObject private var state = AppState.shared
 
     var body: some Scene {
+        // A real Window scene is what makes this a genuine app: a Dock icon,
+        // a ⌘-Tab app-switcher entry, and a standard menu with ⌘Q to quit.
+        // (A MenuBarExtra-only app has no window scene, so macOS runs it as a
+        // background accessory — no Dock icon, not in ⌘-Tab, impossible to
+        // quit normally. That was the whole problem.)
+        Window("GestureDeck", id: "main") {
+            GesturesWindow().environmentObject(state)
+        }
+        .windowResizability(.contentSize)
+        .defaultSize(width: 1100, height: 700)
+
+        // The menu-bar item stays too — quick toggle without opening the window.
         MenuBarExtra {
             PopoverView().environmentObject(state)
         } label: {
@@ -20,51 +32,25 @@ struct GestureDeckApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Regular app, not a menu-bar-only agent: show in the Dock and the
-        // ⌘-Tab app switcher. A MenuBarExtra-only SwiftUI app forces accessory
-        // policy during its first scene update (after this method returns), so
-        // one call here gets clobbered — re-assert on the next runloop tick.
+        // Regular app: Dock + ⌘-Tab. The Window scene already forces this, but
+        // assert it and bring ourselves to the front on launch.
         NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
         // launch at login, always — no toggle hunting
         if SMAppService.mainApp.status != .enabled {
             try? SMAppService.mainApp.register()
         }
-        DispatchQueue.main.async {
-            NSApp.setActivationPolicy(.regular)
-            WindowManager.shared.show()
-        }
     }
-}
 
-/// One AppKit-managed config window. A plain NSWindow (not a SwiftUI Window
-/// scene) so a menu-bar app can reliably open it at launch, bring it to the
-/// front, and have every control receive clicks immediately.
-@MainActor
-final class WindowManager: NSObject, NSWindowDelegate {
-    static let shared = WindowManager()
-    private var window: NSWindow?
+    // Dock-icon click with no open window → reopen the config window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { AppState.shared.showMainWindow() }
+        return true
+    }
 
-    func show() {
-        if window == nil {
-            let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 1100, height: 640),
-                styleMask: [.titled, .closable, .miniaturizable],
-                backing: .buffered, defer: false)
-            w.title = "GestureDeck"
-            w.isReleasedWhenClosed = false
-            w.delegate = self
-            w.contentView = NSHostingView(
-                rootView: GesturesWindow().environmentObject(AppState.shared))
-            w.center()
-            window = w
-        }
-        // Always a full regular app: Dock icon + ⌘-Tab app switcher + a real
-        // focusable window, never a menu-bar-only accessory. (An accessory app
-        // can't own a key window, so its window would open behind everything
-        // and swallow clicks.) The menu-bar item stays too — this is both.
-        NSApp.setActivationPolicy(.regular)
-        window?.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
+    // Flush any pending settings write before we exit — belt and suspenders.
+    func applicationWillTerminate(_ notification: Notification) {
+        AppState.shared.saveNow()
     }
 }
 
@@ -83,6 +69,11 @@ final class AppState: ObservableObject {
     @Published var lastEvent = "no triggers yet"
     @Published var livePose: String?
 
+    /// Set by the config window once it appears — lets non-view code (the menu
+    /// button, the open-palm gesture) reopen the SwiftUI window even after it
+    /// has been closed.
+    var openWindowAction: (() -> Void)?
+
     let engine = GestureEngine()
     private var lastFired: [String: Date] = [:]
     private var saveWork: DispatchWorkItem?
@@ -100,13 +91,30 @@ final class AppState: ObservableObject {
         if config.enabled { engine.start() }
     }
 
+    /// Bring GestureDeck's window to the front, reopening it if it was closed.
+    func showMainWindow() {
+        NSApp.activate(ignoringOtherApps: true)
+        if let open = openWindowAction {
+            open()
+        } else if let w = NSApp.windows.first(where: { $0.title == "GestureDeck" }) {
+            w.makeKeyAndOrderFront(nil)
+        }
+    }
+
     // typing in a URL/command field mutates config on every keystroke —
     // coalesce disk writes instead of hitting the file each time
     private func scheduleSave() {
         saveWork?.cancel()
         let work = DispatchWorkItem { [config] in config.save() }
         saveWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+    }
+
+    /// Write settings to disk right now (cancels any debounced write). Called
+    /// the instant a gesture mapping changes so nothing is ever lost.
+    func saveNow() {
+        saveWork?.cancel()
+        config.save()
     }
 
     private func trigger(_ gesture: Gesture, isRepeat: Bool = false) {
@@ -141,7 +149,21 @@ final class AppState: ObservableObject {
     func binding(for gesture: Gesture) -> Binding<GestureAction> {
         Binding(
             get: { self.config.actions[gesture.rawValue] ?? GestureAction() },
-            set: { self.config.actions[gesture.rawValue] = $0 }
+            set: {
+                var v = $0
+                let cur = self.config.actions[gesture.rawValue]
+                // Only a REAL change counts as a user edit (SwiftUI fires the
+                // setter with an identical value on appear — ignore those). A
+                // genuine edit is flagged userSet so future default-map updates
+                // never overwrite it, and is persisted immediately.
+                let changed = cur == nil || cur!.kind != v.kind || cur!.value != v.value
+                    || cur!.enabled != v.enabled || cur!.repeats != v.repeats
+                if changed {
+                    v.userSet = true
+                    self.config.actions[gesture.rawValue] = v
+                    self.saveNow()
+                }
+            }
         )
     }
 }

@@ -192,13 +192,21 @@ final class GestureEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         if !extended.contains(true) {
             let knuckleTop = max(indexMCP.y, middleMCP.y, littleMCP.y)
             if thumbTip.y > knuckleTop + palmWidth * 0.4 { return .thumbsUp }
-            return upright ? .fist : nil
+            // Real fist: upright, thumb wrapped in FRONT (not out to the side),
+            // and all four fingertips actually seen curled. A hand cupped around
+            // a glass/bottle while drinking fails these — the thumb reads "out"
+            // and fingers are hidden/wrapped sideways — so it no longer misfires.
+            let fingersSeen = tips.compactMap { $0 }.count
+            if upright && !thumbOut && fingersSeen >= 4 { return .fist }
+            return nil
         }
 
         guard upright else { return nil }   // ignore hands on the keyboard
 
         if extended == [false, false, false, true], thumbOut { return .callMe }
         if extended == [true, false, false, true] { return .rock }
+        // finger gun: index points, thumb cocked up/out, other three folded
+        if extended == [true, false, false, false], thumbOut { return .fingerGun }
 
         // plain counts require fingertips actually above the wrist
         let raised = zip(extended, tips)
