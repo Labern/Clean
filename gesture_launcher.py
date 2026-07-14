@@ -7,7 +7,10 @@ matching action fires. Out of the box:
     ☝ 1 finger  → Obsidian
     ✌ 2 fingers → Claude (desktop app)
     🤟 3 fingers → Spotify
-    🖐 open palm → the gesture web page (labern.github.io/Clean/gesture)
+    🖐 open palm → back to the gesture web page — returns to the tab you
+      already have open (Safari or Chrome) rather than opening a duplicate;
+      only opens a new tab if none exists. First use asks for a one-time
+      macOS Automation permission ("Terminal wants to control Safari").
 Actions can be app names, URLs, or "cmd: <shell command>". Edit the
 GESTURES table below, or create ~/.config/gesture-launcher.json to
 override without touching this file.
@@ -119,6 +122,74 @@ def classify_gesture(lm) -> int:
     return count
 
 
+# AppleScripts to focus an existing browser tab whose URL starts with the
+# target, instead of opening a duplicate. Each prints "focused" on success.
+# The Chrome one simply fails to compile if Chrome isn't installed — that's
+# fine, we fall through. First use triggers a one-time macOS Automation
+# permission prompt ("Terminal wants to control Safari/Chrome").
+_SAFARI_FOCUS = '''on run argv
+    set target to item 1 of argv
+    if application "Safari" is running then
+        tell application "Safari"
+            repeat with w in every window
+                try
+                    repeat with t in every tab of w
+                        if URL of t starts with target then
+                            tell w to set current tab to t
+                            set index of w to 1
+                            activate
+                            return "focused"
+                        end if
+                    end repeat
+                end try
+            end repeat
+        end tell
+    end if
+    return "notfound"
+end run'''
+
+_CHROME_FOCUS = '''on run argv
+    set target to item 1 of argv
+    if application id "com.google.Chrome" is running then
+        tell application id "com.google.Chrome"
+            repeat with w in every window
+                try
+                    set tIndex to 0
+                    repeat with t in every tab of w
+                        set tIndex to tIndex + 1
+                        if URL of t starts with target then
+                            set active tab index of w to tIndex
+                            set index of w to 1
+                            activate
+                            return "focused"
+                        end if
+                    end repeat
+                end try
+            end repeat
+        end tell
+    end if
+    return "notfound"
+end run'''
+
+
+def open_url(url: str) -> bool:
+    """Return to an already-open tab showing the URL; open it only if none."""
+    target = url.rstrip("/")
+    for script in (_SAFARI_FOCUS, _CHROME_FOCUS):
+        try:
+            out = subprocess.run(["osascript", "-e", script, target],
+                                 capture_output=True, text=True, timeout=10)
+            if out.returncode == 0 and out.stdout.strip() == "focused":
+                return True
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    result = subprocess.run(["open", url], capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"✖ couldn't open “{url}”: {result.stderr.strip()}")
+        return False
+    return True
+
+
 def load_gestures() -> dict:
     """Built-in GESTURES, overridden by ~/.config/gesture-launcher.json."""
     gestures = dict(GESTURES)
@@ -133,8 +204,8 @@ def load_gestures() -> dict:
 
 def launch(action: str) -> bool:
     if action.startswith(("http://", "https://")):
-        cmd, what = ["open", action], f"open “{action}”"
-    elif action.startswith("cmd:"):
+        return open_url(action)
+    if action.startswith("cmd:"):
         cmd, what = ["/bin/sh", "-c", action[4:].strip()], f"run “{action[4:].strip()}”"
     else:
         cmd, what = ["open", "-a", action], f"open “{action}” — is it installed in /Applications?"
