@@ -46,9 +46,11 @@ or run a shell command — with a per-gesture on/off switch and a Test button.
 
 ## Features
 
-- A proper floating config window opens on launch: live mirrored camera
-  preview with a "what it's seeing" pill, and the full gesture list with
-  per-gesture enable boxes and action selectors.
+- A proper floating config window opens on launch — everything in one
+  place: camera on the left (live mirrored preview with a "what it's
+  seeing" pill), plus last trigger and all behavior controls under it;
+  the full gesture list with per-gesture enable boxes and action
+  selectors on the right.
 - Menu bar hand icon shows listening state; popover has master toggle,
   live "what the camera sees" readout, and the last trigger.
 - Sound on trigger — toggleable, 8 system sounds to pick from, previewable.

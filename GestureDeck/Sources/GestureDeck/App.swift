@@ -40,7 +40,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     func show() {
         if window == nil {
             let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 1100, height: 640),
+                contentRect: NSRect(x: 0, y: 0, width: 1120, height: 840),
                 styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered, defer: false)
             w.title = "GestureDeck"

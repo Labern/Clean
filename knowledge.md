@@ -42,6 +42,15 @@ missing it says so and asks for a one-time `xcode-select --install`.
 
 ## Hard rules learned this session
 
+- **No PRs — commits only.** User, 2026-07-14: "Stop using PRs and just use
+  commits. I don't get the point of PRs." Push straight to the working
+  branch; don't open draft PRs for this project.
+- **Multiple Claude sessions run on this project simultaneously** (Mac
+  background session + Terminal Opus session + phone). They have trampled
+  each other's working tree twice. Rules: work in a worktree or fetch+merge
+  before EVERY push; never assume the app/config on disk matches your code;
+  check `pgrep -lf claude` / the Terminal before pkill-ing the app.
+
 - **Never open duplicate tabs.** URL actions focus an already-open
   Safari/Chrome tab via AppleScript before falling back to `open`.
 - **Never overwrite files via shell redirection** (`>`/`tee`) without reading
@@ -74,15 +83,29 @@ missing it says so and asks for a one-time `xcode-select --install`.
   writes Info.plist (LSUIElement + camera + AppleEvents usage strings),
   ad-hoc codesigns.
 - Config at `~/Library/Application Support/GestureDeck/config.json`
-  **migrates in place** (`defaultsVersion`, currently 3) — the user never
+  **migrates in place** (`defaultsVersion`, currently 4) — the user never
   deletes/resets anything. Migrations must **never slow the user down**:
   v3 clamps holdSeconds with `min(existing, 0.12)` because he had already
   set 0.05 by hand. Migrated configs save back to disk immediately.
+  v4 adds a native `playPause` ActionKind (fist) and palm→`deck`.
+  `GestureAction` decodes field-by-field with defaults, so unknown/missing
+  fields can never wipe the saved actions dictionary again.
+- **Hold-to-repeat** (user: "a slick way to repeat the same gesture"):
+  per-gesture ↻ toggle; a held pose re-fires after ~0.45 s, then every
+  ~0.3 s, keyboard-style. Off by default per gesture.
+- **Signing is STABLE now**: an "Apple Development" cert landed in the
+  keychain and build_app.sh prefers it (Developer ID > Apple Development >
+  ad-hoc). TCC camera/Automation grants now survive rebuilds — one final
+  round of Allow prompts after the identity switch, then never again.
 - Config window is an **AppKit `NSWindow` owned by `WindowManager`**
   (~~`WindowGroup`~~ superseded): opens in `applicationDidFinishLaunching`,
   `makeKeyAndOrderFront` + `activate(ignoringOtherApps:)` — this is what
   finally made every button/picker take clicks immediately. `deck` action
   kind ("GestureDeck window") re-fronts it — usable for any gesture.
+- Window layout (user-specified): **two panes, 1120×840 — camera on the
+  LEFT** (with status pill, last trigger, and all behavior controls
+  beneath it), **all 14 gestures on the RIGHT** in one scrollable list.
+  Everything in one place, ~14 pt fonts (user asked for larger type).
 - Launch at login **auto-registers** via `SMAppService` on every launch —
   no toggle hunting (the toggle still exists to turn it off).
 - Config `didSet` no longer restarts the engine per keystroke: engine
@@ -123,3 +146,10 @@ missing it says so and asks for a one-time `xcode-select --install`.
 - Web interface version of GestureDeck (grow the Pages `/gesture/` page
   into a full configurator) — after the Swift app works.
 - Map the remaining gestures when the user decides.
+- **IN FLIGHT (Terminal Opus session, worktree gesturedeck-fixes,
+  2026-07-14):** user demands GestureDeck be a REAL app — Dock icon,
+  ⌘-Tab, ⌘Q ("It isn't a fucking icon. MAKE IT AN APP") — i.e. drop
+  LSUIElement/accessory policy; and fix the classifier reading
+  drinking-from-a-cup as a fist ("really annoying" — fist is currently
+  just "no fingers extended + upright", which a cup grip satisfies).
+  Don't duplicate these; merge that session's work instead.
