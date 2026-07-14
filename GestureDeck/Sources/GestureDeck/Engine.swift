@@ -2,15 +2,16 @@ import AVFoundation
 import Vision
 
 /// Watches the webcam with Apple's Vision hand-pose model (on-device, no
-/// network) and emits debounced gestures: a pose must be held for
-/// `holdFrames`, fires once, and re-arms only after the hands drop.
+/// network) and emits debounced gestures: a pose fires once it has been
+/// stable for `holdFrames`; changing to a different pose re-arms instantly,
+/// and dropping the hands re-arms the same pose.
 final class GestureEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputSampleBufferDelegate {
     @Published var statusText = "camera off"
     @Published var isWatching = false
 
     let session = AVCaptureSession()
-    var holdFrames = 6
-    var releaseFrames = 8
+    var holdFrames = 3
+    var releaseFrames = 4
     var onGesture: ((Gesture) -> Void)?
     var onPose: ((String?) -> Void)?
 
@@ -25,7 +26,8 @@ final class GestureEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputS
     private var current: Gesture?
     private var hold = 0
     private var idle = 0
-    private var armed = true
+    private var lastFiredPose: Gesture?
+    private var lastLabel: String?
 
     // ── lifecycle ────────────────────────────────────────────────────────
 
@@ -74,9 +76,9 @@ final class GestureEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputS
                 output.setSampleBufferDelegate(self, queue: videoQueue)
                 if session.canAddOutput(output) { session.addOutput(output) }
                 session.commitConfiguration()
-                // ~15 fps is plenty for gestures and keeps CPU/energy low
+                // 30 fps so gestures land instantly
                 if (try? device.lockForConfiguration()) != nil {
-                    device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 15)
+                    device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 30)
                     device.unlockForConfiguration()
                 }
                 configured = true
@@ -114,17 +116,22 @@ final class GestureEngine: NSObject, ObservableObject, AVCaptureVideoDataOutputS
         if let g {
             idle = 0
             if g == current { hold += 1 } else { current = g; hold = 1 }
-            if armed && hold >= holdFrames {
-                armed = false
+            // fire as soon as the pose is stable; switching to a NEW pose
+            // re-arms instantly — no need to drop the hand in between
+            if hold >= holdFrames && g != lastFiredPose {
+                lastFiredPose = g
                 DispatchQueue.main.async { self.onGesture?(g) }
             }
         } else {
             current = nil
             hold = 0
             idle += 1
-            if idle >= releaseFrames { armed = true }
+            if idle >= releaseFrames { lastFiredPose = nil }
         }
-        DispatchQueue.main.async { self.onPose?(label) }
+        if label != lastLabel {
+            lastLabel = label
+            DispatchQueue.main.async { self.onPose?(label) }
+        }
     }
 
     // ── classification ───────────────────────────────────────────────────

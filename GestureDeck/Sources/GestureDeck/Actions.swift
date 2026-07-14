@@ -1,9 +1,10 @@
 import Foundation
+import AppKit
 
 /// Executes a gesture's configured action. URL actions first try to focus an
-/// existing browser tab (Safari, then Chrome) already showing that address —
-/// a new tab is opened only when none exists. First use triggers macOS's
-/// one-time Automation permission prompt for the browser.
+/// existing browser tab (Chrome, then Safari) already showing that address —
+/// a new tab is opened only when none exists (in Chrome when installed).
+/// First use triggers macOS's one-time Automation permission prompt.
 enum ActionRunner {
     static func run(_ action: GestureAction) {
         switch action.kind {
@@ -15,6 +16,8 @@ enum ActionRunner {
             shell("/bin/sh", ["-c", action.value])
         case .url:
             openURL(action.value)
+        case .deck:
+            DispatchQueue.main.async { WindowManager.shared.show() }
         }
     }
 
@@ -30,7 +33,7 @@ enum ActionRunner {
     private static func openURL(_ url: String) {
         DispatchQueue.global(qos: .userInitiated).async {
             let target = url.hasSuffix("/") ? String(url.dropLast()) : url
-            for script in [safariFocus, chromeFocus] {
+            for script in [chromeFocus, safariFocus] {
                 let p = Process()
                 p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
                 p.arguments = ["-e", script, target]
@@ -43,7 +46,12 @@ enum ActionRunner {
                                   encoding: .utf8) ?? ""
                 if p.terminationStatus == 0 && text.contains("focused") { return }
             }
-            shell("/usr/bin/open", [url])
+            // no existing tab anywhere — open a fresh one, Chrome preferred
+            if FileManager.default.fileExists(atPath: "/Applications/Google Chrome.app") {
+                shell("/usr/bin/open", ["-a", "Google Chrome", url])
+            } else {
+                shell("/usr/bin/open", [url])
+            }
         }
     }
 

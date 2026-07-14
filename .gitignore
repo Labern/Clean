@@ -14,3 +14,8 @@ political/
 # Python bytecode caches
 __pycache__/
 *.pyc
+
+# Swift build artifacts (GestureDeck & friends)
+.build/
+GestureDeck/GestureDeck.app/
+GestureDeck/AppIcon.iconset/

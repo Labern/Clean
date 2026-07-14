@@ -1,9 +1,11 @@
 import SwiftUI
 import AppKit
+import ServiceManagement
 
 // NB: deliberately not named main.swift — that would conflict with @main.
 @main
 struct GestureDeckApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var state = AppState.shared
 
     var body: some Scene {
@@ -13,12 +15,43 @@ struct GestureDeckApp: App {
             Image(systemName: state.config.enabled ? "hand.raised.fill" : "hand.raised.slash.fill")
         }
         .menuBarExtraStyle(.window)
+    }
+}
 
-        Window("GestureDeck", id: "gestures") {
-            GesturesWindow().environmentObject(state)
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // launch at login, always — no toggle hunting
+        if SMAppService.mainApp.status != .enabled {
+            try? SMAppService.mainApp.register()
         }
-        .windowResizability(.contentSize)
-        .defaultSize(width: 580, height: 760)
+        WindowManager.shared.show()
+    }
+}
+
+/// One AppKit-managed config window. A plain NSWindow (not a SwiftUI Window
+/// scene) so a menu-bar app can reliably open it at launch, bring it to the
+/// front, and have every control receive clicks immediately.
+@MainActor
+final class WindowManager: NSObject, NSWindowDelegate {
+    static let shared = WindowManager()
+    private var window: NSWindow?
+
+    func show() {
+        if window == nil {
+            let w = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 700, height: 860),
+                styleMask: [.titled, .closable, .miniaturizable],
+                backing: .buffered, defer: false)
+            w.title = "GestureDeck"
+            w.isReleasedWhenClosed = false
+            w.delegate = self
+            w.contentView = NSHostingView(
+                rootView: GesturesWindow().environmentObject(AppState.shared))
+            w.center()
+            window = w
+        }
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 }
 
@@ -27,8 +60,11 @@ final class AppState: ObservableObject {
 
     @Published var config: Config {
         didSet {
-            config.save()
-            applyConfig()
+            engine.holdFrames = max(2, Int(config.holdSeconds * 30))
+            if config.enabled != oldValue.enabled {
+                config.enabled ? engine.start() : engine.stop()
+            }
+            scheduleSave()
         }
     }
     @Published var lastEvent = "no triggers yet"
@@ -36,6 +72,7 @@ final class AppState: ObservableObject {
 
     let engine = GestureEngine()
     private var lastFired: [String: Date] = [:]
+    private var saveWork: DispatchWorkItem?
     private let timeFmt: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss"
@@ -44,22 +81,29 @@ final class AppState: ObservableObject {
 
     private init() {
         config = Config.load()
+        engine.holdFrames = max(2, Int(config.holdSeconds * 30))
         engine.onGesture = { [weak self] g in self?.trigger(g) }
         engine.onPose = { [weak self] label in self?.livePose = label }
-        applyConfig()
+        if config.enabled { engine.start() }
     }
 
-    private func applyConfig() {
-        engine.holdFrames = max(2, Int(config.holdSeconds * 15))
-        if config.enabled { engine.start() } else { engine.stop() }
+    // typing in a URL/command field mutates config on every keystroke —
+    // coalesce disk writes instead of hitting the file each time
+    private func scheduleSave() {
+        saveWork?.cancel()
+        let work = DispatchWorkItem { [config] in config.save() }
+        saveWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: work)
     }
 
     private func trigger(_ gesture: Gesture) {
         guard config.enabled,
               let action = config.actions[gesture.rawValue],
-              action.enabled, action.kind != .none, !action.value.isEmpty else { return }
+              action.enabled, action.kind != .none,
+              !(action.kind.needsValue && action.value.isEmpty) else { return }
         let now = Date()
-        if let last = lastFired[gesture.rawValue],
+        if config.cooldownSeconds > 0,
+           let last = lastFired[gesture.rawValue],
            now.timeIntervalSince(last) < config.cooldownSeconds { return }
         lastFired[gesture.rawValue] = now
 
@@ -70,7 +114,8 @@ final class AppState: ObservableObject {
 
     func test(_ gesture: Gesture) {
         guard let action = config.actions[gesture.rawValue],
-              action.kind != .none, !action.value.isEmpty else { return }
+              action.kind != .none,
+              !(action.kind.needsValue && action.value.isEmpty) else { return }
         if config.soundOn { NSSound(named: config.soundName)?.play() }
         ActionRunner.run(action)
     }

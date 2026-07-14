@@ -39,7 +39,6 @@ private struct GradientTitle: View {
 
 struct PopoverView: View {
     @EnvironmentObject var state: AppState
-    @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -81,8 +80,7 @@ struct PopoverView: View {
 
             HStack {
                 Button {
-                    openWindow(id: "gestures")
-                    NSApp.activate(ignoringOtherApps: true)
+                    WindowManager.shared.show()
                 } label: {
                     Label("Gestures…", systemImage: "hand.point.up.left")
                 }
@@ -127,7 +125,7 @@ struct GesturesWindow: View {
                 }
 
                 CameraPreview(session: state.engine.session)
-                    .frame(height: 200)
+                    .frame(height: 260)
                     .clipShape(RoundedRectangle(cornerRadius: 12))
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gdTeal.opacity(0.3)))
 
@@ -145,13 +143,15 @@ struct GesturesWindow: View {
                         Spacer()
                     }
                     HStack {
-                        Text("Hold time \(String(format: "%.2fs", state.config.holdSeconds))")
+                        Text("Hold \(String(format: "%.2fs", state.config.holdSeconds))")
                             .font(.system(.caption, design: .monospaced))
-                        Slider(value: $state.config.holdSeconds, in: 0.2...1.2).frame(width: 180)
+                        Slider(value: $state.config.holdSeconds, in: 0.05...0.6).frame(width: 180)
                         Spacer()
-                        Text("Cooldown \(String(format: "%.0fs", state.config.cooldownSeconds))")
+                        Text(state.config.cooldownSeconds > 0
+                             ? "Cooldown \(String(format: "%.1fs", state.config.cooldownSeconds))"
+                             : "Cooldown off")
                             .font(.system(.caption, design: .monospaced))
-                        Slider(value: $state.config.cooldownSeconds, in: 1...10).frame(width: 140)
+                        Slider(value: $state.config.cooldownSeconds, in: 0...5).frame(width: 140)
                     }
                     Toggle("Launch at login", isOn: $launchAtLogin)
                         .toggleStyle(.switch).tint(.gdTeal)
@@ -186,9 +186,9 @@ struct GesturesWindow: View {
                 Text("config: ~/Library/Application Support/GestureDeck/config.json")
                     .font(.system(size: 9, design: .monospaced)).foregroundColor(.gdMuted)
             }
-            .padding(18)
+            .padding(20)
         }
-        .frame(width: 580, height: 760)
+        .frame(width: 700, height: 860)
         .background(LinearGradient(colors: [.gdBgTop, .gdBgBottom],
                                    startPoint: .topLeading, endPoint: .bottomTrailing))
         .preferredColorScheme(.dark)
@@ -204,10 +204,10 @@ private struct GestureRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
-                Text(gesture.icon).font(.system(size: 22)).frame(width: 44)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(gesture.title).font(.system(.body, design: .monospaced))
-                    Text(gesture.hint).font(.system(size: 10, design: .monospaced))
+                Text(gesture.icon).font(.system(size: 28)).frame(width: 50)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(gesture.title).font(.system(size: 15, design: .monospaced).weight(.semibold))
+                    Text(gesture.hint).font(.system(size: 11, design: .monospaced))
                         .foregroundColor(.gdMuted)
                 }
                 Spacer()
@@ -224,6 +224,10 @@ private struct GestureRow: View {
                 switch action.kind {
                 case .none:
                     Text("does nothing").font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.gdMuted)
+                case .deck:
+                    Text("brings this window to the front")
+                        .font(.system(.caption, design: .monospaced))
                         .foregroundColor(.gdMuted)
                 case .app:
                     Picker("", selection: $action.value) {
@@ -248,7 +252,7 @@ private struct GestureRow: View {
                     Button("Test") { onTest() }.font(.caption)
                 }
             }
-            .padding(.leading, 44)
+            .padding(.leading, 50)
             .opacity(action.enabled ? 1 : 0.4)
             Divider().overlay(Color.white.opacity(0.06))
         }

@@ -78,7 +78,7 @@ enum Gesture: String, CaseIterable, Codable, Identifiable {
 // ── actions ──────────────────────────────────────────────────────────────
 
 enum ActionKind: String, Codable, CaseIterable, Identifiable {
-    case none, app, url, shell
+    case none, app, url, shell, deck
     var id: String { rawValue }
     var label: String {
         switch self {
@@ -86,8 +86,11 @@ enum ActionKind: String, Codable, CaseIterable, Identifiable {
         case .app: return "Open app"
         case .url: return "Open URL"
         case .shell: return "Shell command"
+        case .deck: return "GestureDeck window"
         }
     }
+    /// kinds that need a value typed/picked before they can run
+    var needsValue: Bool { self == .app || self == .url || self == .shell }
 }
 
 struct GestureAction: Codable, Equatable {
@@ -101,6 +104,7 @@ struct GestureAction: Codable, Equatable {
         case .app: return value.isEmpty ? "app?" : value
         case .url: return value.isEmpty ? "url?" : value
         case .shell: return value.isEmpty ? "cmd?" : "$ " + value
+        case .deck: return "gesture window"
         }
     }
 }
@@ -111,17 +115,18 @@ struct Config: Codable {
     var enabled = true
     var soundOn = true
     var soundName = "Pop"
-    var holdSeconds = 0.35
-    var cooldownSeconds = 3.0
+    var holdSeconds = 0.12
+    var cooldownSeconds = 0.0   // 0 = no cooldown, fire freely
+
     var actions: [String: GestureAction] = Config.defaultActions
 
     static let soundChoices = ["Pop", "Glass", "Tink", "Ping", "Funk", "Purr", "Submarine", "Bottle"]
 
     static let defaultActions: [String: GestureAction] = [
-        Gesture.one.rawValue: GestureAction(kind: .app, value: "Obsidian"),
+        Gesture.one.rawValue: GestureAction(kind: .url, value: "https://chatgpt.com"),
         Gesture.two.rawValue: GestureAction(kind: .app, value: "Claude"),
         Gesture.three.rawValue: GestureAction(kind: .app, value: "Spotify"),
-        Gesture.palm.rawValue: GestureAction(kind: .url, value: "https://labern.github.io/Clean/gesture/"),
+        Gesture.palm.rawValue: GestureAction(kind: .deck),
         Gesture.fist.rawValue: GestureAction(kind: .shell,
             value: "osascript -e 'tell application \"Spotify\" to playpause'"),
     ]
@@ -138,8 +143,8 @@ struct Config: Codable {
         enabled = (try? c.decode(Bool.self, forKey: .enabled)) ?? true
         soundOn = (try? c.decode(Bool.self, forKey: .soundOn)) ?? true
         soundName = (try? c.decode(String.self, forKey: .soundName)) ?? "Pop"
-        holdSeconds = (try? c.decode(Double.self, forKey: .holdSeconds)) ?? 0.35
-        cooldownSeconds = (try? c.decode(Double.self, forKey: .cooldownSeconds)) ?? 3.0
+        holdSeconds = (try? c.decode(Double.self, forKey: .holdSeconds)) ?? 0.12
+        cooldownSeconds = (try? c.decode(Double.self, forKey: .cooldownSeconds)) ?? 0.0
         actions = (try? c.decode([String: GestureAction].self, forKey: .actions)) ?? Config.defaultActions
     }
 

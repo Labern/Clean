@@ -12,12 +12,11 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/GestureDeck "$APP/Contents/MacOS/GestureDeck"
 
 # icon (drawn at build time; needs Xcode CLT's swift + iconutil)
-if command -v iconutil >/dev/null 2>&1; then
-  rm -rf AppIcon.iconset
-  swift IconGen.swift AppIcon.iconset
-  iconutil -c icns AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
-  rm -rf AppIcon.iconset
-fi
+rm -rf AppIcon.iconset
+swift IconGen.swift AppIcon.iconset
+iconutil -c icns AppIcon.iconset -o "$APP/Contents/Resources/AppIcon.icns"
+rm -rf AppIcon.iconset
+[ -s "$APP/Contents/Resources/AppIcon.icns" ] || { echo "✗ icon generation failed" >&2; exit 1; }
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -42,5 +41,14 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-codesign --force -s - "$APP"
+BUNDLE_ID="com.labern.GestureDeck"
+DEV_ID="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -1)"
+
+if [ -n "$DEV_ID" ]; then
+  codesign --force --options runtime --timestamp --sign "$DEV_ID" --identifier "$BUNDLE_ID" "$APP"
+  echo "› signed with Apple Developer ID ($DEV_ID) — trusted, notarizable"
+else
+  echo "› ad-hoc signing (no Developer ID cert in keychain)"
+  codesign --force --sign - --identifier "$BUNDLE_ID" "$APP"
+fi
 echo "✓ built $APP — launch with:  open $APP"
