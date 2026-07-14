@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import ServiceManagement
 
 // NB: deliberately not named main.swift — that would conflict with @main.
@@ -39,7 +40,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     func show() {
         if window == nil {
             let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 700, height: 860),
+                contentRect: NSRect(x: 0, y: 0, width: 1100, height: 640),
                 styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered, defer: false)
             w.title = "GestureDeck"
@@ -73,6 +74,7 @@ final class AppState: ObservableObject {
     let engine = GestureEngine()
     private var lastFired: [String: Date] = [:]
     private var saveWork: DispatchWorkItem?
+    private var bag = Set<AnyCancellable>()
     private let timeFmt: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss"
@@ -84,6 +86,12 @@ final class AppState: ObservableObject {
         engine.holdFrames = max(2, Int(config.holdSeconds * 30))
         engine.onGesture = { [weak self] g, isRepeat in self?.trigger(g, isRepeat: isRepeat) }
         engine.onPose = { [weak self] label in self?.livePose = label }
+        // views observe AppState, not the engine — forward its changes so
+        // the status text / watching dot actually refresh in the UI
+        engine.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &bag)
         if config.enabled { engine.start() }
     }
 

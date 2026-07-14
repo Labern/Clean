@@ -16,6 +16,8 @@ enum ActionRunner {
             shell("/bin/sh", ["-c", action.value])
         case .url:
             openURL(action.value)
+        case .playPause:
+            shell("/usr/bin/osascript", ["-e", "tell application \"Spotify\" to playpause"])
         case .deck:
             DispatchQueue.main.async { WindowManager.shared.show() }
         }

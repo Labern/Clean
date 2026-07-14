@@ -78,7 +78,7 @@ enum Gesture: String, CaseIterable, Codable, Identifiable {
 // ── actions ──────────────────────────────────────────────────────────────
 
 enum ActionKind: String, Codable, CaseIterable, Identifiable {
-    case none, app, url, shell, deck
+    case none, app, url, shell, playPause, deck
     var id: String { rawValue }
     var label: String {
         switch self {
@@ -86,6 +86,7 @@ enum ActionKind: String, Codable, CaseIterable, Identifiable {
         case .app: return "Open app"
         case .url: return "Open URL"
         case .shell: return "Shell command"
+        case .playPause: return "Spotify play/pause"
         case .deck: return "GestureDeck window"
         }
     }
@@ -121,6 +122,7 @@ struct GestureAction: Codable, Equatable {
         case .app: return value.isEmpty ? "app?" : value
         case .url: return value.isEmpty ? "url?" : value
         case .shell: return value.isEmpty ? "cmd?" : "$ " + value
+        case .playPause: return "play/pause"
         case .deck: return "gesture window"
         }
     }
@@ -130,7 +132,7 @@ struct GestureAction: Codable, Equatable {
 
 struct Config: Codable {
     // bump when defaultActions change so existing configs pick them up
-    static let currentDefaultsVersion = 3
+    static let currentDefaultsVersion = 4
 
     var enabled = true
     var soundOn = true
@@ -148,9 +150,8 @@ struct Config: Codable {
         Gesture.two.rawValue: GestureAction(kind: .app, value: "Claude"),
         Gesture.three.rawValue: GestureAction(kind: .app, value: "Spotify"),
         Gesture.four.rawValue: GestureAction(kind: .app, value: "Obsidian"),
-        Gesture.palm.rawValue: GestureAction(kind: .url, value: "https://labern.github.io/Clean/gesture/"),
-        Gesture.fist.rawValue: GestureAction(kind: .shell,
-            value: "osascript -e 'tell application \"Spotify\" to playpause'"),
+        Gesture.palm.rawValue: GestureAction(kind: .deck),
+        Gesture.fist.rawValue: GestureAction(kind: .playPause),
     ]
 
     enum CodingKeys: String, CodingKey {

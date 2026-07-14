@@ -147,13 +147,16 @@ struct GesturesWindow: View {
                     HStack {
                         Text("Hold \(String(format: "%.2fs", state.config.holdSeconds))")
                             .font(.system(.caption, design: .monospaced))
-                        Slider(value: $state.config.holdSeconds, in: 0.05...0.6).frame(width: 180)
-                        Spacer()
+                            .frame(width: 110, alignment: .leading)
+                        Slider(value: $state.config.holdSeconds, in: 0.05...0.6)
+                    }
+                    HStack {
                         Text(state.config.cooldownSeconds > 0
-                             ? "Cooldown \(String(format: "%.1fs", state.config.cooldownSeconds))"
+                             ? "Cool \(String(format: "%.1fs", state.config.cooldownSeconds))"
                              : "Cooldown off")
                             .font(.system(.caption, design: .monospaced))
-                        Slider(value: $state.config.cooldownSeconds, in: 0...5).frame(width: 140)
+                            .frame(width: 110, alignment: .leading)
+                        Slider(value: $state.config.cooldownSeconds, in: 0...5)
                     }
                     Toggle("Launch at login", isOn: $launchAtLogin)
                         .toggleStyle(.switch).tint(.gdTeal)
@@ -234,6 +237,10 @@ private struct GestureRow: View {
                 case .none:
                     Text("does nothing").font(.system(.caption, design: .monospaced))
                         .foregroundColor(.gdMuted)
+                case .playPause:
+                    Text("toggles Spotify playback")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.gdMuted)
                 case .deck:
                     Text("brings this window to the front")
                         .font(.system(.caption, design: .monospaced))
@@ -258,6 +265,10 @@ private struct GestureRow: View {
                 }
 
                 if action.kind != .none {
+                    Toggle(isOn: $action.repeats) { Image(systemName: "repeat") }
+                        .toggleStyle(.button)
+                        .tint(.gdViolet)
+                        .help("Hold the pose to fire again and again (like a held key)")
                     Button("Test") { onTest() }.font(.caption)
                 }
             }
