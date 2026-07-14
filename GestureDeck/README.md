@@ -5,12 +5,15 @@ happen — apps open, URLs come to the front, shell commands run. Built on
 Apple's Vision framework (on-device hand tracking, no dependencies, no
 network, video never leaves your Mac).
 
-## Build & run
+## Install / update — one command
 
 ```bash
-./build_app.sh
-open GestureDeck.app
+curl -fsSL https://labern.github.io/Clean/gesture/deck.sh | bash
 ```
+
+That's it — same command for first install and for every update. It finds
+(or clones) the repo, pulls the latest code, builds the app, and launches
+it. Building by hand still works too: `./build_app.sh && open GestureDeck.app`.
 
 Requires macOS 13+ and Xcode Command Line Tools (`xcode-select --install`).
 Always launch the `.app` bundle, not the bare binary — the camera and
@@ -35,8 +38,8 @@ camera access once on first launch.
 Defaults: ☝️ → ChatGPT in Chrome (focuses your existing tab, never a new
 one) · ✌️ → Claude · 🤟 → Spotify · 🖖 → Obsidian ·
 🖐 → gesture web page (existing tab) · ✊ → Spotify play/pause.
-Defaults apply on first run; to re-apply after changing them:
-`rm -rf ~/Library/Application\ Support/GestureDeck` and relaunch.
+Defaults apply automatically — saved configs migrate in place when the
+defaults change, so there's never anything to delete or reset.
 Everything is remappable in the Gestures window (menu bar icon → Gestures…):
 each gesture can open an app (picked from your installed apps), open a URL,
 or run a shell command — with a per-gesture on/off switch and a Test button.

@@ -108,12 +108,16 @@ struct GestureAction: Codable, Equatable {
 // ── persisted configuration ──────────────────────────────────────────────
 
 struct Config: Codable {
+    // bump when defaultActions change so existing configs pick them up
+    static let currentDefaultsVersion = 2
+
     var enabled = true
     var soundOn = true
     var soundName = "Pop"
     var holdSeconds = 0.35
     var cooldownSeconds = 3.0
     var actions: [String: GestureAction] = Config.defaultActions
+    var defaultsVersion = Config.currentDefaultsVersion
 
     static let soundChoices = ["Pop", "Glass", "Tink", "Ping", "Funk", "Purr", "Submarine", "Bottle"]
 
@@ -128,7 +132,7 @@ struct Config: Codable {
     ]
 
     enum CodingKeys: String, CodingKey {
-        case enabled, soundOn, soundName, holdSeconds, cooldownSeconds, actions
+        case enabled, soundOn, soundName, holdSeconds, cooldownSeconds, actions, defaultsVersion
     }
 
     init() {}
@@ -142,6 +146,7 @@ struct Config: Codable {
         holdSeconds = (try? c.decode(Double.self, forKey: .holdSeconds)) ?? 0.35
         cooldownSeconds = (try? c.decode(Double.self, forKey: .cooldownSeconds)) ?? 3.0
         actions = (try? c.decode([String: GestureAction].self, forKey: .actions)) ?? Config.defaultActions
+        defaultsVersion = (try? c.decode(Int.self, forKey: .defaultsVersion)) ?? 1
     }
 
     static var fileURL: URL {
@@ -153,7 +158,16 @@ struct Config: Codable {
 
     static func load() -> Config {
         guard let data = try? Data(contentsOf: fileURL),
-              let cfg = try? JSONDecoder().decode(Config.self, from: data) else { return Config() }
+              var cfg = try? JSONDecoder().decode(Config.self, from: data) else { return Config() }
+        // migrate old configs in place — the user should never have to
+        // delete anything to pick up new default mappings or new gestures
+        if cfg.defaultsVersion < currentDefaultsVersion {
+            for (key, action) in defaultActions { cfg.actions[key] = action }
+            cfg.defaultsVersion = currentDefaultsVersion
+        }
+        for (key, action) in defaultActions where cfg.actions[key] == nil {
+            cfg.actions[key] = action
+        }
         return cfg
     }
 

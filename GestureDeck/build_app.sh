@@ -58,4 +58,3 @@ codesign --force -s - "$APP"
 touch "$APP"   # nudge Finder's icon cache
 echo "✓ built $APP — launch with:  open $APP"
 echo "  (the config window opens on launch; the 🖐 lives in the menu bar)"
-echo "  to reset saved gesture mappings:  rm -rf ~/Library/Application\\ Support/GestureDeck"
