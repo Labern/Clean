@@ -12,6 +12,21 @@ no build step, no dependencies.
 - `file` — an empty test file from early in the session. Safe to ignore or delete.
 - `ClaudeUsageMonitor/` — a macOS menu bar app (Swift Package, SwiftUI) showing
   a live "% of Claude plan used" gauge. See its own section below.
+- `gesture.html` — browser demo of webcam gesture detection (MediaPipe);
+  deployed to GitHub Pages at /gesture/ on the `gh-pages` branch alongside
+  other live sites (don't clobber that branch — add subdirectories).
+- `gesture_launcher.py` — Python webcam gesture → app launcher (MediaPipe);
+  a copy is served from the Pages /gesture/ directory for curl-download, so
+  sync it there when it changes.
+- `GestureDeck/` — the native successor to gesture_launcher.py: a macOS menu
+  bar app (Swift Package, SwiftUI + Vision framework hand pose detection, no
+  external deps). 14 gestures incl. two-handed combos, per-gesture actions
+  (app/URL/shell) configurable in-app, trigger sounds, camera preview.
+  Build with `./build_app.sh`, launch the bundle (permissions are keyed to
+  it). Config at `~/Library/Application Support/GestureDeck/config.json`.
+  URL actions focus an existing Safari/Chrome tab via AppleScript rather
+  than opening duplicates — the user explicitly wants "return to the page",
+  never a new tab each time.
 
 ## Commands
 Top-level dir: none — `index.html` is static, just `open` it.
