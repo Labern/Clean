@@ -7,6 +7,7 @@ matching action fires. Out of the box:
     ☝ 1 finger  → Obsidian
     ✌ 2 fingers → Claude (desktop app)
     🤟 3 fingers → Spotify
+    🖖 4 fingers → the gesture web page (labern.github.io/Clean/gesture)
 Actions can be app names, URLs, or "cmd: <shell command>". Edit the
 GESTURES table below, or create ~/.config/gesture-launcher.json to
 override without touching this file.
@@ -49,8 +50,8 @@ GESTURES = {
     1: "Obsidian",
     2: "Claude",        # the Claude desktop app
     3: "Spotify",
-    # 4: "https://claude.ai",
-    # 4: "cmd: open ~/Downloads",
+    4: "https://labern.github.io/Clean/gesture/",   # back to the web page
+    # other action examples: "cmd: open ~/Downloads", "https://claude.ai"
 }
 
 # ── tuning ───────────────────────────────────────────────────────────────
