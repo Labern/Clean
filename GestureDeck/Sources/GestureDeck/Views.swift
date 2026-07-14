@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import AVFoundation
 import ServiceManagement
 
@@ -14,7 +15,8 @@ extension Color {
 }
 
 private struct Card<Content: View>: View {
-    @ViewBuilder let content: Content
+    let content: Content
+    init(@ViewBuilder content: () -> Content) { self.content = content() }
     var body: some View {
         VStack(alignment: .leading, spacing: 10) { content }
             .padding(14)

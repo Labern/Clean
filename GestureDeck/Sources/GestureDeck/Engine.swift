@@ -1,5 +1,6 @@
 import AVFoundation
 import Vision
+import Combine   // ObservableObject/@Published live here, not in AVFoundation
 
 /// Watches the webcam with Apple's Vision hand-pose model (on-device, no
 /// network) and emits debounced gestures: a pose must be held for

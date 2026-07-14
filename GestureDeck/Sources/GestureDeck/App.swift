@@ -28,7 +28,13 @@ struct GestureDeckApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // LSUIElement apps launch unfocused; bring the config window forward.
+        // LSUIElement apps launch unfocused, and SwiftUI may create the
+        // window slightly after this fires — activate now and again shortly.
+        activate()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.activate() }
+    }
+
+    private func activate() {
         NSApp.activate(ignoringOtherApps: true)
         for w in NSApp.windows where !(w.className.contains("StatusBar")) {
             w.makeKeyAndOrderFront(nil)
