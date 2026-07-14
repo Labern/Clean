@@ -32,14 +32,20 @@ camera access once on first launch.
 | 🤙 Call me | thumb + pinky | | |
 | 👌 OK sign | thumb–index circle | | |
 
-Defaults: ☝️ → Obsidian · ✌️ → Claude · 🤟 → Spotify ·
-🖐 → gesture web page (returns to the existing tab) · ✊ → Spotify play/pause.
+Defaults: ☝️ → ChatGPT in Chrome (focuses your existing tab, never a new
+one) · ✌️ → Claude · 🤟 → Spotify · 🖖 → Obsidian ·
+🖐 → gesture web page (existing tab) · ✊ → Spotify play/pause.
+Defaults apply on first run; to re-apply after changing them:
+`rm -rf ~/Library/Application\ Support/GestureDeck` and relaunch.
 Everything is remappable in the Gestures window (menu bar icon → Gestures…):
 each gesture can open an app (picked from your installed apps), open a URL,
 or run a shell command — with a per-gesture on/off switch and a Test button.
 
 ## Features
 
+- A proper floating config window opens on launch: live mirrored camera
+  preview with a "what it's seeing" pill, and the full gesture list with
+  per-gesture enable boxes and action selectors.
 - Menu bar hand icon shows listening state; popover has master toggle,
   live "what the camera sees" readout, and the last trigger.
 - Sound on trigger — toggleable, 8 system sounds to pick from, previewable.

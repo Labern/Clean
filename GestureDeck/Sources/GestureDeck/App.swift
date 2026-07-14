@@ -1,9 +1,11 @@
 import SwiftUI
 import AppKit
+import Combine
 
 // NB: deliberately not named main.swift — that would conflict with @main.
 @main
 struct GestureDeckApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @StateObject private var state = AppState.shared
 
     var body: some Scene {
@@ -14,11 +16,23 @@ struct GestureDeckApp: App {
         }
         .menuBarExtraStyle(.window)
 
-        Window("GestureDeck", id: "gestures") {
+        // WindowGroup (not Window) so the config window opens on launch —
+        // otherwise a menu-bar-only app appears to "do nothing" on first run.
+        WindowGroup("GestureDeck", id: "gestures") {
             GesturesWindow().environmentObject(state)
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 580, height: 760)
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        // LSUIElement apps launch unfocused; bring the config window forward.
+        NSApp.activate(ignoringOtherApps: true)
+        for w in NSApp.windows where !(w.className.contains("StatusBar")) {
+            w.makeKeyAndOrderFront(nil)
+        }
     }
 }
 
@@ -36,6 +50,7 @@ final class AppState: ObservableObject {
 
     let engine = GestureEngine()
     private var lastFired: [String: Date] = [:]
+    private var bag = Set<AnyCancellable>()
     private let timeFmt: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss"
@@ -46,6 +61,12 @@ final class AppState: ObservableObject {
         config = Config.load()
         engine.onGesture = { [weak self] g in self?.trigger(g) }
         engine.onPose = { [weak self] label in self?.livePose = label }
+        // views observe AppState, not the engine — forward its changes so
+        // status text / watching dot actually refresh in the UI
+        engine.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &bag)
         applyConfig()
     }
 

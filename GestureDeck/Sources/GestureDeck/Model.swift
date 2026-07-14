@@ -118,9 +118,10 @@ struct Config: Codable {
     static let soundChoices = ["Pop", "Glass", "Tink", "Ping", "Funk", "Purr", "Submarine", "Bottle"]
 
     static let defaultActions: [String: GestureAction] = [
-        Gesture.one.rawValue: GestureAction(kind: .app, value: "Obsidian"),
+        Gesture.one.rawValue: GestureAction(kind: .url, value: "https://chatgpt.com"),
         Gesture.two.rawValue: GestureAction(kind: .app, value: "Claude"),
         Gesture.three.rawValue: GestureAction(kind: .app, value: "Spotify"),
+        Gesture.four.rawValue: GestureAction(kind: .app, value: "Obsidian"),
         Gesture.palm.rawValue: GestureAction(kind: .url, value: "https://labern.github.io/Clean/gesture/"),
         Gesture.fist.rawValue: GestureAction(kind: .shell,
             value: "osascript -e 'tell application \"Spotify\" to playpause'"),

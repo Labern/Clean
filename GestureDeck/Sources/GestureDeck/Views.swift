@@ -126,10 +126,25 @@ struct GesturesWindow: View {
                         .foregroundColor(.gdViolet)
                 }
 
-                CameraPreview(session: state.engine.session)
-                    .frame(height: 200)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gdTeal.opacity(0.3)))
+                ZStack(alignment: .bottomLeading) {
+                    CameraPreview(session: state.engine.session)
+                        .frame(height: 220)
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(state.engine.isWatching ? Color.gdTeal : Color.gdPink)
+                            .frame(width: 8, height: 8)
+                        Text(state.livePose ?? state.engine.statusText)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(.black.opacity(0.55))
+                    .clipShape(Capsule())
+                    .padding(10)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gdTeal.opacity(0.35)))
 
                 Card {
                     Text("BEHAVIOR")
@@ -266,13 +281,21 @@ struct CameraPreview: NSViewRepresentable {
         let layer = AVCaptureVideoPreviewLayer(session: session)
         layer.videoGravity = .resizeAspectFill
         layer.backgroundColor = NSColor.black.cgColor
-        if let conn = layer.connection, conn.isVideoMirroringSupported {
-            conn.automaticallyAdjustsVideoMirroring = false
-            conn.isVideoMirrored = true
-        }
         view.layer = layer
+        mirror(layer)
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    func updateNSView(_ nsView: NSView, context: Context) {
+        // the connection only exists once the session is configured (async),
+        // so re-apply mirroring here — makeNSView is usually too early
+        if let layer = nsView.layer as? AVCaptureVideoPreviewLayer { mirror(layer) }
+    }
+
+    private func mirror(_ layer: AVCaptureVideoPreviewLayer) {
+        if let conn = layer.connection, conn.isVideoMirroringSupported, !conn.isVideoMirrored {
+            conn.automaticallyAdjustsVideoMirroring = false
+            conn.isVideoMirrored = true
+        }
+    }
 }

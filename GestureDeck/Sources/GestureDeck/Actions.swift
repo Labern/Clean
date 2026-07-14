@@ -30,7 +30,8 @@ enum ActionRunner {
     private static func openURL(_ url: String) {
         DispatchQueue.global(qos: .userInitiated).async {
             let target = url.hasSuffix("/") ? String(url.dropLast()) : url
-            for script in [safariFocus, chromeFocus] {
+            // Chrome first (the user's browser), then Safari
+            for script in [chromeFocus, safariFocus] {
                 let p = Process()
                 p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
                 p.arguments = ["-e", script, target]
@@ -42,6 +43,16 @@ enum ActionRunner {
                 let text = String(data: out.fileHandleForReading.readDataToEndOfFile(),
                                   encoding: .utf8) ?? ""
                 if p.terminationStatus == 0 && text.contains("focused") { return }
+            }
+            // no existing tab anywhere: prefer opening in Chrome, else default
+            let chrome = Process()
+            chrome.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+            chrome.arguments = ["-b", "com.google.Chrome", url]
+            chrome.standardOutput = Pipe()
+            chrome.standardError = Pipe()
+            if (try? chrome.run()) != nil {
+                chrome.waitUntilExit()
+                if chrome.terminationStatus == 0 { return }
             }
             shell("/usr/bin/open", [url])
         }
