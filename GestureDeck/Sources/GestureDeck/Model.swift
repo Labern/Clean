@@ -199,7 +199,14 @@ struct Config: Codable {
 
     static func load() -> Config {
         guard let data = try? Data(contentsOf: fileURL),
-              var cfg = try? JSONDecoder().decode(Config.self, from: data) else { return Config() }
+              var cfg = try? JSONDecoder().decode(Config.self, from: data) else {
+            // No config on disk (first run, or it was removed) — write the
+            // current defaults straight away so the file always exists and the
+            // correct mappings are persisted, not just held in memory.
+            let fresh = Config()
+            fresh.save()
+            return fresh
+        }
         // migrate old configs in place — the user should never have to delete
         // anything to pick up new default mappings or new gestures. Crucially,
         // a mapping the user edited themselves (userSet) is sacred and is never
