@@ -27,9 +27,10 @@ private struct Card<Content: View>: View {
 
 private struct GradientTitle: View {
     let text: String
+    var size: CGFloat = 15
     var body: some View {
         Text(text)
-            .font(.system(.headline, design: .monospaced).weight(.bold))
+            .font(.system(size: size, weight: .bold, design: .monospaced))
             .foregroundStyle(LinearGradient(colors: [.gdTeal, .gdViolet, .gdPink],
                                             startPoint: .leading, endPoint: .trailing))
     }
@@ -62,14 +63,14 @@ struct PopoverView: View {
                 .tint(.gdViolet)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("SEEING").font(.system(size: 9, design: .monospaced)).foregroundColor(.gdMuted)
+                Text("SEEING").font(.system(size: 11, design: .monospaced)).foregroundColor(.gdMuted)
                 Text(state.livePose ?? "—")
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.system(size: 14, design: .monospaced))
                     .foregroundColor(.gdViolet)
-                Text("LAST TRIGGER").font(.system(size: 9, design: .monospaced)).foregroundColor(.gdMuted)
+                Text("LAST TRIGGER").font(.system(size: 11, design: .monospaced)).foregroundColor(.gdMuted)
                     .padding(.top, 4)
                 Text(state.lastEvent)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.system(size: 14, design: .monospaced))
                     .foregroundColor(.gdTeal)
                     .lineLimit(2)
             }
@@ -114,46 +115,73 @@ struct GesturesWindow: View {
     }()
 
     var body: some View {
-        ScrollView {
+        HStack(alignment: .top, spacing: 18) {
+            // ── left: camera + status + behavior ─────────────────────────
             VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    GradientTitle(text: "🖐 GESTUREDECK — GESTURES")
-                    Spacer()
-                    Text(state.livePose ?? state.engine.statusText)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.gdViolet)
-                }
+                GradientTitle(text: "🖐 GESTUREDECK", size: 20)
 
-                CameraPreview(session: state.engine.session)
-                    .frame(height: 260)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gdTeal.opacity(0.3)))
+                ZStack(alignment: .bottomLeading) {
+                    CameraPreview(session: state.engine.session)
+                        .frame(height: 320)
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(state.engine.isWatching ? Color.gdTeal : Color.gdPink)
+                            .frame(width: 10, height: 10)
+                        Text(state.livePose ?? state.engine.statusText)
+                            .font(.system(size: 14, design: .monospaced))
+                            .foregroundColor(.white)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(.black.opacity(0.55))
+                    .clipShape(Capsule())
+                    .padding(12)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gdTeal.opacity(0.3)))
+
+                Card {
+                    Text("LAST TRIGGER")
+                        .font(.system(size: 12, design: .monospaced)).foregroundColor(.gdMuted)
+                    Text(state.lastEvent)
+                        .font(.system(size: 14, design: .monospaced))
+                        .foregroundColor(.gdTeal)
+                        .lineLimit(2)
+                }
 
                 Card {
                     Text("BEHAVIOR")
-                        .font(.system(size: 10, design: .monospaced)).foregroundColor(.gdMuted)
+                        .font(.system(size: 12, design: .monospaced)).foregroundColor(.gdMuted)
+                    Toggle("Listening", isOn: $state.config.enabled)
+                        .font(.system(size: 14))
+                        .toggleStyle(.switch).tint(.gdTeal)
                     Toggle("Play a sound when a gesture triggers", isOn: $state.config.soundOn)
+                        .font(.system(size: 14))
                         .toggleStyle(.switch).tint(.gdViolet)
                     HStack {
                         Picker("Sound", selection: $state.config.soundName) {
                             ForEach(Config.soundChoices, id: \.self) { Text($0) }
                         }
+                        .font(.system(size: 14))
                         .frame(width: 220)
                         Button("Preview") { state.previewSound() }
+                            .font(.system(size: 13))
                         Spacer()
                     }
                     HStack {
                         Text("Hold \(String(format: "%.2fs", state.config.holdSeconds))")
-                            .font(.system(.caption, design: .monospaced))
-                        Slider(value: $state.config.holdSeconds, in: 0.05...0.6).frame(width: 180)
-                        Spacer()
+                            .font(.system(size: 14, design: .monospaced))
+                        Slider(value: $state.config.holdSeconds, in: 0.05...0.6)
+                    }
+                    HStack {
                         Text(state.config.cooldownSeconds > 0
                              ? "Cooldown \(String(format: "%.1fs", state.config.cooldownSeconds))"
                              : "Cooldown off")
-                            .font(.system(.caption, design: .monospaced))
-                        Slider(value: $state.config.cooldownSeconds, in: 0...5).frame(width: 140)
+                            .font(.system(size: 14, design: .monospaced))
+                        Slider(value: $state.config.cooldownSeconds, in: 0...5)
                     }
                     Toggle("Launch at login", isOn: $launchAtLogin)
+                        .font(.system(size: 14))
                         .toggleStyle(.switch).tint(.gdTeal)
                         .onChange(of: launchAtLogin) { on in
                             do {
@@ -165,30 +193,38 @@ struct GesturesWindow: View {
                         }
                 }
 
-                Card {
-                    Text("ONE HAND")
-                        .font(.system(size: 10, design: .monospaced)).foregroundColor(.gdMuted)
-                    ForEach(Gesture.allCases.filter { !$0.isTwoHanded }) { g in
-                        GestureRow(gesture: g, action: state.binding(for: g),
-                                   apps: Self.installedApps) { state.test(g) }
-                    }
-                }
-
-                Card {
-                    Text("BOTH HANDS")
-                        .font(.system(size: 10, design: .monospaced)).foregroundColor(.gdMuted)
-                    ForEach(Gesture.allCases.filter { $0.isTwoHanded }) { g in
-                        GestureRow(gesture: g, action: state.binding(for: g),
-                                   apps: Self.installedApps) { state.test(g) }
-                    }
-                }
+                Spacer(minLength: 0)
 
                 Text("config: ~/Library/Application Support/GestureDeck/config.json")
-                    .font(.system(size: 9, design: .monospaced)).foregroundColor(.gdMuted)
+                    .font(.system(size: 11, design: .monospaced)).foregroundColor(.gdMuted)
             }
-            .padding(20)
+            .frame(width: 430)
+
+            // ── right: every gesture, one list ───────────────────────────
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Card {
+                        Text("ONE HAND")
+                            .font(.system(size: 12, design: .monospaced)).foregroundColor(.gdMuted)
+                        ForEach(Gesture.allCases.filter { !$0.isTwoHanded }) { g in
+                            GestureRow(gesture: g, action: state.binding(for: g),
+                                       apps: Self.installedApps) { state.test(g) }
+                        }
+                    }
+
+                    Card {
+                        Text("BOTH HANDS")
+                            .font(.system(size: 12, design: .monospaced)).foregroundColor(.gdMuted)
+                        ForEach(Gesture.allCases.filter { $0.isTwoHanded }) { g in
+                            GestureRow(gesture: g, action: state.binding(for: g),
+                                       apps: Self.installedApps) { state.test(g) }
+                        }
+                    }
+                }
+            }
         }
-        .frame(width: 700, height: 860)
+        .padding(18)
+        .frame(width: 1120, height: 840)
         .background(LinearGradient(colors: [.gdBgTop, .gdBgBottom],
                                    startPoint: .topLeading, endPoint: .bottomTrailing))
         .preferredColorScheme(.dark)
@@ -204,10 +240,10 @@ private struct GestureRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 10) {
-                Text(gesture.icon).font(.system(size: 28)).frame(width: 50)
+                Text(gesture.icon).font(.system(size: 28)).frame(width: 52)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(gesture.title).font(.system(size: 15, design: .monospaced).weight(.semibold))
-                    Text(gesture.hint).font(.system(size: 11, design: .monospaced))
+                    Text(gesture.title).font(.system(size: 16, design: .monospaced).weight(.semibold))
+                    Text(gesture.hint).font(.system(size: 12, design: .monospaced))
                         .foregroundColor(.gdMuted)
                 }
                 Spacer()
@@ -219,15 +255,16 @@ private struct GestureRow: View {
                     ForEach(ActionKind.allCases) { Text($0.label).tag($0) }
                 }
                 .labelsHidden()
-                .frame(width: 140)
+                .font(.system(size: 14))
+                .frame(width: 150)
 
                 switch action.kind {
                 case .none:
-                    Text("does nothing").font(.system(.caption, design: .monospaced))
+                    Text("does nothing").font(.system(size: 13, design: .monospaced))
                         .foregroundColor(.gdMuted)
                 case .deck:
                     Text("brings this window to the front")
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.system(size: 13, design: .monospaced))
                         .foregroundColor(.gdMuted)
                 case .app:
                     Picker("", selection: $action.value) {
@@ -238,21 +275,22 @@ private struct GestureRow: View {
                         ForEach(apps, id: \.self) { Text($0).tag($0) }
                     }
                     .labelsHidden()
+                    .font(.system(size: 14))
                 case .url:
                     TextField("https://…", text: $action.value)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.system(size: 14, design: .monospaced))
                 case .shell:
                     TextField("shell command", text: $action.value)
                         .textFieldStyle(.roundedBorder)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.system(size: 14, design: .monospaced))
                 }
 
                 if action.kind != .none {
-                    Button("Test") { onTest() }.font(.caption)
+                    Button("Test") { onTest() }.font(.system(size: 13))
                 }
             }
-            .padding(.leading, 50)
+            .padding(.leading, 52)
             .opacity(action.enabled ? 1 : 0.4)
             Divider().overlay(Color.white.opacity(0.06))
         }

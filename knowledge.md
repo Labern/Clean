@@ -83,6 +83,10 @@ missing it says so and asks for a one-time `xcode-select --install`.
   `makeKeyAndOrderFront` + `activate(ignoringOtherApps:)` — this is what
   finally made every button/picker take clicks immediately. `deck` action
   kind ("GestureDeck window") re-fronts it — usable for any gesture.
+- Window layout (user-specified): **two panes, 1120×840 — camera on the
+  LEFT** (with status pill, last trigger, and all behavior controls
+  beneath it), **all 14 gestures on the RIGHT** in one scrollable list.
+  Everything in one place, ~14 pt fonts (user asked for larger type).
 - Launch at login **auto-registers** via `SMAppService` on every launch —
   no toggle hunting (the toggle still exists to turn it off).
 - Config `didSet` no longer restarts the engine per keystroke: engine
