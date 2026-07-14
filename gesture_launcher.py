@@ -2,15 +2,19 @@
 """
 gesture_launcher.py — webcam gesture → app launcher for macOS.
 
-Hold up N fingers (index/middle/ring/pinky; thumb is ignored) and the
-matching action fires. Out of the box:
-    ☝ 1 finger  → Obsidian
-    ✌ 2 fingers → Claude (desktop app)
-    🤟 3 fingers → Spotify
-    🖐 open palm → back to the gesture web page — returns to the tab you
-      already have open (Safari or Chrome) rather than opening a duplicate;
-      only opens a new tab if none exists. First use asks for a one-time
-      macOS Automation permission ("Terminal wants to control Safari").
+Make a hand pose and the matching action fires. Recognized poses:
+    ☝ "1"          one finger up
+    ✌ "2"          two fingers up
+    🤟 "3"          three fingers up
+    🖖 "4"          four fingers up, thumb tucked
+    🖐 "palm"       open palm (four fingers + thumb)
+    ✊ "fist"       closed fist, hand upright
+    👍 "thumbs-up"  fist with thumb sticking up
+    🤘 "rock"       index + pinky up, middle/ring folded
+Out of the box: 1 → Obsidian, 2 → Claude, 3 → Spotify,
+palm → back to the gesture web page (returns to the tab you already
+have open in Safari/Chrome rather than opening a duplicate — first use
+asks a one-time macOS Automation permission), fist → Spotify play/pause.
 Actions can be app names, URLs, or "cmd: <shell command>". Edit the
 GESTURES table below, or create ~/.config/gesture-launcher.json to
 override without touching this file.
@@ -41,22 +45,27 @@ from collections import deque
 from pathlib import Path
 
 # ── gesture map ──────────────────────────────────────────────────────────
-# gesture id → action. Ids 1–4 are raised fingers (index/middle/ring/pinky,
-# thumb tucked); id 5 is an open palm (all four fingers + thumb extended).
-# An action can be:
+# gesture id → action. Ids: "1".."4" (raised fingers, thumb tucked),
+# "palm", "fist", "thumbs-up", "rock". An action can be:
 #   • an app name as it appears in /Applications   → opened with `open -a`
 #   • a URL starting with http:// or https://      → opened in your browser
+#     (returns to an existing tab if one is already showing it)
 #   • "cmd: <shell command>"                       → run as a shell command
 # Override without editing this file by creating
-# ~/.config/gesture-launcher.json, e.g. {"2": "Notes", "4": "https://claude.ai"}
+# ~/.config/gesture-launcher.json, e.g. {"rock": "Notes", "fist": ""}
 # (set a key to "" there to disable one of these defaults).
 GESTURES = {
-    1: "Obsidian",
-    2: "Claude",        # the Claude desktop app
-    3: "Spotify",
-    5: "https://labern.github.io/Clean/gesture/",   # open palm → the web page
-    # 4: "cmd: open ~/Downloads",   # four fingers with thumb tucked is free
+    "1": "Obsidian",
+    "2": "Claude",        # the Claude desktop app
+    "3": "Spotify",
+    "palm": "https://labern.github.io/Clean/gesture/",   # back to the web page
+    "fist": "cmd: osascript -e 'tell application \"Spotify\" to playpause'",
+    # "4": "cmd: open ~/Downloads",
+    # "thumbs-up": "obsidian://new",
+    # "rock": "https://claude.ai",
 }
+
+GESTURE_ORDER = ["1", "2", "3", "4", "palm", "fist", "thumbs-up", "rock"]
 
 # ── tuning ───────────────────────────────────────────────────────────────
 HOLD_FRAMES = 8        # gesture must be stable this many frames to fire
@@ -88,38 +97,43 @@ def ensure_model() -> Path:
     return MODEL_PATH
 
 
-def count_raised_fingers(lm) -> int:
-    """Fingers extended upward on an upright hand; 0 if hand isn't upright.
+def _dist(a, b):
+    return ((a.x - b.x) ** 2 + (a.y - b.y) ** 2) ** 0.5
+
+
+def classify_gesture(lm):
+    """Return a gesture id from GESTURE_ORDER, or None.
 
     Normalized image coords: y grows downward, so "above" means smaller y.
+    A finger counts as extended when its tip is clearly farther from the
+    wrist than its middle (PIP) joint — orientation-independent, so fists
+    and thumbs-up work even when the hand isn't perfectly upright.
     """
-    if lm[MIDDLE_MCP].y > lm[WRIST].y:      # knuckles below wrist → hand not up
-        return 0
-    count = 0
-    for tip, pip in FINGERS:
-        if lm[tip].y < lm[pip].y - 0.03 and lm[tip].y < lm[WRIST].y:
-            count += 1
-    return count
+    palm_width = _dist(lm[INDEX_MCP], lm[PINKY_MCP])
+    if palm_width < 0.02:
+        return None
+    ext = [_dist(lm[t], lm[WRIST]) > _dist(lm[p], lm[WRIST]) * 1.15
+           for t, p in FINGERS]
+    thumb_out = _dist(lm[THUMB_TIP], lm[PINKY_MCP]) > palm_width * 1.4
+    upright = lm[MIDDLE_MCP].y < lm[WRIST].y
 
+    if not any(ext):
+        knuckle_top = min(lm[INDEX_MCP].y, lm[MIDDLE_MCP].y, lm[PINKY_MCP].y)
+        if lm[THUMB_TIP].y < knuckle_top - palm_width * 0.4:
+            return "thumbs-up"          # fist with the thumb clearly on top
+        return "fist" if upright else None
 
-def thumb_extended(lm) -> bool:
-    """Thumb sticking out sideways, vs tucked across the palm.
-
-    Compares the thumb tip's distance from the pinky knuckle against the
-    palm width (index knuckle ↔ pinky knuckle): an extended thumb reaches
-    well past the far edge of the palm, a tucked one stays within it.
-    """
-    dist = lambda a, b: ((a.x - b.x) ** 2 + (a.y - b.y) ** 2) ** 0.5
-    palm_width = dist(lm[INDEX_MCP], lm[PINKY_MCP])
-    return dist(lm[THUMB_TIP], lm[PINKY_MCP]) > palm_width * 1.4
-
-
-def classify_gesture(lm) -> int:
-    """0 = nothing, 1–4 = raised fingers (thumb tucked), 5 = open palm."""
-    count = count_raised_fingers(lm)
-    if count == 4 and thumb_extended(lm):
-        return 5
-    return count
+    if not upright:                      # ignore hands down at the keyboard
+        return None
+    if ext == [True, False, False, True]:
+        return "rock"                    # index + pinky, middle/ring folded
+    raised = sum(1 for e, (t, _) in zip(ext, FINGERS)
+                 if e and lm[t].y < lm[WRIST].y)
+    if raised == 4:
+        return "palm" if thumb_out else "4"
+    if raised:
+        return str(raised)
+    return None
 
 
 # AppleScripts to focus an existing browser tab whose URL starts with the
@@ -196,10 +210,10 @@ def load_gestures() -> dict:
     if CONFIG_PATH.exists():
         try:
             user = json.loads(CONFIG_PATH.read_text())
-            gestures.update({int(k): v for k, v in user.items()})
+            gestures.update({str(k): v for k, v in user.items()})
         except (ValueError, OSError) as err:
             print(f"⚠ ignoring {CONFIG_PATH}: {err}")
-    return {k: v for k, v in gestures.items() if v and 1 <= k <= 5}
+    return {k: v for k, v in gestures.items() if v and k in GESTURE_ORDER}
 
 
 def launch(action: str) -> bool:
@@ -219,18 +233,21 @@ def launch(action: str) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description="webcam gesture → app launcher")
     parser.add_argument("--preview", action="store_true",
-                        help="show a live camera window with the detected count")
+                        help="show a live camera window with the detected gesture")
     parser.add_argument("--list", action="store_true", help="print gesture map and exit")
     args = parser.parse_args()
 
     gestures = load_gestures()
-    icons = {1: "☝", 2: "✌", 3: "🤟", 4: "🖖", 5: "🖐"}
-    names = {1: "1 finger", 2: "2 fingers", 3: "3 fingers",
-             4: "4 fingers (thumb tucked)", 5: "open palm"}
+    icons = {"1": "☝", "2": "✌", "3": "🤟", "4": "🖖",
+             "palm": "🖐", "fist": "✊", "thumbs-up": "👍", "rock": "🤘"}
+    names = {"1": "1 finger", "2": "2 fingers", "3": "3 fingers",
+             "4": "4 fingers (thumb tucked)", "palm": "open palm",
+             "fist": "fist", "thumbs-up": "thumbs up", "rock": "rock sign"}
 
     if args.list:
-        for gid, action in sorted(gestures.items()):
-            print(f"  {icons[gid]}  {names[gid]} → {action}")
+        for gid in GESTURE_ORDER:
+            if gid in gestures:
+                print(f"  {icons[gid]}  {names[gid]} → {gestures[gid]}")
         if CONFIG_PATH.exists():
             print(f"  (includes overrides from {CONFIG_PATH})")
         return 0
@@ -259,8 +276,9 @@ def main() -> int:
         return 1
 
     print("● watching for gestures — ctrl-C to quit")
-    for gid, action in sorted(gestures.items()):
-        print(f"  {icons[gid]}  {names[gid]} → {action}")
+    for gid in GESTURE_ORDER:
+        if gid in gestures:
+            print(f"  {icons[gid]}  {names[gid]} → {gestures[gid]}")
 
     recent = deque(maxlen=HOLD_FRAMES)
     armed = True
@@ -280,12 +298,12 @@ def main() -> int:
             ts_ms = int((time.monotonic() - start) * 1000)
             result = landmarker.detect_for_video(image, ts_ms)
 
-            count = 0
+            gid = None
             if result.hand_landmarks:
-                count = classify_gesture(result.hand_landmarks[0])
-            recent.append(count)
+                gid = classify_gesture(result.hand_landmarks[0])
+            recent.append(gid)
 
-            if count == 0:
+            if gid is None:
                 idle_frames += 1
                 if idle_frames >= RELEASE_FRAMES:
                     armed = True
@@ -293,7 +311,7 @@ def main() -> int:
                 idle_frames = 0
 
             stable = (len(recent) == HOLD_FRAMES and len(set(recent)) == 1
-                      and recent[0] > 0)
+                      and recent[0] is not None)
             if stable and armed:
                 gid = recent[0]
                 action = gestures.get(gid)
@@ -311,7 +329,7 @@ def main() -> int:
                     for p in result.hand_landmarks[0]:
                         cv2.circle(frame, (int(p.x * w), int(p.y * h)), 4,
                                    (212, 234, 94), -1)
-                label = ("open palm" if count == 5 else f"fingers: {count}") if count else "no gesture"
+                label = names[gid] if gid else "no gesture"
                 cv2.putText(frame, label, (16, 40), cv2.FONT_HERSHEY_SIMPLEX,
                             1.0, (250, 139, 167), 2)
                 cv2.imshow("gesture launcher", cv2.flip(frame, 1))
