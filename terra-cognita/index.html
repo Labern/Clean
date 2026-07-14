@@ -1,0 +1,1106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Terra Cognita — an atlas of everything you've asked</title>
+<meta name="description" content="An antique cartographic atlas of your AI conversations — themes become named islands, with full-text spyglass search. Your export is parsed entirely in the browser and never uploaded.">
+<meta name="color-scheme" content="light dark">
+</head>
+<body>
+<style>
+  /* ============================================================
+     TERRA COGNITA  —  a cartographic atlas of your AI conversations
+     Palette: aged nautical chart. Type: classical serif + engineer mono.
+     Everything client-side. Your export never leaves the browser.
+     ============================================================ */
+
+  :root{
+    /* --- Parchment Chart (light) --- */
+    --sea:        #c7d4cd;   /* the ground: soft eucalyptus grey-green */
+    --sea-2:      #bccbc3;
+    --land:       #f4ecd7;   /* warm parchment landmass */
+    --ink:        #3a2f22;   /* sepia near-black */
+    --ink-soft:   #6d6350;
+    --ink-faint:  #97917f;
+    --line:       #ab9a78;   /* faded india-ink linework */
+    --gold:       #a4732b;   /* cartouche gilt */
+    --gold-soft:  #c69a52;
+    --panel:      #f6efdd;
+    --panel-edge: #d8c9a6;
+    --shadow:     rgba(58,47,34,.22);
+    --grid:       rgba(120,105,74,.16);
+    --glass:      rgba(246,239,221,.86);
+    /* muted aged-pigment territory hues */
+    --t0:#9c5b48; --t1:#4f7a63; --t2:#3f5f7e; --t3:#a5812f; --t4:#6d4a6b;
+    --t5:#6f7444; --t6:#357a74; --t7:#8a5a3c; --t8:#5c6b8a; --t9:#7a4a4a;
+    --t10:#4d7d5a; --t11:#82506e;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --sea:      #0d1618;   /* deep midnight teal */
+      --sea-2:    #0a1214;
+      --land:     #17222a;   /* dark slate land */
+      --ink:      #dccfb2;   /* luminous parchment ink */
+      --ink-soft: #9aa79f;
+      --ink-faint:#66756e;
+      --line:     #2f4a48;
+      --gold:     #dcab4c;
+      --gold-soft:#b98a37;
+      --panel:    #111c22;
+      --panel-edge:#254040;
+      --shadow:   rgba(0,0,0,.5);
+      --grid:     rgba(120,170,160,.10);
+      --glass:    rgba(17,28,34,.84);
+      --t0:#d98a6e; --t1:#6fc39a; --t2:#6f9ecf; --t3:#e0b34f; --t4:#b98ac2;
+      --t5:#aeba6c; --t6:#5fc3ba; --t7:#cf8a5f; --t8:#8fa4d6; --t9:#c98a8a;
+      --t10:#5fbf82; --t11:#c98ab0;
+    }
+  }
+  /* explicit toggle overrides — win in both directions */
+  :root[data-theme="light"]{
+    --sea:#c7d4cd; --sea-2:#bccbc3; --land:#f4ecd7; --ink:#3a2f22; --ink-soft:#6d6350;
+    --ink-faint:#97917f; --line:#ab9a78; --gold:#a4732b; --gold-soft:#c69a52;
+    --panel:#f6efdd; --panel-edge:#d8c9a6; --shadow:rgba(58,47,34,.22);
+    --grid:rgba(120,105,74,.16); --glass:rgba(246,239,221,.86);
+    --t0:#9c5b48; --t1:#4f7a63; --t2:#3f5f7e; --t3:#a5812f; --t4:#6d4a6b;
+    --t5:#6f7444; --t6:#357a74; --t7:#8a5a3c; --t8:#5c6b8a; --t9:#7a4a4a;
+    --t10:#4d7d5a; --t11:#82506e;
+  }
+  :root[data-theme="dark"]{
+    --sea:#0d1618; --sea-2:#0a1214; --land:#17222a; --ink:#dccfb2; --ink-soft:#9aa79f;
+    --ink-faint:#66756e; --line:#2f4a48; --gold:#dcab4c; --gold-soft:#b98a37;
+    --panel:#111c22; --panel-edge:#254040; --shadow:rgba(0,0,0,.5);
+    --grid:rgba(120,170,160,.10); --glass:rgba(17,28,34,.84);
+    --t0:#d98a6e; --t1:#6fc39a; --t2:#6f9ecf; --t3:#e0b34f; --t4:#b98ac2;
+    --t5:#aeba6c; --t6:#5fc3ba; --t7:#cf8a5f; --t8:#8fa4d6; --t9:#c98a8a;
+    --t10:#5fbf82; --t11:#c98ab0;
+  }
+
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--sea); color:var(--ink);
+    font-family:"Palatino Linotype",Palatino,"Iowan Old Style","Hoefler Text","Times New Roman",Georgia,serif;
+    overflow:hidden; -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:"SF Mono",ui-monospace,"Roboto Mono",Menlo,Consolas,monospace}
+  canvas{display:block; position:fixed; inset:0; cursor:grab}
+  canvas.dragging{cursor:grabbing}
+
+  /* decorative chart border */
+  .frame{position:fixed; inset:10px; border:2px solid var(--line); pointer-events:none; z-index:5}
+  .frame::after{content:""; position:absolute; inset:5px; border:1px solid var(--line); opacity:.55}
+  .corner{position:fixed; width:26px; height:26px; z-index:6; pointer-events:none; opacity:.7}
+  .corner::before,.corner::after{content:""; position:absolute; background:var(--gold)}
+  .corner::before{width:100%; height:2px} .corner::after{height:100%; width:2px}
+  .corner.tl{top:10px;left:10px} .corner.tr{top:10px;right:10px}
+  .corner.tr::after{right:0} .corner.bl{bottom:10px;left:10px} .corner.bl::before{bottom:0}
+  .corner.br{bottom:10px;right:10px} .corner.br::before{bottom:0} .corner.br::after{right:0}
+
+  /* ---- cartouche / wordmark ---- */
+  .cartouche{
+    position:fixed; top:30px; left:34px; z-index:10; pointer-events:none;
+    padding:14px 20px 12px; background:var(--glass);
+    border:1px solid var(--panel-edge); box-shadow:0 6px 22px var(--shadow);
+    backdrop-filter:blur(3px); max-width:min(46vw,420px);
+  }
+  .cartouche h1{
+    margin:0; font-size:clamp(20px,3vw,34px); letter-spacing:.14em; font-weight:600;
+    line-height:1; text-transform:uppercase; color:var(--ink);
+    text-wrap:balance;
+  }
+  .cartouche h1 .amp{color:var(--gold); font-style:italic; font-weight:400; text-transform:none}
+  .cartouche .sub{
+    margin:8px 0 0; font-size:11px; letter-spacing:.24em; text-transform:uppercase;
+    color:var(--ink-soft); font-family:"SF Mono",ui-monospace,Menlo,monospace;
+  }
+  .cartouche .rule{height:1px;background:var(--line);opacity:.6;margin:9px 0 0}
+
+  /* ---- search (spyglass) ---- */
+  .search-wrap{position:fixed; top:30px; right:34px; z-index:12; width:min(38vw,340px)}
+  .search{
+    display:flex; align-items:center; gap:9px; padding:9px 13px;
+    background:var(--glass); border:1px solid var(--panel-edge);
+    box-shadow:0 6px 22px var(--shadow); backdrop-filter:blur(3px);
+  }
+  .search svg{flex:0 0 auto; opacity:.7}
+  .search input{
+    flex:1; border:0; background:transparent; outline:none; color:var(--ink);
+    font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:13px; letter-spacing:.02em;
+  }
+  .search input::placeholder{color:var(--ink-faint)}
+  .search .clear{cursor:pointer;opacity:0;transition:opacity .15s;color:var(--ink-soft);font-size:16px;line-height:1;padding:0 2px}
+  .search.has-q .clear{opacity:.8}
+  .results{
+    margin-top:8px; background:var(--panel); border:1px solid var(--panel-edge);
+    box-shadow:0 12px 34px var(--shadow); max-height:min(62vh,540px); overflow-y:auto;
+    display:none;
+  }
+  .results.open{display:block}
+  .results .rhead{
+    padding:8px 13px; font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:10px;
+    letter-spacing:.18em; text-transform:uppercase; color:var(--ink-soft);
+    border-bottom:1px solid var(--panel-edge); position:sticky; top:0; background:var(--panel);
+  }
+  .rrow{padding:10px 13px; border-bottom:1px solid var(--panel-edge); cursor:pointer; transition:background .12s}
+  .rrow:last-child{border-bottom:0}
+  .rrow:hover,.rrow.ksel{background:var(--sea-2)}
+  .rrow .rt{font-size:14px; line-height:1.25; margin-bottom:3px; color:var(--ink); text-wrap:balance}
+  .rrow .rmeta{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:10px; letter-spacing:.04em; color:var(--ink-soft); display:flex; gap:8px; align-items:center; flex-wrap:wrap}
+  .rrow .swatch{width:8px;height:8px;border-radius:50%;display:inline-block}
+  .rrow .snip{font-size:12px; color:var(--ink-soft); margin-top:5px; line-height:1.45; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden}
+  mark{background:var(--gold-soft); color:var(--ink); padding:0 1px; border-radius:1px}
+
+  /* ---- legend ---- */
+  .legend{
+    position:fixed; left:34px; bottom:34px; z-index:10; width:min(30vw,258px);
+    background:var(--glass); border:1px solid var(--panel-edge); box-shadow:0 6px 22px var(--shadow);
+    backdrop-filter:blur(3px); max-height:46vh; display:flex; flex-direction:column;
+  }
+  .legend h2{
+    margin:0; padding:10px 14px 8px; font-size:10px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--ink-soft); font-family:"SF Mono",ui-monospace,Menlo,monospace;
+    border-bottom:1px solid var(--panel-edge); display:flex; justify-content:space-between;
+  }
+  .legend .body{overflow-y:auto; padding:5px 0}
+  .lrow{display:flex; align-items:center; gap:9px; padding:5px 14px; cursor:pointer; transition:background .12s}
+  .lrow:hover{background:var(--sea-2)}
+  .lrow .dot{width:11px; height:11px; flex:0 0 auto; border-radius:2px; box-shadow:0 0 0 1px var(--panel) inset}
+  .lrow .nm{flex:1; font-size:13px; line-height:1.15; text-transform:capitalize; text-wrap:balance}
+  .lrow .ct{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:11px; color:var(--ink-soft); font-variant-numeric:tabular-nums}
+
+  /* ---- controls (bottom-right) ---- */
+  .controls{position:fixed; right:34px; bottom:34px; z-index:11; display:flex; flex-direction:column; gap:9px; align-items:flex-end}
+  .btn{
+    font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ink); background:var(--glass); border:1px solid var(--panel-edge);
+    padding:9px 13px; cursor:pointer; box-shadow:0 4px 14px var(--shadow); backdrop-filter:blur(3px);
+    transition:background .14s,transform .1s; display:flex; align-items:center; gap:7px;
+  }
+  .btn:hover{background:var(--sea-2)} .btn:active{transform:translateY(1px)}
+  .btn.round{padding:9px 11px}
+  .status{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:10px; letter-spacing:.1em; color:var(--ink-soft); text-align:right; text-shadow:0 1px 2px var(--glass)}
+
+  /* ---- tooltip ---- */
+  .tip{
+    position:fixed; z-index:20; pointer-events:none; max-width:280px; opacity:0; transition:opacity .1s;
+    background:var(--ink); color:var(--land); padding:8px 11px; box-shadow:0 8px 24px var(--shadow);
+    transform:translate(-50%,-118%);
+  }
+  .tip.show{opacity:.97}
+  .tip .tt{font-size:13px; line-height:1.25; margin-bottom:3px; text-wrap:balance}
+  .tip .tm{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:10px; letter-spacing:.05em; opacity:.75}
+
+  /* ---- reader modal ---- */
+  .scrim{position:fixed; inset:0; z-index:40; background:rgba(20,15,8,.5); backdrop-filter:blur(2px); display:none; opacity:0; transition:opacity .2s}
+  .scrim.open{display:block; opacity:1}
+  .reader{
+    position:fixed; top:0; right:0; height:100%; width:min(620px,94vw); z-index:41;
+    background:var(--panel); border-left:1px solid var(--panel-edge); box-shadow:-16px 0 50px var(--shadow);
+    transform:translateX(100%); transition:transform .28s cubic-bezier(.22,1,.36,1); display:flex; flex-direction:column;
+  }
+  .reader.open{transform:translateX(0)}
+  .reader .rhd{padding:22px 26px 16px; border-bottom:1px solid var(--panel-edge)}
+  .reader .rhd .ey{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--gold); display:flex; gap:8px; align-items:center}
+  .reader .rhd h3{margin:9px 0 8px; font-size:24px; line-height:1.15; font-weight:600; text-wrap:balance}
+  .reader .rhd .meta{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:11px; color:var(--ink-soft); display:flex; gap:14px; flex-wrap:wrap}
+  .reader .close{position:absolute; top:18px; right:20px; cursor:pointer; font-size:22px; line-height:1; color:var(--ink-soft); background:none; border:0}
+  .reader .close:hover{color:var(--ink)}
+  .thread{overflow-y:auto; padding:8px 26px 40px}
+  .msg{padding:14px 0; border-bottom:1px solid color-mix(in srgb,var(--panel-edge) 55%, transparent)}
+  .msg .who{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:10px; letter-spacing:.16em; text-transform:uppercase; margin-bottom:6px}
+  .msg.user .who{color:var(--gold)} .msg.assistant .who{color:var(--t6)}
+  .msg .txt{font-size:15px; line-height:1.62; white-space:pre-wrap; word-break:break-word}
+  .msg.user .txt{color:var(--ink)} .msg.assistant .txt{color:var(--ink-soft)}
+
+  /* ---- dropzone / empty ---- */
+  .drop{position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center; background:color-mix(in srgb,var(--sea) 78%, transparent); backdrop-filter:blur(4px)}
+  .drop.show{display:flex}
+  .drop .box{border:2px dashed var(--gold); padding:46px 56px; text-align:center; background:var(--glass)}
+  .drop .box .g{font-size:40px; margin-bottom:12px}
+  .drop .box h3{margin:0 0 8px; font-size:22px; letter-spacing:.04em}
+  .drop .box p{margin:0; font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:12px; color:var(--ink-soft); letter-spacing:.03em}
+
+  /* ---- loading ---- */
+  .load{position:fixed; inset:0; z-index:70; display:none; align-items:center; justify-content:center; flex-direction:column; gap:16px; background:color-mix(in srgb,var(--sea) 82%, transparent); backdrop-filter:blur(3px)}
+  .load.show{display:flex}
+  .load .ring{width:46px; height:46px; border:3px solid var(--panel-edge); border-top-color:var(--gold); border-radius:50%; animation:spin 1s linear infinite}
+  .load .lt{font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-soft)}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){ .load .ring{animation:none} .reader{transition:none} }
+
+  /* sample ribbon */
+  .ribbon{
+    position:fixed; top:0; left:50%; transform:translateX(-50%); z-index:9;
+    font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:10px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--gold); background:var(--glass); border:1px solid var(--panel-edge); border-top:0;
+    padding:5px 18px; box-shadow:0 4px 14px var(--shadow); transition:opacity .3s;
+  }
+
+  @media (max-width:720px){
+    .cartouche{top:24px;left:22px;padding:10px 14px}
+    .search-wrap{position:fixed; top:auto; bottom:96px; left:22px; right:22px; width:auto}
+    .legend{display:none}
+    .cartouche .sub{display:none}
+    .controls{right:22px; bottom:26px}
+  }
+</style>
+
+<canvas id="map"></canvas>
+<div class="frame"></div>
+<span class="corner tl"></span><span class="corner tr"></span><span class="corner bl"></span><span class="corner br"></span>
+
+<div class="ribbon" id="ribbon">✦ Sample atlas — drop your export to chart your own ✦</div>
+
+<header class="cartouche">
+  <h1>Terra <span class="amp">&</span> Cognita</h1>
+  <div class="rule"></div>
+  <p class="sub" id="subline">Charting the known lands of thought</p>
+</header>
+
+<div class="search-wrap">
+  <div class="search" id="searchBox">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="16.5" y1="16.5" x2="21" y2="21"/></svg>
+    <input id="q" placeholder="search every word you've asked…" autocomplete="off" spellcheck="false" />
+    <span class="clear" id="clearBtn">×</span>
+  </div>
+  <div class="results" id="results"></div>
+</div>
+
+<aside class="legend" id="legend">
+  <h2><span>Territories</span><span id="legCount"></span></h2>
+  <div class="body" id="legendBody"></div>
+</aside>
+
+<div class="controls">
+  <div class="status mono" id="status"></div>
+  <button class="btn" id="uploadBtn">◇ Drop export</button>
+  <button class="btn round" id="fitBtn" title="Reset view">⤢ Fit</button>
+  <button class="btn round" id="themeBtn" title="Toggle chart mode">☾ Night</button>
+</div>
+
+<div class="tip" id="tip"><div class="tt"></div><div class="tm mono"></div></div>
+
+<div class="scrim" id="scrim"></div>
+<section class="reader" id="reader" aria-hidden="true">
+  <div class="rhd">
+    <button class="close" id="readerClose">×</button>
+    <div class="ey mono"><span class="swatch" id="rSwatch" style="width:9px;height:9px;border-radius:50%"></span><span id="rTerr"></span></div>
+    <h3 id="rTitle"></h3>
+    <div class="meta mono" id="rMeta"></div>
+  </div>
+  <div class="thread" id="rThread"></div>
+</section>
+
+<div class="drop" id="drop"><div class="box"><div class="g">🗺️</div><h3>Release to chart</h3><p>drop conversations-*.json — parsed here, nothing uploaded</p></div></div>
+<div class="load" id="load"><div class="ring"></div><div class="lt" id="loadTxt">surveying…</div></div>
+
+<input type="file" id="fileInput" accept=".json,application/json" multiple style="display:none" />
+
+<script>
+"use strict";
+(function(){
+/* ========================================================================
+   0 · utilities — seeded RNG (stable sample map), math, dom
+   ======================================================================== */
+let _seed = 0x9e3779b9;
+function seed(s){ _seed = s>>>0; }
+function rnd(){ // mulberry32
+  _seed |= 0; _seed = (_seed + 0x6D2B79F5) | 0;
+  let t = Math.imul(_seed ^ (_seed>>>15), 1 | _seed);
+  t = (t + Math.imul(t ^ (t>>>7), 61 | t)) ^ t;
+  return ((t ^ (t>>>14)) >>> 0) / 4294967296;
+}
+const $ = id => document.getElementById(id);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+const lerp = (a,b,t)=>a+(b-a)*t;
+const TAU = Math.PI*2, GOLD = 2.399963229728653;
+function cssVar(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function fmtDate(t){ if(!t) return '—'; const d=new Date(t*1000); return d.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}); }
+function titleCase(s){ return s.replace(/\b([a-z])/g,(m,c)=>c.toUpperCase()); }
+function esc(s){ return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ========================================================================
+   1 · text — tokenizer + stopwords
+   ======================================================================== */
+const STOP = new Set(("the a an and or but of to in on at for with from by as is are was were be been being this that these those it its i you he she they we me my your our their his her them us do does did done have has had having not no yes so if then than too very can could would should will shall may might must just about into over under out up down off only also more most some any all each every few many much such own same other another there here what which who whom whose when where why how i'm you're it's don't can't won't i've we're they're that's there's let's im dont cant ok okay yeah yep nope thing things want need make like get got go going want really thanks thank please help make made using use used want new one two also let want know think need way even want good great want").split(/\s+/));
+function tokenize(text){
+  const out=[]; const low=text.toLowerCase(); const re=/[a-z][a-z'+-]{2,}/g; let m;
+  while((m=re.exec(low))){
+    let w=m[0].replace(/^[-']+|[-']+$/g,'');
+    if(w.length>2 && w.length<24 && !STOP.has(w)) out.push(w);
+  }
+  return out;
+}
+
+/* ========================================================================
+   2 · parsers — ChatGPT (mapping tree) + Claude (chat_messages)
+   ======================================================================== */
+function textFromParts(parts){
+  if(!Array.isArray(parts)) return typeof parts==='string'?parts:'';
+  return parts.map(p=> typeof p==='string' ? p : (p && typeof p==='object' && typeof p.text==='string' ? p.text : '')).join(' ');
+}
+function parseChatGPT(c){
+  const map=c.mapping||{}; const nodes=[];
+  for(const id in map){
+    const n=map[id], m=n&&n.message; if(!m) continue;
+    const role=(m.author&&m.author.role)||'';
+    if(role!=='user'&&role!=='assistant') continue;
+    const cont=m.content||{}; const ct=cont.content_type;
+    if(ct!=='text'&&ct!=='multimodal_text') continue;
+    const txt=textFromParts(cont.parts).trim();
+    if(!txt) continue;
+    nodes.push({role, text:txt, t: m.create_time || c.create_time || 0});
+  }
+  nodes.sort((a,b)=>(a.t||0)-(b.t||0));
+  return nodes;
+}
+function parseClaude(c){
+  const arr=c.chat_messages||c.messages||[]; const nodes=[];
+  for(const m of arr){
+    let role=m.sender||m.role||'';
+    if(role==='human') role='user';
+    if(role!=='user'&&role!=='assistant') continue;
+    let txt=m.text||'';
+    if(!txt && Array.isArray(m.content)) txt=m.content.map(p=>p&&p.text?p.text:(typeof p==='string'?p:'')).join(' ');
+    txt=(txt||'').trim(); if(!txt) continue;
+    let t=m.created_at||m.create_time||c.created_at||c.create_time||0;
+    if(typeof t==='string'){ const p=Date.parse(t); t=isNaN(p)?0:p/1000; }
+    nodes.push({role, text:txt, t});
+  }
+  nodes.sort((a,b)=>(a.t||0)-(b.t||0));
+  return nodes;
+}
+// normalize any uploaded JSON blob into an array of conversation objects
+function extractConversations(json){
+  let list=[];
+  if(Array.isArray(json)) list=json;
+  else if(json && Array.isArray(json.conversations)) list=json.conversations;
+  else if(json && (json.mapping||json.chat_messages)) list=[json];
+  const convos=[];
+  for(const c of list){
+    if(!c||typeof c!=='object') continue;
+    const isChatGPT = !!c.mapping;
+    const msgs = isChatGPT ? parseChatGPT(c) : parseClaude(c);
+    if(!msgs.length) continue;
+    let ct=c.create_time||c.created_at||(msgs[0]&&msgs[0].t)||0;
+    if(typeof ct==='string'){ const p=Date.parse(ct); ct=isNaN(p)?0:p/1000; }
+    convos.push({
+      id: c.conversation_id||c.uuid||c.id||('c'+convos.length),
+      title: (c.title||c.name||'Untitled')+'',
+      create_time: ct,
+      model: c.default_model_slug || (isChatGPT?'chatgpt':'claude'),
+      source: isChatGPT?'ChatGPT':'Claude',
+      messages: msgs,
+      text: msgs.map(m=>m.text).join('  ')
+    });
+  }
+  return convos;
+}
+
+/* ========================================================================
+   3 · index — tf-idf vectors + inverted index
+   ======================================================================== */
+let STATE = null; // full model
+
+function buildIndex(convos){
+  const N=convos.length;
+  const df=new Map();
+  const docTf=[];               // per-doc Map(term->tf)
+  for(const c of convos){
+    const toks=tokenize(c.text);
+    const tf=new Map();
+    for(const w of toks) tf.set(w,(tf.get(w)||0)+1);
+    docTf.push(tf);
+    for(const w of tf.keys()) df.set(w,(df.get(w)||0)+1);
+  }
+  // vocabulary: drop hapax + ultra-common
+  const maxDf=Math.max(3, Math.floor(N*0.5));
+  const vocab=[]; const vidx=new Map();
+  for(const [w,d] of df){ if(d>=2 && d<=maxDf){ vidx.set(w,vocab.length); vocab.push(w); } }
+  const V=vocab.length;
+  const idf=new Float64Array(V);
+  for(let i=0;i<V;i++) idf[i]=Math.log((N+1)/(df.get(vocab[i])+0.5))+1;
+  // sparse doc vectors (normalized) + inverted index
+  const vectors=[];             // array of {idx:Int32Array, val:Float32Array}
+  const inv=new Map();          // term -> [{d, w}]
+  for(let d=0; d<N; d++){
+    const tf=docTf[d]; const pairs=[];
+    for(const [w,f] of tf){
+      const j=vidx.get(w); if(j===undefined) continue;
+      const val=(1+Math.log(f))*idf[j];
+      pairs.push([j,val]);
+      if(!inv.has(w)) inv.set(w,[]);
+      inv.get(w).push({d, w:val});
+    }
+    let norm=0; for(const p of pairs) norm+=p[1]*p[1];
+    norm=Math.sqrt(norm)||1;
+    const idxA=new Int32Array(pairs.length), valA=new Float32Array(pairs.length);
+    for(let k=0;k<pairs.length;k++){ idxA[k]=pairs[k][0]; valA[k]=pairs[k][1]/norm; }
+    vectors.push({idx:idxA, val:valA});
+  }
+  return {N, vocab, vidx, idf, vectors, inv, V, df};
+}
+
+/* ========================================================================
+   4 · cluster — cosine k-means (++ init) + distinctive labelling
+   ======================================================================== */
+function dotSparseDense(vec, centroid){
+  let s=0; const {idx,val}=vec;
+  for(let k=0;k<idx.length;k++) s+=val[k]*centroid[idx[k]];
+  return s;
+}
+function kmeans(idx, k){
+  const {N,V,vectors}=idx;
+  k=Math.min(k,N);
+  const centroids=[]; // dense Float32Array length V
+  // k-means++ (cosine): first random, rest by 1-maxsim
+  const first=Math.floor(rnd()*N);
+  centroids.push(denseFrom(vectors[first],V));
+  const best=new Float64Array(N).fill(-1);
+  while(centroids.length<k){
+    let sum=0; const w=new Float64Array(N);
+    for(let d=0;d<N;d++){
+      const sim=dotSparseDense(vectors[d],centroids[centroids.length-1]);
+      if(sim>best[d]) best[d]=sim;
+      const dist=Math.max(0,1-best[d]); w[d]=dist*dist; sum+=w[d];
+    }
+    let r=rnd()*sum, pick=0;
+    for(let d=0;d<N;d++){ r-=w[d]; if(r<=0){pick=d;break;} pick=d; }
+    centroids.push(denseFrom(vectors[pick],V));
+  }
+  let assign=new Int32Array(N).fill(-1);
+  for(let iter=0; iter<18; iter++){
+    let moved=0;
+    for(let d=0;d<N;d++){
+      let bestc=0,bestsim=-2;
+      for(let c=0;c<k;c++){ const s=dotSparseDense(vectors[d],centroids[c]); if(s>bestsim){bestsim=s;bestc=c;} }
+      if(assign[d]!==bestc){assign[d]=bestc;moved++;}
+    }
+    for(let c=0;c<k;c++) centroids[c]=new Float32Array(V);
+    const counts=new Int32Array(k);
+    for(let d=0;d<N;d++){
+      const c=assign[d], v=vectors[d]; counts[c]++;
+      for(let m=0;m<v.idx.length;m++) centroids[c][v.idx[m]]+=v.val[m];
+    }
+    for(let c=0;c<k;c++){
+      let norm=0; const cen=centroids[c];
+      for(let i=0;i<V;i++) norm+=cen[i]*cen[i];
+      norm=Math.sqrt(norm)||1;
+      for(let i=0;i<V;i++) cen[i]/=norm;
+      if(counts[c]===0){ const rr=Math.floor(rnd()*N); centroids[c]=denseFrom(vectors[rr],V); }
+    }
+    if(moved===0 && iter>2) break;
+  }
+  return {assign, centroids, k};
+}
+function denseFrom(vec,V){ const a=new Float32Array(V); for(let k=0;k<vec.idx.length;k++)a[vec.idx[k]]=vec.val[k]; return a; }
+
+function labelClusters(idx, km){
+  const {vocab,V}=idx; const {centroids,k,assign}=km;
+  // global mean centroid for distinctiveness
+  const glob=new Float64Array(V);
+  for(let c=0;c<k;c++) for(let i=0;i<V;i++) glob[i]+=centroids[c][i]/k;
+  const labels=[];
+  for(let c=0;c<k;c++){
+    const cen=centroids[c]; const scored=[];
+    for(let i=0;i<V;i++){ const s=cen[i]-0.55*glob[i]; if(s>0) scored.push([i,s]); }
+    scored.sort((a,b)=>b[1]-a[1]);
+    const top=scored.slice(0,6).map(s=>vocab[s[0]]);
+    // build a 1-2 word territory name from the strongest distinct roots
+    let name=top[0]||'terra';
+    if(top[1] && top[1].slice(0,4)!==top[0].slice(0,4)) name=top[0]+' '+top[1];
+    labels.push({name:titleCase(name), keywords:top});
+  }
+  return labels;
+}
+
+/* ========================================================================
+   5 · layout — cluster centres (phyllotaxis+relax) → island members → hulls
+   ======================================================================== */
+function layout(idx, km, convos){
+  const {assign,k}=km; const N=idx.N;
+  const members=Array.from({length:k},()=>[]);
+  for(let d=0;d<N;d++) members[assign[d]].push(d);
+  // island radius from size
+  const spread=1.0;
+  const radii=members.map(mm=>Math.max(1.4, spread*Math.sqrt(mm.length)+0.9));
+  // seed centres by phyllotaxis, ordered largest→outer for balance
+  const order=[...Array(k).keys()].sort((a,b)=>members[b].length-members[a].length);
+  const centre=new Array(k);
+  const base=3.0;
+  order.forEach((c,i)=>{
+    const a=i*GOLD, r=base*Math.sqrt(i+0.5);
+    centre[c]={x:r*Math.cos(a), y:r*Math.sin(a)};
+  });
+  // relax: push apart so islands don't overlap
+  for(let it=0; it<160; it++){
+    for(let a=0;a<k;a++) for(let b=a+1;b<k;b++){
+      const A=centre[a],B=centre[b]; let dx=B.x-A.x, dy=B.y-A.y;
+      let dist=Math.hypot(dx,dy)||0.001; const min=(radii[a]+radii[b])*1.35;
+      if(dist<min){ const push=(min-dist)/2/dist*0.9; A.x-=dx*push;A.y-=dy*push;B.x+=dx*push;B.y+=dy*push; }
+    }
+  }
+  // place members: phyllotaxis around centre + slight jitter
+  const pos=new Array(N);
+  for(let c=0;c<k;c++){
+    const mm=members[c], C=centre[c];
+    // strongest (nearest-centroid) members toward the middle
+    mm.sort((d1,d2)=>dotSparseDense(idx.vectors[d2],km.centroids[c])-dotSparseDense(idx.vectors[d1],km.centroids[c]));
+    for(let j=0;j<mm.length;j++){
+      const a=j*GOLD, r=spread*Math.sqrt(j+0.55);
+      const jx=(rnd()-0.5)*0.35, jy=(rnd()-0.5)*0.35;
+      pos[mm[j]]={x:C.x+r*Math.cos(a)+jx, y:C.y+r*Math.sin(a)+jy, c};
+    }
+  }
+  // island outline (angular max-radius, smoothed) in world coords
+  const islands=[];
+  for(let c=0;c<k;c++){
+    const mm=members[c], C=centre[c]; const BINS=72; const rad=new Float64Array(BINS).fill(0);
+    const pad=0.85;
+    for(const d of mm){ const p=pos[d]; const dx=p.x-C.x,dy=p.y-C.y; const ang=Math.atan2(dy,dx);
+      let bi=Math.floor((ang+Math.PI)/TAU*BINS)%BINS; const rr=Math.hypot(dx,dy)+pad; if(rr>rad[bi])rad[bi]=rr; }
+    const minR=radii[c]*0.42;
+    for(let i=0;i<BINS;i++) if(rad[i]<minR) rad[i]=minR;
+    // smooth (circular moving average, several passes)
+    for(let pass=0;pass<4;pass++){ const nr=rad.slice();
+      for(let i=0;i<BINS;i++){ nr[i]=(rad[(i-1+BINS)%BINS]+rad[i]*1.4+rad[(i+1)%BINS])/3.4; } rad.set(nr); }
+    const outline=[];
+    for(let i=0;i<BINS;i++){ const a=i/BINS*TAU-Math.PI; outline.push({x:C.x+rad[i]*Math.cos(a), y:C.y+rad[i]*Math.sin(a)}); }
+    islands.push({c, centre:C, outline, size:mm.length, radius:radii[c]});
+  }
+  return {pos, centre, members, islands, k};
+}
+
+/* ========================================================================
+   6 · render — canvas cartography with pan / zoom camera
+   ======================================================================== */
+const canvas=$('map'); const ctx=canvas.getContext('2d');
+let DPR=Math.min(window.devicePixelRatio||1, 2);
+let W=0,H=0;
+const cam={x:0,y:0,s:40, tx:0,ty:0,ts:40, anim:0};
+let TERR=[];  // resolved territory colours
+
+function resize(){
+  W=window.innerWidth; H=window.innerHeight;
+  DPR=Math.min(window.devicePixelRatio||1, 2);
+  canvas.width=W*DPR; canvas.height=H*DPR;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  draw();
+}
+function w2s(x,y){ return {x:(x-cam.x)*cam.s+W/2, y:(y-cam.y)*cam.s+H/2}; }
+function s2w(x,y){ return {x:(x-W/2)/cam.s+cam.x, y:(y-H/2)/cam.s+cam.y}; }
+
+function resolveTheme(){
+  TERR=[]; for(let i=0;i<12;i++) TERR.push(cssVar('--t'+i));
+  T_SEA=cssVar('--sea'); T_SEA2=cssVar('--sea-2'); T_LAND=cssVar('--land');
+  T_INK=cssVar('--ink'); T_INKS=cssVar('--ink-soft'); T_LINE=cssVar('--line'); T_GRID=cssVar('--grid'); T_GOLD=cssVar('--gold');
+}
+let T_SEA,T_SEA2,T_LAND,T_INK,T_INKS,T_LINE,T_GRID,T_GOLD;
+function terrColor(c){ return TERR[c%TERR.length]; }
+function withAlpha(hex,a){
+  hex=hex.replace('#',''); if(hex.length===3)hex=hex.split('').map(x=>x+x).join('');
+  const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+let hoverIdx=-1, highlight=null; // highlight: Set of doc ids from search
+
+function draw(){
+  if(!STATE){ ctx.clearRect(0,0,W,H); return; }
+  const {pos, islands} = STATE.geo; const convos=STATE.convos;
+  // sea ground
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,T_SEA); g.addColorStop(1,T_SEA2);
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  drawGraticule();
+
+  // islands (land + contours + coastline)
+  for(const isl of islands){
+    const col=terrColor(isl.c);
+    const path=(scale)=>{
+      ctx.beginPath();
+      const o=isl.outline; const C=isl.centre;
+      for(let i=0;i<=o.length;i++){
+        const p=o[i%o.length]; const np=o[(i+1)%o.length];
+        const sx=C.x+(p.x-C.x)*scale, sy=C.y+(p.y-C.y)*scale;
+        const nsx=C.x+(np.x-C.x)*scale, nsy=C.y+(np.y-C.y)*scale;
+        const a=w2s(sx,sy), b=w2s(nsx,nsy);
+        const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+        if(i===0) ctx.moveTo(a.x,a.y);
+        ctx.quadraticCurveTo(a.x,a.y,mx,my);
+      }
+      ctx.closePath();
+    };
+    // landmass fill
+    path(1.0);
+    ctx.fillStyle=T_LAND; ctx.fill();
+    ctx.fillStyle=withAlpha(col,0.16); ctx.fill();
+    // elevation contours
+    const rings=[0.80,0.60,0.40,0.22];
+    ctx.lineWidth=1;
+    for(let r=0;r<rings.length;r++){ path(rings[r]); ctx.strokeStyle=withAlpha(col,0.30-r*0.045); ctx.stroke(); }
+    // coastline
+    path(1.0);
+    ctx.lineWidth=1.6; ctx.strokeStyle=withAlpha(col,0.85); ctx.stroke();
+  }
+
+  // settlements (conversations)
+  const dim = highlight && highlight.size>0;
+  for(let d=0; d<convos.length; d++){
+    const p=w2s(pos[d].x,pos[d].y); if(p.x<-20||p.x>W+20||p.y<-20||p.y>H+20) continue;
+    const col=terrColor(pos[d].c);
+    const on = !dim || highlight.has(d);
+    const msgN=convos[d].messages.length;
+    const r=clamp(1.6+Math.sqrt(msgN)*0.5, 2, 6.5);
+    ctx.beginPath(); ctx.arc(p.x,p.y,r,0,TAU);
+    ctx.fillStyle = on ? col : withAlpha(col,0.14);
+    ctx.fill();
+    if(on){ ctx.lineWidth=1; ctx.strokeStyle=withAlpha(T_LAND,0.9); ctx.stroke(); }
+  }
+  // hover ring
+  if(hoverIdx>=0){
+    const p=w2s(pos[hoverIdx].x,pos[hoverIdx].y);
+    ctx.beginPath(); ctx.arc(p.x,p.y,9,0,TAU); ctx.strokeStyle=T_GOLD; ctx.lineWidth=2; ctx.stroke();
+  }
+
+  drawLabels(islands);
+  drawCompass();
+}
+
+function drawGraticule(){
+  const tl=s2w(0,0), br=s2w(W,H);
+  let step=1;
+  const px=cam.s; // px per world unit
+  while(px*step<70) step*=2;
+  while(px*step>170) step/=2;
+  ctx.lineWidth=1; ctx.strokeStyle=T_GRID; ctx.beginPath();
+  const x0=Math.floor(tl.x/step)*step, x1=Math.ceil(br.x/step)*step;
+  const y0=Math.floor(tl.y/step)*step, y1=Math.ceil(br.y/step)*step;
+  for(let x=x0;x<=x1;x+=step){ const a=w2s(x,tl.y),b=w2s(x,br.y); ctx.moveTo(a.x,0); ctx.lineTo(a.x,H); }
+  for(let y=y0;y<=y1;y+=step){ const a=w2s(tl.x,y); ctx.moveTo(0,a.y); ctx.lineTo(W,a.y); }
+  ctx.stroke();
+}
+
+function drawLabels(islands){
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  for(const isl of islands){
+    const p=w2s(isl.centre.x,isl.centre.y);
+    if(p.x<-100||p.x>W+100||p.y<-60||p.y>H+60) continue;
+    const name=STATE.labels[isl.c].name.toUpperCase();
+    const fs=clamp(11+Math.sqrt(isl.size)*1.4, 12, 26);
+    ctx.font=`600 ${fs}px "Palatino Linotype",Palatino,Georgia,serif`;
+    try{ ctx.letterSpacing=(fs*0.10)+'px'; }catch(e){}
+    // halo
+    ctx.lineWidth=3.5; ctx.strokeStyle=withAlpha(T_LAND,0.92); ctx.lineJoin='round';
+    ctx.strokeText(name,p.x,p.y);
+    ctx.fillStyle=T_INK; ctx.fillText(name,p.x,p.y);
+    // count beneath
+    ctx.font=`400 ${clamp(fs*0.42,9,11)}px "SF Mono",ui-monospace,Menlo,monospace`;
+    try{ ctx.letterSpacing='2px'; }catch(e){}
+    ctx.fillStyle=T_INKS;
+    ctx.fillText(isl.size+' CHARTS', p.x, p.y+fs*0.92);
+    try{ ctx.letterSpacing='0px'; }catch(e){}
+  }
+}
+
+function drawCompass(){
+  const cx=W-66, cy=H-252, R=27;
+  if(W<760 || H<560) return;
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.strokeStyle=withAlpha(T_INKS,0.5); ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(0,0,R,0,TAU); ctx.stroke();
+  ctx.beginPath(); ctx.arc(0,0,R*0.62,0,TAU); ctx.stroke();
+  for(let i=0;i<8;i++){
+    const a=i/8*TAU - Math.PI/2; const long=(i%2===0);
+    const r1=long?R*0.14:R*0.5, r2=R;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a)*r1,Math.sin(a)*r1); ctx.lineTo(Math.cos(a)*r2,Math.sin(a)*r2);
+    ctx.strokeStyle= long?T_GOLD:withAlpha(T_INKS,0.5); ctx.lineWidth=long?1.6:1; ctx.stroke();
+  }
+  // N pointer
+  ctx.beginPath(); ctx.moveTo(0,-R*0.9); ctx.lineTo(-4,0); ctx.lineTo(0,-R*0.2); ctx.lineTo(4,0); ctx.closePath();
+  ctx.fillStyle=T_GOLD; ctx.fill();
+  ctx.fillStyle=T_INK; ctx.font='600 11px "SF Mono",ui-monospace,Menlo,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('N',0,-R-9);
+  ctx.restore();
+}
+
+/* ---- camera animation (fly-to) ---- */
+function fitAll(dur){
+  if(!STATE) return;
+  const p=STATE.geo.pos; let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for(const q of p){ minx=Math.min(minx,q.x);miny=Math.min(miny,q.y);maxx=Math.max(maxx,q.x);maxy=Math.max(maxy,q.y); }
+  const pad=2.5; minx-=pad;miny-=pad;maxx+=pad;maxy+=pad;
+  const cw=maxx-minx, ch=maxy-miny;
+  const s=Math.min(W/cw, H/ch)*0.92;
+  flyTo((minx+maxx)/2,(miny+maxy)/2,s,dur);
+}
+function flyTo(x,y,s,dur){
+  cam.tx=x;cam.ty=y;cam.ts=s;
+  if(dur===0){ cam.x=x;cam.y=y;cam.s=s; draw(); return; }
+  cam.anim=1; const sx=cam.x,sy=cam.y,ss=cam.s; const T=dur||620; let start=null;
+  function step(ts){
+    if(start===null)start=ts; const t=clamp((ts-start)/T,0,1);
+    const e=t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2; // easeInOutQuad
+    cam.x=lerp(sx,cam.tx,e); cam.y=lerp(sy,cam.ty,e); cam.s=lerp(ss,cam.ts,e);
+    draw();
+    if(t<1) requestAnimationFrame(step); else cam.anim=0;
+  }
+  requestAnimationFrame(step);
+}
+
+/* ========================================================================
+   7 · interaction — pan / zoom / hover / click
+   ======================================================================== */
+let dragging=false, moved=false, lastX=0,lastY=0;
+canvas.addEventListener('mousedown',e=>{ dragging=true;moved=false;lastX=e.clientX;lastY=e.clientY;canvas.classList.add('dragging'); });
+window.addEventListener('mouseup',e=>{
+  if(dragging && !moved){ // click
+    const hit=hitAt(e.clientX,e.clientY); if(hit>=0) openReader(hit);
+  }
+  dragging=false; canvas.classList.remove('dragging');
+});
+window.addEventListener('mousemove',e=>{
+  if(dragging){
+    const dx=(e.clientX-lastX)/cam.s, dy=(e.clientY-lastY)/cam.s;
+    if(Math.abs(e.clientX-lastX)+Math.abs(e.clientY-lastY)>3) moved=true;
+    cam.x-=dx; cam.y-=dy; lastX=e.clientX;lastY=e.clientY; draw();
+  } else {
+    const hit=hitAt(e.clientX,e.clientY);
+    if(hit!==hoverIdx){ hoverIdx=hit; updateTip(e.clientX,e.clientY); draw(); }
+    else if(hit>=0) positionTip(e.clientX,e.clientY);
+  }
+});
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const before=s2w(e.clientX,e.clientY);
+  const factor=Math.exp(-e.deltaY*0.0015);
+  cam.s=clamp(cam.s*factor, 3, 900);
+  const after=s2w(e.clientX,e.clientY);
+  cam.x+=before.x-after.x; cam.y+=before.y-after.y;
+  draw();
+},{passive:false});
+// touch (pan + pinch)
+let touchDist=0,touchMid=null;
+canvas.addEventListener('touchstart',e=>{
+  if(e.touches.length===1){dragging=true;moved=false;lastX=e.touches[0].clientX;lastY=e.touches[0].clientY;}
+  else if(e.touches.length===2){ touchDist=tdist(e); touchMid=tmid(e); }
+},{passive:true});
+canvas.addEventListener('touchmove',e=>{
+  if(e.touches.length===1&&dragging){
+    const dx=(e.touches[0].clientX-lastX)/cam.s, dy=(e.touches[0].clientY-lastY)/cam.s;
+    moved=true; cam.x-=dx;cam.y-=dy; lastX=e.touches[0].clientX;lastY=e.touches[0].clientY; draw();
+  } else if(e.touches.length===2){
+    const nd=tdist(e), nm=tmid(e); const before=s2w(nm.x,nm.y);
+    cam.s=clamp(cam.s*(nd/touchDist),3,900); touchDist=nd;
+    const after=s2w(nm.x,nm.y); cam.x+=before.x-after.x; cam.y+=before.y-after.y; touchMid=nm; draw();
+  }
+  e.preventDefault();
+},{passive:false});
+canvas.addEventListener('touchend',e=>{ dragging=false; });
+function tdist(e){return Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);}
+function tmid(e){return {x:(e.touches[0].clientX+e.touches[1].clientX)/2,y:(e.touches[0].clientY+e.touches[1].clientY)/2};}
+
+function hitAt(mx,my){
+  if(!STATE) return -1;
+  const p=STATE.geo.pos; let best=-1,bd=16*16;
+  for(let d=0;d<p.length;d++){ const s=w2s(p[d].x,p[d].y); const dd=(s.x-mx)**2+(s.y-my)**2; if(dd<bd){bd=dd;best=d;} }
+  return best;
+}
+const tip=$('tip');
+function updateTip(mx,my){
+  if(hoverIdx<0){ tip.classList.remove('show'); canvas.style.cursor='grab'; return; }
+  const c=STATE.convos[hoverIdx];
+  tip.querySelector('.tt').textContent=c.title;
+  tip.querySelector('.tm').textContent=`${STATE.labels[c._c].name.toUpperCase()} · ${fmtDate(c.create_time)} · ${c.messages.length} msg`;
+  tip.classList.add('show'); canvas.style.cursor='pointer'; positionTip(mx,my);
+}
+function positionTip(mx,my){ tip.style.left=mx+'px'; tip.style.top=(my-14)+'px'; }
+
+/* ========================================================================
+   8 · search — inverted index scoring + snippets
+   ======================================================================== */
+const qInput=$('q'), results=$('results'), searchBox=$('searchBox'), clearBtn=$('clearBtn');
+let ksel=-1, curResults=[];
+qInput.addEventListener('input', debounce(runSearch,120));
+clearBtn.addEventListener('click',()=>{ qInput.value='';runSearch();qInput.focus(); });
+qInput.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){ qInput.value='';runSearch();qInput.blur(); }
+  if(!curResults.length) return;
+  if(e.key==='ArrowDown'){ ksel=Math.min(ksel+1,curResults.length-1); paintKsel(); e.preventDefault(); }
+  if(e.key==='ArrowUp'){ ksel=Math.max(ksel-1,0); paintKsel(); e.preventDefault(); }
+  if(e.key==='Enter'&&ksel>=0){ openReader(curResults[ksel].d); }
+});
+function debounce(fn,ms){ let t; return (...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),ms);}; }
+function runSearch(){
+  const q=qInput.value.trim();
+  searchBox.classList.toggle('has-q', q.length>0);
+  if(!q){ results.classList.remove('open'); highlight=null; curResults=[]; ksel=-1; draw(); return; }
+  const terms=tokenize(q); const rawTerms=q.toLowerCase().split(/\s+/).filter(Boolean);
+  const score=new Map();
+  for(const t of terms){
+    const post=STATE.index.inv.get(t); if(!post) continue;
+    for(const {d,w} of post) score.set(d,(score.get(d)||0)+w);
+  }
+  // phrase / substring fallback on title + text
+  for(let d=0; d<STATE.convos.length; d++){
+    const c=STATE.convos[d]; const tl=c.title.toLowerCase();
+    for(const rt of rawTerms){ if(rt.length<2) continue;
+      if(tl.includes(rt)) score.set(d,(score.get(d)||0)+2.5);
+    }
+  }
+  const ranked=[...score.entries()].sort((a,b)=>b[1]-a[1]).slice(0,50);
+  curResults=ranked.map(([d,s])=>({d,s}));
+  highlight=new Set(curResults.map(r=>r.d));
+  ksel=-1;
+  renderResults(rawTerms);
+  draw();
+}
+function snippet(text, terms){
+  const low=text.toLowerCase(); let at=-1;
+  for(const t of terms){ const i=low.indexOf(t); if(i>=0 && (at<0||i<at)) at=i; }
+  if(at<0) at=0;
+  let start=Math.max(0,at-45); let s=text.slice(start,start+180);
+  if(start>0) s='…'+s; s=s+'…';
+  return highlightTerms(esc(s), terms);
+}
+function highlightTerms(html, terms){
+  for(const t of terms){ if(t.length<2)continue;
+    html=html.replace(new RegExp('('+t.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','ig'),'<mark>$1</mark>');
+  }
+  return html;
+}
+function renderResults(rawTerms){
+  if(!curResults.length){ results.innerHTML='<div class="rhead">No lands match that query</div>'; results.classList.add('open'); return; }
+  let html=`<div class="rhead">${curResults.length} chart${curResults.length>1?'s':''} found</div>`;
+  for(let i=0;i<curResults.length;i++){
+    const c=STATE.convos[curResults[i].d];
+    const col=terrColor(c._c);
+    html+=`<div class="rrow" data-i="${i}">
+      <div class="rt">${highlightTerms(esc(c.title),rawTerms)}</div>
+      <div class="rmeta"><span class="swatch" style="background:${col}"></span>${esc(STATE.labels[c._c].name)}<span>·</span>${fmtDate(c.create_time)}<span>·</span>${c.source}</div>
+      <div class="snip">${snippet(c.text,rawTerms)}</div>
+    </div>`;
+  }
+  results.innerHTML=html; results.classList.add('open');
+  [...results.querySelectorAll('.rrow')].forEach(el=>{
+    el.addEventListener('click',()=>openReader(curResults[+el.dataset.i].d));
+  });
+}
+function paintKsel(){
+  [...results.querySelectorAll('.rrow')].forEach((el,i)=>el.classList.toggle('ksel',i===ksel));
+  const el=results.querySelector('.rrow.ksel'); if(el) el.scrollIntoView({block:'nearest'});
+}
+
+/* ========================================================================
+   9 · reader
+   ======================================================================== */
+const scrim=$('scrim'), reader=$('reader');
+function openReader(d){
+  const c=STATE.convos[d];
+  $('rTitle').textContent=c.title;
+  $('rTerr').textContent=STATE.labels[c._c].name.toUpperCase();
+  $('rSwatch').style.background=terrColor(c._c);
+  $('rMeta').innerHTML=`<span>${fmtDate(c.create_time)}</span><span>${c.messages.length} messages</span><span>${c.source}</span><span>${esc(c.model||'')}</span>`;
+  const terms=qInput.value.trim()?qInput.value.toLowerCase().split(/\s+/).filter(x=>x.length>1):[];
+  let html='';
+  for(const m of c.messages){
+    const who=m.role==='user'?'You':'Assistant';
+    html+=`<div class="msg ${m.role}"><div class="who">${who}</div><div class="txt">${highlightTerms(esc(m.text),terms)}</div></div>`;
+  }
+  $('rThread').innerHTML=html; $('rThread').scrollTop=0;
+  scrim.classList.add('open'); reader.classList.add('open'); reader.setAttribute('aria-hidden','false');
+  // fly to it
+  const p=STATE.geo.pos[d];
+  flyTo(p.x,p.y, Math.max(cam.s, 55), 520);
+}
+function closeReader(){ scrim.classList.remove('open'); reader.classList.remove('open'); reader.setAttribute('aria-hidden','true'); }
+$('readerClose').addEventListener('click',closeReader);
+scrim.addEventListener('click',closeReader);
+window.addEventListener('keydown',e=>{ if(e.key==='Escape'&&reader.classList.contains('open')) closeReader(); });
+
+/* ========================================================================
+   10 · legend
+   ======================================================================== */
+function renderLegend(){
+  const body=$('legendBody'); const order=[...STATE.geo.islands].sort((a,b)=>b.size-a.size);
+  $('legCount').textContent=STATE.index.N+' charts';
+  body.innerHTML=order.map(isl=>`
+    <div class="lrow" data-c="${isl.c}">
+      <span class="dot" style="background:${terrColor(isl.c)}"></span>
+      <span class="nm">${esc(STATE.labels[isl.c].name)}</span>
+      <span class="ct">${isl.size}</span>
+    </div>`).join('');
+  [...body.querySelectorAll('.lrow')].forEach(el=>{
+    el.addEventListener('click',()=>{ const c=+el.dataset.c; const isl=STATE.geo.islands.find(i=>i.c===c);
+      flyTo(isl.centre.x,isl.centre.y, Math.min(900, Math.max(30, W/(isl.radius*3))), 560); });
+  });
+}
+
+/* ========================================================================
+   11 · build model + swap in
+   ======================================================================== */
+function buildModel(convos, isSample){
+  seed(0x1a2b3c4d);
+  const index=buildIndex(convos);
+  const k=clamp(Math.round(Math.sqrt(index.N/1.6)),4,12);
+  const km=kmeans(index,k);
+  const labels=labelClusters(index,km);
+  const geo=layout(index,km,convos);
+  convos.forEach((c,d)=>{ c._c=km.assign[d]; });
+  STATE={convos,index,km,labels,geo,isSample};
+  resolveTheme();
+  renderLegend();
+  fitAll(0);
+  updateStatus();
+  $('ribbon').style.opacity = isSample?'1':'0';
+  $('subline').textContent = isSample?'Charting the known lands of thought':`${index.N} conversations · ${km.k} territories`;
+}
+function updateStatus(){
+  if(!STATE) return;
+  const span=STATE.geo.pos.length;
+  let earliest=1e13,latest=0;
+  for(const c of STATE.convos){ if(c.create_time){ earliest=Math.min(earliest,c.create_time); latest=Math.max(latest,c.create_time);} }
+  const range = latest? `${fmtDate(earliest)} — ${fmtDate(latest)}` : '';
+  $('status').innerHTML=`${STATE.index.N} charts · ${STATE.km.k} territories<br>${range}`;
+}
+
+/* ========================================================================
+   12 · sample atlas — a stable demo so the map is alive on first load
+   ======================================================================== */
+const SAMPLE_THEMES=[
+  {n:'astronomy', words:'telescope nebula orbit galaxy cosmos eclipse comet lunar solar planet meteor constellation gravity supernova aperture starlight redshift parallax celestial observatory',
+   titles:['Why do {a} appear to {b}?','Explaining {a} to a curious mind','Best {a} for a backyard {b}','The physics behind {a}','How far is that {a}?']},
+  {n:'cooking', words:'recipe dough ferment sourdough braise garlic simmer stock caramel knife spice roast broth season pastry yeast flour umami sear marinade emulsion',
+   titles:['How do I fix my {a}?','A better {a} recipe','Why did my {a} turn out {b}?','Weeknight {a} ideas','Rescuing an over-{b} {a}']},
+  {n:'cartography', words:'map projection latitude compass contour terrain coastline atlas survey elevation meridian graticule topography legend cartouche isoline bathymetry hillshade datum',
+   titles:['Understanding {a} distortion','Drawing a {a} by hand','What is a {a}?','History of the {a}','Reading {a} lines on a {b}']},
+  {n:'music', words:'chord melody tempo reverb synth rhythm harmony bassline arrangement mixdown timbre modulation octave sampler groove compressor sidechain resonance cadence counterpoint',
+   titles:['How to write a {a} in a minor key','Fixing a muddy {a}','Understanding {a} theory','Building a {a} from scratch','Why does this {a} sound {b}?']},
+  {n:'gardening', words:'soil compost prune seedling perennial bloom mulch trellis pollinator bulb foliage graft harvest germinate loam tuber deadhead xeriscape rootball fertiliser',
+   titles:['Why are my {a} leaves {b}?','When to {b} the {a}','Reviving a struggling {a}','Best {a} for shade','Composting for a healthy {a}']},
+  {n:'philosophy', words:'consciousness meaning ethics phenomenology dialectic ontology virtue paradox skepticism epistemology mind reason absurd freedom identity morality perception essence being knowledge',
+   titles:['What did {a} really mean by {b}?','The problem of {a}','Is {a} compatible with {b}?','A modern take on {a}','Thinking clearly about {a}']},
+  {n:'programming', words:'function async cache index render buffer schema query latency thread compile refactor pointer runtime deploy recursion mutex closure pipeline immutable',
+   titles:['Debugging a slow {a}','How does {a} actually work?','Refactoring this {a}','Why is my {a} {b}?','A cleaner {a} pattern']},
+  {n:'travel', words:'itinerary station harbor district hostel ferry passport market cathedral coastline train timezone souvenir alley plaza vineyard peninsula tram promenade quarter',
+   titles:['Three days in the old {a}','Getting from the {a} to the {b}','Hidden {a} worth visiting','Planning a slow {a} trip','Is the {a} worth it?']},
+  {n:'typography', words:'kerning ligature serif baseline leading typeface glyph counter grotesk hierarchy specimen italic weight tracking ascender descender ampersand ductus contrast oldstyle',
+   titles:['Pairing a {a} with a {b}','What makes a good {a}?','Fixing awkward {a}','The anatomy of a {a}','Choosing {a} for a book']},
+  {n:'memory', words:'dream sleep recall nostalgia forgetting reverie fragment vivid recurring subconscious lucid childhood echo trace remembrance sensation fleeting imprint drift vestige',
+   titles:['Why do I keep {b} the same {a}?','The science of {a}','Capturing a fading {a}','What {a} says about the {b}','Holding onto a {a}']}
+];
+function pick(arr){ return arr[Math.floor(rnd()*arr.length)]; }
+function makeSample(){
+  seed(0xC0FFEE);
+  const convos=[]; const now=Math.floor(Date.now()/1000);
+  const YEAR=365*24*3600;
+  let id=0;
+  for(let ti=0; ti<SAMPLE_THEMES.length; ti++){
+    const th=SAMPLE_THEMES[ti]; const words=th.words.split(' ');
+    const count=8+Math.floor(rnd()*10);
+    for(let j=0;j<count;j++){
+      const a=pick(words), b=pick(words);
+      const title=pick(th.titles).replace('{a}',a).replace('{b}',b);
+      // body: sample ~34 theme words → a coherent-ish paragraph
+      let user=[]; for(let w=0;w<10;w++) user.push(pick(words));
+      let asst=[]; for(let w=0;w<28;w++) asst.push(pick(words));
+      const t = now - Math.floor(rnd()*YEAR*1.6);
+      convos.push({
+        id:'s'+(id++), title:titleCase(title), create_time:t, model:'gpt-5-5-thinking', source:'Sample',
+        messages:[
+          {role:'user', text:titleCase(title)+'. '+user.join(' ')+'?', t},
+          {role:'assistant', text:'Great question. '+asst.join(' ')+'. In short, '+a+' and '+b+' are closely related here.', t:t+40}
+        ],
+        text:''
+      });
+    }
+  }
+  convos.forEach(c=>c.text=c.messages.map(m=>m.text).join('  '));
+  // shuffle so themes aren't pre-sorted
+  for(let i=convos.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [convos[i],convos[j]]=[convos[j],convos[i]]; }
+  return convos;
+}
+
+/* ========================================================================
+   13 · file ingestion
+   ======================================================================== */
+const fileInput=$('fileInput'), dropEl=$('drop'), loadEl=$('load'), loadTxt=$('loadTxt');
+$('uploadBtn').addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>{ if(e.target.files.length) ingestFiles([...e.target.files]); });
+let dragDepth=0;
+window.addEventListener('dragenter',e=>{ e.preventDefault(); dragDepth++; dropEl.classList.add('show'); });
+window.addEventListener('dragover',e=>e.preventDefault());
+window.addEventListener('dragleave',e=>{ dragDepth--; if(dragDepth<=0) dropEl.classList.remove('show'); });
+window.addEventListener('drop',e=>{
+  e.preventDefault(); dragDepth=0; dropEl.classList.remove('show');
+  const files=[...(e.dataTransfer.files||[])].filter(f=>/\.json$/i.test(f.name));
+  if(files.length) ingestFiles(files);
+});
+function ingestFiles(files){
+  loadEl.classList.add('show'); loadTxt.textContent='reading '+files.length+' file'+(files.length>1?'s':'')+'…';
+  const all=[]; let done=0;
+  const next=(i)=>{
+    if(i>=files.length){ finishIngest(all); return; }
+    const fr=new FileReader();
+    fr.onload=()=>{
+      try{ const json=JSON.parse(fr.result); const cs=extractConversations(json); all.push(...cs); }
+      catch(err){ console.warn('parse failed for',files[i].name,err); }
+      done++; loadTxt.textContent=`surveying… ${all.length} conversations`;
+      setTimeout(()=>next(i+1), 10);
+    };
+    fr.onerror=()=>{ done++; next(i+1); };
+    fr.readAsText(files[i]);
+  };
+  next(0);
+}
+function finishIngest(convos){
+  if(!convos.length){ loadTxt.textContent='no conversations found — is this a Claude/ChatGPT export?'; setTimeout(()=>loadEl.classList.remove('show'),1800); return; }
+  loadTxt.textContent=`charting ${convos.length} conversations…`;
+  setTimeout(()=>{
+    try{ buildModel(convos, false); }
+    catch(err){ console.error(err); loadTxt.textContent='charting failed: '+err.message; setTimeout(()=>loadEl.classList.remove('show'),2200); return; }
+    loadEl.classList.remove('show');
+    fitAll(700);
+  }, 30);
+}
+
+/* ========================================================================
+   14 · theme toggle
+   ======================================================================== */
+const themeBtn=$('themeBtn');
+function currentDark(){
+  const t=document.documentElement.getAttribute('data-theme');
+  if(t) return t==='dark';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+function syncThemeBtn(){ themeBtn.textContent = currentDark()?'☀ Day':'☾ Night'; }
+themeBtn.addEventListener('click',()=>{
+  const dark=!currentDark();
+  document.documentElement.setAttribute('data-theme', dark?'dark':'light');
+  syncThemeBtn(); resolveTheme(); draw();
+});
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{
+  if(!document.documentElement.getAttribute('data-theme')){ syncThemeBtn(); resolveTheme(); draw(); }
+});
+
+/* ========================================================================
+   15 · boot
+   ======================================================================== */
+$('fitBtn').addEventListener('click',()=>fitAll(600));
+window.addEventListener('resize',resize);
+function boot(){
+  syncThemeBtn(); resolveTheme();
+  resize();
+  buildModel(makeSample(), true);
+  fitAll(0);
+}
+boot();
+})();
+</script>
+
+</body>
+</html>
