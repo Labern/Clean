@@ -20,11 +20,19 @@ struct GestureDeckApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Regular app, not a menu-bar-only agent: show in the Dock and the
+        // ⌘-Tab app switcher. A MenuBarExtra-only SwiftUI app forces accessory
+        // policy during its first scene update (after this method returns), so
+        // one call here gets clobbered — re-assert on the next runloop tick.
+        NSApp.setActivationPolicy(.regular)
         // launch at login, always — no toggle hunting
         if SMAppService.mainApp.status != .enabled {
             try? SMAppService.mainApp.register()
         }
-        WindowManager.shared.show()
+        DispatchQueue.main.async {
+            NSApp.setActivationPolicy(.regular)
+            WindowManager.shared.show()
+        }
     }
 }
 
@@ -39,7 +47,7 @@ final class WindowManager: NSObject, NSWindowDelegate {
     func show() {
         if window == nil {
             let w = NSWindow(
-                contentRect: NSRect(x: 0, y: 0, width: 700, height: 860),
+                contentRect: NSRect(x: 0, y: 0, width: 1100, height: 640),
                 styleMask: [.titled, .closable, .miniaturizable],
                 backing: .buffered, defer: false)
             w.title = "GestureDeck"
@@ -50,6 +58,11 @@ final class WindowManager: NSObject, NSWindowDelegate {
             w.center()
             window = w
         }
+        // Always a full regular app: Dock icon + ⌘-Tab app switcher + a real
+        // focusable window, never a menu-bar-only accessory. (An accessory app
+        // can't own a key window, so its window would open behind everything
+        // and swallow clicks.) The menu-bar item stays too — this is both.
+        NSApp.setActivationPolicy(.regular)
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }

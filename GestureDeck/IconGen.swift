@@ -37,12 +37,24 @@ func render(px: Int) -> Data? {
     squircle.lineWidth = max(1, CGFloat(px) * 0.015)
     squircle.stroke()
 
-    let emoji = "🖐" as NSString
-    let attrs: [NSAttributedString.Key: Any] =
-        [.font: NSFont.systemFont(ofSize: CGFloat(px) * 0.52)]
-    let s = emoji.size(withAttributes: attrs)
-    emoji.draw(at: NSPoint(x: (size.width - s.width) / 2,
-                           y: (size.height - s.height) / 2), withAttributes: attrs)
+    // A raised-hand glyph. Prefer the SF Symbol (crisp vector at every size,
+    // always renders); fall back to the emoji only if the symbol is missing.
+    let glyphColor = NSColor(calibratedRed: 0.92, green: 1.0, blue: 0.98, alpha: 1)
+    let symCfg = NSImage.SymbolConfiguration(pointSize: CGFloat(px) * 0.5, weight: .semibold)
+        .applying(NSImage.SymbolConfiguration(paletteColors: [glyphColor]))
+    if let sym = NSImage(systemSymbolName: "hand.raised.fill", accessibilityDescription: nil)?
+        .withSymbolConfiguration(symCfg) {
+        let gs = sym.size
+        sym.draw(at: NSPoint(x: (size.width - gs.width) / 2, y: (size.height - gs.height) / 2),
+                 from: NSRect(origin: .zero, size: gs), operation: .sourceOver, fraction: 1)
+    } else {
+        let emoji = "🖐" as NSString
+        let attrs: [NSAttributedString.Key: Any] =
+            [.font: NSFont.systemFont(ofSize: CGFloat(px) * 0.52)]
+        let s = emoji.size(withAttributes: attrs)
+        emoji.draw(at: NSPoint(x: (size.width - s.width) / 2,
+                               y: (size.height - s.height) / 2), withAttributes: attrs)
+    }
 
     ctx.flushGraphics()
     return rep.representation(using: .png, properties: [:])

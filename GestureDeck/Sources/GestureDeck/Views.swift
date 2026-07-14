@@ -235,7 +235,11 @@ private struct GestureRow: View {
                     Text("does nothing").font(.system(.caption, design: .monospaced))
                         .foregroundColor(.gdMuted)
                 case .deck:
-                    Text("brings this window to the front")
+                    Text("brings GestureDeck to the front")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.gdMuted)
+                case .playPause:
+                    Text("toggles play / pause (Spotify, Music, video…)")
                         .font(.system(.caption, design: .monospaced))
                         .foregroundColor(.gdMuted)
                 case .app:

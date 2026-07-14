@@ -32,7 +32,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
-    <key>LSUIElement</key><true/>
+    <!-- Regular app: shows in the Dock and the ⌘-Tab app switcher, not a
+         menu-bar-only accessory. The menu-bar item is still present too. -->
+    <key>LSUIElement</key><false/>
     <key>NSCameraUsageDescription</key>
     <string>GestureDeck watches your webcam to recognize hand gestures. Video never leaves your Mac.</string>
     <key>NSAppleEventsUsageDescription</key>

@@ -18,7 +18,28 @@ enum ActionRunner {
             openURL(action.value)
         case .deck:
             DispatchQueue.main.async { WindowManager.shared.show() }
+        case .playPause:
+            mediaKey(NX_KEYTYPE_PLAY)
         }
+    }
+
+    // The hardware "play/pause" media key. Posting it as a system-defined HID
+    // event toggles whatever is currently playing — Spotify, Music, a video in
+    // Chrome/Safari — with no per-app scripting and no Automation prompt.
+    private static let NX_KEYTYPE_PLAY: Int32 = 16
+    private static func mediaKey(_ keyCode: Int32) {
+        func post(down: Bool) {
+            let flags: NSEvent.ModifierFlags = down ? NSEvent.ModifierFlags(rawValue: 0xA00)
+                                                    : NSEvent.ModifierFlags(rawValue: 0xB00)
+            let data1 = Int((keyCode << 16) | ((down ? 0xA : 0xB) << 8))
+            guard let event = NSEvent.otherEvent(
+                with: .systemDefined, location: .zero, modifierFlags: flags,
+                timestamp: 0, windowNumber: 0, context: nil,
+                subtype: 8, data1: data1, data2: -1) else { return }
+            event.cgEvent?.post(tap: .cghidEventTap)
+        }
+        post(down: true)
+        post(down: false)
     }
 
     private static func shell(_ path: String, _ args: [String]) {
