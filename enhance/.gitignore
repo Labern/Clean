@@ -1,0 +1,13 @@
+# working files — uploads and rendered masters stay local
+work/
+
+# deps / builds (none today, but never commit them)
+node_modules/
+dist/
+
+# OS cruft
+.DS_Store
+
+# env / secrets
+.env
+*.log

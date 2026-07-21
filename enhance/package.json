@@ -1,0 +1,9 @@
+{
+  "name": "enhance",
+  "version": "1.0.0",
+  "description": "Video → 4K, photos → beautiful. Local, zero-dependency.",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  }
+}
