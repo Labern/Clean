@@ -14,11 +14,14 @@ FILM · PHOTO · FRAMES. Everything runs on this Mac — nothing leaves it.
 - **Persistence**: jobs survive restarts — `work/jobs.json` plus a boot-time
   rescan of `work/uploads` and `work/output` that re-attaches orphaned masters
   (never-lose-progress). Restarting the server never kills a download link.
-- `public/index.html` — the whole UI in one file. **VISOR** style (v3): camera-
-  viewfinder instrument panel — micro sans-serif, single amber accent + rec-red,
-  focus-frame corner brackets, segmented controls, tabular readouts. Dark
-  default, light theme via `◐` toggle (`data-theme` beats the media query).
-  v1 was PARADOX terminal, v2 MONOGRAPH editorial — both in git history.
+- `public/index.html` — the whole UI in one file. v4 style (the one he kept):
+  **white, soft, round** — white cards, 20–24px radii, soft diffuse shadows,
+  pill segmented controls, Avenir Next, sentence case, one soft indigo accent
+  (#7a6ff0). Light by default always (he demanded white); dark set behind the
+  `◐` toggle. History: v1 PARADOX terminal → v2 MONOGRAPH editorial → v3 VISOR
+  viewfinder (rejected as "disgusting" — do not resurrect) → v4. He cares
+  intensely about this surface; expect UI redirection and keep the JS wiring
+  stable underneath (IDs/classes are the contract; endpoints never changed).
 
 ## Pipelines
 
