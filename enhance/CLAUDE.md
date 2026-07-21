@@ -10,8 +10,11 @@ Everything runs on this Mac — nothing leaves it.
   resolution of 4K). Wraps native `ffmpeg`/`ffprobe` (Homebrew). Streams uploads
   raw (`X-Filename` header, no multipart, no size cap), tracks jobs in memory,
   pushes ffmpeg progress over SSE, serves results Range-aware for inline preview.
-- `public/index.html` — the whole UI in one file. PARADOX terminal aesthetic
-  (see `~/Desktop/★★★★★/STYLE.md`), all colours as CSS tokens on `:root`.
+- `public/index.html` — the whole UI in one file. MONOGRAPH editorial aesthetic
+  (see `~/Desktop/★★★★★/MONOGRAPH.md`): serif + mono grisaille, light and dark
+  ("invert ◐") themes, unit-tally progress, catalogue-entry results. All colours
+  are CSS tokens on `:root`; `data-theme` beats the media query both directions.
+  (v1 was PARADOX terminal style — see git history if it's ever wanted back.)
 - `work/` — gitignored scratch: `uploads/` and `output/`.
 
 ## Pipelines
