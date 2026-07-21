@@ -63,18 +63,29 @@ N frames → `/frames/zip`, a **zero-dep store-mode ZIP writer** in server.js
 - HEIC decodes via `sips` (ffmpeg can't read it); the decoded PNG is what the
   pipeline and hold-to-compare use.
 - Never `pkill -f "node server.js"` broadly — a test instance and the live
-  server match the same pattern (learned the hard way; use the PORT in the
-  pattern). A spawned ffmpeg survives its parent dying and finishes the file;
-  boot-rescan then re-attaches it.
+  server match the same pattern. And `pkill -f "PORT=2161"` matches NOTHING
+  (env vars aren't in the command line). **Kill by port**:
+  `kill $(lsof -ti :2161)`. A spawned ffmpeg survives its parent dying and
+  finishes the file; boot-rescan then re-attaches it.
+- Frame grabs at ~duration decode zero frames — `grabFrame` clamps and walks
+  back (t, t−0.5, t−1); the zip route skips failures instead of 500ing.
 
-## Honesty note (the user asked, 2026-07-21)
+## Neural engine (the "true enhance" mode, added 2026-07-21)
 
-Lanczos upscaling **does not create detail** — the 4K master has no
-information the source lacked, and displays upscale on playback anyway. Real,
-visible gains: fps interpolation, slo-mo, denoise, slight acutance; plus
-platforms (YouTube etc.) give 4K uploads a better codec/bitrate tier. True
-detail synthesis needs ML super-resolution (Real-ESRGAN) — discussed, not
-built. If he asks for "make it actually enhance", that's the path.
+Engine row on both tabs: **Classic** (lanczos etc.) / **Neural** =
+**Real-ESRGAN** (realesrgan-ncnn-vulkan, official prebuilt, vendored at
+`vendor/realesrgan/` — gitignored; installed by `./setup-neural.sh`, which the
+sandbox can't run itself: download+execute of binaries is user-gated).
+- Photo: SR at 4× (or exact factor), then the look chain; **1× neural = SR
+  then downscale to original size** — pure detail gain, no upscale.
+- Video: extract PNG frames → batch SR 4× to JPEG → re-encode with the
+  standard chain (skip unsharp; ESRGAN is already crisp), audio mapped from
+  the original. SSE progress has `phase`: extract / neural / encode.
+- `/caps` reports `{neural}`; UI greys the Neural chips and shows the install
+  hint until it's there. Server 503s neural requests when missing.
+
+Context: he asked "does it actually ENHANCE anything?" — honest answer given:
+lanczos adds no information; neural SR is the real fix, hence this mode.
 
 ## Working style
 

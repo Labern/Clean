@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // ENHANCE — local video & photo mastering.
-// Zero dependencies: Node stdlib + native ffmpeg/ffprobe (+ sips for HEIC).
+// Zero npm dependencies: Node stdlib + native ffmpeg/ffprobe (+ sips for HEIC,
+// + optional Real-ESRGAN for the neural engine — see setup-neural.sh).
 // Everything stays on this Mac; the browser is just the control surface.
 
 const http = require('http');
@@ -16,9 +17,15 @@ const UPLOADS = path.join(WORK, 'uploads');
 const OUTPUT = path.join(WORK, 'output');
 const THUMBS = path.join(WORK, 'thumbs');
 const JOBS_FILE = path.join(WORK, 'jobs.json');
+const ESRGAN_DIR = path.join(ROOT, 'vendor', 'realesrgan');
 for (const d of [UPLOADS, OUTPUT, THUMBS]) fs.mkdirSync(d, { recursive: true });
 
-const jobs = new Map(); // id → { id, kind, src, name, meta, status, opts, out, outName, outMeta, proc, effDur, frames, listeners }
+const jobs = new Map();
+
+const esrganBin = () => {
+  const p = path.join(ESRGAN_DIR, 'realesrgan-ncnn-vulkan');
+  return fs.existsSync(p) ? p : null;
+};
 
 // ── persistence — download links survive restarts (never lose progress) ────
 
@@ -43,7 +50,6 @@ async function bootRestore() {
       jobs.set(j.id, { ...j, listeners: new Set() });
     }
   } catch {}
-  // adopt uploads this file doesn't know about (e.g. from before persistence existed)
   for (const f of fs.readdirSync(UPLOADS)) {
     const m = /^([0-9a-f]{12})\.(\w+)$/.exec(f);
     if (!m || jobs.has(m[1])) continue;
@@ -57,7 +63,6 @@ async function bootRestore() {
       jobs.set(m[1], { id: m[1], kind, src, name: f, meta, status: 'uploaded', listeners: new Set() });
     } catch {}
   }
-  // re-attach orphaned masters to their jobs
   for (const f of fs.readdirSync(OUTPUT)) {
     const m = /^([0-9a-f]{12})-(.+)$/.exec(f);
     if (!m || m[2].startsWith('frame-')) continue;
@@ -123,6 +128,16 @@ function ffmpegOnce(args) {
   });
 }
 
+function esrganOnce(args) {
+  return new Promise((resolve, reject) => {
+    execFile(esrganBin(), [...args, '-m', path.join(ESRGAN_DIR, 'models')],
+      { maxBuffer: 16 * 1024 * 1024 },
+      (err, _out, stderr) => err
+        ? reject(new Error('neural engine: ' + String(stderr).split('\n').filter(Boolean).slice(-2).join(' · ')))
+        : resolve());
+  });
+}
+
 function sipsToPng(src, dst) {
   return new Promise((resolve, reject) => {
     execFile('sips', ['-s', 'format', 'png', src, '--out', dst], err =>
@@ -131,13 +146,14 @@ function sipsToPng(src, dst) {
 }
 
 // ── the film pipeline ──────────────────────────────────────────────────────
-// slo-mo retime (MCI-synthesised in-betweens) or frame-rate change, at source
-// res — cheaper — then lanczos upscale → subtle unsharp → HEVC + faststart.
+// [neural: frames redrawn 4× by Real-ESRGAN first] → slo-mo retime or
+// frame-rate change → lanczos to exact target → subtle unsharp (classic only)
+// → HEVC + faststart.
 
 const RES_LABEL = { 1080: '1080p', 1440: '1440p', 2160: '4K', 4320: '8K' };
 
-function buildArgs(job) {
-  const { src, out, meta, opts } = job;
+function buildFilterChain(job) {
+  const { meta, opts } = job;
   const H = parseInt(opts.res, 10) || 2160;
   const S = [1, 2, 4, 8].includes(+opts.speed) ? +opts.speed : 1;
   const filters = [];
@@ -145,7 +161,6 @@ function buildArgs(job) {
   const targetFps = opts.fps === 'source' ? null : parseInt(opts.fps, 10);
 
   if (S > 1) {
-    // slow motion: synthesise S× the playback rate, then stretch time S×
     if (opts.mode === 'smooth') {
       let play = targetFps || Math.min(60, Math.round(srcFps * 2));
       const synth = Math.min(240, play * S);
@@ -163,15 +178,17 @@ function buildArgs(job) {
     }
   }
 
-  // long edge → target: landscape gets height H, portrait gets width H
   filters.push(`scale='if(gt(a,1),-2,${H})':'if(gt(a,1),${H},-2)':flags=lanczos+accurate_rnd`);
-  filters.push('unsharp=5:5:0.6:5:5:0.0');
+  if (opts.engine !== 'neural') filters.push('unsharp=5:5:0.6:5:5:0.0'); // ESRGAN output is already crisp
 
   job.effDur = (meta.duration || 0) * S;
+  return filters.join(',');
+}
 
-  const args = ['-y', '-hide_banner', '-nostats', '-progress', 'pipe:1',
-    '-i', src, '-vf', filters.join(','), '-map', '0:v:0', '-map', '0:a:0?'];
-
+function buildCodecAudioArgs(job) {
+  const { meta, opts } = job;
+  const S = [1, 2, 4, 8].includes(+opts.speed) ? +opts.speed : 1;
+  const args = [];
   if (opts.enc === 'max') {
     args.push('-c:v', 'libx265', '-preset', 'medium', '-crf', '16',
       '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p');
@@ -179,17 +196,13 @@ function buildArgs(job) {
     args.push('-c:v', 'hevc_videotoolbox', '-q:v', '65', '-allow_sw', '1',
       '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p');
   }
-
   if (meta.audio && S > 1) {
-    // stretch audio to match, pitch preserved: atempo 0.5 per halving
     args.push('-af', Array(Math.log2(S)).fill('atempo=0.5').join(','), '-c:a', 'aac', '-b:a', '256k');
   } else if (meta.audio) {
     const copyOk = ['aac', 'mp3', 'ac3', 'eac3'].includes(meta.audio);
     args.push('-c:a', copyOk ? 'copy' : 'aac');
     if (!copyOk) args.push('-b:a', '256k');
   }
-
-  args.push('-movflags', '+faststart', out);
   return args;
 }
 
@@ -198,16 +211,15 @@ function broadcast(job, event) {
   for (const res of job.listeners) res.write(line);
 }
 
-function runJob(job) {
-  const args = buildArgs(job);
-  job.status = 'running';
+// spawn ffmpeg for a job with -progress parsing; handles done/error/cancelled
+function runFfmpegJob(job, args, cleanup) {
   const proc = spawn('ffmpeg', args);
   job.proc = proc;
   let stderrTail = '';
   proc.stderr.on('data', c => { stderrTail = (stderrTail + c).slice(-4000); });
 
   let buf = '';
-  const prog = { pct: 0, fps: 0, speed: 0, frame: 0, eta: 0 };
+  const prog = { pct: 0, fps: 0, speed: 0, frame: 0, eta: 0, phase: 'encode' };
   proc.stdout.on('data', chunk => {
     buf += chunk;
     const lines = buf.split('\n');
@@ -228,6 +240,7 @@ function runJob(job) {
 
   proc.on('close', async code => {
     job.proc = null;
+    if (cleanup) cleanup();
     if (job.status === 'cancelled') {
       fs.rm(job.out, { force: true }, () => {});
       broadcast(job, { type: 'cancelled' });
@@ -255,19 +268,74 @@ function runJob(job) {
   });
 }
 
+function runJob(job) {
+  job.status = 'running';
+  const vf = buildFilterChain(job);
+  runFfmpegJob(job, ['-y', '-hide_banner', '-nostats', '-progress', 'pipe:1',
+    '-i', job.src, '-vf', vf, '-map', '0:v:0', '-map', '0:a:0?',
+    ...buildCodecAudioArgs(job), '-movflags', '+faststart', job.out]);
+}
+
+// neural: extract frames → Real-ESRGAN redraws each 4× → encode from frames
+async function runJobNeural(job) {
+  job.status = 'running';
+  const FR = path.join(WORK, `nn-${job.id}-in`);
+  const SR = path.join(WORK, `nn-${job.id}-out`);
+  const cleanup = () => { for (const d of [FR, SR]) fs.rmSync(d, { recursive: true, force: true }); };
+  try {
+    cleanup();
+    fs.mkdirSync(FR, { recursive: true });
+    fs.mkdirSync(SR, { recursive: true });
+    broadcast(job, { type: 'progress', phase: 'extract', pct: 0 });
+    await ffmpegOnce(['-y', '-hide_banner', '-i', job.src, path.join(FR, '%06d.png')]);
+    const total = fs.readdirSync(FR).length || 1;
+
+    const proc = spawn(esrganBin(), ['-i', FR, '-o', SR, '-n', 'realesrgan-x4plus',
+      '-s', '4', '-f', 'jpg', '-m', path.join(ESRGAN_DIR, 'models')]);
+    job.proc = proc;
+    let err = '';
+    proc.stderr.on('data', c => { err = (err + c).slice(-2000); });
+    const t0 = Date.now();
+    const tick = setInterval(() => {
+      let done = 0;
+      try { done = fs.readdirSync(SR).length; } catch {}
+      const rate = done / Math.max(1, (Date.now() - t0) / 1000);
+      broadcast(job, { type: 'progress', phase: 'neural', pct: Math.min(99, done / total * 100),
+        frame: done, total, eta: rate > 0 ? (total - done) / rate : 0 });
+    }, 1000);
+    const code = await new Promise(r => proc.on('close', r));
+    clearInterval(tick);
+    job.proc = null;
+    if (job.status === 'cancelled') { cleanup(); broadcast(job, { type: 'cancelled' }); return; }
+    if (code !== 0) throw new Error('neural engine failed: '
+      + err.split('\n').filter(Boolean).slice(-2).join(' · '));
+
+    const srcFps = job.meta.fps || 30;
+    const vf = buildFilterChain(job);
+    runFfmpegJob(job, ['-y', '-hide_banner', '-nostats', '-progress', 'pipe:1',
+      '-framerate', String(srcFps), '-i', path.join(SR, '%06d.jpg'), '-i', job.src,
+      '-vf', vf, '-map', '0:v:0', '-map', '1:a:0?',
+      ...buildCodecAudioArgs(job), '-movflags', '+faststart', job.out], cleanup);
+  } catch (e) {
+    cleanup();
+    job.status = 'error';
+    job.error = e.message;
+    persistJobs();
+    broadcast(job, { type: 'error', message: e.message });
+  }
+}
+
 // ── the photo pipeline ─────────────────────────────────────────────────────
-// decode (sips for HEIC) → optional auto-levels → light denoise → lanczos
-// upscale → a look → optional grain. Output JPEG q=1.
 
 const LOOKS = {
   natural: 'cas=0.4,vibrance=intensity=0.10,eq=contrast=1.03:saturation=1.04',
   vivid:   'cas=0.45,vibrance=intensity=0.25,eq=contrast=1.07:saturation=1.12:brightness=0.01',
   crisp:   'cas=0.6,unsharp=5:5:0.5:5:5:0.0,eq=contrast=1.04',
-  punch:   'split[o][b];[b]gblur=sigma=12[bl];[o][bl]blend=all_mode=softlight:all_opacity=0.35,cas=0.35,eq=saturation=1.05', // blurred softlight blend = local contrast ("clarity")
+  punch:   'split[o][b];[b]gblur=sigma=12[bl];[o][bl]blend=all_mode=softlight:all_opacity=0.35,cas=0.35,eq=saturation=1.05',
   film:    'curves=preset=vintage,eq=saturation=0.92:contrast=1.05,noise=alls=5:allf=t',
   noir:    'hue=s=0,split[o][b];[b]gblur=sigma=10[bl];[o][bl]blend=all_mode=softlight:all_opacity=0.3,eq=contrast=1.16,vignette=angle=PI/6',
   gold:    'colortemperature=temperature=5100:pl=0.8,vibrance=intensity=0.12,cas=0.35',
-  dream:   'split[m][b];[b]gblur=sigma=22[g];[m][g]blend=all_mode=screen:all_opacity=0.32,cas=0.2,eq=saturation=1.05', // Orton glow
+  dream:   'split[m][b];[b]gblur=sigma=22[g];[m][g]blend=all_mode=screen:all_opacity=0.32,cas=0.2,eq=saturation=1.05',
 };
 
 // ── frame capture ──────────────────────────────────────────────────────────
@@ -288,7 +356,6 @@ function spreadPick(arr, n) {
 
 async function analyzeFrames(job, count) {
   const dur = job.meta.duration || 1;
-  // pass 1: scene-change detection at low res (decode-bound, so scale early)
   let times = [];
   try {
     const stderr = await new Promise(resolve => {
@@ -306,7 +373,6 @@ async function analyzeFrames(job, count) {
     picks = dedupeTimes([...picks, ...even], gap);
   }
   picks = spreadPick(picks, count).map(t => +t.toFixed(2));
-  // pass 2: a small thumbnail per moment
   const dir = path.join(THUMBS, job.id);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
@@ -319,13 +385,20 @@ async function analyzeFrames(job, count) {
   return picks;
 }
 
+// A seek at ~duration can decode zero frames; clamp and walk back until one lands.
 async function grabFrame(job, t) {
   const file = path.join(OUTPUT, `${job.id}-frame-${t.toFixed(2)}.jpg`);
-  if (!fs.existsSync(file)) {
-    await ffmpegOnce(['-y', '-hide_banner', '-ss', String(t), '-i', job.src,
-      '-frames:v', '1', '-q:v', '1', '-qmin', '1', '-pix_fmt', 'yuvj444p', file]);
+  if (fs.existsSync(file)) return file;
+  const dur = job.meta.duration || 0;
+  const clamped = Math.max(0, Math.min(t, Math.max(0, dur - 0.05)));
+  for (const cand of [clamped, clamped - 0.5, clamped - 1].filter(x => x >= 0)) {
+    try {
+      await ffmpegOnce(['-y', '-hide_banner', '-ss', String(cand), '-i', job.src,
+        '-frames:v', '1', '-q:v', '1', '-qmin', '1', '-pix_fmt', 'yuvj444p', file]);
+    } catch {}
+    if (fs.existsSync(file)) return file;
   }
-  return file;
+  throw new Error(`no frame decodable near ${t.toFixed(2)}s`);
 }
 
 // ── minimal ZIP writer (store mode — JPEGs don't recompress) ───────────────
@@ -344,7 +417,7 @@ function crc32(buf) {
   for (let i = 0; i < buf.length; i++) c = CRC_T[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
   return (c ^ 0xFFFFFFFF) >>> 0;
 }
-function zipStore(entries) { // [{name, data:Buffer}]
+function zipStore(entries) {
   const parts = [], central = [];
   let off = 0;
   for (const { name, data } of entries) {
@@ -424,6 +497,10 @@ const server = http.createServer(async (req, res) => {
       return res.end(html);
     }
 
+    if (req.method === 'GET' && url.pathname === '/caps') {
+      return json(res, 200, { neural: !!esrganBin() });
+    }
+
     if (req.method === 'POST' && url.pathname === '/upload') {
       return streamUpload(req, res, ['.mp4', '.mov', '.m4v'], async (id, dst, name) => {
         const meta = summarize(await probe(dst));
@@ -438,7 +515,7 @@ const server = http.createServer(async (req, res) => {
       return streamUpload(req, res, ['.jpg', '.jpeg', '.png', '.heic', '.webp', '.tiff', '.tif'],
         async (id, dst, name, ext) => {
           let src = dst;
-          if (ext === '.heic') { // ffmpeg can't read HEIC; macOS can
+          if (ext === '.heic') {
             src = path.join(UPLOADS, id + '-decoded.png');
             await sipsToPng(dst, src);
           }
@@ -451,23 +528,28 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/enhance') {
-      const { id, res: r, fps, mode, enc, speed } = await readJson(req);
+      const { id, res: r, fps, mode, enc, speed, engine } = await readJson(req);
       const job = jobs.get(id);
       if (!job || job.kind !== 'video') return json(res, 404, { error: 'unknown id' });
       if (job.status === 'running') return json(res, 409, { error: 'already running' });
+      const wantNeural = engine === 'neural';
+      if (wantNeural && !esrganBin())
+        return json(res, 503, { error: 'neural engine not installed — run setup-neural.sh' });
       job.opts = {
         res: ['1080', '1440', '2160', '4320'].includes(String(r)) ? String(r) : '2160',
         fps: ['source', '24', '30', '60', '120'].includes(String(fps)) ? String(fps) : 'source',
         mode: mode === 'fast' ? 'fast' : 'smooth',
         enc: enc === 'max' ? 'max' : 'turbo',
         speed: ['1', '2', '4', '8'].includes(String(speed)) ? String(speed) : '1',
+        engine: wantNeural ? 'neural' : 'classic',
       };
       const base = path.basename(job.name, path.extname(job.name));
       const tag = RES_LABEL[job.opts.res] + (job.opts.fps === 'source' ? '' : job.opts.fps)
-        + (job.opts.speed !== '1' ? `-slo${job.opts.speed}x` : '');
+        + (job.opts.speed !== '1' ? `-slo${job.opts.speed}x` : '')
+        + (wantNeural ? '-nn' : '');
       job.outName = `${base}-${tag}.mp4`;
       job.out = path.join(OUTPUT, `${id}-${tag}.mp4`);
-      runJob(job);
+      if (wantNeural) runJobNeural(job); else runJob(job);
       return json(res, 200, { ok: true, outName: job.outName });
     }
 
@@ -492,23 +574,37 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'POST' && url.pathname === '/enhance-image') {
-      const { id, scale, look, levels, grain } = await readJson(req);
+      const { id, scale, look, levels, grain, engine } = await readJson(req);
       const job = jobs.get(id);
       if (!job || job.kind !== 'image') return json(res, 404, { error: 'unknown id' });
       const F = ['1', '2', '4'].includes(String(scale)) ? parseInt(scale, 10) : 2;
       const L = LOOKS[look] ? look : 'natural';
-      const filters = [];
-      if (levels) filters.push('normalize');
-      filters.push('hqdn3d=1.5:1.5:4:4');
-      if (F > 1) filters.push(`scale=iw*${F}:ih*${F}:flags=lanczos+accurate_rnd`);
-      filters.push(LOOKS[L]);
-      if (grain) filters.push('noise=alls=6:allf=t+u');
+      const wantNeural = engine === 'neural';
+      if (wantNeural && !esrganBin())
+        return json(res, 503, { error: 'neural engine not installed — run setup-neural.sh' });
       const base = path.basename(job.name, path.extname(job.name));
-      const tag = `${F}x-${L}${levels ? '-lv' : ''}${grain ? '-gr' : ''}`;
+      const tag = `${F}x-${L}${levels ? '-lv' : ''}${grain ? '-gr' : ''}${wantNeural ? '-nn' : ''}`;
       job.outName = `${base}-${tag}.jpg`;
       job.out = path.join(OUTPUT, `${id}-${tag}.jpg`);
+      let input = job.src;
+      let srTmp = null;
       try {
-        await ffmpegOnce(['-y', '-hide_banner', '-i', job.src, '-vf', filters.join(','),
+        const filters = [];
+        if (levels) filters.push('normalize');
+        if (wantNeural) {
+          // redraw with Real-ESRGAN at 4× (or the exact factor), then grade
+          srTmp = path.join(WORK, `nn-${id}-photo.png`);
+          await esrganOnce(['-i', job.src, '-o', srTmp, '-n', 'realesrgan-x4plus',
+            '-s', String(F === 1 ? 4 : F)]);
+          input = srTmp;
+          if (F === 1) filters.push(`scale=${job.meta.width}:${job.meta.height}:flags=lanczos+accurate_rnd`);
+        } else {
+          filters.push('hqdn3d=1.5:1.5:4:4');
+          if (F > 1) filters.push(`scale=iw*${F}:ih*${F}:flags=lanczos+accurate_rnd`);
+        }
+        filters.push(LOOKS[L]);
+        if (grain) filters.push('noise=alls=6:allf=t+u');
+        await ffmpegOnce(['-y', '-hide_banner', '-i', input, '-vf', filters.join(','),
           '-frames:v', '1', '-q:v', '1', '-pix_fmt', 'yuvj444p', job.out]);
         const outMeta = summarize(await probe(job.out));
         job.status = 'done';
@@ -518,6 +614,8 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {
         job.status = 'error';
         json(res, 500, { error: e.message });
+      } finally {
+        if (srTmp) fs.rm(srTmp, { force: true }, () => {});
       }
       return;
     }
@@ -542,9 +640,13 @@ const server = http.createServer(async (req, res) => {
       const job = jobs.get(url.searchParams.get('id'));
       const t = parseFloat(url.searchParams.get('t'));
       if (!job || job.kind !== 'video' || !(t >= 0)) return json(res, 404, { error: 'not found' });
-      const file = await grabFrame(job, t);
-      const base = path.basename(job.name, path.extname(job.name));
-      return sendFile(req, res, file, `${base}-${t.toFixed(2)}s.jpg`, true);
+      try {
+        const file = await grabFrame(job, t);
+        const base = path.basename(job.name, path.extname(job.name));
+        return sendFile(req, res, file, `${base}-${t.toFixed(2)}s.jpg`, true);
+      } catch (e) {
+        return json(res, 404, { error: e.message });
+      }
     }
 
     if (req.method === 'POST' && url.pathname === '/frames/zip') {
@@ -557,10 +659,13 @@ const server = http.createServer(async (req, res) => {
       for (let i = 0; i < times.length; i++) {
         const t = parseFloat(times[i]);
         if (!(t >= 0)) continue;
-        const file = await grabFrame(job, t);
-        entries.push({ name: `${base}-${String(i + 1).padStart(2, '0')}-${t.toFixed(2)}s.jpg`,
-          data: fs.readFileSync(file) });
+        try {
+          const file = await grabFrame(job, t);
+          entries.push({ name: `${base}-${String(i + 1).padStart(2, '0')}-${t.toFixed(2)}s.jpg`,
+            data: fs.readFileSync(file) });
+        } catch {} // skip undecodable frames rather than failing the batch
       }
+      if (!entries.length) return json(res, 404, { error: 'no frames could be extracted' });
       const zip = zipStore(entries);
       res.writeHead(200, { 'Content-Type': 'application/zip', 'Content-Length': zip.length,
         'Content-Disposition': `attachment; filename="${base}-frames.zip"` });
@@ -570,7 +675,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (url.pathname === '/download' || url.pathname === '/file')) {
       const job = jobs.get(url.searchParams.get('id'));
       if (!job) return json(res, 404, { error: 'no result' });
-      if (url.searchParams.get('orig')) // originals: scrubber source + hold-to-compare
+      if (url.searchParams.get('orig'))
         return sendFile(req, res, job.src, job.name, false);
       if (job.status !== 'done') return json(res, 404, { error: 'no result' });
       return sendFile(req, res, job.out, job.outName, url.pathname === '/download');
@@ -591,7 +696,7 @@ bootRestore().then(() => {
     console.log('  ' + C(221, 'ENHANCE') + C(103, '  ·  local mastering console'));
     console.log('  ' + C(103, '─'.repeat(40)));
     console.log('  ' + C(116, `▸ http://localhost:${PORT}`));
-    console.log('  ' + C(103, `${jobs.size} job(s) restored · everything stays on this mac`));
+    console.log('  ' + C(103, `${jobs.size} job(s) restored · neural engine ${esrganBin() ? 'ready' : 'not installed (run setup-neural.sh)'}`));
     console.log('');
   });
 });

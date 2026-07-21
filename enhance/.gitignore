@@ -11,3 +11,6 @@ dist/
 # env / secrets
 .env
 *.log
+
+# neural engine binary + models (installed by setup-neural.sh)
+vendor/

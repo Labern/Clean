@@ -25,81 +25,82 @@
 body{
   font-family:"Avenir Next","Avenir",ui-rounded,-apple-system,"Helvetica Neue",sans-serif;
   background:var(--bg); color:var(--txt);
-  font-size:13.5px; line-height:1.55;
-  max-width:620px; margin:0 auto; padding:34px 20px 80px;
+  font-size:17px; line-height:1.55;
+  max-width:720px; margin:0 auto; padding:38px 22px 90px;
   font-variant-numeric:tabular-nums;
   transition:background .3s;
 }
 /* ── header ── */
-.hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px;flex-wrap:wrap}
-.logo{font-size:21px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
-.logo::before{content:"";width:11px;height:11px;border-radius:50%;background:var(--acc);display:inline-block}
-.hdr .right{display:flex;align-items:center;gap:10px}
-.theme{cursor:pointer;color:var(--dim);font-size:15px;user-select:none;line-height:1}
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:26px;flex-wrap:wrap}
+.logo{font-size:29px;font-weight:600;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.logo::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--acc);display:inline-block}
+.hdr .right{display:flex;align-items:center;gap:12px}
+.theme{cursor:pointer;color:var(--dim);font-size:19px;user-select:none;line-height:1}
 .theme:hover{color:var(--mut)}
 /* ── pill segments ── */
-.seg{display:inline-flex;flex-wrap:wrap;background:var(--tint);border-radius:999px;padding:3px;gap:2px}
-.seg span{font-size:12.5px;font-weight:500;padding:5px 13px;border-radius:999px;color:var(--mut);
+.seg{display:inline-flex;flex-wrap:wrap;background:var(--tint);border-radius:999px;padding:4px;gap:2px}
+.seg span{font-size:16px;font-weight:500;padding:7px 17px;border-radius:999px;color:var(--mut);
   cursor:pointer;user-select:none;white-space:nowrap;transition:color .15s}
+.seg span.na{opacity:.45}
 .seg span:hover{color:var(--txt)}
 .seg span.sel{background:var(--card);color:var(--txt);font-weight:600;box-shadow:var(--shadow-sm)}
 /* ── cards ── */
-.card{background:var(--card);border-radius:20px;box-shadow:var(--shadow);padding:18px 20px;margin-top:16px}
+.card{background:var(--card);border-radius:22px;box-shadow:var(--shadow);padding:22px 24px;margin-top:18px}
 /* ── drop zones ── */
-.drop{background:var(--card);border-radius:24px;box-shadow:var(--shadow);padding:36px 20px;
-  text-align:center;cursor:pointer;margin-top:16px;transition:background .2s,transform .15s}
+.drop{background:var(--card);border-radius:26px;box-shadow:var(--shadow);padding:44px 22px;
+  text-align:center;cursor:pointer;margin-top:18px;transition:background .2s,transform .15s}
 .drop:hover{transform:translateY(-1px)}
 .drop.hot{background:var(--acc-soft)}
-.drop .d1{font-size:15px;font-weight:600}
+.drop .d1{font-size:20px;font-weight:600}
 .drop.loaded .d1{color:var(--acc)}
-.drop .d2{font-size:12px;color:var(--mut);margin-top:3px}
-.readout{font-size:12px;color:var(--mut);text-align:center;margin-top:10px;min-height:18px}
+.drop .d2{font-size:15px;color:var(--mut);margin-top:4px}
+.readout{font-size:15px;color:var(--mut);text-align:center;margin-top:12px;min-height:22px}
 /* ── option rows ── */
-.row{display:flex;align-items:center;gap:12px;margin:10px 0;flex-wrap:wrap}
+.row{display:flex;align-items:center;gap:14px;margin:13px 0;flex-wrap:wrap}
 .row:first-child{margin-top:0}
 .row:last-child{margin-bottom:0}
-.lab{font-size:12.5px;font-weight:500;color:var(--mut);width:82px;flex:none}
-.warn{font-size:12px;color:var(--mut);min-height:18px;margin-top:10px;text-align:center}
+.lab{font-size:16px;font-weight:500;color:var(--mut);width:104px;flex:none}
+.warn{font-size:15px;color:var(--mut);min-height:22px;margin-top:12px;text-align:center}
 .warn b{color:var(--acc);font-weight:600}
 /* ── go / progress / status ── */
-.go{margin-top:16px;padding:13px;text-align:center;border-radius:999px;background:var(--acc);color:#fff;
-  font-size:14px;font-weight:600;cursor:pointer;user-select:none;
+.go{margin-top:18px;padding:16px;text-align:center;border-radius:999px;background:var(--acc);color:#fff;
+  font-size:18px;font-weight:600;cursor:pointer;user-select:none;
   box-shadow:0 8px 22px rgba(122,111,240,.32);transition:filter .15s,box-shadow .15s}
 .go:hover{filter:brightness(1.06)}
 .go.off{background:var(--tint2);color:var(--dim);box-shadow:none;pointer-events:none}
-.track{height:6px;border-radius:999px;background:var(--tint2);margin-top:14px;overflow:hidden}
+.track{height:8px;border-radius:999px;background:var(--tint2);margin-top:16px;overflow:hidden}
 .track b{display:block;height:100%;width:0;border-radius:999px;background:var(--acc);transition:width .3s linear}
-.stat{font-size:12.5px;color:var(--mut);margin-top:8px;min-height:18px;display:flex;align-items:center;
-  justify-content:center;gap:7px;text-align:center}
-.stat .dot{width:8px;height:8px;border-radius:50%;background:var(--acc);flex:none;animation:pulse 1.2s ease infinite}
+.stat{font-size:16px;color:var(--mut);margin-top:10px;min-height:22px;display:flex;align-items:center;
+  justify-content:center;gap:8px;text-align:center}
+.stat .dot{width:9px;height:9px;border-radius:50%;background:var(--acc);flex:none;animation:pulse 1.2s ease infinite}
 @keyframes pulse{50%{opacity:.25}}
 .stat .err{color:var(--bad)}
 .cxl{cursor:pointer;color:var(--dim);font-weight:500}
 .cxl:hover{color:var(--bad)}
 /* ── results ── */
-.res .meta{font-size:13px;color:var(--mut);text-align:center}
+.res .meta{font-size:16.5px;color:var(--mut);text-align:center}
 .res .meta b{color:var(--txt);font-weight:600}
-.save{display:block;width:fit-content;margin:10px auto 0;padding:7px 18px;border-radius:999px;
-  background:var(--acc-soft);color:var(--acc);font-size:12.5px;font-weight:600;text-decoration:none}
+.save{display:block;width:fit-content;margin:12px auto 0;padding:10px 24px;border-radius:999px;
+  background:var(--acc-soft);color:var(--acc);font-size:16px;font-weight:600;text-decoration:none}
 .save:hover{background:var(--acc);color:#fff}
-.mediabox{margin-top:14px;border-radius:16px;overflow:hidden;background:var(--tint)}
-.mediabox video,.mediabox img{display:block;width:100%;max-height:340px;object-fit:contain}
-.hint{font-size:11.5px;color:var(--dim);text-align:center;margin-top:8px}
+.mediabox{margin-top:16px;border-radius:18px;overflow:hidden;background:var(--tint)}
+.mediabox video,.mediabox img{display:block;width:100%;max-height:380px;object-fit:contain}
+.hint{font-size:14px;color:var(--dim);text-align:center;margin-top:10px}
 /* ── frames ── */
-.btn{display:inline-block;padding:6px 15px;border-radius:999px;background:var(--acc-soft);color:var(--acc);
-  font-size:12.5px;font-weight:600;cursor:pointer;user-select:none}
+.btn{display:inline-block;padding:9px 19px;border-radius:999px;background:var(--acc-soft);color:var(--acc);
+  font-size:16px;font-weight:600;cursor:pointer;user-select:none}
 .btn:hover{background:var(--acc);color:#fff}
 .btn.off{background:var(--tint2);color:var(--dim);pointer-events:none}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
-.tile{position:relative;border-radius:12px;overflow:hidden;cursor:pointer;background:var(--tint);
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px}
+.tile{position:relative;border-radius:14px;overflow:hidden;cursor:pointer;background:var(--tint);
   transition:transform .12s}
 .tile:hover{transform:scale(1.02)}
 .tile img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover}
 .tile.sel{box-shadow:0 0 0 3px var(--acc)}
-.tile .tt{position:absolute;left:5px;bottom:5px;font-size:10px;font-weight:600;border-radius:999px;
-  background:rgba(20,20,28,.72);color:#fff;padding:1px 8px}
+.tile .tt{position:absolute;left:6px;bottom:6px;font-size:12.5px;font-weight:600;border-radius:999px;
+  background:rgba(20,20,28,.72);color:#fff;padding:2px 10px}
 .tile.sel .tt{background:var(--acc)}
-.scrub video{display:block;width:100%;max-height:300px;background:#000;border-radius:16px}
+.scrub video{display:block;width:100%;max-height:340px;background:#000;border-radius:18px}
 .hidden{display:none}
 </style>
 </head>
@@ -149,6 +150,10 @@ body{
       <span class="seg">
         <span class="sel" data-v="turbo">Turbo</span><span data-v="max">Max</span>
       </span></div>
+    <div class="row" data-k="engine"><span class="lab">Engine</span>
+      <span class="seg">
+        <span class="sel" data-v="classic">Classic</span><span data-v="neural" class="nrl">Neural</span>
+      </span></div>
   </div>
   <div class="warn" id="vwarn">&nbsp;</div>
 
@@ -189,6 +194,10 @@ body{
     <div class="row"><span class="lab">Finish</span>
       <span class="seg">
         <span id="tog-levels">Auto-levels</span><span id="tog-grain">Grain</span>
+      </span></div>
+    <div class="row" data-k="engine"><span class="lab">Engine</span>
+      <span class="seg">
+        <span class="sel" data-v="classic">Classic</span><span data-v="neural" class="nrl">Neural</span>
       </span></div>
   </div>
   <div class="warn" id="iwarn">&nbsp;</div>
@@ -294,7 +303,9 @@ $('tog-grain').onclick = () => { iTog.grain = !iTog.grain; $('tog-grain').classL
 
 function vWarnUpdate(){
   const w = $('vwarn');
-  if (vOpts.speed !== '1' && vOpts.mode === 'smooth')
+  if (vOpts.engine === 'neural')
+    w.innerHTML = '<b>Neural</b> — Real-ESRGAN redraws every frame with invented detail. The real deal, and slow.';
+  else if (vOpts.speed !== '1' && vOpts.mode === 'smooth')
     w.innerHTML = '<b>Slow motion</b> — every in-between frame is synthesised. Worth the wait.';
   else if (vOpts.speed !== '1')
     w.innerHTML = '<b>Fast slow-mo</b> — frames are stretched, not synthesised. Instant but steppy.';
@@ -303,7 +314,23 @@ function vWarnUpdate(){
   else if (vOpts.res === '4320')
     w.innerHTML = '<b>8K</b> files are enormous — be sure you mean it.';
   else w.innerHTML = '&nbsp;';
+  if (iOpts.engine === 'neural')
+    $('iwarn').innerHTML = '<b>Neural</b> — detail is redrawn by Real-ESRGAN, then graded. A few seconds.';
+  else $('iwarn').innerHTML = '&nbsp;';
 }
+
+// grey out Neural until the engine is installed
+let neuralReady = false;
+fetch('/caps').then(r => r.json()).then(c => {
+  neuralReady = !!c.neural;
+  if (!neuralReady) document.querySelectorAll('.nrl').forEach(el => {
+    el.classList.add('na');
+    el.onclick = () => {
+      $(el.closest('#iopts') ? 'iwarn' : 'vwarn').innerHTML =
+        '<b>Neural engine not installed</b> — run <b>./setup-neural.sh</b> in the enhance folder, then reload.';
+    };
+  });
+}).catch(() => {});
 
 // ── shared upload ──
 function wireDrop(dropId, inputId, onFile){
@@ -365,15 +392,23 @@ $('vgo').onclick = async () => {
   try {
     const resp = await fetch('/enhance', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ id: V.id, res: vOpts.res, fps: vOpts.fps, mode: vOpts.mode,
-        enc: vOpts.enc, speed: vOpts.speed }) });
+        enc: vOpts.enc, speed: vOpts.speed, engine: vOpts.engine }) });
     if (!resp.ok) throw new Error((await resp.json()).error || 'could not start');
     const es = new EventSource('/events?id='+V.id);
     es.onmessage = ev => {
       const d = JSON.parse(ev.data);
       if (d.type === 'progress') {
-        vBar(d.pct);
-        vStat('Enhancing '+Math.floor(d.pct)+'% · '+(d.speed?d.speed.toFixed(2)+'×':'…')
-          +(d.eta>0.5?' · about '+fmtT(d.eta)+' left':''), true);
+        if (d.phase === 'extract') {
+          vBar(2); vStat('Preparing frames…', true);
+        } else if (d.phase === 'neural') {
+          vBar(d.pct);
+          vStat('Redrawing frames '+Math.floor(d.pct)+'% · '+(d.frame||0)+' of '+(d.total||'?')
+            +(d.eta>0.5?' · about '+fmtT(d.eta)+' left':''), true);
+        } else {
+          vBar(d.pct);
+          vStat('Enhancing '+Math.floor(d.pct)+'% · '+(d.speed?d.speed.toFixed(2)+'×':'…')
+            +(d.eta>0.5?' · about '+fmtT(d.eta)+' left':''), true);
+        }
         wireCancel();
       } else if (d.type === 'done') {
         es.close(); stop(); vBar(100);
@@ -428,7 +463,7 @@ $('igo').onclick = async () => {
   try {
     const resp = await fetch('/enhance-image', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ id: I.id, scale: iOpts.scale, look: iOpts.look,
-        levels: iTog.levels, grain: iTog.grain }) });
+        levels: iTog.levels, grain: iTog.grain, engine: iOpts.engine }) });
     const d = await resp.json();
     if (!resp.ok) throw new Error(d.error || 'enhancement failed');
     iStat('Done in '+((Date.now()-t0)/1000).toFixed(1)+'s');
