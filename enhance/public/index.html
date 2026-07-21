@@ -4,268 +4,257 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ENHANCE</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%A6%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='8' y='8' width='84' height='84' fill='none' stroke='%23ffb000' stroke-width='8'/%3E%3Ccircle cx='50' cy='50' r='14' fill='%23ffb000'/%3E%3C/svg%3E">
 <style>
-/* ── MONOGRAPH — grisaille tokens, one ink, no accent ── */
+/* ── VISOR — instrument-panel tokens; re-theme by overriding on :root ── */
 :root{
-  --serif: ui-serif, "New York", "Iowan Old Style", Palatino, Georgia, "Times New Roman", serif;
-  --mono:  ui-monospace, "SF Mono", "Menlo", "Cascadia Code", "Roboto Mono", monospace;
-  --paper:#f6f5f2;  --paper-2:#efeee9;
-  --ink:#141413;    --ink-2:#4c4b47;   --faint:#8f8e88;
-  --line:#dad9d2;   --rule:#141413;
-  --fill:#141413;   --empty:#e3e2db;
+  --bg:#0a0a0b; --panel:#121214; --panel2:#0e0e10; --edge:#242428; --edge2:#3c3c42;
+  --txt:#e7e5e0; --mut:#97948d; --dim:#56544e;
+  --acc:#ffb000; --rec:#ff453a;
 }
-:root[data-theme="dark"]{
-  --paper:#111110;  --paper-2:#181817;
-  --ink:#ecebe6;    --ink-2:#b1b0a9;   --faint:#706f69;
-  --line:#2a2a27;   --rule:#ecebe6;
-  --fill:#ecebe6;   --empty:#282825;
+:root[data-theme="light"]{
+  --bg:#efeeeb; --panel:#f9f8f6; --panel2:#f3f2ef; --edge:#d8d6d0; --edge2:#bab8b1;
+  --txt:#191815; --mut:#6b6963; --dim:#b0aea7;
+  --acc:#a66a00; --rec:#d70015;
 }
-@media (prefers-color-scheme: dark){
-  :root:not([data-theme="light"]){
-    --paper:#111110;  --paper-2:#181817;
-    --ink:#ecebe6;    --ink-2:#b1b0a9;   --faint:#706f69;
-    --line:#2a2a27;   --rule:#ecebe6;
-    --fill:#ecebe6;   --empty:#282825;
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#efeeeb; --panel:#f9f8f6; --panel2:#f3f2ef; --edge:#d8d6d0; --edge2:#bab8b1;
+    --txt:#191815; --mut:#6b6963; --dim:#b0aea7;
+    --acc:#a66a00; --rec:#d70015;
   }
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{
-  font-family:var(--serif); color:var(--ink); background:var(--paper);
-  line-height:1.6; -webkit-font-smoothing:antialiased;
+  font:12px/1.55 -apple-system,"SF Pro Text","Helvetica Neue",Inter,system-ui,sans-serif;
+  background:var(--bg); color:var(--txt);
+  max-width:560px; margin:0 auto; padding:26px 18px 60px;
+  font-variant-numeric:tabular-nums;
 }
-.page{max-width:44rem;margin:0 auto;padding:clamp(1.4rem,4vw,3rem) clamp(1.2rem,5vw,2.5rem) 4rem}
-.m{font-family:var(--mono)}
-/* ── masthead ── */
-.topline{display:flex;justify-content:space-between;align-items:baseline;
-  font-family:var(--mono);font-size:.72rem;letter-spacing:.24em;text-transform:uppercase;
-  color:var(--ink-2);padding-bottom:.6rem;border-bottom:1px solid var(--line)}
-.topline .r{color:var(--faint)}
-.mast{display:flex;align-items:flex-end;gap:1.4rem;padding:clamp(1.8rem,6vw,3.2rem) 0 1.6rem}
-.hero{font-size:clamp(5rem,17vw,9.5rem);line-height:.82;letter-spacing:-.03em;
-  font-weight:520;font-variant-numeric:lining-nums}
-.sup{font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;
-  color:var(--faint);border-left:1px solid var(--rule);padding-left:.9rem;line-height:2;margin-bottom:.4rem}
-.dek{font-size:1.14rem;color:var(--ink-2);max-width:34rem;padding-bottom:1.6rem}
-.dek em{font-style:italic}
-.mastrule{border-bottom:1px solid var(--rule)}
-/* ── tabs ── */
-.tabs{display:flex;gap:2.2rem;border-bottom:1px solid var(--line);margin-top:2.4rem}
-.tab{font-family:var(--mono);font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;
-  color:var(--faint);padding:.55rem 0;cursor:pointer;border-bottom:2px solid transparent;
-  margin-bottom:-1px;user-select:none;background:none}
-.tab:hover{color:var(--ink-2)}
-.tab.sel{color:var(--ink);border-bottom-color:var(--rule)}
-/* ── the plate (drop zone) ── */
-.plate{border:1px solid var(--line);background:var(--paper-2);padding:2.2rem 1.4rem;
-  text-align:center;cursor:pointer;margin-top:2rem;transition:border-color .2s}
-.plate:hover,.plate.hot{border-color:var(--rule)}
-.plate .d1{font-style:italic;font-size:1.15rem}
-.plate .d2{font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;
-  color:var(--faint);margin-top:.35rem}
-.srcmeta{font-family:var(--mono);font-size:.78rem;letter-spacing:.06em;color:var(--ink-2);
-  text-align:center;margin-top:.7rem;min-height:1.4rem;font-variant-numeric:tabular-nums}
-/* ── settings ── */
-.eyebrow{display:flex;align-items:center;gap:1rem;margin:2.4rem 0 1.1rem;
-  font-family:var(--mono);font-size:.72rem;letter-spacing:.26em;text-transform:uppercase;color:var(--faint)}
-.eyebrow::after{content:"";flex:1;height:1px;background:var(--line)}
-.optrow{display:grid;grid-template-columns:9.5rem 1fr;align-items:baseline;margin:.65rem 0}
-.optlab{font-family:var(--mono);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
-.chips{display:flex;flex-wrap:wrap;gap:.45rem}
-.chip{font-family:var(--mono);font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
-  padding:.22rem .7rem;border:1px solid var(--line);color:var(--ink-2);cursor:pointer;user-select:none;
-  font-variant-numeric:tabular-nums}
-.chip:hover{border-color:var(--rule);color:var(--ink)}
-.chip.sel{background:var(--fill);color:var(--paper);border-color:var(--rule)}
-.note{font-style:italic;color:var(--ink-2);min-height:1.6rem;margin-top:.9rem;font-size:.98rem}
-/* ── the act ── */
-.go{display:block;width:100%;margin-top:1.1rem;padding:.72rem;text-align:center;
-  font-family:var(--mono);font-size:.78rem;letter-spacing:.3em;text-transform:uppercase;
-  border:1px solid var(--rule);color:var(--ink);cursor:pointer;background:none;user-select:none;
-  transition:background .15s,color .15s}
-.go:hover{background:var(--fill);color:var(--paper)}
-.go.off{border-color:var(--line);color:var(--faint);pointer-events:none;background:none}
-.cancel{display:none;margin-top:.55rem;text-align:center;font-family:var(--mono);font-size:.72rem;
-  letter-spacing:.2em;text-transform:uppercase;color:var(--faint);cursor:pointer}
-.cancel:hover{color:var(--ink)}
-.cancel.on{display:block}
-/* ── progress: the unit tally ── */
-.tally{display:flex;gap:3px;align-items:center;margin-top:1.3rem;flex-wrap:nowrap}
-.sq{width:100%;height:.62rem;flex:1;border:1px solid var(--line);transition:background .2s}
-.sq.f{background:var(--fill);border-color:var(--rule)}
-.pct{font-family:var(--mono);font-size:.78rem;color:var(--ink-2);margin-left:.6rem;
-  font-variant-numeric:tabular-nums;min-width:3.2ch;text-align:right}
-.status{font-family:var(--mono);font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;
-  color:var(--faint);margin-top:.6rem;min-height:1.3rem;font-variant-numeric:tabular-nums}
-/* ── result: a catalogue entry ── */
-.result{border-top:1px solid var(--rule);margin-top:2.4rem;padding-top:1.5rem;
-  display:grid;grid-template-columns:3.2rem 1fr;gap:0 .4rem}
-.no{font-family:var(--mono);font-size:.78rem;color:var(--faint);padding-top:.3rem}
-.rtitle{font-size:1.35rem;font-weight:520;font-style:italic;text-wrap:balance}
-.rmeta{font-family:var(--mono);font-size:.78rem;letter-spacing:.06em;color:var(--ink-2);
-  margin-top:.25rem;font-variant-numeric:tabular-nums}
-.rdesc{margin-top:.5rem;color:var(--ink-2)}
-.dl{display:inline-block;margin-top:.7rem;font-family:var(--mono);font-size:.75rem;
-  letter-spacing:.2em;text-transform:uppercase;color:var(--ink);text-decoration:underline;
-  text-underline-offset:3px}
-.dl:hover{background:var(--fill);color:var(--paper);text-decoration:none}
-.media{grid-column:1 / -1;margin-top:1.1rem;border:1px solid var(--line);background:var(--paper-2);padding:.5rem}
-.media video,.media img{display:block;width:100%;max-height:24rem;object-fit:contain;background:var(--paper-2)}
-.hint{grid-column:1 / -1;font-family:var(--mono);font-size:.68rem;letter-spacing:.2em;
-  text-transform:uppercase;color:var(--faint);text-align:center;margin-top:.5rem}
-/* ── colophon ── */
-.colophon{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;
-  margin-top:4rem;padding-top:.7rem;border-top:1px solid var(--line);
-  font-family:var(--mono);font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:var(--faint)}
-.invert{cursor:pointer;user-select:none;color:var(--ink-2)}
-.invert:hover{color:var(--ink)}
+/* ── header ── */
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.logo{font-size:10px;font-weight:600;letter-spacing:.38em;color:var(--acc)}
+.hdr .right{display:flex;align-items:center;gap:10px}
+.theme{cursor:pointer;color:var(--dim);font-size:13px;user-select:none;line-height:1}
+.theme:hover{color:var(--txt)}
+/* ── segmented controls ── */
+.seg{display:inline-flex;flex-wrap:wrap}
+.seg span{font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 9px;
+  border:1px solid var(--edge);color:var(--mut);cursor:pointer;user-select:none;
+  margin-left:-1px;position:relative}
+.seg span:first-child{margin-left:0}
+.seg span:hover{color:var(--txt);border-color:var(--edge2);z-index:1}
+.seg span.sel{color:var(--acc);border-color:var(--acc);z-index:2}
+/* ── focus-frame drop zones ── */
+.frame{position:relative;background:var(--panel);text-align:center;cursor:pointer;
+  padding:30px 14px;margin-top:14px}
+.frame.small{padding:18px 14px}
+.frame i{position:absolute;width:13px;height:13px;border:0 solid var(--dim);pointer-events:none;
+  transition:border-color .2s}
+.frame i:nth-of-type(1){top:5px;left:5px;border-top-width:2px;border-left-width:2px}
+.frame i:nth-of-type(2){top:5px;right:5px;border-top-width:2px;border-right-width:2px}
+.frame i:nth-of-type(3){bottom:5px;left:5px;border-bottom-width:2px;border-left-width:2px}
+.frame i:nth-of-type(4){bottom:5px;right:5px;border-bottom-width:2px;border-right-width:2px}
+.frame:hover i,.frame.hot i,.frame.loaded i{border-color:var(--acc)}
+.frame .d1{font-size:11.5px;letter-spacing:.04em}
+.frame.loaded .d1{color:var(--acc)}
+.frame .d2{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);margin-top:3px}
+.readout{font-size:10.5px;letter-spacing:.06em;color:var(--mut);text-align:center;
+  margin-top:8px;min-height:16px;text-transform:uppercase}
+/* ── option rows ── */
+.rows{margin-top:14px}
+.row{display:flex;align-items:center;gap:10px;margin:7px 0;flex-wrap:wrap}
+.lab{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);width:74px;flex:none}
+.warn{font-size:10px;letter-spacing:.04em;color:var(--mut);min-height:15px;margin-top:8px}
+.warn b{color:var(--acc);font-weight:600}
+/* ── go / progress / status ── */
+.go{margin-top:12px;padding:8px;text-align:center;border:1px solid var(--acc);color:var(--acc);
+  font-size:10px;font-weight:600;letter-spacing:.3em;text-transform:uppercase;cursor:pointer;user-select:none}
+.go:hover{background:var(--acc);color:var(--bg)}
+.go.off{border-color:var(--edge);color:var(--dim);pointer-events:none;background:none}
+.track{height:2px;background:var(--edge);margin-top:10px}
+.track b{display:block;height:100%;width:0;background:var(--acc);transition:width .3s linear}
+.stat{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut);
+  margin-top:7px;min-height:15px;display:flex;align-items:center;gap:6px}
+.stat .dot{width:7px;height:7px;border-radius:50%;background:var(--rec);flex:none;
+  animation:pulse 1.2s ease infinite}
+@keyframes pulse{50%{opacity:.25}}
+.stat .err{color:var(--rec)}
+.cxl{cursor:pointer;color:var(--dim);margin-left:auto;letter-spacing:.1em}
+.cxl:hover{color:var(--rec)}
+/* ── results ── */
+.res{margin-top:14px;border:1px solid var(--edge);background:var(--panel);padding:10px}
+.res .meta{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+.res .meta b{color:var(--txt);font-weight:600}
+.save{display:inline-block;margin-top:8px;padding:4px 12px;border:1px solid var(--acc);color:var(--acc);
+  font-size:9.5px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;text-decoration:none}
+.save:hover{background:var(--acc);color:var(--bg)}
+.res .mediabox{margin-top:10px;background:var(--panel2);border:1px solid var(--edge)}
+.res video,.res img{display:block;width:100%;max-height:330px;object-fit:contain}
+.hint{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);
+  text-align:center;margin-top:6px}
+/* ── frames tab ── */
+.btn{display:inline-block;padding:4px 12px;border:1px solid var(--acc);color:var(--acc);cursor:pointer;
+  font-size:9.5px;font-weight:600;letter-spacing:.22em;text-transform:uppercase;user-select:none}
+.btn:hover{background:var(--acc);color:var(--bg)}
+.btn.off{border-color:var(--edge);color:var(--dim);pointer-events:none}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px}
+.tile{position:relative;border:1px solid var(--edge);cursor:pointer;background:var(--panel2)}
+.tile img{display:block;width:100%;aspect-ratio:16/10;object-fit:cover}
+.tile:hover{border-color:var(--edge2)}
+.tile.sel{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+.tile .tt{position:absolute;left:3px;bottom:3px;font-size:8.5px;letter-spacing:.06em;
+  background:rgba(0,0,0,.7);color:#e7e5e0;padding:1px 5px}
+.tile.sel .tt{color:var(--acc)}
+.scrub{margin-top:14px}
+.scrub video{display:block;width:100%;max-height:300px;background:#000;border:1px solid var(--edge)}
 .hidden{display:none}
-/* ── motion: restrained, once ── */
-@media (prefers-reduced-motion: no-preference){
-  .reveal{opacity:0;transform:translateY(14px);animation:up .7s ease forwards}
-  @keyframes up{to{opacity:1;transform:none}}
-  .reveal:nth-child(2){animation-delay:.08s}.reveal:nth-child(3){animation-delay:.16s}
-}
 </style>
 </head>
 <body>
-<div class="page">
 
-  <header>
-    <div class="topline reveal"><span>Enhance · a local mastering console</span><span class="r">MMXXVI</span></div>
-    <div class="mast reveal">
-      <div class="hero">4K</div>
-      <div class="sup">video → 3840 × 2160<br>photograph → graded &amp; resampled<br>nothing leaves this machine</div>
+<header class="hdr">
+  <span class="logo">ENHANCE</span>
+  <span class="right">
+    <span class="seg" id="tabs">
+      <span class="sel" data-m="film">Film</span>
+      <span data-m="photo">Photo</span>
+      <span data-m="frames">Frames</span>
+    </span>
+    <span class="theme" id="theme">◐</span>
+  </span>
+</header>
+
+<!-- ══ FILM ══ -->
+<section id="p-film">
+  <div class="frame" id="vdrop"><i></i><i></i><i></i><i></i>
+    <div class="d1">Drop film to load</div>
+    <div class="d2">mp4 · mov · any size</div>
+  </div>
+  <div class="readout" id="vinfo">&nbsp;</div>
+
+  <div class="rows" id="vopts">
+    <div class="row" data-k="res"><span class="lab">Resolution</span>
+      <span class="seg">
+        <span data-v="1080">1080p</span><span data-v="1440">1440p</span>
+        <span class="sel" data-v="2160">4K</span><span data-v="4320">8K</span>
+      </span></div>
+    <div class="row" data-k="fps"><span class="lab">Frame rate</span>
+      <span class="seg">
+        <span class="sel" data-v="source">Src</span><span data-v="24">24</span>
+        <span data-v="30">30</span><span data-v="60">60</span><span data-v="120">120</span>
+      </span></div>
+    <div class="row" data-k="speed"><span class="lab">Speed</span>
+      <span class="seg">
+        <span class="sel" data-v="1">1×</span><span data-v="2">½×</span>
+        <span data-v="4">¼×</span><span data-v="8">⅛×</span>
+      </span></div>
+    <div class="row" data-k="mode"><span class="lab">Motion</span>
+      <span class="seg">
+        <span class="sel" data-v="smooth">Smooth</span><span data-v="fast">Fast</span>
+      </span></div>
+    <div class="row" data-k="enc"><span class="lab">Encoder</span>
+      <span class="seg">
+        <span class="sel" data-v="turbo">Turbo</span><span data-v="max">Max</span>
+      </span></div>
+  </div>
+  <div class="warn" id="vwarn">&nbsp;</div>
+
+  <div class="go off" id="vgo">Enhance</div>
+  <div class="track"><b id="vbar"></b></div>
+  <div class="stat" id="vstat"><span>Standby</span></div>
+
+  <div class="res hidden" id="vres">
+    <div class="meta" id="vresmeta"></div>
+    <a class="save" id="vdl" href="#">↓ Save</a>
+    <div class="mediabox"><video id="vprev" controls playsinline></video></div>
+  </div>
+</section>
+
+<!-- ══ PHOTO ══ -->
+<section id="p-photo" class="hidden">
+  <div class="frame" id="idrop"><i></i><i></i><i></i><i></i>
+    <div class="d1">Drop photo to load</div>
+    <div class="d2">jpg · png · heic · webp · tiff</div>
+  </div>
+  <div class="readout" id="iinfo">&nbsp;</div>
+
+  <div class="rows" id="iopts">
+    <div class="row" data-k="scale"><span class="lab">Upscale</span>
+      <span class="seg">
+        <span data-v="1">1×</span><span class="sel" data-v="2">2×</span><span data-v="4">4×</span>
+      </span></div>
+    <div class="row" data-k="look"><span class="lab">Look</span>
+      <span class="seg">
+        <span class="sel" data-v="natural">Natural</span><span data-v="vivid">Vivid</span>
+        <span data-v="crisp">Crisp</span><span data-v="punch">Punch</span>
+        <span data-v="film">Film</span><span data-v="noir">Noir</span>
+        <span data-v="gold">Gold</span><span data-v="dream">Dream</span>
+      </span></div>
+    <div class="row"><span class="lab">Finish</span>
+      <span class="seg">
+        <span id="tog-levels">Auto-levels</span><span id="tog-grain">Grain</span>
+      </span></div>
+  </div>
+  <div class="warn" id="iwarn">&nbsp;</div>
+
+  <div class="go off" id="igo">Enhance</div>
+  <div class="stat" id="istat"><span>Standby</span></div>
+
+  <div class="res hidden" id="ires">
+    <div class="meta" id="iresmeta"></div>
+    <a class="save" id="idl" href="#">↓ Save</a>
+    <div class="mediabox"><img id="iprev" alt="enhanced photo"></div>
+    <div class="hint">press &amp; hold to compare with the original</div>
+  </div>
+</section>
+
+<!-- ══ FRAMES ══ -->
+<section id="p-frames" class="hidden">
+  <div class="frame small" id="fdrop"><i></i><i></i><i></i><i></i>
+    <div class="d1">Drop film for frame capture</div>
+    <div class="d2">or load one in the film tab first</div>
+  </div>
+  <div class="readout" id="finfo">&nbsp;</div>
+
+  <div class="rows">
+    <div class="row" data-k="count"><span class="lab">Moments</span>
+      <span class="seg" id="fcount">
+        <span data-v="6">6</span><span class="sel" data-v="12">12</span><span data-v="24">24</span>
+      </span>
+      <span class="btn off" id="fanalyze">Find moments</span></div>
+  </div>
+  <div class="stat" id="fstat"><span>Standby</span></div>
+
+  <div class="grid" id="fgrid"></div>
+
+  <div class="scrub hidden" id="fscrub">
+    <video id="fvid" controls playsinline></video>
+    <div class="row" style="margin-top:8px">
+      <span class="lab">Scrub</span>
+      <span class="readout" style="margin:0;text-align:left" id="ftime">T 00:00.00</span>
+      <span class="btn" id="fcap" style="margin-left:auto">+ Capture</span>
     </div>
-    <p class="dek reveal">Films mastered to four thousand lines; photographs quietly improved.
-      Choose a resolution, choose a cadence, and take away <em>the definitive copy</em>.</p>
-    <div class="mastrule"></div>
-  </header>
+    <div class="hint" style="text-align:left">pause anywhere, capture, repeat — captures join the grid</div>
+  </div>
 
-  <nav class="tabs">
-    <span class="tab sel" data-m="video">Film</span>
-    <span class="tab" data-m="image">Photograph</span>
-  </nav>
-
-  <!-- ── FILM ── -->
-  <section id="side-video">
-    <div class="plate" id="vdrop">
-      <div class="d1">Drop a film here.</div>
-      <div class="d2">.mp4 · .mov — any size — or click to choose</div>
-    </div>
-    <div class="srcmeta" id="vinfo">&nbsp;</div>
-
-    <div class="eyebrow">Settings</div>
-    <div id="vopts">
-      <div class="optrow" data-k="res"><span class="optlab">Resolution</span>
-        <span class="chips">
-          <span class="chip" data-v="1080">1080p</span>
-          <span class="chip" data-v="1440">1440p</span>
-          <span class="chip sel" data-v="2160">4K</span>
-          <span class="chip" data-v="4320">8K</span>
-        </span></div>
-      <div class="optrow" data-k="fps"><span class="optlab">Frame rate</span>
-        <span class="chips">
-          <span class="chip sel" data-v="source">Source</span>
-          <span class="chip" data-v="24">24</span>
-          <span class="chip" data-v="30">30</span>
-          <span class="chip" data-v="60">60</span>
-          <span class="chip" data-v="120">120</span>
-        </span></div>
-      <div class="optrow" data-k="mode"><span class="optlab">Motion</span>
-        <span class="chips">
-          <span class="chip sel" data-v="smooth">Smooth</span>
-          <span class="chip" data-v="fast">Fast</span>
-        </span></div>
-      <div class="optrow" data-k="enc"><span class="optlab">Encoder</span>
-        <span class="chips">
-          <span class="chip sel" data-v="turbo">Turbo</span>
-          <span class="chip" data-v="max">Max</span>
-        </span></div>
-    </div>
-    <div class="note" id="vwarn">&nbsp;</div>
-
-    <div class="go off" id="vgo">Enhance</div>
-    <div class="cancel" id="vcancel">✕ abandon the render</div>
-
-    <div class="tally" id="vmeter"></div>
-    <div class="status" id="vstatus">Idle — drop a film to begin</div>
-
-    <div class="result hidden" id="vresult">
-      <div class="no" id="vno">№ 1</div>
-      <div>
-        <div class="rtitle" id="vrtitle"></div>
-        <div class="rmeta" id="vresmeta"></div>
-        <div class="rdesc" id="vrdesc"></div>
-        <a class="dl" id="vdl" href="#">⇣ Download</a>
-      </div>
-      <div class="media"><video id="vprev" controls playsinline></video></div>
-    </div>
-  </section>
-
-  <!-- ── PHOTOGRAPH ── -->
-  <section id="side-image" class="hidden">
-    <div class="plate" id="idrop">
-      <div class="d1">Drop a photograph here.</div>
-      <div class="d2">.jpg · .png · .heic · .webp · .tiff — or click to choose</div>
-    </div>
-    <div class="srcmeta" id="iinfo">&nbsp;</div>
-
-    <div class="eyebrow">Settings</div>
-    <div id="iopts">
-      <div class="optrow" data-k="scale"><span class="optlab">Upscale</span>
-        <span class="chips">
-          <span class="chip" data-v="1">1×</span>
-          <span class="chip sel" data-v="2">2×</span>
-          <span class="chip" data-v="4">4×</span>
-        </span></div>
-      <div class="optrow" data-k="look"><span class="optlab">Look</span>
-        <span class="chips">
-          <span class="chip sel" data-v="natural">Natural</span>
-          <span class="chip" data-v="vivid">Vivid</span>
-          <span class="chip" data-v="crisp">Crisp</span>
-        </span></div>
-    </div>
-    <div class="note" id="iwarn">&nbsp;</div>
-
-    <div class="go off" id="igo">Enhance</div>
-    <div class="status" id="istatus">Idle — drop a photograph to begin</div>
-
-    <div class="result hidden" id="iresult">
-      <div class="no" id="ino">№ 1</div>
-      <div>
-        <div class="rtitle" id="irtitle"></div>
-        <div class="rmeta" id="iresmeta"></div>
-        <div class="rdesc" id="irdesc"></div>
-        <a class="dl" id="idl" href="#">⇣ Download</a>
-      </div>
-      <div class="media"><img id="iprev" alt="enhanced photograph"></div>
-      <div class="hint">press &amp; hold the plate to see the original</div>
-    </div>
-  </section>
-
-  <footer class="colophon">
-    <span>Enhance · localhost : 2160 · zero dependencies</span>
-    <span class="invert" id="invert">invert ◐</span>
-  </footer>
-</div>
+  <div class="go off" id="fdl" style="margin-top:16px">↓ Download frames</div>
+</section>
 
 <input type="file" id="vfile" accept=".mp4,.mov,.m4v" hidden>
 <input type="file" id="ifile" accept=".jpg,.jpeg,.png,.heic,.webp,.tiff,.tif" hidden>
+<input type="file" id="ffile" accept=".mp4,.mov,.m4v" hidden>
 
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
-const SEGS = 40;
-let masterNo = 0; // № encodes the true order of completion this session
 
-// ── theme: data-theme beats the media query in both directions ──
-const invertBtn = $('invert');
-const savedTheme = localStorage.getItem('enhance-theme');
-if (savedTheme) document.documentElement.dataset.theme = savedTheme;
-invertBtn.onclick = () => {
-  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
-  const cur = document.documentElement.dataset.theme || (dark ? 'dark' : 'light');
+// ── theme ──
+const saved = localStorage.getItem('enhance-theme');
+if (saved) document.documentElement.dataset.theme = saved;
+$('theme').onclick = () => {
+  const light = matchMedia('(prefers-color-scheme: light)').matches;
+  const cur = document.documentElement.dataset.theme || (light ? 'light' : 'dark');
   const next = cur === 'dark' ? 'light' : 'dark';
   document.documentElement.dataset.theme = next;
   localStorage.setItem('enhance-theme', next);
@@ -275,40 +264,49 @@ invertBtn.onclick = () => {
 const fmtB = b => b >= 1e9 ? (b/1e9).toFixed(2)+' GB' : b >= 1e6 ? (b/1e6).toFixed(b<1e7?1:0)+' MB' : Math.max(1,Math.round(b/1e3))+' KB';
 const fmtT = s => { s = Math.max(0,Math.round(s)); const h=(s/3600)|0, m=((s%3600)/60)|0, x=s%60;
   return (h?h+':'+String(m).padStart(2,'0'):String(m).padStart(2,'0'))+':'+String(x).padStart(2,'0'); };
+const fmtT2 = s => { const m=(s/60)|0, x=s%60;
+  return String(m).padStart(2,'0')+':'+x.toFixed(2).padStart(5,'0'); };
 
 // ── tabs ──
-document.querySelectorAll('.tab').forEach(el => el.onclick = () => {
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('sel', t === el));
-  $('side-video').classList.toggle('hidden', el.dataset.m !== 'video');
-  $('side-image').classList.toggle('hidden', el.dataset.m !== 'image');
+document.querySelectorAll('#tabs span').forEach(el => el.onclick = () => {
+  document.querySelectorAll('#tabs span').forEach(t => t.classList.toggle('sel', t === el));
+  for (const m of ['film','photo','frames']) $('p-'+m).classList.toggle('hidden', el.dataset.m !== m);
+  if (el.dataset.m === 'frames') fAdopt();
 });
 
 // ── option rows ──
 function optState(rootId){
   const state = {};
-  document.querySelectorAll('#'+rootId+' .optrow').forEach(row => {
+  document.querySelectorAll('#'+rootId+' .row[data-k]').forEach(row => {
     state[row.dataset.k] = row.querySelector('.sel').dataset.v;
-    row.querySelectorAll('.chip').forEach(o => o.onclick = () => {
-      row.querySelectorAll('.chip').forEach(x => x.classList.toggle('sel', x === o));
+    row.querySelectorAll('.seg span').forEach(o => o.onclick = () => {
+      row.querySelectorAll('.seg span').forEach(x => x.classList.toggle('sel', x === o));
       state[row.dataset.k] = o.dataset.v;
-      onOptChange(rootId);
+      vWarnUpdate();
     });
   });
   return state;
 }
 const vOpts = optState('vopts');
 const iOpts = optState('iopts');
+const iTog = { levels: false, grain: false };
+$('tog-levels').onclick = () => { iTog.levels = !iTog.levels; $('tog-levels').classList.toggle('sel', iTog.levels); };
+$('tog-grain').onclick = () => { iTog.grain = !iTog.grain; $('tog-grain').classList.toggle('sel', iTog.grain); };
 
-function onOptChange(rootId){
-  if (rootId !== 'vopts') return;
-  const slow = vOpts.mode === 'smooth' && vOpts.fps !== 'source' && V.meta && parseInt(vOpts.fps) > V.meta.fps;
-  const big = vOpts.res === '4320';
-  $('vwarn').innerHTML = slow
-    ? 'Smooth interpolation is patient work — expect minutes per second of film.'
-    : big ? 'An 8K master is enormous. Be sure you mean it.' : '&nbsp;';
+function vWarnUpdate(){
+  const w = $('vwarn');
+  if (vOpts.speed !== '1' && vOpts.mode === 'smooth')
+    w.innerHTML = '<b>Slo-mo</b> — every in-between frame is synthesised by motion interpolation. Patient work.';
+  else if (vOpts.speed !== '1')
+    w.innerHTML = '<b>Slo-mo fast</b> — frames are stretched, not synthesised. Instant but steppy.';
+  else if (vOpts.mode === 'smooth' && vOpts.fps !== 'source' && V.meta && parseInt(vOpts.fps) > V.meta.fps)
+    w.innerHTML = '<b>Smooth</b> interpolation is slow — minutes per second of film.';
+  else if (vOpts.res === '4320')
+    w.innerHTML = '<b>8K</b> masters are enormous — be sure you mean it.';
+  else w.innerHTML = '&nbsp;';
 }
 
-// ── drop zones ──
+// ── shared upload ──
 function wireDrop(dropId, inputId, onFile){
   const drop = $(dropId), input = $(inputId);
   drop.onclick = () => input.click();
@@ -318,7 +316,6 @@ function wireDrop(dropId, inputId, onFile){
   drop.ondrop = e => { e.preventDefault(); drop.classList.remove('hot');
     e.dataTransfer.files[0] && onFile(e.dataTransfer.files[0]); };
 }
-
 function upload(url, file, onProgress){
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -330,141 +327,224 @@ function upload(url, file, onProgress){
         xhr.status === 200 ? resolve(r) : reject(new Error(r.error || 'upload failed')); }
       catch { reject(new Error('upload failed')); }
     };
-    xhr.onerror = () => reject(new Error('server unreachable — is it running?'));
+    xhr.onerror = () => reject(new Error('server unreachable'));
     xhr.send(file);
   });
 }
 
 // ═══ FILM ═══
-const V = { id: null, meta: null, running: false, t0: 0 };
-
-// the unit tally: one square per 2.5%
-(function buildTally(){
-  const t = $('vmeter');
-  for (let i = 0; i < SEGS; i++) { const s = document.createElement('span'); s.className = 'sq'; t.appendChild(s); }
-  const p = document.createElement('span'); p.className = 'pct'; p.id = 'vpct'; p.textContent = '0%'; t.appendChild(p);
-})();
-function vMeter(pct){
-  const n = Math.round(SEGS * Math.min(100,pct) / 100);
-  $('vmeter').querySelectorAll('.sq').forEach((s,i) => s.classList.toggle('f', i < n));
-  $('vpct').textContent = Math.floor(Math.min(100,pct)) + '%';
-}
-const vStatus = t => $('vstatus').textContent = t;
+const V = { id: null, meta: null, name: '', running: false, t0: 0 };
+const vBar = pct => $('vbar').style.width = Math.min(100, pct) + '%';
+const vStat = (html, rec) => $('vstat').innerHTML = (rec ? '<span class="dot"></span>' : '') + '<span>' + html + '</span>'
+  + (rec ? '<span class="cxl" id="vcxl">✕ Cancel</span>' : '');
 
 wireDrop('vdrop','vfile', async file => {
   if (V.running) return;
-  if (!/\.(mp4|mov|m4v)$/i.test(file.name)) return vStatus('✕ mp4 / mov only');
-  $('vresult').classList.add('hidden');
-  $('vgo').classList.add('off');
+  if (!/\.(mp4|mov|m4v)$/i.test(file.name)) return vStat('<span class="err">Rejected — mp4 / mov only</span>');
+  $('vres').classList.add('hidden'); $('vgo').classList.add('off');
   $('vinfo').textContent = file.name + ' · ' + fmtB(file.size);
-  vStatus('Uploading'); vMeter(0);
+  vStat('Uploading'); vBar(0);
   try {
-    const r = await upload('/upload', file, p => { vMeter(p*100); vStatus('Uploading · '+fmtB(file.size*p)+' of '+fmtB(file.size)); });
-    V.id = r.id; V.meta = r.meta;
+    const r = await upload('/upload', file, p => { vBar(p*100); vStat('Uploading '+Math.floor(p*100)+'%'); });
+    V.id = r.id; V.meta = r.meta; V.name = r.name;
+    $('vdrop').classList.add('loaded');
     $('vdrop').querySelector('.d1').textContent = r.name;
-    $('vdrop').querySelector('.d2').textContent = 'click to choose a different film';
+    $('vdrop').querySelector('.d2').textContent = 'tap to replace';
     $('vinfo').textContent = r.meta.width+'×'+r.meta.height+' · '+r.meta.fps+' fps · '
       + r.meta.codec+' · '+fmtT(r.meta.duration)+' · '+fmtB(r.meta.size);
     $('vgo').classList.remove('off');
-    vMeter(0); vStatus('Ready');
-    onOptChange('vopts');
-  } catch (e) { vMeter(0); vStatus('✕ '+e.message); }
+    vBar(0); vStat('Ready'); vWarnUpdate();
+  } catch (e) { vBar(0); vStat('<span class="err">'+e.message+'</span>'); }
 });
 
 $('vgo').onclick = async () => {
   if (!V.id || V.running) return;
   V.running = true; V.t0 = Date.now();
-  $('vgo').classList.add('off'); $('vcancel').classList.add('on');
-  $('vresult').classList.add('hidden');
-  vMeter(0); vStatus('Starting');
-  const stop = (msg) => { V.running = false; $('vcancel').classList.remove('on');
-    $('vgo').classList.remove('off'); if (msg) vStatus(msg); };
+  $('vgo').classList.add('off'); $('vres').classList.add('hidden');
+  vBar(0); vStat('Starting', true); wireCancel();
+  const stop = msg => { V.running = false; $('vgo').classList.remove('off'); if (msg) vStat(msg); };
   try {
     const resp = await fetch('/enhance', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ id: V.id, res: vOpts.res, fps: vOpts.fps, mode: vOpts.mode, enc: vOpts.enc }) });
+      body: JSON.stringify({ id: V.id, res: vOpts.res, fps: vOpts.fps, mode: vOpts.mode,
+        enc: vOpts.enc, speed: vOpts.speed }) });
     if (!resp.ok) throw new Error((await resp.json()).error || 'could not start');
     const es = new EventSource('/events?id='+V.id);
     es.onmessage = ev => {
       const d = JSON.parse(ev.data);
       if (d.type === 'progress') {
-        vMeter(d.pct);
-        const eta = d.speed > 0 ? (V.meta.duration - V.meta.duration*d.pct/100) / d.speed : 0;
-        vStatus('Enhancing · '+(d.speed?d.speed.toFixed(2)+'× realtime':'…')
-          +(eta>0.5?' · eta '+fmtT(eta):'')+(d.frame?' · frame '+d.frame:''));
+        vBar(d.pct);
+        vStat('Rendering '+Math.floor(d.pct)+'% · '+(d.speed?d.speed.toFixed(2)+'×':'…')
+          +(d.eta>0.5?' · ETA '+fmtT(d.eta):''), true);
+        wireCancel();
       } else if (d.type === 'done') {
-        es.close(); stop('✓ Master complete');
-        vMeter(100);
-        $('vno').textContent = '№ ' + (++masterNo);
-        $('vrtitle').textContent = d.name;
-        $('vresmeta').textContent = d.meta.width+'×'+d.meta.height+' · '+d.meta.fps+' fps · '
+        es.close(); stop(); vBar(100);
+        vStat('Master complete — '+fmtT((Date.now()-V.t0)/1000));
+        $('vresmeta').innerHTML = '<b>'+d.meta.width+'×'+d.meta.height+'</b> · '+d.meta.fps+' fps · '
           + d.meta.codec+' · '+fmtB(d.meta.size);
-        $('vrdesc').textContent = 'Mastered in '+fmtT((Date.now()-V.t0)/1000)+'.';
         $('vdl').href = '/download?id='+V.id;
         $('vprev').src = '/file?id='+V.id;
-        $('vresult').classList.remove('hidden');
+        $('vres').classList.remove('hidden');
       } else if (d.type === 'error') {
-        es.close(); stop('✕ '+(d.message||'ffmpeg failed'));
+        es.close(); stop('<span class="err">'+(d.message||'render failed')+'</span>');
       } else if (d.type === 'cancelled') {
-        es.close(); stop('Abandoned'); vMeter(0);
+        es.close(); stop('Cancelled'); vBar(0);
       }
     };
-    es.onerror = () => { if (V.running) vStatus('✕ lost the server'); };
-  } catch (e) { stop('✕ '+e.message); }
+    es.onerror = () => { if (V.running) vStat('<span class="err">Lost the server</span>'); };
+  } catch (e) { stop('<span class="err">'+e.message+'</span>'); }
 };
+function wireCancel(){
+  const c = $('vcxl');
+  if (c) c.onclick = () => fetch('/cancel', { method:'POST',
+    headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: V.id }) });
+}
 
-$('vcancel').onclick = () => V.id && fetch('/cancel', { method:'POST',
-  headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: V.id }) });
-
-// ═══ PHOTOGRAPH ═══
+// ═══ PHOTO ═══
 const I = { id: null, running: false };
-const iStatus = t => $('istatus').textContent = t;
+const iStat = html => $('istat').innerHTML = '<span>' + html + '</span>';
 
 wireDrop('idrop','ifile', async file => {
   if (I.running) return;
-  if (!/\.(jpe?g|png|heic|webp|tiff?)$/i.test(file.name)) return iStatus('✕ jpg / png / heic / webp / tiff only');
-  $('iresult').classList.add('hidden');
-  $('igo').classList.add('off');
+  if (!/\.(jpe?g|png|heic|webp|tiff?)$/i.test(file.name)) return iStat('<span class="err">Rejected — jpg / png / heic / webp / tiff only</span>');
+  $('ires').classList.add('hidden'); $('igo').classList.add('off');
   $('iinfo').textContent = file.name + ' · ' + fmtB(file.size);
-  iStatus('Uploading');
+  iStat('Uploading');
   try {
     const r = await upload('/upload-image', file, () => {});
     I.id = r.id;
+    $('idrop').classList.add('loaded');
     $('idrop').querySelector('.d1').textContent = r.name;
-    $('idrop').querySelector('.d2').textContent = 'click to choose a different photograph';
+    $('idrop').querySelector('.d2').textContent = 'tap to replace';
     $('iinfo').textContent = r.meta.width+'×'+r.meta.height+' · '+fmtB(r.meta.size);
     $('igo').classList.remove('off');
-    iStatus('Ready');
-  } catch (e) { iStatus('✕ '+e.message); }
+    iStat('Ready');
+  } catch (e) { iStat('<span class="err">'+e.message+'</span>'); }
 });
 
 $('igo').onclick = async () => {
   if (!I.id || I.running) return;
   I.running = true; const t0 = Date.now();
-  $('igo').classList.add('off'); $('iresult').classList.add('hidden');
-  iStatus('Enhancing');
+  $('igo').classList.add('off'); $('ires').classList.add('hidden');
+  iStat('Enhancing');
   try {
     const resp = await fetch('/enhance-image', { method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ id: I.id, scale: iOpts.scale, look: iOpts.look }) });
+      body: JSON.stringify({ id: I.id, scale: iOpts.scale, look: iOpts.look,
+        levels: iTog.levels, grain: iTog.grain }) });
     const d = await resp.json();
     if (!resp.ok) throw new Error(d.error || 'enhancement failed');
-    iStatus('✓ Enhanced');
-    $('ino').textContent = '№ ' + (++masterNo);
-    $('irtitle').textContent = d.name;
-    $('iresmeta').textContent = d.meta.width+'×'+d.meta.height+' · '+fmtB(d.meta.size);
-    $('irdesc').textContent = 'Enhanced in '+((Date.now()-t0)/1000).toFixed(1)+' seconds.';
+    iStat('Enhanced — '+((Date.now()-t0)/1000).toFixed(1)+'s');
+    $('iresmeta').innerHTML = '<b>'+d.meta.width+'×'+d.meta.height+'</b> · '+fmtB(d.meta.size);
     $('idl').href = '/download?id='+I.id;
     $('iprev').src = '/file?id='+I.id+'&t='+t0;
-    $('iresult').classList.remove('hidden');
-  } catch (e) { iStatus('✕ '+e.message); }
+    $('ires').classList.remove('hidden');
+  } catch (e) { iStat('<span class="err">'+e.message+'</span>'); }
   I.running = false; if (I.id) $('igo').classList.remove('off');
 };
-
-// hold-to-compare: press shows the original, release restores the master
 const iprev = $('iprev');
 const showOrig = on => { if (I.id) iprev.src = '/file?id='+I.id+(on?'&orig=1':''); };
 iprev.onpointerdown = e => { e.preventDefault(); showOrig(true); };
 iprev.onpointerup = iprev.onpointerleave = () => showOrig(false);
 iprev.oncontextmenu = e => e.preventDefault();
+
+// ═══ FRAMES ═══
+const F = { id: null, meta: null, name: '', busy: false, sel: new Map() }; // t → tile
+const fStat = html => $('fstat').innerHTML = '<span>' + html + '</span>';
+
+function fSetSource(id, meta, name){
+  F.id = id; F.meta = meta; F.name = name;
+  F.sel.clear(); $('fgrid').innerHTML = ''; fDlUpdate();
+  $('fdrop').classList.add('loaded');
+  $('fdrop').querySelector('.d1').textContent = name;
+  $('fdrop').querySelector('.d2').textContent = 'tap to replace';
+  $('finfo').textContent = meta.width+'×'+meta.height+' · '+meta.fps+' fps · '+fmtT(meta.duration);
+  $('fanalyze').classList.remove('off');
+  $('fscrub').classList.remove('hidden');
+  $('fvid').src = '/file?id='+id+'&orig=1';
+  fStat('Source loaded — find moments or scrub');
+}
+function fAdopt(){ if (!F.id && V.id) fSetSource(V.id, V.meta, V.name); }
+
+wireDrop('fdrop','ffile', async file => {
+  if (F.busy) return;
+  if (!/\.(mp4|mov|m4v)$/i.test(file.name)) return fStat('<span class="err">Rejected — mp4 / mov only</span>');
+  fStat('Uploading');
+  try {
+    const r = await upload('/upload', file, p => fStat('Uploading '+Math.floor(p*100)+'%'));
+    fSetSource(r.id, r.meta, r.name);
+  } catch (e) { fStat('<span class="err">'+e.message+'</span>'); }
+});
+
+let fCount = '12';
+document.querySelectorAll('#fcount span').forEach(o => o.onclick = () => {
+  document.querySelectorAll('#fcount span').forEach(x => x.classList.toggle('sel', x === o));
+  fCount = o.dataset.v;
+});
+
+$('fanalyze').onclick = async () => {
+  if (!F.id || F.busy) return;
+  F.busy = true; fStat('Scanning for distinct moments'); $('fanalyze').classList.add('off');
+  try {
+    const resp = await fetch('/frames/analyze', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id: F.id, count: +fCount }) });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.error || 'analysis failed');
+    $('fgrid').innerHTML = ''; F.sel.clear(); fDlUpdate();
+    for (const m of d.moments) fAddTile(m.t, '/frames/thumb?id='+F.id+'&i='+m.i+'&v='+Date.now());
+    fStat(d.moments.length + ' moments found — tap to select');
+  } catch (e) { fStat('<span class="err">'+e.message+'</span>'); }
+  F.busy = false; $('fanalyze').classList.remove('off');
+};
+
+function fAddTile(t, src){
+  const tile = document.createElement('div');
+  tile.className = 'tile';
+  tile.innerHTML = '<img alt=""><span class="tt">'+fmtT2(t)+'</span>';
+  tile.querySelector('img').src = src;
+  tile.onclick = () => {
+    if (F.sel.has(t)) { F.sel.delete(t); tile.classList.remove('sel'); }
+    else { F.sel.set(t, tile); tile.classList.add('sel'); }
+    fDlUpdate();
+  };
+  $('fgrid').appendChild(tile);
+  return tile;
+}
+
+const fvid = $('fvid');
+fvid.ontimeupdate = () => $('ftime').textContent = 'T ' + fmtT2(fvid.currentTime);
+$('fcap').onclick = () => {
+  if (!F.id || !fvid.videoWidth) return;
+  const t = +fvid.currentTime.toFixed(2);
+  if (F.sel.has(t)) return;
+  const c = document.createElement('canvas');
+  c.width = 400; c.height = Math.round(400 * fvid.videoHeight / fvid.videoWidth);
+  c.getContext('2d').drawImage(fvid, 0, 0, c.width, c.height);
+  const tile = fAddTile(t, c.toDataURL('image/jpeg', 0.8));
+  tile.click(); // captures arrive selected
+  fStat('Captured T '+fmtT2(t));
+};
+
+function fDlUpdate(){
+  const n = F.sel.size;
+  $('fdl').textContent = n ? '↓ Download '+n+' frame'+(n>1?'s':'')+' — highest quality' : '↓ Download frames';
+  $('fdl').classList.toggle('off', !n);
+}
+$('fdl').onclick = async () => {
+  const times = [...F.sel.keys()].sort((a,b)=>a-b);
+  if (!times.length) return;
+  if (times.length === 1) { location.href = '/frames/grab?id='+F.id+'&t='+times[0]; return; }
+  fStat('Extracting '+times.length+' frames at full quality');
+  try {
+    const resp = await fetch('/frames/zip', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id: F.id, times }) });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'zip failed');
+    const blob = await resp.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (F.name.replace(/\.[^.]+$/,'') || 'frames') + '-frames.zip';
+    a.click(); URL.revokeObjectURL(a.href);
+    fStat(times.length + ' frames saved');
+  } catch (e) { fStat('<span class="err">'+e.message+'</span>'); }
+};
 </script>
 </body>
 </html>
