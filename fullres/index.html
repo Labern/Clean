@@ -38,7 +38,7 @@ body{
   background-attachment:fixed;
   min-height:100svh;
   line-height:1.62;
-  font-size:clamp(13px,2.6vw,15px);
+  font-size:clamp(15px,3.2vw,18px);
 }
 .wrap{max-width:28rem;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom))}
 
@@ -137,6 +137,7 @@ footer summary::before{content:"› ";color:var(--accent)}
 footer details[open] summary::before{content:"▾ "}
 footer details p{margin-top:8px;line-height:1.7}
 footer .privacy{margin-top:14px}
+footer .madeby{margin-top:18px;color:var(--soft);letter-spacing:.06em}
 
 /* ── Debug ribbon (?wrap= override active) ── */
 #ribbon{
@@ -225,6 +226,7 @@ body.has-ribbon .wrap{padding-top:44px}
     so the recipient gets the exact original — every pixel, every byte.</p>
   </details>
   <div class="privacy">no servers · no accounts · no tracking</div>
+  <div class="madeby">Made by Labern 🐿️</div>
 </footer>
 
 </div>
