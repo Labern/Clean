@@ -80,7 +80,8 @@ body{
 /* ── results ── */
 .res .meta{font-size:16.5px;color:var(--mut);text-align:center}
 .res .meta b{color:var(--txt);font-weight:600}
-.save{display:block;width:fit-content;margin:12px auto 0;padding:10px 24px;border-radius:999px;
+.saves{text-align:center;margin-top:12px}
+.save{display:inline-block;margin:0 5px;padding:10px 24px;border-radius:999px;cursor:pointer;
   background:var(--acc-soft);color:var(--acc);font-size:16px;font-weight:600;text-decoration:none}
 .save:hover{background:var(--acc);color:#fff}
 .mediabox{margin-top:16px;border-radius:18px;overflow:hidden;background:var(--tint)}
@@ -163,7 +164,11 @@ body{
 
   <div class="card res hidden" id="vres">
     <div class="meta" id="vresmeta"></div>
-    <a class="save" id="vdl" href="#">Save video</a>
+    <div class="saves">
+      <a class="save" id="vdl" href="#">Save video</a>
+      <span class="save" id="vcmp">Before / after</span>
+      <a class="save hidden" id="vcmpdl" href="#">Save comparison</a>
+    </div>
     <div class="mediabox"><video id="vprev" controls playsinline></video></div>
   </div>
 </section>
@@ -207,7 +212,7 @@ body{
 
   <div class="card res hidden" id="ires">
     <div class="meta" id="iresmeta"></div>
-    <a class="save" id="idl" href="#">Save photo</a>
+    <div class="saves"><a class="save" id="idl" href="#">Save photo</a></div>
     <div class="mediabox"><img id="iprev" alt="enhanced photo"></div>
     <div class="hint">Press and hold the photo to compare with the original</div>
   </div>
@@ -417,6 +422,7 @@ $('vgo').onclick = async () => {
           + d.meta.codec+' · '+fmtB(d.meta.size);
         $('vdl').href = '/download?id='+V.id;
         $('vprev').src = '/file?id='+V.id;
+        $('vcmpdl').classList.add('hidden');
         $('vres').classList.remove('hidden');
       } else if (d.type === 'error') {
         es.close(); stop('<span class="err">'+(d.message||'The render failed')+'</span>');
@@ -432,6 +438,37 @@ function wireCancel(){
   if (c) c.onclick = () => fetch('/cancel', { method:'POST',
     headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: V.id }) });
 }
+
+// before / after: labels drawn here (server ffmpeg has no drawtext), overlaid there
+function makeLabel(text){
+  const c = document.createElement('canvas');
+  c.width = 800; c.height = 150;
+  const x = c.getContext('2d');
+  x.fillStyle = 'rgba(15,15,22,0.72)';
+  if (x.roundRect) { x.beginPath(); x.roundRect(0, 0, 800, 150, 36); x.fill(); }
+  else x.fillRect(0, 0, 800, 150);
+  x.font = '700 84px "Avenir Next","Helvetica Neue",sans-serif';
+  x.fillStyle = '#fff'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(text, 400, 82);
+  return c.toDataURL('image/png');
+}
+$('vcmp').onclick = async () => {
+  if (!V.id || V.running || V.cmpBusy) return;
+  V.cmpBusy = true;
+  vStat('Building before / after…');
+  try {
+    const resp = await fetch('/compare', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id: V.id,
+        labels: { orig: makeLabel('ORIGINAL'), enh: makeLabel('ENHANCED') } }) });
+    const d = await resp.json();
+    if (!resp.ok) throw new Error(d.error || 'comparison failed');
+    vStat('Comparison ready — original left, enhanced right');
+    $('vprev').src = '/file?id='+V.id+'&compare=1&t='+Date.now();
+    $('vcmpdl').href = '/download?id='+V.id+'&compare=1';
+    $('vcmpdl').classList.remove('hidden');
+  } catch (e) { vStat('<span class="err">'+e.message+'</span>'); }
+  V.cmpBusy = false;
+};
 
 // ═══ PHOTO ═══
 const I = { id: null, running: false };

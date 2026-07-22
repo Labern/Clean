@@ -34,7 +34,8 @@ function persistJobs() {
   for (const j of jobs.values()) {
     if (!['uploaded', 'done', 'error'].includes(j.status)) continue;
     plain.push({ id: j.id, kind: j.kind || 'video', src: j.src, name: j.name, meta: j.meta,
-      status: j.status, out: j.out, outName: j.outName, outMeta: j.outMeta, frames: j.frames });
+      status: j.status, out: j.out, outName: j.outName, outMeta: j.outMeta, frames: j.frames,
+      compare: j.compare });
   }
   try {
     fs.writeFileSync(JOBS_FILE + '.tmp', JSON.stringify(plain));
@@ -66,6 +67,12 @@ async function bootRestore() {
   for (const f of fs.readdirSync(OUTPUT)) {
     const m = /^([0-9a-f]{12})-(.+)$/.exec(f);
     if (!m || m[2].startsWith('frame-')) continue;
+    if (m[2] === 'compare.mp4') { // re-attach orphaned comparison renders
+      const cj = jobs.get(m[1]);
+      if (cj && !cj.compare) cj.compare = { out: path.join(OUTPUT, f),
+        name: path.basename(cj.name, path.extname(cj.name)) + '-before-after.mp4' };
+      continue;
+    }
     const j = jobs.get(m[1]);
     if (!j || j.out) continue;
     j.out = path.join(OUTPUT, f);
@@ -620,6 +627,63 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === 'POST' && url.pathname === '/compare') {
+      // proof render: original (naively upscaled, as a display would) beside the master
+      const { id, labels } = await readJson(req);
+      const job = jobs.get(id);
+      if (!job || job.kind !== 'video' || job.status !== 'done' || !job.out)
+        return json(res, 404, { error: 'no finished master to compare' });
+      const outMeta = job.outMeta || summarize(await probe(job.out));
+      const aspect = outMeta.width / outMeta.height;
+      let H = Math.min(outMeta.height, 2160);
+      if (2 * aspect * H > 8100) H = Math.floor(8100 / (2 * aspect)); // VideoToolbox width limit
+      H -= H % 2;
+      const F = outMeta.fps || job.meta.fps || 30;
+      const ratio = job.meta.duration > 0 ? outMeta.duration / job.meta.duration : 1;
+      const retime = ratio > 1.05 ? `setpts=${ratio.toFixed(4)}*PTS,` : '';
+      const lblH = Math.max(28, Math.round(H / 12));
+
+      const tmpLbls = [];
+      const writeLbl = (dataUrl, suffix) => {
+        if (!/^data:image\/png;base64,/.test(dataUrl || '')) return null;
+        const p = path.join(WORK, `lbl-${id}-${suffix}.png`);
+        fs.writeFileSync(p, Buffer.from(dataUrl.split(',')[1], 'base64'));
+        tmpLbls.push(p);
+        return p;
+      };
+      const lo = labels && writeLbl(labels.orig, 'o');
+      const le = labels && writeLbl(labels.enh, 'e');
+
+      let fc, inputs;
+      if (lo && le) {
+        inputs = ['-i', job.src, '-i', job.out, '-i', lo, '-i', le];
+        fc = `[0:v]${retime}fps=${F},scale=-2:${H}[L];[1:v]scale=-2:${H}[R];`
+          + `[2:v]scale=-2:${lblH}[lo];[3:v]scale=-2:${lblH}[le];`
+          + `[L][lo]overlay=16:16[Lo];[R][le]overlay=16:16[Ro];[Lo][Ro]hstack=inputs=2[v]`;
+      } else {
+        inputs = ['-i', job.src, '-i', job.out];
+        fc = `[0:v]${retime}fps=${F},scale=-2:${H}[L];[1:v]scale=-2:${H}[R];[L][R]hstack=inputs=2[v]`;
+      }
+      const base = path.basename(job.name, path.extname(job.name));
+      const cmpOut = path.join(OUTPUT, `${id}-compare.mp4`);
+      try {
+        await ffmpegOnce(['-y', '-hide_banner', ...inputs, '-filter_complex', fc,
+          '-map', '[v]', '-map', '1:a?', '-c:v', 'hevc_videotoolbox', '-q:v', '60',
+          '-allow_sw', '1', '-tag:v', 'hvc1', '-pix_fmt', 'yuv420p',
+          '-c:a', 'copy', '-shortest', '-movflags', '+faststart', cmpOut]);
+        const cmpMeta = summarize(await probe(cmpOut));
+        job.compare = { out: cmpOut, name: `${base}-before-after.mp4` };
+        persistJobs();
+        json(res, 200, { name: job.compare.name,
+          meta: { width: cmpMeta.width, height: cmpMeta.height, size: cmpMeta.size } });
+      } catch (e) {
+        json(res, 500, { error: e.message });
+      } finally {
+        for (const p of tmpLbls) fs.rm(p, { force: true }, () => {});
+      }
+      return;
+    }
+
     if (req.method === 'POST' && url.pathname === '/frames/analyze') {
       const { id, count } = await readJson(req);
       const job = jobs.get(id);
@@ -677,6 +741,10 @@ const server = http.createServer(async (req, res) => {
       if (!job) return json(res, 404, { error: 'no result' });
       if (url.searchParams.get('orig'))
         return sendFile(req, res, job.src, job.name, false);
+      if (url.searchParams.get('compare')) {
+        if (!job.compare) return json(res, 404, { error: 'no comparison yet' });
+        return sendFile(req, res, job.compare.out, job.compare.name, url.pathname === '/download');
+      }
       if (job.status !== 'done') return json(res, 404, { error: 'no result' });
       return sendFile(req, res, job.out, job.outName, url.pathname === '/download');
     }

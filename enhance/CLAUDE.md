@@ -51,6 +51,18 @@ the *original* upload (Range requests) with a CAPTURE button. Download:
 N frames → `/frames/zip`, a **zero-dep store-mode ZIP writer** in server.js
 (JPEGs don't recompress).
 
+## Before/after compare (proof render)
+
+`POST /compare {id, labels?}` on a finished video master → side-by-side
+original|enhanced at the master's resolution (original naively upscaled, as a
+display would — the honest comparison), H capped 2160 and total width ≤8100
+(VideoToolbox limit). Slo-mo masters retime the original side by
+`setpts=(outDur/srcDur)*PTS` so timelines align. **brew ffmpeg has no
+drawtext** — the client renders ORIGINAL/ENHANCED label PNGs with canvas and
+POSTs them as data URLs; server overlays at H/12. Output
+`<id>-compare.mp4`, served via `/file|/download?id&compare=1`, persisted as
+`job.compare`, orphan-restored at boot.
+
 ## Gotchas
 
 - ffmpeg's `-progress` emits `out_time_us`/`out_time_ms` — **both are µs**.
