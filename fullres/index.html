@@ -138,8 +138,6 @@ footer details[open] summary::before{content:"▾ "}
 footer details p{margin-top:8px;line-height:1.7}
 footer .privacy{margin-top:14px}
 footer .madeby{margin-top:18px;color:var(--soft);letter-spacing:.06em}
-footer .qrfoot{display:flex;justify-content:center;margin-top:16px}
-footer .qrfoot svg{width:min(140px,40vw);height:auto;border-radius:8px}
 
 /* ── Debug ribbon (?wrap= override active) ── */
 #ribbon{
@@ -229,7 +227,6 @@ body.has-ribbon .wrap{padding-top:44px}
   </details>
   <div class="privacy">no servers · no accounts · no tracking</div>
   <div class="madeby">Made by Labern 🐿️</div>
-  <div class="qrfoot" id="qrfoot" aria-hidden="true"></div>
 </footer>
 
 </div>
@@ -416,10 +413,6 @@ function renderQr(){
   } catch (e){ /* QR failed — the URL text below still does the job */ }
   $('urltext').textContent = cleanUrl;
 }
-/* Footer QR — always present at the end of the page (house rule).
-   SVG fills use CSS vars, so theme toggles recolour it live — no re-render. */
-try { $('qrfoot').innerHTML = qrToSvg(cleanUrl); } catch (e){ /* cosmetic */ }
-
 if (!supported){
   setState('unsupported');
   renderQr();
