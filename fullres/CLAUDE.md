@@ -31,7 +31,12 @@ Related levers, commented in the code:
 - Never read the picked file's bytes (no `arrayBuffer`/`FileReader`) — the
   `new File([f],…)` wrap is lazy (no copy), which is what makes 2 GB videos fine.
 
-## Device verification matrix (Phase 2 — fill this in)
+## Device verification matrix (Phase 2 — CLOSED 2026-07-22)
+**Verified by Labern on his real iPhone: the `'octet'` strategy works** — files
+arrive via the document flow at original quality. `WRAP_STRATEGY = 'octet'` is
+locked. The cell-by-cell matrix below was never filled in and doesn't need to
+be; it's kept only as the diagnostic recipe if WhatsApp's behaviour ever changes.
+
 For each cell: device × file × `?wrap=` → record (a) picked-state readout shows
 original type/size, (b) which WhatsApp flow opens (contact picker = document ✓,
 caption/media screen = strategy failed ✗), (c) bubble type on receipt,
