@@ -12,6 +12,9 @@ no build step, no dependencies.
 - `file` — an empty test file from early in the session. Safe to ignore or delete.
 - `ClaudeUsageMonitor/` — a macOS menu bar app (Swift Package, SwiftUI) showing
   a live "% of Claude plan used" gauge. See its own section below.
+- `fullres/` — FullRes: send photos/videos via WhatsApp at original quality
+  (share-as-document trick, zero compression). Single-file web app, live at
+  `labern.github.io/Clean/fullres/`. See `fullres/CLAUDE.md`.
 
 ## Commands
 Top-level dir: none — `index.html` is static, just `open` it.

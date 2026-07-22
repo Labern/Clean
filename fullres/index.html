@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0a14">
+<title>FullRes — WhatsApp, zero compression</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0a14'/%3E%3Crect x='14' y='14' width='36' height='36' rx='6' fill='none' stroke='%2325d366' stroke-width='6'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%2325d366'/%3E%3C/svg%3E">
+<style>
+/* ── Theme tokens — every colour lives here. Dark is default; .theme-light on <html> overrides. ── */
+:root{
+  --bg1:#0b0a14; --bg2:#181432; --bg3:#0f0d1f;
+  --panel:rgba(255,255,255,.035); --panel-2:rgba(255,255,255,.06);
+  --line:rgba(255,255,255,.11); --line-soft:rgba(255,255,255,.06);
+  --text:#e8e6f4; --soft:#9a95b8; --faint:#6c6787;
+  --accent:#25d366; --accent-hi:#3ee07c; --accent-ink:#04140a;
+  --ok:#5eead4; --danger:#ff8fa3; --focus:#a78bfa;
+  --violet:#a78bfa; --pink:#f472b6;
+  --qr-fg:#e8e6f4; --qr-bg:#0b0a14;
+}
+.theme-light{
+  --bg1:#f6f5fb; --bg2:#eceaf6; --bg3:#f2f0fa;
+  --panel:rgba(20,16,50,.045); --panel-2:rgba(20,16,50,.07);
+  --line:rgba(20,16,50,.16); --line-soft:rgba(20,16,50,.08);
+  --text:#221e3a; --soft:#5b5678; --faint:#8a86a5;
+  --accent:#17a24f; --accent-hi:#1fae56; --accent-ink:#ffffff;
+  --ok:#0d9488; --danger:#d43f5e; --focus:#7c5ce0;
+  --violet:#7c5ce0; --pink:#d6488f;
+  --qr-fg:#221e3a; --qr-bg:#f6f5fb;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:"Menlo","SF Mono","Consolas",monospace;
+  color:var(--text);
+  background:linear-gradient(160deg,var(--bg1),var(--bg2) 55%,var(--bg3));
+  background-attachment:fixed;
+  min-height:100svh;
+  line-height:1.62;
+  font-size:clamp(13px,2.6vw,15px);
+}
+.wrap{max-width:28rem;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 20px calc(28px + env(safe-area-inset-bottom))}
+
+/* ── Header ── */
+header{display:flex;align-items:baseline;gap:10px;margin:6px 0 4px}
+.mark{font-weight:700;font-size:1.25em;letter-spacing:.28em}
+.mark .fx{color:var(--accent)}
+#themeToggle{
+  margin-left:auto;background:none;border:1px solid var(--line);color:var(--soft);
+  border-radius:8px;width:34px;height:34px;font-size:15px;cursor:pointer;line-height:1;
+}
+#themeToggle:hover{color:var(--text)}
+.tagline{color:var(--soft);margin-bottom:22px}
+.tagline b{color:var(--text);font-weight:700}
+
+/* ── State machine: sections show/hide off <body data-state> ── */
+section{display:none}
+body[data-state="idle"]        #s-idle,
+body[data-state="picked"]      #s-picked,
+body[data-state="sharing"]     #s-picked,
+body[data-state="shared"]      #s-shared,
+body[data-state="unsupported"] #s-unsupported{display:block}
+
+/* ── Idle: the pick card ── */
+.pick{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+  min-height:38vh;border:2px dashed var(--line);border-radius:18px;
+  background:var(--panel);cursor:pointer;text-align:center;padding:28px 18px;
+  transition:border-color .15s,background .15s;
+}
+.pick:hover,.pick.drag{border-color:var(--accent);background:var(--panel-2)}
+.pick .glyph{font-size:34px;line-height:1;color:var(--accent)}
+.pick .cta{font-weight:700}
+.pick .sub{color:var(--faint);font-size:.86em}
+
+/* ── Picked: preview + send ── */
+.card{border:1px solid var(--line);border-radius:16px;background:var(--panel);overflow:hidden}
+.preview{display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.25);min-height:120px;max-height:42vh;overflow:hidden}
+.theme-light .preview{background:rgba(20,16,50,.06)}
+.preview img,.preview video{max-width:100%;max-height:42vh;display:block}
+.preview .typeglyph{font-size:40px;color:var(--faint);padding:34px 0}
+.meta{padding:14px 16px;border-top:1px solid var(--line-soft)}
+.fname{font-weight:700;word-break:break-all}
+.fbytes{color:var(--soft);font-size:.9em}
+.ftype{color:var(--faint);font-size:.82em}
+.badge{
+  display:inline-block;margin-top:8px;padding:2px 10px;border-radius:99px;
+  border:1px solid var(--ok);color:var(--ok);font-size:.78em;letter-spacing:.12em;font-weight:700;
+}
+.actions{margin-top:16px;display:flex;flex-direction:column;gap:12px}
+.btn{
+  width:100%;min-height:52px;border:none;border-radius:14px;cursor:pointer;
+  font-family:inherit;font-size:1.05em;font-weight:700;letter-spacing:.02em;
+  background:var(--accent);color:var(--accent-ink);
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.btn:hover{background:var(--accent-hi)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn .spin{display:none;width:16px;height:16px;border:2px solid var(--accent-ink);border-top-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+body[data-state="sharing"] .btn .spin{display:inline-block}
+@keyframes spin{to{transform:rotate(360deg)}}
+.linkbtn{background:none;border:none;color:var(--soft);font-family:inherit;font-size:.92em;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.linkbtn:hover{color:var(--text)}
+.hint{color:var(--faint);font-size:.86em;margin-top:12px;text-align:center}
+
+/* ── Shared ── */
+.done{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:30px 20px;text-align:center}
+.done .check{font-size:34px;color:var(--accent);line-height:1}
+.done h2{font-size:1.05em;margin:10px 0 4px}
+.done p{color:var(--soft);font-size:.92em}
+.done .actions{margin-top:18px}
+
+/* ── Unsupported (desktop) ── */
+.qrcard{border:1px solid var(--line);border-radius:16px;background:var(--panel);padding:26px 20px;text-align:center}
+.qrcard h2{font-size:1.1em}
+.qrcard p{color:var(--soft);font-size:.92em;margin-top:6px}
+.qrbox{display:flex;justify-content:center;margin:20px 0 8px}
+.qrbox svg{width:min(220px,64vw);height:auto;border-radius:10px}
+.urltext{color:var(--faint);font-size:.8em;word-break:break-all;margin-top:8px}
+
+/* ── Error banner ── */
+#err{
+  display:none;margin:14px 0 0;padding:10px 14px;border:1px solid var(--danger);
+  border-radius:12px;color:var(--danger);font-size:.9em;background:var(--panel);
+}
+#err.show{display:block}
+#warn{display:none;margin:10px 0 0;color:var(--pink);font-size:.86em;text-align:center}
+#warn.show{display:block}
+
+/* ── Footer ── */
+footer{margin-top:26px;color:var(--faint);font-size:.82em;text-align:center}
+footer details{margin-top:10px;text-align:left}
+footer summary{cursor:pointer;color:var(--soft);text-align:center;list-style:none}
+footer summary::-webkit-details-marker{display:none}
+footer summary::before{content:"› ";color:var(--accent)}
+footer details[open] summary::before{content:"▾ "}
+footer details p{margin-top:8px;line-height:1.7}
+footer .privacy{margin-top:14px}
+
+/* ── Debug ribbon (?wrap= override active) ── */
+#ribbon{
+  display:none;position:fixed;top:0;left:0;right:0;z-index:9;
+  background:var(--violet);color:var(--bg1);font-size:.78em;font-weight:700;
+  text-align:center;padding:3px 8px;letter-spacing:.08em;
+}
+#ribbon.show{display:block}
+body.has-ribbon .wrap{padding-top:44px}
+
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body data-state="idle">
+<div id="ribbon" role="status"></div>
+<div class="wrap">
+
+<header>
+  <div class="mark">FULL<span class="fx">RES</span></div>
+  <button id="themeToggle" aria-label="Toggle light/dark theme">◐</button>
+</header>
+<p class="tagline">Send photos &amp; videos on WhatsApp. <b>Zero compression.</b></p>
+
+<section id="s-idle">
+  <label class="pick" for="picker" id="dropzone">
+    <span class="glyph">▣</span>
+    <span class="cta">Pick a photo or video</span>
+    <span class="sub">Original file · up to 2&nbsp;GB</span>
+  </label>
+  <input type="file" id="picker" hidden
+         accept="image/*,video/*,image/heic,image/heif,video/quicktime,video/mp4">
+  <!-- If iOS ever transcodes HEIC→JPEG despite the explicit accept entries,
+       the fallback lever is removing the accept attribute entirely. -->
+</section>
+
+<section id="s-picked">
+  <div class="card">
+    <div class="preview" id="preview"></div>
+    <div class="meta">
+      <div class="fname" id="fname"></div>
+      <div class="fbytes" id="fbytes"></div>
+      <div class="ftype" id="ftype"></div>
+      <span class="badge">0% QUALITY LOSS</span>
+    </div>
+  </div>
+  <div class="actions">
+    <button class="btn" id="sendBtn">
+      <span class="spin" aria-hidden="true"></span><span id="sendLabel">Send via WhatsApp</span>
+    </button>
+    <button class="linkbtn" id="repick">Choose a different file</button>
+  </div>
+  <p class="hint">WhatsApp will treat this as a document — it arrives untouched.</p>
+  <p id="warn" role="status"></p>
+</section>
+
+<section id="s-shared">
+  <div class="done">
+    <div class="check">✓</div>
+    <h2>Handed to WhatsApp.</h2>
+    <p>It arrives as a document — every byte intact.</p>
+    <p id="extHint" style="display:none">Tell the recipient to remove “.wa” from the end of the filename.</p>
+    <div class="actions"><button class="btn" id="again">Send another</button></div>
+  </div>
+</section>
+
+<section id="s-unsupported">
+  <div class="qrcard">
+    <h2>This works on your phone.</h2>
+    <p>Open this page on your iPhone or Android — that’s where WhatsApp lives.</p>
+    <div class="qrbox" id="qrbox"></div>
+    <div class="urltext" id="urltext"></div>
+    <div class="actions"><button class="btn" id="copyLink">Copy link</button></div>
+  </div>
+</section>
+
+<div id="err" role="alert"></div>
+
+<footer>
+  <div>Nothing uploads anywhere. The file goes straight from this page into WhatsApp.</div>
+  <details>
+    <summary>How it works</summary>
+    <p>WhatsApp recompresses every photo and video sent the normal way — even “HD”.
+    But files sent as <b>documents</b> are never touched, up to 2&nbsp;GB.
+    This page hands your file to WhatsApp in a way it treats as a document,
+    so the recipient gets the exact original — every pixel, every byte.</p>
+  </details>
+  <div class="privacy">no servers · no accounts · no tracking</div>
+</footer>
+
+</div>
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════════════
+   ONE KNOB. Locked from the Phase-2 device matrix — see CLAUDE.md.
+   'octet'     → keep filename, MIME application/octet-stream  (primary bet)
+   'octet+ext' → also append '.wa' to the filename              (fallback)
+   'none'      → pass the file through untouched                (baseline/testing)
+   Override per-visit for testing: ?wrap=none|octet|octet+ext
+   ═══════════════════════════════════════════════════════════════════ */
+const WRAP_STRATEGY = 'octet';
+
+const params = new URLSearchParams(location.search);
+const wrapParam = params.get('wrap');
+const WRAP = ['none','octet','octet+ext'].includes(wrapParam) ? wrapParam : WRAP_STRATEGY;
+
+const MAX_BYTES = 2 * 1024 * 1024 * 1024; // WhatsApp document ceiling: 2 GB
+
+const COPY = {
+  cantShare:   'Your browser refused to hand this file over. Try a different file, or update your phone.',
+  wrapFallback:'Sent as-is — WhatsApp may treat it as media and compress it.',
+  tapAgain:    'The moment passed — tap Send again.',
+  shareFailed: 'Sharing failed. Try again.',
+  tooBig:      'WhatsApp’s limit is 2 GB. This file is over it.',
+  empty:       'That file looks empty — if it lives in iCloud, wait for it to download, then pick it again.',
+};
+
+const $ = id => document.getElementById(id);
+let picked = null, objectUrl = null;
+
+/* ── Wrap: re-type the file so WhatsApp's share extension sees a document,
+      not a photo. new File([f],...) wraps the Blob lazily — no byte copy,
+      so 2 GB videos are fine. NEVER read the bytes (no arrayBuffer/FileReader
+      on the picked file); previews use createObjectURL only. ── */
+function wrapFile(f){
+  if (WRAP === 'none') return f;
+  const name = WRAP === 'octet+ext' ? f.name + '.wa' : f.name;
+  return new File([f], name, { type: 'application/octet-stream', lastModified: f.lastModified });
+}
+
+/* v2 hook: optional caption lands here. NOTE: iOS drops `text` when `files`
+   is present, and extra text can push WhatsApp into its media flow — v1 sends
+   the file alone on purpose. */
+function buildSharePayload(file){ return { files: [file] }; }
+
+function setState(s){ document.body.dataset.state = s; hideError(); }
+function showError(msg){ const e = $('err'); e.textContent = msg; e.classList.add('show'); }
+function hideError(){ $('err').classList.remove('show'); }
+function warn(msg){ const w = $('warn'); w.textContent = msg; w.classList.add('show'); }
+
+function human(n){
+  if (n < 1024) return n + ' B';
+  const u = ['KB','MB','GB']; let i = -1;
+  do { n /= 1024; i++; } while (n >= 1024 && i < u.length - 1);
+  return n.toFixed(n >= 100 ? 0 : 1) + ' ' + u[i];
+}
+function middleTrunc(s, max = 36){
+  return s.length <= max ? s : s.slice(0, max - 14) + '…' + s.slice(-13);
+}
+
+/* ── Capability probe ── */
+const probe = new File([new Blob([new Uint8Array(1)])], 'probe.bin', { type: 'application/octet-stream' });
+const supported = !!(navigator.canShare && navigator.canShare({ files: [probe] }));
+
+/* ── File intake ── */
+function takeFile(f){
+  if (!f) return;
+  hideError();
+  $('warn').classList.remove('show');
+  if (objectUrl){ URL.revokeObjectURL(objectUrl); objectUrl = null; }
+  picked = f;
+
+  const pv = $('preview'); pv.innerHTML = '';
+  const isImg = /^image\//.test(f.type), isVid = /^video\//.test(f.type);
+  if (isImg || isVid){
+    objectUrl = URL.createObjectURL(f);
+    const el = document.createElement(isImg ? 'img' : 'video');
+    el.src = objectUrl;
+    if (isVid){ el.muted = true; el.playsInline = true; el.preload = 'metadata'; }
+    el.onerror = () => { pv.innerHTML = ''; pv.appendChild(typeGlyph(f)); }; // e.g. HEIC on Android — cosmetic only
+    pv.appendChild(el);
+  } else {
+    pv.appendChild(typeGlyph(f));
+  }
+
+  $('fname').textContent = middleTrunc(f.name);
+  $('fbytes').textContent = human(f.size) + ' · ' + f.size.toLocaleString() + ' bytes';
+  $('ftype').textContent = (f.type || 'unknown type') + ' · wrap: ' + WRAP;
+
+  const tooBig = f.size > MAX_BYTES, empty = f.size === 0;
+  $('sendBtn').disabled = tooBig || empty;
+  setState('picked');
+  if (tooBig) showError(COPY.tooBig);
+  else if (empty) showError(COPY.empty);
+}
+function typeGlyph(f){
+  const d = document.createElement('div');
+  d.className = 'typeglyph';
+  d.textContent = '⬒ ' + (f.name.split('.').pop() || 'file').toUpperCase();
+  return d;
+}
+
+$('picker').addEventListener('change', e => {
+  takeFile(e.target.files[0]);
+  e.target.value = ''; // so re-picking the same file re-fires
+});
+
+/* Drag & drop (macOS Safari can file-share too) — terra-cognita pattern */
+window.addEventListener('dragover', e => { e.preventDefault(); $('dropzone')?.classList.add('drag'); });
+window.addEventListener('dragleave', () => $('dropzone')?.classList.remove('drag'));
+window.addEventListener('drop', e => {
+  e.preventDefault(); $('dropzone')?.classList.remove('drag');
+  if (supported) takeFile(e.dataTransfer.files[0]);
+});
+
+/* ── Send. No awaits before navigator.share — the user-gesture token
+      must survive to the call. ── */
+$('sendBtn').addEventListener('click', async () => {
+  if (!picked) return;
+  let out = wrapFile(picked);
+  if (!navigator.canShare(buildSharePayload(out))){
+    out = picked;                                   // strategy fallback: try untouched
+    if (!navigator.canShare(buildSharePayload(out))) return showError(COPY.cantShare);
+    warn(COPY.wrapFallback);
+  }
+  setState('sharing');
+  $('sendBtn').disabled = true;
+  try {
+    await navigator.share(buildSharePayload(out));
+    $('extHint').style.display = WRAP === 'octet+ext' ? 'block' : 'none';
+    setState('shared');
+  } catch (e){
+    setState('picked');
+    if (e.name === 'AbortError'){ /* user closed the sheet — silent */ }
+    else if (e.name === 'NotAllowedError') showError(COPY.tapAgain);
+    else showError(COPY.shareFailed);
+  } finally {
+    $('sendBtn').disabled = false;
+  }
+});
+
+function reset(){
+  picked = null;
+  if (objectUrl){ URL.revokeObjectURL(objectUrl); objectUrl = null; }
+  $('preview').innerHTML = '';
+  $('warn').classList.remove('show');
+  setState('idle');
+}
+$('repick').addEventListener('click', reset);
+$('again').addEventListener('click', reset);
+
+/* ── Theme ── */
+const THEME_KEY = 'fullres-theme';
+function applyTheme(t){
+  document.documentElement.classList.toggle('theme-light', t === 'light');
+  document.querySelector('meta[name=theme-color]').content = t === 'light' ? '#f6f5fb' : '#0b0a14';
+}
+let theme = localStorage.getItem(THEME_KEY) || 'dark';
+applyTheme(theme);
+$('themeToggle').addEventListener('click', () => {
+  theme = theme === 'dark' ? 'light' : 'dark';
+  localStorage.setItem(THEME_KEY, theme);
+  applyTheme(theme);
+  if (!supported) renderQr(); // re-render in new token colours
+});
+
+/* ── Debug ribbon ── */
+if (wrapParam){
+  const r = $('ribbon');
+  r.textContent = 'wrap override: ' + WRAP;
+  r.classList.add('show');
+  document.body.classList.add('has-ribbon');
+}
+
+/* ── Unsupported screen ── */
+const cleanUrl = location.origin + location.pathname;
+function renderQr(){
+  const box = $('qrbox'); box.innerHTML = '';
+  try {
+    box.innerHTML = qrToSvg(cleanUrl);
+  } catch (e){ /* QR failed — the URL text below still does the job */ }
+  $('urltext').textContent = cleanUrl;
+}
+if (!supported){
+  setState('unsupported');
+  renderQr();
+  $('copyLink').addEventListener('click', async () => {
+    try { await navigator.clipboard.writeText(cleanUrl); }
+    catch (e){
+      const t = document.createElement('textarea');
+      t.value = cleanUrl; document.body.appendChild(t); t.select();
+      document.execCommand('copy'); t.remove();
+    }
+    const b = $('copyLink'); b.textContent = 'Copied';
+    setTimeout(() => b.textContent = 'Copy link', 1500);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   QR encoder — compact port of Project Nayuki's qrcodegen (MIT licence,
+   https://www.nayuki.io/page/qr-code-generator-library), byte mode only,
+   ECC level M, versions 1–6 (≈106 bytes capacity — plenty for this URL).
+   Self-contained: no network, no dependency, per house rules.
+   ═══════════════════════════════════════════════════════════════════ */
+function qrToSvg(text){
+  const ECC_M_PER_BLOCK = [-1,10,16,26,18,24,16];
+  const ECC_M_BLOCKS    = [-1, 1, 1, 1, 2, 2, 4];
+  const data = new TextEncoder().encode(text);
+
+  function rawModules(v){
+    let r = (16*v + 128)*v + 64;
+    if (v >= 2){ const a = Math.floor(v/7) + 2; r -= (25*a - 10)*a - 55; }
+    return r;
+  }
+  function dataCodewords(v){
+    return Math.floor(rawModules(v)/8) - ECC_M_PER_BLOCK[v]*ECC_M_BLOCKS[v];
+  }
+  let ver = 0;
+  for (let v = 1; v <= 6; v++){
+    if (4 + 8 + data.length*8 <= dataCodewords(v)*8){ ver = v; break; }
+  }
+  if (!ver) throw new Error('too long');
+  const size = ver*4 + 17;
+
+  // ── bit buffer: mode 0100, 8-bit count, data, terminator, pads ──
+  const bits = [];
+  const pushBits = (val, n) => { for (let i = n-1; i >= 0; i--) bits.push((val >>> i) & 1); };
+  pushBits(4, 4);
+  pushBits(data.length, 8);
+  data.forEach(b => pushBits(b, 8));
+  const cap = dataCodewords(ver)*8;
+  pushBits(0, Math.min(4, cap - bits.length));
+  if (bits.length % 8) pushBits(0, 8 - bits.length % 8);
+  for (let pad = 0xEC; bits.length < cap; pad ^= 0xEC ^ 0x11) pushBits(pad, 8);
+  const dataCw = [];
+  for (let i = 0; i < bits.length; i += 8)
+    dataCw.push(bits.slice(i, i+8).reduce((a,b) => a<<1 | b, 0));
+
+  // ── Reed–Solomon over GF(2^8 / 0x11D) ──
+  function gfMul(x, y){
+    let z = 0;
+    for (let i = 7; i >= 0; i--){
+      z = (z << 1) ^ ((z >>> 7) * 0x11D);
+      z ^= ((y >>> i) & 1) * x;
+    }
+    return z;
+  }
+  function rsDivisor(deg){
+    const r = new Array(deg).fill(0); r[deg-1] = 1;
+    let root = 1;
+    for (let i = 0; i < deg; i++){
+      for (let j = 0; j < deg; j++){
+        r[j] = gfMul(r[j], root);
+        if (j + 1 < deg) r[j] ^= r[j+1];
+      }
+      root = gfMul(root, 2);
+    }
+    return r;
+  }
+  function rsRemainder(dat, div){
+    const r = div.map(() => 0);
+    for (const b of dat){
+      const f = b ^ r.shift();
+      r.push(0);
+      div.forEach((c, i) => r[i] ^= gfMul(c, f));
+    }
+    return r;
+  }
+
+  // ── split into blocks, compute ECC, interleave ──
+  const numBlocks = ECC_M_BLOCKS[ver], eccLen = ECC_M_PER_BLOCK[ver];
+  const rawCw = Math.floor(rawModules(ver)/8);
+  const numShort = numBlocks - rawCw % numBlocks;
+  const shortLen = Math.floor(rawCw / numBlocks);
+  const div = rsDivisor(eccLen);
+  const blocks = [];
+  for (let i = 0, k = 0; i < numBlocks; i++){
+    const dLen = shortLen - eccLen + (i < numShort ? 0 : 1);
+    const dat = dataCw.slice(k, k + dLen); k += dLen;
+    const ecc = rsRemainder(dat, div);
+    if (i < numShort) dat.push(0);       // placeholder, skipped in interleave
+    blocks.push(dat.concat(ecc));
+  }
+  const allCw = [];
+  for (let i = 0; i < blocks[0].length; i++)
+    blocks.forEach((blk, j) => {
+      if (i !== shortLen - eccLen || j >= numShort) allCw.push(blk[i]);
+    });
+
+  // ── matrix ──
+  const mod = Array.from({length: size}, () => new Array(size).fill(false));
+  const fun = Array.from({length: size}, () => new Array(size).fill(false));
+  const setF = (x, y, dark) => { mod[y][x] = dark; fun[y][x] = true; };
+
+  for (let i = 0; i < size; i++){ setF(6, i, i % 2 === 0); setF(i, 6, i % 2 === 0); }
+  function finder(x, y){
+    for (let dy = -4; dy <= 4; dy++) for (let dx = -4; dx <= 4; dx++){
+      const xx = x + dx, yy = y + dy;
+      if (xx < 0 || xx >= size || yy < 0 || yy >= size) continue;
+      const d = Math.max(Math.abs(dx), Math.abs(dy));
+      setF(xx, yy, d !== 2 && d !== 4);
+    }
+  }
+  finder(3, 3); finder(size - 4, 3); finder(3, size - 4);
+  if (ver >= 2){
+    const numAlign = Math.floor(ver/7) + 2;
+    const step = Math.ceil((ver*4 + 4)/(numAlign*2 - 2))*2;
+    const pos = [6];
+    for (let p = size - 7; pos.length < numAlign; p -= step) pos.splice(1, 0, p);
+    const last = pos.length - 1;
+    for (let i = 0; i <= last; i++) for (let j = 0; j <= last; j++){
+      if ((i === 0 && j === 0) || (i === 0 && j === last) || (i === last && j === 0)) continue;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++)
+        setF(pos[i] + dx, pos[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+    }
+  }
+  function formatBits(mask){
+    const d = mask;                       // ECC M format bits = 00, so data = 0<<3 | mask
+    let rem = d;
+    for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+    const b = (d << 10 | rem) ^ 0x5412;
+    const bit = i => ((b >>> i) & 1) !== 0;
+    for (let i = 0; i <= 5; i++) setF(8, i, bit(i));
+    setF(8, 7, bit(6)); setF(8, 8, bit(7)); setF(7, 8, bit(8));
+    for (let i = 9; i < 15; i++) setF(14 - i, 8, bit(i));
+    for (let i = 0; i < 8; i++) setF(size - 1 - i, 8, bit(i));
+    for (let i = 8; i < 15; i++) setF(8, size - 15 + i, bit(i));
+    setF(8, size - 8, true);              // always-dark module
+  }
+  formatBits(0); // dummy — real mask stamped after selection
+
+  // ── zigzag data placement ──
+  let bi = 0;
+  for (let right = size - 1; right >= 1; right -= 2){
+    if (right === 6) right = 5;
+    for (let vert = 0; vert < size; vert++){
+      for (let j = 0; j < 2; j++){
+        const x = right - j;
+        const upward = ((right + 1) & 2) === 0;
+        const y = upward ? size - 1 - vert : vert;
+        if (!fun[y][x] && bi < allCw.length*8){
+          mod[y][x] = ((allCw[bi >>> 3] >>> (7 - (bi & 7))) & 1) !== 0;
+          bi++;
+        }
+      }
+    }
+  }
+
+  // ── masking: try all 8, keep lowest penalty ──
+  const MASKS = [
+    (x,y) => (x + y) % 2 === 0,
+    (x,y) => y % 2 === 0,
+    (x,y) => x % 3 === 0,
+    (x,y) => (x + y) % 3 === 0,
+    (x,y) => (Math.floor(x/3) + Math.floor(y/2)) % 2 === 0,
+    (x,y) => x*y % 2 + x*y % 3 === 0,
+    (x,y) => (x*y % 2 + x*y % 3) % 2 === 0,
+    (x,y) => ((x + y) % 2 + x*y % 3) % 2 === 0,
+  ];
+  function applyMask(m){
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++)
+      if (!fun[y][x] && MASKS[m](x, y)) mod[y][x] = !mod[y][x];
+  }
+  function lineRuns(line){
+    let p = 0;
+    for (let i = 0, run = 1; i < line.length; i++, run++){
+      if (i === 0 || line[i] !== line[i-1]) run = 1;
+      if (run === 5) p += 3; else if (run > 5) p += 1;
+    }
+    const pat = [1,0,1,1,1,0,1];
+    for (let i = 0; i + 7 <= line.length; i++){
+      let hit = true;
+      for (let k = 0; k < 7; k++) if (!!line[i+k] !== !!pat[k]){ hit = false; break; }
+      if (!hit) continue;
+      const before = i >= 4 && line.slice(i-4, i).every(v => !v);
+      const after  = i + 11 <= line.length && line.slice(i+7, i+11).every(v => !v);
+      if (before || after) p += 40;
+    }
+    return p;
+  }
+  function penalty(){
+    let p = 0, dark = 0;
+    for (let y = 0; y < size; y++) p += lineRuns(mod[y]);
+    for (let x = 0; x < size; x++) p += lineRuns(mod.map(r => r[x]));
+    for (let y = 0; y < size - 1; y++) for (let x = 0; x < size - 1; x++)
+      if (mod[y][x] === mod[y][x+1] && mod[y][x] === mod[y+1][x] && mod[y][x] === mod[y+1][x+1]) p += 3;
+    mod.forEach(r => r.forEach(c => { if (c) dark++; }));
+    const total = size*size;
+    p += (Math.ceil(Math.abs(dark*20 - total*10)/total) - 1) * 10;
+    return p;
+  }
+  let best = 0, bestP = Infinity;
+  for (let m = 0; m < 8; m++){
+    applyMask(m); formatBits(m);
+    const p = penalty();
+    if (p < bestP){ bestP = p; best = m; }
+    applyMask(m); // undo (XOR is its own inverse)
+  }
+  applyMask(best); formatBits(best);
+
+  // ── SVG ──
+  const border = 3, dim = size + border*2;
+  let path = '';
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++)
+    if (mod[y][x]) path += `M${x + border} ${y + border}h1v1h-1z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${dim} ${dim}" role="img" aria-label="QR code linking to this page">` +
+         `<rect width="${dim}" height="${dim}" fill="var(--qr-bg)"/>` +
+         `<path d="${path}" fill="var(--qr-fg)"/></svg>`;
+}
+</script>
+</body>
+</html>
