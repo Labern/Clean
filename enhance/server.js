@@ -6,11 +6,13 @@
 
 const http = require('http');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn, execFile } = require('child_process');
 
 const PORT = parseInt(process.env.PORT || '2160', 10); // 2160 = the vertical resolution of 4K
+const HOST = process.env.HOST || '0.0.0.0'; // reachable from the iPhone on the same network
 const ROOT = __dirname;
 const WORK = path.join(ROOT, 'work');
 const UPLOADS = path.join(WORK, 'uploads');
@@ -142,6 +144,30 @@ function esrganOnce(args) {
       (err, _out, stderr) => err
         ? reject(new Error('neural engine: ' + String(stderr).split('\n').filter(Boolean).slice(-2).join(' · ')))
         : resolve());
+  });
+}
+
+// LAN + Tailscale addresses this Mac answers on (for the phone QR)
+function phoneUrls() {
+  let lan = null, ts = null;
+  for (const ifs of Object.values(os.networkInterfaces())) {
+    for (const i of ifs) {
+      if (i.family !== 'IPv4' || i.internal) continue;
+      const first = parseInt(i.address.split('.')[0], 10);
+      const second = parseInt(i.address.split('.')[1], 10);
+      if (first === 100 && second >= 64 && second <= 127) ts = ts || `http://${i.address}:${PORT}`;
+      else lan = lan || `http://${i.address}:${PORT}`;
+    }
+  }
+  return { lan, tailscale: ts };
+}
+
+function makeQr(text) { // native CoreImage via a tiny Swift script — no deps
+  const png = path.join(WORK, 'qr-' + crypto.createHash('md5').update(text).digest('hex').slice(0, 10) + '.png');
+  if (fs.existsSync(png)) return Promise.resolve(png);
+  return new Promise((resolve, reject) => {
+    execFile('swift', [path.join(ROOT, 'qr.swift'), text, png], { timeout: 30000 },
+      err => err ? reject(new Error('QR generation failed (is Xcode CLT installed?)')) : resolve(png));
   });
 }
 
@@ -508,6 +534,18 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { neural: !!esrganBin() });
     }
 
+    if (req.method === 'GET' && url.pathname === '/urls') {
+      return json(res, 200, phoneUrls());
+    }
+
+    if (req.method === 'GET' && url.pathname === '/qr') {
+      const u = phoneUrls();
+      const target = u.lan || u.tailscale;
+      if (!target) return json(res, 404, { error: 'no network address found' });
+      const png = await makeQr(target);
+      return sendFile(req, res, png, 'enhance-qr.png', false);
+    }
+
     if (req.method === 'POST' && url.pathname === '/upload') {
       return streamUpload(req, res, ['.mp4', '.mov', '.m4v'], async (id, dst, name) => {
         const meta = summarize(await probe(dst));
@@ -759,11 +797,14 @@ const server = http.createServer(async (req, res) => {
 
 const C = (n, s) => `\x1b[38;5;${n}m${s}\x1b[0m`;
 bootRestore().then(() => {
-  server.listen(PORT, '127.0.0.1', () => {
+  server.listen(PORT, HOST, () => {
+    const u = phoneUrls();
     console.log('');
     console.log('  ' + C(221, 'ENHANCE') + C(103, '  ·  local mastering console'));
     console.log('  ' + C(103, '─'.repeat(40)));
     console.log('  ' + C(116, `▸ http://localhost:${PORT}`));
+    if (u.lan) console.log('  ' + C(116, `▸ ${u.lan}`) + C(103, '  (iPhone, same Wi-Fi)'));
+    if (u.tailscale) console.log('  ' + C(116, `▸ ${u.tailscale}`) + C(103, '  (Tailscale, anywhere)'));
     console.log('  ' + C(103, `${jobs.size} job(s) restored · neural engine ${esrganBin() ? 'ready' : 'not installed (run setup-neural.sh)'}`));
     console.log('');
   });
