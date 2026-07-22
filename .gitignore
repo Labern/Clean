@@ -10,3 +10,5 @@ Legacy/
 .DS_Store
 # political → github.com/Labern/political
 political/
+# ignition → github.com/Labern/ignition (private)
+ignition/
