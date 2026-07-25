@@ -18,6 +18,7 @@
 :root{
   --serif: ui-serif, "New York", "Iowan Old Style", Palatino, Georgia, "Times New Roman", serif;
   --mono:  ui-monospace, "SF Mono", "Menlo", "Cascadia Code", "Roboto Mono", monospace;
+  --ui: var(--serif);   /* the interface voice — the PICA face, never the screenplay's Courier */
   /* "Courier Prime Local" resolves only inside PICA.app, which bundles the font so the
      native build needs no network. On the web it simply fails and the Google Fonts copy
      below it in the stack takes over. */
@@ -89,8 +90,8 @@ header{
 #docTitle:focus{ border-bottom-color:var(--faint); }
 header .grow{ flex:1; }
 .hbtn{
-  font-family:var(--mono); font-size:.71rem; letter-spacing:.2em; text-transform:uppercase;
-  color:var(--ink-2); padding:.3rem .1rem; border-bottom:1px solid transparent;
+  font-family:var(--ui); font-size:.95rem; letter-spacing:.015em;
+  color:var(--ink-2); padding:.24rem .1rem; border-bottom:1px solid transparent;
   transition:color .12s, border-color .12s;
 }
 .hbtn:hover{ color:var(--ink); border-bottom-color:var(--rule); }
@@ -135,7 +136,7 @@ body.resizing #canvas{ pointer-events:none; }
 .scene-item .no{ color:var(--faint); flex:none; width:1.7em; text-align:right; font-variant-numeric:tabular-nums; }
 .scene-item .sl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .doc-item .pg{ margin-left:auto; color:var(--faint); font-variant-numeric:tabular-nums; flex:none;}
-.rail-act{ font-family:var(--mono); font-size:.64rem; letter-spacing:.18em; color:var(--faint); padding:.25rem .45rem; text-transform:uppercase;}
+.rail-act{ font-family:var(--mono); font-size:.64rem; letter-spacing:.18em; color:var(--ink-2); padding:.3rem .45rem; text-transform:uppercase;}
 .rail-act:hover{ color:var(--ink); }
 
 /* ---------- canvas ---------- */
@@ -157,7 +158,7 @@ body.resizing #canvas{ pointer-events:none; }
 
 /* ---------- statusbar ---------- */
 footer{
-  flex:none; display:flex; align-items:center; gap:1.5rem;
+  flex:none; display:flex; align-items:center; gap:1.3rem;
   border-top:1px solid var(--line); padding:.6rem 1.4rem;
   font-family:var(--mono); font-size:.69rem; letter-spacing:.15em; text-transform:uppercase;
   color:var(--faint); user-select:none; white-space:nowrap; overflow:hidden;
@@ -179,7 +180,7 @@ footer .z:hover{ color:var(--ink); }
 .pop .it{
   display:flex; gap:.9rem; padding:.36rem .95rem; color:var(--ink-2); cursor:pointer; align-items:baseline;
 }
-.pop .it .k{ margin-left:auto; color:var(--faint); font-size:.62rem; letter-spacing:.1em; }
+.pop .it .k{ font-family:var(--mono); margin-left:auto; color:var(--faint); font-size:.62rem; letter-spacing:.1em; }
 .pop .it.sel{ background:var(--ink); color:var(--paper); }
 .pop .it.sel .k{ color:var(--paper); opacity:.6; }
 .pop .cap{ padding:.25rem .8rem .35rem; font-size:.58rem; letter-spacing:.26em; text-transform:uppercase; color:var(--faint); border-bottom:1px solid var(--line); margin-bottom:.25rem;}
@@ -192,16 +193,16 @@ footer .z:hover{ color:var(--ink); }
 #overlay.show{ display:flex; }
 .card{
   background:var(--paper); border:1px solid var(--line); box-shadow:var(--shadow);
-  max-width:34rem; width:min(34rem, 92vw); max-height:84vh; overflow:auto; padding:1.6rem 1.9rem 1.7rem;
+  max-width:42rem; width:min(42rem, 94vw); max-height:86vh; overflow:auto; padding:2rem 2.4rem 2rem;
 }
 .card h2{ font-family:var(--serif); font-weight:560; font-size:1.3rem; letter-spacing:-.01em; margin-bottom:.2rem; }
-.card .sub{ font-family:var(--mono); font-size:.62rem; letter-spacing:.24em; text-transform:uppercase; color:var(--faint); margin-bottom:1.1rem; }
-.card table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:.7rem; }
+.card .sub{ font-family:var(--ui); font-size:.72rem; font-weight:600; letter-spacing:.2em; text-transform:uppercase; color:var(--faint); margin-bottom:1.1rem; }
+.card table{ width:100%; border-collapse:collapse; font-family:var(--ui); font-size:.88rem; }
 .card td{ padding:.32rem .2rem; border-top:1px solid var(--line); color:var(--ink-2); vertical-align:top;}
-.card td:first-child{ white-space:nowrap; padding-right:1.2rem; color:var(--ink); letter-spacing:.08em; }
+.card td:first-child{ font-family:var(--mono); font-size:.72rem; white-space:nowrap; padding-right:1.2rem; color:var(--ink); letter-spacing:.06em; }
 .card .foot{ margin-top:1.2rem; display:flex; gap:1.4rem; }
 .card p{ font-size:.95rem; line-height:1.55; color:var(--ink-2); max-width:60ch; margin:.4rem 0; }
-#importLog{ font-family:var(--mono); font-size:.7rem; line-height:1.9; color:var(--ink-2); white-space:pre-wrap; }
+#importLog{ font-family:var(--mono); font-size:.72rem; line-height:1.9; color:var(--ink-2); white-space:pre-wrap; }
 
 /* toast */
 #toast{
@@ -214,34 +215,38 @@ footer .z:hover{ color:var(--ink); }
 
 /* ---------- settings ---------- */
 .set-row{
-  display:flex; align-items:center; gap:1rem; padding:.75rem 0;
-  border-top:1px solid var(--line);
+  display:grid; grid-template-columns:13rem 1fr; gap:.4rem 2rem; align-items:center;
+  padding:.95rem 0; border-top:1px solid var(--line);
 }
-.set-row .lab{ font-family:var(--mono); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2); flex:none; width:9.5rem; }
-.set-row .ctl{ flex:1; display:flex; align-items:center; gap:.6rem; justify-content:flex-end; }
-.set-row .hint{ font-family:var(--serif); font-size:.85rem; color:var(--faint); }
-.seg{ display:flex; border:1px solid var(--line); }
+.set-row .lab{ font-family:var(--ui); font-size:.95rem; font-weight:600; color:var(--ink); }
+.set-row .hint{ grid-column:1; font-family:var(--ui); font-size:.78rem; color:var(--faint); line-height:1.4; margin-top:-.5rem; }
+.set-row .ctl{ grid-column:2; grid-row:1 / span 2; display:flex; align-items:center; gap:.9rem; justify-content:flex-end; }
+.set-row:has(.hint) .ctl{ align-self:center; }
+.seg{ display:flex; gap:1.1rem; }
 .seg button{
-  font-family:var(--mono); font-size:.68rem; letter-spacing:.14em; text-transform:uppercase;
-  padding:.3rem .7rem; color:var(--ink-2); border-right:1px solid var(--line);
+  font-family:var(--ui); font-size:.88rem; padding:.1rem 0;
+  color:var(--faint); border-bottom:2px solid transparent;
 }
-.seg button:last-child{ border-right:0; }
-.seg button.on{ background:var(--ink); color:var(--paper); }
-input[type=range]{ -webkit-appearance:none; appearance:none; height:2px; background:var(--line); flex:1; max-width:14rem; }
+.seg button:hover{ color:var(--ink-2); }
+.seg button.on{ color:var(--ink); border-bottom-color:var(--rule); }
+.seg button[disabled]{ opacity:.4; }
+input[type=range]{ -webkit-appearance:none; appearance:none; height:2px; background:var(--line); flex:1; max-width:15rem; }
 input[type=range]::-webkit-slider-thumb{
-  -webkit-appearance:none; appearance:none; width:14px; height:14px; border-radius:50%;
-  background:var(--ink); cursor:grab;
+  -webkit-appearance:none; appearance:none; width:13px; height:13px; border-radius:50%;
+  background:var(--ink); cursor:grab; border:none;
 }
-.set-val{ font-family:var(--mono); font-size:.72rem; color:var(--ink); width:3.2rem; text-align:right; font-variant-numeric:tabular-nums; }
+.set-val{ font-family:var(--mono); font-size:.72rem; color:var(--ink); width:3.4rem; text-align:right; font-variant-numeric:tabular-nums; }
 .card a{ color:var(--ink); text-underline-offset:3px; }
 .card h3{
-  font-family:var(--mono); font-size:.62rem; letter-spacing:.28em; text-transform:uppercase;
-  color:var(--faint); margin:1.6rem 0 .2rem;
+  font-family:var(--ui); font-size:.72rem; font-weight:600; letter-spacing:.22em; text-transform:uppercase;
+  color:var(--faint); margin:2rem 0 .4rem; display:flex; align-items:center; gap:.8rem;
 }
+.card h3::after{ content:""; flex:1; height:1px; background:var(--line); }
 #footLink{ color:var(--faint); text-decoration:none; border-bottom:1px solid transparent; }
 #footLink:hover{ color:var(--ink); border-bottom-color:var(--rule); }
 
 /* ---------- responsive ---------- */
+footer .z{ font-size:.8rem; letter-spacing:0; }
 @media (max-width: 880px){
   #rail{ position:fixed; left:0; top:0; bottom:0; z-index:70; background:var(--paper);
     transform:translateX(-100%); transition:.2s; padding-top:3rem; width:16rem !important;}
@@ -270,7 +275,6 @@ input[type=range]::-webkit-slider-thumb{
 
 <header>
   <div class="hzone left">
-    <button id="railToggle" class="hbtn" title="Toggle sidebar (⌘B)">☰</button>
     <div class="wordmark">PICA</div>
   </div>
   <span id="docTitle" contenteditable="true" spellcheck="false"></span>
@@ -279,17 +283,16 @@ input[type=range]::-webkit-slider-thumb{
   <button class="hbtn" id="btnImport">Import</button>
   <button class="hbtn" id="btnExport">Export</button>
   <button class="hbtn" id="btnTitle" title="Title page (⇧⌘T)">Title</button>
-  <button class="hbtn" id="btnKeys" title="Settings &amp; shortcuts (⌘,)">⚙</button>
   <button class="hbtn" id="btnTheme" title="invert">◐</button>
   </div>
 </header>
 
 <div id="split">
   <nav id="rail">
+    <button class="rail-act" id="railNew">+ New script</button>
+    <button class="rail-act" id="railImport">+ Import PDF</button>
     <div class="eyebrow">Index</div>
     <div id="docList"></div>
-    <button class="rail-act" id="railNew">+ new script</button>
-    <button class="rail-act" id="railImport">+ import pdf</button>
     <div class="eyebrow">Scenes</div>
     <div id="sceneList"></div>
   </nav>
@@ -300,12 +303,14 @@ input[type=range]::-webkit-slider-thumb{
 </div>
 
 <footer>
+  <button id="railToggle" class="z" title="Sidebar (⌥⌘S)">☰</button>
+  <button id="btnKeys" class="z" title="Settings &amp; shortcuts (⌘,)">⚙</button>
   <button id="stType">—</button>
-  <span id="stHint">⌘\ elements · tab cycles · ? keys</span>
+  <span id="stHint"></span>
   <div class="grow"></div>
-  <a id="footLink" href="https://scriptslug.com" target="_blank" rel="noopener noreferrer">find screenplays ↗</a>
+  <a id="footLink" href="https://scriptslug.com" target="_blank" rel="noopener noreferrer">Find screenplays ↗</a>
   <span id="stPage">—</span>
-  <button class="z" id="zOut">−</button><button class="z" id="zFit">fit</button><button class="z" id="zIn">+</button>
+  <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click for fit">100%</button><button class="z" id="zIn">+</button>
   <span id="stSave"></span>
 </footer>
 
@@ -365,6 +370,145 @@ const PicaEngine = (() => {
       const j = joinItems(L.items, charW);
       return { x: L.items[0].x, xEnd: j.xEnd, y: L.y, text: j.text, items: L.items };
     }).filter(L => L.text.length > 0);
+  }
+
+  // ---------- garbled-font recovery ----------
+  // Some PDFs (There Will Be Blood among them) embed subset fonts with no ToUnicode
+  // map: extraction yields cipher text — every glyph a wrong symbol, consistently.
+  // A screenplay gives ~100KB of ciphertext in known English, which is more than
+  // enough to crack a monoalphabetic substitution outright. Solved per font (each
+  // subset carries its own mapping), validated, and reverted if unconvincing —
+  // an import may end up warned-about, but never silently blank.
+  const GOODCH = /[a-zA-Z0-9\s.,:;!?'"()\-–—*&%$#@/[\]]/;
+  function garbledness(text) {
+    let letters = 0, weird = 0;
+    for (const ch of text) {
+      if (/[a-zA-Z]/.test(ch)) letters++;
+      else if (!/[\s0-9.,:;!?'"()\-–—_*/]/.test(ch)) weird++;
+    }
+    const n = letters + weird;
+    return n < 40 ? 0 : weird / n;
+  }
+
+  // compact English trigram model (log-ish weights) + words that anchor a screenplay
+  const TRIGRAMS = ('the:9 and:8 ing:8 ent:7 ion:7 her:7 for:6 tha:6 nth:6 int:6 ere:6 tio:6 ter:6 est:6 ers:6 ati:5 hat:5 ate:5 all:5 eth:5 hes:5 ver:5 his:5 oft:5 ith:5 fth:5 sth:5 oth:5 res:5 ont:5 dth:5 are:5 rea:5 ear:5 was:5 sin:5 sto:5 tto:5 tot:5 and:5 men:4 out:4 you:4 not:4 was:4 con:4 pro:4 sta:4 sho:4 cut:4 day:4 igh:4 ght:4 loo:4 ook:4 man:4 car:4 door:0 ndo:4 own:4 ove:4 ome:4 ake:4 ack:4 one:4 ust:4 ted:4 ess:4 der:4 ded:4 ope:4 pen:4 ens:4 nds:4 hand:0 str:4 tre:4 eet:4 ide:4 nde:4 rom:4 com:4 omi:4 min:4 ain:4 tur:4 urn:4 rns:4 wal:4 alk:4 lks:4 ks :0')
+    .split(' ').map(t => t.split(':')).filter(t => t[0].length === 3);
+  const TRIMAP = new Map(TRIGRAMS.map(([g, w]) => [g, +w]));
+  const CRIBWORDS = /(^|[^a-z])(the|and|you|that|his|her|out|int|ext|day|night|looks|door|man|car|from|with|into|down|back|then|what|this|cut|to|on|at|he|she|it|of|in|is|a)(?=[^a-z]|$)/g;
+
+  function scorePlain(text) {
+    let s = 0;
+    const t = text.toLowerCase();
+    for (let i = 0; i < t.length - 2; i++) {
+      const w = TRIMAP.get(t.slice(i, i + 3));
+      if (w) s += w;
+    }
+    const m = t.match(CRIBWORDS);
+    if (m) s += m.length * 14;
+    return s;
+  }
+
+  function solveSubstitution(cipher) {
+    // symbol inventory, most frequent first
+    const freq = new Map();
+    for (const ch of cipher) freq.set(ch, (freq.get(ch) || 0) + 1);
+    const syms = [...freq.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
+    if (syms.length < 12) return null;
+    const targetsByFreq = ' etaonihsrdlumwcfgypbvk.j\',x-q"z!?:;()0123456789';
+    const map = new Map();
+    syms.forEach((sym, i) => map.set(sym, targetsByFreq[Math.min(i, targetsByFreq.length - 1)]));
+    const sample = cipher.slice(0, 22000);
+    const apply = (m) => { let o = ''; for (const ch of sample) o += m.get(ch) ?? ch; return o; };
+    let best = scorePlain(apply(map));
+    const letters = 'abcdefghijklmnopqrstuvwxyz';
+    // deterministic PRNG (Date/Math.random are unreliable in some harnesses; and
+    // reproducible solves make reproducible tests)
+    let seed = 0x9e3779b9 ^ cipher.length;
+    const rnd = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return ((seed >>> 0) / 4294967296); };
+    // the most frequent symbol is space in any real text this size — locked from the
+    // start (targetsByFreq[0] is ' ') by keeping it out of the search entirely
+    const active = syms.slice(1, Math.min(syms.length, 40));
+    let stale = 0;
+    for (let it = 0; it < 26000 && stale < 3200; it++) {
+      const a = active[(rnd() * active.length) | 0];
+      let undo;
+      if (rnd() < 0.5) {
+        const b = active[(rnd() * active.length) | 0];
+        if (a === b) continue;
+        undo = [[a, map.get(a)], [b, map.get(b)]];
+        map.set(a, undo[1][1]); map.set(b, undo[0][1]);
+      } else {
+        undo = [[a, map.get(a)]];
+        map.set(a, letters[(rnd() * 26) | 0]);
+      }
+      const sc = scorePlain(apply(map));
+      if (sc > best) { best = sc; stale = 0; }
+      else if (sc === best) stale++;
+      else { for (const [k, v] of undo) map.set(k, v); stale++; }
+    }
+    return map;
+  }
+
+  // decide case per symbol: a letter-symbol that usually follows another letter inside
+  // a word is lowercase; word-starters and all-caps-line dwellers are uppercase
+  function caseMaps(cipher, map) {
+    const afterLetter = new Map(), total = new Map();
+    let prevWasLetter = false;
+    for (const ch of cipher) {
+      const p = map.get(ch) ?? ch;
+      const isL = /[a-z]/.test(p);
+      if (isL) {
+        total.set(ch, (total.get(ch) || 0) + 1);
+        if (prevWasLetter) afterLetter.set(ch, (afterLetter.get(ch) || 0) + 1);
+      }
+      prevWasLetter = isL;
+    }
+    const upper = new Set();
+    for (const [ch, n] of total) {
+      const r = (afterLetter.get(ch) || 0) / n;
+      if (r < 0.5) upper.add(ch);
+    }
+    return upper;
+  }
+
+  function decodeGarbledFonts(rawPages) {
+    // group text per font
+    const perFont = new Map();
+    for (const p of rawPages) for (const it of (p.items || [])) {
+      const f = it.font || '·';
+      perFont.set(f, (perFont.get(f) || '') + it.str);
+    }
+    const maps = new Map();
+    let warned = false;
+    for (const [font, text] of perFont) {
+      if (text.length < 400 || garbledness(text) < 0.35) continue;
+      const map = solveSubstitution(text);
+      if (!map) { warned = true; continue; }
+      const upper = caseMaps(text, map);
+      const decode = (s) => {
+        let o = '';
+        for (const ch of s) {
+          let p = map.get(ch) ?? ch;
+          if (upper.has(ch) && /[a-z]/.test(p)) p = p.toUpperCase();
+          o += p;
+        }
+        return o;
+      };
+      // convince me: decoded text must read as English
+      const sampleDec = decode(text.slice(0, 4000));
+      const hits = (sampleDec.toLowerCase().match(CRIBWORDS) || []).length;
+      if (garbledness(sampleDec) < 0.12 && hits > sampleDec.length / 260) maps.set(font, decode);
+      else warned = true;
+    }
+    if (!maps.size) return { changed: false, warned };
+    const out = rawPages.map(p => ({
+      ...p,
+      items: (p.items || []).map(it => {
+        const d = maps.get(it.font || '·');
+        return d ? { ...it, str: d(it.str) } : it;
+      }),
+    }));
+    return { changed: true, warned, pages: out, fontsDecoded: maps.size };
   }
 
   // ---------- shooting-script scene numbers ----------
@@ -454,6 +598,13 @@ const PicaEngine = (() => {
   };
 
   function importPdf(rawPages, opts = {}) {
+    // fonts with no usable Unicode map yield cipher text — crack them first,
+    // since classification reads the words (INT., EXT., …), not just positions
+    let decodeNote = null;
+    const dec = decodeGarbledFonts(rawPages);
+    if (dec.changed) { rawPages = dec.pages; decodeNote = 'decoded ' + dec.fontsDecoded + ' unmapped font(s)'; }
+    else if (dec.warned) decodeNote = 'some text could not be decoded — this PDF hides its character map';
+
     const charW0 = estimateCharW(rawPages);
     const pages = rawPages.map(p => ({
       width: p.width, height: p.height,
@@ -465,7 +616,14 @@ const PicaEngine = (() => {
     if (pages.length > 1) {
       const p0 = pages[0];
       const slug = p0.lines.some(l => SCENE_RE.test(l.text));
-      if (p0.lines.length > 0 && p0.lines.length <= 12 && !slug) { titlePage = p0; bodyStart = 1; }
+      // a title page has no slugline and reads as title matter — byline, draft stamps,
+      // dates, contact blocks, revision-colour tables — not as flowing script
+      const TITLE_MATTER = /written by|screenplay|story by|revised|revs?[.\s]|revision|draft|\d{1,2}\/\d{1,2}\/\d{2,4}|copyright|all rights|educational|contact|final|shooting script|table of contents/i;
+      const matter = p0.lines.filter(l => TITLE_MATTER.test(l.text)).length;
+      if (p0.lines.length > 0 && !slug &&
+          (p0.lines.length <= 12 || (p0.lines.length <= 44 && matter >= p0.lines.length * 0.3))) {
+        titlePage = p0; bodyStart = 1;
+      }
     }
     const body = pages.slice(bodyStart);
     stripSceneNumbers(body, charW0);
@@ -480,6 +638,9 @@ const PicaEngine = (() => {
     // numeric (or a known marker). Anything genuinely written never repeats like that.
     const FURNITURE_NUM = /^[A-Za-z]?\d+[A-Za-z]?[.:]?$/;
     const FURNITURE_WORD = /^\(?\s*(CONTINUED|CONT'D|MORE)\s*\)?[.:]?$/i;
+    // revision headers: "10/11/03 MM revs. (goldenrod)  5." — a date or the word revs,
+    // usually trailing the page number. Printing apparatus, never writing.
+    const FURNITURE_HEADER = /\d{1,2}\/\d{1,2}\/\d{2,4}|\brevs?[.\s]|\brevisions?\b|\bdraft\b.*\d{1,2}\/\d{1,2}/i;
     const furniture = new Set();
     {
       const byY = new Map();
@@ -495,9 +656,11 @@ const PicaEngine = (() => {
           const t = l.text.trim();
           return FURNITURE_NUM.test(t) || FURNITURE_WORD.test(t);
         }).length;
+        const headerish = arr.filter(l => FURNITURE_HEADER.test(l.text)).length;
         // the whole row has to be furniture — a body row that happens to hold a number
         // on a few pages must survive
-        if (marks >= arr.length * 0.9) for (const l of arr) furniture.add(l);
+        if (marks >= arr.length * 0.9 || headerish >= arr.length * 0.7)
+          for (const l of arr) furniture.add(l);
       }
     }
     const bodyLines = p => p.lines.filter(l => !furniture.has(l));
@@ -605,6 +768,16 @@ const PicaEngine = (() => {
       widths: { ...LETTER.widths },
       moreDy: 10, contDy: -14,
     };
+
+    // Any line still sitting above the body area that reads as apparatus — a header row
+    // whose y drifted past the row-bucket, a stray number — is furniture too.
+    for (const p of body) for (const l of p.lines) {
+      if (furniture.has(l)) continue;
+      if (l.y < y0f - rowH * 0.6) {
+        const t = l.text.trim();
+        if (FURNITURE_HEADER.test(t) || FURNITURE_NUM.test(t) || FURNITURE_WORD.test(t)) furniture.add(l);
+      }
+    }
 
     // ---------- classification ----------
     // Assign each line to its nearest column rather than demanding an exact hit, with the
@@ -742,6 +915,7 @@ const PicaEngine = (() => {
       v: 1,
       title: (tp[0] && tp[0].text) || (els.find(e => e.type === 'scene')?.text ?? 'UNTITLED').slice(0, 40),
       titlePage: tp,
+      ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
       elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}) })),
     };
@@ -1092,7 +1266,11 @@ function fitZoom(){
   const avail = canvasEl.clientWidth - 32;
   return Math.min(1.08, Math.max(.3, avail / (S.doc.layout.pageW * 4 / 3)));
 }
-function computeK(){ S.k = (S.zoom == null ? fitZoom() : S.zoom) * 4 / 3; }
+function computeK(){
+  S.k = (S.zoom == null ? fitZoom() : S.zoom) * 4 / 3;
+  const z = document.getElementById('zPct');
+  if (z) z.textContent = Math.round((S.zoom == null ? fitZoom() : S.zoom) * 100) + '%';
+}
 
 // ---------- pagination + rendering ----------
 // The title page is a separate artifact, not part of the writing surface — hidden unless
@@ -1327,9 +1505,25 @@ function opSplice(i, delCount, inserted, caretAfter){
 
 function opConvert(id, type){
   const el = elById(id); if (!el) return;
-  pushUndo({ k: 'convert', id, before: el.type, after: type, cb: S.caret, ca: S.caret, ts: Date.now() });
+  pushUndo({ k: 'retype', ids: [id], before: [{ t: el.type, x: el.text }], after: null, cb: S.caret, ca: S.caret, ts: Date.now() });
   el.type = type;
   if (type === 'scene' || type === 'character' || type === 'transition' || type === 'shot') el.text = el.text.toUpperCase();
+  if (type === 'paren' && el.text !== '' && !/^\(/.test(el.text)) el.text = '(' + el.text.replace(/\)?\s*$/, '') + ')';
+  S.undo[S.undo.length - 1].after = [{ t: el.type, x: el.text }];
+  repaginate(); renderAfterEdit();
+}
+
+// retype several elements at once — one undo step
+function opRetype(ids, type){
+  const els = ids.map(elById).filter(Boolean);
+  if (!els.length) return;
+  pushUndo({ k: 'retype', ids: els.map(e => e.id), before: els.map(e => ({ t: e.type, x: e.text })), after: null, cb: S.caret, ca: S.caret, ts: Date.now() });
+  for (const el of els) {
+    el.type = type;
+    if (type === 'scene' || type === 'character' || type === 'transition' || type === 'shot') el.text = el.text.toUpperCase();
+    if (type === 'paren' && el.text !== '' && !/^\(/.test(el.text)) el.text = '(' + el.text.replace(/\)?\s*$/, '') + ')';
+  }
+  S.undo[S.undo.length - 1].after = els.map(e => ({ t: e.type, x: e.text }));
   repaginate(); renderAfterEdit();
 }
 
@@ -1343,7 +1537,10 @@ function undo(redo){
     if (redo) S.doc.elements.splice(rec.i, rec.removed.length, ...rec.inserted.map(e => ({ ...e })));
     else S.doc.elements.splice(rec.i, rec.inserted.length, ...rec.removed.map(e => ({ ...e })));
   }
-  else if (rec.k === 'convert') { const el = elById(rec.id); if (el) el.type = redo ? rec.after : rec.before; }
+  else if (rec.k === 'retype') {
+    const state = redo ? rec.after : rec.before;
+    rec.ids.forEach((id, i) => { const el = elById(id); if (el && state[i]) { el.type = state[i].t; el.text = state[i].x; } });
+  }
   else if (rec.k === 'marks') {
     const state = redo ? rec.after : rec.before;
     rec.ids.forEach((id, i) => {
@@ -1498,6 +1695,8 @@ function handleEnter(){
   }
   const el = elById(c.el); if (!el) return;
   if (el.text === '') { openElementMenu(); return; }        // FD: Return on empty → element menu
+  // a written parenthetical never splits on Enter — you leave it, into the dialogue
+  if (el.type === 'paren') c.off = el.text.length;
   // all-caps + TO: → transition
   if (el.type === 'action' && /TO:\s*$/.test(el.text) && el.text === el.text.toUpperCase()) {
     opConvert(el.id, 'transition');
@@ -1586,6 +1785,15 @@ function handleTab(shift){
     if (next === 'character') guessCharacter(el.id);
     return;
   }
+  // a written parenthetical: Tab leaves it for the dialogue from anywhere inside
+  if (el.type === 'paren' && !shift) {
+    const i = elIndex(el.id);
+    const nxt = S.doc.elements[i + 1];
+    if (nxt && nxt.type === 'dialogue') { S.caret = { el: nxt.id, off: nxt.text.length }; restoreCaret(); status(); return; }
+    const ne = newEl('dialogue', '');
+    opSplice(i + 1, 0, [ne], { el: ne.id, off: 0 });
+    return;
+  }
   if (shift || !atElementEnd(el, c.off)) return;   // Tab acts only from the end of a paragraph
   if (el.type === 'scene' && sceneTab(el)) return;
 
@@ -1616,6 +1824,12 @@ function handleInsertText(data){
     opText(el.id, '()', { el: el.id, off: 1 });
     return;
   }
+  // typing into an empty parenthetical wraps itself in brackets
+  if (el.type === 'paren' && el.text === '' && ins !== '(') {
+    opText(el.id, '(' + ins + ')', { el: el.id, off: 1 + ins.length });
+    smartType(el);
+    return;
+  }
   // skip over the closing paren
   if (el.type === 'paren' && ins === ')' && el.text[cc.off] === ')') {
     S.caret = { el: el.id, off: cc.off + 1 }; restoreCaret(); status(); return;
@@ -1623,7 +1837,8 @@ function handleInsertText(data){
   let text = el.text.slice(0, cc.off) + ins + el.text.slice(cc.off);
   let caretOff = cc.off + ins.length;
   // int./ext. auto-detects a scene heading
-  if (el.type === 'action' && /^(INT|EXT|I\/E|EST)([./]|[./]\s?EXT)/i.test(text) && !/^(INT|EXT|I\/E|EST)$/i.test(text)) {
+  if ((!S.pref || S.pref.autoDetect) && el.type === 'action'
+      && /^(INT|EXT|I\/E|EST)([./]|[./]\s?EXT)/i.test(text) && !/^(INT|EXT|I\/E|EST)$/i.test(text)) {
     el.type = 'scene'; text = text.toUpperCase();
   }
   opText(el.id, text, { el: el.id, off: caretOff });
@@ -1791,6 +2006,63 @@ function openExportMenu(){
   ], { cap: 'export', kind: 'export', onPick: it => doExport(it.act) });
 }
 
+// ---------- retyping: guess what a run of text wants to be ----------
+function guessTypes(el){
+  const t = el.text.trim();
+  const i = elIndex(el.id);
+  const prev = S.doc.elements[i - 1];
+  const order = [];
+  const push = ty => { if (ty && ty !== el.type && !order.includes(ty)) order.push(ty); };
+  if (E.SCENE_RE.test(t)) push('scene');
+  if (/TO:$/.test(t) && t === t.toUpperCase()) push('transition');
+  if (/^\(.*\)?$/.test(t) && t.length < 60) push('paren');
+  // a lone name: short, few words, no sentence punctuation — the classic mis-typed cue
+  const words = t.split(/\s+/).filter(Boolean);
+  if (t && t.length <= 30 && words.length <= 4 && !/[.!?,]$/.test(t) && /^[A-Za-z0-9 .'()-]+$/.test(t)) push('character');
+  if (prev && (prev.type === 'character' || prev.type === 'paren')) push('dialogue');
+  if (t === t.toUpperCase() && /[A-Z]/.test(t) && words.length <= 6) push('shot');
+  push('dialogue'); push('action');
+  for (const ty of E.TYPES) push(ty);
+  return order;
+}
+
+function selectionElements(){
+  const r = domRange();
+  if (!r) return null;
+  const [a, b] = r;
+  if (a.el.startsWith('title:') || b.el.startsWith('title:')) return null;
+  if (a.el === b.el && a.off === b.off) return null;      // collapsed
+  const ia = elIndex(a.el), ib = elIndex(b.el);
+  if (ia < 0 || ib < 0) return null;
+  return S.doc.elements.slice(ia, ib + 1).map(e => e.id);
+}
+
+// the chooser used by right-click and by Tab/Enter on a selection: guesses first
+function openRetypeMenu(ids, at){
+  const first = elById(ids[0]); if (!first) return;
+  const guesses = guessTypes(first);
+  const items = guesses.map(ty => ({
+    label: TYPE_LABEL[ty] + (ty === guesses[0] ? '   · guess' : ''),
+    key: '⌘' + SHORTCUT_OF[ty], type: ty,
+  }));
+  const cap = ids.length > 1
+    ? ids.length + ' elements — change to'
+    : 'this is ' + TYPE_LABEL[first.type].toUpperCase() + ' — change to';
+  if (at) {
+    const hasSel = !!selectionElements();
+    const extra = hasSel ? [
+      { label: 'Bold', key: '⌘B', mark: 'b' },
+      { label: 'Italic', key: '⌘I', mark: 'i' },
+      { label: 'Underline', key: '⌘U', mark: 'u' },
+    ] : [];
+    popupAt([{ label: cap.toUpperCase(), act: null },
+             ...items.map(it => ({ ...it, act: 'go' })), ...extra], at.x, at.y,
+            it => { if (it.mark) applyEmphasis(it.mark); else if (it.act) opRetype(ids, it.type); });
+  } else {
+    popup(items, { cap, kind: 'element', onPick: it => opRetype(ids, it.type) });
+  }
+}
+
 // SmartType — FD's six lists. Seeds below are FD12's shipped defaults; characters and
 // locations come from the script itself.
 const TIMES = ['DAY', 'NIGHT', 'AFTERNOON', 'MORNING', 'EVENING', 'LATER', 'MOMENTS LATER', 'CONTINUOUS', 'THE NEXT DAY', 'MAGIC HOUR', 'DAWN', 'DUSK', 'SAME', 'SAME TIME'];
@@ -1814,6 +2086,7 @@ function locations(){
 }
 
 function smartType(el){
+  if (S.pref && !S.pref.smartType) return;
   if (!S.caret || S.caret.el !== el.id || S.caret.off < el.text.length) { if (S.menu?.kind === 'smart') closePops(); return; }
   let sugg = [], replFrom = 0;
   const t = el.text;
@@ -1848,7 +2121,7 @@ function rail(){
     const b = document.createElement('button');
     b.className = 'doc-item' + (d.id === S.docId ? ' current' : '');
     b.innerHTML = '<span class="ttl"></span><span class="pg"></span>';
-    b.firstChild.textContent = (pinned.has(d.id) ? '• ' : '') + (d.title || 'UNTITLED').toLowerCase();
+    b.firstChild.textContent = (pinned.has(d.id) ? '• ' : '') + (d.title || 'Untitled');
     b.lastChild.textContent = d.pages ? d.pages + 'p' : '';
     b.addEventListener('mousedown', ev => { ev.preventDefault(); if (d.id !== S.docId) openDoc(d.id); });
     b.addEventListener('contextmenu', ev => { ev.preventDefault(); docMenu(d, ev); });
@@ -2001,30 +2274,48 @@ async function importPdfBuffer(buf, name){
       workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
     }
     mod.GlobalWorkerOptions.workerSrc = workerSrc;
-    const pdf = await mod.getDocument({ data: buf }).promise;
+    const base = workerSrc.replace(/pdf\.worker\.min\.mjs$/, '');
+    const pdf = await mod.getDocument({
+      data: buf,
+      standardFontDataUrl: base.startsWith('http') ? base.replace(/build\/$/, 'standard_fonts/') : undefined,
+    }).promise;
     const raw = [];
+    let badPages = 0;
     for (let p = 1; p <= pdf.numPages; p++) {
-      const page = await pdf.getPage(p);
-      const vp = page.getViewport({ scale: 1 });
-      const tc = await page.getTextContent();
-      raw.push({
-        width: vp.width, height: vp.height,
-        items: tc.items.filter(i => i.str && i.str.length).map(i => ({
-          x: i.transform[4], y: vp.height - i.transform[5], w: i.width, str: i.str,
-        })),
-      });
+      // one unreadable page must cost one page, never the whole script
+      try {
+        const page = await pdf.getPage(p);
+        const vp = page.getViewport({ scale: 1 });
+        const tc = await page.getTextContent();
+        raw.push({
+          width: vp.width, height: vp.height,
+          items: tc.items.filter(i => i.str && i.str.length).map(i => ({
+            x: i.transform[4], y: vp.height - i.transform[5], w: i.width, str: i.str, font: i.fontName,
+          })),
+        });
+      } catch (pageErr) {
+        badPages++;
+        raw.push({ width: raw[0]?.width || 612, height: raw[0]?.height || 792, items: [] });
+      }
       if (p % 10 === 0 || p === pdf.numPages) log('reading page ' + p + ' / ' + pdf.numPages + ' …');
     }
     if (!raw.some(p => p.items.length)) throw new Error('no text layer — this looks like a scanned PDF');
     log('classifying…');
     await new Promise(r => setTimeout(r, 30));
     const doc = E.importPdf(raw);
-    doc.title = doc.title || (name || 'IMPORTED').replace(/\.pdf$/i, '').toUpperCase();
+    if (!doc.elements.some(e => e.text.trim() !== '')) throw new Error('nothing readable came out of this PDF');
+    const fileTitle = (name || 'IMPORTED').replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim().toUpperCase();
+    // a garbled or missing title (tiny unmapped title-page fonts) falls back to the filename
+    const junk = (doc.title || '').replace(/[A-Za-z0-9\s.,:'!?&-]/g, '').length;
+    if (!doc.title || junk > (doc.title.length * 0.3)) doc.title = fileTitle;
+    if (badPages) doc.importNote = (doc.importNote ? doc.importNote + ' · ' : '') + badPages + ' unreadable page(s) skipped';
     const id = E.uid();
     store.save(id, doc);
     closeOverlay();
     openDoc(id);
-    toast('imported · ' + S.res.count + ' pages · ' + doc.elements.length + ' elements');
+    toast(doc.importNote
+      ? 'imported · ' + S.res.count + ' pages · ' + doc.importNote
+      : 'imported · ' + S.res.count + ' pages · ' + doc.elements.length + ' elements');
   } catch (err) {
     overlayCard(`<h2>Import failed</h2><div class="sub">pdf</div><p>${String(err.message || err).replace(/</g,'&lt;')}</p>
       <p>PICA needs a text-layer PDF (one exported from screenwriting software — not a scan). It also needs the network once, to fetch the PDF reader.</p>
@@ -2077,11 +2368,16 @@ function overlayCard(html){
 }
 function closeOverlay(){ const o = $('#overlay'); o.classList.remove('show'); o.innerHTML = ''; }
 $('#overlay').addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeOverlay(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if ($('#overlay').classList.contains('show')) closeOverlay(); closePops(); }
+});
 
 // ---------- settings ----------
 function applyUiPrefs(){
   const ui = LS.get('pica.ui', {});
   document.documentElement.style.setProperty('--ui-base', (ui.uiBase || 20) + 'px');
+  document.documentElement.style.setProperty('--page', ui.paper === 'white' ? '#ffffff' : '#fdfcf8');
+  S.pref = { smartType: ui.smartType !== false, autoDetect: ui.autoDetect !== false };
 }
 function setUiBase(px){
   const ui = LS.get('pica.ui', {}); ui.uiBase = px; LS.set('pica.ui', ui);
@@ -2101,27 +2397,39 @@ function showSettings(){
   const seg = (id, opts, cur) => `<div class="seg" id="${id}">` +
     opts.map(o => `<button data-v="${o[0]}" class="${o[0] === cur ? 'on' : ''}">${o[1]}</button>`).join('') + '</div>';
 
+  const row = (lab, hint, ctl) =>
+    '<div class="set-row"><span class="lab">' + lab + '</span>' +
+    (hint ? '<span class="hint">' + hint + '</span>' : '') +
+    '<div class="ctl">' + ctl + '</div></div>';
+  const snaps = LS.get('pica.snap.' + S.docId, []);
   overlayCard(`
   <h2>Settings</h2><div class="sub">pica · a screenwriting instrument</div>
 
-  <div class="set-row"><span class="lab">Interface size</span><div class="ctl">
-    <input type="range" id="setUi" min="14" max="30" step="1" value="${base}">
-    <span class="set-val" id="setUiVal">${base}px</span></div></div>
+  <h3>Appearance</h3>
+  ${row('Interface size', 'Everything but the page itself.',
+    '<input type="range" id="setUi" min="14" max="30" step="1" value="' + base + '"><span class="set-val" id="setUiVal">' + base + 'px</span>')}
+  ${row('Theme', '', seg('setTheme', [['auto','Auto'],['light','Light'],['dark','Dark']], theme))}
+  ${row('Paper', '', seg('setPaper', [['cream','Cream'],['white','White']], ui.paper === 'white' ? 'white' : 'cream'))}
+  ${row('Page zoom', 'Pinch, or ⌘+ / ⌘−.', seg('setZoom', [['fit','Fit'],['out','−'],['in','+']], 'fit'))}
 
-  <div class="set-row"><span class="lab">Theme</span><div class="ctl">
-    ${seg('setTheme', [['auto','Auto'],['light','Light'],['dark','Dark']], theme)}</div></div>
+  <h3>Layout</h3>
+  ${row('Title page', 'A separate artifact — page 1 is your first written page.',
+    seg('setTitle', [['off','Hidden'],['on','Shown']], S.showTitle ? 'on' : 'off'))}
+  ${row('Sidebar', 'Drag its edge to resize · double-click to reset.',
+    seg('setRail', [['on','Shown'],['off','Hidden']], document.body.classList.contains('railhidden') ? 'off' : 'on'))}
 
-  <div class="set-row"><span class="lab">Title page</span><div class="ctl">
-    <span class="hint">A separate artifact — page 1 is your first written page.</span>
-    ${seg('setTitle', [['off','Hidden'],['on','Shown']], S.showTitle ? 'on' : 'off')}</div></div>
+  <h3>Writing aids</h3>
+  ${row('SmartType', 'Names, locations and times complete as you type.',
+    seg('setSmart', [['on','On'],['off','Off']], ui.smartType === false ? 'off' : 'on'))}
+  ${row('Auto-detection', 'int. becomes INT. — caps ending TO: becomes a transition.',
+    seg('setAuto', [['on','On'],['off','Off']], ui.autoDetect === false ? 'off' : 'on'))}
 
-  <div class="set-row"><span class="lab">Sidebar</span><div class="ctl">
-    <span class="hint">Drag its edge to resize · double-click to reset</span>
-    ${seg('setRail', [['on','Shown'],['off','Hidden']], document.body.classList.contains('railhidden') ? 'off' : 'on')}</div></div>
-
-  <div class="set-row"><span class="lab">Page zoom</span><div class="ctl">
-    <span class="hint">Pinch to zoom, or ⌘+ / ⌘−</span>
-    ${seg('setZoom', [['fit','Fit'],['out','−'],['in','+']], 'fit')}</div></div>
+  <h3>Safekeeping</h3>
+  ${row('Snapshots', snaps.length + ' kept for this script — click a time to restore.',
+    '<div class="seg" id="setSnaps">' + (snaps.map((sn, i) =>
+      '<button data-v="' + i + '">' + new Date(sn.t).toTimeString().slice(0, 5) + '</button>').join('') || '<button disabled>none yet</button>') + '</div>')}
+  ${row('Storage', '<span id="setStore">…</span>',
+    '<div class="seg" id="setForget"><button data-v="go">Forget scroll positions</button></div>')}
 
   <h3>Writing</h3>
   <table>
@@ -2176,6 +2484,28 @@ function showSettings(){
     if (v === 'fit') { S.zoom = null; rerenderAll(); }
     else PICA_API.zoom(v === 'in' ? 0.1 : -0.1);
   });
+  wire('setPaper', v => { const u = LS.get('pica.ui', {}); u.paper = v; LS.set('pica.ui', u); applyUiPrefs(); rerenderAll(); });
+  wire('setSmart', v => { const u = LS.get('pica.ui', {}); u.smartType = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
+  wire('setAuto', v => { const u = LS.get('pica.ui', {}); u.autoDetect = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
+  wire('setSnaps', v => {
+    const snaps = LS.get('pica.snap.' + S.docId, []);
+    const sn = snaps[+v]; if (!sn) return;
+    if (!confirm('Restore the ' + new Date(sn.t).toTimeString().slice(0, 5) + ' snapshot? The current state is snapshotted first.')) return;
+    store.snapshot(S.docId, S.doc);
+    store.save(S.docId, sn.doc);
+    openDoc(S.docId); closeOverlay(); toast('snapshot restored');
+  });
+  wire('setForget', () => { LS.set('pica.scroll', {}); toast('scroll positions forgotten'); });
+  // storage usage, honestly measured
+  try {
+    let bytes = 0;
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k.startsWith('pica.')) bytes += (localStorage.getItem(k) || '').length;
+    }
+    ov.querySelector('#setStore').textContent =
+      (bytes / 1024 / 1024).toFixed(1) + ' MB · ' + store.index().length + ' scripts on this device';
+  } catch {}
   ov.querySelector('#setClose').addEventListener('mousedown', ev => { ev.preventDefault(); closeOverlay(); });
 }
 
@@ -2252,6 +2582,11 @@ pagesEl.addEventListener('keydown', ev => {
     // FD: Right-Arrow completes the highlighted SmartType match
     if (S.menu.kind === 'smart' && ev.key === 'ArrowRight') { ev.preventDefault(); S.menu.accept(); return; }
   }
+  // a selection + Tab or Enter opens the chooser: retype what's selected
+  if ((ev.key === 'Tab' || ev.key === 'Enter') && !ev.metaKey && !ev.ctrlKey) {
+    const ids = selectionElements();
+    if (ids) { ev.preventDefault(); openRetypeMenu(ids, null); return; }
+  }
   if (ev.key === 'Tab') { ev.preventDefault(); handleTab(ev.shiftKey); return; }
   if (ev.key === 'Escape') { closePops(); return; }
   const mod = ev.metaKey || ev.ctrlKey;
@@ -2280,7 +2615,18 @@ document.addEventListener('selectionchange', () => {
   const c = domCaret();
   if (c) { S.caret = c; status(); }
 });
-pagesEl.addEventListener('mousedown', () => { closePops(); });
+pagesEl.addEventListener('mousedown', ev => { if (ev.button !== 2) closePops(); });
+
+// right-click in the script: name what this is, offer to change it
+pagesEl.addEventListener('contextmenu', ev => {
+  const line = ev.target.closest?.('.line');
+  if (!line || !line.dataset.el || line.dataset.el.startsWith('title:')) return;
+  const kind = line.dataset.kind;
+  if (kind === 'pn' || kind === 'more' || kind === 'contcue') return;
+  ev.preventDefault();
+  const ids = selectionElements() || [line.dataset.el];
+  openRetypeMenu(ids, { x: ev.clientX, y: ev.clientY });
+});
 
 canvasEl.addEventListener('scroll', () => {
   clearTimeout(canvasEl._t);
@@ -2363,7 +2709,7 @@ $('#railGrip').addEventListener('dblclick', () => {
 });
 $('#zIn').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = Math.min(1.6, (S.zoom ?? fitZoom()) + .1); rerenderAll(); });
 $('#zOut').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = Math.max(.3, (S.zoom ?? fitZoom()) - .1); rerenderAll(); });
-$('#zFit').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = null; rerenderAll(); });
+$('#zPct').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = null; rerenderAll(); });
 
 $('#fileIn').addEventListener('change', async ev => {
   const f = ev.target.files[0]; ev.target.value = '';
