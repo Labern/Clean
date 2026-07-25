@@ -86,9 +86,9 @@ him sends him back to his phone, and the app has failed at its only job. So:
 |---|---|
 | ⌘1–9 | jump to pinned chat |
 | ⌘⇧P | pin the open chat to the next free slot |
-| ⌘⇧C | **companion mode** — shrink to a floating one-chat panel |
+| ⌘⇧E | **companion mode** — shrink to a floating one-chat panel |
 | ⌥⌘P | always on top |
-| ⌘⇧E | focus mode (pinned chats only) |
+| ⌘⇧F | focus mode (pinned chats only) |
 | ⌘⌥T | next theme |
 | ⌘⇧B | privacy blur |
 | ⌘⌥+ / ⌘⌥- / ⌘⌥0 | message text bigger / smaller / default |
@@ -102,7 +102,7 @@ him sends him back to his phone, and the app has failed at its only job. So:
 One chat, small, floating beside other work. It reuses the **one** webview —
 WhatsApp Web allows a single active session per browser, so a second webview
 would be told "WhatsApp is open in another window" and fight this one for the
-connection. So ⌘⇧C shrinks and floats the existing window and collapses the
+connection. So ⌘⇧E shrinks and floats the existing window and collapses the
 furniture with CSS. It keeps its own remembered frame (`companionFrame` in
 defaults, updated as he resizes), separate from the full window, and is
 deliberately **not** restored at launch — opening into a sliver would be

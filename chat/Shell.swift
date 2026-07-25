@@ -79,6 +79,15 @@ let kMsgSizeMin = 11.0, kMsgSizeMax = 28.0, kMsgSizeBase = 15.0
 // Companion mode: a narrow floating panel, by default hugging the right edge.
 let kCompanionSize = NSSize(width: 420, height: 720)
 
+// Presets rather than steppers: two more keyboard chords would be worse than a
+// submenu, and 0 always means "leave WhatsApp's own value alone".
+let kNameSizes: [(title: String, px: Double)] = [
+    ("Default", 0), ("Smaller", 12), ("Small", 13), ("Larger", 16), ("Largest", 18),
+]
+let kMsgGaps: [(title: String, px: Double)] = [
+    ("Default", 0), ("Snug", 3), ("Roomy", 8), ("Airy", 14), ("Wide", 22),
+]
+
 let kNotificationCategory = "MESSAGE"
 
 // ⌃⌥⌘W — summon or dismiss from anywhere. Deliberately a three-modifier chord:
@@ -103,6 +112,8 @@ struct Settings {
     var fontTitle: String        // which Font-menu entry is ticked
     var fontCSS: String          // the font-family it maps to ("" = theme's own)
     var msgSize: Double          // 0 = WhatsApp's own size
+    var nameSize: Double         // contact names + chat list, 0 = WhatsApp's own
+    var msgGap: Double           // extra space between messages, 0 = none
     var menuBar: Bool
     var quietFrom: Int           // -1 = quiet hours off
     var quietTo: Int
@@ -132,6 +143,8 @@ struct Settings {
             fontTitle: d.string(forKey: "fontTitle") ?? "Theme Default",
             fontCSS: d.string(forKey: "fontCSS") ?? "",
             msgSize: d.object(forKey: "msgSize") as? Double ?? 0,
+            nameSize: d.object(forKey: "nameSize") as? Double ?? 0,
+            msgGap: d.object(forKey: "msgGap") as? Double ?? 0,
             menuBar: d.object(forKey: "menuBar") as? Bool ?? true,
             quietFrom: d.object(forKey: "quietFrom") as? Int ?? -1,
             quietTo: d.object(forKey: "quietTo") as? Int ?? -1,
@@ -152,6 +165,8 @@ struct Settings {
         d.set(fontTitle, forKey: "fontTitle")
         d.set(fontCSS, forKey: "fontCSS")
         d.set(msgSize, forKey: "msgSize")
+        d.set(nameSize, forKey: "nameSize")
+        d.set(msgGap, forKey: "msgGap")
         d.set(menuBar, forKey: "menuBar")
         d.set(quietFrom, forKey: "quietFrom")
         d.set(quietTo, forKey: "quietTo")
@@ -199,6 +214,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var hideItems: [String: NSMenuItem] = [:]
     private var fontItems: [NSMenuItem] = []
     private var quietItems: [NSMenuItem] = []
+    private var nameSizeItems: [NSMenuItem] = []
+    private var msgGapItems: [NSMenuItem] = []
     private var privacyItem: NSMenuItem!
     private var notifyItem: NSMenuItem!
     private var companionItem: NSMenuItem!
@@ -313,6 +330,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         hide: \(hideJSON), privacy: \(settings.privacy ? "true" : "false"), \
         compact: \(settings.compact ? "true" : "false"), \
         font: \(jsLiteral(settings.fontCSS)), msgSize: \(settings.msgSize), \
+        nameSize: \(settings.nameSize), msgGap: \(settings.msgGap), \
         focus: \(settings.focus ? "true" : "false"), pins: \(pinsJSON) };
         """
 
@@ -687,6 +705,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         js("__shell.applyPrivacy(\(settings.privacy ? "true" : "false"))")
         js("__shell.setFont(\(jsLiteral(settings.fontCSS)))")
         js("__shell.setMsgSize(\(settings.msgSize))")
+        js("__shell.setNameSize(\(settings.nameSize))")
+        js("__shell.setMsgGap(\(settings.msgGap))")
         js("__shell.setCompact(\(settings.compact ? "true" : "false"))")
         js("__shell.setFocus(\(settings.focus ? "true" : "false"), \(pinsJSON))")
     }
@@ -728,6 +748,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         syncMenuState()
     }
 
+    @objc private func chooseNameSize(_ sender: NSMenuItem) {
+        settings.nameSize = kNameSizes[sender.tag].px
+        settings.save(); reinstallUserScripts()
+        js("__shell.setNameSize(\(settings.nameSize))")
+        syncMenuState()
+    }
+
+    @objc private func chooseMsgGap(_ sender: NSMenuItem) {
+        settings.msgGap = kMsgGaps[sender.tag].px
+        settings.save(); reinstallUserScripts()
+        js("__shell.setMsgGap(\(settings.msgGap))")
+        syncMenuState()
+    }
+
     @objc private func msgBigger(_ sender: Any?)  { stepMsgSize(+1) }
     @objc private func msgSmaller(_ sender: Any?) { stepMsgSize(-1) }
     @objc private func msgReset(_ sender: Any?) {
@@ -747,15 +781,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
     // ---- focus mode & quiet hours ----
 
+    // No preconditions, no refusal. It used to demand that the app's own ⌘1–9
+    // pins were set first, which made it useless until you'd duplicated
+    // WhatsApp's own pinning — the wrong design. Focus mode now works out of the
+    // box on unread chats and whatever you're currently reading.
     @objc private func toggleFocus(_ sender: Any?) {
         settings.focus.toggle()
-        if settings.focus && settings.pins.allSatisfy({ $0.isEmpty }) {
-            settings.focus = false
-            alert("Nothing pinned yet",
-                  "Focus mode shows only your pinned chats. Pin a few first with Chats ▸ Pin This Chat.")
-            syncMenuState()
-            return
-        }
         settings.save()
         reinstallUserScripts()
         let pinsJSON = (try? JSONSerialization.data(withJSONObject: settings.pins.filter { !$0.isEmpty }))
@@ -1088,6 +1119,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         if !kFonts.contains(where: { $0.title == settings.fontTitle }) {
             for item in fontItems { item.state = .off }
         }
+        for (i, item) in nameSizeItems.enumerated() {
+            item.state = kNameSizes[i].px == settings.nameSize ? .on : .off
+        }
+        for (i, item) in msgGapItems.enumerated() {
+            item.state = kMsgGaps[i].px == settings.msgGap ? .on : .off
+        }
         for (i, item) in quietItems.enumerated() {
             item.state = (kQuietPresets[i].from == settings.quietFrom
                           && kQuietPresets[i].to == settings.quietTo) ? .on : .off
@@ -1208,7 +1245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
         // Companion mode and its window behaviour — the reason he asked for this
         // round: one chat, small, floating beside whatever he's working on.
-        companionItem = item("Companion Mode", #selector(toggleCompanion(_:)), "c", [.command, .shift])
+        companionItem = item("Companion Mode", #selector(toggleCompanion(_:)), "e", [.command, .shift])
         viewMenu.addItem(companionItem)
         onTopItem = item("Always on Top", #selector(toggleAlwaysOnTop(_:)), "p", [.command, .option])
         viewMenu.addItem(onTopItem)
@@ -1233,11 +1270,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         viewMenu.addItem(item("Bigger Message Text", #selector(msgBigger(_:)), "+", [.command, .option]))
         viewMenu.addItem(item("Smaller Message Text", #selector(msgSmaller(_:)), "-", [.command, .option]))
         viewMenu.addItem(item("Default Message Text", #selector(msgReset(_:)), "0", [.command, .option]))
+
+        let nameMenu = NSMenu(title: "Names & List Text")
+        for (i, n) in kNameSizes.enumerated() {
+            let it = item(n.title, #selector(chooseNameSize(_:)))
+            it.tag = i; nameMenu.addItem(it); nameSizeItems.append(it)
+        }
+        let nameItem = NSMenuItem(title: "Names & List Text", action: nil, keyEquivalent: "")
+        nameItem.submenu = nameMenu
+        viewMenu.addItem(nameItem)
+
+        let gapMenu = NSMenu(title: "Space Between Messages")
+        for (i, g) in kMsgGaps.enumerated() {
+            let it = item(g.title, #selector(chooseMsgGap(_:)))
+            it.tag = i; gapMenu.addItem(it); msgGapItems.append(it)
+        }
+        let gapItem = NSMenuItem(title: "Space Between Messages", action: nil, keyEquivalent: "")
+        gapItem.submenu = gapMenu
+        viewMenu.addItem(gapItem)
         viewMenu.addItem(.separator())
 
         privacyItem = item("Privacy Blur", #selector(togglePrivacy(_:)), "b", [.command, .shift])
         viewMenu.addItem(privacyItem)
-        focusItem = item("Focus Mode — Pinned Chats Only", #selector(toggleFocus(_:)), "e", [.command, .shift])
+        focusItem = item("Focus Mode — Unread & Current Chat", #selector(toggleFocus(_:)), "f", [.command, .shift])
         viewMenu.addItem(focusItem)
         menuBarItem = item("Show in Menu Bar", #selector(toggleMenuBar(_:)))
         viewMenu.addItem(menuBarItem)

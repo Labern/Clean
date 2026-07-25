@@ -354,7 +354,38 @@ html[data-shell-msgsize] [data-shell-convo] .selectable-text * {
   line-height: 1.42 !important;
 }
 
-/* ── 10. focus mode — only the pinned chats ────────────────────────────────── */
+/* ── 9b. contact names and the chat list ───────────────────────────────────── */
+/* Separate from message text, because the two want different sizes: he reads the
+   conversation up close and scans the list. The preview and timestamp are scaled
+   off the same number so the row stays in proportion instead of needing three
+   controls. Hooks are WhatsApp's own testids, verified live. */
+
+html[data-shell-namesize] [data-testid="cell-frame-title"],
+html[data-shell-namesize] [data-testid="cell-frame-title"] *,
+html[data-shell-namesize] [data-shell-convo] header span[title] {
+  font-size: var(--shell-name-size) !important;
+}
+html[data-shell-namesize] [data-testid="cell-frame-secondary"],
+html[data-shell-namesize] [data-testid="cell-frame-secondary"] * {
+  font-size: calc(var(--shell-name-size) * .92) !important;
+}
+html[data-shell-namesize] [data-testid="cell-frame-primary-detail"],
+html[data-shell-namesize] [data-testid="cell-frame-primary-detail"] * {
+  font-size: calc(var(--shell-name-size) * .80) !important;
+}
+
+/* ── 10b. space between messages ───────────────────────────────────────────── */
+/* Adjacent-sibling selector so the gap lands strictly BETWEEN messages: adding
+   padding to every row instead would double up and also pad the top and bottom
+   of the conversation. Two hooks because a message row is identifiable either by
+   role or by the data-id WhatsApp stamps on it. */
+
+html[data-shell-msggap] [data-shell-convo] [role="row"] + [role="row"],
+html[data-shell-msggap] [data-shell-convo] [data-id] + [data-id] {
+  margin-top: var(--shell-msg-gap) !important;
+}
+
+/* ── 10. focus mode — only what wants attention ────────────────────────────── */
 /* shell.js marks every chat-list row whose title isn't one of the pins. Rows are
    virtualised and recycled, so it re-marks them on its pump. */
 

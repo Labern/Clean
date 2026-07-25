@@ -31,6 +31,7 @@
 
   const cfg = Object.assign({ theme: 'stock', hide: {}, privacy: false,
                               compact: false, font: '', msgSize: 0,
+                              nameSize: 0, msgGap: 0,
                               focus: false, pins: [] },
                             window.__SHELL_CONFIG || {});
 
@@ -217,17 +218,24 @@
     return cfg.font;
   }
 
-  function setMsgSize(px) {
-    cfg.msgSize = Number(px) || 0;
-    if (cfg.msgSize > 0) {
-      R().style.setProperty('--shell-msg-size', cfg.msgSize + 'px');
-      R().setAttribute('data-shell-msgsize', '');
+  // All three typography controls share this shape: a number in px, where 0 means
+  // "leave WhatsApp's own value alone" — so every one of them has an off switch
+  // rather than a "close enough to default" setting.
+  function setPixelVar(value, cssVar, attr, key) {
+    cfg[key] = Number(value) || 0;
+    if (cfg[key] > 0) {
+      R().style.setProperty(cssVar, cfg[key] + 'px');
+      R().setAttribute(attr, '');
     } else {
-      R().style.removeProperty('--shell-msg-size');
-      R().removeAttribute('data-shell-msgsize');
+      R().style.removeProperty(cssVar);
+      R().removeAttribute(attr);
     }
-    return cfg.msgSize;
+    return cfg[key];
   }
+
+  function setMsgSize(px)  { return setPixelVar(px, '--shell-msg-size',  'data-shell-msgsize',  'msgSize') }
+  function setNameSize(px) { return setPixelVar(px, '--shell-name-size', 'data-shell-namesize', 'nameSize') }
+  function setMsgGap(px)   { return setPixelVar(px, '--shell-msg-gap',   'data-shell-msggap',   'msgGap') }
 
   /* ── 3d. focus mode — only the pinned chats in the list ───────────────────── */
 
@@ -243,14 +251,41 @@
     return cfg.focus;
   }
 
+  /* What survives focus mode. Deliberately requires NO setup: an earlier version
+     only kept the app's own ⌘1–9 pins, which meant it refused to turn on until
+     you had configured a second, parallel notion of "pinned" alongside
+     WhatsApp's. Labern's verdict, and he was right: "it shouldn't need to be
+     pinned anyway."
+
+     So a row stays if it plausibly wants attention right now:
+       · it has unread messages
+       · it is the conversation currently open
+       · WhatsApp itself has it pinned
+       · or it is one of the app's ⌘1–9 pins, if any are set */
+  function focusKeep(row, appPins) {
+    if (row.querySelector('[data-testid="icon-unread-count"]')) return true;
+    if (row.getAttribute('aria-selected') === 'true'
+        || row.querySelector('[aria-selected="true"]')) return true;
+    try { if (row.querySelector('[data-icon*="pin" i]')) return true } catch (e) {}
+    return appPins.size > 0 && appPins.has(norm(rowTitle(row)));
+  }
+
   // Rows are virtualised and recycled, so this has to re-run on the pump.
   function markFocusRows() {
     if (!cfg.focus) return 0;
-    const keep = new Set(cfg.pins || []);
+    const appPins = new Set(cfg.pins || []);
+    const rows = visibleRows();
+    const keep = rows.filter(r => focusKeep(r, appPins));
+
+    // Nothing demands attention: show everything rather than an empty list. An
+    // empty panel reads as "the app broke", not as "you're all caught up".
+    if (!keep.length) {
+      for (const row of rows) row.removeAttribute('data-shell-dim');
+      return 0;
+    }
     let hidden = 0;
-    for (const row of visibleRows()) {
-      const wanted = keep.has(norm(rowTitle(row)));
-      if (wanted) row.removeAttribute('data-shell-dim');
+    for (const row of rows) {
+      if (keep.includes(row)) row.removeAttribute('data-shell-dim');
       else { row.setAttribute('data-shell-dim', ''); hidden++ }
     }
     return hidden;
@@ -513,6 +548,8 @@
       compactList: R().hasAttribute('data-shell-compact-list'),
       font:        R().style.getPropertyValue('--shell-font') || '',
       msgSize:     R().style.getPropertyValue('--shell-msg-size') || '',
+      nameSize:    R().style.getPropertyValue('--shell-name-size') || '',
+      msgGap:      R().style.getPropertyValue('--shell-msg-gap') || '',
       focus:       R().hasAttribute('data-shell-focus'),
       focusHidden: document.querySelectorAll('[data-shell-dim]').length,
       storageShim: true,
@@ -578,13 +615,15 @@
   applyPrivacy(cfg.privacy);
   setFont(cfg.font || '');
   setMsgSize(cfg.msgSize || 0);
+  setNameSize(cfg.nameSize || 0);
+  setMsgGap(cfg.msgGap || 0);
   if (cfg.compact) setCompact(true);
   if (cfg.focus) setFocus(true, cfg.pins || []);
 
   window.__shell = {
     applyTheme, applyHide, applyPrivacy, openChat, currentChatName,
     focusSearch, newChat, notificationClicked, checkPrivacyCoverage, state,
-    setCompact, setFont, setMsgSize, setFocus, replyTo
+    setCompact, setFont, setMsgSize, setNameSize, setMsgGap, setFocus, replyTo
   };
 
   let announcedLink = false;

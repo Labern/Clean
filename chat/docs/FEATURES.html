@@ -1,0 +1,237 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CHAT — features</title>
+<style>
+  /* MONOGRAPH: New York serif + SF Mono over a grisaille palette.
+     Sized for a single A4 page at 595×842px. */
+  :root{
+    --ink:#111111; --ink-2:#5f5f5f; --ink-3:#9a9a9a; --rule:#d8d6d2; --wash:#f4f3f1;
+    --serif:"New York","Iowan Old Style",Palatino,Georgia,serif;
+    --mono:"SF Mono",Menlo,monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:595px;height:842px}
+  body{
+    font-family:var(--serif); color:var(--ink); background:#fff;
+    padding:26px 34px 16px; font-size:8.6px; line-height:1.42;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:var(--mono)}
+
+  /* masthead */
+  header{border-bottom:1.6px solid var(--ink); padding-bottom:7px; margin-bottom:9px}
+  h1{font-family:var(--mono); font-size:19px; letter-spacing:.30em; font-weight:600; line-height:1}
+  .sub{display:flex; justify-content:space-between; align-items:baseline; margin-top:5px}
+  .sub em{font-style:italic; color:var(--ink-2); font-size:8.8px}
+  .sub span{font-family:var(--mono); font-size:6.6px; letter-spacing:.13em; color:var(--ink-3); text-transform:uppercase}
+
+  /* the reason it exists */
+  .thesis{
+    border-left:2.2px solid var(--ink); padding:4px 0 4px 9px; margin-bottom:9px;
+    font-size:9.4px; line-height:1.34;
+  }
+  .thesis b{font-weight:600}
+  .thesis small{display:block; margin-top:2.5px; color:var(--ink-2); font-size:7.9px; line-height:1.34}
+
+  h2{
+    font-family:var(--mono); font-size:6.8px; letter-spacing:.20em; text-transform:uppercase;
+    color:var(--ink); border-bottom:.7px solid var(--rule); padding-bottom:2px; margin-bottom:5px;
+  }
+  .cols{display:grid; grid-template-columns:1fr 1fr; gap:0 20px}
+  section{margin-bottom:6px; break-inside:avoid}
+
+  /* feature list */
+  dl dt{font-weight:600; font-size:8.5px; margin-top:3.2px}
+  dl dt:first-child{margin-top:0}
+  dl dt kbd{
+    font-family:var(--mono); font-size:7px; font-weight:400; color:var(--ink-2);
+    border:.6px solid var(--rule); border-radius:2px; padding:.5px 2.5px; margin-left:3px;
+    vertical-align:1px;
+  }
+  dl dd{color:var(--ink-2); font-size:8.1px; line-height:1.31}
+
+  /* focus mode, the walkthrough he asked for */
+  .howto{background:var(--wash); border:.7px solid var(--rule); padding:7px 10px; margin-bottom:8px}
+  .howto h2{border-bottom-color:#c9c7c3; margin-bottom:6px}
+  .howto ol{list-style:none; counter-reset:s}
+  .howto li{
+    counter-increment:s; position:relative; padding-left:15px; margin-bottom:3px;
+    font-size:8.4px; line-height:1.34;
+  }
+  .howto li::before{
+    content:counter(s); position:absolute; left:0; top:.3px;
+    font-family:var(--mono); font-size:7.4px; font-weight:600;
+    width:11px; height:11px; border:.8px solid var(--ink); border-radius:50%;
+    display:flex; align-items:center; justify-content:center; line-height:1;
+  }
+  .howto li b{font-weight:600}
+  .howto li .k{font-family:var(--mono); font-size:7.6px; background:#fff;
+               border:.6px solid var(--rule); border-radius:2px; padding:.5px 3px}
+  .caveat{margin-top:6px; padding-top:5px; border-top:.7px dotted #c4c2be;
+          font-size:7.6px; color:var(--ink-2); line-height:1.34}
+  .caveat b{font-weight:600; color:var(--ink)}
+
+  /* shortcuts */
+  table{width:100%; border-collapse:collapse; font-size:7.9px}
+  td{padding:1px 0; vertical-align:top}
+  td.key{font-family:var(--mono); font-size:7.5px; white-space:nowrap; width:74px; color:var(--ink)}
+  tr+tr td{border-top:.4px solid #ececea}
+
+  footer{
+    position:absolute; left:34px; right:34px; bottom:20px;
+    border-top:.7px solid var(--rule); padding-top:5px;
+    display:flex; justify-content:space-between;
+    font-family:var(--mono); font-size:6.4px; letter-spacing:.06em; color:var(--ink-3);
+  }
+</style>
+
+<header>
+  <h1>CHAT</h1>
+  <div class="sub">
+    <em>A native macOS client for WhatsApp — the real thing, in your own window.</em>
+    <span>Reference · one page</span>
+  </div>
+</header>
+
+<div class="thesis">
+  <b>Why it exists: so you never pick up your phone while you're working on the Mac.</b>
+  <small>Every trade-off follows from that. A message that fails to reach you sends you
+  back to your phone, so notification delivery outranks every other feature — the app
+  holds a power assertion so macOS can't quietly suspend it in the background, ⌘W hides
+  the window instead of severing the connection, and if macOS has blocked notifications
+  it says so loudly rather than going silent. <b>App ▸ Check Notifications Work…</b>
+  proves it end to end.</small>
+</div>
+
+<div class="howto">
+  <h2>Focus mode — how to use it</h2>
+  <ol>
+    <li>Press <span class="k">⌘⇧F</span>. That's it — nothing to set up first.</li>
+    <li>The chat list collapses to <b>only what wants you right now</b>: anything
+        <b>unread</b>, plus the <b>conversation you're currently in</b>. Anything you've
+        pinned inside WhatsApp stays too, as do your <span class="k">⌘1</span>–<span class="k">⌘9</span>
+        slots if you've set any.</li>
+    <li>Everything else vanishes from the list. It updates live — a chat that goes
+        unread reappears on its own.</li>
+    <li>Press <span class="k">⌘⇧F</span> again to bring the full list back.</li>
+  </ol>
+  <div class="caveat">
+    <b>It only hides — it never changes anything.</b> Nothing is archived, muted, marked
+    read or altered on WhatsApp; the rows are hidden in this window and nowhere else, and
+    your phone is untouched. If nothing is unread and no chat is open there is nothing to
+    narrow down, so the list simply stays as it is rather than going blank.
+    Pair it with <b>companion mode</b> <span class="k">⌘⇧E</span> to get one conversation,
+    floating, beside your work.
+  </div>
+</div>
+
+<div class="cols">
+  <section>
+    <h2>The window</h2>
+    <dl>
+      <dt>Companion mode<kbd>⌘⇧E</kbd></dt>
+      <dd>Shrinks to a small panel floating above your work, showing just the open
+          conversation — sidebar and nav rail collapsed away. Resize it freely; it
+          remembers its own size, separate from the full window.</dd>
+      <dt>Always on top<kbd>⌥⌘P</kbd></dt>
+      <dd>Keep the window above everything without shrinking it.</dd>
+      <dt>Fade when inactive</dt>
+      <dd>Goes gently translucent when it isn't the focused window, so it can sit
+          beside what you're doing.</dd>
+      <dt>Menu-bar glance</dt>
+      <dd>Unread count in the menu bar; click it to summon or dismiss. The Dock tile
+          carries the same badge.</dd>
+      <dt>Summon from anywhere<kbd>⌃⌥⌘W</kbd></dt>
+      <dd>Global — works from any app, whether the window is hidden or buried.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Messages</h2>
+    <dl>
+      <dt>Real macOS notifications</dt>
+      <dd>Proper banners with sound, whether or not the window is open.</dd>
+      <dt>Reply from the notification</dt>
+      <dd>Type into the banner and it sends — you never switch app. It checks the
+          message box holds exactly what you typed before sending, and refuses (and
+          tells you) if anything looks off.</dd>
+      <dt>Quick slots<kbd>⌘1–9</kbd></dt>
+      <dd>Optional: <b>Chats ▸ Pin This Chat</b> <kbd>⌘⇧P</kbd> puts the open chat on the
+          next free number, then that key jumps straight to it. Matched by chat name, so
+          re-pin if one gets renamed.</dd>
+      <dt>Quiet hours</dt>
+      <dd>Optional, off by default: silence notifications between chosen hours.</dd>
+      <dt>Voice notes, files, downloads</dt>
+      <dd>Microphone, attachments and saving media all work; downloads go to
+          Downloads and never overwrite.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>How it looks</h2>
+    <dl>
+      <dt>Four themes<kbd>⌘⌥T</kbd></dt>
+      <dd><b>Stock</b> untouched · <b>Midnight</b> a quiet dark · <b>PARADOX</b> terminal
+          teal-and-violet · <b>MONOGRAPH</b> black-and-white editorial. Cycles with one
+          keystroke.</dd>
+      <dt>Any font you have</dt>
+      <dd><b>View ▸ Font</b> for a curated few, or <b>Choose…</b> to pick any installed
+          font — the panel sets the size at the same time.</dd>
+      <dt>Message text size<kbd>⌘⌥ + −</kbd></dt>
+      <dd>Scales the words in the conversation only. Separate from <kbd>⌘ + −</kbd>,
+          which zooms the whole interface.</dd>
+      <dt>Names &amp; list text</dt>
+      <dd><b>View ▸ Names &amp; List Text</b> — sizes contact names, previews and
+          timestamps in the chat list, independently of the conversation.</dd>
+      <dt>Space between messages</dt>
+      <dd><b>View ▸ Space Between Messages</b> — Snug through Wide, for how much air
+          sits between one message and the next.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2>Peace and quiet</h2>
+    <dl>
+      <dt>Distractions gone</dt>
+      <dd>Status, Channels, Communities, Media, Meta AI and the promo nags are hidden
+          out of the box. Each is a tick in <b>View</b> if you want it back.</dd>
+      <dt>Focus mode<kbd>⌘⇧F</kbd></dt>
+      <dd>Collapses the list to unread chats plus the one you're reading. No setup —
+          see the panel above.</dd>
+      <dt>Privacy blur<kbd>⌘⇧B</kbd></dt>
+      <dd>Blurs message text and chat names until you point at them — for screen
+          sharing, or someone reading over your shoulder.</dd>
+      <dt>Your session is safe</dt>
+      <dd>It's the real WhatsApp Web, linked exactly as a browser links it. No
+          protocol tricks, so nothing here risks your account. Links friends send
+          open in your browser, not in here.</dd>
+    </dl>
+  </section>
+</div>
+
+<section>
+  <h2>Every shortcut</h2>
+  <div class="cols">
+    <table>
+      <tr><td class="key">⌘1 – ⌘9</td><td>Jump to pinned chat</td></tr>
+      <tr><td class="key">⌘⇧P</td><td>Pin the open chat</td></tr>
+      <tr><td class="key">⌘⇧E</td><td>Companion mode</td></tr>
+      <tr><td class="key">⌥⌘P</td><td>Always on top</td></tr>
+      <tr><td class="key">⌘⇧F</td><td>Focus mode</td></tr>
+      <tr><td class="key">⌘⇧B</td><td>Privacy blur</td></tr>
+    </table>
+    <table>
+      <tr><td class="key">⌘⌥T</td><td>Next theme</td></tr>
+      <tr><td class="key">⌘⌥ + − 0</td><td>Message text bigger / smaller / default</td></tr>
+      <tr><td class="key">⌘ + − 0</td><td>Zoom the whole interface</td></tr>
+      <tr><td class="key">⌘K · ⌘F</td><td>Search · ⌘N new chat</td></tr>
+      <tr><td class="key">⌘R · ⌘⇧H</td><td>Reload · back to WhatsApp</td></tr>
+      <tr><td class="key">⌃⌥⌘W</td><td>Summon from any app (global)</td></tr>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <span>FIRST RUN — SCAN THE QR CODE ONCE FROM WHATSAPP ▸ SETTINGS ▸ LINKED DEVICES</span>
+  <span>~/DESKTOP/CLEAN/CHAT · ./BUILD.SH --INSTALL</span>
+</footer>
