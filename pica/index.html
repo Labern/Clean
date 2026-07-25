@@ -1349,48 +1349,155 @@ const LS = {
 };
 
 // ---------- document store (never lose anything) ----------
+// Documents and snapshots live in IndexedDB. They used to live in localStorage, whose
+// ~5MB origin quota a few 150-page scripts plus rolling snapshots exceed — at which
+// point WebKit rejects the write, and an import "succeeded" into an index entry whose
+// body never saved: the 1-page blank ghost. IndexedDB has no such ceiling here.
+// A save that fails now SAYS SO and touches nothing; a load that fails never
+// fabricates a blank. The small stuff (index, prefs) stays in localStorage.
+const idb = {
+  db: null,
+  open(){
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('pica', 1);
+      r.onupgradeneeded = () => { r.result.createObjectStore('kv'); };
+      r.onsuccess = () => { idb.db = r.result; res(); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  put(k, v){
+    return new Promise((res, rej) => {
+      const t = idb.db.transaction('kv', 'readwrite');
+      t.objectStore('kv').put(v, k);
+      t.oncomplete = () => res();
+      t.onerror = () => rej(t.error);
+      t.onabort = () => rej(t.error || new Error('aborted'));
+    });
+  },
+  get(k){
+    return new Promise((res, rej) => {
+      const t = idb.db.transaction('kv', 'readonly');
+      const q = t.objectStore('kv').get(k);
+      q.onsuccess = () => res(q.result ?? null);
+      q.onerror = () => rej(q.error);
+    });
+  },
+  del(k){
+    return new Promise((res) => {
+      const t = idb.db.transaction('kv', 'readwrite');
+      t.objectStore('kv').delete(k);
+      t.oncomplete = () => res(); t.onerror = () => res(); t.onabort = () => res();
+    });
+  },
+};
+
 const store = {
+  cache: new Map(),          // id → doc; the in-memory truth while the app runs
   index(){ return LS.get('pica.index', []); },
   saveIndex(ix){ LS.set('pica.index', ix); },
-  load(id){ return LS.get('pica.doc.' + id, null); },
-  save(id, doc){
-    if (!LS.set('pica.doc.' + id, doc)) { // quota: drop oldest snapshot and retry
-      const snaps = LS.get('pica.snap.' + id, []); snaps.shift(); LS.set('pica.snap.' + id, snaps);
-      if (!LS.set('pica.doc.' + id, doc)) toast('STORAGE FULL — EXPORT YOUR WORK');
+  async load(id){
+    if (store.cache.has(id)) return store.cache.get(id);
+    let doc = null;
+    try { doc = await idb.get('doc.' + id); } catch {}
+    if (!doc) {
+      doc = LS.get('pica.doc.' + id, null);            // legacy localStorage copy
+      if (doc) idb.put('doc.' + id, doc).catch(() => {});
     }
-    const ix = store.index();
-    const it = ix.find(d => d.id === id);
-    const meta = { id, title: doc.title || 'UNTITLED', pages: S.res ? S.res.count : 0, at: Date.now() };
-    if (it) Object.assign(it, meta); else ix.unshift(meta);
-    store.saveIndex(ix);
+    if (doc) store.cache.set(id, doc);
+    return doc;
   },
-  snapshot(id, doc){
-    const snaps = LS.get('pica.snap.' + id, []);
+  save(id, doc){
+    store.cache.set(id, doc);
+    idb.put('doc.' + id, doc).then(() => {
+      const ix = store.index();
+      const it = ix.find(d => d.id === id);
+      const meta = { id, title: doc.title || 'UNTITLED', pages: S.res ? S.res.count : 0, at: Date.now() };
+      if (it) Object.assign(it, meta); else ix.unshift(meta);
+      store.saveIndex(ix);
+    }).catch(err => {
+      overlayCard('<h2>Could not save</h2><div class="sub">storage</div>' +
+        '<p>The database refused the write (' + String(err && err.message || err).replace(/</g, '&lt;') +
+        '). Nothing was recorded as saved. Export your work now — Export → JSON — and tell me about this.</p>' +
+        '<div class="foot"><button class="hbtn" onclick="document.getElementById(\'overlay\').classList.remove(\'show\')">close</button></div>');
+    });
+  },
+  async snapshot(id, doc){
+    let snaps = null;
+    try { snaps = await idb.get('snap.' + id); } catch {}
+    if (!snaps) snaps = LS.get('pica.snap.' + id, []);
     snaps.push({ t: Date.now(), doc });
     while (snaps.length > 5) snaps.shift();
-    LS.set('pica.snap.' + id, snaps);
+    S.snaps = snaps;
+    idb.put('snap.' + id, snaps).catch(() => {});
+  },
+  // one-time sweep: copy legacy localStorage documents into IndexedDB, verify the copy
+  // reads back, and only then free the localStorage blob — reclaiming the quota that
+  // was silently breaking saves. Anything unverified stays exactly where it is.
+  async migrate(){
+    const keys = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('pica.doc.') || k.startsWith('pica.snap.'))) keys.push(k);
+    }
+    for (const k of keys) {
+      const idbKey = k.replace('pica.doc.', 'doc.').replace('pica.snap.', 'snap.');
+      try {
+        const existing = await idb.get(idbKey);
+        const legacy = LS.get(k, null);
+        if (legacy == null) continue;
+        if (!existing) {
+          await idb.put(idbKey, legacy);
+          const back = await idb.get(idbKey);
+          if (!back || JSON.stringify(back).length !== JSON.stringify(legacy).length) continue; // keep legacy
+        }
+        localStorage.removeItem(k);
+      } catch { /* keep the legacy copy */ }
+    }
+    // an emergency mirror from a previous session becomes a snapshot, never an overwrite
+    const em = LS.get('pica.emergency', null);
+    if (em && em.id && em.doc) {
+      try {
+        const current = await idb.get('doc.' + em.id);
+        if (!current || JSON.stringify(current) !== JSON.stringify(em.doc)) await store.snapshot(em.id, em.doc);
+      } catch {}
+      try { localStorage.removeItem('pica.emergency'); } catch {}
+    }
   },
 };
 
 // ---------- boot ----------
-function boot(){
+async function boot(){
   const ui0 = LS.get('pica.ui', {});
   if (ui0.theme) document.documentElement.dataset.theme = ui0.theme;
   S.showTitle = !!ui0.showTitle;
   applyUiPrefs();
   applyRailPrefs();
+  await idb.open();
+  await store.migrate();
   const ix = store.index();
   const last = LS.get('pica.ui', {}).lastDoc;
   let id = (last && ix.some(d => d.id === last)) ? last : (ix[0] && ix[0].id);
   if (!id) { id = E.uid(); const doc = E.newDoc('UNTITLED'); store.save(id, doc); }
-  openDoc(id);
+  await openDoc(id);
   const m = location.search.match(/[?&]open=([^&]+)/);
   if (m) fetch(decodeURIComponent(m[1])).then(r => r.arrayBuffer()).then(b => importPdfBuffer(b, decodeURIComponent(m[1]).split('/').pop())).catch(()=>{});
 }
 
-function openDoc(id){
+async function openDoc(id){
   if (S.docId && S.doc) { flushSave(); store.snapshot(S.docId, S.doc); }
-  const doc = store.load(id) || E.newDoc('UNTITLED');
+  let doc = await store.load(id);
+  if (!doc) {
+    // never fabricate a blank in place of a script that would not load
+    const ix = store.index();
+    if (ix.some(d => d.id === id)) {
+      toast('could not load that script — its data is missing');
+      if (S.doc) return;
+    }
+    doc = E.newDoc('UNTITLED');
+    store.save(id, doc);
+  }
+  S.snaps = [];
+  idb.get('snap.' + id).then(v => { S.snaps = v || LS.get('pica.snap.' + id, []); }).catch(() => {});
   S.doc = doc; S.docId = id; S.undo = []; S.redo = [];
   S.caret = doc.elements[0] ? { el: doc.elements[0].id, off: 0 } : null;
   const ui = LS.get('pica.ui', {}); ui.lastDoc = id; LS.set('pica.ui', ui);
@@ -2566,15 +2673,18 @@ function docMenu(d, ev){
     if (it.act === 'rename') {
       const name = prompt('Rename script', d.title || 'UNTITLED');
       if (name == null) return;
-      const doc = d.id === S.docId ? S.doc : store.load(d.id);
+      (async () => {
+      const doc = d.id === S.docId ? S.doc : await store.load(d.id);
       if (!doc) return;
       doc.title = name.trim() || 'UNTITLED';
       if (doc.titlePage && doc.titlePage[0]) doc.titlePage[0].text = doc.title.toUpperCase();
       store.save(d.id, doc);
       if (d.id === S.docId) { S.doc = doc; $('#docTitle').textContent = doc.title; repaginate(); renderAfterEdit(); }
       rail(); toast('renamed');
+      })();
     } else if (it.act === 'dup') {
-      const doc = d.id === S.docId ? S.doc : store.load(d.id);
+      (async () => {
+      const doc = d.id === S.docId ? S.doc : await store.load(d.id);
       if (!doc) return;
       const copy = JSON.parse(JSON.stringify(doc));
       copy.title = (doc.title || 'UNTITLED') + ' copy';
@@ -2582,18 +2692,23 @@ function docMenu(d, ev){
       const id = E.uid();
       store.save(id, copy);
       openDoc(id); toast('duplicated');
+      })();
     } else if (it.act === 'pin') {
       if (isPinned) pinned.delete(d.id); else pinned.add(d.id);
       savePinned(); rail(); toast(isPinned ? 'unpinned' : 'pinned');
     } else if (it.act === 'json') {
-      const doc = d.id === S.docId ? S.doc : store.load(d.id);
+      (async () => {
+      const doc = d.id === S.docId ? S.doc : await store.load(d.id);
       if (doc) download((doc.title || 'script').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.json',
                         JSON.stringify(doc, null, 1), 'application/json');
+      })();
     } else if (it.act === 'del') {
       // a script is never removed without saying so, and never silently
       if (!confirm('Delete “' + (d.title || 'UNTITLED') + '”?\n\nThis removes it from PICA on this device. Export it first if you want to keep a copy.')) return;
       const ix = store.index().filter(x => x.id !== d.id);
       store.saveIndex(ix);
+      store.cache.delete(d.id);
+      idb.del('doc.' + d.id); idb.del('snap.' + d.id);
       try { localStorage.removeItem('pica.doc.' + d.id); localStorage.removeItem('pica.snap.' + d.id); } catch {}
       pinned.delete(d.id); savePinned();
       if (d.id === S.docId) {
@@ -2813,7 +2928,7 @@ function showSettings(){
     '<div class="set-row"><span class="lab">' + lab + '</span>' +
     (hint ? '<span class="hint">' + hint + '</span>' : '') +
     '<div class="ctl">' + ctl + '</div></div>';
-  const snaps = LS.get('pica.snap.' + S.docId, []);
+  const snaps = S.snaps || [];
   overlayCard(`
   <h2>Settings</h2><div class="sub">pica · a screenwriting instrument</div>
 
@@ -2903,7 +3018,7 @@ function showSettings(){
   wire('setAuto', v => { const u = LS.get('pica.ui', {}); u.autoDetect = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setContd', v => { const u = LS.get('pica.ui', {}); u.autoContd = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setSnaps', v => {
-    const snaps = LS.get('pica.snap.' + S.docId, []);
+    const snaps = S.snaps || [];
     const sn = snaps[+v]; if (!sn) return;
     if (!confirm('Restore the ' + new Date(sn.t).toTimeString().slice(0, 5) + ' snapshot? The current state is snapshotted first.')) return;
     store.snapshot(S.docId, S.doc);
@@ -2912,15 +3027,12 @@ function showSettings(){
   });
   wire('setForget', () => { LS.set('pica.scroll', {}); toast('scroll positions forgotten'); });
   // storage usage, honestly measured
-  try {
-    let bytes = 0;
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k.startsWith('pica.')) bytes += (localStorage.getItem(k) || '').length;
-    }
-    ov.querySelector('#setStore').textContent =
-      (bytes / 1024 / 1024).toFixed(1) + ' MB · ' + store.index().length + ' scripts on this device';
-  } catch {}
+  if (navigator.storage?.estimate) {
+    navigator.storage.estimate().then(est => {
+      const n = ov.querySelector('#setStore');
+      if (n) n.textContent = ((est.usage || 0) / 1024 / 1024).toFixed(1) + ' MB · ' + store.index().length + ' scripts on this device';
+    }).catch(() => {});
+  }
   ov.querySelector('#setClose').addEventListener('mousedown', ev => { ev.preventDefault(); closeOverlay(); });
 }
 
@@ -3207,6 +3319,10 @@ $('#docTitle').addEventListener('blur', ev => {
 
 addEventListener('resize', () => { if (S.zoom == null) { clearTimeout(window._rz); window._rz = setTimeout(rerenderAll, 150); } });
 addEventListener('beforeunload', () => flushSave());
+addEventListener('pagehide', () => {
+  flushSave();
+  if (S.docId && S.doc) LS.set('pica.emergency', { id: S.docId, doc: S.doc, t: Date.now() });
+});
 addEventListener('beforeprint', () => {});
 
 // ---------- native bridge ----------
@@ -3272,7 +3388,11 @@ function notifyNative(){
 }
 
 window.__pica = S; // debug handle
-boot();
+boot().catch(e => {
+  document.body.insertAdjacentHTML('beforeend',
+    '<div style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font-family:serif;background:#f6f5f2;color:#141413;z-index:99"><div><h2>PICA could not start</h2><p>' +
+    String(e && e.message || e).replace(/</g, '&lt;') + '</p></div></div>');
+});
 })();
 </script>
 </body>
