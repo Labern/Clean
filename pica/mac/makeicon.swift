@@ -59,28 +59,22 @@ func render(size S: Int) -> CGImage {
     let rowH = box.height / Double(script.count)
     let adv = box.width / Double(cols)          // one character cell
 
-    if S >= 128 {
-        // real type
-        let font = courier(adv / 0.6001)        // Courier advance is 0.6em
-        for (i, line) in script.enumerated() where !line.1.isEmpty {
-            let x = box.minX + Double(line.0) * adv
-            let y = box.maxY - Double(i) * rowH - rowH * 0.78
-            let attr = NSAttributedString(string: line.1, attributes: [
-                .font: font, .foregroundColor: NSColor(cgColor: ink)!,
-            ])
-            let ctLine = CTLineCreateWithAttributedString(attr)
-            ctx.textPosition = CGPoint(x: x, y: y)
-            CTLineDraw(ctLine, ctx)
-        }
-    } else {
-        // the same excerpt as bars, so small sizes keep the shape rather than a smudge
-        let barH = max(1, (rowH * 0.42).rounded())
-        ctx.setFillColor(ink)
-        for (i, line) in script.enumerated() where !line.1.isEmpty {
-            let x = box.minX + Double(line.0) * adv
-            let w = Double(line.1.count) * adv
-            let y = box.maxY - Double(i) * rowH - barH - rowH * 0.12
-            ctx.fill(CGRect(x: x.rounded(), y: y.rounded(), width: max(2, w.rounded()), height: barH))
+    // Redacted: the excerpt drawn as solid bars, each the true length and indent of the
+    // line it stands for — slug, action, character cue, dialogue. Reads as a screenplay
+    // at 1024px and still holds its shape at 16.
+    let barH = max(1, (rowH * 0.46).rounded())
+    ctx.setFillColor(ink)
+    for (i, line) in script.enumerated() where !line.1.isEmpty {
+        let x = box.minX + Double(line.0) * adv
+        let w = Double(line.1.count) * adv
+        let y = box.maxY - Double(i) * rowH - barH - rowH * 0.10
+        let r = CGRect(x: x.rounded(), y: y.rounded(), width: max(2, w.rounded()), height: barH)
+        if S >= 128 {
+            let rad = min(barH / 2, s * 0.005)
+            ctx.addPath(CGPath(roundedRect: r, cornerWidth: rad, cornerHeight: rad, transform: nil))
+            ctx.fillPath()
+        } else {
+            ctx.fill(r)
         }
     }
     return ctx.makeImage()!

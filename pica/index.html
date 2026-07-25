@@ -301,7 +301,21 @@ const PicaEngine = (() => {
   const uid = () => 'e' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
   // ---------- line assembly from positioned text items ----------
-  // items: [{x, y (top-origin), w, str}] for one page → lines [{x, xEnd, y, text}]
+  // items: [{x, y (top-origin), w, str}] for one page → lines [{x, xEnd, y, text, items}]
+  function joinItems(items, charW) {
+    let text = '', xEnd = 0;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      if (i > 0) {
+        const gap = it.x - xEnd;
+        if (gap > charW * 0.45 && !/\s$/.test(text)) text += ' '.repeat(Math.max(1, Math.round(gap / charW)));
+      }
+      text += it.str;
+      xEnd = it.x + it.w;
+    }
+    return { text: text.replace(/\s+$/, ''), xEnd };
+  }
+
   function linesFromItems(items, charW) {
     const its = items.filter(i => i.str && i.str.trim() !== '');
     its.sort((a, b) => a.y - b.y || a.x - b.x);
@@ -313,18 +327,56 @@ const PicaEngine = (() => {
     }
     return lines.map(L => {
       L.items.sort((a, b) => a.x - b.x);
-      let text = '', xEnd = 0;
-      for (let i = 0; i < L.items.length; i++) {
-        const it = L.items[i];
-        if (i > 0) {
-          const gap = it.x - xEnd;
-          if (gap > charW * 0.45 && !/\s$/.test(text)) text += ' '.repeat(Math.max(1, Math.round(gap / charW)));
-        }
-        text += it.str;
-        xEnd = it.x + it.w;
-      }
-      return { x: L.items[0].x, xEnd, y: L.y, text: text.replace(/\s+$/, '') };
+      const j = joinItems(L.items, charW);
+      return { x: L.items[0].x, xEnd: j.xEnd, y: L.y, text: j.text, items: L.items };
     }).filter(L => L.text.length > 0);
+  }
+
+  // ---------- shooting-script scene numbers ----------
+  // Production drafts print the scene number in the margins, on the same line as the slug:
+  // "A1     INT. HOUSE - DAY     A1". Those numbers are printing apparatus, not writing —
+  // and left in place they become the leftmost column, so every real column is read one
+  // slot out and nothing classifies correctly. Detect the gutter by the fact that almost
+  // everything starting there is a scene number, then strip and re-anchor the line.
+  const SCENE_NO = /^[A-Z]{0,2}\d{1,3}[A-Z]{0,2}$/;
+  // "CONTINUED:", "(CONTINUED)", "CONTINUED: (2)" — all printing apparatus, never writing
+  const CONTINUED_RE = /^\(?\s*CONTINUED\s*\)?\s*[.:]?\s*(\(\s*\d+\s*\))?\s*$/i;
+
+  function stripSceneNumbers(body, charW) {
+    const at = new Map();
+    for (const p of body) for (const l of p.lines) {
+      if (!l.items || !l.items.length) continue;
+      const k = Math.round(l.x);
+      let e = at.get(k);
+      if (!e) at.set(k, e = { n: 0, num: 0 });
+      e.n++;
+      if (SCENE_NO.test(l.items[0].str.trim())) e.num++;
+    }
+    const gutter = new Set();
+    for (const [x, e] of at) if (e.n >= 8 && e.num / e.n >= 0.6) gutter.add(x);
+
+    for (const p of body) {
+      for (const l of p.lines) {
+        if (!gutter.size) break;
+        if (!l.items || l.items.length < 2) continue;
+        let items = l.items;
+        if (gutter.has(Math.round(l.x)) && SCENE_NO.test(items[0].str.trim())) items = items.slice(1);
+        // the matching number at the right margin, only when clearly detached
+        while (items.length > 1) {
+          const lastIt = items[items.length - 1], prev = items[items.length - 2];
+          if (!SCENE_NO.test(lastIt.str.trim())) break;
+          if (lastIt.x - (prev.x + prev.w) < charW * 3) break;
+          items = items.slice(0, -1);
+        }
+        if (items.length === l.items.length) continue;
+        if (!items.length) { l.text = ''; continue; }
+        const j = joinItems(items, charW);
+        l.items = items; l.x = items[0].x; l.xEnd = j.xEnd; l.text = j.text;
+      }
+      // CONTINUED markers are furniture wherever they sit on the page, gutter or not
+      p.lines = p.lines.filter(l => l.text.trim() !== '' && !CONTINUED_RE.test(l.text.trim()));
+    }
+    return gutter.size > 0;
   }
 
   function estimateCharW(pages) {
@@ -381,16 +433,46 @@ const PicaEngine = (() => {
       if (p0.lines.length > 0 && p0.lines.length <= 12 && !slug) { titlePage = p0; bodyStart = 1; }
     }
     const body = pages.slice(bodyStart);
+    stripSceneNumbers(body, charW0);
 
-    // -- page numbers: short "N." lines in the top margin, right side
-    const isPageNum = (l, p) => /^\d+\.$/.test(l.text.trim()) && l.x > p.width * 0.55 && l.y < 60;
+    // -- page furniture ------------------------------------------------------------
+    // Page numbers, CONTINUED markers and running heads are not part of the script, and
+    // must be scrubbed: PICA regenerates its own as it repaginates, so anything left
+    // behind shows up twice and drags the old page break's whitespace with it.
+    // Do NOT detect them by guessing a margin or a format — scripts number at the top or
+    // the bottom, right or left, "5" or "5." or "A5." Detect them by the one thing they
+    // all share: the same line sits at the same height on page after page, and it is
+    // numeric (or a known marker). Anything genuinely written never repeats like that.
+    const FURNITURE_NUM = /^[A-Za-z]?\d+[A-Za-z]?[.:]?$/;
+    const FURNITURE_WORD = /^\(?\s*(CONTINUED|CONT'D|MORE)\s*\)?[.:]?$/i;
+    const furniture = new Set();
+    {
+      const byY = new Map();
+      for (const p of body) for (const l of p.lines) {
+        const k = Math.round(l.y);
+        if (!byY.has(k)) byY.set(k, []);
+        byY.get(k).push(l);
+      }
+      const minPages = Math.max(3, body.length * 0.25);
+      for (const [, arr] of byY) {
+        if (arr.length < minPages) continue;
+        const marks = arr.filter(l => {
+          const t = l.text.trim();
+          return FURNITURE_NUM.test(t) || FURNITURE_WORD.test(t);
+        }).length;
+        // the whole row has to be furniture — a body row that happens to hold a number
+        // on a few pages must survive
+        if (marks >= arr.length * 0.9) for (const l of arr) furniture.add(l);
+      }
+    }
+    const bodyLines = p => p.lines.filter(l => !furniture.has(l));
 
     // -- collect body lines / metrics
     const allLines = [];
-    for (const p of body) for (const l of p.lines) if (!isPageNum(l, p)) allLines.push(l);
+    for (const p of body) for (const l of bodyLines(p)) allLines.push(l);
     const gaps = [];
     for (const p of body) {
-      const ls = p.lines.filter(l => !isPageNum(l, p));
+      const ls = bodyLines(p);
       for (let i = 1; i < ls.length; i++) {
         const g = Math.round(ls[i].y - ls[i - 1].y);
         if (g > 4 && g < 30) gaps.push(g);
@@ -398,7 +480,7 @@ const PicaEngine = (() => {
     }
     const rowH = mode(gaps) || 12;
     const firstYs = body.slice(1).map(p => {
-      const ls = p.lines.filter(l => !isPageNum(l, p));
+      const ls = bodyLines(p);
       return ls.length ? Math.round(ls[0].y * 2) / 2 : null;
     }).filter(v => v != null);
     // y0 = the most common first-line y that is on the dominant grid
@@ -410,15 +492,21 @@ const PicaEngine = (() => {
       const k = Math.round(l.x);
       xh.set(k, (xh.get(k) || 0) + 1);
     }
-    // merge near-identical bins (±2pt)
+    // Cluster the x positions into columns. Not every PDF sets its glyph origins on exact
+    // points — plenty smear a single column across five or six — so chain each bin to the
+    // PREVIOUS one and let the cluster run. (Anchoring on the cluster's first x splits a
+    // smeared column every few points and invents columns that aren't there.) A cluster is
+    // represented by its busiest x, which is the column's true left edge.
     const bins = [...xh.entries()].sort((a, b) => a[0] - b[0]);
-    const merged = [];
+    const clusters = [];
     for (const [x, n] of bins) {
-      const last = merged[merged.length - 1];
-      if (last && x - last.x <= 2) { last.n += n; last.x = last.n > n ? last.x : x; }
-      else merged.push({ x, n });
+      const c = clusters[clusters.length - 1];
+      if (c && x - c.last <= 3) {
+        c.n += n; c.last = x;
+        if (n > c.peakN) { c.peakN = n; c.x = x; }
+      } else clusters.push({ x, last: x, n, peakN: n });
     }
-    const top = merged.filter(b => b.n >= allLines.length * 0.01).sort((a, b) => b.n - a.n).slice(0, 4)
+    const top = clusters.filter(b => b.n >= allLines.length * 0.01).sort((a, b) => b.n - a.n).slice(0, 4)
       .sort((a, b) => a.x - b.x);
     const cols = { ...LETTER.cols };
     if (top.length >= 4) {
@@ -430,10 +518,9 @@ const PicaEngine = (() => {
       cols.action = top[0].x;
     }
 
-    // -- page number metrics
+    // -- page number metrics: reuse the source's own position so reprinting matches it
     let pnY = LETTER.pnY, pnRight = pages[0].width - 82;
-    const pns = [];
-    for (const p of body) for (const l of p.lines) if (isPageNum(l, p)) pns.push(l);
+    const pns = [...furniture].filter(l => FURNITURE_NUM.test(l.text.trim()));
     if (pns.length) {
       pnY = mode(pns.map(l => Math.round(l.y * 2) / 2));
       pnRight = pns.map(l => l.xEnd).sort((a, b) => a - b)[Math.floor(pns.length / 2)];
@@ -446,29 +533,65 @@ const PicaEngine = (() => {
       .map(l => l.xEnd);
     const transRight = transEnds.length ? transEnds.sort((a, b) => a - b)[Math.floor(transEnds.length / 2)] : pages[0].width - 96;
 
-    // -- rows per page: highest on-grid row index seen
+    // -- rows per page: highest on-grid row index seen. The tolerance is adaptive: a PDF
+    // whose baselines are exact gets a tight one, so deliberately off-grid marks like
+    // (MORE) are not mistaken for an extra row; a PDF whose baselines wander gets a loose
+    // one, so the count doesn't come out short and repaginate into extra pages.
+    let onGrid = 0;
+    for (const l of allLines) {
+      const r = (l.y - y0) / rowH;
+      if (Math.abs(r - Math.round(r)) < 0.15) onGrid++;
+    }
+    const rowTol = (onGrid / Math.max(1, allLines.length)) >= 0.9 ? 0.15 : 0.32;
     let maxRow = 0;
     for (const l of allLines) {
       const r = (l.y - y0) / rowH;
-      if (Math.abs(r - Math.round(r)) < 0.15) maxRow = Math.max(maxRow, Math.round(r));
+      if (Math.abs(r - Math.round(r)) < rowTol) maxRow = Math.max(maxRow, Math.round(r));
     }
-    const rows = maxRow + 1;
+
+    // Final Draft's own page setup (Screenplay.fdxt): 72pt top and bottom margins, header
+    // and footer at 36pt. Trust what we measured when it is plausible; when a PDF gives a
+    // top margin that no screenplay would use, fall back to FD's geometry so the page has
+    // the right amount of air above and below the text.
+    const FD_MARGIN = 72, FD_HEADER = 36;
+    let y0f = y0, rows = maxRow + 1;
+    const pageH = pages[0].height;
+    if (y0 < FD_MARGIN * 0.85 || y0 > FD_MARGIN * 1.8) y0f = FD_MARGIN + rowH * 0.8;
+    const lastAllowed = pageH - FD_MARGIN * 0.85;
+    const maxRows = Math.max(10, Math.floor((lastAllowed - y0f) / rowH) + 1);
+    if (rows > maxRows || rows < maxRows * 0.75) rows = maxRows;
+    if (pnY > pageH * 0.5) pnY = Math.min(pnY, pageH - FD_HEADER);   // footer numbering
+    else pnY = Math.min(Math.max(pnY, FD_HEADER * 0.6), y0f - rowH * 0.8);
 
     const layout = {
-      pageW: pages[0].width, pageH: pages[0].height,
-      y0, rowH, rows, pnY, pnRight,
+      pageW: pages[0].width, pageH,
+      y0: y0f, rowH, rows, pnY, pnRight,
       cols, transRight, charW: charW0,
       widths: { ...LETTER.widths },
       moreDy: 10, contDy: -14,
     };
 
     // ---------- classification ----------
+    // Assign each line to its nearest column rather than demanding an exact hit, with the
+    // tolerance derived from how far apart the columns actually are.
+    const colList = [['action', cols.action], ['dialogue', cols.dialogue],
+                     ['paren', cols.paren], ['character', cols.character]];
+    const colXs = colList.map(c => c[1]).sort((a, b) => a - b);
+    let minGap = Infinity;
+    for (let i = 1; i < colXs.length; i++) minGap = Math.min(minGap, colXs[i] - colXs[i - 1]);
+    const colTol = Math.max(3, Math.min(9, Math.floor(minGap / 2) - 1));
+    const nearestCol = (x) => {
+      let best = null, bd = Infinity;
+      for (const [k, c] of colList) { const d = Math.abs(x - c); if (d < bd) { bd = d; best = k; } }
+      return bd <= colTol ? best : null;
+    };
     const roleOf = (l) => {
-      const near = (c) => Math.abs(l.x - c) < 3;
-      if (near(cols.action)) return SCENE_RE.test(l.text) ? 'scene' : 'action';
-      if (near(cols.dialogue)) return 'dialogue';
-      if (near(cols.paren)) return 'paren';
-      if (near(cols.character)) {
+      const col = nearestCol(l.x);
+      const near = (c) => Math.abs(l.x - c) <= colTol;
+      if (col === 'action') return SCENE_RE.test(l.text) ? 'scene' : 'action';
+      if (col === 'dialogue') return 'dialogue';
+      if (col === 'paren') return 'paren';
+      if (col === 'character') {
         if (l.text.trim() === '(MORE)') return 'MORE';
         return 'character';
       }
@@ -483,7 +606,7 @@ const PicaEngine = (() => {
 
     for (let pi = 0; pi < body.length; pi++) {
       const p = body[pi];
-      const ls = p.lines.filter(l => !isPageNum(l, p));
+      const ls = bodyLines(p);
       let prevLine = null, pageStart = true;
 
       for (const l of ls) {
@@ -1182,6 +1305,18 @@ const TYPE_LABEL = { scene:'Scene Heading', action:'Action', character:'Characte
 
 function newEl(type, text){ return { id: E.uid(), type, text: text || '' }; }
 
+// The caret counts as "at the end" when it sits just inside a parenthetical's closing
+// bracket — which is exactly where it lives while you type one. Without this, Tab and
+// Enter see an interior caret and split the element instead of moving you to dialogue.
+function atElementEnd(el, off){
+  if (off >= el.text.length) return true;
+  if (el.type === 'paren') {
+    const m = el.text.match(/\)+\s*$/);
+    if (m && off >= el.text.length - m[0].length) return true;
+  }
+  return false;
+}
+
 function handleEnter(){
   closePops();
   const c = syncCaret(); if (!c) return;
@@ -1200,10 +1335,11 @@ function handleEnter(){
     opConvert(el.id, 'transition');
   }
   const i = elIndex(c.el);
-  if (c.off >= el.text.length) {
+  if (atElementEnd(el, c.off)) {
     const nt = FOLLOW[el.type] || 'action';
     const ne = newEl(nt, '');
     opSplice(i + 1, 0, [ne], { el: ne.id, off: 0 });
+    if (nt === 'character') guessCharacter(ne.id);
   } else if (c.off === 0) {
     const ne = newEl(el.type === 'dialogue' ? 'character' : el.type, '');
     opSplice(i, 0, [ne], { el: el.id, off: 0 });
@@ -1282,7 +1418,7 @@ function handleTab(shift){
     if (next === 'character') guessCharacter(el.id);
     return;
   }
-  if (shift || c.off < el.text.length) return;   // Tab acts only from the end of a paragraph
+  if (shift || !atElementEnd(el, c.off)) return;   // Tab acts only from the end of a paragraph
   if (el.type === 'scene' && sceneTab(el)) return;
 
   const nt = TAB_TO[el.type] || 'character';
@@ -1730,7 +1866,17 @@ pagesEl.addEventListener('keydown', ev => {
     if (ev.key === 'ArrowDown') { S.menu.move(1); ev.preventDefault(); return; }
     if (ev.key === 'ArrowUp') { S.menu.move(-1); ev.preventDefault(); return; }
     if (ev.key === 'Tab' && S.menu.kind === 'element') { S.menu.move(ev.shiftKey ? -1 : 1); ev.preventDefault(); return; }
-    if (ev.key === 'Enter' || (ev.key === 'Tab' && !ev.shiftKey)) { ev.preventDefault(); S.menu.accept(); return; }
+    if (ev.key === 'Enter' || (ev.key === 'Tab' && !ev.shiftKey)) {
+      const kind = S.menu.kind;
+      const c0 = S.caret;
+      const onCue = !!(c0 && !c0.el.startsWith('title:') && elById(c0.el)?.type === 'character');
+      ev.preventDefault();
+      S.menu.accept();
+      // FD: taking a character name from SmartType with Return carries straight on to
+      // the dialogue — otherwise Return looks like it did nothing.
+      if (kind === 'smart' && ev.key === 'Enter' && onCue) handleEnter();
+      return;
+    }
     if (ev.key === 'Escape') { closePops(); ev.preventDefault(); return; }
     // FD: choose from the element popup by number, or by the element's first letter
     if (S.menu.kind === 'element') {

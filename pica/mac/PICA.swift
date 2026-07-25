@@ -197,12 +197,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         ready = true
         syncTitlebarInset()
         drainPendingOpens()
-        // open full screen (set `defaults write com.labern.pica openFullScreen -bool NO` to stop)
+        // Open filling the screen — a zoomed window, NOT a separate full-screen Space:
+        // the state you get by entering full screen and pressing Esc.
         if !didAutoFullScreen {
             didAutoFullScreen = true
-            let want = UserDefaults.standard.object(forKey: "openFullScreen") as? Bool ?? true
-            if want, let w = window, !w.styleMask.contains(.fullScreen) {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { w.toggleFullScreen(nil) }
+            let want = UserDefaults.standard.object(forKey: "openMaximized") as? Bool ?? true
+            if want, let w = window, !w.styleMask.contains(.fullScreen),
+               let screen = w.screen ?? NSScreen.main {
+                w.setFrame(screen.visibleFrame, display: true, animate: false)
             }
         }
     }
