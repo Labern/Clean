@@ -183,6 +183,7 @@ body.resizing #canvas{ pointer-events:none; }
 #docGenre:hover, #docGenre:focus{ border-bottom-color:var(--faint); }
 
 /* ---------- reader mode: the app melts down to the read ---------- */
+body.reader{ --pagegap: .55rem; }   /* reading runs Chrome-PDF tight; exit restores your gap */
 body.reader #pages{ caret-color:transparent; }
 body.reader #btnReader{ color:var(--ink); border-bottom-color:var(--rule); }
 .fcenter{ display:flex; align-items:center; justify-content:center; }
