@@ -161,11 +161,14 @@ body.resizing #canvas{ pointer-events:none; }
 
 /* ---------- statusbar ---------- */
 footer{
-  flex:none; display:flex; align-items:center; gap:1.3rem;
+  flex:none; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:1.3rem;
   border-top:1px solid var(--line); padding:.6rem 1.4rem;
   font-family:var(--mono); font-size:.69rem; letter-spacing:.15em; text-transform:uppercase;
   color:var(--faint); user-select:none; white-space:nowrap; overflow:hidden;
 }
+.fzone{ display:flex; align-items:center; gap:1.3rem; min-width:0; }
+.fzone.right{ justify-content:flex-end; }
+[data-foot][hidden]{ display:none !important; }
 #stType{ color:var(--ink); letter-spacing:.2em; border-bottom:1px solid var(--line); padding-bottom:1px; }
 #stDrafts{ color:var(--ink-2); letter-spacing:.15em; }
 #stDrafts:hover{ color:var(--ink); }
@@ -310,6 +313,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 
 <header>
   <div class="hzone left">
+    <button id="railToggle" class="hbtn" title="Sidebar (⌥⌘S)">☰</button>
     <div class="wordmark">PICA</div>
   </div>
   <span id="docTitle" contenteditable="true" spellcheck="false"></span>
@@ -338,16 +342,18 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 </div>
 
 <footer>
-  <button id="railToggle" class="z" title="Sidebar (⌥⌘S)">☰</button>
-  <button id="btnKeys" class="z" title="Settings &amp; shortcuts (⌘,)">⚙</button>
-  <button id="stType">—</button>
-  <span id="stHint"></span>
-  <button id="stDrafts" title="Named drafts">drafts</button>
-  <div class="grow"></div>
-  <a id="footLink" href="https://scriptslug.com" target="_blank" rel="noopener noreferrer">Find screenplays ↗</a>
-  <span id="stPage">—</span>
-  <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click to fit · double-click for 100%">100%</button><button class="z" id="zIn">+</button>
-  <span id="stSave"></span>
+  <div class="fzone left">
+    <button id="btnKeys" class="z" title="Settings &amp; shortcuts (⌘,)">⚙</button>
+    <button id="stType" data-foot="type">—</button>
+    <span id="stHint" data-foot="hint"></span>
+    <button id="stDrafts" data-foot="drafts" title="Named drafts">drafts</button>
+  </div>
+  <span id="stPage" data-foot="page">—</span>
+  <div class="fzone right">
+    <a id="footLink" data-foot="link" href="https://scriptslug.com" target="_blank" rel="noopener noreferrer">Find screenplays ↗</a>
+    <span id="stSave" data-foot="saved"></span>
+    <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click to fit · double-click for 100%">100%</button><button class="z" id="zIn">+</button>
+  </div>
 </footer>
 
 <div id="findBar" hidden>
@@ -805,7 +811,9 @@ const PicaEngine = (() => {
     const lastAllowed = pageH - FD_MARGIN * 0.85;
     const maxRows = Math.max(10, Math.floor((lastAllowed - y0f) / rowH) + 1);
     if (rows > maxRows || rows < maxRows * 0.75) rows = maxRows;
-    if (pnY > pageH * 0.5) pnY = Math.min(pnY, pageH - FD_HEADER);   // footer numbering
+    // the industry standard is top-right only ("5.", page 1 unnumbered); a source that
+    // numbered at the bottom gets normalized to the standard header position
+    if (pnY > pageH * 0.5) pnY = LETTER.pnY;
     else pnY = Math.min(Math.max(pnY, FD_HEADER * 0.6), y0f - rowH * 0.8);
 
     const layout = {
@@ -2905,6 +2913,10 @@ function applyUiPrefs(){
   document.documentElement.style.setProperty('--ui-base', (ui.uiBase || 20) + 'px');
   document.documentElement.style.setProperty('--page', ui.paper === 'white' ? '#ffffff' : '#fdfcf8');
   S.pref = { smartType: ui.smartType !== false, autoDetect: ui.autoDetect !== false, autoContd: ui.autoContd !== false };
+  // footer items: zoom and ⚙ are permanent; page/scenes on by default; the rest opt-in
+  const foot = Object.assign({ page: true, type: false, hint: false, drafts: false, link: false, saved: false }, ui.foot || {});
+  S.foot = foot;
+  for (const el of document.querySelectorAll('[data-foot]')) el.hidden = !foot[el.dataset.foot];
 }
 function setUiBase(px){
   const ui = LS.get('pica.ui', {}); ui.uiBase = px; LS.set('pica.ui', ui);
@@ -2944,6 +2956,14 @@ function showSettings(){
     seg('setTitle', [['off','Hidden'],['on','Shown']], S.showTitle ? 'on' : 'off'))}
   ${row('Sidebar', 'Drag its edge to resize · double-click to reset.',
     seg('setRail', [['on','Shown'],['off','Hidden']], document.body.classList.contains('railhidden') ? 'off' : 'on'))}
+
+  <h3>Footer</h3>
+  ${row('Page & scenes', 'Centred. Zoom and \u2699 are always on.', seg('footPage', [['on','On'],['off','Off']], (S.foot?.page ?? true) ? 'on' : 'off'))}
+  ${row('Element type', 'What the caret is in — click it for the element menu.', seg('footType', [['on','On'],['off','Off']], S.foot?.type ? 'on' : 'off'))}
+  ${row('Key hints', 'What ⏎ and ⇥ will do next.', seg('footHint', [['on','On'],['off','Off']], S.foot?.hint ? 'on' : 'off'))}
+  ${row('Drafts', 'The named-drafts menu.', seg('footDrafts', [['on','On'],['off','Off']], S.foot?.drafts ? 'on' : 'off'))}
+  ${row('Find screenplays', 'Link to the script libraries.', seg('footLinkT', [['on','On'],['off','Off']], S.foot?.link ? 'on' : 'off'))}
+  ${row('Saved time', 'The autosave clock.', seg('footSaved', [['on','On'],['off','Off']], S.foot?.saved ? 'on' : 'off'))}
 
   <h3>Writing aids</h3>
   ${row('SmartType', 'Names, locations and times complete as you type.',
@@ -3017,6 +3037,11 @@ function showSettings(){
   wire('setSmart', v => { const u = LS.get('pica.ui', {}); u.smartType = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setAuto', v => { const u = LS.get('pica.ui', {}); u.autoDetect = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setContd', v => { const u = LS.get('pica.ui', {}); u.autoContd = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
+  const footWire = (id, key) => wire(id, v => {
+    const u = LS.get('pica.ui', {}); u.foot = Object.assign({}, u.foot, { [key]: v === 'on' }); LS.set('pica.ui', u); applyUiPrefs();
+  });
+  footWire('footPage', 'page'); footWire('footType', 'type'); footWire('footHint', 'hint');
+  footWire('footDrafts', 'drafts'); footWire('footLinkT', 'link'); footWire('footSaved', 'saved');
   wire('setSnaps', v => {
     const snaps = S.snaps || [];
     const sn = snaps[+v]; if (!sn) return;
