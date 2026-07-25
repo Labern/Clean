@@ -483,7 +483,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
 
         // View
         let viewMenu = NSMenu(title: "View")
-        viewMenu.addItem(item("Hide Sidebar", #selector(toggleSidebar(_:)), "s", [.command, .option]))
+        viewMenu.addItem(item("Hide Sidebar", #selector(toggleSidebar(_:)), "t"))
         viewMenu.addItem(item("Show Title Page", #selector(toggleTitlePage(_:)), "t", [.command, .shift]))
         viewMenu.addItem(item("Invert Theme", #selector(invertTheme(_:)), "j"))
         viewMenu.addItem(.separator())
