@@ -258,7 +258,7 @@ let grammarSteps: [Step] = [
     // Parenthetical + Enter → Dialogue
     Step(desc: "Enter from inside a Parenthetical gives Dialogue",
          js: "T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.tab(false); T.type('beat'); T.esc(); T.enter(); return T.state().slice(2).join('§')",
-         expect: "paren|beat§dialogue|"),
+         expect: "paren|(beat)§dialogue|"),
     // Dialogue + Enter → Action
     Step(desc: "Dialogue + Enter gives Action",
          js: "T.type('Hi.'); T.esc(); T.enter(); return T.state().slice(3).join('§')",
