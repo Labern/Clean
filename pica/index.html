@@ -80,7 +80,8 @@ header{
   flex:none; user-select:none; min-height:3.15rem;
 }
 .hzone{ display:flex; align-items:center; gap:1.35rem; min-width:0; }
-.hzone.right{ justify-content:flex-end; }
+.hzone.left{ grid-column:1; }
+.hzone.right{ grid-column:3; justify-content:flex-end; }
 .wordmark{ font-family:var(--serif); font-size:1.28rem; font-weight:560; letter-spacing:.045em; }
 #docTitle{
   font-family:var(--mono); font-size:.76rem; letter-spacing:.2em; text-transform:uppercase;
@@ -336,7 +337,6 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   <button class="hbtn" id="btnExport" data-head="exp">Export</button>
   <button class="hbtn" id="btnTitle" data-head="title" title="Title page (⇧⌘T)">Title</button>
   <button class="hbtn" id="btnTheme" title="invert">◐</button>
-  <button class="hbtn" id="railToggle" title="Sidebar (⌘T)">☰</button>
   </div>
 </header>
 
@@ -363,6 +363,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 
 <footer>
   <div class="fzone left">
+    <button id="railToggle" class="z" title="Sidebar (⌘T)">☰</button>
     <button id="btnKeys" class="z" title="Settings &amp; shortcuts (⌘,)">⚙</button>
     <button id="stType" data-foot="type">—</button>
     <span id="stHint" data-foot="hint"></span>
