@@ -345,6 +345,8 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
     <div class="sidegrid">
       <button class="sbtn" id="railNew">New</button>
       <button class="sbtn" id="railImport">Import</button>
+      <button class="sbtn" id="railExport" data-side="exp" hidden>Export</button>
+      <button class="sbtn" id="railTitle" data-side="title" hidden title="Title page (⇧⌘T)">Title</button>
     </div>
     <button class="eyebrow" id="eyeIndex">Index</button>
     <div id="docList"></div>
@@ -2994,6 +2996,10 @@ function applyUiPrefs(){
   const head = Object.assign({ new: false, imp: false, exp: false, title: false }, ui.head || {});
   S.head = head;
   for (const el of document.querySelectorAll('[data-head]')) el.hidden = !head[el.dataset.head];
+  // the sidebar's optional Export / Title buttons — off unless asked for
+  const side = Object.assign({ exp: false, title: false }, ui.side || {});
+  S.side = side;
+  for (const el of document.querySelectorAll('[data-side]')) el.hidden = !side[el.dataset.side];
 }
 function setUiBase(px){
   const ui = LS.get('pica.ui', {}); ui.uiBase = px; LS.set('pica.ui', ui);
@@ -3039,6 +3045,10 @@ function showSettings(){
   ${row('Import', '', seg('headImp', [['off','Off'],['on','On']], S.head?.imp ? 'on' : 'off'))}
   ${row('Export', '', seg('headExp', [['off','Off'],['on','On']], S.head?.exp ? 'on' : 'off'))}
   ${row('Title', '', seg('headTitle', [['off','Off'],['on','On']], S.head?.title ? 'on' : 'off'))}
+
+  <h3>Sidebar</h3>
+  ${row('Export button', 'Also on ⌘E and in the menus.', seg('sideExp', [['off','Off'],['on','On']], S.side?.exp ? 'on' : 'off'))}
+  ${row('Title button', 'Also ⇧⌘T.', seg('sideTitle', [['off','Off'],['on','On']], S.side?.title ? 'on' : 'off'))}
 
   <h3>Footer</h3>
   ${row('Page & scenes', 'Centred. Zoom and \u2699 are always on.', seg('footPage', [['on','On'],['off','Off']], (S.foot?.page ?? true) ? 'on' : 'off'))}
@@ -3129,6 +3139,10 @@ function showSettings(){
     const u = LS.get('pica.ui', {}); u.head = Object.assign({}, u.head, { [key]: v === 'on' }); LS.set('pica.ui', u); applyUiPrefs();
   });
   headWire('headNew', 'new'); headWire('headImp', 'imp'); headWire('headExp', 'exp'); headWire('headTitle', 'title');
+  const sideWire = (id, key) => wire(id, v => {
+    const u = LS.get('pica.ui', {}); u.side = Object.assign({}, u.side, { [key]: v === 'on' }); LS.set('pica.ui', u); applyUiPrefs();
+  });
+  sideWire('sideExp', 'exp'); sideWire('sideTitle', 'title');
   wire('setSnaps', v => {
     const snaps = S.snaps || [];
     const sn = snaps[+v]; if (!sn) return;
@@ -3335,6 +3349,8 @@ const foldWire = (eye, listId, key) => $(eye).addEventListener('mousedown', ev =
   u.collapse = Object.assign({}, u.collapse, { [key]: list.hidden });
   LS.set('pica.ui', u);
 });
+$('#railExport').addEventListener('mousedown', ev => { ev.preventDefault(); openExportMenu(); });
+$('#railTitle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleTitlePage(); });
 foldWire('#eyeIndex', '#docList', 'index');
 foldWire('#eyeScenes', '#sceneList', 'scenes');
 foldWire('#eyeChars', '#charList', 'chars');
