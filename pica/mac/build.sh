@@ -9,7 +9,9 @@ APP_NAME="PICA"
 BUNDLE_ID="com.labern.pica"
 VERSION="1.0"
 IDENTITY="pica-local"                 # fallback stable local identity
-BUILD="build"
+# build outside the repo: Desktop is iCloud-synced, and its xattr re-tagging lands
+# between the xattr-clean and codesign, failing the signature ("detritus")
+BUILD="${PICA_BUILD_DIR:-/tmp/pica-build}"
 APP="$BUILD/$APP_NAME.app"
 RES="$APP/Contents/Resources"
 WEB="$RES/web"

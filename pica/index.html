@@ -2123,7 +2123,7 @@ function rail(){
     b.innerHTML = '<span class="ttl"></span><span class="pg"></span>';
     b.firstChild.textContent = (pinned.has(d.id) ? '• ' : '') + (d.title || 'Untitled');
     b.lastChild.textContent = d.pages ? d.pages + 'p' : '';
-    b.addEventListener('mousedown', ev => { ev.preventDefault(); if (d.id !== S.docId) openDoc(d.id); });
+    b.addEventListener('mousedown', ev => { if (ev.button !== 0) return; ev.preventDefault(); if (d.id !== S.docId) openDoc(d.id); });
     b.addEventListener('contextmenu', ev => { ev.preventDefault(); docMenu(d, ev); });
     dl.appendChild(b);
   }
@@ -2143,6 +2143,7 @@ function rail(){
     b.lastChild.textContent = l.text;
     const pi = i, elid = l.el;
     b.addEventListener('mousedown', ev => {
+      if (ev.button !== 0) return;
       ev.preventDefault();
       S.pageEls[pi]?.wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
       S.caret = { el: elid, off: 0 };
@@ -2616,6 +2617,35 @@ document.addEventListener('selectionchange', () => {
   if (c) { S.caret = c; status(); }
 });
 pagesEl.addEventListener('mousedown', ev => { if (ev.button !== 2) closePops(); });
+
+// Forgiving caret placement: a click anywhere on the paper lands the cursor at the
+// nearest text position — end of the nearest line when you click past its edge —
+// instead of demanding a pixel-perfect hit on the type itself.
+pagesEl.addEventListener('mousedown', ev => {
+  if (ev.button !== 0) return;
+  const page = ev.target.closest('.page');
+  if (!page || ev.target.closest('.line')) return;      // direct text clicks behave natively
+  const lines = [...page.children].filter(d =>
+    d.classList.contains('line') && d.dataset.el && !d.dataset.el.startsWith('title:') &&
+    d.dataset.kind !== 'pn' && d.dataset.kind !== 'more' && d.dataset.kind !== 'contcue');
+  if (!lines.length) return;
+  let best = null, bd = Infinity;
+  for (const d of lines) {
+    const r = d.getBoundingClientRect();
+    const dy = ev.clientY < r.top ? r.top - ev.clientY : (ev.clientY > r.bottom ? ev.clientY - r.bottom : 0);
+    const dx = ev.clientX < r.left ? r.left - ev.clientX : (ev.clientX > r.right ? ev.clientX - r.right : 0);
+    const score = dy * 120 + dx;                        // the same row wins decisively
+    if (score < bd) { bd = score; best = { d, r }; }
+  }
+  if (!best) return;
+  ev.preventDefault();
+  const len = best.d.textContent.length;
+  const cw = len ? best.r.width / len : 1;
+  const at = Math.max(0, Math.min(len, Math.round((ev.clientX - best.r.left) / cw)));
+  placeCaret(best.d, at);
+  S.caret = { el: best.d.dataset.el, off: (+best.d.dataset.off || 0) + at };
+  status();
+});
 
 // right-click in the script: name what this is, offer to change it
 pagesEl.addEventListener('contextmenu', ev => {

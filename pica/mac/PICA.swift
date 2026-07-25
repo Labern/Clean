@@ -216,14 +216,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let a = NSAlert(); a.messageText = "PICA"; a.informativeText = message
         a.addButton(withTitle: "OK")
-        a.beginSheetModal(for: window) { _ in completionHandler() }
+        _ = a.runModal(); completionHandler()
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
         let a = NSAlert(); a.messageText = "PICA"; a.informativeText = message
         a.addButton(withTitle: "OK"); a.addButton(withTitle: "Cancel")
-        a.beginSheetModal(for: window) { completionHandler($0 == .alertFirstButtonReturn) }
+        completionHandler(a.runModal() == .alertFirstButtonReturn)
     }
 
     func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String,
@@ -235,7 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         field.stringValue = defaultText ?? ""
         a.accessoryView = field
         a.window.initialFirstResponder = field
-        a.beginSheetModal(for: window) { completionHandler($0 == .alertFirstButtonReturn ? field.stringValue : nil) }
+        completionHandler(a.runModal() == .alertFirstButtonReturn ? field.stringValue : nil)
     }
 
     // let the page's own <input type=file> present a normal open panel
