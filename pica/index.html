@@ -160,7 +160,7 @@ body.resizing #canvas{ pointer-events:none; }
 /* ---------- canvas ---------- */
 #canvas{ flex:1; overflow:auto; background:var(--paper-2); min-width:0; position:relative; }
 #pages{ outline:none; padding:2.6rem 1rem 6rem; caret-color:var(--page-ink); }
-.pageWrap{ margin:0 auto 2.4rem; position:relative; }
+.pageWrap{ margin:0 auto var(--pagegap, 2.4rem); position:relative; }
 .page{
   position:relative; background:var(--page); color:var(--page-ink);
   box-shadow:var(--shadow); margin:0 auto;
@@ -224,7 +224,7 @@ body.split #canvas{ flex:1; min-width:0; }
 #bClose{ color:var(--ink-2); font-size:.9rem; }
 #bClose:hover{ color:var(--ink); }
 #pagesB{ padding:1.6rem .8rem 5rem; }
-#pagesB .pageWrap{ margin:0 auto 1.6rem; }
+#pagesB .pageWrap{ margin:0 auto var(--pagegap, 1.6rem); }
 #pagesB .page{ user-select:text; }
 
 /* ---------- statusbar ---------- */
@@ -3078,6 +3078,8 @@ function applyUiPrefs(){
   document.documentElement.style.setProperty('--page', ui.paper === 'white' ? '#ffffff' : '#fdfcf8');
   S.pref = { smartType: ui.smartType !== false, autoDetect: ui.autoDetect !== false, autoContd: ui.autoContd !== false };
   // footer items: zoom and ⚙ are permanent; page/scenes on by default; the rest opt-in
+  const gaps = { roomy: '2.4rem', compact: '.55rem', none: '2px' };
+  document.documentElement.style.setProperty('--pagegap', gaps[ui.pageGap] || gaps.roomy);
   const foot = Object.assign({ page: true, type: false, hint: false, drafts: false, link: false, saved: false }, ui.foot || {});
   S.foot = foot;
   for (const el of document.querySelectorAll('[data-foot]')) el.hidden = !foot[el.dataset.foot];
@@ -3122,6 +3124,7 @@ function showSettings(){
   ${row('Theme', '', seg('setTheme', [['auto','Auto'],['light','Light'],['dark','Dark']], theme))}
   ${row('Paper', '', seg('setPaper', [['cream','Cream'],['white','White']], ui.paper === 'white' ? 'white' : 'cream'))}
   ${row('Page zoom', 'Pinch, or ⌘+ / ⌘−.', seg('setZoom', [['fit','Fit'],['out','−'],['in','+']], 'fit'))}
+  ${row('Page gap', 'Compact is the Chrome-PDF / Final Draft look.', seg('setGap', [['roomy','Roomy'],['compact','Compact'],['none','None']], ui.pageGap || 'roomy'))}
 
   <h3>Layout</h3>
   ${row('Title page', 'A separate artifact — page 1 is your first written page.',
@@ -3216,6 +3219,7 @@ function showSettings(){
     else PICA_API.zoom(v === 'in' ? 0.1 : -0.1);
   });
   wire('setPaper', v => { const u = LS.get('pica.ui', {}); u.paper = v; LS.set('pica.ui', u); applyUiPrefs(); rerenderAll(); });
+  wire('setGap', v => { const u = LS.get('pica.ui', {}); u.pageGap = v; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setSmart', v => { const u = LS.get('pica.ui', {}); u.smartType = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setAuto', v => { const u = LS.get('pica.ui', {}); u.autoDetect = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setContd', v => { const u = LS.get('pica.ui', {}); u.autoContd = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
