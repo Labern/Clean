@@ -31,7 +31,7 @@
 
   const cfg = Object.assign({ theme: 'stock', hide: {}, privacy: false,
                               compact: false, font: '', msgSize: 0,
-                              nameSize: 0, msgGap: 0,
+                              nameSize: 0, msgGap: 0, sounds: false,
                               focus: false, pins: [] },
                             window.__SHELL_CONFIG || {});
 
@@ -202,6 +202,59 @@
       return { compact: true, listHidden: false, reason: 'conversation lost width' };
     }
     return { compact: true, listHidden: true };
+  }
+
+  /* ── 3b2. how wide WhatsApp insists on being ───────────────────────────────
+     Companion mode asks the app to squeeze into a narrow panel. WhatsApp's
+     layout has desktop minimums, and when it cannot meet them the webview clips
+     rather than reflows. theme.css strips those minimums; this reports whatever
+     width it still demands so the app can scale the page to fit instead of
+     leaving him with a cropped corner. */
+
+  function compactFit() {
+    return {
+      inner:  window.innerWidth,
+      scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth || 0),
+      railTagged: !!document.querySelector('[data-shell-rail]'),
+      listTagged: !!document.querySelector('[data-shell-list]'),
+      listHidden: R().hasAttribute('data-shell-compact-list'),
+      convoWidth: (document.querySelector('[data-shell-convo]') || {}).offsetWidth || 0
+    };
+  }
+
+  /* ── 3b3. silence ──────────────────────────────────────────────────────────
+     WhatsApp plays its own message beep through an <audio> element, entirely
+     separately from the macOS notification sound — and that beep is the loud one.
+     Muting all audio would break voice notes and calls, so this blocks only
+     PROGRAMMATIC playback: sound WhatsApp starts by itself with no recent user
+     gesture. Pressing play on a voice note is a gesture, so it still plays. And
+     looping audio is let through, because that is what a ringtone is — an
+     incoming call should still be able to ring. */
+
+  let lastGesture = 0;
+  for (const ev of ['pointerdown', 'mousedown', 'keydown', 'touchstart']) {
+    window.addEventListener(ev, () => { lastGesture = Date.now() }, true);
+  }
+
+  let audioPatched = false;
+  function setSounds(on) {
+    cfg.sounds = !!on;
+    if (audioPatched) return cfg.sounds;      // patched once; the patch reads cfg live
+    try {
+      const proto = window.HTMLMediaElement && window.HTMLMediaElement.prototype;
+      if (!proto || !proto.play) return cfg.sounds;
+      const originalPlay = proto.play;
+      proto.play = function () {
+        const programmatic = Date.now() - lastGesture > 1000;
+        if (!cfg.sounds && programmatic && !this.loop) {
+          try { this.pause(); this.currentTime = 0 } catch (e) {}
+          return Promise.resolve();           // resolve so WhatsApp's own code doesn't throw
+        }
+        return originalPlay.apply(this, arguments);
+      };
+      audioPatched = true;
+    } catch (e) {}
+    return cfg.sounds;
   }
 
   /* ── 3c. typography ────────────────────────────────────────────────────────── */
@@ -552,6 +605,7 @@
       msgGap:      R().style.getPropertyValue('--shell-msg-gap') || '',
       focus:       R().hasAttribute('data-shell-focus'),
       focusHidden: document.querySelectorAll('[data-shell-dim]').length,
+      sounds:      cfg.sounds === true,
       storageShim: true,
       errors:      errCount,
       notificationShim: window.Notification === ShellNotification,
@@ -617,13 +671,15 @@
   setMsgSize(cfg.msgSize || 0);
   setNameSize(cfg.nameSize || 0);
   setMsgGap(cfg.msgGap || 0);
+  setSounds(cfg.sounds === true);
   if (cfg.compact) setCompact(true);
   if (cfg.focus) setFocus(true, cfg.pins || []);
 
   window.__shell = {
     applyTheme, applyHide, applyPrivacy, openChat, currentChatName,
     focusSearch, newChat, notificationClicked, checkPrivacyCoverage, state,
-    setCompact, setFont, setMsgSize, setNameSize, setMsgGap, setFocus, replyTo
+    setCompact, setFont, setMsgSize, setNameSize, setMsgGap, setFocus, replyTo,
+    setSounds, compactFit
   };
 
   let announcedLink = false;

@@ -1,7 +1,8 @@
 #!/bin/bash
 # Build the native WhatsApp client.
-#   ./build.sh              → builds to chat/build/<APP_NAME>.app
+#   ./build.sh              → builds to $TMPDIR/chat-build/<APP_NAME>.app
 #   ./build.sh --install    → also installs it to /Applications
+#   ./build.sh --test       → builds, then verifies headlessly against the live site
 #
 # ─── RENAMING THE APP ────────────────────────────────────────────────────────
 # Change APP_NAME and BUNDLE_ID below and rebuild. Nothing else needs touching:
@@ -20,7 +21,15 @@ BUNDLE_ID="com.labern.chat"
 VERSION="1.0"
 IDENTITY="chat-local"                  # fallback stable local identity
 MIN_OS="13.0"                          # WKDownload + inspectable webviews
-BUILD="build"
+
+# Build OUTSIDE the project, because this repo lives on an iCloud-synced Desktop.
+# The FileProvider stamps com.apple.fileprovider.fpfs#P and com.apple.FinderInfo
+# onto newly created directories, and codesign then refuses the bundle with
+# "resource fork, Finder information, or similar detritus not allowed". `xattr -cr`
+# cannot reliably win that race — sync re-adds the attribute between clearing and
+# signing, so the build fails intermittently and confusingly. Building in TMPDIR
+# sidesteps it completely. Override with CHAT_BUILD_DIR if you want it elsewhere.
+BUILD="${CHAT_BUILD_DIR:-${TMPDIR:-/tmp}}/chat-build"
 APP="$BUILD/$APP_NAME.app"
 RES="$APP/Contents/Resources"
 
@@ -97,11 +106,11 @@ fi
 echo "› built $APP"
 
 # ---- 6. optional: verify headlessly against the live site ----
-# `build` wipes build/, so the test binary is always rebuilt with the app.
+# The build wipes its directory, so the test binary is always rebuilt with the app.
 if [ "${1:-}" = "--test" ]; then
   echo "› building smoke test"
   swiftc -O -swift-version 5 smoketest.swift -o "$BUILD/smoketest"
-  "$BUILD/smoketest"
+  "$BUILD/smoketest" "$RES"
   exit $?
 fi
 

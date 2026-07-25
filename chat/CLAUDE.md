@@ -120,6 +120,26 @@ Measured live, which is why the selectors are what they are:
   without it (`data-shell-compact-list`), so a companion window with no chat open
   keeps the list and stays usable instead of being an empty box.
 
+**Why it CROPPED before, and the two-part fix.** His report: *"it just crops it
+without changing layout."* Measured against the real layout, the cause was two
+things at once: the ancestors of the conversation carry **`min-width: auto`** (the
+flex default, which refuses to shrink a flex item below its content) and several
+carry **`overflow-x: hidden`** — so a narrower window clips the layout instead of
+reflowing it. Hence:
+1. `theme.css` §7 forces `min-width: 0` across `#app *` in compact mode, which is
+   the standard fix for flex children that won't shrink; plus `width: 100vw` on
+   `#app` and `overflow-x: hidden` on body.
+2. `fitCompact()` in Shell.swift then asks the page (`__shell.compactFit()`) how
+   much width it actually took and **zooms out just enough to fit**, in up to
+   three passes because reflowing at the new zoom changes the answer. It eases
+   back toward 1.0 when the panel is widened again. Floor is 0.55 — below that
+   it's unreadable, and an unreadable panel is no better than a cropped one.
+
+`fitCompact` logs `inner / scroll / rail / list / listHidden / convo` on its first
+pass. If companion mode ever looks wrong again, read that line first
+(`log show --predicate 'process == "CHAT"' --last 5m | grep "companion fit"`):
+if `rail` or `list` is false, the tagging failed and the zoom is not the problem.
+
 ## Verified DOM hooks (live, 2026-07-25)
 Recorded because rediscovering them means poking at a logged-in account:
 - Nav rail: `[data-navbar-item]` with `aria-label` of Chats / Calls / Status /
@@ -138,6 +158,32 @@ Recorded because rediscovering them means poking at a logged-in account:
 - Filter chips: `#all-filter`, `#additional-filters`, `[id^="label_item_"]`.
 - Archived: `[data-testid="chatlist-panel-archived-button"]`. Nags:
   `[data-testid="chat-butterbar"]`.
+
+## Notifications are silent by default
+His verdict on the first version: *"Absurdly loud and annoying noise. Let's try no
+noise. I change it if I want to."* Two separate sources had to be dealt with:
+- the **macOS** notification sound (`content.sound`), and
+- **WhatsApp's own in-page beep**, played through an `<audio>` element. This is the
+  loud one, and silencing only the first would not have fixed it.
+
+Both follow one switch, **App ▸ Notification Sound**, default **off**
+(`sounds` in defaults). The page-side block is deliberately narrow: it swallows
+only *programmatic* playback — audio started with no user gesture in the last
+second — so pressing play on a voice note still works. **Looping audio is always
+allowed through**, because that is what a ringtone is; an incoming call can still
+ring. `play()` returns a resolved promise when swallowed, so WhatsApp's own code
+doesn't throw.
+
+## Building: never inside the repo
+`build.sh` builds into `$TMPDIR/chat-build`, **not** the project directory, and
+this is not a style preference. `~/Desktop` is iCloud-synced; the FileProvider
+stamps `com.apple.fileprovider.fpfs#P` and `com.apple.FinderInfo` onto newly
+created directories, and `codesign` then rejects the bundle with *"resource fork,
+Finder information, or similar detritus not allowed"*. `xattr -cr` cannot reliably
+win that race — sync re-adds the attribute between clearing and signing — so
+builds fail **intermittently**, which is far worse than failing every time. Two
+builds succeeded before one failed this way. Override with `CHAT_BUILD_DIR` if
+needed, but keep it out of any synced folder.
 
 ## Gotchas paid for already
 - **WKWebView has no Notification API at all.** Unpatched, WhatsApp Web

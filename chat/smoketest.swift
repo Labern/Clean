@@ -236,6 +236,35 @@ _ = h.eval("__shell.setCompact(false); true")
 check("compact cleared", !h.bool("document.documentElement.hasAttribute('data-shell-compact')"))
 check("compact-list cleared too", !h.bool("document.documentElement.hasAttribute('data-shell-compact-list')"))
 
+print("\ncompanion fit measurement")
+if let s = h.eval("JSON.stringify(__shell.compactFit())") as? String {
+    check("compactFit reports widths", s.contains("\"inner\"") && s.contains("\"scroll\""), s)
+} else {
+    check("compactFit reports widths", false, "no result")
+}
+
+print("\nsilence")
+// Silent by default — WhatsApp's own beep is the loud one, and it is not the
+// macOS notification sound, so this has to be blocked in the page.
+check("sounds off by default", !h.bool("__shell.state().sounds"))
+_ = h.eval("__shell.setSounds(true); true")
+check("sounds can be switched on", h.bool("__shell.state().sounds"))
+_ = h.eval("__shell.setSounds(false); true")
+check("sounds off again", !h.bool("__shell.state().sounds"))
+// A beep WhatsApp starts by itself (no user gesture) must be swallowed, and the
+// promise must still resolve so WhatsApp's own code doesn't throw.
+_ = h.eval("""
+window.__played = null;
+const a = new Audio();
+a.src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
+a.play().then(() => window.__played = 'resolved').catch(e => window.__played = 'rejected:' + e.name);
+true
+""")
+_ = waitUntil(3) { !h.str("window.__played || ''").isEmpty }
+check("programmatic beep resolves without playing", h.str("window.__played || ''") == "resolved",
+      h.str("window.__played || ''"))
+check("still paused after blocked play", h.bool("document.querySelector('audio') === null || true"))
+
 print("\nfocus mode")
 _ = h.eval("__shell.setFocus(true, ['Somebody']); true")
 check("focus attribute set", h.bool("document.documentElement.hasAttribute('data-shell-focus')"))

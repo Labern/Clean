@@ -118,6 +118,7 @@ struct Settings {
     var quietFrom: Int           // -1 = quiet hours off
     var quietTo: Int
     var focus: Bool
+    var sounds: Bool              // false = silent, the default he asked for
 
     static func load() -> Settings {
         let d = UserDefaults.standard
@@ -148,7 +149,10 @@ struct Settings {
             menuBar: d.object(forKey: "menuBar") as? Bool ?? true,
             quietFrom: d.object(forKey: "quietFrom") as? Int ?? -1,
             quietTo: d.object(forKey: "quietTo") as? Int ?? -1,
-            focus: d.bool(forKey: "focus")
+            focus: d.bool(forKey: "focus"),
+            // Silent by default: WhatsApp's own beep is loud enough to be a
+            // reason not to use the app. He can switch it back on.
+            sounds: d.object(forKey: "sounds") as? Bool ?? false
         )
     }
 
@@ -171,6 +175,7 @@ struct Settings {
         d.set(quietFrom, forKey: "quietFrom")
         d.set(quietTo, forKey: "quietTo")
         d.set(focus, forKey: "focus")
+        d.set(sounds, forKey: "sounds")
     }
 
     /// True when now falls inside the quiet window (which may wrap past midnight).
@@ -218,6 +223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var msgGapItems: [NSMenuItem] = []
     private var privacyItem: NSMenuItem!
     private var notifyItem: NSMenuItem!
+    private var soundItem: NSMenuItem!
     private var companionItem: NSMenuItem!
     private var onTopItem: NSMenuItem!
     private var fadeItem: NSMenuItem!
@@ -233,6 +239,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var fullFrame: NSRect?          // where the window was before companion mode
     private var recovered = false           // guards the off-WhatsApp recovery
     private var activity: NSObjectProtocol? // the App Nap assertion
+    private var fitWork: DispatchWorkItem?  // debounces the companion re-fit
 
     // ---- lifecycle ----
 
@@ -331,6 +338,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         compact: \(settings.compact ? "true" : "false"), \
         font: \(jsLiteral(settings.fontCSS)), msgSize: \(settings.msgSize), \
         nameSize: \(settings.nameSize), msgGap: \(settings.msgGap), \
+        sounds: \(settings.sounds ? "true" : "false"), \
         focus: \(settings.focus ? "true" : "false"), pins: \(pinsJSON) };
         """
 
@@ -394,14 +402,67 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             let target = savedCompanionFrame() ?? defaultCompanionFrame()
             js("__shell.setCompact(true)")
             w.setFrame(target, display: true, animate: true)
+            // Let the CSS reflow land, then scale to whatever width WhatsApp still
+            // insists on — otherwise a narrow window just clips a wide layout.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.fitCompact() }
         } else {
             UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrame")
             js("__shell.setCompact(false)")
+            web?.pageZoom = CGFloat(settings.zoom)          // restore his real zoom
             if let f = fullFrame { w.setFrame(f, display: true, animate: true) }
         }
         applyWindowLevel()
         settings.save()
         syncMenuState()
+    }
+
+    /// Make companion mode ADAPT rather than crop.
+    ///
+    /// WhatsApp Web is built for desktop widths. theme.css strips its minimum
+    /// widths so the conversation can reflow, but some of the layout still refuses
+    /// to go below a certain width — and when it does, a small window does not
+    /// shrink the layout, it CLIPS it: you get the top-left corner of a wide page.
+    /// So ask the page how much width it actually took, and zoom out just enough
+    /// that all of it fits. Runs a couple of passes because reflowing at the new
+    /// zoom can change the answer.
+    private func fitCompact(pass: Int = 0) {
+        guard settings.compact, let web = web else { return }
+        web.evaluateJavaScript("window.__shell ? JSON.stringify(__shell.compactFit()) : null") { [weak self] result, _ in
+            guard let self = self, let s = result as? String, let d = s.data(using: .utf8),
+                  let o = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
+                  let inner = (o["inner"] as? NSNumber)?.doubleValue,
+                  let scroll = (o["scroll"] as? NSNumber)?.doubleValue,
+                  inner > 0, scroll > 0 else { return }
+
+            // Log what the page reported: if the rail or list never got tagged,
+            // that — not the zoom — is why companion mode looks wrong.
+            if pass == 0 {
+                NSLog("[\(kAppName)] companion fit: inner=\(Int(inner)) scroll=\(Int(scroll)) " +
+                      "rail=\(o["railTagged"] ?? "?") list=\(o["listTagged"] ?? "?") " +
+                      "listHidden=\(o["listHidden"] ?? "?") convo=\(o["convoWidth"] ?? "?")")
+            }
+
+            let current = Double(web.pageZoom)
+            if scroll <= inner + 2 {
+                // It fits. If we had zoomed out for a narrower panel, ease back
+                // toward 1 so widening the window recovers full size.
+                if current < 0.995 {
+                    web.pageZoom = CGFloat(min(1.0, current * 1.06))
+                    if pass < 3 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.fitCompact(pass: pass + 1) }
+                    }
+                }
+                return
+            }
+            // 0.55 floor: below that the text stops being readable, and an
+            // unreadable panel is no better than a cropped one.
+            let target = max(0.55, min(1.0, current * (inner / scroll) * 0.99))
+            guard abs(target - current) > 0.01 else { return }
+            web.pageZoom = CGFloat(target)
+            if pass < 2 {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.fitCompact(pass: pass + 1) }
+            }
+        }
     }
 
     private func savedCompanionFrame() -> NSRect? {
@@ -440,6 +501,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private func rememberFrame() {
         guard let w = window, settings.compact else { return }
         UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrame")
+        // Re-fit after he stops dragging, not on every frame of the drag.
+        fitWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.fitCompact() }
+        fitWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: work)
     }
 
     func windowDidBecomeKey(_ note: Notification) { applyWindowLevel() }
@@ -707,6 +773,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         js("__shell.setMsgSize(\(settings.msgSize))")
         js("__shell.setNameSize(\(settings.nameSize))")
         js("__shell.setMsgGap(\(settings.msgGap))")
+        js("__shell.setSounds(\(settings.sounds ? "true" : "false"))")
         js("__shell.setCompact(\(settings.compact ? "true" : "false"))")
         js("__shell.setFocus(\(settings.focus ? "true" : "false"), \(pinsJSON))")
     }
@@ -759,6 +826,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         settings.msgGap = kMsgGaps[sender.tag].px
         settings.save(); reinstallUserScripts()
         js("__shell.setMsgGap(\(settings.msgGap))")
+        js("__shell.setSounds(\(settings.sounds ? "true" : "false"))")
         syncMenuState()
     }
 
@@ -876,7 +944,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
-        content.sound = .default
+        content.sound = settings.sounds ? .default : nil
         if let chat = chat {
             content.userInfo = ["chat": chat, "jsId": id]
             content.categoryIdentifier = kNotificationCategory   // gives it the Reply field
@@ -1002,6 +1070,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         syncMenuState()
     }
 
+    @objc private func toggleSounds(_ sender: Any?) {
+        settings.sounds.toggle()
+        settings.save()
+        reinstallUserScripts()
+        js("__shell.setSounds(\(settings.sounds ? "true" : "false"))")
+        syncMenuState()
+    }
+
     @objc private func toggleNotifications(_ sender: Any?) {
         settings.notifications.toggle()
         settings.save()
@@ -1106,6 +1182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         }
         privacyItem?.state = settings.privacy ? .on : .off
         notifyItem?.state = settings.notifications ? .on : .off
+        soundItem?.state = settings.sounds ? .on : .off
         companionItem?.state = settings.compact ? .on : .off
         onTopItem?.state = settings.alwaysOnTop ? .on : .off
         fadeItem?.state = settings.fadeInactive ? .on : .off
@@ -1166,6 +1243,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         appMenu.addItem(.separator())
         notifyItem = item("Notifications", #selector(toggleNotifications(_:)))
         appMenu.addItem(notifyItem)
+        soundItem = item("Notification Sound", #selector(toggleSounds(_:)))
+        appMenu.addItem(soundItem)
         appMenu.addItem(item("Check Notifications Work…", #selector(checkNotifications(_:))))
         let quietMenu = NSMenu(title: "Quiet Hours")
         for (i, p) in kQuietPresets.enumerated() {

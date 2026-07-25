@@ -326,6 +326,27 @@ html[data-shell-compact] [data-shell-convo] {
   width: 100% !important;
   max-width: none !important;
 }
+
+/* Defeat the desktop minimum widths. Without this the window shrinks but the
+   layout does not: WhatsApp keeps its intrinsic width and the webview simply
+   CLIPS it, so you get the top-left corner of a wide layout rather than a narrow
+   one. min-width:0 is also the standard fix for flex children refusing to
+   shrink below their content. Scoped to compact mode, where reflowing matters
+   more than anything it might disturb. */
+html[data-shell-compact],
+html[data-shell-compact] body,
+html[data-shell-compact] #app,
+html[data-shell-compact] #app *,
+html[data-shell-compact] [data-shell-convo] * {
+  min-width: 0 !important;
+}
+html[data-shell-compact] #app {
+  width: 100vw !important;
+  max-width: 100vw !important;
+}
+html[data-shell-compact] body {
+  overflow-x: hidden !important;
+}
 /* Reclaim vertical space in a short window. */
 html[data-shell-compact] [data-shell-convo] header {
   padding-top: 2px !important;
