@@ -182,10 +182,23 @@ body.resizing #canvas{ pointer-events:none; }
 #docGenre:empty::before{ content:"genre"; color:var(--faint); opacity:.45; }
 #docGenre:hover, #docGenre:focus{ border-bottom-color:var(--faint); }
 
-/* ---------- reader mode: read only, nothing else ---------- */
+/* ---------- reader mode: the app melts down to the read ---------- */
 body.reader #pages{ caret-color:transparent; }
 body.reader #btnReader{ color:var(--ink); border-bottom-color:var(--rule); }
-body.reader #stType, body.reader #stHint{ display:none !important; }
+#readerPage{
+  font-family:var(--mono); font-size:.7rem; letter-spacing:.18em; color:var(--faint);
+  font-variant-numeric:tabular-nums; opacity:0; visibility:hidden; transition:opacity .35s, visibility .35s;
+}
+body.reader #readerPage{ opacity:1; visibility:visible; }
+/* everything that isn't PICA · page count · title · reader (header) or ☰ · zoom (footer)
+   melts away — layout kept, so the morph is a fade, not a jump */
+#docGenre, #btnSplit, #btnTheme, [data-head], #btnKeys, #stPage, [data-foot], #stSave{
+  transition:opacity .35s, visibility .35s;
+}
+body.reader #docGenre, body.reader #btnSplit, body.reader #btnTheme, body.reader [data-head],
+body.reader #btnKeys, body.reader #stPage, body.reader [data-foot], body.reader #stSave{
+  opacity:0 !important; visibility:hidden !important; pointer-events:none !important;
+}
 
 /* ---------- side by side ---------- */
 #canvasB{ flex:1; min-width:0; overflow:auto; background:var(--paper-2); border-left:1px solid var(--line); position:relative; }
@@ -366,6 +379,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 <header>
   <div class="hzone left">
     <div class="wordmark">PICA</div>
+    <span id="readerPage"></span>
   </div>
   <span id="docTitle" contenteditable="true" spellcheck="false"></span>
   <div class="hzone right">
@@ -2904,6 +2918,7 @@ function status(){
   const vis = [...S.vis].sort((a, b) => a - b)[0] ?? 0;
   const pn = Math.max(1, (S.showTitle && S.doc.titlePage.length ? vis : vis + 1));
   $('#stPage').textContent = 'page ' + Math.min(pn, total) + ' / ' + total + ' · ' + scenes + ' scenes';
+  $('#readerPage').textContent = Math.min(pn, total) + ' / ' + total;
   notifyNative();
 }
 
@@ -3575,14 +3590,20 @@ function readerOn(){
   pagesEl.setAttribute('contenteditable', 'false');
   S.readerPrevRail = document.body.classList.contains('railhidden');
   if (!S.readerPrevRail && !matchMedia('(max-width: 880px)').matches) toggleRail();
+  // the surround goes dark to start; the page stays paper
+  S.readerPrevTheme = document.documentElement.dataset.theme ?? '__auto';
+  document.documentElement.dataset.theme = 'dark';
   closePops(); findClose();
   const ui = LS.get('pica.ui', {}); ui.reader = true; LS.set('pica.ui', ui);
+  status();
   toast('reader — no edits');
 }
 function readerOff(){
   document.body.classList.remove('reader');
   pagesEl.setAttribute('contenteditable', 'true');
   if (S.readerPrevRail === false && document.body.classList.contains('railhidden')) toggleRail();
+  if (S.readerPrevTheme === '__auto') delete document.documentElement.dataset.theme;
+  else if (S.readerPrevTheme != null) document.documentElement.dataset.theme = S.readerPrevTheme;
   const ui = LS.get('pica.ui', {}); ui.reader = false; LS.set('pica.ui', ui);
 }
 const inReader = () => document.body.classList.contains('reader');
