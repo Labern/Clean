@@ -3291,7 +3291,7 @@ pagesEl.addEventListener('keydown', ev => {
   if (inReader()) {
     // reading: only find, settings, zoom and navigation get through
     const mod = ev.metaKey || ev.ctrlKey;
-    const allowed = (mod && ['f', ',', 't', 'e', '=', '-', '0', 'c', 'a'].includes(ev.key.toLowerCase()))
+    const allowed = (mod && ['f', ',', 't', 'e', 'r', '=', '-', '0', 'c', 'a'].includes(ev.key.toLowerCase()))
       || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'Escape'].includes(ev.key);
     if (!allowed) { ev.preventDefault(); return; }
   }
@@ -3353,6 +3353,7 @@ pagesEl.addEventListener('keydown', ev => {
   if (mod && ev.altKey && ev.key.toLowerCase() === 's') { ev.preventDefault(); toggleRail(); return; }
   if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 't') { ev.preventDefault(); toggleRail(); return; }
   if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'e') { ev.preventDefault(); openExportMenu(); return; }
+  if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'r') { ev.preventDefault(); inReader() ? readerOff() : readerOn(); return; }
   if (mod && ev.shiftKey && ev.key.toLowerCase() === 't') { ev.preventDefault(); toggleTitlePage(); return; }
   if (mod && ev.key === ',') { ev.preventDefault(); showSettings(); return; }
   if (mod && ev.key === '\\') { ev.preventDefault(); openElementMenu(); return; }
@@ -3773,6 +3774,7 @@ window.PICA_API = {
   save(){ flushSave(); },
   toggleRail(){ toggleRail(); },
   toggleTitlePage(){ toggleTitlePage(); },
+  toggleReader(){ inReader() ? readerOff() : readerOn(); },
   titleShown(){ return S.showTitle; },
   settings(){ showSettings(); },
   mark(kind){ applyEmphasis(kind); },

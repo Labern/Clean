@@ -362,6 +362,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     @objc func picaRedo(_ s: Any?)      { js("PICA_API.redo()") }
     @objc func toggleSidebar(_ s: Any?) { js("PICA_API.toggleRail()") }
     @objc func toggleTitlePage(_ s: Any?) { js("PICA_API.toggleTitlePage()") }
+    @objc func toggleReader(_ s: Any?) { js("PICA_API.toggleReader()") }
     @objc func invertTheme(_ s: Any?)   { js("PICA_API.toggleTheme()") }
     @objc func zoomIn(_ s: Any?)        { js("PICA_API.zoom(0.1)") }
     @objc func zoomOut(_ s: Any?)       { js("PICA_API.zoom(-0.1)") }
@@ -483,6 +484,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
 
         // View
         let viewMenu = NSMenu(title: "View")
+        viewMenu.addItem(item("Reader", #selector(toggleReader(_:)), "r"))
         viewMenu.addItem(item("Hide Sidebar", #selector(toggleSidebar(_:)), "t"))
         viewMenu.addItem(item("Show Title Page", #selector(toggleTitlePage(_:)), "t", [.command, .shift]))
         viewMenu.addItem(item("Invert Theme", #selector(invertTheme(_:)), "j"))
