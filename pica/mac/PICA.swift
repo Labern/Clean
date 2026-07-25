@@ -291,6 +291,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
            u.scheme == "https" || u.scheme == "http" {
             NSWorkspace.shared.open(u)
         }
+        if body["exportPdf"] as? Bool == true {
+            exportPDF(suggestedName: body["name"] as? String ?? "script")
+        }
+    }
+
+    // Export → PDF: the same identical pages, written straight to a file.
+    func exportPDF(suggestedName: String) {
+        let panel = NSSavePanel()
+        if #available(macOS 11.0, *) { panel.allowedContentTypes = [UTType.pdf] }
+        panel.nameFieldStringValue = suggestedName + ".pdf"
+        panel.beginSheetModal(for: window) { [weak self] resp in
+            guard let self = self, resp == .OK, let url = panel.url else { return }
+            self.web.evaluateJavaScript("JSON.stringify(PICA_API.preparePrint())") { res, _ in
+                var w = 612.0, h = 792.0
+                if let s = res as? String, let d = s.data(using: .utf8),
+                   let o = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] {
+                    w = (o["w"] as? Double) ?? w; h = (o["h"] as? Double) ?? h
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    let info = NSPrintInfo(dictionary: [:])
+                    info.paperSize = NSSize(width: w, height: h)
+                    info.topMargin = 0; info.bottomMargin = 0; info.leftMargin = 0; info.rightMargin = 0
+                    info.horizontalPagination = .fit
+                    info.verticalPagination = .automatic
+                    info.jobDisposition = .save
+                    info.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = url
+                    let op = self.web.printOperation(with: info)
+                    op.showsPrintPanel = false
+                    op.showsProgressPanel = true
+                    op.view?.frame = NSRect(x: 0, y: 0, width: w, height: h)
+                    op.runModal(for: self.window, delegate: self,
+                                didRun: #selector(self.pdfDidExport(_:success:info:)), contextInfo: nil)
+                }
+            }
+        }
+    }
+
+    @objc func pdfDidExport(_ op: NSPrintOperation, success: Bool, info: UnsafeMutableRawPointer?) {
+        js("PICA_API.endPrint()")
+        if success, let url = op.printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] as? URL {
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        }
     }
 
     // any target=_blank link likewise goes to the browser
@@ -307,6 +349,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     @objc func newScript(_ s: Any?)     { js("PICA_API.newDoc()") }
     @objc func importScript(_ s: Any?)  { js("PICA_API.importPdf()") }
     @objc func exportScript(_ s: Any?)  { js("PICA_API.exportMenu()") }
+    @objc func exportPdfMenu(_ s: Any?) {
+        web.evaluateJavaScript("PICA_API.title()") { [weak self] res, _ in
+            let name = ((res as? String) ?? "script").lowercased()
+                .replacingOccurrences(of: " ", with: "-")
+                .components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-")).inverted).joined()
+            self?.exportPDF(suggestedName: name.isEmpty ? "script" : name)
+        }
+    }
     @objc func saveNow(_ s: Any?)       { js("PICA_API.save()") }
     @objc func picaUndo(_ s: Any?)      { js("PICA_API.undo()") }
     @objc func picaRedo(_ s: Any?)      { js("PICA_API.redo()") }
@@ -402,6 +452,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         fileMenu.addItem(.separator())
         fileMenu.addItem(item("Save", #selector(saveNow(_:)), "s"))
         fileMenu.addItem(item("Export…", #selector(exportScript(_:)), "e"))
+        fileMenu.addItem(item("Export PDF…", #selector(exportPdfMenu(_:)), "e", [.command, .shift]))
         fileMenu.addItem(.separator())
         fileMenu.addItem(item("Print…", #selector(printDocument(_:)), "p"))
         fileMenu.addItem(.separator())
