@@ -172,6 +172,117 @@
     return true;
   }
 
+  /* Remove the leftover column. Tagging the rail and the list by name is not
+     enough — anything else WhatsApp puts beside the conversation stays behind as
+     an empty strip. So walk from the conversation up to the app root and hide
+     every SIBLING on the way: whatever is left is, by construction, only the
+     conversation and its ancestors.
+
+     Guarded so it cannot break the app: overlays and popover hosts (anything
+     positioned fixed/absolute, WhatsApp's #wa-popovers-bucket, our own bar) are
+     left alone, or the "more" menu and every WhatsApp dialog would stop working. */
+  function collapseChrome() {
+    const pane = tagConvoPane();
+    const open = !!(pane && pane.getBoundingClientRect().width > 60);
+    // The gate the CSS keys off: no conversation, no collapsing, so he can still
+    // pick a chat from the list.
+    if (open) R().setAttribute('data-shell-convo-open', '');
+    else { R().removeAttribute('data-shell-convo-open'); clearCollapsed(); return 0 }
+    if (!pane) return 0;
+    let hidden = 0;
+    let el = pane;
+    while (el && el.parentElement && el.parentElement !== document.body) {
+      for (const sib of Array.from(el.parentElement.children)) {
+        if (sib === el || sib.id === 'shell-bar') continue;
+        if (sib.id && sib.id.startsWith('wa-popovers')) continue;
+        const cs = getComputedStyle(sib);
+        if (cs.position === 'fixed' || cs.position === 'absolute') continue;
+        if (sib.getBoundingClientRect().width <= 0) continue;
+        if (!sib.hasAttribute('data-shell-collapsed')) { sib.setAttribute('data-shell-collapsed', ''); hidden++ }
+      }
+      el = el.parentElement;
+    }
+    return hidden;
+  }
+
+  /* Tag the conversation's ancestors. The doodle wallpaper and the stray vertical
+     lines are painted by layers BEHIND the pane — the diagnostics found no thin
+     element and no background-image anywhere inside it, and collapseChrome skips
+     absolutely-positioned elements on purpose (popovers and dialogs live there).
+     So instead of hiding those layers, focus mode just stops them painting. */
+  function tagAncestors() {
+    const pane = document.querySelector('[data-shell-convo]');
+    if (!pane) return 0;
+    let n = 0, el = pane.parentElement;
+    while (el && el !== document.documentElement) {
+      if (!el.hasAttribute('data-shell-ancestor')) { el.setAttribute('data-shell-ancestor', ''); n++ }
+      el = el.parentElement;
+    }
+    return n;
+  }
+
+  /* "The pin section should be removed." It has no id or testid, so find it by
+     shape: a full-width direct child of the conversation about a header's height
+     tall, that isn't the header, the footer, or the (much taller) message list. */
+  function tagPinStrip() {
+    const pane = document.querySelector('[data-shell-convo]');
+    if (!pane) return false;
+    const paneW = pane.getBoundingClientRect().width;
+    for (const el of pane.children) {
+      if (el.tagName === 'HEADER' || el.tagName === 'FOOTER') continue;
+      if (el.hasAttribute('data-shell-pinstrip')) return true;
+      const r = el.getBoundingClientRect();
+      if (r.height >= 28 && r.height <= 80 && r.width >= paneW - 4) {
+        el.setAttribute('data-shell-pinstrip', '');
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /* The doodle is not CSS. Setting background-image:none on every element changed
+     nothing and the probes found no background-image anywhere — so WhatsApp paints
+     it as an <svg>/<img> layer. Find that layer by shape: a big svg/img/canvas
+     covering most of the pane, outside any dialog (so the media viewer is safe). */
+  function tagWallpaper() {
+    const pane = document.querySelector('[data-shell-convo]');
+    if (!pane) return 0;
+    const pr = pane.getBoundingClientRect();
+    let n = 0;
+    for (const el of document.querySelectorAll('svg, img, canvas')) {
+      if (el.closest('[role="dialog"]') || el.closest('#shell-bar')) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width >= pr.width * 0.8 && r.height >= pr.height * 0.5) {
+        if (!el.hasAttribute('data-shell-wallpaper')) { el.setAttribute('data-shell-wallpaper', ''); n++ }
+      }
+    }
+    return n;
+  }
+
+  function clearWallpaper() {
+    for (const el of document.querySelectorAll('[data-shell-wallpaper]')) {
+      el.removeAttribute('data-shell-wallpaper');
+    }
+  }
+
+  function clearPinStrip() {
+    for (const el of document.querySelectorAll('[data-shell-pinstrip]')) {
+      el.removeAttribute('data-shell-pinstrip');
+    }
+  }
+
+  function clearAncestors() {
+    for (const el of document.querySelectorAll('[data-shell-ancestor]')) {
+      el.removeAttribute('data-shell-ancestor');
+    }
+  }
+
+  function clearCollapsed() {
+    for (const el of document.querySelectorAll('[data-shell-collapsed]')) {
+      el.removeAttribute('data-shell-collapsed');
+    }
+  }
+
   /* Companion mode. The list is only allowed to collapse once a conversation is
      open AND still has width without it — otherwise the companion window would
      be an empty box with no way to choose a chat. Re-checked on the pump. */
@@ -182,6 +293,14 @@
       R().removeAttribute('data-shell-compact-list');
       R().removeAttribute('data-shell-compact-more');
       clearBubbleTags();
+      clearCollapsed();
+      R().removeAttribute('data-shell-convo-open');
+      clearAncestors();
+      clearPinStrip();
+      clearWallpaper();
+      for (const el of document.querySelectorAll('[data-shell-out],[data-shell-in]')) {
+        el.removeAttribute('data-shell-out'); el.removeAttribute('data-shell-in');
+      }
       ensureCompactBar();                 // removes it
       return { compact: false };
     }
@@ -190,6 +309,10 @@
     const state = reconsiderCompactList();
     ensureCompactBar();
     tagBubbles();
+    collapseChrome();
+    tagAncestors();
+    tagPinStrip();
+    tagWallpaper();
     return Object.assign(state, compactMetrics());
   }
 
@@ -228,7 +351,91 @@
       scroll:     Math.max(document.documentElement.scrollWidth, document.body.scrollWidth || 0),
       bubbles:    document.querySelectorAll('[data-shell-bubble]').length,
       railTagged: !!document.querySelector('[data-shell-rail]'),
-      listTagged: !!document.querySelector('[data-shell-list]')
+      listTagged: !!document.querySelector('[data-shell-list]'),
+      collapsed:  document.querySelectorAll('[data-shell-collapsed]').length,
+      // Hairline hunt: any element inside the pane that is a thin, tall sliver is
+      // almost certainly the stray vertical line. Also list the pane's top-level
+      // children so decorative strips can be identified.
+      thin: (() => {
+        // Document-wide, not pane-only: collapseChrome deliberately skips
+        // absolutely-positioned elements, so a stray rule can live outside.
+        const pane = document.body;
+        if (!pane) return [];
+        return Array.from(pane.querySelectorAll('*')).filter(e => {
+          const r = e.getBoundingClientRect();
+          return r.width > 0 && r.width <= 3 && r.height > 40;
+        }).slice(0, 6).map(e => {
+          const r = e.getBoundingClientRect();
+          const cs = getComputedStyle(e);
+          return { tag: e.tagName, cls: String(e.className || '').slice(0, 26),
+                   x: Math.round(r.left), w: +r.width.toFixed(1), h: Math.round(r.height),
+                   bg: cs.backgroundColor, bl: cs.borderLeftWidth, pos: cs.position };
+        });
+      })(),
+      // Who is still painting the doodle wallpaper?
+      bgimg: (() => {
+        const pane = document.querySelector('[data-shell-convo]');
+        if (!pane) return [];
+        const out = [];
+        for (const e of [pane, ...pane.querySelectorAll('*')]) {
+          const cs = getComputedStyle(e);
+          if (cs.backgroundImage && cs.backgroundImage !== 'none') {
+            const r = e.getBoundingClientRect();
+            out.push({ tag: e.tagName, cls: String(e.className || '').slice(0, 22),
+                       w: Math.round(r.width), h: Math.round(r.height),
+                       img: cs.backgroundImage.slice(0, 40), op: cs.opacity, pos: cs.position });
+          }
+          if (out.length >= 5) break;
+        }
+        // pseudo-elements too
+        for (const which of ['::before', '::after']) {
+          const cs = getComputedStyle(pane, which);
+          if (cs.backgroundImage && cs.backgroundImage !== 'none') {
+            out.push({ tag: 'pane' + which, img: cs.backgroundImage.slice(0, 40), op: cs.opacity });
+          }
+        }
+        return out;
+      })(),
+      // Exactly which element between the row and the bubble holds the dead space
+      // on the right? Measured instead of guessed.
+      outChain: (() => {
+        const row = document.querySelector('[role="row"][data-shell-out]');
+        const bub = row && row.querySelector('[data-shell-bubble]');
+        if (!row || !bub) return [];
+        const out = [];
+        let el = bub;
+        while (el && el !== row.parentElement) {
+          const r = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          out.push({ tag: el.TAG || el.tagName, right: Math.round(r.right), w: Math.round(r.width),
+                     pr: cs.paddingRight, mr: cs.marginRight, disp: cs.display,
+                     jc: cs.justifyContent, mw: cs.maxWidth });
+          el = el.parentElement;
+        }
+        return out;
+      })(),
+      viewportRight: Math.round(window.innerWidth),
+      wallpapers: document.querySelectorAll('[data-shell-wallpaper]').length,
+      kids: (() => {
+        const pane = document.querySelector('[data-shell-convo]');
+        if (!pane) return [];
+        return Array.from(pane.children).map(e => {
+          const r = e.getBoundingClientRect();
+          return { tag: e.tagName, cls: String(e.className || '').slice(0, 20),
+                   x: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height) };
+        });
+      })(),
+      // What is painting at these x positions?
+      probe: [0.06, 0.12, 0.56].map(f => {
+        const x = Math.round(window.innerWidth * f);
+        const y = Math.round(window.innerHeight * 0.5);
+        const el = document.elementFromPoint(x, y);
+        if (!el) return { x, el: null };
+        const cs = getComputedStyle(el);
+        return { x, tag: el.tagName, cls: String(el.className || '').slice(0, 26),
+                 bl: cs.borderLeftWidth, br: cs.borderRightWidth, bg: cs.backgroundColor,
+                 w: Math.round(el.getBoundingClientRect().width) };
+      })
     };
   }
 
@@ -242,13 +449,31 @@
     const pane = document.querySelector('[data-shell-convo]');
     if (!pane) return 0;
     let tagged = 0;
-    for (const row of pane.querySelectorAll('[role="row"]:not([data-shell-bubbled])')) {
+    for (const row of pane.querySelectorAll('[role="row"]:not([data-shell-out]):not([data-shell-in])')) {
       row.setAttribute('data-shell-bubbled', '');
       for (const el of row.querySelectorAll('div')) {
         const mw = getComputedStyle(el).maxWidth;
         if (mw && mw.endsWith('%') && parseFloat(mw) < 100) {
           el.setAttribute('data-shell-bubble', '');
           tagged++;
+          // Which side is it on? First ask WhatsApp: it draws a "tail-out" glyph
+          // on his own messages and "tail-in" on the other person's (both seen
+          // live). Only if neither is present fall back to geometry — and compare
+          // the LEFT gap against the RIGHT gap rather than the bubble's centre,
+          // because at 97% width every centre lands on the pane's centre, which
+          // is why an earlier centre-based test tagged nothing at all.
+          if (row.querySelector('[data-icon="tail-out"]')) {
+            row.setAttribute('data-shell-out', '');
+          } else if (row.querySelector('[data-icon="tail-in"]')) {
+            row.setAttribute('data-shell-in', '');
+          } else {
+            const b = el.getBoundingClientRect();
+            const p = pane.getBoundingClientRect();
+            if (b.width > 0) {
+              const gapLeft = b.left - p.left, gapRight = p.right - b.right;
+              row.setAttribute(gapRight <= gapLeft ? 'data-shell-out' : 'data-shell-in', '');
+            }
+          }
           break;                       // the outermost capped div is the bubble
         }
       }
@@ -327,13 +552,27 @@
       if (!proto || !proto.play) return cfg.sounds;
       const originalPlay = proto.play;
       proto.play = function () {
-        const programmatic = Date.now() - lastGesture > 1000;
+        // 250ms, not 1000ms. A click that starts a voice note calls play() within
+        // a few milliseconds; a full second was wide enough that any incoming
+        // message arriving while he typed got its beep through — which is exactly
+        // what he kept hearing.
+        const programmatic = Date.now() - lastGesture > 250;
         if (!cfg.sounds && programmatic && !this.loop) {
           try { this.pause(); this.currentTime = 0 } catch (e) {}
           return Promise.resolve();           // resolve so WhatsApp's own code doesn't throw
         }
         return originalPlay.apply(this, arguments);
       };
+      // Belt and braces: a beep played through Web Audio would bypass the
+      // media-element patch entirely.
+      const ABSN = window.AudioBufferSourceNode && window.AudioBufferSourceNode.prototype;
+      if (ABSN && ABSN.start) {
+        const originalStart = ABSN.start;
+        ABSN.start = function () {
+          if (!cfg.sounds && Date.now() - lastGesture > 250) return;
+          return originalStart.apply(this, arguments);
+        };
+      }
       audioPatched = true;
     } catch (e) {}
     return cfg.sounds;
@@ -372,59 +611,6 @@
   function setNameSize(px) { return setPixelVar(px, '--shell-name-size', 'data-shell-namesize', 'nameSize') }
   function setMsgGap(px)   { return setPixelVar(px, '--shell-msg-gap',   'data-shell-msggap',   'msgGap') }
 
-  /* ── 3d. focus mode — only the pinned chats in the list ───────────────────── */
-
-  function setFocus(on, names) {
-    cfg.focus = !!on;
-    if (Array.isArray(names)) cfg.pins = names.filter(Boolean).map(norm);
-    if (cfg.focus) R().setAttribute('data-shell-focus', '');
-    else {
-      R().removeAttribute('data-shell-focus');
-      for (const row of visibleRows()) row.removeAttribute('data-shell-dim');
-    }
-    markFocusRows();
-    return cfg.focus;
-  }
-
-  /* What survives focus mode. Deliberately requires NO setup: an earlier version
-     only kept the app's own ⌘1–9 pins, which meant it refused to turn on until
-     you had configured a second, parallel notion of "pinned" alongside
-     WhatsApp's. Labern's verdict, and he was right: "it shouldn't need to be
-     pinned anyway."
-
-     So a row stays if it plausibly wants attention right now:
-       · it has unread messages
-       · it is the conversation currently open
-       · WhatsApp itself has it pinned
-       · or it is one of the app's ⌘1–9 pins, if any are set */
-  function focusKeep(row, appPins) {
-    if (row.querySelector('[data-testid="icon-unread-count"]')) return true;
-    if (row.getAttribute('aria-selected') === 'true'
-        || row.querySelector('[aria-selected="true"]')) return true;
-    try { if (row.querySelector('[data-icon*="pin" i]')) return true } catch (e) {}
-    return appPins.size > 0 && appPins.has(norm(rowTitle(row)));
-  }
-
-  // Rows are virtualised and recycled, so this has to re-run on the pump.
-  function markFocusRows() {
-    if (!cfg.focus) return 0;
-    const appPins = new Set(cfg.pins || []);
-    const rows = visibleRows();
-    const keep = rows.filter(r => focusKeep(r, appPins));
-
-    // Nothing demands attention: show everything rather than an empty list. An
-    // empty panel reads as "the app broke", not as "you're all caught up".
-    if (!keep.length) {
-      for (const row of rows) row.removeAttribute('data-shell-dim');
-      return 0;
-    }
-    let hidden = 0;
-    for (const row of rows) {
-      if (keep.includes(row)) row.removeAttribute('data-shell-dim');
-      else { row.setAttribute('data-shell-dim', ''); hidden++ }
-    }
-    return hidden;
-  }
 
   /* ── 4. notifications ──────────────────────────────────────────────────────
      WKWebView exposes no Notification API, so we install one unconditionally
@@ -690,9 +876,8 @@
       msgSize:     R().style.getPropertyValue('--shell-msg-size') || '',
       nameSize:    R().style.getPropertyValue('--shell-name-size') || '',
       msgGap:      R().style.getPropertyValue('--shell-msg-gap') || '',
-      focus:       R().hasAttribute('data-shell-focus'),
-      focusHidden: document.querySelectorAll('[data-shell-dim]').length,
       sounds:      cfg.sounds === true,
+      collapsed:   document.querySelectorAll('[data-shell-collapsed]').length,
       storageShim: true,
       errors:      errCount,
       notificationShim: window.Notification === ShellNotification,
@@ -760,12 +945,11 @@
   setMsgGap(cfg.msgGap || 0);
   setSounds(cfg.sounds === true);
   if (cfg.compact) setCompact(true);
-  if (cfg.focus) setFocus(true, cfg.pins || []);
 
   window.__shell = {
     applyTheme, applyHide, applyPrivacy, openChat, currentChatName,
     focusSearch, newChat, notificationClicked, checkPrivacyCoverage, state,
-    setCompact, setFont, setMsgSize, setNameSize, setMsgGap, setFocus, replyTo,
+    setCompact, setFont, setMsgSize, setNameSize, setMsgGap, replyTo,
     setSounds, compactMetrics, tagBubbles
   };
 
@@ -777,8 +961,7 @@
     tagConvoPane();
     tagRail();
     tagList();
-    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); tagBubbles() }
-    if (cfg.focus) markFocusRows();
+    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); tagBubbles(); collapseChrome(); tagAncestors(); tagPinStrip(); tagWallpaper() }
     if (cfg.privacy) checkPrivacyCoverage();
     if (!announcedLink && document.querySelector('#pane-side')) {
       announcedLink = true;

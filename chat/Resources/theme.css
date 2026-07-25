@@ -315,10 +315,12 @@ html[data-shell-privacy][data-shell-privacy-fallback] [data-shell-convo]:hover {
    without it (data-shell-compact-list); otherwise a companion window with no
    chat open would be an empty box with no way to pick one. */
 
-html[data-shell-compact] [data-shell-rail] {
-  display: none !important;
-}
-html[data-shell-compact][data-shell-compact-list] [data-shell-list] {
+/* Gated on data-shell-convo-open. Hiding the list unconditionally strands him:
+   focus mode with no chat open showed an empty pane and no way to choose one.
+   So the list stays until a conversation is actually open, then collapses. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-rail],
+html[data-shell-compact][data-shell-convo-open] [data-shell-list],
+html[data-shell-compact][data-shell-convo-open] [data-shell-collapsed] {
   display: none !important;
 }
 html[data-shell-compact] [data-shell-convo] {
@@ -392,8 +394,98 @@ html[data-shell-compact] [data-shell-convo] header { display: none !important }
 html[data-shell-compact][data-shell-compact-more] [data-shell-convo] header {
   display: flex !important;
 }
-/* Leave room for our bar. */
-html[data-shell-compact] [data-shell-convo] { padding-top: 40px !important }
+/* Leave room for the bar by SHRINKING the pane, not padding it. Padding pushed
+   the composer off the bottom of a short window. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] {
+  margin-top: 40px !important;
+  padding-top: 0 !important;
+  height: calc(100vh - 40px) !important;
+  max-height: calc(100vh - 40px) !important;
+}
+
+/* ── 7b2. flat background in focus mode ────────────────────────────────────────
+   Two faint vertical lines showed up in his screenshots. The diagnostics ruled out
+   borders (every probed element reported border-left/right of 0px) and ruled out a
+   leftover column (convoLeft=0, convoWidth=428 — the conversation owns the whole
+   window). What is left is the painted background: PARADOX's drifting 4-stop
+   gradient at background-size:400% shows its colour transitions as soft vertical
+   bands, and WhatsApp's doodle wallpaper can seam at tile edges.
+
+   A small panel wants a flat background anyway — "Simple." — so in focus mode the
+   gradient, the animation and the pattern all go. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo],
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] > div {
+  background-image: none !important;
+  animation: none !important;
+}
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] {
+  background-color: var(--WDS-systems-chat-background-wallpaper, #0e0b1a) !important;
+}
+
+/* The doodle wallpaper and the stray hairlines are painted by a layer that is
+   neither an ancestor nor a descendant of the conversation — an absolutely
+   positioned sibling, which collapseChrome leaves alone on purpose so popovers
+   and dialogs keep working. Targeting it precisely failed three times, so in
+   focus mode NOTHING paints a background image. Blunt, but scoped to this one
+   mode, and a flat panel is what he asked for: "Simple." */
+html[data-shell-compact][data-shell-convo-open] *,
+html[data-shell-compact][data-shell-convo-open] *::before,
+html[data-shell-compact][data-shell-convo-open] *::after {
+  background-image: none !important;
+}
+
+/* Pin the bubble to its side with an auto margin rather than relying on the row
+   being the flex container that positions it — measured: it is not. */
+html[data-shell-compact] [role="row"][data-shell-out] [data-shell-bubble] {
+  margin-left: auto !important;
+  margin-right: 0 !important;
+}
+html[data-shell-compact] [role="row"][data-shell-in] [data-shell-bubble] {
+  margin-right: auto !important;
+  margin-left: 0 !important;
+}
+
+/* Whatever div directly holds the rows keeps a percentage side padding, which is
+   the ~50px of dead space he saw on the right at panel width. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] div:has(> [role="row"]),
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] [role="application"] {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* The doodle survived every attempt to find its painter: no background-image
+   anywhere, no big svg/img/canvas, no thin elements. So stop hunting it and make
+   the layer that HOLDS the messages opaque instead — whatever is drawing behind
+   it then cannot show through. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] div:has(> [role="row"]) {
+  background-color: var(--WDS-systems-chat-background-wallpaper, #0e0b1a) !important;
+}
+
+/* The layers behind the conversation: strip any border or shadow that was
+   showing through as a vertical hairline. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-ancestor],
+html[data-shell-compact][data-shell-convo-open] [data-shell-ancestor]::before,
+html[data-shell-compact][data-shell-convo-open] [data-shell-ancestor]::after,
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo]::before,
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo]::after {
+  background-image: none !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+html[data-shell-compact][data-shell-convo-open] [data-shell-ancestor] {
+  background-color: var(--WDS-systems-chat-background-wallpaper, #0e0b1a) !important;
+}
+
+/* ── 7b3. reclaim the side padding ─────────────────────────────────────────────
+   "The padding on the right goes crazy." WhatsApp pads the message list by a
+   PERCENTAGE of its width, which is fine at 1000px and absurd at 400px. Zero it
+   in focus mode so the messages get the window. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] > div,
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] > div > div,
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] [role="application"] {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
 
 /* ── 7c. wide message bubbles ──────────────────────────────────────────────────
    "Should be like 80% width messages both sides, or bigger, so it's easy."
@@ -403,11 +495,39 @@ html[data-shell-compact] [data-shell-convo] { padding-top: 40px !important }
    it tagged. */
 
 html[data-shell-compact] [data-shell-bubble] {
-  max-width: 92% !important;
+  max-width: 97% !important;
 }
+/* "My chats should be far right, little padding. The other person's should be far
+   left, little padding." Sides are decided by measurement in shell.js (see
+   data-shell-out / data-shell-in), not by a class name. */
 html[data-shell-compact] [data-shell-convo] [role="row"] {
-  padding-left: 4px !important;
-  padding-right: 4px !important;
+  display: flex !important;
+  padding: 1px 0 !important;
+}
+html[data-shell-compact] [data-shell-convo] [role="row"][data-shell-out] {
+  justify-content: flex-end !important;
+  padding-right: 3px !important;
+  padding-left: 0 !important;
+}
+html[data-shell-compact] [data-shell-convo] [role="row"][data-shell-in] {
+  justify-content: flex-start !important;
+  padding-left: 3px !important;
+  padding-right: 0 !important;
+}
+/* Percentage margins on the bubble undo the above at small widths. */
+html[data-shell-compact] [data-shell-bubble] {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* The doodle layer, hidden as an element since it is not a background. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-wallpaper] {
+  display: none !important;
+}
+
+/* The pinned-message strip goes. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-pinstrip] {
+  display: none !important;
 }
 
 /* ── 8. font family override ───────────────────────────────────────────────── */
@@ -463,10 +583,3 @@ html[data-shell-msggap] [data-shell-convo] [data-id] + [data-id] {
   margin-top: var(--shell-msg-gap) !important;
 }
 
-/* ── 10. focus mode — only what wants attention ────────────────────────────── */
-/* shell.js marks every chat-list row whose title isn't one of the pins. Rows are
-   virtualised and recycled, so it re-marks them on its pump. */
-
-html[data-shell-focus] [data-shell-dim] {
-  display: none !important;
-}

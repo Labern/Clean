@@ -117,7 +117,6 @@ struct Settings {
     var menuBar: Bool
     var quietFrom: Int           // -1 = quiet hours off
     var quietTo: Int
-    var focus: Bool
     var sounds: Bool              // false = silent, the default he asked for
 
     static func load() -> Settings {
@@ -149,7 +148,6 @@ struct Settings {
             menuBar: d.object(forKey: "menuBar") as? Bool ?? true,
             quietFrom: d.object(forKey: "quietFrom") as? Int ?? -1,
             quietTo: d.object(forKey: "quietTo") as? Int ?? -1,
-            focus: d.bool(forKey: "focus"),
             // Silent by default: WhatsApp's own beep is loud enough to be a
             // reason not to use the app. He can switch it back on.
             sounds: d.object(forKey: "sounds") as? Bool ?? false
@@ -174,7 +172,6 @@ struct Settings {
         d.set(menuBar, forKey: "menuBar")
         d.set(quietFrom, forKey: "quietFrom")
         d.set(quietTo, forKey: "quietTo")
-        d.set(focus, forKey: "focus")
         d.set(sounds, forKey: "sounds")
     }
 
@@ -228,7 +225,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var onTopItem: NSMenuItem!
     private var fadeItem: NSMenuItem!
     private var menuBarItem: NSMenuItem!
-    private var focusItem: NSMenuItem!
     private var pinItems: [NSMenuItem] = []
     private var unpinMenu: NSMenu!
     private var hotKeyRef: EventHotKeyRef?
@@ -286,6 +282,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         cfg.websiteDataStore = .default()      // persistent: the WhatsApp link survives quit
         cfg.userContentController.add(self, name: "shell")
         if #available(macOS 12.0, *) { cfg.preferences.isElementFullscreenEnabled = true }
+        // THE fix for "absurdly loud noise". WhatsApp plays its message beep
+        // itself, and patching HTMLMediaElement.play in the page only gets what
+        // JavaScript routes through that one method. This tells WebKit that NO
+        // media may start without a real user action, so the beep cannot fire at
+        // all — enforced by the engine, not by a heuristic. Voice notes and
+        // attachments still play, because pressing play IS a user action.
+        // Always on: the Notification Sound switch governs the macOS sound, which
+        // is a sound he can actually control, rather than WhatsApp's own.
+        cfg.mediaTypesRequiringUserActionForPlayback = .all
         installUserScripts(into: cfg.userContentController)
 
         let v = WKWebView(frame: NSRect(x: 0, y: 0, width: 1180, height: 820), configuration: cfg)
@@ -308,13 +313,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
         w.contentView = v
-        // Small enough that companion mode can shrink to a real sliver.
-        w.minSize = NSSize(width: 320, height: 380)
+        // "I want it really small if I want it to be." WhatsApp's own layout is
+        // the only remaining floor, and fitCompact() zooms out to meet it.
+        w.minSize = NSSize(width: 200, height: 220)
         w.setFrameAutosaveName("ShellMainWindow")
         w.isReleasedWhenClosed = false
         w.delegate = self
         w.makeKeyAndOrderFront(nil)
-        if w.frame.width < 320 { w.center() }
+        // The autosaved frame may have been saved while in focus mode, which would
+        // launch the FULL layout into a tiny window — WhatsApp crammed and unusable.
+        // Focus mode is deliberately not restored at launch, so neither is its size.
+        if w.frame.width < 760 || w.frame.height < 560 {
+            w.setContentSize(NSSize(width: 1180, height: 820))
+            w.center()
+        }
         self.window = w
         tintWindow()
         applyWindowLevel()
@@ -339,7 +351,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         font: \(jsLiteral(settings.fontCSS)), msgSize: \(settings.msgSize), \
         nameSize: \(settings.nameSize), msgGap: \(settings.msgGap), \
         sounds: \(settings.sounds ? "true" : "false"), \
-        focus: \(settings.focus ? "true" : "false"), pins: \(pinsJSON) };
+        pins: \(pinsJSON) };
         """
 
         let res = Bundle.main.resourceURL
@@ -412,8 +424,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             if let f = fullFrame { w.setFrame(f, display: true, animate: true) }
         }
         applyWindowLevel()
+        applyTitle()
         settings.save()
         syncMenuState()
+    }
+
+    /// He asked for the mode to be named in the title bar. In focus mode the
+    /// window shows FOCUS; otherwise the title is hidden and the bar is bare.
+    private func applyTitle() {
+        guard let w = window else { return }
+        w.title = settings.compact ? "FOCUS" : kAppName
+        w.titleVisibility = settings.compact ? .visible : .hidden
+    }
+
+    /// Append a line to ~/Library/Application Support/<app>/diagnostics.log.
+    /// NSLog from this app does not surface in `log show`, which left me guessing
+    /// at what the page was actually doing. A file always works.
+    private func diag(_ line: String) {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?.appendingPathComponent(kAppName)
+        guard let dir = dir else { return }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let file = dir.appendingPathComponent("diagnostics.log")
+        let stamp = ISO8601DateFormatter().string(from: Date())
+        guard let data = ("[\(stamp)] " + line + "\n").data(using: .utf8) else { return }
+        if let h = try? FileHandle(forWritingTo: file) {
+            defer { try? h.close() }
+            _ = try? h.seekToEnd()
+            try? h.write(contentsOf: data)
+        } else {
+            try? data.write(to: file)
+        }
     }
 
     /// Make companion mode ADAPT rather than crop.
@@ -436,11 +477,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
             // Log what the page reported: if the rail or list never got tagged,
             // that — not the zoom — is why companion mode looks wrong.
-            if pass == 0 {
-                NSLog("[\(kAppName)] companion fit: inner=\(Int(inner)) scroll=\(Int(scroll)) " +
-                      "rail=\(o["railTagged"] ?? "?") list=\(o["listTagged"] ?? "?") " +
-                      "convo=\(o["convoWidth"] ?? "?") bubbles=\(o["bubbles"] ?? "?")")
-            }
+            if pass == 0 { self.diag("focus fit zoom=\(String(format: "%.2f", Double(web.pageZoom))) " + s) }
 
             let current = Double(web.pageZoom)
             if scroll <= inner + 2 {
@@ -753,7 +790,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             // vanish. Logged here and asserted on by the smoke test.
             let kind = body["kind"] as? String ?? "error"
             let msg = body["message"] as? String ?? ""
-            NSLog("[\(kAppName)] page \(kind): \(msg)")
+            diag("page \(kind): \(msg)")
         default:
             break
         }
@@ -768,8 +805,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private func applyAllToPage() {
         let hideJSON = (try? JSONSerialization.data(withJSONObject: settings.hide))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
-        let pinsJSON = (try? JSONSerialization.data(withJSONObject: settings.pins.filter { !$0.isEmpty }))
-            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         js("__shell.applyTheme(\(jsLiteral(settings.theme)))")
         js("__shell.applyHide(\(hideJSON))")
         js("__shell.applyPrivacy(\(settings.privacy ? "true" : "false"))")
@@ -779,7 +814,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         js("__shell.setMsgGap(\(settings.msgGap))")
         js("__shell.setSounds(\(settings.sounds ? "true" : "false"))")
         js("__shell.setCompact(\(settings.compact ? "true" : "false"))")
-        js("__shell.setFocus(\(settings.focus ? "true" : "false"), \(pinsJSON))")
     }
 
     // ---- typography ----
@@ -853,19 +887,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
     // ---- focus mode & quiet hours ----
 
-    // No preconditions, no refusal. It used to demand that the app's own ⌘1–9
-    // pins were set first, which made it useless until you'd duplicated
-    // WhatsApp's own pinning — the wrong design. Focus mode now works out of the
-    // box on unread chats and whatever you're currently reading.
-    @objc private func toggleFocus(_ sender: Any?) {
-        settings.focus.toggle()
-        settings.save()
-        reinstallUserScripts()
-        let pinsJSON = (try? JSONSerialization.data(withJSONObject: settings.pins.filter { !$0.isEmpty }))
-            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-        js("__shell.setFocus(\(settings.focus ? "true" : "false"), \(pinsJSON))")
-        syncMenuState()
-    }
 
     @objc private func chooseQuietHours(_ sender: NSMenuItem) {
         let p = kQuietPresets[sender.tag]
@@ -1191,7 +1212,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         onTopItem?.state = settings.alwaysOnTop ? .on : .off
         fadeItem?.state = settings.fadeInactive ? .on : .off
         menuBarItem?.state = settings.menuBar ? .on : .off
-        focusItem?.state = settings.focus ? .on : .off
 
         for (i, item) in fontItems.enumerated() {
             item.state = kFonts[i].title == settings.fontTitle ? .on : .off
@@ -1328,7 +1348,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
         // Companion mode and its window behaviour — the reason he asked for this
         // round: one chat, small, floating beside whatever he's working on.
-        companionItem = item("Companion Mode", #selector(toggleCompanion(_:)), "e", [.command, .shift])
+        companionItem = item("Focus Mode", #selector(toggleCompanion(_:)), "e", [.command, .shift])
         viewMenu.addItem(companionItem)
         onTopItem = item("Always on Top", #selector(toggleAlwaysOnTop(_:)), "p", [.command, .option])
         viewMenu.addItem(onTopItem)
@@ -1375,8 +1395,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
         privacyItem = item("Privacy Blur", #selector(togglePrivacy(_:)), "b", [.command, .shift])
         viewMenu.addItem(privacyItem)
-        focusItem = item("Focus Mode — Unread & Current Chat", #selector(toggleFocus(_:)), "f", [.command, .shift])
-        viewMenu.addItem(focusItem)
         menuBarItem = item("Show in Menu Bar", #selector(toggleMenuBar(_:)))
         viewMenu.addItem(menuBarItem)
         viewMenu.addItem(.separator())

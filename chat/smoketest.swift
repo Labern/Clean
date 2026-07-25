@@ -288,11 +288,11 @@ check("programmatic beep resolves without playing", h.str("window.__played || ''
       h.str("window.__played || ''"))
 check("still paused after blocked play", h.bool("document.querySelector('audio') === null || true"))
 
-print("\nfocus mode")
-_ = h.eval("__shell.setFocus(true, ['Somebody']); true")
-check("focus attribute set", h.bool("document.documentElement.hasAttribute('data-shell-focus')"))
-_ = h.eval("__shell.setFocus(false, []); true")
-check("focus cleared", !h.bool("document.documentElement.hasAttribute('data-shell-focus')"))
+print("\nold list-filtering focus mode is gone")
+// Consolidated into focus mode (the mini window) at his request: "cmd shift e is
+// focus mode -- rename it to that. Delete the other one."
+check("setFocus removed",   h.str("typeof __shell.setFocus") == "undefined")
+check("no focus attribute", !h.bool("document.documentElement.hasAttribute('data-shell-focus')"))
 
 print("\nstorage persistence shim")
 // WhatsApp asks for this on boot and logs an error when refused (seen live in
