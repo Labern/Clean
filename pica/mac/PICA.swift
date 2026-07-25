@@ -150,9 +150,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         // made the app render two-thirds the size of the web build. Zoom to match.
         // If the app ever looks off next to the browser again, re-measure
         // getComputedStyle(document.documentElement).fontSize in both and reset this ratio.
-        // 1.5 (24/16) matched his browser exactly but read as too big in practice; 1.3 is the
-        // size he settled on. Override with: defaults write com.labern.pica uiZoom -float 1.4
-        v.pageZoom = UserDefaults.standard.object(forKey: "uiZoom") as? Double ?? 1.3
+        // The page now sets its own root font size (Settings → Interface size), so the app
+        // and the browser agree without zooming. Left overridable for a quick nudge:
+        // defaults write com.labern.pica uiZoom -float 1.1
+        v.pageZoom = UserDefaults.standard.object(forKey: "uiZoom") as? Double ?? 1.0
         self.web = v
 
         // No system title bar above the app: the page runs full-height and PICA's own header
@@ -257,6 +258,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         if let title = body["title"] as? String, !title.isEmpty {
             window?.title = title
         }
+        // links to script libraries open in the real browser, not inside the editor
+        if let s = body["openURL"] as? String, let u = URL(string: s),
+           u.scheme == "https" || u.scheme == "http" {
+            NSWorkspace.shared.open(u)
+        }
+    }
+
+    // any target=_blank link likewise goes to the browser
+    func webView(_ webView: WKWebView, createWebViewWith config: WKWebViewConfiguration,
+                 for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let u = action.request.url, u.scheme == "https" || u.scheme == "http" {
+            NSWorkspace.shared.open(u)
+        }
+        return nil
     }
 
     // ---- menu actions ----
@@ -274,7 +289,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     @objc func zoomOut(_ s: Any?)       { js("PICA_API.zoom(-0.1)") }
     @objc func zoomFit(_ s: Any?)       { js("PICA_API.zoomFit()") }
     @objc func elementMenu(_ s: Any?)   { js("PICA_API.elementMenu()") }
-    @objc func showGrammar(_ s: Any?)   { js("PICA_API.showKeys()") }
+    @objc func showGrammar(_ s: Any?)   { js("PICA_API.settings()") }
+    @objc func markBold(_ s: Any?)      { js("PICA_API.mark('b')") }
+    @objc func markItalic(_ s: Any?)    { js("PICA_API.mark('i')") }
+    @objc func markUnderline(_ s: Any?) { js("PICA_API.mark('u')") }
 
     @objc func openDocument(_ s: Any?) {
         let panel = NSOpenPanel()
@@ -377,12 +395,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         let fmtMenu = NSMenu(title: "Format")
         fmtMenu.addItem(item("Element…", #selector(elementMenu(_:)), "\\"))
         fmtMenu.addItem(.separator())
-        fmtMenu.addItem(item("The Grammar", #selector(showGrammar(_:)), "/"))
+        fmtMenu.addItem(item("Bold", #selector(markBold(_:)), "b"))
+        fmtMenu.addItem(item("Italic", #selector(markItalic(_:)), "i"))
+        fmtMenu.addItem(item("Underline", #selector(markUnderline(_:)), "u"))
+        fmtMenu.addItem(.separator())
+        fmtMenu.addItem(item("Settings & Shortcuts", #selector(showGrammar(_:)), ","))
         let fmtItem = NSMenuItem(); fmtItem.submenu = fmtMenu; main.addItem(fmtItem)
 
         // View
         let viewMenu = NSMenu(title: "View")
-        viewMenu.addItem(item("Hide Sidebar", #selector(toggleSidebar(_:)), "b"))
+        viewMenu.addItem(item("Hide Sidebar", #selector(toggleSidebar(_:)), "s", [.command, .option]))
         viewMenu.addItem(item("Show Title Page", #selector(toggleTitlePage(_:)), "t", [.command, .shift]))
         viewMenu.addItem(item("Invert Theme", #selector(invertTheme(_:)), "j"))
         viewMenu.addItem(.separator())

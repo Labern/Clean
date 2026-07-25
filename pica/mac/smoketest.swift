@@ -226,7 +226,69 @@ func poll(attempts: Int) {
     }
 }
 
+// ---- the typing grammar, checked against Final Draft's table ----
+// Each step: do something, then assert the resulting element types/text.
+struct Step { let desc: String; let js: String; let expect: String }
+
+let grammarSteps: [Step] = [
+    // Scene Heading + Enter → Action
+    Step(desc: "slug typed, Enter gives Action",
+         js: "T.reset(); T.caret(0,0); T.type('INT. HOUSE - DAY'); T.esc(); T.enter(); return T.state().join('§')",
+         expect: "scene|INT. HOUSE - DAY§action|"),
+    // Action + Enter → Action
+    Step(desc: "Action + Enter gives Action",
+         js: "T.type('He waits.'); T.esc(); T.enter(); return T.state().slice(1).join('§')",
+         expect: "action|He waits.§action|"),
+    // Tab on a blank Action → Character
+    Step(desc: "Tab in a blank Action gives Character",
+         js: "T.tab(false); T.esc(); return T.state().slice(2).join('§')",
+         expect: "character|"),
+    // Character + Enter → Dialogue  (the bug: SmartType used to swallow Return)
+    Step(desc: "Character + Enter gives Dialogue",
+         js: "T.type('SAM'); T.enter(); T.esc(); return T.state().slice(2).join('§')",
+         expect: "character|SAM§dialogue|"),
+    // Dialogue + Tab → Parenthetical, ready to type inside the brackets
+    Step(desc: "Dialogue + Tab gives a Parenthetical",
+         js: "T.type('Hello.'); T.esc(); T.tab(false); return T.state().slice(3).join('§')",
+         expect: "dialogue|Hello.§paren|()"),
+    // typing inside the brackets, then Tab → Dialogue  (the bug he found)
+    Step(desc: "Tab from inside a written Parenthetical gives Dialogue",
+         js: "T.type('beat'); T.esc(); T.tab(false); return T.state().slice(4).join('§')",
+         expect: "paren|(beat)§dialogue|"),
+    // Parenthetical + Enter → Dialogue
+    Step(desc: "Enter from inside a Parenthetical gives Dialogue",
+         js: "T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.tab(false); T.type('beat'); T.esc(); T.enter(); return T.state().slice(2).join('§')",
+         expect: "paren|beat§dialogue|"),
+    // Dialogue + Enter → Action
+    Step(desc: "Dialogue + Enter gives Action",
+         js: "T.type('Hi.'); T.esc(); T.enter(); return T.state().slice(3).join('§')",
+         expect: "dialogue|Hi.§action|"),
+    // int. typed in Action promotes to a Scene Heading
+    Step(desc: "typing int. in Action promotes it to a Scene Heading",
+         js: "T.type('int. barn'); T.esc(); return T.state().slice(4).join('§')",
+         expect: "scene|INT. BARN"),
+    // Transition + Enter → Scene Heading
+    Step(desc: "Transition + Enter gives a Scene Heading",
+         js: "T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.tab(false); T.esc(); T.type('CUT TO:'); T.esc(); T.enter(); return T.state().slice(1).join('§')",
+         expect: "transition|CUT TO:§scene|"),
+]
+
+func runGrammar(_ i: Int) {
+    if i >= grammarSteps.count { finishAll(); return }
+    let s = grammarSteps[i]
+    eval("(() => { try { const T = window.PICA_API.test; " + s.js + " } catch(e) { return 'ERR: ' + (e && e.message || e); } })()") { res in
+        let got = (res as? String) ?? "<no result>"
+        check("grammar: " + s.desc, got == s.expect, got == s.expect ? "" : "got “\(got)” want “\(s.expect)”")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { runGrammar(i + 1) }
+    }
+}
+
 func finish() {
+    print("  … checking the typing grammar against Final Draft's table")
+    runGrammar(0)
+}
+
+func finishAll() {
     print(failures == 0 ? "\nPICA.app verified — the bundle runs standalone" : "\n\(failures) FAILURE(S)")
     exit(failures == 0 ? 0 : 1)
 }
