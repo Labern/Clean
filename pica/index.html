@@ -139,8 +139,15 @@ body.resizing #canvas{ pointer-events:none; }
 .scene-item .no{ color:var(--faint); flex:none; width:1.7em; text-align:right; font-variant-numeric:tabular-nums; }
 .scene-item .sl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .doc-item .pg{ margin-left:auto; color:var(--faint); font-variant-numeric:tabular-nums; flex:none;}
-.rail-act{ font-family:var(--mono); font-size:.64rem; letter-spacing:.18em; color:var(--ink-2); padding:.3rem .45rem; text-transform:uppercase;}
-.rail-act:hover{ color:var(--ink); }
+.sidegrid{ display:grid; grid-template-columns:1fr 1fr; gap:.45rem; margin-bottom:.4rem; }
+.sbtn{
+  font-family:var(--mono); font-size:.64rem; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--ink); background:transparent; border:1.5px solid var(--ink);
+  padding:.5rem 0; text-align:center; transition:background .1s, color .1s;
+}
+.sbtn:hover{ background:var(--ink); color:var(--paper); }
+#btnKeys{ font-size:1.1rem; }
+[data-head][hidden]{ display:none !important; }
 
 /* ---------- canvas ---------- */
 #canvas{ flex:1; overflow:auto; background:var(--paper-2); min-width:0; position:relative; }
@@ -313,23 +320,26 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 
 <header>
   <div class="hzone left">
-    <button id="railToggle" class="hbtn" title="Sidebar (⌥⌘S)">☰</button>
     <div class="wordmark">PICA</div>
   </div>
   <span id="docTitle" contenteditable="true" spellcheck="false"></span>
   <div class="hzone right">
-  <button class="hbtn" id="btnNew">New</button>
-  <button class="hbtn" id="btnImport">Import</button>
-  <button class="hbtn" id="btnExport">Export</button>
-  <button class="hbtn" id="btnTitle" title="Title page (⇧⌘T)">Title</button>
+  <button class="hbtn" id="btnNew" data-head="new">New</button>
+  <button class="hbtn" id="btnImport" data-head="imp">Import</button>
+  <button class="hbtn" id="btnExport" data-head="exp">Export</button>
+  <button class="hbtn" id="btnTitle" data-head="title" title="Title page (⇧⌘T)">Title</button>
   <button class="hbtn" id="btnTheme" title="invert">◐</button>
   </div>
 </header>
 
 <div id="split">
   <nav id="rail">
-    <button class="rail-act" id="railNew">+ New script</button>
-    <button class="rail-act" id="railImport">+ Import PDF</button>
+    <div class="sidegrid">
+      <button class="sbtn" id="railNew">New</button>
+      <button class="sbtn" id="railImport">Import</button>
+      <button class="sbtn" id="railExport">Export</button>
+      <button class="sbtn" id="railTitle" title="Title page (⇧⌘T)">Title</button>
+    </div>
     <div class="eyebrow">Index</div>
     <div id="docList"></div>
     <div class="eyebrow">Scenes</div>
@@ -343,7 +353,8 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 
 <footer>
   <div class="fzone left">
-    <button id="btnKeys" class="z" title="Settings &amp; shortcuts (⌘,)">⚙</button>
+    <button id="railToggle" class="z" title="Sidebar (⌘T)">☰</button>
+    <button id="btnKeys" class="z" id2="gear" title="Settings &amp; shortcuts (⌘,)">⚙</button>
     <button id="stType" data-foot="type">—</button>
     <span id="stHint" data-foot="hint"></span>
     <button id="stDrafts" data-foot="drafts" title="Named drafts">drafts</button>
@@ -694,6 +705,8 @@ const PicaEngine = (() => {
     // revision headers: "10/11/03 MM revs. (goldenrod)  5." — a date or the word revs,
     // usually trailing the page number. Printing apparatus, never writing.
     const FURNITURE_HEADER = /\d{1,2}\/\d{1,2}\/\d{2,4}|\brevs?[.\s]|\brevisions?\b|\bdraft\b.*\d{1,2}\/\d{1,2}/i;
+    // provenance stamps ("Downloaded from …", site names, urls) are not writing either
+    const PROVENANCE = /\b(downloaded|imported|provided|courtesy)\s+(from|of|by)\b|scriptslug|script\s*savant|simplyscripts|imsdb|dailyscript|awesomefilm|8flix|screenplays?\s*online|for educational purposes|www\.[a-z0-9-]+\.[a-z]{2,}|https?:\/\//i;
     const furniture = new Set();
     {
       const byY = new Map();
@@ -709,7 +722,7 @@ const PicaEngine = (() => {
           const t = l.text.trim();
           return FURNITURE_NUM.test(t) || FURNITURE_WORD.test(t);
         }).length;
-        const headerish = arr.filter(l => FURNITURE_HEADER.test(l.text)).length;
+        const headerish = arr.filter(l => FURNITURE_HEADER.test(l.text) || PROVENANCE.test(l.text)).length;
         // the whole row has to be furniture — a body row that happens to hold a number
         // on a few pages must survive
         if (marks >= arr.length * 0.9 || headerish >= arr.length * 0.7)
@@ -830,7 +843,7 @@ const PicaEngine = (() => {
       if (furniture.has(l)) continue;
       if (l.y < y0f - rowH * 0.6) {
         const t = l.text.trim();
-        if (FURNITURE_HEADER.test(t) || FURNITURE_NUM.test(t) || FURNITURE_WORD.test(t)) furniture.add(l);
+        if (FURNITURE_HEADER.test(t) || FURNITURE_NUM.test(t) || FURNITURE_WORD.test(t) || PROVENANCE.test(t)) furniture.add(l);
       }
     }
 
@@ -934,6 +947,16 @@ const PicaEngine = (() => {
       if (type === 'action') { layout.widths.shot = bestW; layout.widths.general = bestW; }
     }
 
+    // an isolated provenance stamp that slipped through as its own element is dropped
+    for (let i = els.length - 1; i >= 0; i--) {
+      const e = els[i];
+      if ((e.type === 'general' || e.type === 'action') && e.srcLines.length === 1
+          && e.srcLines[0].text.length < 70 && PROVENANCE.test(e.srcLines[0].text)
+          && /^(downloaded|imported|provided|courtesy)\b|www\.|https?:|scriptslug|script\s*savant|imsdb|for educational/i.test(e.srcLines[0].text.trim())) {
+        els.splice(i, 1);
+      }
+    }
+
     // spacing overrides: where the source's blank rows differ from the standard rule
     for (let i = 1; i < els.length; i++) {
       const g = els[i].gapBefore;
@@ -959,7 +982,7 @@ const PicaEngine = (() => {
     // ---------- title page ----------
     let tp = [];
     if (titlePage) {
-      tp = titlePage.lines.map(l => ({
+      tp = titlePage.lines.filter(l => !PROVENANCE.test(l.text)).map(l => ({
         text: l.text,
         row: Math.round((l.y - y0) / rowH),
         x: Math.round(l.x * 100) / 100,
@@ -2917,6 +2940,10 @@ function applyUiPrefs(){
   const foot = Object.assign({ page: true, type: false, hint: false, drafts: false, link: false, saved: false }, ui.foot || {});
   S.foot = foot;
   for (const el of document.querySelectorAll('[data-foot]')) el.hidden = !foot[el.dataset.foot];
+  // header actions live in the sidebar's button block now; these are opt-in returns
+  const head = Object.assign({ new: false, imp: false, exp: false, title: false }, ui.head || {});
+  S.head = head;
+  for (const el of document.querySelectorAll('[data-head]')) el.hidden = !head[el.dataset.head];
 }
 function setUiBase(px){
   const ui = LS.get('pica.ui', {}); ui.uiBase = px; LS.set('pica.ui', ui);
@@ -2956,6 +2983,12 @@ function showSettings(){
     seg('setTitle', [['off','Hidden'],['on','Shown']], S.showTitle ? 'on' : 'off'))}
   ${row('Sidebar', 'Drag its edge to resize · double-click to reset.',
     seg('setRail', [['on','Shown'],['off','Hidden']], document.body.classList.contains('railhidden') ? 'off' : 'on'))}
+
+  <h3>Header</h3>
+  ${row('New', 'These four live in the sidebar now; turn any back on here.', seg('headNew', [['off','Off'],['on','On']], S.head?.new ? 'on' : 'off'))}
+  ${row('Import', '', seg('headImp', [['off','Off'],['on','On']], S.head?.imp ? 'on' : 'off'))}
+  ${row('Export', '', seg('headExp', [['off','Off'],['on','On']], S.head?.exp ? 'on' : 'off'))}
+  ${row('Title', '', seg('headTitle', [['off','Off'],['on','On']], S.head?.title ? 'on' : 'off'))}
 
   <h3>Footer</h3>
   ${row('Page & scenes', 'Centred. Zoom and \u2699 are always on.', seg('footPage', [['on','On'],['off','Off']], (S.foot?.page ?? true) ? 'on' : 'off'))}
@@ -3042,6 +3075,10 @@ function showSettings(){
   });
   footWire('footPage', 'page'); footWire('footType', 'type'); footWire('footHint', 'hint');
   footWire('footDrafts', 'drafts'); footWire('footLinkT', 'link'); footWire('footSaved', 'saved');
+  const headWire = (id, key) => wire(id, v => {
+    const u = LS.get('pica.ui', {}); u.head = Object.assign({}, u.head, { [key]: v === 'on' }); LS.set('pica.ui', u); applyUiPrefs();
+  });
+  headWire('headNew', 'new'); headWire('headImp', 'imp'); headWire('headExp', 'exp'); headWire('headTitle', 'title');
   wire('setSnaps', v => {
     const snaps = S.snaps || [];
     const sn = snaps[+v]; if (!sn) return;
@@ -3154,6 +3191,7 @@ pagesEl.addEventListener('keydown', ev => {
   if (mod && !ev.altKey && ev.key.toLowerCase() === 'i') { ev.preventDefault(); applyEmphasis('i'); return; }
   if (mod && !ev.altKey && ev.key.toLowerCase() === 'u') { ev.preventDefault(); applyEmphasis('u'); return; }
   if (mod && ev.altKey && ev.key.toLowerCase() === 's') { ev.preventDefault(); toggleRail(); return; }
+  if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 't') { ev.preventDefault(); toggleRail(); return; }
   if (mod && ev.shiftKey && ev.key.toLowerCase() === 't') { ev.preventDefault(); toggleTitlePage(); return; }
   if (mod && ev.key === ',') { ev.preventDefault(); showSettings(); return; }
   if (mod && ev.key === '\\') { ev.preventDefault(); openElementMenu(); return; }
@@ -3238,9 +3276,11 @@ addEventListener('gestureend', ev => ev.preventDefault(), { passive: false });
 
 // header + footer buttons
 $('#btnNew').addEventListener('mousedown', ev => { ev.preventDefault(); const id = E.uid(); store.save(id, E.newDoc('UNTITLED')); openDoc(id); toast('new script'); });
-$('#railNew').addEventListener('mousedown', ev => { ev.preventDefault(); $('#btnNew').dispatchEvent(new Event('mousedown')); });
+$('#railNew').addEventListener('mousedown', ev => { ev.preventDefault(); const id = E.uid(); store.save(id, E.newDoc('UNTITLED')); openDoc(id); toast('new script'); });
 $('#btnImport').addEventListener('mousedown', ev => { ev.preventDefault(); $('#fileIn').click(); });
 $('#railImport').addEventListener('mousedown', ev => { ev.preventDefault(); $('#fileIn').click(); });
+$('#railExport').addEventListener('mousedown', ev => { ev.preventDefault(); openExportMenu(); });
+$('#railTitle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleTitlePage(); });
 $('#btnExport').addEventListener('mousedown', ev => { ev.preventDefault(); openExportMenu(); });
 $('#btnKeys').addEventListener('mousedown', ev => { ev.preventDefault(); showSettings(); });
 $('#btnTitle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleTitlePage(); });
