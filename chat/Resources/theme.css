@@ -1,0 +1,304 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   theme.css — injected into web.whatsapp.com at document start.
+
+   HOW THIS WORKS, and why it is built this way:
+
+   WhatsApp Web ships its own design system, "WDS". Every colour in the product
+   resolves from ~163 CSS custom properties named --WDS-* declared at :root
+   (verified live, 2026-07-25: 1513 properties total, 163 once the -RGB mirrors
+   are dropped). Its *class names* are obfuscated and change on every deploy;
+   its *token names* are stable and semantic. So this file never styles a class
+   — it re-points the tokens. That is the whole trick, and it is why a WhatsApp
+   redeploy does not break the themes.
+
+   Two layers:
+     1. Each theme declares a small set of OUR tokens (--x-*).  ~18 values.
+     2. One shared mapping block wires --x-* onto every --WDS-* that matters.
+   Adding a theme therefore costs ~18 lines, never a rewrite. Toggling one
+   attribute on <html> re-themes the entire application at once.
+
+   The mapping is repeated for html / body / #app because a custom property
+   declared lower in the tree shadows an inherited one — if WhatsApp ever moves
+   its token block from :root down onto body, an html-only override would
+   silently lose. Declaring at all three levels makes that impossible.
+   ───────────────────────────────────────────────────────────────────────── */
+
+/* ── 1. token sets ─────────────────────────────────────────────────────────── */
+
+/* PARADOX — a website that *is* a terminal. Palette from ~/Desktop/★★★★★/STYLE.md */
+html[data-shell-theme="paradox"] {
+  --x-app:          #0b0918;
+  --x-panel:        #0e0b1a;   /* --term     */
+  --x-panel-2:      #171331;   /* --titlebar */
+  --x-hover:        rgba(175, 135, 255, .10);
+  --x-pressed:      rgba(175, 135, 255, .18);
+  --x-ink:          #cfcae6;   /* --ink      */
+  --x-ink-2:        #8787af;   /* --faint    */
+  --x-ink-3:        #6c6c8a;   /* --dim      */
+  --x-accent:       #87d7d7;   /* --teal     */
+  --x-accent-soft:  #241b3f;
+  --x-accent-strong:#5fd7af;   /* --teal2    */
+  --x-line:         #2a2350;   /* --border   */
+  --x-line-2:       #3a3168;
+  --x-in:           #171331;
+  --x-out:          #2a1f4d;
+  --x-wall:         #0e0b1a;
+  --x-wall-2:       #171331;
+  --x-composer:     #171331;
+  --x-read:         #87d7d7;   /* teal ticks, not blue */
+  --x-verified:     #ffd75f;   /* --gold     */
+  --x-scheme:       dark;
+}
+
+/* MONOGRAPH — B&W editorial. New York serif + SF Mono over a grisaille palette.
+   Spec: ~/Desktop/★★★★★/MONOGRAPH.md */
+html[data-shell-theme="monograph"] {
+  --x-app:          #e8e6e3;
+  --x-panel:        #ffffff;
+  --x-panel-2:      #f4f3f1;
+  --x-hover:        rgba(0, 0, 0, .045);
+  --x-pressed:      rgba(0, 0, 0, .09);
+  --x-ink:          #111111;
+  --x-ink-2:        #6b6b6b;
+  --x-ink-3:        #b0b0b0;
+  --x-accent:       #111111;
+  --x-accent-soft:  #ecebe8;
+  --x-accent-strong:#000000;
+  --x-line:         rgba(0, 0, 0, .10);
+  --x-line-2:       #cfcdc9;
+  --x-in:           #ffffff;
+  --x-out:          #f1f0ed;
+  --x-wall:         #faf9f7;
+  --x-wall-2:       #efeee9;
+  --x-composer:     #ffffff;
+  --x-read:         #111111;
+  --x-verified:     #111111;
+  --x-scheme:       light;
+}
+
+/* MIDNIGHT — a clean, quiet dark. No aesthetic argument, just legible at night. */
+html[data-shell-theme="midnight"] {
+  --x-app:          #0b0f10;
+  --x-panel:        #111b21;
+  --x-panel-2:      #202c33;
+  --x-hover:        rgba(255, 255, 255, .05);
+  --x-pressed:      rgba(255, 255, 255, .10);
+  --x-ink:          #e9edef;
+  --x-ink-2:        #8696a0;
+  --x-ink-3:        #667781;
+  --x-accent:       #21c063;
+  --x-accent-soft:  #005c4b;
+  --x-accent-strong:#1daa61;
+  --x-line:         rgba(255, 255, 255, .08);
+  --x-line-2:       #2a3942;
+  --x-in:           #202c33;
+  --x-out:          #005c4b;
+  --x-wall:         #0b141a;
+  --x-wall-2:       #111b21;
+  --x-composer:     #202c33;
+  --x-read:         #53bdeb;
+  --x-verified:     #53bdeb;
+  --x-scheme:       dark;
+}
+
+/* ── 2. the mapping: our tokens → WhatsApp's ───────────────────────────────── */
+
+html[data-shell-theme="paradox"],   html[data-shell-theme="paradox"] body,   html[data-shell-theme="paradox"] #app,
+html[data-shell-theme="monograph"], html[data-shell-theme="monograph"] body, html[data-shell-theme="monograph"] #app,
+html[data-shell-theme="midnight"],  html[data-shell-theme="midnight"] body,  html[data-shell-theme="midnight"] #app {
+  color-scheme: var(--x-scheme) !important;
+
+  /* surfaces */
+  --WDS-app-wash:                        var(--x-app)     !important;
+  --WDS-surface-default:                 var(--x-panel)   !important;
+  --WDS-surface-elevated-default:        var(--x-panel)   !important;
+  --WDS-surface-emphasized:              var(--x-panel-2) !important;
+  --WDS-surface-elevated-emphasized:     var(--x-panel-2) !important;
+  --WDS-surface-highlight:               var(--x-hover)   !important;
+  --WDS-surface-pressed:                 var(--x-pressed) !important;
+  --WDS-surface-inverse:                 var(--x-ink)     !important;
+  --WDS-background-wash-plain:           var(--x-panel)   !important;
+  --WDS-background-wash-inset:           var(--x-panel-2) !important;
+  --WDS-background-elevated-wash-plain:  var(--x-panel)   !important;
+  --WDS-background-elevated-wash-inset:  var(--x-panel-2) !important;
+  --WDS-background-dimmer:               rgba(0, 0, 0, .55) !important;
+
+  /* text & icons */
+  --WDS-content-default:            var(--x-ink)     !important;
+  --WDS-content-deemphasized:       var(--x-ink-2)   !important;
+  --WDS-content-disabled:           var(--x-ink-3)   !important;
+  --WDS-content-inverse:            var(--x-panel)   !important;
+  --WDS-content-on-accent:          var(--x-panel)   !important;
+  --WDS-content-action-default:     var(--x-ink)     !important;
+  --WDS-content-action-emphasized:  var(--x-accent)  !important;
+  --WDS-content-external-link:      var(--x-accent)  !important;
+  --WDS-content-read:               var(--x-read)    !important;
+
+  /* accent */
+  --WDS-accent:                var(--x-accent)        !important;
+  --WDS-accent-deemphasized:   var(--x-accent-soft)   !important;
+  --WDS-accent-emphasized:     var(--x-accent-strong) !important;
+
+  /* lines */
+  --WDS-lines-divider:               var(--x-line)   !important;
+  --WDS-lines-outline-default:       var(--x-line-2) !important;
+  --WDS-lines-outline-deemphasized:  var(--x-line)   !important;
+
+  /* message bubbles & the conversation surface */
+  --WDS-systems-bubble-surface-incoming:     var(--x-in)       !important;
+  --WDS-systems-bubble-surface-outgoing:     var(--x-out)      !important;
+  --WDS-systems-bubble-surface-e2e:          var(--x-panel-2)  !important;
+  --WDS-systems-bubble-surface-business:     var(--x-panel-2)  !important;
+  --WDS-systems-bubble-surface-system:       var(--x-panel-2)  !important;
+  --WDS-systems-bubble-surface-overlay:      var(--x-hover)    !important;
+  --WDS-systems-bubble-content-deemphasized: var(--x-ink-2)    !important;
+  --WDS-systems-bubble-content-e2e:          var(--x-ink-2)    !important;
+  --WDS-systems-bubble-content-business:     var(--x-ink-2)    !important;
+  --WDS-systems-chat-background-wallpaper:   var(--x-wall)     !important;
+  --WDS-systems-chat-foreground-wallpaper:   var(--x-wall-2)   !important;
+  --WDS-systems-chat-surface-composer:       var(--x-composer) !important;
+  --WDS-systems-chat-surface-tray:           var(--x-panel-2)  !important;
+  --WDS-systems-status-seen:                 var(--x-ink-3)    !important;
+
+  /* odds and ends */
+  --WDS-persistent-activity-indicator:      var(--x-accent)      !important;
+  --WDS-persistent-always-branded:          var(--x-accent)      !important;
+  --WDS-persistent-verified:                var(--x-verified)    !important;
+  --WDS-components-active-list-row:         var(--x-hover)       !important;
+  --WDS-components-filter-surface-selected: var(--x-accent-soft) !important;
+  --WDS-components-outline-profile-photo:   var(--x-line)        !important;
+
+  /* The green ramp backs a long tail of derived values. Re-pointing it catches
+     anything the semantic tokens above miss. */
+  --WDS-green-75:  var(--x-accent-soft)   !important;
+  --WDS-green-100: var(--x-accent-soft)   !important;
+  --WDS-green-400: var(--x-accent)        !important;
+  --WDS-green-450: var(--x-accent)        !important;
+  --WDS-green-500: var(--x-accent)        !important;
+  --WDS-green-600: var(--x-accent-strong) !important;
+  --WDS-green-700: var(--x-accent-strong) !important;
+}
+
+/* ── 3. per-theme flourishes ───────────────────────────────────────────────── */
+
+/* PARADOX: monospace everything, and the drifting purple-black gradient behind
+   the conversation. Slow and looping only — 26s, per the style spec. */
+html[data-shell-theme="paradox"] body,
+html[data-shell-theme="paradox"] body * {
+  font-family: "Menlo", "SF Mono", "Consolas", monospace !important;
+  letter-spacing: -.1px;
+}
+html[data-shell-theme="paradox"] [data-shell-convo] {
+  background-image: linear-gradient(135deg, #0f0c29, #302b63, #24243e, #1a1a2e) !important;
+  background-size: 400% 400% !important;
+  animation: shell-drift 26s ease-in-out infinite;
+}
+@keyframes shell-drift {
+  0%, 100% { background-position:   0% 50%; }
+  50%      { background-position: 100% 50%; }
+}
+
+/* MONOGRAPH: New York for prose, SF Mono for the furniture. */
+html[data-shell-theme="monograph"] body,
+html[data-shell-theme="monograph"] body * {
+  font-family: "New York", "Iowan Old Style", "Palatino", Georgia, serif !important;
+}
+html[data-shell-theme="monograph"] [data-testid="cell-frame-primary-detail"],
+html[data-shell-theme="monograph"] [data-testid="cell-frame-primary-detail"] *,
+html[data-shell-theme="monograph"] [data-navbar-item],
+html[data-shell-theme="monograph"] [data-navbar-item] * {
+  font-family: "SF Mono", "Menlo", monospace !important;
+  font-size: .78em;
+  letter-spacing: .02em;
+}
+
+/* ── 4. hiding the things he does not want to look at ──────────────────────── */
+/* Two selectors per target: the English aria-label, and the language-independent
+   data-navbar-item-index (Chats 0, Status 1, Channels 2, Communities 3, Media 4,
+   You 5 — Calls carries no index). Either one landing is enough. */
+
+html[data-shell-hide-calls]       [data-navbar-item][aria-label="Calls"],
+html[data-shell-hide-calls]       [data-navbar-item]:has([aria-label="Calls"]),
+html[data-shell-hide-status]      [data-navbar-item][aria-label="Status"],
+html[data-shell-hide-status]      [data-navbar-item]:has([aria-label="Status"]),
+html[data-shell-hide-status]      [data-navbar-item][data-navbar-item-index="1"],
+html[data-shell-hide-channels]    [data-navbar-item][aria-label="Channels"],
+html[data-shell-hide-channels]    [data-navbar-item]:has([aria-label="Channels"]),
+html[data-shell-hide-channels]    [data-navbar-item][data-navbar-item-index="2"],
+html[data-shell-hide-communities] [data-navbar-item][aria-label="Communities"],
+html[data-shell-hide-communities] [data-navbar-item]:has([aria-label="Communities"]),
+html[data-shell-hide-communities] [data-navbar-item][data-navbar-item-index="3"],
+html[data-shell-hide-media]       [data-navbar-item][aria-label="Media"],
+html[data-shell-hide-media]       [data-navbar-item]:has([aria-label="Media"]),
+html[data-shell-hide-media]       [data-navbar-item][data-navbar-item-index="4"] {
+  display: none !important;
+}
+
+/* Meta AI: the chat-list row, and any button carrying its logo. */
+html[data-shell-hide-metaai] [data-testid^="list-item-"]:has(span[title="Meta AI"]),
+html[data-shell-hide-metaai] [role="listitem"]:has(span[title="Meta AI"]),
+html[data-shell-hide-metaai] button:has(svg[id^="WDSIconWdsIcLogoMetaAi"]),
+html[data-shell-hide-metaai] div[role="button"]:has(svg[id^="WDSIconWdsIcLogoMetaAi"]) {
+  display: none !important;
+}
+
+/* The All / Unread / Favourites / Groups chip row. */
+html[data-shell-hide-filters] [role="tablist"]:has(#all-filter),
+html[data-shell-hide-filters] #additional-filters {
+  display: none !important;
+}
+
+html[data-shell-hide-archived] [data-testid="chatlist-panel-archived-button"] {
+  display: none !important;
+}
+
+/* Nags: the butterbar ("turn on notifications", update prompts) and the
+   empty-state promo tiles. */
+html[data-shell-hide-promos] [data-testid="chat-butterbar"],
+html[data-shell-hide-promos] [data-testid="intro-panel-empty-state-action-tile-group"] {
+  display: none !important;
+}
+
+/* ── 5. privacy mode — blur content until pointed at ───────────────────────── */
+/* For screen-sharing and shoulders. The conversation is scoped by
+   [data-shell-convo] rather than #main: shell.js finds the pane (preferring
+   #main, falling back to the composer's tall ancestor) and tags it, so this
+   keeps working even if that id is renamed. Inside it, a union of message hooks
+   — several independent ones, so if WhatsApp moves any single one the blur
+   still lands. */
+
+html[data-shell-privacy] [data-shell-convo] [role="row"],
+html[data-shell-privacy] [data-shell-convo] [data-id],
+html[data-shell-privacy] [data-shell-convo] .message-in,
+html[data-shell-privacy] [data-shell-convo] .message-out {
+  filter: blur(7px);
+  transition: filter .12s ease;
+}
+html[data-shell-privacy] [data-shell-convo] [role="row"]:hover,
+html[data-shell-privacy] [data-shell-convo] [data-id]:hover,
+html[data-shell-privacy] [data-shell-convo] .message-in:hover,
+html[data-shell-privacy] [data-shell-convo] .message-out:hover {
+  filter: none;
+}
+
+html[data-shell-privacy] [data-testid="cell-frame-title"],
+html[data-shell-privacy] [data-testid="cell-frame-secondary"] {
+  filter: blur(5px);
+  transition: filter .12s ease;
+}
+html[data-shell-privacy] [data-testid^="list-item-"]:hover [data-testid="cell-frame-title"],
+html[data-shell-privacy] [data-testid^="list-item-"]:hover [data-testid="cell-frame-secondary"] {
+  filter: none;
+}
+
+/* ── 6. the fallback that keeps privacy mode honest ────────────────────────── */
+/* If none of the per-message hooks in §5 match a future WhatsApp build,
+   shell.js sets data-shell-privacy-fallback and the conversation pane blurs as
+   one. Coarse, but it never claims to be on while showing everything. */
+html[data-shell-privacy][data-shell-privacy-fallback] [data-shell-convo] {
+  filter: blur(8px);
+  transition: filter .12s ease;
+}
+html[data-shell-privacy][data-shell-privacy-fallback] [data-shell-convo]:hover {
+  filter: none;
+}
