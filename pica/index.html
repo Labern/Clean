@@ -310,7 +310,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   <div class="grow"></div>
   <a id="footLink" href="https://scriptslug.com" target="_blank" rel="noopener noreferrer">Find screenplays ↗</a>
   <span id="stPage">—</span>
-  <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click for fit">100%</button><button class="z" id="zIn">+</button>
+  <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click to fit · double-click for 100%">100%</button><button class="z" id="zIn">+</button>
   <span id="stSave"></span>
 </footer>
 
@@ -2709,7 +2709,13 @@ $('#railGrip').addEventListener('dblclick', () => {
 });
 $('#zIn').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = Math.min(1.6, (S.zoom ?? fitZoom()) + .1); rerenderAll(); });
 $('#zOut').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = Math.max(.3, (S.zoom ?? fitZoom()) - .1); rerenderAll(); });
-$('#zPct').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = null; rerenderAll(); });
+// single click fits the page; double click resets to exactly 100%
+$('#zPct').addEventListener('mousedown', ev => {
+  ev.preventDefault();
+  clearTimeout(window._zClick);
+  if (ev.detail >= 2) { S.zoom = 1; rerenderAll(); }
+  else window._zClick = setTimeout(() => { S.zoom = null; rerenderAll(); }, 260);
+});
 
 $('#fileIn').addEventListener('change', async ev => {
   const f = ev.target.files[0]; ev.target.value = '';
