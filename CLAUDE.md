@@ -15,6 +15,10 @@ no build step, no dependencies.
 - `fullres/` — FullRes: send photos/videos via WhatsApp at original quality
   (share-as-document trick, zero compression). Single-file web app, live at
   `labern.github.io/Clean/fullres/`. See `fullres/CLAUDE.md`.
+- `pica/` — PICA: screenplay editor that imports Final Draft PDFs and reproduces
+  them identically, with the full Tab/Enter typing grammar. Single-file web app,
+  live at `labern.github.io/Clean/pica/`. See `pica/CLAUDE.md` — its fidelity
+  test (`node pica/tests/run.mjs`) must stay at 100% on every engine change.
 
 ## Commands
 Top-level dir: none — `index.html` is static, just `open` it.

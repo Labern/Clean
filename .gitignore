@@ -8,6 +8,12 @@ Legacy/
 
 # OS cruft
 .DS_Store
+
+# pica test fixtures (downloaded copyrighted PDF + derived extraction) + test deps
+pica/tests/fixtures/
+pica/tests/node_modules/
+pica/tests/package.json
+pica/tests/package-lock.json
 # political → github.com/Labern/political
 political/
 # ignition → github.com/Labern/ignition (private)
