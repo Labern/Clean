@@ -174,6 +174,32 @@ body.resizing #canvas{ pointer-events:none; }
 .pageghost{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
   font-family:var(--mono); font-size:.65rem; letter-spacing:.3em; color:var(--faint); }
 
+#docGenre{
+  font-family:var(--mono); font-size:.66rem; letter-spacing:.22em; text-transform:uppercase;
+  color:var(--ink-2); outline:none; padding:.15rem .3rem; min-width:1.2rem; text-align:right;
+  border-bottom:1px dashed transparent; white-space:nowrap;
+}
+#docGenre:empty::before{ content:"genre"; color:var(--faint); opacity:.45; }
+#docGenre:hover, #docGenre:focus{ border-bottom-color:var(--faint); }
+
+/* ---------- side by side ---------- */
+#canvasB{ flex:1; min-width:0; overflow:auto; background:var(--paper-2); border-left:1px solid var(--line); position:relative; }
+body.split #canvas{ flex:1; min-width:0; }
+.bstrip{
+  position:sticky; top:0; z-index:5; display:flex; align-items:center; gap:.6rem;
+  background:var(--paper); border-bottom:1px solid var(--line); padding:.35rem .8rem;
+}
+#bDocSel{
+  font-family:var(--mono); font-size:.66rem; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--ink); background:none; border:none; border-bottom:1px solid var(--line); outline:none;
+  max-width:70%;
+}
+#bClose{ margin-left:auto; color:var(--ink-2); font-size:.9rem; }
+#bClose:hover{ color:var(--ink); }
+#pagesB{ padding:1.6rem .8rem 5rem; }
+#pagesB .pageWrap{ margin:0 auto 1.6rem; }
+#pagesB .page{ user-select:text; }
+
 /* ---------- statusbar ---------- */
 footer{
   flex:none; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:1.3rem;
@@ -336,6 +362,14 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   <button class="hbtn" id="btnImport" data-head="imp">Import</button>
   <button class="hbtn" id="btnExport" data-head="exp">Export</button>
   <button class="hbtn" id="btnTitle" data-head="title" title="Title page (⇧⌘T)">Title</button>
+  <span id="docGenre" contenteditable="true" spellcheck="false" title="Genre — type anything, or leave blank"></span>
+  <button class="hbtn" id="btnSplit" title="Side by side">
+    <svg width="17" height="13" viewBox="0 0 17 13" style="display:block" fill="none" stroke="currentColor" stroke-width="1.3">
+      <rect x="0.7" y="0.7" width="6" height="8.2"/>
+      <rect x="10.3" y="0.7" width="6" height="8.2"/>
+      <path d="M4.4 11.7 h8.2 M4.4 11.7 l1.7 -1.2 M4.4 11.7 l1.7 1.2 M12.6 11.7 l-1.7 -1.2 M12.6 11.7 l-1.7 1.2" stroke-width="1"/>
+    </svg>
+  </button>
   <button class="hbtn" id="btnTheme" title="invert">◐</button>
   </div>
 </header>
@@ -358,6 +392,13 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   <div id="railGrip" title="Drag to resize"></div>
   <main id="canvas">
     <div id="pages" contenteditable="true" spellcheck="false" autocorrect="off" autocapitalize="off"></div>
+  </main>
+  <main id="canvasB" hidden>
+    <div class="bstrip">
+      <select id="bDocSel" title="What the second pane shows"></select>
+      <button id="bClose" title="Close side-by-side">×</button>
+    </div>
+    <div id="pagesB"></div>
   </main>
 </div>
 
@@ -1520,6 +1561,7 @@ async function boot(){
   let id = (last && ix.some(d => d.id === last)) ? last : (ix[0] && ix[0].id);
   if (!id) { id = E.uid(); const doc = E.newDoc('UNTITLED'); store.save(id, doc); }
   await openDoc(id);
+  if (LS.get('pica.ui', {}).split) splitOn();
   const m = location.search.match(/[?&]open=([^&]+)/);
   if (m) fetch(decodeURIComponent(m[1])).then(r => r.arrayBuffer()).then(b => importPdfBuffer(b, decodeURIComponent(m[1]).split('/').pop())).catch(()=>{});
 }
@@ -1545,6 +1587,7 @@ async function openDoc(id){
   S.fontPt = doc.layout.charW / 0.6;
   repaginate(); buildPages(); renderAllVisible(); rail(); status();
   $('#docTitle').textContent = doc.title;
+  $('#docGenre').textContent = doc.genre || '';
   const saved = LS.get('pica.scroll', {})[id];
   canvasEl.scrollTop = 0;
   if (saved) requestAnimationFrame(() => {
@@ -3383,6 +3426,113 @@ function applyRailPrefs(){
   if (ui.railW) document.documentElement.style.setProperty('--railw', ui.railW + 'px');
   document.body.classList.toggle('railhidden', !!ui.railHidden);
 }
+// ---------- genre chip: per-script, blank until typed ----------
+$('#docGenre').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } });
+$('#docGenre').addEventListener('blur', ev => {
+  const g = ev.target.textContent.trim().toUpperCase().slice(0, 24);
+  ev.target.textContent = g;
+  if (S.doc && (S.doc.genre || '') !== g) { S.doc.genre = g; flushSave(); }
+});
+
+// ---------- side by side: a second, read-only pane ----------
+const B = { id: null, doc: null, res: null, els: [], k: 1, io: null };
+
+function buildBSel(){
+  const sel = $('#bDocSel');
+  sel.innerHTML = '';
+  for (const d of store.index()) {
+    const o = document.createElement('option');
+    o.value = d.id; o.textContent = (d.title || 'UNTITLED');
+    sel.appendChild(o);
+  }
+}
+
+async function loadB(id){
+  const doc = await store.load(id);
+  if (!doc) { toast('could not load that script'); return; }
+  B.id = id; B.doc = doc;
+  B.res = E.paginate(doc);
+  const ui = LS.get('pica.ui', {}); ui.splitDoc = id; LS.set('pica.ui', ui);
+  renderBShells();
+}
+
+function renderBShells(){
+  const host = $('#pagesB');
+  host.innerHTML = '';
+  B.els = [];
+  const L = B.doc.layout;
+  const avail = $('#canvasB').clientWidth - 26;
+  B.k = Math.min(1.08, Math.max(.25, avail / (L.pageW * 4 / 3))) * 4 / 3;
+  if (B.io) B.io.disconnect();
+  B.io = new IntersectionObserver(ents => {
+    for (const en of ents) if (en.isIntersecting) renderBPage(+en.target.dataset.i);
+  }, { root: $('#canvasB'), rootMargin: '500px 0px' });
+  for (let i = 0; i < B.res.pages.length; i++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'pageWrap'; wrap.dataset.i = i;
+    wrap.style.width = (L.pageW * B.k) + 'px';
+    wrap.style.height = (L.pageH * B.k) + 'px';
+    host.appendChild(wrap);
+    B.els.push({ wrap, live: false });
+    B.io.observe(wrap);
+  }
+}
+
+function renderBPage(i){
+  const pe = B.els[i];
+  if (!pe || pe.live) return;
+  const L = B.doc.layout, k = B.k, fontPt = L.charW / 0.6;
+  const page = document.createElement('div');
+  page.className = 'page';
+  page.style.width = (L.pageW * k) + 'px';
+  page.style.height = (L.pageH * k) + 'px';
+  page.style.fontSize = (fontPt * k) + 'px';
+  page.style.lineHeight = (L.rowH * k) + 'px';
+  for (const l of B.res.pages[i].lines) {
+    const d = document.createElement('div');
+    d.className = 'line';
+    d.style.left = (l.x * k) + 'px';
+    d.style.top = ((l.y - fontPt * 0.79) * k) + 'px';
+    d.style.height = (L.rowH * k) + 'px';
+    d.textContent = l.text;
+    page.appendChild(d);
+  }
+  pe.wrap.replaceChildren(page);
+  pe.live = true;
+}
+
+async function splitOn(){
+  document.body.classList.add('split');
+  $('#canvasB').hidden = false;
+  buildBSel();
+  const ui = LS.get('pica.ui', {});
+  const ix = store.index();
+  let pick = ui.splitDoc && ix.some(d => d.id === ui.splitDoc) ? ui.splitDoc
+    : (ix.find(d => d.id !== S.docId) || ix[0] || {}).id;
+  if (!pick) { toast('nothing to show side by side'); return splitOff(); }
+  $('#bDocSel').value = pick;
+  ui.split = true; LS.set('pica.ui', ui);
+  await loadB(pick);
+  if (S.zoom == null) rerenderAll();     // left pane refits its half
+}
+
+function splitOff(){
+  document.body.classList.remove('split');
+  $('#canvasB').hidden = true;
+  if (B.io) B.io.disconnect();
+  $('#pagesB').innerHTML = '';
+  B.id = null; B.doc = null;
+  const ui = LS.get('pica.ui', {}); ui.split = false; LS.set('pica.ui', ui);
+  if (S.zoom == null) rerenderAll();
+}
+
+$('#btnSplit').addEventListener('mousedown', ev => {
+  ev.preventDefault();
+  document.body.classList.contains('split') ? splitOff() : splitOn();
+});
+$('#bClose').addEventListener('mousedown', ev => { ev.preventDefault(); splitOff(); });
+$('#bDocSel').addEventListener('change', ev => loadB(ev.target.value));
+
 $('#railToggle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleRail(); });
 $('#stDrafts').addEventListener('mousedown', ev => { ev.preventDefault(); draftsMenu(ev); });
 $('#railGrip').addEventListener('mousedown', ev => {
@@ -3460,7 +3610,10 @@ $('#docTitle').addEventListener('blur', ev => {
   repaginate(); renderAfterEdit();
 });
 
-addEventListener('resize', () => { if (S.zoom == null) { clearTimeout(window._rz); window._rz = setTimeout(rerenderAll, 150); } });
+addEventListener('resize', () => {
+  if (S.zoom == null) { clearTimeout(window._rz); window._rz = setTimeout(rerenderAll, 150); }
+  if (B.doc) { clearTimeout(window._rzB); window._rzB = setTimeout(renderBShells, 170); }
+});
 addEventListener('beforeunload', () => flushSave());
 addEventListener('pagehide', () => {
   flushSave();
