@@ -55,6 +55,10 @@
 @font-face{ font-family:"Courier Prime Local"; src:url("fonts/CourierPrime-Italic.ttf") format("truetype"); font-weight:400; font-style:italic; font-display:block; }
 
 *{ box-sizing:border-box; margin:0; padding:0; }
+/* The whole interface is sized in rem off this one value, so the UI-size slider in
+   Settings moves everything at once — and the app and the browser agree regardless of
+   whatever default font size the browser happens to be set to. */
+html{ font-size:var(--ui-base, 20px); }
 html,body{ height:100%; }
 body{
   background:var(--paper); color:var(--ink);
@@ -208,6 +212,35 @@ footer .z:hover{ color:var(--ink); }
 }
 #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
 
+/* ---------- settings ---------- */
+.set-row{
+  display:flex; align-items:center; gap:1rem; padding:.75rem 0;
+  border-top:1px solid var(--line);
+}
+.set-row .lab{ font-family:var(--mono); font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2); flex:none; width:9.5rem; }
+.set-row .ctl{ flex:1; display:flex; align-items:center; gap:.6rem; justify-content:flex-end; }
+.set-row .hint{ font-family:var(--serif); font-size:.85rem; color:var(--faint); }
+.seg{ display:flex; border:1px solid var(--line); }
+.seg button{
+  font-family:var(--mono); font-size:.68rem; letter-spacing:.14em; text-transform:uppercase;
+  padding:.3rem .7rem; color:var(--ink-2); border-right:1px solid var(--line);
+}
+.seg button:last-child{ border-right:0; }
+.seg button.on{ background:var(--ink); color:var(--paper); }
+input[type=range]{ -webkit-appearance:none; appearance:none; height:2px; background:var(--line); flex:1; max-width:14rem; }
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none; width:14px; height:14px; border-radius:50%;
+  background:var(--ink); cursor:grab;
+}
+.set-val{ font-family:var(--mono); font-size:.72rem; color:var(--ink); width:3.2rem; text-align:right; font-variant-numeric:tabular-nums; }
+.card a{ color:var(--ink); text-underline-offset:3px; }
+.card h3{
+  font-family:var(--mono); font-size:.62rem; letter-spacing:.28em; text-transform:uppercase;
+  color:var(--faint); margin:1.6rem 0 .2rem;
+}
+#footLink{ color:var(--faint); text-decoration:none; border-bottom:1px solid transparent; }
+#footLink:hover{ color:var(--ink); border-bottom-color:var(--rule); }
+
 /* ---------- responsive ---------- */
 @media (max-width: 880px){
   #rail{ position:fixed; left:0; top:0; bottom:0; z-index:70; background:var(--paper);
@@ -245,7 +278,8 @@ footer .z:hover{ color:var(--ink); }
   <button class="hbtn" id="btnNew">New</button>
   <button class="hbtn" id="btnImport">Import</button>
   <button class="hbtn" id="btnExport">Export</button>
-  <button class="hbtn" id="btnKeys" title="keyboard grammar">?</button>
+  <button class="hbtn" id="btnTitle" title="Title page (⇧⌘T)">Title</button>
+  <button class="hbtn" id="btnKeys" title="Settings &amp; shortcuts (⌘,)">⚙</button>
   <button class="hbtn" id="btnTheme" title="invert">◐</button>
   </div>
 </header>
@@ -269,6 +303,7 @@ footer .z:hover{ color:var(--ink); }
   <button id="stType">—</button>
   <span id="stHint">⌘\ elements · tab cycles · ? keys</span>
   <div class="grow"></div>
+  <a id="footLink" href="https://scriptslug.com" target="_blank" rel="noopener noreferrer">find screenplays ↗</a>
   <span id="stPage">—</span>
   <button class="z" id="zOut">−</button><button class="z" id="zFit">fit</button><button class="z" id="zIn">+</button>
   <span id="stSave"></span>
@@ -1022,6 +1057,7 @@ function boot(){
   const ui0 = LS.get('pica.ui', {});
   if (ui0.theme) document.documentElement.dataset.theme = ui0.theme;
   S.showTitle = !!ui0.showTitle;
+  applyUiPrefs();
   applyRailPrefs();
   const ix = store.index();
   const last = LS.get('pica.ui', {}).lastDoc;
@@ -1041,7 +1077,12 @@ function openDoc(id){
   S.fontPt = doc.layout.charW / 0.6;
   repaginate(); buildPages(); renderAllVisible(); rail(); status();
   $('#docTitle').textContent = doc.title;
+  const saved = LS.get('pica.scroll', {})[id];
   canvasEl.scrollTop = 0;
+  if (saved) requestAnimationFrame(() => {
+    canvasEl.scrollTop = saved;          // land back where he stopped reading
+    setTimeout(() => { canvasEl.scrollTop = saved; renderAllVisible(); status(); }, 90);
+  });
   printPageCSS();
   store.save(id, doc); // refresh index metadata (page count) now that we have S.res
 }
@@ -1136,7 +1177,10 @@ function renderPage(i){
     d.style.left = (l.x * k) + 'px';
     d.style.top = ((l.y - S.fontPt * 0.79) * k) + 'px';
     d.style.height = (L.rowH * k) + 'px';
-    d.textContent = l.text;
+    const src = editable ? elById(l.el) : null;
+    const bits = src ? markBitsFor(src, l.off, l.text.length) : null;
+    if (bits) d.innerHTML = markedHTML(l.text, bits);
+    else d.textContent = l.text;
     page.appendChild(d);
   }
   pe.wrap.replaceChildren(page);
@@ -1167,11 +1211,7 @@ function caretPage(){
 function domCaret(){        // DOM selection -> {el, off} | null
   const sel = getSelection();
   if (!sel.anchorNode) return null;
-  let n = sel.anchorNode;
-  const line = (n.nodeType === 3 ? n.parentElement : n).closest?.('.line');
-  if (!line || !line.dataset.el || line.dataset.el === 'pn') return null;
-  const within = n.nodeType === 3 ? sel.anchorOffset : 0;
-  return { el: line.dataset.el, off: (+line.dataset.off || 0) + within };
+  return pointFrom(sel.anchorNode, sel.anchorOffset);
 }
 function domRange(){        // both ends, ordered by document position
   const sel = getSelection();
@@ -1183,12 +1223,25 @@ function domRange(){        // both ends, ordered by document position
   const ia = orderKey(a), ifo = orderKey(f);
   return ia <= ifo ? [a, f] : [f, a];
 }
+// A line may contain nested <b>/<i>/<u> spans, so the caret's offset within the line is
+// the sum of every text node before it — not the offset inside whichever node it landed in.
 function pointFrom(node, offset){
   if (!node) return null;
-  const el = (node.nodeType === 3 ? node.parentElement : node);
-  const line = el.closest?.('.line');
-  if (!line || !line.dataset.el) return null;
-  const within = node.nodeType === 3 ? offset : (offset > 0 ? line.textContent.length : 0);
+  const host = (node.nodeType === 3 ? node.parentElement : node);
+  const line = host.closest?.('.line');
+  if (!line || !line.dataset.el || line.dataset.el === 'pn') return null;
+  let within = 0;
+  if (node.nodeType === 3) {
+    const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+    let n, found = false;
+    while ((n = walk.nextNode())) {
+      if (n === node) { within += offset; found = true; break; }
+      within += n.length;
+    }
+    if (!found) within = offset;
+  } else {
+    within = offset > 0 ? line.textContent.length : 0;
+  }
   return { el: line.dataset.el, off: (+line.dataset.off || 0) + within };
 }
 function orderKey(pt){
@@ -1225,8 +1278,14 @@ function restoreCaretOnce(el, off){
 }
 function placeCaret(lineDiv, at){
   const r = document.createRange();
-  const tn = lineDiv.firstChild;
-  if (tn && tn.nodeType === 3) r.setStart(tn, Math.min(at, tn.length));
+  const walk = document.createTreeWalker(lineDiv, NodeFilter.SHOW_TEXT);
+  let n, acc = 0, target = null, off = 0;
+  while ((n = walk.nextNode())) {
+    if (at <= acc + n.length) { target = n; off = at - acc; break; }
+    acc += n.length;
+    target = n; off = n.length;
+  }
+  if (target) r.setStart(target, Math.min(off, target.length));
   else r.setStart(lineDiv, 0);
   r.collapse(true);
   const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
@@ -1285,6 +1344,13 @@ function undo(redo){
     else S.doc.elements.splice(rec.i, rec.inserted.length, ...rec.removed.map(e => ({ ...e })));
   }
   else if (rec.k === 'convert') { const el = elById(rec.id); if (el) el.type = redo ? rec.after : rec.before; }
+  else if (rec.k === 'marks') {
+    const state = redo ? rec.after : rec.before;
+    rec.ids.forEach((id, i) => {
+      const el = elById(id); if (!el) return;
+      if (state[i]) el.marks = JSON.parse(JSON.stringify(state[i])); else delete el.marks;
+    });
+  }
   S.caret = redo ? rec.ca : rec.cb;
   repaginate(); renderAfterEdit();
 }
@@ -1304,6 +1370,108 @@ const UPPER = t => (t === 'scene' || t === 'character' || t === 'transition' || 
 const TYPE_LABEL = { scene:'Scene Heading', action:'Action', character:'Character', paren:'Parenthetical', dialogue:'Dialogue', transition:'Transition', shot:'Shot', general:'General' };
 
 function newEl(type, text){ return { id: E.uid(), type, text: text || '' }; }
+
+// ---------- emphasis ----------
+// Stored as an optional `marks` array of [start, end, kind] character ranges, so a
+// document written before emphasis existed still loads unchanged. Monospace means
+// emphasis never changes the metrics, so the engine and the fidelity gate are untouched.
+const MARK_BIT = { b: 1, i: 2, u: 4 };
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function markBitsFor(el, off, len){
+  if (!el || !el.marks || !el.marks.length) return null;
+  const bits = new Uint8Array(len);
+  let any = false;
+  for (const [s, e, k] of el.marks) {
+    const a = Math.max(0, s - off), b = Math.min(len, e - off);
+    if (b <= a) continue;
+    const bit = MARK_BIT[k] || 0;
+    for (let i = a; i < b; i++) { bits[i] |= bit; any = true; }
+  }
+  return any ? bits : null;
+}
+function markedHTML(text, bits){
+  let out = '', i = 0;
+  while (i < text.length) {
+    const b = bits[i] || 0;
+    let j = i + 1;
+    while (j < text.length && (bits[j] || 0) === b) j++;
+    const chunk = esc(text.slice(i, j));
+    if (!b) out += chunk;
+    else {
+      let open = '', close = '';
+      if (b & 1) { open += '<b>'; close = '</b>' + close; }
+      if (b & 2) { open += '<i>'; close = '</i>' + close; }
+      if (b & 4) { open += '<u>'; close = '</u>' + close; }
+      out += open + chunk + close;
+    }
+    i = j;
+  }
+  return out;
+}
+function shiftMarks(el, at, delta){
+  if (!el || !el.marks) return;
+  el.marks = el.marks
+    .map(([s, e, k]) => [s >= at ? s + delta : s, e >= at ? e + delta : e, k])
+    .filter(([s, e]) => e > s);
+  if (!el.marks.length) delete el.marks;
+}
+function rangeHasMark(el, s, e, kind){
+  if (!el.marks) return false;
+  for (let i = s; i < e; i++) {
+    let has = false;
+    for (const [a, b, k] of el.marks) if (k === kind && i >= a && i < b) { has = true; break; }
+    if (!has) return false;
+  }
+  return e > s;
+}
+function setMark(el, s, e, kind, on){
+  if (e <= s) return;
+  const kept = [];
+  for (const [a, b, k] of (el.marks || [])) {
+    if (k !== kind || b <= s || a >= e) { kept.push([a, b, k]); continue; }
+    if (a < s) kept.push([a, s, k]);
+    if (b > e) kept.push([e, b, k]);
+  }
+  if (on) kept.push([s, e, kind]);
+  kept.sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+  // merge touching ranges of the same kind
+  const merged = [];
+  for (const m of kept) {
+    const last = merged[merged.length - 1];
+    if (last && last[2] === m[2] && m[0] <= last[1]) last[1] = Math.max(last[1], m[1]);
+    else merged.push([...m]);
+  }
+  if (merged.length) el.marks = merged; else delete el.marks;
+}
+
+function applyEmphasis(kind){
+  const r = domRange();
+  if (!r) return;
+  const [a, b] = r;
+  if (a.el.startsWith('title:') || b.el.startsWith('title:')) return;
+  const ia = elIndex(a.el), ib = elIndex(b.el);
+  if (ia < 0 || ib < 0) return;
+  if (ia === ib && a.off === b.off) { toast('select some text first'); return; }
+
+  const targets = [];
+  for (let i = ia; i <= ib; i++) {
+    const el = S.doc.elements[i];
+    const s = i === ia ? a.off : 0;
+    const e = i === ib ? b.off : el.text.length;
+    if (e > s) targets.push([el, s, e]);
+  }
+  if (!targets.length) return;
+  const allOn = targets.every(([el, s, e]) => rangeHasMark(el, s, e, kind));
+  pushUndo({ k: 'marks', ids: targets.map(([el]) => el.id),
+             before: targets.map(([el]) => el.marks ? JSON.parse(JSON.stringify(el.marks)) : null),
+             cb: S.caret, ca: S.caret, ts: Date.now() });
+  for (const [el, s, e] of targets) setMark(el, s, e, kind, !allOn);
+  S.undo[S.undo.length - 1].after = targets.map(([el]) => el.marks ? JSON.parse(JSON.stringify(el.marks)) : null);
+  repaginate(); renderAfterEdit();
+  const sel = getSelection();
+  if (sel.rangeCount) { /* keep the visible selection where it was */ }
+}
 
 // The caret counts as "at the end" when it sits just inside a parenthetical's closing
 // bracket — which is exactly where it lives while you type one. Without this, Tab and
@@ -1441,6 +1609,7 @@ function handleInsertText(data){
   const el = elById(cc.el); if (!el) return;
   let ins = data;
   if (UPPER(el.type)) ins = ins.toUpperCase();
+  shiftMarks(el, cc.off, ins.length);
   // "(" at start of empty dialogue → parenthetical
   if (el.type === 'dialogue' && el.text === '' && ins === '(') {
     opConvert(el.id, 'paren');
@@ -1499,6 +1668,7 @@ function handleBackspace(){
   }
   const el = elById(c.el); if (!el) return;
   if (c.off > 0) {
+    shiftMarks(el, c.off, -1);
     opText(c.el, el.text.slice(0, c.off - 1) + el.text.slice(c.off), { el: c.el, off: c.off - 1 });
     smartType(el);
     return;
@@ -1517,7 +1687,10 @@ function handleDelete(){
   if (r && (r[0].el !== r[1].el || r[0].off !== r[1].off)) return deleteRange(r);
   const c = syncCaret(); if (!c || c.el.startsWith('title:')) return;
   const el = elById(c.el); if (!el) return;
-  if (c.off < el.text.length) return opText(c.el, el.text.slice(0, c.off) + el.text.slice(c.off + 1), { el: c.el, off: c.off });
+  if (c.off < el.text.length) {
+    shiftMarks(el, c.off + 1, -1);
+    return opText(c.el, el.text.slice(0, c.off) + el.text.slice(c.off + 1), { el: c.el, off: c.off });
+  }
   const i = elIndex(c.el);
   const next = S.doc.elements[i + 1]; if (!next) return;
   if (next.text === '') opSplice(i + 1, 1, [], { el: el.id, off: c.off });
@@ -1538,6 +1711,25 @@ function caretRect(){
     if (el && el.getBoundingClientRect) return el.getBoundingClientRect();
   }
   return { left: innerWidth / 2, bottom: innerHeight / 2, top: innerHeight / 2 };
+}
+
+// a popup anchored to a point rather than to the caret
+function popupAt(items, x, y, onPick){
+  closePops();
+  const pop = document.createElement('div');
+  pop.className = 'pop';
+  items.forEach((it, idx) => {
+    const d = document.createElement('div');
+    d.className = 'it' + (idx === 0 ? ' sel' : '');
+    d.textContent = it.label;
+    d.addEventListener('mousedown', ev => { ev.preventDefault(); closePops(); onPick(it); });
+    pop.appendChild(d);
+  });
+  document.body.appendChild(pop);
+  pop.style.left = Math.min(x, innerWidth - pop.offsetWidth - 8) + 'px';
+  pop.style.top = Math.min(y, innerHeight - pop.offsetHeight - 8) + 'px';
+  const away = e => { if (!pop.contains(e.target)) { closePops(); removeEventListener('mousedown', away, true); } };
+  setTimeout(() => addEventListener('mousedown', away, true), 0);
 }
 
 function popup(items, opts){
@@ -1649,13 +1841,17 @@ function smartType(el){
 function rail(){
   const dl = $('#docList');
   dl.innerHTML = '';
-  for (const d of store.index()) {
+  const pinned = new Set(LS.get('pica.ui', {}).pinned || []);
+  const list = store.index().slice().sort((a, b) =>
+    (pinned.has(b.id) ? 1 : 0) - (pinned.has(a.id) ? 1 : 0));
+  for (const d of list) {
     const b = document.createElement('button');
     b.className = 'doc-item' + (d.id === S.docId ? ' current' : '');
     b.innerHTML = '<span class="ttl"></span><span class="pg"></span>';
-    b.firstChild.textContent = (d.title || 'UNTITLED').toLowerCase();
+    b.firstChild.textContent = (pinned.has(d.id) ? '• ' : '') + (d.title || 'UNTITLED').toLowerCase();
     b.lastChild.textContent = d.pages ? d.pages + 'p' : '';
     b.addEventListener('mousedown', ev => { ev.preventDefault(); if (d.id !== S.docId) openDoc(d.id); });
+    b.addEventListener('contextmenu', ev => { ev.preventDefault(); docMenu(d, ev); });
     dl.appendChild(b);
   }
   const sl = $('#sceneList');
@@ -1682,6 +1878,63 @@ function rail(){
     });
     sl.appendChild(b);
   }
+}
+
+// right-click a script in the index
+function docMenu(d, ev){
+  const ui = LS.get('pica.ui', {});
+  const pinned = new Set(ui.pinned || []);
+  const isPinned = pinned.has(d.id);
+  const savePinned = () => { ui.pinned = [...pinned]; LS.set('pica.ui', ui); };
+  const items = [
+    { label: 'Rename…', act: 'rename' },
+    { label: 'Duplicate', act: 'dup' },
+    { label: isPinned ? 'Unpin' : 'Pin to top', act: 'pin' },
+    { label: 'Export JSON', act: 'json' },
+    { label: 'Delete…', act: 'del' },
+  ];
+  popupAt(items, ev.clientX, ev.clientY, (it) => {
+    if (it.act === 'rename') {
+      const name = prompt('Rename script', d.title || 'UNTITLED');
+      if (name == null) return;
+      const doc = d.id === S.docId ? S.doc : store.load(d.id);
+      if (!doc) return;
+      doc.title = name.trim() || 'UNTITLED';
+      if (doc.titlePage && doc.titlePage[0]) doc.titlePage[0].text = doc.title.toUpperCase();
+      store.save(d.id, doc);
+      if (d.id === S.docId) { S.doc = doc; $('#docTitle').textContent = doc.title; repaginate(); renderAfterEdit(); }
+      rail(); toast('renamed');
+    } else if (it.act === 'dup') {
+      const doc = d.id === S.docId ? S.doc : store.load(d.id);
+      if (!doc) return;
+      const copy = JSON.parse(JSON.stringify(doc));
+      copy.title = (doc.title || 'UNTITLED') + ' copy';
+      copy.elements = copy.elements.map(e => ({ ...e, id: E.uid() }));
+      const id = E.uid();
+      store.save(id, copy);
+      openDoc(id); toast('duplicated');
+    } else if (it.act === 'pin') {
+      if (isPinned) pinned.delete(d.id); else pinned.add(d.id);
+      savePinned(); rail(); toast(isPinned ? 'unpinned' : 'pinned');
+    } else if (it.act === 'json') {
+      const doc = d.id === S.docId ? S.doc : store.load(d.id);
+      if (doc) download((doc.title || 'script').toLowerCase().replace(/[^a-z0-9]+/g, '-') + '.json',
+                        JSON.stringify(doc, null, 1), 'application/json');
+    } else if (it.act === 'del') {
+      // a script is never removed without saying so, and never silently
+      if (!confirm('Delete “' + (d.title || 'UNTITLED') + '”?\n\nThis removes it from PICA on this device. Export it first if you want to keep a copy.')) return;
+      const ix = store.index().filter(x => x.id !== d.id);
+      store.saveIndex(ix);
+      try { localStorage.removeItem('pica.doc.' + d.id); localStorage.removeItem('pica.snap.' + d.id); } catch {}
+      pinned.delete(d.id); savePinned();
+      if (d.id === S.docId) {
+        const next = ix[0] && ix[0].id;
+        if (next) openDoc(next);
+        else { const id = E.uid(); store.save(id, E.newDoc('UNTITLED')); openDoc(id); }
+      }
+      rail(); toast('deleted');
+    }
+  });
 }
 
 function status(){
@@ -1825,6 +2078,107 @@ function overlayCard(html){
 function closeOverlay(){ const o = $('#overlay'); o.classList.remove('show'); o.innerHTML = ''; }
 $('#overlay').addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeOverlay(); });
 
+// ---------- settings ----------
+function applyUiPrefs(){
+  const ui = LS.get('pica.ui', {});
+  document.documentElement.style.setProperty('--ui-base', (ui.uiBase || 20) + 'px');
+}
+function setUiBase(px){
+  const ui = LS.get('pica.ui', {}); ui.uiBase = px; LS.set('pica.ui', ui);
+  document.documentElement.style.setProperty('--ui-base', px + 'px');
+  if (S.zoom == null) { clearTimeout(window._uiz); window._uiz = setTimeout(rerenderAll, 120); }
+}
+function setTheme(mode){
+  const ui = LS.get('pica.ui', {}); ui.theme = mode === 'auto' ? null : mode; LS.set('pica.ui', ui);
+  if (mode === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = mode;
+}
+
+function showSettings(){
+  const ui = LS.get('pica.ui', {});
+  const base = ui.uiBase || 20;
+  const theme = ui.theme || 'auto';
+  const seg = (id, opts, cur) => `<div class="seg" id="${id}">` +
+    opts.map(o => `<button data-v="${o[0]}" class="${o[0] === cur ? 'on' : ''}">${o[1]}</button>`).join('') + '</div>';
+
+  overlayCard(`
+  <h2>Settings</h2><div class="sub">pica · a screenwriting instrument</div>
+
+  <div class="set-row"><span class="lab">Interface size</span><div class="ctl">
+    <input type="range" id="setUi" min="14" max="30" step="1" value="${base}">
+    <span class="set-val" id="setUiVal">${base}px</span></div></div>
+
+  <div class="set-row"><span class="lab">Theme</span><div class="ctl">
+    ${seg('setTheme', [['auto','Auto'],['light','Light'],['dark','Dark']], theme)}</div></div>
+
+  <div class="set-row"><span class="lab">Title page</span><div class="ctl">
+    <span class="hint">A separate artifact — page 1 is your first written page.</span>
+    ${seg('setTitle', [['off','Hidden'],['on','Shown']], S.showTitle ? 'on' : 'off')}</div></div>
+
+  <div class="set-row"><span class="lab">Sidebar</span><div class="ctl">
+    <span class="hint">Drag its edge to resize · double-click to reset</span>
+    ${seg('setRail', [['on','Shown'],['off','Hidden']], document.body.classList.contains('railhidden') ? 'off' : 'on')}</div></div>
+
+  <div class="set-row"><span class="lab">Page zoom</span><div class="ctl">
+    <span class="hint">Pinch to zoom, or ⌘+ / ⌘−</span>
+    ${seg('setZoom', [['fit','Fit'],['out','−'],['in','+']], 'fit')}</div></div>
+
+  <h3>Writing</h3>
+  <table>
+  <tr><td>Enter</td><td>the next element, exactly as Final Draft defines it — Scene Heading→Action, Action→Action, Character→Dialogue, Parenthetical→Dialogue, Dialogue→Action, Transition→Scene Heading, Shot→Action. On a <em>blank</em> element it opens the element menu instead.</td></tr>
+  <tr><td>Tab</td><td>one deterministic jump, not a cycle. From a blank paragraph it converts it; from the end of a written one it starts the next: Scene Heading→Action, Action→Character, Character→Parenthetical (a <em>blank</em> Character→Transition), Dialogue→Parenthetical, Parenthetical→Dialogue, Transition→Scene Heading. ⇧Tab steps back.</td></tr>
+  <tr><td>Tab in a slug</td><td>walks the scene heading: INT → adds “. ” and offers your locations → adds the time separator and offers times → then Action.</td></tr>
+  <tr><td>⌘1 – ⌘7, ⌘0</td><td>${E.TYPES.map(t => SHORTCUT_OF[t] + ' ' + TYPE_LABEL[t]).join(' · ')}</td></tr>
+  <tr><td>⌘\\</td><td>element menu</td></tr>
+  <tr><td>int. / ext.</td><td>typed in Action, becomes a Scene Heading as you type. ALL-CAPS ending in TO: becomes a Transition. “(” in empty Dialogue becomes a Parenthetical; “(” in a Character cue offers extensions.</td></tr>
+  <tr><td>type ahead</td><td>SmartType completes names, locations, times, transitions and extensions — → accepts. In a two-hander it offers the other speaker first.</td></tr>
+  </table>
+
+  <h3>Emphasis &amp; view</h3>
+  <table>
+  <tr><td>⌘B / ⌘I / ⌘U</td><td>bold · italic · underline over the selection</td></tr>
+  <tr><td>⌥⌘S</td><td>show / hide the sidebar</td></tr>
+  <tr><td>⇧⌘T</td><td>show / hide the title page</td></tr>
+  <tr><td>⌘, </td><td>these settings</td></tr>
+  <tr><td>⌘Z / ⇧⌘Z</td><td>undo / redo</td></tr>
+  <tr><td>⌘P</td><td>print · save as PDF, identical to the imported page</td></tr>
+  <tr><td>⇧Enter</td><td>hard line break inside an element</td></tr>
+  </table>
+
+  <h3>Scripts</h3>
+  <table>
+  <tr><td>Import</td><td>drop a PDF anywhere on the window, or use Import. Right-click a script in the sidebar to rename, duplicate, pin or delete it.</td></tr>
+  <tr><td>Find scripts</td><td><a href="https://scriptslug.com" target="_blank" rel="noopener noreferrer">scriptslug.com</a> · <a href="https://thescriptsavant.com" target="_blank" rel="noopener noreferrer">thescriptsavant.com</a> · <a href="https://imsdb.com" target="_blank" rel="noopener noreferrer">imsdb.com</a></td></tr>
+  </table>
+
+  <div class="foot"><button class="hbtn" id="setClose">close</button></div>`);
+
+  const ov = $('#overlay');
+  ov.querySelector('#setUi').addEventListener('input', e => {
+    const v = +e.target.value;
+    ov.querySelector('#setUiVal').textContent = v + 'px';
+    setUiBase(v);
+  });
+  const wire = (id, fn) => {
+    const box = ov.querySelector('#' + id);
+    if (!box) return;
+    box.addEventListener('mousedown', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      e.preventDefault();
+      [...box.children].forEach(c => c.classList.toggle('on', c === b));
+      fn(b.dataset.v);
+    });
+  };
+  wire('setTheme', v => setTheme(v));
+  wire('setTitle', v => { if ((v === 'on') !== S.showTitle) toggleTitlePage(); });
+  wire('setRail', v => { const hidden = document.body.classList.contains('railhidden'); if ((v === 'off') !== hidden) toggleRail(); });
+  wire('setZoom', v => {
+    if (v === 'fit') { S.zoom = null; rerenderAll(); }
+    else PICA_API.zoom(v === 'in' ? 0.1 : -0.1);
+  });
+  ov.querySelector('#setClose').addEventListener('mousedown', ev => { ev.preventDefault(); closeOverlay(); });
+}
+
 function showKeys(){
   overlayCard(`<h2>The grammar</h2><div class="sub">tab to cycle · enter to advance</div>
   <table>
@@ -1908,8 +2262,13 @@ pagesEl.addEventListener('keydown', ev => {
     if (SHORTCUT[ev.key] === 'character') guessCharacter(c.el);
     return;
   }
-  if (mod && !ev.altKey && ev.key.toLowerCase() === 'b') { ev.preventDefault(); toggleRail(); return; }
+  // emphasis, where a writer expects it
+  if (mod && !ev.altKey && ev.key.toLowerCase() === 'b') { ev.preventDefault(); applyEmphasis('b'); return; }
+  if (mod && !ev.altKey && ev.key.toLowerCase() === 'i') { ev.preventDefault(); applyEmphasis('i'); return; }
+  if (mod && !ev.altKey && ev.key.toLowerCase() === 'u') { ev.preventDefault(); applyEmphasis('u'); return; }
+  if (mod && ev.altKey && ev.key.toLowerCase() === 's') { ev.preventDefault(); toggleRail(); return; }
   if (mod && ev.shiftKey && ev.key.toLowerCase() === 't') { ev.preventDefault(); toggleTitlePage(); return; }
+  if (mod && ev.key === ',') { ev.preventDefault(); showSettings(); return; }
   if (mod && ev.key === '\\') { ev.preventDefault(); openElementMenu(); return; }
   if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(false); return; }
   if (mod && ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(true); return; }
@@ -1923,7 +2282,32 @@ document.addEventListener('selectionchange', () => {
 });
 pagesEl.addEventListener('mousedown', () => { closePops(); });
 
-canvasEl.addEventListener('scroll', () => { clearTimeout(canvasEl._t); canvasEl._t = setTimeout(status, 120); });
+canvasEl.addEventListener('scroll', () => {
+  clearTimeout(canvasEl._t);
+  canvasEl._t = setTimeout(() => {
+    status();
+    // remember where he was in each script, so reopening lands on the same page
+    if (S.docId) { const p = LS.get('pica.scroll', {}); p[S.docId] = canvasEl.scrollTop; LS.set('pica.scroll', p); }
+  }, 200);
+});
+
+// Pinch to zoom the page. macOS delivers a pinch as a wheel event with ctrlKey set;
+// WKWebView also emits the gesture events, so both are handled.
+canvasEl.addEventListener('wheel', ev => {
+  if (!ev.ctrlKey) return;
+  ev.preventDefault();
+  const cur = S.zoom ?? fitZoom();
+  S.zoom = Math.max(.3, Math.min(2.2, cur * (1 - ev.deltaY * 0.01)));
+  clearTimeout(window._pz); window._pz = setTimeout(rerenderAll, 40);
+}, { passive: false });
+let gestureBase = 1;
+addEventListener('gesturestart', ev => { ev.preventDefault(); gestureBase = S.zoom ?? fitZoom(); }, { passive: false });
+addEventListener('gesturechange', ev => {
+  ev.preventDefault();
+  S.zoom = Math.max(.3, Math.min(2.2, gestureBase * ev.scale));
+  clearTimeout(window._pz); window._pz = setTimeout(rerenderAll, 40);
+}, { passive: false });
+addEventListener('gestureend', ev => ev.preventDefault(), { passive: false });
 
 // header + footer buttons
 $('#btnNew').addEventListener('mousedown', ev => { ev.preventDefault(); const id = E.uid(); store.save(id, E.newDoc('UNTITLED')); openDoc(id); toast('new script'); });
@@ -1931,7 +2315,9 @@ $('#railNew').addEventListener('mousedown', ev => { ev.preventDefault(); $('#btn
 $('#btnImport').addEventListener('mousedown', ev => { ev.preventDefault(); $('#fileIn').click(); });
 $('#railImport').addEventListener('mousedown', ev => { ev.preventDefault(); $('#fileIn').click(); });
 $('#btnExport').addEventListener('mousedown', ev => { ev.preventDefault(); openExportMenu(); });
-$('#btnKeys').addEventListener('mousedown', ev => { ev.preventDefault(); showKeys(); });
+$('#btnKeys').addEventListener('mousedown', ev => { ev.preventDefault(); showSettings(); });
+$('#btnTitle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleTitlePage(); });
+$('#footLink').addEventListener('click', ev => { if (window.webkit?.messageHandlers?.pica) { ev.preventDefault(); window.webkit.messageHandlers.pica.postMessage({ openURL: ev.currentTarget.href }); } });
 $('#btnTheme').addEventListener('mousedown', ev => {
   ev.preventDefault();
   const cur = document.documentElement.dataset.theme
@@ -2032,6 +2418,24 @@ window.PICA_API = {
   toggleRail(){ toggleRail(); },
   toggleTitlePage(){ toggleTitlePage(); },
   titleShown(){ return S.showTitle; },
+  settings(){ showSettings(); },
+  mark(kind){ applyEmphasis(kind); },
+  // Scriptable hooks. The automated grammar test drives these, so Final Draft's
+  // Enter/Tab behaviour is checked on every build rather than by hand.
+  test: {
+    reset(){ const id = E.uid(); store.save(id, E.newDoc('TEST')); openDoc(id); return id; },
+    caret(i, off){
+      const el = S.doc.elements[i]; if (!el) return false;
+      S.caret = { el: el.id, off: off == null ? el.text.length : off };
+      restoreCaret(); return true;
+    },
+    type(str){ for (const ch of str) handleInsertText(ch); return true; },
+    enter(){ closePops(); handleEnter(); return true; },
+    tab(shift){ handleTab(!!shift); return true; },
+    esc(){ closePops(); return true; },
+    state(){ return S.doc.elements.map(e => e.type + '|' + e.text); },
+    caretAt(){ const c = S.caret; return c ? (elIndex(c.el) + ':' + c.off) : 'none'; },
+  },
   toggleTheme(){ $('#btnTheme').dispatchEvent(new Event('mousedown')); },
   zoom(d){ S.zoom = Math.max(.3, Math.min(1.6, (S.zoom ?? fitZoom()) + d)); rerenderAll(); },
   zoomFit(){ S.zoom = null; rerenderAll(); },
