@@ -182,6 +182,11 @@ body.resizing #canvas{ pointer-events:none; }
 #docGenre:empty::before{ content:"genre"; color:var(--faint); opacity:.45; }
 #docGenre:hover, #docGenre:focus{ border-bottom-color:var(--faint); }
 
+/* ---------- reader mode: read only, nothing else ---------- */
+body.reader #pages{ caret-color:transparent; }
+body.reader #btnReader{ color:var(--ink); border-bottom-color:var(--rule); }
+body.reader #stType, body.reader #stHint{ display:none !important; }
+
 /* ---------- side by side ---------- */
 #canvasB{ flex:1; min-width:0; overflow:auto; background:var(--paper-2); border-left:1px solid var(--line); position:relative; }
 body.split #canvas{ flex:1; min-width:0; }
@@ -363,6 +368,12 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   <button class="hbtn" id="btnExport" data-head="exp">Export</button>
   <button class="hbtn" id="btnTitle" data-head="title" title="Title page (⇧⌘T)">Title</button>
   <span id="docGenre" contenteditable="true" spellcheck="false" title="Genre — type anything, or leave blank"></span>
+  <button class="hbtn" id="btnReader" title="Reader — read only">
+    <svg width="17" height="12" viewBox="0 0 17 12" style="display:block" fill="none" stroke="currentColor" stroke-width="1.3">
+      <circle cx="4" cy="7.4" r="3.1"/><circle cx="13" cy="7.4" r="3.1"/>
+      <path d="M7.1 7 q1.4 -1.5 2.8 0 M0.9 6.2 L0.2 3.4 M16.1 6.2 L16.8 3.4"/>
+    </svg>
+  </button>
   <button class="hbtn" id="btnSplit" title="Side by side">
     <svg width="17" height="13" viewBox="0 0 17 13" style="display:block" fill="none" stroke="currentColor" stroke-width="1.3">
       <rect x="0.7" y="0.7" width="6" height="8.2"/>
@@ -1561,6 +1572,7 @@ async function boot(){
   let id = (last && ix.some(d => d.id === last)) ? last : (ix[0] && ix[0].id);
   if (!id) { id = E.uid(); const doc = E.newDoc('UNTITLED'); store.save(id, doc); }
   await openDoc(id);
+  if (LS.get('pica.ui', {}).reader) readerOn();
   if (LS.get('pica.ui', {}).split) splitOn();
   const m = location.search.match(/[?&]open=([^&]+)/);
   if (m) fetch(decodeURIComponent(m[1])).then(r => r.arrayBuffer()).then(b => importPdfBuffer(b, decodeURIComponent(m[1]).split('/').pop())).catch(()=>{});
@@ -1814,6 +1826,7 @@ const elIndex = id => S.doc.elements.findIndex(e => e.id === id);
 function pushUndo(rec){ S.redo = []; S.undo.push(rec); if (S.undo.length > 600) S.undo.shift(); }
 
 function opText(id, text, caretAfter){
+  if (typeof inReader === 'function' && inReader()) return;
   const el = id.startsWith('title:') ? null : elById(id);
   if (id.startsWith('title:')) {
     const i = +id.slice(6); const t = S.doc.titlePage[i]; if (!t) return;
@@ -1834,6 +1847,7 @@ function opText(id, text, caretAfter){
 }
 
 function opSplice(i, delCount, inserted, caretAfter){
+  if (inReader()) return;
   const removed = S.doc.elements.slice(i, i + delCount).map(e => ({ ...e }));
   pushUndo({ k: 'splice', i, removed, inserted: inserted.map(e => ({ ...e })), cb: S.caret, ca: caretAfter, ts: Date.now() });
   S.doc.elements.splice(i, delCount, ...inserted);
@@ -1843,6 +1857,7 @@ function opSplice(i, delCount, inserted, caretAfter){
 
 // several text changes as one undo step (Replace All)
 function opTexts(changes, caretAfter){
+  if (inReader()) return;
   const real = changes.filter(c => elById(c.id));
   if (!real.length) return;
   pushUndo({ k: 'texts', list: real.map(c => ({ id: c.id, before: elById(c.id).text, after: c.text })), cb: S.caret, ca: caretAfter || S.caret, ts: Date.now() });
@@ -1852,6 +1867,7 @@ function opTexts(changes, caretAfter){
 }
 
 function opConvert(id, type){
+  if (inReader()) return;
   const el = elById(id); if (!el) return;
   pushUndo({ k: 'retype', ids: [id], before: [{ t: el.type, x: el.text }], after: null, cb: S.caret, ca: S.caret, ts: Date.now() });
   el.type = type;
@@ -1863,6 +1879,7 @@ function opConvert(id, type){
 
 // retype several elements at once — one undo step
 function opRetype(ids, type){
+  if (inReader()) return;
   const els = ids.map(elById).filter(Boolean);
   if (!els.length) return;
   pushUndo({ k: 'retype', ids: els.map(e => e.id), before: els.map(e => ({ t: e.type, x: e.text })), after: null, cb: S.caret, ca: S.caret, ts: Date.now() });
@@ -2534,6 +2551,7 @@ function findOpen(){
 }
 function findClose(){ $('#findBar').hidden = true; F.hits = []; F.at = -1; pagesEl.focus(); }
 function replaceCurrent(){
+  if (inReader()) { toast('reader — no edits'); return; }
   if (F.at < 0 || !F.hits[F.at]) { findJump(1); return; }
   const h = F.hits[F.at];
   const el = elById(h.id); if (!el) return;
@@ -2545,6 +2563,7 @@ function replaceCurrent(){
   findJump(1);
 }
 function replaceAll(){
+  if (inReader()) { toast('reader — no edits'); return; }
   if (!F.q || !F.hits.length) return;
   const rep = $('#replIn').value;
   const needle = F.q.toLowerCase();
@@ -3243,6 +3262,13 @@ pagesEl.addEventListener('beforeinput', ev => {
 });
 
 pagesEl.addEventListener('keydown', ev => {
+  if (inReader()) {
+    // reading: only find, settings, zoom and navigation get through
+    const mod = ev.metaKey || ev.ctrlKey;
+    const allowed = (mod && ['f', ',', 't', 'e', '=', '-', '0', 'c', 'a'].includes(ev.key.toLowerCase()))
+      || ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'Escape'].includes(ev.key);
+    if (!allowed) { ev.preventDefault(); return; }
+  }
   if (S.menu) {
     if (ev.key === 'ArrowDown') { S.menu.move(1); ev.preventDefault(); return; }
     if (ev.key === 'ArrowUp') { S.menu.move(-1); ev.preventDefault(); return; }
@@ -3320,7 +3346,7 @@ pagesEl.addEventListener('mousedown', ev => { if (ev.button !== 2) closePops(); 
 // nearest text position — end of the nearest line when you click past its edge —
 // instead of demanding a pixel-perfect hit on the type itself.
 pagesEl.addEventListener('mousedown', ev => {
-  if (ev.button !== 0) return;
+  if (ev.button !== 0 || inReader()) return;
   const page = ev.target.closest('.page');
   if (!page || ev.target.closest('.line')) return;      // direct text clicks behave natively
   const lines = [...page.children].filter(d =>
@@ -3347,6 +3373,7 @@ pagesEl.addEventListener('mousedown', ev => {
 
 // right-click in the script: name what this is, offer to change it
 pagesEl.addEventListener('contextmenu', ev => {
+  if (inReader()) return;                      // reading: the native copy menu only
   const line = ev.target.closest?.('.line');
   if (!line || !line.dataset.el || line.dataset.el.startsWith('title:')) return;
   const kind = line.dataset.kind;
@@ -3525,6 +3552,28 @@ function splitOff(){
   const ui = LS.get('pica.ui', {}); ui.split = false; LS.set('pica.ui', ui);
   if (S.zoom == null) rerenderAll();
 }
+
+// ---------- reader mode ----------
+function readerOn(){
+  document.body.classList.add('reader');
+  pagesEl.setAttribute('contenteditable', 'false');
+  S.readerPrevRail = document.body.classList.contains('railhidden');
+  if (!S.readerPrevRail && !matchMedia('(max-width: 880px)').matches) toggleRail();
+  closePops(); findClose();
+  const ui = LS.get('pica.ui', {}); ui.reader = true; LS.set('pica.ui', ui);
+  toast('reader — no edits');
+}
+function readerOff(){
+  document.body.classList.remove('reader');
+  pagesEl.setAttribute('contenteditable', 'true');
+  if (S.readerPrevRail === false && document.body.classList.contains('railhidden')) toggleRail();
+  const ui = LS.get('pica.ui', {}); ui.reader = false; LS.set('pica.ui', ui);
+}
+const inReader = () => document.body.classList.contains('reader');
+$('#btnReader').addEventListener('mousedown', ev => {
+  ev.preventDefault();
+  inReader() ? readerOff() : readerOn();
+});
 
 $('#btnSplit').addEventListener('mousedown', ev => {
   ev.preventDefault();
