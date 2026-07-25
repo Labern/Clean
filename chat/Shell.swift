@@ -214,6 +214,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var statusItem: NSStatusItem?
     private var unread = 0
     private var fullFrame: NSRect?          // where the window was before companion mode
+    private var recovered = false           // guards the off-WhatsApp recovery
     private var activity: NSObjectProtocol? // the App Nap assertion
 
     // ---- lifecycle ----
@@ -473,10 +474,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url else { decisionHandler(.allow); return }
-        // Anything that is not WhatsApp itself belongs in the real browser: links
-        // friends send, the FAQ, OAuth pages. Keeping them out also means a
-        // hostile link cannot navigate the logged-in session somewhere else.
-        if let host = url.host, !kAllowedHosts.contains(host),
+
+        // Send a link he CLICKED to the real browser — links friends send, the
+        // FAQ, OAuth pages — which also means a hostile link can't navigate the
+        // logged-in session somewhere else.
+        //
+        // Scoped hard to main-frame link activations, and this scoping is the
+        // whole point: this delegate is called for SUBFRAMES too, so an earlier
+        // version that keyed only on the host yanked any iframe WhatsApp loaded
+        // from a Meta domain out of the app and opened it in Chrome, which then
+        // showed Meta's "Content Not Found" page. Never widen this again.
+        let isMainFrame = action.targetFrame?.isMainFrame ?? false
+        let clicked = action.navigationType == .linkActivated
+        if clicked, isMainFrame, let host = url.host, !kAllowedHosts.contains(host),
            url.scheme == "http" || url.scheme == "https" {
             NSWorkspace.shared.open(url)
             decisionHandler(.cancel)
@@ -494,8 +504,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        // Safety net: if the main frame has ended up off WhatsApp for any reason,
+        // come back instead of leaving him staring at someone else's error page.
+        // Once per excursion, so a stubborn redirect can't spin.
+        if let host = webView.url?.host, !kAllowedHosts.contains(host) {
+            if !recovered { recovered = true; goHome(nil); return }
+        } else {
+            recovered = false
+        }
         applyAllToPage()
     }
+
+    @objc private func goHome(_ sender: Any?) { web?.load(URLRequest(url: kHome)) }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         retryLater()
@@ -1137,6 +1157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         fileMenu.addItem(item("Find in Chats", #selector(focusSearch(_:)), "f"))
         fileMenu.addItem(.separator())
         fileMenu.addItem(item("Reload", #selector(reload(_:)), "r"))
+        fileMenu.addItem(item("Back to WhatsApp", #selector(goHome(_:)), "h", [.command, .shift]))
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         let fileItem = NSMenuItem(); fileItem.submenu = fileMenu; main.addItem(fileItem)
