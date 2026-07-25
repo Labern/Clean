@@ -150,7 +150,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         // made the app render two-thirds the size of the web build. Zoom to match.
         // If the app ever looks off next to the browser again, re-measure
         // getComputedStyle(document.documentElement).fontSize in both and reset this ratio.
-        v.pageZoom = UserDefaults.standard.object(forKey: "uiZoom") as? Double ?? (24.0 / 16.0)
+        // 1.5 (24/16) matched his browser exactly but read as too big in practice; 1.3 is the
+        // size he settled on. Override with: defaults write com.labern.pica uiZoom -float 1.4
+        v.pageZoom = UserDefaults.standard.object(forKey: "uiZoom") as? Double ?? 1.3
         self.web = v
 
         // No system title bar above the app: the page runs full-height and PICA's own header
