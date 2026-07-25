@@ -398,7 +398,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
       <path d="M4.4 11.7 h8.2 M4.4 11.7 l1.7 -1.2 M4.4 11.7 l1.7 1.2 M12.6 11.7 l-1.7 -1.2 M12.6 11.7 l-1.7 1.2" stroke-width="1"/>
     </svg>
   </button>
-  <button class="hbtn" id="btnTheme" title="invert">◐</button>
+  <button class="hbtn" id="btnTheme" data-head="theme" title="invert">◐</button>
   <button class="hbtn" id="btnReader" title="Reader — read only">
     <svg width="16" height="13" viewBox="0 0 16 13" style="display:block" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round">
       <path d="M8 2.4 C6.7 1.2 4.5 1 1.2 1.4 V11 C4.5 10.6 6.7 10.8 8 12 C9.3 10.8 11.5 10.6 14.8 11 V1.4 C11.5 1 9.3 1.2 8 2.4 Z"/>
@@ -3085,7 +3085,7 @@ function applyUiPrefs(){
   S.foot = foot;
   for (const el of document.querySelectorAll('[data-foot]')) el.hidden = !foot[el.dataset.foot];
   // header actions live in the sidebar's button block now; these are opt-in returns
-  const head = Object.assign({ new: false, imp: false, exp: false, title: false }, ui.head || {});
+  const head = Object.assign({ new: false, imp: false, exp: false, title: false, theme: false }, ui.head || {});
   S.head = head;
   for (const el of document.querySelectorAll('[data-head]')) el.hidden = !head[el.dataset.head];
   // the sidebar's optional Export / Title buttons — off unless asked for
@@ -3138,6 +3138,7 @@ function showSettings(){
   ${row('Import', '', seg('headImp', [['off','Off'],['on','On']], S.head?.imp ? 'on' : 'off'))}
   ${row('Export', '', seg('headExp', [['off','Off'],['on','On']], S.head?.exp ? 'on' : 'off'))}
   ${row('Title', '', seg('headTitle', [['off','Off'],['on','On']], S.head?.title ? 'on' : 'off'))}
+  ${row('Dark mode toggle', 'The ◐ button. Theme also lives above.', seg('headTheme', [['off','Off'],['on','On']], S.head?.theme ? 'on' : 'off'))}
 
   <h3>Sidebar</h3>
   ${row('Export button', 'Also on ⌘E and in the menus.', seg('sideExp', [['off','Off'],['on','On']], S.side?.exp ? 'on' : 'off'))}
@@ -3232,7 +3233,7 @@ function showSettings(){
   const headWire = (id, key) => wire(id, v => {
     const u = LS.get('pica.ui', {}); u.head = Object.assign({}, u.head, { [key]: v === 'on' }); LS.set('pica.ui', u); applyUiPrefs();
   });
-  headWire('headNew', 'new'); headWire('headImp', 'imp'); headWire('headExp', 'exp'); headWire('headTitle', 'title');
+  headWire('headNew', 'new'); headWire('headImp', 'imp'); headWire('headExp', 'exp'); headWire('headTitle', 'title'); headWire('headTheme', 'theme');
   const sideWire = (id, key) => wire(id, v => {
     const u = LS.get('pica.ui', {}); u.side = Object.assign({}, u.side, { [key]: v === 'on' }); LS.set('pica.ui', u); applyUiPrefs();
   });
