@@ -427,7 +427,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     /// zoom can change the answer.
     private func fitCompact(pass: Int = 0) {
         guard settings.compact, let web = web else { return }
-        web.evaluateJavaScript("window.__shell ? JSON.stringify(__shell.compactFit()) : null") { [weak self] result, _ in
+        web.evaluateJavaScript("window.__shell ? JSON.stringify(__shell.compactMetrics()) : null") { [weak self] result, _ in
             guard let self = self, let s = result as? String, let d = s.data(using: .utf8),
                   let o = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
                   let inner = (o["inner"] as? NSNumber)?.doubleValue,
@@ -439,7 +439,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             if pass == 0 {
                 NSLog("[\(kAppName)] companion fit: inner=\(Int(inner)) scroll=\(Int(scroll)) " +
                       "rail=\(o["railTagged"] ?? "?") list=\(o["listTagged"] ?? "?") " +
-                      "listHidden=\(o["listHidden"] ?? "?") convo=\(o["convoWidth"] ?? "?")")
+                      "convo=\(o["convoWidth"] ?? "?") bubbles=\(o["bubbles"] ?? "?")")
             }
 
             let current = Double(web.pageZoom)
@@ -742,6 +742,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             unread = (body["count"] as? Int) ?? 0
             NSApp.dockTile.badgeLabel = unread > 0 ? String(unread) : nil
             updateStatusItem()
+        case "exitCompact":
+            // The "‹" button on the companion bar: back to the full window and
+            // the whole chat list.
+            if settings.compact { toggleCompanion(nil) }
         case "linked":
             applyAllToPage()
         case "pageerror":

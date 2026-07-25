@@ -236,12 +236,35 @@ _ = h.eval("__shell.setCompact(false); true")
 check("compact cleared", !h.bool("document.documentElement.hasAttribute('data-shell-compact')"))
 check("compact-list cleared too", !h.bool("document.documentElement.hasAttribute('data-shell-compact-list')"))
 
-print("\ncompanion fit measurement")
-if let s = h.eval("JSON.stringify(__shell.compactFit())") as? String {
-    check("compactFit reports widths", s.contains("\"inner\"") && s.contains("\"scroll\""), s)
+print("\ncompanion measurement")
+if let s = h.eval("JSON.stringify(__shell.compactMetrics())") as? String {
+    check("compactMetrics reports widths", s.contains("\"inner\"") && s.contains("\"scroll\""), s)
+    check("compactMetrics reports convo state", s.contains("\"hasConvo\""), s)
 } else {
-    check("compactFit reports widths", false, "no result")
+    check("compactMetrics reports widths", false, "no result")
 }
+
+print("\ncompanion bar")
+// His spec: name at the top, a way back to all chats, a way to see more.
+_ = h.eval("__shell.setCompact(true); true")
+check("bar is created",        h.bool("!!document.getElementById('shell-bar')"))
+check("bar has a name slot",   h.bool("!!document.getElementById('shell-name')"))
+check("bar has a back button", h.bool("!!document.getElementById('shell-back')"))
+check("bar has a more button", h.bool("!!document.getElementById('shell-more')"))
+// It must live in <body>, not inside the conversation — React would strip it out.
+check("bar is a direct child of body",
+      h.bool("document.getElementById('shell-bar')?.parentElement === document.body"))
+check("name says so when nothing is open",
+      h.str("document.getElementById('shell-name').textContent") == "No chat open",
+      h.str("document.getElementById('shell-name').textContent"))
+_ = h.eval("document.getElementById('shell-more').click(); true")
+check("more reveals WhatsApp's header",
+      h.bool("document.documentElement.hasAttribute('data-shell-compact-more')"))
+_ = h.eval("document.getElementById('shell-more').click(); true")
+check("more toggles back off",
+      !h.bool("document.documentElement.hasAttribute('data-shell-compact-more')"))
+_ = h.eval("__shell.setCompact(false); true")
+check("bar is removed on exit", !h.bool("!!document.getElementById('shell-bar')"))
 
 print("\nsilence")
 // Silent by default — WhatsApp's own beep is the loud one, and it is not the

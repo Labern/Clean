@@ -347,10 +347,67 @@ html[data-shell-compact] #app {
 html[data-shell-compact] body {
   overflow-x: hidden !important;
 }
-/* Reclaim vertical space in a short window. */
-html[data-shell-compact] [data-shell-convo] header {
-  padding-top: 2px !important;
-  padding-bottom: 2px !important;
+/* ── 7b. the companion bar ─────────────────────────────────────────────────────
+   His spec: "At the top just the person's name. A button to click to see more.
+   Button to go back to all chats. Simple."
+
+   WhatsApp's own conversation header is 64px of avatar and six icon buttons, and
+   at this width the name gets pushed out of sight entirely. So in compact mode it
+   is hidden and shell.js injects its own bar instead. The bar lives in <body>,
+   position-fixed, NOT inside the conversation — React owns that subtree and would
+   eventually remove a foreign child from it. Colours come from the WDS tokens, so
+   it matches whichever theme is on. */
+
+#shell-bar { display: none }
+
+html[data-shell-compact] #shell-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 40px; z-index: 99999;
+  display: flex; align-items: center; gap: 6px; padding: 0 6px;
+  background: var(--WDS-surface-emphasized, #202c33);
+  border-bottom: 1px solid var(--WDS-lines-divider, rgba(255, 255, 255, .1));
+  color: var(--WDS-content-default, #e9edef);
+  font-size: 14px;
+}
+html[data-shell-compact] #shell-bar button {
+  all: unset;
+  cursor: pointer;
+  width: 30px; height: 28px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  color: var(--WDS-content-deemphasized, #8696a0);
+  font-size: 17px; line-height: 1;
+}
+html[data-shell-compact] #shell-bar button:hover {
+  background: var(--WDS-surface-highlight, rgba(255, 255, 255, .06));
+  color: var(--WDS-content-default, #e9edef);
+}
+html[data-shell-compact] #shell-bar #shell-name {
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Hide WhatsApp's header; "see more" brings it back for calls, search and info. */
+html[data-shell-compact] [data-shell-convo] header { display: none !important }
+html[data-shell-compact][data-shell-compact-more] [data-shell-convo] header {
+  display: flex !important;
+}
+/* Leave room for our bar. */
+html[data-shell-compact] [data-shell-convo] { padding-top: 40px !important }
+
+/* ── 7c. wide message bubbles ──────────────────────────────────────────────────
+   "Should be like 80% width messages both sides, or bigger, so it's easy."
+   WhatsApp caps a bubble at max-width:65% on one div inside each row — depth 5,
+   obfuscated class name (measured live). Since the class churns, shell.js finds
+   that element by its COMPUTED max-width and tags it, and this widens whatever
+   it tagged. */
+
+html[data-shell-compact] [data-shell-bubble] {
+  max-width: 92% !important;
+}
+html[data-shell-compact] [data-shell-convo] [role="row"] {
+  padding-left: 4px !important;
+  padding-right: 4px !important;
 }
 
 /* ── 8. font family override ───────────────────────────────────────────────── */

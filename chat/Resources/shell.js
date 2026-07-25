@@ -180,11 +180,17 @@
     if (!cfg.compact) {
       R().removeAttribute('data-shell-compact');
       R().removeAttribute('data-shell-compact-list');
+      R().removeAttribute('data-shell-compact-more');
+      clearBubbleTags();
+      ensureCompactBar();                 // removes it
       return { compact: false };
     }
     tagRail(); tagList();
     R().setAttribute('data-shell-compact', '');
-    return reconsiderCompactList();
+    const state = reconsiderCompactList();
+    ensureCompactBar();
+    tagBubbles();
+    return Object.assign(state, compactMetrics());
   }
 
   function reconsiderCompactList() {
@@ -211,15 +217,91 @@
      width it still demands so the app can scale the page to fit instead of
      leaving him with a cropped corner. */
 
-  function compactFit() {
+  function compactMetrics() {
+    const pane = tagConvoPane();
+    const r = pane ? pane.getBoundingClientRect() : null;
     return {
-      inner:  window.innerWidth,
-      scroll: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth || 0),
+      hasConvo:   !!(r && r.width > 60),
+      convoLeft:  r ? Math.round(r.left)  : 0,
+      convoWidth: r ? Math.round(r.width) : 0,
+      inner:      window.innerWidth,
+      scroll:     Math.max(document.documentElement.scrollWidth, document.body.scrollWidth || 0),
+      bubbles:    document.querySelectorAll('[data-shell-bubble]').length,
       railTagged: !!document.querySelector('[data-shell-rail]'),
-      listTagged: !!document.querySelector('[data-shell-list]'),
-      listHidden: R().hasAttribute('data-shell-compact-list'),
-      convoWidth: (document.querySelector('[data-shell-convo]') || {}).offsetWidth || 0
+      listTagged: !!document.querySelector('[data-shell-list]')
     };
+  }
+
+  /* Widen the bubbles. WhatsApp caps each one at max-width:65% on a single div
+     inside the row (depth 5, obfuscated class — measured live). The class name
+     churns between deploys, so find it by what it DOES: the descendant whose
+     computed max-width is a percentage under 100. Tag it, and theme.css widens
+     whatever was tagged. Rows are recycled, so this is idempotent per row. */
+  function tagBubbles() {
+    if (!cfg.compact) return 0;
+    const pane = document.querySelector('[data-shell-convo]');
+    if (!pane) return 0;
+    let tagged = 0;
+    for (const row of pane.querySelectorAll('[role="row"]:not([data-shell-bubbled])')) {
+      row.setAttribute('data-shell-bubbled', '');
+      for (const el of row.querySelectorAll('div')) {
+        const mw = getComputedStyle(el).maxWidth;
+        if (mw && mw.endsWith('%') && parseFloat(mw) < 100) {
+          el.setAttribute('data-shell-bubble', '');
+          tagged++;
+          break;                       // the outermost capped div is the bubble
+        }
+      }
+    }
+    return tagged;
+  }
+
+  function clearBubbleTags() {
+    for (const el of document.querySelectorAll('[data-shell-bubbled]')) el.removeAttribute('data-shell-bubbled');
+    for (const el of document.querySelectorAll('[data-shell-bubble]'))  el.removeAttribute('data-shell-bubble');
+  }
+
+  /* The companion bar: just the name, a way back to all chats, and a way to get
+     WhatsApp's own header back when he wants to call or search. Lives in <body>
+     rather than inside the conversation, because React owns that subtree and
+     would eventually strip out a foreign child. */
+  function ensureCompactBar() {
+    let bar = document.getElementById('shell-bar');
+    if (!cfg.compact) { if (bar) bar.remove(); return false }
+
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'shell-bar';
+
+      const back = document.createElement('button');
+      back.id = 'shell-back';
+      back.textContent = '‹';
+      back.title = 'Back to all chats';
+      back.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        post({ type: 'exitCompact' });
+      });
+
+      const name = document.createElement('span');
+      name.id = 'shell-name';
+
+      const more = document.createElement('button');
+      more.id = 'shell-more';
+      more.textContent = '⋯';
+      more.title = 'Show more';
+      more.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        R().toggleAttribute('data-shell-compact-more');
+      });
+
+      bar.append(back, name, more);
+      document.body.appendChild(bar);
+    }
+
+    const label = bar.querySelector('#shell-name');
+    const who = currentChatName() || 'No chat open';
+    if (label && label.textContent !== who) label.textContent = who;
+    return true;
   }
 
   /* ── 3b3. silence ──────────────────────────────────────────────────────────
@@ -511,6 +593,11 @@
           const t = titled.getAttribute('title') || titled.textContent;
           if (t && t.trim()) return t.trim();
         }
+        // Measured live: this build puts the chat name in a span[dir="auto"] with
+        // no title attribute — which is why the span[title] lookup above found
+        // nothing and "Pin This Chat" kept asking him to type the name instead.
+        const dirAuto = header.querySelector('span[dir="auto"]');
+        if (dirAuto && dirAuto.textContent.trim()) return dirAuto.textContent.trim();
         const span = header.querySelector('span');
         if (span && span.textContent.trim()) return span.textContent.trim();
       }
@@ -679,7 +766,7 @@
     applyTheme, applyHide, applyPrivacy, openChat, currentChatName,
     focusSearch, newChat, notificationClicked, checkPrivacyCoverage, state,
     setCompact, setFont, setMsgSize, setNameSize, setMsgGap, setFocus, replyTo,
-    setSounds, compactFit
+    setSounds, compactMetrics, tagBubbles
   };
 
   let announcedLink = false;
@@ -690,7 +777,7 @@
     tagConvoPane();
     tagRail();
     tagList();
-    if (cfg.compact) reconsiderCompactList();
+    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); tagBubbles() }
     if (cfg.focus) markFocusRows();
     if (cfg.privacy) checkPrivacyCoverage();
     if (!announcedLink && document.querySelector('#pane-side')) {
