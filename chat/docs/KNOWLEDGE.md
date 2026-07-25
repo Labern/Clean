@@ -63,7 +63,43 @@ setter + `input` event — the mechanism ⌘1–9 relies on.
 **Not yet exercised in a real signed run:** the ⌘1–9 pin jumps and ⌘⇧P pinning
 (need a linked session), the global hotkey, macOS notification *delivery* (the
 bridge is proven; the OS-side authorisation prompt only happens in the real app),
-and downloads. All code-complete, none of it confirmed by eye.
+replying from a notification, downloads, and companion mode's collapse with a
+chat actually open. All code-complete, none of it confirmed by eye.
+
+The layout measurements companion mode depends on **were** taken against his real
+logged-in session (rail 40px, `#side` 453px, its parent column 454px with a 64px
+header) — that probe is what caught `tagList()` hiding the list but leaving the
+search header stranded. Structure only; no message content read, nothing clicked,
+nothing marked as read.
+
+## The stated purpose, arrived at after the first build (2026-07-25)
+
+His words: *"the main reason I even built this is so that I don't have to look at
+my phone while I'm doing stuff on my Mac. So this is the key feature."*
+
+That reordered the roadmap. Notification delivery stopped being a feature and
+became the product; quiet hours went in but off by default, because a feature
+that suppresses notifications is in tension with the point. The concrete
+consequences are listed under "Why this app exists" in `../CLAUDE.md` — the App
+Nap assertion, ⌘W not closing the connection, and the app shouting when macOS has
+blocked notifications rather than going quiet.
+
+Worth stating plainly for a future session: **the failure mode to fear here is
+silence, not a crash.** A crash he'll see. A missed message he won't — he'll just
+drift back to his phone and stop trusting the app. Prefer loud, honest failure
+everywhere in this codebase.
+
+## Second round of features (same day)
+
+He asked for a small floating one-chat pop-up, named resizing / font selection /
+font size, and said "build a bunch of stuff". Delivered: companion mode, always
+on top, fade when inactive, font family (curated + any installed via the system
+panel, which supplies the size too), message text size separate from window zoom,
+menu-bar unread glance, reply-from-notification, quiet hours, focus mode.
+
+Two things the parallel PICA session and his own live Chrome taught this app on
+the same day, both now fixed here: the **JS dialog delegates** (without them
+`confirm()` silently returns false) and the **storage-persistence refusal**.
 
 ## Open threads
 

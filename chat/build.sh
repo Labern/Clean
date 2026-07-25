@@ -96,6 +96,15 @@ fi
 
 echo "› built $APP"
 
+# ---- 6. optional: verify headlessly against the live site ----
+# `build` wipes build/, so the test binary is always rebuilt with the app.
+if [ "${1:-}" = "--test" ]; then
+  echo "› building smoke test"
+  swiftc -O -swift-version 5 smoketest.swift -o "$BUILD/smoketest"
+  "$BUILD/smoketest"
+  exit $?
+fi
+
 if [ "${1:-}" = "--install" ]; then
   pkill -x "$APP_NAME" 2>/dev/null || true
   rm -rf "/Applications/$APP_NAME.app"

@@ -302,3 +302,62 @@ html[data-shell-privacy][data-shell-privacy-fallback] [data-shell-convo] {
 html[data-shell-privacy][data-shell-privacy-fallback] [data-shell-convo]:hover {
   filter: none;
 }
+
+/* ── 7. companion mode — one chat, floating beside other work ──────────────── */
+/* WhatsApp Web allows only one active session per browser, so a second webview
+   would fight the first ("WhatsApp is open in another window"). Companion mode
+   therefore reuses the one webview: the app shrinks and floats its window, and
+   these rules collapse everything that isn't the conversation.
+
+   Both the nav rail and the list pane are found and tagged by shell.js — their
+   containers are obfuscated divs with no stable id (verified live). The list is
+   hidden only once shell.js confirms a conversation is open and still visible
+   without it (data-shell-compact-list); otherwise a companion window with no
+   chat open would be an empty box with no way to pick one. */
+
+html[data-shell-compact] [data-shell-rail] {
+  display: none !important;
+}
+html[data-shell-compact][data-shell-compact-list] [data-shell-list] {
+  display: none !important;
+}
+html[data-shell-compact] [data-shell-convo] {
+  flex: 1 1 auto !important;
+  width: 100% !important;
+  max-width: none !important;
+}
+/* Reclaim vertical space in a short window. */
+html[data-shell-compact] [data-shell-convo] header {
+  padding-top: 2px !important;
+  padding-bottom: 2px !important;
+}
+
+/* ── 8. font family override ───────────────────────────────────────────────── */
+/* Deliberately placed after §3 so a chosen font beats the theme's own font
+   (PARADOX's monospace, MONOGRAPH's serif): equal specificity, so source order
+   decides the winner. */
+
+html[data-shell-font] body,
+html[data-shell-font] body * {
+  font-family: var(--shell-font) !important;
+}
+
+/* ── 9. message text size ──────────────────────────────────────────────────── */
+/* Separate from window zoom, which scales the whole interface. This scales only
+   the words in the conversation. `.selectable-text` is WhatsApp's own semantic
+   class for copyable message text — verified present live — scoped to the
+   conversation so chat-list previews keep their size. */
+
+html[data-shell-msgsize] [data-shell-convo] .selectable-text,
+html[data-shell-msgsize] [data-shell-convo] .selectable-text * {
+  font-size: var(--shell-msg-size) !important;
+  line-height: 1.42 !important;
+}
+
+/* ── 10. focus mode — only the pinned chats ────────────────────────────────── */
+/* shell.js marks every chat-list row whose title isn't one of the pins. Rows are
+   virtualised and recycled, so it re-marks them on its pump. */
+
+html[data-shell-focus] [data-shell-dim] {
+  display: none !important;
+}

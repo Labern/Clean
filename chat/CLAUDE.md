@@ -65,17 +65,60 @@ its token block down onto `body`, an `html`-only override would silently lose.
 Themes: `stock` (untouched), `midnight`, `paradox`, `monograph`. Default on first
 launch is **paradox**; ⌘⌥T cycles.
 
+## Why this app exists — read this before changing anything
+**He built it so he never has to look at his phone while working on the Mac.**
+That single sentence ranks every trade-off here: a message that fails to reach
+him sends him back to his phone, and the app has failed at its only job. So:
+- Notification delivery outranks every other feature. Never make it conditional
+  on the window being open, focused, or visible.
+- `ProcessInfo.beginActivity(.userInitiated)` is held for the whole app lifetime
+  in `applicationDidFinishLaunching`. **Do not remove it.** Without it App Nap
+  suspends a backgrounded app and its timers, WhatsApp's connection goes idle,
+  and notifications stop — silently.
+- `windowShouldClose` orders the window out instead of closing it, so ⌘W never
+  severs the connection.
+- If macOS has blocked notifications the app says so loudly (an alert at launch,
+  the App-menu item renaming itself to "BLOCKED by macOS") rather than going
+  quiet. App ▸ Check Notifications Work… re-checks and fires a real test one.
+
 ## Shortcuts
 | | |
 |---|---|
 | ⌘1–9 | jump to pinned chat |
 | ⌘⇧P | pin the open chat to the next free slot |
+| ⌘⇧C | **companion mode** — shrink to a floating one-chat panel |
+| ⌥⌘P | always on top |
+| ⌘⇧E | focus mode (pinned chats only) |
 | ⌘⌥T | next theme |
 | ⌘⇧B | privacy blur |
+| ⌘⌥+ / ⌘⌥- / ⌘⌥0 | message text bigger / smaller / default |
+| ⌘+ / ⌘- / ⌘0 | zoom the whole interface |
 | ⌘K / ⌘F | focus search |
 | ⌘N | new chat |
 | ⌘R | reload |
 | ⌃⌥⌘W | **global** — summon or dismiss from any app |
+
+## Companion mode
+One chat, small, floating beside other work. It reuses the **one** webview —
+WhatsApp Web allows a single active session per browser, so a second webview
+would be told "WhatsApp is open in another window" and fight this one for the
+connection. So ⌘⇧C shrinks and floats the existing window and collapses the
+furniture with CSS. It keeps its own remembered frame (`companionFrame` in
+defaults, updated as he resizes), separate from the full window, and is
+deliberately **not** restored at launch — opening into a sliver would be
+disorienting.
+
+Measured live, which is why the selectors are what they are:
+- the nav rail is a **40px** column whose container is an obfuscated div → found
+  by walking up from `[data-navbar-item]` until one ancestor holds them all,
+  then tagged `data-shell-rail`;
+- `#side` is only the list (**453px**); its parent is the whole left column
+  (**454px**) holding a 64px search header above it. `tagList()` therefore tags
+  the *parent* — hiding only `#side` leaves an orphaned search strip. The width
+  test (`parent ≤ side × 1.15`) is what tells "the column" from a broader wrapper.
+- The list is collapsed only once a conversation is open and still has width
+  without it (`data-shell-compact-list`), so a companion window with no chat open
+  keeps the list and stays usable instead of being an empty box.
 
 ## Verified DOM hooks (live, 2026-07-25)
 Recorded because rediscovering them means poking at a logged-in account:
@@ -113,6 +156,27 @@ Recorded because rediscovering them means poking at a logged-in account:
   quietly. Both implemented; downloads never overwrite (`photo-2.jpg`).
 - **Mic/camera need both** an Info.plist usage string *and*
   `requestMediaCapturePermissionFor` returning `.grant`, or voice notes die.
+- **WKWebView answers `confirm()`/`prompt()` with false/nil and swallows
+  `alert()`** unless the app implements the three JS dialog delegates. Any
+  WhatsApp flow built on a confirmation ("Delete message?", "Log out?") then
+  silently does nothing. All three are implemented as window sheets. (Same bug
+  was found and fixed in PICA the same day — check there if it regresses.)
+- **`navigator.storage.persist()` is refused**, and WhatsApp logs
+  `aquire-persistent-storage-denied` on every boot and may trim its caches in
+  response. Observed live in Chrome too, so it isn't a WKWebView quirk.
+  `shell.js` answers `true`. That is accurate here for a different reason than in
+  a browser: this is the app's own container, not site data competing for a
+  shared quota, so nothing evicts it.
+- **Page errors are invisible in a WKWebView** — there's no console to look at.
+  `shell.js` forwards `error`, `unhandledrejection` and `console.error` to the
+  app (capped at 40 so a shouting page can't flood), which NSLogs them, and the
+  smoke test fails if the count spikes.
+- **Replying from a notification verifies before sending.** `replyTo()` inserts
+  via `execCommand('insertText')` (WhatsApp's editor listens for real
+  `beforeinput`/`input` events; assigning `textContent` is ignored), then
+  compares the composer's contents against the intended text and **refuses to
+  press send on a mismatch**, reporting why. Sending the wrong thing to a real
+  person is not a recoverable error. Don't "simplify" that check away.
 - `-swift-version 5` is required: the Carbon hot-key callback is a C function
   pointer and trips strict concurrency otherwise.
 - Non-WhatsApp URLs are handed to the default browser, which also means a

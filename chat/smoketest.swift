@@ -203,6 +203,62 @@ _ = h.eval("__shell.applyTheme('stock'); true")
 let stock = h.str("getComputedStyle(document.documentElement).getPropertyValue('--WDS-surface-default').trim()")
 check("stock leaves WhatsApp's own value", stock != "#0e0b1a" && stock != "#ffffff", "got '\(stock)'")
 
+print("\ntypography")
+_ = h.eval("__shell.setFont('\"New York\", Georgia, serif'); true")
+check("font attribute set", h.bool("document.documentElement.hasAttribute('data-shell-font')"))
+check("font variable set", h.str("document.documentElement.style.getPropertyValue('--shell-font')").contains("New York"))
+_ = h.eval("__shell.setFont(''); true")
+check("font cleared", !h.bool("document.documentElement.hasAttribute('data-shell-font')"))
+_ = h.eval("__shell.setMsgSize(18); true")
+check("message size set", h.str("document.documentElement.style.getPropertyValue('--shell-msg-size')") == "18px")
+_ = h.eval("__shell.setMsgSize(0); true")
+check("message size cleared", !h.bool("document.documentElement.hasAttribute('data-shell-msgsize')"))
+
+print("\ncompanion mode")
+// Logged out there is no conversation, so the honest answer is "compact on, list
+// left alone" — proving the guard that stops it becoming an empty grey box.
+if let s = h.eval("JSON.stringify(__shell.setCompact(true))") as? String {
+    check("setCompact reports state", s.contains("\"compact\":true"), s)
+    check("list kept when no chat open", s.contains("listHidden\":false") || s.contains("no conversation open"), s)
+} else {
+    check("setCompact reports state", false, "no result")
+}
+check("compact attribute set", h.bool("document.documentElement.hasAttribute('data-shell-compact')"))
+_ = h.eval("__shell.setCompact(false); true")
+check("compact cleared", !h.bool("document.documentElement.hasAttribute('data-shell-compact')"))
+check("compact-list cleared too", !h.bool("document.documentElement.hasAttribute('data-shell-compact-list')"))
+
+print("\nfocus mode")
+_ = h.eval("__shell.setFocus(true, ['Somebody']); true")
+check("focus attribute set", h.bool("document.documentElement.hasAttribute('data-shell-focus')"))
+_ = h.eval("__shell.setFocus(false, []); true")
+check("focus cleared", !h.bool("document.documentElement.hasAttribute('data-shell-focus')"))
+
+print("\nstorage persistence shim")
+// WhatsApp asks for this on boot and logs an error when refused (seen live in
+// Chrome). The shim must answer yes so it stops complaining.
+_ = h.eval("window.__persisted = null; navigator.storage.persist().then(v => window.__persisted = v); true")
+_ = waitUntil(2) { (h.eval("window.__persisted") as? Bool) == true }
+check("storage.persist() resolves true", (h.eval("window.__persisted") as? Bool) == true)
+
+print("\nreply path")
+check("__shell.replyTo is callable", h.str("typeof __shell.replyTo") == "function")
+// No chat is open, so it must refuse rather than send anything anywhere.
+_ = h.eval("window.__reply = null; __shell.replyTo('', 'hello').then(r => window.__reply = JSON.stringify(r)); true")
+_ = waitUntil(3) { !h.str("window.__reply || ''").isEmpty }
+let replyResult = h.str("window.__reply || ''")
+check("refuses to send with no composer", replyResult.contains("\"ok\":false"), replyResult)
+
+print("\npage errors")
+let errs = h.num("__shell.state().errors")
+if errs > 0 {
+    let list = h.str("(window.__errs||[]).join(' | ')")
+    print("  \(Int(errs)) page error(s) reported\(list.isEmpty ? "" : ": \(list)")")
+}
+// WhatsApp's own logged-out page is normally quiet; a burst would mean the
+// injection is breaking it.
+check("page not flooded with errors", errs < 5, "\(Int(errs)) errors")
+
 print("\nstate report")
 if let s = h.eval("JSON.stringify(__shell.state())") as? String { print("  \(s)") }
 

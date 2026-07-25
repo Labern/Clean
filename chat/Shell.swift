@@ -53,6 +53,34 @@ let kHideables: [(title: String, key: String, defaultOn: Bool)] = [
 
 let kPinCount = 9
 
+// Fonts offered in the menu. "" means "leave the theme's own font alone".
+// Any other installed font is reachable through Font ▸ Choose…, which also
+// carries a size, so one panel sets both family and message text size.
+let kFonts: [(title: String, css: String)] = [
+    ("Theme Default",   ""),
+    ("System",          "-apple-system, BlinkMacSystemFont, \"Helvetica Neue\", sans-serif"),
+    ("SF Mono",         "\"SF Mono\", Menlo, monospace"),
+    ("Menlo",           "Menlo, monospace"),
+    ("New York",        "\"New York\", Georgia, serif"),
+    ("Iowan Old Style", "\"Iowan Old Style\", Palatino, serif"),
+]
+
+// Quiet hours, as presets rather than a date-picker sheet — one click, no dialog.
+// `from == -1` is off. Ranges wrap past midnight.
+let kQuietPresets: [(title: String, from: Int, to: Int)] = [
+    ("Off",             -1, -1),
+    ("22:00 – 08:00",   22,  8),
+    ("23:00 – 07:00",   23,  7),
+    ("00:00 – 09:00",    0,  9),
+]
+
+let kMsgSizeMin = 11.0, kMsgSizeMax = 28.0, kMsgSizeBase = 15.0
+
+// Companion mode: a narrow floating panel, by default hugging the right edge.
+let kCompanionSize = NSSize(width: 420, height: 720)
+
+let kNotificationCategory = "MESSAGE"
+
 // ⌃⌥⌘W — summon or dismiss from anywhere. Deliberately a three-modifier chord:
 // a global hotkey must not shadow a character or a common app shortcut.
 let kHotKeyCode = UInt32(kVK_ANSI_W)
@@ -69,6 +97,16 @@ struct Settings {
     var pins: [String]
     var zoom: Double
     var notifications: Bool
+    var compact: Bool
+    var alwaysOnTop: Bool
+    var fadeInactive: Bool
+    var fontTitle: String        // which Font-menu entry is ticked
+    var fontCSS: String          // the font-family it maps to ("" = theme's own)
+    var msgSize: Double          // 0 = WhatsApp's own size
+    var menuBar: Bool
+    var quietFrom: Int           // -1 = quiet hours off
+    var quietTo: Int
+    var focus: Bool
 
     static func load() -> Settings {
         let d = UserDefaults.standard
@@ -85,7 +123,19 @@ struct Settings {
             privacy: d.bool(forKey: "privacy"),
             pins: Array(pins.prefix(kPinCount)),
             zoom: d.object(forKey: "zoom") as? Double ?? 1.0,
-            notifications: d.object(forKey: "notifications") as? Bool ?? true
+            notifications: d.object(forKey: "notifications") as? Bool ?? true,
+            // Companion mode is never restored on launch: opening into a tiny
+            // floating sliver would be disorienting. It is a per-session mode.
+            compact: false,
+            alwaysOnTop: d.bool(forKey: "alwaysOnTop"),
+            fadeInactive: d.bool(forKey: "fadeInactive"),
+            fontTitle: d.string(forKey: "fontTitle") ?? "Theme Default",
+            fontCSS: d.string(forKey: "fontCSS") ?? "",
+            msgSize: d.object(forKey: "msgSize") as? Double ?? 0,
+            menuBar: d.object(forKey: "menuBar") as? Bool ?? true,
+            quietFrom: d.object(forKey: "quietFrom") as? Int ?? -1,
+            quietTo: d.object(forKey: "quietTo") as? Int ?? -1,
+            focus: d.bool(forKey: "focus")
         )
     }
 
@@ -97,6 +147,23 @@ struct Settings {
         d.set(pins, forKey: "pins")
         d.set(zoom, forKey: "zoom")
         d.set(notifications, forKey: "notifications")
+        d.set(alwaysOnTop, forKey: "alwaysOnTop")
+        d.set(fadeInactive, forKey: "fadeInactive")
+        d.set(fontTitle, forKey: "fontTitle")
+        d.set(fontCSS, forKey: "fontCSS")
+        d.set(msgSize, forKey: "msgSize")
+        d.set(menuBar, forKey: "menuBar")
+        d.set(quietFrom, forKey: "quietFrom")
+        d.set(quietTo, forKey: "quietTo")
+        d.set(focus, forKey: "focus")
+    }
+
+    /// True when now falls inside the quiet window (which may wrap past midnight).
+    var inQuietHours: Bool {
+        guard quietFrom >= 0, quietTo >= 0 else { return false }
+        let h = Calendar.current.component(.hour, from: Date())
+        return quietFrom <= quietTo ? (h >= quietFrom && h < quietTo)
+                                    : (h >= quietFrom || h < quietTo)
     }
 }
 
@@ -120,9 +187,9 @@ private weak var gDelegate: AppDelegate?
 
 // MARK: - app
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
-                         WKUIDelegate, WKScriptMessageHandler, WKDownloadDelegate,
-                         UNUserNotificationCenterDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
+                         WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler,
+                         WKDownloadDelegate, UNUserNotificationCenterDelegate {
 
     var window: NSWindow!
     var web: WKWebView!
@@ -130,21 +197,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
 
     private var themeItems: [NSMenuItem] = []
     private var hideItems: [String: NSMenuItem] = [:]
+    private var fontItems: [NSMenuItem] = []
+    private var quietItems: [NSMenuItem] = []
     private var privacyItem: NSMenuItem!
     private var notifyItem: NSMenuItem!
+    private var companionItem: NSMenuItem!
+    private var onTopItem: NSMenuItem!
+    private var fadeItem: NSMenuItem!
+    private var menuBarItem: NSMenuItem!
+    private var focusItem: NSMenuItem!
     private var pinItems: [NSMenuItem] = []
     private var unpinMenu: NSMenu!
     private var hotKeyRef: EventHotKeyRef?
     private var notificationsReady = false
+    private var notificationsDenied = false
+    private var statusItem: NSStatusItem?
+    private var unread = 0
+    private var fullFrame: NSRect?          // where the window was before companion mode
+    private var activity: NSObjectProtocol? // the App Nap assertion
 
     // ---- lifecycle ----
 
     func applicationDidFinishLaunching(_ note: Notification) {
         gDelegate = self
+
+        // THE most important line in this file for what he actually wants.
+        // He built this so he never has to look at his phone while working on the
+        // Mac — which means the page must keep receiving messages while the window
+        // is hidden or buried. App Nap will otherwise suspend a background app and
+        // its timers, and WhatsApp goes quiet. This assertion is held for the whole
+        // lifetime of the app; it is not a leak.
+        activity = ProcessInfo.processInfo.beginActivity(
+            options: [.userInitiated, .suddenTerminationDisabled],
+            reason: "Staying connected to WhatsApp so notifications arrive")
+
         buildMenu()
         buildWindow()
         registerHotKey()
         prepareNotifications()
+        rebuildStatusItem()
         NSApp.activate(ignoringOtherApps: true)
     }
 
@@ -192,14 +283,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
         w.contentView = v
-        w.minSize = NSSize(width: 760, height: 520)
+        // Small enough that companion mode can shrink to a real sliver.
+        w.minSize = NSSize(width: 320, height: 380)
         w.setFrameAutosaveName("ShellMainWindow")
         w.isReleasedWhenClosed = false
-        w.delegate = nil
+        w.delegate = self
         w.makeKeyAndOrderFront(nil)
-        if w.frame.width < 700 { w.center() }
+        if w.frame.width < 320 { w.center() }
         self.window = w
         tintWindow()
+        applyWindowLevel()
 
         v.load(URLRequest(url: kHome))
     }
@@ -212,9 +305,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
 
         let hideJSON = (try? JSONSerialization.data(withJSONObject: settings.hide))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let pinsJSON = (try? JSONSerialization.data(withJSONObject: settings.pins.filter { !$0.isEmpty }))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         let config = """
         window.__SHELL_CONFIG = { theme: \(jsLiteral(settings.theme)), \
-        hide: \(hideJSON), privacy: \(settings.privacy ? "true" : "false") };
+        hide: \(hideJSON), privacy: \(settings.privacy ? "true" : "false"), \
+        compact: \(settings.compact ? "true" : "false"), \
+        font: \(jsLiteral(settings.fontCSS)), msgSize: \(settings.msgSize), \
+        focus: \(settings.focus ? "true" : "false"), pins: \(pinsJSON) };
         """
 
         let res = Bundle.main.resourceURL
@@ -253,6 +351,121 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     private func showWindow() {
         NSApp.activate(ignoringOtherApps: true)
         if window == nil { buildWindow() } else { window.makeKeyAndOrderFront(nil) }
+    }
+
+    // ---- window behaviour: companion mode, always on top, fade ----
+
+    private func applyWindowLevel() {
+        guard let w = window else { return }
+        // Companion mode implies floating — that is the point of it.
+        w.level = (settings.alwaysOnTop || settings.compact) ? .floating : .normal
+        w.alphaValue = (settings.fadeInactive && !w.isKeyWindow) ? 0.82 : 1.0
+    }
+
+    /// Shrink to a floating panel showing only the open conversation, and back.
+    /// One webview, reused: WhatsApp Web permits a single active session per
+    /// browser, so a second webview would be told "WhatsApp is open in another
+    /// window" and fight this one for the connection.
+    @objc private func toggleCompanion(_ sender: Any?) {
+        guard let w = window else { return }
+        settings.compact.toggle()
+
+        if settings.compact {
+            fullFrame = w.frame
+            let target = savedCompanionFrame() ?? defaultCompanionFrame()
+            js("__shell.setCompact(true)")
+            w.setFrame(target, display: true, animate: true)
+        } else {
+            UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrame")
+            js("__shell.setCompact(false)")
+            if let f = fullFrame { w.setFrame(f, display: true, animate: true) }
+        }
+        applyWindowLevel()
+        settings.save()
+        syncMenuState()
+    }
+
+    private func savedCompanionFrame() -> NSRect? {
+        guard let s = UserDefaults.standard.string(forKey: "companionFrame") else { return nil }
+        let r = NSRectFromString(s)
+        return (r.width > 200 && r.height > 200) ? r : nil
+    }
+
+    private func defaultCompanionFrame() -> NSRect {
+        let screen = (window?.screen ?? NSScreen.main)?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        return NSRect(x: screen.maxX - kCompanionSize.width - 16,
+                      y: screen.maxY - kCompanionSize.height - 16,
+                      width: kCompanionSize.width, height: kCompanionSize.height)
+    }
+
+    @objc private func toggleAlwaysOnTop(_ sender: Any?) {
+        settings.alwaysOnTop.toggle()
+        settings.save()
+        applyWindowLevel()
+        syncMenuState()
+    }
+
+    @objc private func toggleFade(_ sender: Any?) {
+        settings.fadeInactive.toggle()
+        settings.save()
+        applyWindowLevel()
+        syncMenuState()
+    }
+
+    // Remember the companion frame as he resizes it, so it comes back the size
+    // he left it — resizing is one of the things he asked for.
+    func windowDidResize(_ note: Notification) { rememberFrame() }
+    func windowDidMove(_ note: Notification)   { rememberFrame() }
+
+    private func rememberFrame() {
+        guard let w = window, settings.compact else { return }
+        UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrame")
+    }
+
+    func windowDidBecomeKey(_ note: Notification) { applyWindowLevel() }
+    func windowDidResignKey(_ note: Notification) { applyWindowLevel() }
+
+    // Closing the window must not kill the connection — that would mean missing
+    // messages, which is the one thing this app exists to prevent.
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        sender.orderOut(nil)
+        return false
+    }
+
+    // ---- the menu-bar glance ----
+
+    private func rebuildStatusItem() {
+        if !settings.menuBar {
+            if let s = statusItem { NSStatusBar.system.removeStatusItem(s) }
+            statusItem = nil
+            return
+        }
+        if statusItem == nil {
+            // Keep it NARROW — a wide status item lands under the notch on a
+            // notched Mac and shoves its neighbours into hiding.
+            let s = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            s.button?.target = self
+            s.button?.action = #selector(statusItemClicked(_:))
+            s.button?.toolTip = "\(kAppName) — click to show or hide"
+            statusItem = s
+        }
+        updateStatusItem()
+    }
+
+    private func updateStatusItem() {
+        guard let b = statusItem?.button else { return }
+        b.title = unread > 0 ? String(unread) : "◦"
+        b.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: unread > 0 ? .bold : .regular)
+    }
+
+    @objc private func statusItemClicked(_ sender: Any?) { toggleVisibility() }
+
+    @objc private func toggleMenuBar(_ sender: Any?) {
+        settings.menuBar.toggle()
+        settings.save()
+        rebuildStatusItem()
+        syncMenuState()
     }
 
     // ---- navigation policy ----
@@ -311,6 +524,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = parameters.allowsMultipleSelection
         panel.begin { completionHandler($0 == .OK ? panel.urls : nil) }
+    }
+
+    // WKWebView answers alert() with nothing and confirm()/prompt() with
+    // false/nil unless the app implements these three — so any WhatsApp flow
+    // built on a confirmation ("Delete message?", "Log out?") silently does
+    // nothing. Learned the hard way in PICA; not repeating it here.
+
+    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+        let a = NSAlert()
+        a.messageText = kAppName
+        a.informativeText = message
+        a.addButton(withTitle: "OK")
+        if let w = window { a.beginSheetModal(for: w) { _ in completionHandler() } }
+        else { a.runModal(); completionHandler() }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+        let a = NSAlert()
+        a.messageText = kAppName
+        a.informativeText = message
+        a.addButton(withTitle: "OK")
+        a.addButton(withTitle: "Cancel")
+        if let w = window {
+            a.beginSheetModal(for: w) { completionHandler($0 == .alertFirstButtonReturn) }
+        } else {
+            completionHandler(a.runModal() == .alertFirstButtonReturn)
+        }
+    }
+
+    func webView(_ webView: WKWebView, runJavaScriptTextInputPanelWithPrompt prompt: String,
+                 defaultText: String?, initiatedByFrame frame: WKFrameInfo,
+                 completionHandler: @escaping (String?) -> Void) {
+        let a = NSAlert()
+        a.messageText = kAppName
+        a.informativeText = prompt
+        a.addButton(withTitle: "OK")
+        a.addButton(withTitle: "Cancel")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.stringValue = defaultText ?? ""
+        a.accessoryView = field
+        let finish: (NSApplication.ModalResponse) -> Void = { r in
+            completionHandler(r == .alertFirstButtonReturn ? field.stringValue : nil)
+        }
+        if let w = window { a.beginSheetModal(for: w, completionHandler: finish) }
+        else { finish(a.runModal()) }
     }
 
     @available(macOS 12.0, *)
@@ -375,10 +635,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
                 UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: [id])
             }
         case "badge":
-            let n = (body["count"] as? Int) ?? 0
-            NSApp.dockTile.badgeLabel = n > 0 ? String(n) : nil
+            unread = (body["count"] as? Int) ?? 0
+            NSApp.dockTile.badgeLabel = unread > 0 ? String(unread) : nil
+            updateStatusItem()
         case "linked":
             applyAllToPage()
+        case "pageerror":
+            // A WKWebView has no visible console, so page errors would otherwise
+            // vanish. Logged here and asserted on by the smoke test.
+            let kind = body["kind"] as? String ?? "error"
+            let msg = body["message"] as? String ?? ""
+            NSLog("[\(kAppName)] page \(kind): \(msg)")
         default:
             break
         }
@@ -393,9 +660,96 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     private func applyAllToPage() {
         let hideJSON = (try? JSONSerialization.data(withJSONObject: settings.hide))
             .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let pinsJSON = (try? JSONSerialization.data(withJSONObject: settings.pins.filter { !$0.isEmpty }))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         js("__shell.applyTheme(\(jsLiteral(settings.theme)))")
         js("__shell.applyHide(\(hideJSON))")
         js("__shell.applyPrivacy(\(settings.privacy ? "true" : "false"))")
+        js("__shell.setFont(\(jsLiteral(settings.fontCSS)))")
+        js("__shell.setMsgSize(\(settings.msgSize))")
+        js("__shell.setCompact(\(settings.compact ? "true" : "false"))")
+        js("__shell.setFocus(\(settings.focus ? "true" : "false"), \(pinsJSON))")
+    }
+
+    // ---- typography ----
+
+    @objc private func chooseFontFromMenu(_ sender: NSMenuItem) {
+        let f = kFonts[sender.tag]
+        settings.fontTitle = f.title
+        settings.fontCSS = f.css
+        settings.save()
+        reinstallUserScripts()
+        js("__shell.setFont(\(jsLiteral(settings.fontCSS)))")
+        syncMenuState()
+    }
+
+    /// Any installed font, through the system panel. It carries a size too, so
+    /// one panel sets both the family and the message text size.
+    @objc private func chooseFontPanel(_ sender: Any?) {
+        let fm = NSFontManager.shared
+        fm.target = self
+        let current = NSFont(name: settings.fontTitle, size: settings.msgSize > 0 ? settings.msgSize : kMsgSizeBase)
+            ?? NSFont.systemFont(ofSize: settings.msgSize > 0 ? settings.msgSize : kMsgSizeBase)
+        fm.setSelectedFont(current, isMultiple: false)
+        fm.orderFrontFontPanel(self)
+    }
+
+    @objc func changeFont(_ sender: Any?) {
+        guard let fm = sender as? NSFontManager else { return }
+        let chosen = fm.convert(NSFont.systemFont(ofSize: settings.msgSize > 0 ? settings.msgSize : kMsgSizeBase))
+        let family = chosen.familyName ?? chosen.fontName
+        settings.fontTitle = family
+        settings.fontCSS = "\"\(family)\""
+        settings.msgSize = min(max(Double(chosen.pointSize), kMsgSizeMin), kMsgSizeMax)
+        settings.save()
+        reinstallUserScripts()
+        js("__shell.setFont(\(jsLiteral(settings.fontCSS)))")
+        js("__shell.setMsgSize(\(settings.msgSize))")
+        syncMenuState()
+    }
+
+    @objc private func msgBigger(_ sender: Any?)  { stepMsgSize(+1) }
+    @objc private func msgSmaller(_ sender: Any?) { stepMsgSize(-1) }
+    @objc private func msgReset(_ sender: Any?) {
+        settings.msgSize = 0
+        settings.save(); reinstallUserScripts()
+        js("__shell.setMsgSize(0)")
+        syncMenuState()
+    }
+
+    private func stepMsgSize(_ delta: Double) {
+        let from = settings.msgSize > 0 ? settings.msgSize : kMsgSizeBase
+        settings.msgSize = min(max(from + delta, kMsgSizeMin), kMsgSizeMax)
+        settings.save(); reinstallUserScripts()
+        js("__shell.setMsgSize(\(settings.msgSize))")
+        syncMenuState()
+    }
+
+    // ---- focus mode & quiet hours ----
+
+    @objc private func toggleFocus(_ sender: Any?) {
+        settings.focus.toggle()
+        if settings.focus && settings.pins.allSatisfy({ $0.isEmpty }) {
+            settings.focus = false
+            alert("Nothing pinned yet",
+                  "Focus mode shows only your pinned chats. Pin a few first with Chats ▸ Pin This Chat.")
+            syncMenuState()
+            return
+        }
+        settings.save()
+        reinstallUserScripts()
+        let pinsJSON = (try? JSONSerialization.data(withJSONObject: settings.pins.filter { !$0.isEmpty }))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        js("__shell.setFocus(\(settings.focus ? "true" : "false"), \(pinsJSON))")
+        syncMenuState()
+    }
+
+    @objc private func chooseQuietHours(_ sender: NSMenuItem) {
+        let p = kQuietPresets[sender.tag]
+        settings.quietFrom = p.from
+        settings.quietTo = p.to
+        settings.save()
+        syncMenuState()
     }
 
     // ---- notifications ----
@@ -404,18 +758,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         guard Bundle.main.bundleIdentifier != nil else { return }   // not in a bundle: skip
         let centre = UNUserNotificationCenter.current()
         centre.delegate = self
+
+        // A notification he can answer without leaving what he is doing.
+        let reply = UNTextInputNotificationAction(identifier: "REPLY", title: "Reply",
+                                                 options: [],
+                                                 textInputButtonTitle: "Send",
+                                                 textInputPlaceholder: "Reply…")
+        centre.setNotificationCategories([
+            UNNotificationCategory(identifier: kNotificationCategory, actions: [reply],
+                                   intentIdentifiers: [], options: [])
+        ])
+
         centre.requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, _ in
-            DispatchQueue.main.async { self?.notificationsReady = granted }
+            DispatchQueue.main.async {
+                self?.notificationsReady = granted
+                self?.notificationsDenied = !granted
+                self?.syncMenuState()
+                // Silent notification failure is total failure for this app — it
+                // sends him back to his phone, the one thing it exists to stop. So
+                // it is surfaced rather than swallowed.
+                if !granted { self?.warnNotificationsBlocked(atLaunch: true) }
+            }
         }
     }
 
-    private func notify(title: String, body: String, id: String, chat: String?) {
+    private func warnNotificationsBlocked(atLaunch: Bool) {
+        let a = NSAlert()
+        a.messageText = "\(kAppName) can't show notifications"
+        a.informativeText = """
+        macOS has notifications turned off for \(kAppName), so you won't be told \
+        about new messages — which defeats the point of the app.
+
+        Open System Settings ▸ Notifications ▸ \(kAppName) and turn on \
+        "Allow notifications".
+        """
+        a.alertStyle = .warning
+        a.addButton(withTitle: "Open Notification Settings")
+        a.addButton(withTitle: atLaunch ? "Later" : "OK")
+        if a.runModal() == .alertFirstButtonReturn,
+           let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func checkNotifications(_ sender: Any?) {
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] s in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                let ok = s.authorizationStatus == .authorized || s.authorizationStatus == .provisional
+                self.notificationsReady = ok
+                self.notificationsDenied = !ok
+                self.syncMenuState()
+                if !ok { self.warnNotificationsBlocked(atLaunch: false); return }
+                // Prove it end to end, so he never has to wonder.
+                self.notify(title: "\(kAppName) is working",
+                            body: "Notifications will arrive like this. You can reply from here too.",
+                            id: "selftest-\(Int(Date().timeIntervalSince1970))",
+                            chat: nil, force: true)
+            }
+        }
+    }
+
+    private func notify(title: String, body: String, id: String, chat: String?, force: Bool = false) {
         guard notificationsReady else { return }
+        if !force && settings.inQuietHours { return }
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
-        if let chat = chat { content.userInfo = ["chat": chat, "jsId": id] }
+        if let chat = chat {
+            content.userInfo = ["chat": chat, "jsId": id]
+            content.categoryIdentifier = kNotificationCategory   // gives it the Reply field
+        }
         let req = UNNotificationRequest(identifier: id, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
     }
@@ -432,12 +846,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
                                didReceive response: UNNotificationResponse,
                                withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
+        let chat = info["chat"] as? String ?? ""
+
+        // Typed a reply into the notification: send it without coming to the front,
+        // so answering costs him nothing at all.
+        if let textResponse = response as? UNTextInputNotificationResponse {
+            let text = textResponse.userText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !text.isEmpty && !chat.isEmpty { sendReply(to: chat, text: text) }
+            completionHandler()
+            return
+        }
+
         showWindow()
         if let jsId = info["jsId"] as? String {
-            let chat = info["chat"] as? String ?? ""
             js("__shell.notificationClicked(\(jsLiteral(jsId)), \(jsLiteral(chat)))")
         }
         completionHandler()
+    }
+
+    /// Send a reply typed into a notification. The page verifies the composer
+    /// holds exactly this text before pressing send and refuses otherwise — a
+    /// wrong message to a real person is not a recoverable error — and whatever
+    /// happens is reported back rather than assumed.
+    private func sendReply(to chat: String, text: String) {
+        let call = "__shell.replyTo(\(jsLiteral(chat)), \(jsLiteral(text)))" +
+                   ".then(r => JSON.stringify(r))"
+        web?.evaluateJavaScript("window.__shell && \(call)") { [weak self] result, error in
+            guard let self = self else { return }
+            var ok = false
+            var reason = error?.localizedDescription ?? "the page did not answer"
+            if let s = result as? String, let d = s.data(using: .utf8),
+               let o = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any] {
+                ok = (o["ok"] as? Bool) ?? false
+                reason = (o["reason"] as? String) ?? reason
+            }
+            if !ok {
+                // Never pretend it went. Tell him, and leave the text in the box.
+                self.notify(title: "Reply to \(chat) not sent",
+                            body: "\(reason). It's still in the message box.",
+                            id: "replyfail-\(Int(Date().timeIntervalSince1970))",
+                            chat: nil, force: true)
+                self.showWindow()
+            }
+        }
     }
 
     // ---- global hot key ----
@@ -604,6 +1055,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         }
         privacyItem?.state = settings.privacy ? .on : .off
         notifyItem?.state = settings.notifications ? .on : .off
+        companionItem?.state = settings.compact ? .on : .off
+        onTopItem?.state = settings.alwaysOnTop ? .on : .off
+        fadeItem?.state = settings.fadeInactive ? .on : .off
+        menuBarItem?.state = settings.menuBar ? .on : .off
+        focusItem?.state = settings.focus ? .on : .off
+
+        for (i, item) in fontItems.enumerated() {
+            item.state = kFonts[i].title == settings.fontTitle ? .on : .off
+        }
+        // A font picked from the panel isn't in the list; show it as the ticked one.
+        if !kFonts.contains(where: { $0.title == settings.fontTitle }) {
+            for item in fontItems { item.state = .off }
+        }
+        for (i, item) in quietItems.enumerated() {
+            item.state = (kQuietPresets[i].from == settings.quietFrom
+                          && kQuietPresets[i].to == settings.quietTo) ? .on : .off
+        }
+
+        // If macOS has blocked notifications, say so where he'll see it rather
+        // than leaving him wondering why the app went quiet.
+        notifyItem?.title = notificationsDenied
+            ? "Notifications — BLOCKED by macOS"
+            : (settings.notifications ? "Notifications" : "Notifications (muted here)")
 
         for (i, item) in pinItems.enumerated() {
             let name = settings.pins[i]
@@ -635,6 +1109,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         appMenu.addItem(.separator())
         notifyItem = item("Notifications", #selector(toggleNotifications(_:)))
         appMenu.addItem(notifyItem)
+        appMenu.addItem(item("Check Notifications Work…", #selector(checkNotifications(_:))))
+        let quietMenu = NSMenu(title: "Quiet Hours")
+        for (i, p) in kQuietPresets.enumerated() {
+            let it = item(p.title, #selector(chooseQuietHours(_:)))
+            it.tag = i
+            quietMenu.addItem(it)
+            quietItems.append(it)
+        }
+        let quietItem = NSMenuItem(title: "Quiet Hours", action: nil, keyEquivalent: "")
+        quietItem.submenu = quietMenu
+        appMenu.addItem(quietItem)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide \(kAppName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthers = NSMenuItem(title: "Hide Others",
@@ -699,8 +1184,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         }
         viewMenu.addItem(item("Next Theme", #selector(cycleTheme(_:)), "t", [.command, .option]))
         viewMenu.addItem(.separator())
+
+        // Companion mode and its window behaviour — the reason he asked for this
+        // round: one chat, small, floating beside whatever he's working on.
+        companionItem = item("Companion Mode", #selector(toggleCompanion(_:)), "c", [.command, .shift])
+        viewMenu.addItem(companionItem)
+        onTopItem = item("Always on Top", #selector(toggleAlwaysOnTop(_:)), "p", [.command, .option])
+        viewMenu.addItem(onTopItem)
+        fadeItem = item("Fade When Inactive", #selector(toggleFade(_:)))
+        viewMenu.addItem(fadeItem)
+        viewMenu.addItem(.separator())
+
+        // Font
+        let fontMenu = NSMenu(title: "Font")
+        for (i, f) in kFonts.enumerated() {
+            let it = item(f.title, #selector(chooseFontFromMenu(_:)))
+            it.tag = i
+            fontMenu.addItem(it)
+            fontItems.append(it)
+        }
+        fontMenu.addItem(.separator())
+        fontMenu.addItem(item("Choose…", #selector(chooseFontPanel(_:))))
+        let fontItem = NSMenuItem(title: "Font", action: nil, keyEquivalent: "")
+        fontItem.submenu = fontMenu
+        viewMenu.addItem(fontItem)
+
+        viewMenu.addItem(item("Bigger Message Text", #selector(msgBigger(_:)), "+", [.command, .option]))
+        viewMenu.addItem(item("Smaller Message Text", #selector(msgSmaller(_:)), "-", [.command, .option]))
+        viewMenu.addItem(item("Default Message Text", #selector(msgReset(_:)), "0", [.command, .option]))
+        viewMenu.addItem(.separator())
+
         privacyItem = item("Privacy Blur", #selector(togglePrivacy(_:)), "b", [.command, .shift])
         viewMenu.addItem(privacyItem)
+        focusItem = item("Focus Mode — Pinned Chats Only", #selector(toggleFocus(_:)), "e", [.command, .shift])
+        viewMenu.addItem(focusItem)
+        menuBarItem = item("Show in Menu Bar", #selector(toggleMenuBar(_:)))
+        viewMenu.addItem(menuBarItem)
         viewMenu.addItem(.separator())
         for h in kHideables {
             let it = item(h.title, #selector(toggleHide(_:)))

@@ -29,7 +29,9 @@
   const HIDEABLE = ['calls', 'status', 'channels', 'communities', 'media',
                     'metaai', 'filters', 'archived', 'promos'];
 
-  const cfg = Object.assign({ theme: 'stock', hide: {}, privacy: false },
+  const cfg = Object.assign({ theme: 'stock', hide: {}, privacy: false,
+                              compact: false, font: '', msgSize: 0,
+                              focus: false, pins: [] },
                             window.__SHELL_CONFIG || {});
 
   const native = (() => { try { return window.webkit.messageHandlers.shell } catch (e) { return null } })();
@@ -128,6 +130,130 @@
     if (hit) R().removeAttribute('data-shell-privacy-fallback');
     else     R().setAttribute('data-shell-privacy-fallback', '');
     return { on: true, pane: true, perMessage: !!hit, fallback: !hit };
+  }
+
+  /* ── 3b. the nav rail and the list pane ────────────────────────────────────
+     Companion mode has to collapse both, and neither has a stable hook: the
+     rail's container is an obfuscated div (verified live), and while the list
+     currently sits in #side that is an id we don't control. So find them and tag
+     them, exactly as with the conversation pane. */
+
+  function tagRail() {
+    if (document.querySelector('[data-shell-rail]')) return true;
+    const items = Array.from(document.querySelectorAll('[data-navbar-item]'));
+    if (!items.length) return false;
+    // walk up until one ancestor holds every nav item — that is the rail
+    let p = items[0].parentElement;
+    while (p && p !== document.body && !items.every(i => p.contains(i))) p = p.parentElement;
+    if (!p || p === document.body) return false;
+    p.setAttribute('data-shell-rail', '');
+    return true;
+  }
+
+  function tagList() {
+    if (document.querySelector('[data-shell-list]')) return true;
+    const list = document.querySelector('[data-testid="chat-list"]');
+    const side = document.querySelector('#side') || (list && list.closest('div[class]'));
+    if (!side) return false;
+
+    // Tag the whole left COLUMN, not just the list. Measured live: #side is the
+    // list (453px wide) and its parent is the column (454px) holding a 64px
+    // search header above it. Hiding only #side would leave that header behind
+    // as an orphaned strip down the side of companion mode. The width test is
+    // what distinguishes "the column" from some broader layout wrapper.
+    let pane = side;
+    const p = side.parentElement;
+    if (p && p !== document.body && p.id !== 'app' &&
+        p.offsetWidth > 0 && p.offsetWidth <= side.offsetWidth * 1.15) {
+      pane = p;
+    }
+    pane.setAttribute('data-shell-list', '');
+    return true;
+  }
+
+  /* Companion mode. The list is only allowed to collapse once a conversation is
+     open AND still has width without it — otherwise the companion window would
+     be an empty box with no way to choose a chat. Re-checked on the pump. */
+  function setCompact(on) {
+    cfg.compact = !!on;
+    if (!cfg.compact) {
+      R().removeAttribute('data-shell-compact');
+      R().removeAttribute('data-shell-compact-list');
+      return { compact: false };
+    }
+    tagRail(); tagList();
+    R().setAttribute('data-shell-compact', '');
+    return reconsiderCompactList();
+  }
+
+  function reconsiderCompactList() {
+    if (!cfg.compact) return { compact: false };
+    const pane = tagConvoPane();
+    if (!pane) {                                   // nothing open: keep the list
+      R().removeAttribute('data-shell-compact-list');
+      return { compact: true, listHidden: false, reason: 'no conversation open' };
+    }
+    R().setAttribute('data-shell-compact-list', '');
+    // If collapsing the list somehow collapsed the conversation too, undo it
+    // rather than leaving him with a blank panel.
+    if (pane.offsetWidth < 80) {
+      R().removeAttribute('data-shell-compact-list');
+      return { compact: true, listHidden: false, reason: 'conversation lost width' };
+    }
+    return { compact: true, listHidden: true };
+  }
+
+  /* ── 3c. typography ────────────────────────────────────────────────────────── */
+
+  function setFont(family) {
+    cfg.font = family || '';
+    if (cfg.font) {
+      R().style.setProperty('--shell-font', cfg.font);
+      R().setAttribute('data-shell-font', '');
+    } else {
+      R().style.removeProperty('--shell-font');
+      R().removeAttribute('data-shell-font');
+    }
+    return cfg.font;
+  }
+
+  function setMsgSize(px) {
+    cfg.msgSize = Number(px) || 0;
+    if (cfg.msgSize > 0) {
+      R().style.setProperty('--shell-msg-size', cfg.msgSize + 'px');
+      R().setAttribute('data-shell-msgsize', '');
+    } else {
+      R().style.removeProperty('--shell-msg-size');
+      R().removeAttribute('data-shell-msgsize');
+    }
+    return cfg.msgSize;
+  }
+
+  /* ── 3d. focus mode — only the pinned chats in the list ───────────────────── */
+
+  function setFocus(on, names) {
+    cfg.focus = !!on;
+    if (Array.isArray(names)) cfg.pins = names.filter(Boolean).map(norm);
+    if (cfg.focus) R().setAttribute('data-shell-focus', '');
+    else {
+      R().removeAttribute('data-shell-focus');
+      for (const row of visibleRows()) row.removeAttribute('data-shell-dim');
+    }
+    markFocusRows();
+    return cfg.focus;
+  }
+
+  // Rows are virtualised and recycled, so this has to re-run on the pump.
+  function markFocusRows() {
+    if (!cfg.focus) return 0;
+    const keep = new Set(cfg.pins || []);
+    let hidden = 0;
+    for (const row of visibleRows()) {
+      const wanted = keep.has(norm(rowTitle(row)));
+      if (wanted) row.removeAttribute('data-shell-dim');
+      else { row.setAttribute('data-shell-dim', ''); hidden++ }
+    }
+    return hidden;
   }
 
   /* ── 4. notifications ──────────────────────────────────────────────────────
@@ -310,6 +436,65 @@
     return '';
   }
 
+  /* ── 7b. sending a reply, verified before it goes ──────────────────────────
+     Used by "reply from the notification". Sending the wrong thing to a real
+     person is unacceptable, so this NEVER presses send unless the composer holds
+     exactly the text it was given — and reports why if it doesn't. */
+
+  function composerBox() {
+    const pane = convoPane();
+    return pane ? pane.querySelector('[contenteditable="true"]') : null;
+  }
+
+  function sendButton() {
+    const pane = convoPane() || document;
+    return pane.querySelector('[data-icon="send"], button[aria-label="Send"], [role="button"][aria-label="Send"]');
+  }
+
+  async function replyTo(chat, text) {
+    if (!text) return { ok: false, reason: 'empty message' };
+    if (chat) {
+      const opened = await openChat(chat);
+      if (!opened) return { ok: false, reason: 'could not open ' + chat };
+      await sleep(450);
+    }
+    const box = composerBox();
+    if (!box) return { ok: false, reason: 'no composer found' };
+    box.focus();
+
+    // execCommand('insertText') raises real beforeinput/input events, which is
+    // what WhatsApp's editor listens for. Assigning textContent is ignored.
+    let inserted = false;
+    try { inserted = document.execCommand('insertText', false, text) } catch (e) {}
+    if (!inserted) {
+      try {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', text);
+        box.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+        inserted = true;
+      } catch (e) {}
+    }
+    await sleep(200);
+
+    const got = norm(box.innerText || box.textContent || '');
+    if (got !== norm(text)) {
+      return { ok: false, reason: 'composer did not take the text — left it open, nothing sent' };
+    }
+
+    const btn = sendButton();
+    if (btn) realClick(btn);
+    else {
+      for (const t of ['keydown', 'keypress', 'keyup']) {
+        box.dispatchEvent(new KeyboardEvent(t, { key: 'Enter', code: 'Enter',
+                                                 keyCode: 13, which: 13,
+                                                 bubbles: true, cancelable: true }));
+      }
+    }
+    await sleep(300);
+    const cleared = norm(box.innerText || box.textContent || '') === '';
+    return cleared ? { ok: true } : { ok: false, reason: 'composer never cleared — may not have sent' };
+  }
+
   /* ── 8. state, for the app and for the headless smoke test ─────────────── */
 
   function state() {
@@ -322,6 +507,16 @@
       privacy:     R().hasAttribute('data-shell-privacy'),
       privacyFallback: R().hasAttribute('data-shell-privacy-fallback'),
       convoTagged: !!document.querySelector('[data-shell-convo]'),
+      railTagged:  !!document.querySelector('[data-shell-rail]'),
+      listTagged:  !!document.querySelector('[data-shell-list]'),
+      compact:     R().hasAttribute('data-shell-compact'),
+      compactList: R().hasAttribute('data-shell-compact-list'),
+      font:        R().style.getPropertyValue('--shell-font') || '',
+      msgSize:     R().style.getPropertyValue('--shell-msg-size') || '',
+      focus:       R().hasAttribute('data-shell-focus'),
+      focusHidden: document.querySelectorAll('[data-shell-dim]').length,
+      storageShim: true,
+      errors:      errCount,
       notificationShim: window.Notification === ShellNotification,
       unread:      lastBadge < 0 ? 0 : lastBadge,
       chat:        currentChatName(),
@@ -330,16 +525,66 @@
     };
   }
 
+  /* ── 8b. storage persistence ───────────────────────────────────────────────
+     WhatsApp asks for persistent storage on boot. WKWebView has no such API, and
+     even Chrome declines it (observed live in his browser: "storage bucket
+     persistence denied"). Left unanswered, WhatsApp logs an error every launch
+     and may trim its caches. Answering yes is accurate here for a different
+     reason than in a browser: this data store is the app's own container, not
+     site data competing for a shared quota, so nothing is going to evict it. */
+
+  try {
+    if (window.StorageManager && StorageManager.prototype) {
+      StorageManager.prototype.persist = function () { return Promise.resolve(true) };
+      StorageManager.prototype.persisted = function () { return Promise.resolve(true) };
+    }
+    if (!navigator.storage) {
+      Object.defineProperty(navigator, 'storage', {
+        value: {
+          persist:   () => Promise.resolve(true),
+          persisted: () => Promise.resolve(true),
+          estimate:  () => Promise.resolve({ quota: 0, usage: 0 })
+        }, configurable: true
+      });
+    }
+  } catch (e) {}
+
+  /* ── 8c. page errors → the app ─────────────────────────────────────────────
+     A WKWebView has no visible console, so page errors are otherwise invisible.
+     Forward them (capped, so a shouting page can't flood) — the app logs them and
+     the smoke test asserts on them. */
+
+  let errCount = 0;
+  const MAX_ERRORS = 40;
+  function reportError(kind, msg) {
+    if (errCount++ >= MAX_ERRORS) return;
+    post({ type: 'pageerror', kind, message: String(msg).slice(0, 400) });
+  }
+  window.addEventListener('error', e =>
+    reportError('error', e.message || (e.error && e.error.message) || 'script error'));
+  window.addEventListener('unhandledrejection', e =>
+    reportError('rejection', (e.reason && (e.reason.message || e.reason)) || 'unhandled rejection'));
+  const origConsoleError = console.error;
+  console.error = function (...a) {
+    try { reportError('console', a.map(x => (x && x.message) || String(x)).join(' ')) } catch (e) {}
+    return origConsoleError.apply(this, a);
+  };
+
   /* ── 9. boot ───────────────────────────────────────────────────────────── */
 
   installCSS();
   applyTheme(cfg.theme);
   applyHide(cfg.hide);
   applyPrivacy(cfg.privacy);
+  setFont(cfg.font || '');
+  setMsgSize(cfg.msgSize || 0);
+  if (cfg.compact) setCompact(true);
+  if (cfg.focus) setFocus(true, cfg.pins || []);
 
   window.__shell = {
     applyTheme, applyHide, applyPrivacy, openChat, currentChatName,
-    focusSearch, newChat, notificationClicked, checkPrivacyCoverage, state
+    focusSearch, newChat, notificationClicked, checkPrivacyCoverage, state,
+    setCompact, setFont, setMsgSize, setFocus, replyTo
   };
 
   let announcedLink = false;
@@ -348,6 +593,10 @@
     ensureAttributes();
     pumpBadge();
     tagConvoPane();
+    tagRail();
+    tagList();
+    if (cfg.compact) reconsiderCompactList();
+    if (cfg.focus) markFocusRows();
     if (cfg.privacy) checkPrivacyCoverage();
     if (!announcedLink && document.querySelector('#pane-side')) {
       announcedLink = true;
