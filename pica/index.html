@@ -183,7 +183,7 @@ body.resizing #canvas{ pointer-events:none; }
 #docGenre:hover, #docGenre:focus{ border-bottom-color:var(--faint); }
 
 /* ---------- reader mode: the app melts down to the read ---------- */
-body.reader{ --pagegap: .55rem; }   /* reading runs Chrome-PDF tight; exit restores your gap */
+body.reader{ --pagegap: .55rem; --footpad: var(--rfoot, .22rem); }   /* reading runs tight; exit restores */
 body.reader #pages{ caret-color:transparent; }
 body.reader #btnReader{ color:var(--ink); border-bottom-color:var(--rule); }
 .fcenter{ display:flex; align-items:center; justify-content:center; }
@@ -231,7 +231,7 @@ body.split #canvas{ flex:1; min-width:0; }
 /* ---------- statusbar ---------- */
 footer{
   flex:none; display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:1.3rem;
-  border-top:1px solid var(--line); padding:.6rem 1.4rem;
+  border-top:1px solid var(--line); padding:var(--footpad, .38rem) 1.4rem;
   font-family:var(--mono); font-size:.69rem; letter-spacing:.15em; text-transform:uppercase;
   color:var(--faint); user-select:none; white-space:nowrap; overflow:hidden;
 }
@@ -3079,6 +3079,7 @@ function applyUiPrefs(){
   document.documentElement.style.setProperty('--page', ui.paper === 'white' ? '#ffffff' : '#fdfcf8');
   S.pref = { smartType: ui.smartType !== false, autoDetect: ui.autoDetect !== false, autoContd: ui.autoContd !== false };
   // footer items: zoom and ⚙ are permanent; page/scenes on by default; the rest opt-in
+  document.documentElement.style.setProperty('--rfoot', (ui.readerFoot === 'max') ? '.6rem' : '.22rem');
   const gaps = { roomy: '2.4rem', compact: '.55rem', none: '2px' };
   document.documentElement.style.setProperty('--pagegap', gaps[ui.pageGap] || gaps.roomy);
   const foot = Object.assign({ page: true, type: false, hint: false, drafts: false, link: false, saved: false }, ui.foot || {});
@@ -3151,6 +3152,7 @@ function showSettings(){
   ${row('Drafts', 'The named-drafts menu.', seg('footDrafts', [['on','On'],['off','Off']], S.foot?.drafts ? 'on' : 'off'))}
   ${row('Find screenplays', 'Link to the script libraries.', seg('footLinkT', [['on','On'],['off','Off']], S.foot?.link ? 'on' : 'off'))}
   ${row('Saved time', 'The autosave clock.', seg('footSaved', [['on','On'],['off','Off']], S.foot?.saved ? 'on' : 'off'))}
+  ${row('Reader footer', 'Height while reading.', seg('setRFoot', [['slim','Slim'],['max','Max']], ui.readerFoot === 'max' ? 'max' : 'slim'))}
 
   <h3>Writing aids</h3>
   ${row('SmartType', 'Names, locations and times complete as you type.',
@@ -3228,6 +3230,7 @@ function showSettings(){
   const footWire = (id, key) => wire(id, v => {
     const u = LS.get('pica.ui', {}); u.foot = Object.assign({}, u.foot, { [key]: v === 'on' }); LS.set('pica.ui', u); applyUiPrefs();
   });
+  wire('setRFoot', v => { const u = LS.get('pica.ui', {}); u.readerFoot = v; LS.set('pica.ui', u); applyUiPrefs(); });
   footWire('footPage', 'page'); footWire('footType', 'type'); footWire('footHint', 'hint');
   footWire('footDrafts', 'drafts'); footWire('footLinkT', 'link'); footWire('footSaved', 'saved');
   const headWire = (id, key) => wire(id, v => {
