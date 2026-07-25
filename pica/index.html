@@ -413,7 +413,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   <main id="canvasB" hidden>
     <div class="bstrip">
       <select id="bDocSel" title="What the second pane shows"></select>
-      <button id="bSync" title="Scroll both pages together">⇅ sync</button>
+      <button id="bSync" title="Scroll together, page for page">⇅ sync</button>
       <button id="bClose" title="Close side-by-side">×</button>
     </div>
     <div id="pagesB"></div>
@@ -3596,14 +3596,32 @@ $('#btnSplit').addEventListener('mousedown', ev => {
   document.body.classList.contains('split') ? splitOff() : splitOn();
 });
 
-// sync scrolling: proportional position mirrored both ways; independent when off
+// sync scrolling: page for page — page N tops page N, carrying the fraction into the
+// page across; a title page on one side only is offset away so script pages align
 let bSyncLock = false;
 function syncFrom(src, dst){
   if (!document.body.classList.contains('split') || !LS.get('pica.ui', {}).syncScroll) return;
   if (bSyncLock) return;
+  const srcIsA = src === canvasEl;
+  const sp = srcIsA ? S.pageEls : B.els;
+  const dp = srcIsA ? B.els : S.pageEls;
+  if (!sp || sp.length < 1 || !dp || dp.length < 1) return;
+  const sTitle = S.showTitle && ((srcIsA ? S.doc : B.doc)?.titlePage?.length ? 1 : 0);
+  const dTitle = S.showTitle && ((srcIsA ? B.doc : S.doc)?.titlePage?.length ? 1 : 0);
   bSyncLock = true;
-  const r = src.scrollTop / Math.max(1, src.scrollHeight - src.clientHeight);
-  dst.scrollTop = r * Math.max(0, dst.scrollHeight - dst.clientHeight);
+  const sTop0 = sp[0].wrap.offsetTop;
+  const sStep = sp.length > 1 ? sp[1].wrap.offsetTop - sTop0 : sp[0].wrap.offsetHeight;
+  const sH = sp[0].wrap.offsetHeight || 1;
+  let idx = Math.floor((src.scrollTop - sTop0) / Math.max(1, sStep));
+  idx = Math.max(0, Math.min(sp.length - 1, idx));
+  let frac = (src.scrollTop - (sTop0 + idx * sStep)) / sH;
+  frac = Math.max(0, Math.min(1, frac));
+  let j = idx - (sTitle ? 1 : 0) + (dTitle ? 1 : 0);
+  j = Math.max(0, Math.min(dp.length - 1, j));
+  const dTop0 = dp[0].wrap.offsetTop;
+  const dStep = dp.length > 1 ? dp[1].wrap.offsetTop - dTop0 : dp[0].wrap.offsetHeight;
+  const dH = dp[0].wrap.offsetHeight || 1;
+  dst.scrollTop = dTop0 + j * dStep + frac * dH;
   requestAnimationFrame(() => { bSyncLock = false; });
 }
 canvasEl.addEventListener('scroll', () => syncFrom(canvasEl, $('#canvasB')));
@@ -3613,7 +3631,7 @@ $('#bSync').addEventListener('mousedown', ev => {
   ev.preventDefault();
   const u = LS.get('pica.ui', {}); u.syncScroll = !u.syncScroll; LS.set('pica.ui', u);
   applySyncBtn();
-  toast(u.syncScroll ? 'pages synced' : 'pages independent');
+  toast(u.syncScroll ? 'synced — page for page' : 'pages independent');
 });
 $('#bClose').addEventListener('mousedown', ev => { ev.preventDefault(); splitOff(); });
 $('#bDocSel').addEventListener('change', ev => loadB(ev.target.value));
