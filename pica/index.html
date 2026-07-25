@@ -133,6 +133,9 @@ body.resizing #canvas{ pointer-events:none; }
 }
 .doc-item:hover,.scene-item:hover{ color:var(--ink); }
 .doc-item.current,.scene-item.current{ border-left-color:var(--rule); color:var(--ink); }
+.doc-item.dragging{ opacity:.45; }
+.doc-item.drop-above{ box-shadow:0 -2px 0 var(--rule); }
+.doc-item.drop-below{ box-shadow:0 2px 0 var(--rule); }
 .scene-item .no{ color:var(--faint); flex:none; width:1.7em; text-align:right; font-variant-numeric:tabular-nums; }
 .scene-item .sl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .doc-item .pg{ margin-left:auto; color:var(--faint); font-variant-numeric:tabular-nums; flex:none;}
@@ -164,6 +167,8 @@ footer{
   color:var(--faint); user-select:none; white-space:nowrap; overflow:hidden;
 }
 #stType{ color:var(--ink); letter-spacing:.2em; border-bottom:1px solid var(--line); padding-bottom:1px; }
+#stDrafts{ color:var(--ink-2); letter-spacing:.15em; }
+#stDrafts:hover{ color:var(--ink); }
 #stType:hover{ border-bottom-color:var(--rule); }
 footer .grow{ flex:1; }
 footer .z{ padding:0 .25rem; color:var(--ink-2); }
@@ -212,6 +217,36 @@ footer .z:hover{ color:var(--ink); }
   pointer-events:none; white-space:nowrap;
 }
 #toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ---------- draft compare ---------- */
+.cmp-row{ border-top:1px solid var(--line); padding:.55rem 0; cursor:pointer; }
+.cmp-st{ font-family:var(--mono); font-size:.6rem; letter-spacing:.18em; text-transform:uppercase; padding:.1rem .4rem; border:1px solid var(--line); margin-right:.6rem; }
+.cmp-changed{ color:var(--ink); border-color:var(--rule); }
+.cmp-added{ color:var(--ink-2); }
+.cmp-removed{ color:var(--faint); text-decoration:line-through; }
+.cmp-slug{ font-family:var(--mono); font-size:.72rem; }
+.cmp-body{ display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-top:.6rem; }
+.cmp-col h4{ font-family:var(--ui); font-size:.7rem; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--faint); margin-bottom:.3rem; }
+.cmp-col pre{ font-family:var(--mono); font-size:.62rem; line-height:1.7; white-space:pre-wrap; color:var(--ink-2); max-height:16rem; overflow:auto; border:1px solid var(--line); padding:.6rem; }
+
+/* ---------- find bar ---------- */
+#findBar{
+  position:fixed; top:3.6rem; right:1.2rem; z-index:60;
+  display:flex; align-items:center; gap:.55rem;
+  background:var(--paper); border:1px solid var(--line); box-shadow:var(--shadow);
+  padding:.5rem .7rem; font-family:var(--mono); font-size:.7rem;
+}
+#findBar[hidden]{ display:none; }
+#findBar input{
+  font-family:var(--mono); font-size:.72rem; color:var(--ink);
+  background:none; border:none; border-bottom:1px solid var(--line); outline:none;
+  padding:.15rem .1rem; width:11rem;
+}
+#findBar input:focus{ border-bottom-color:var(--rule); }
+#findBar #replIn{ width:8.5rem; }
+#findCount{ color:var(--faint); font-variant-numeric:tabular-nums; min-width:3.4rem; text-align:center; }
+.fb{ color:var(--ink-2); padding:.1rem .25rem; letter-spacing:.04em; }
+.fb:hover{ color:var(--ink); }
 
 /* ---------- settings ---------- */
 .set-row{
@@ -307,6 +342,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   <button id="btnKeys" class="z" title="Settings &amp; shortcuts (⌘,)">⚙</button>
   <button id="stType">—</button>
   <span id="stHint"></span>
+  <button id="stDrafts" title="Named drafts">drafts</button>
   <div class="grow"></div>
   <a id="footLink" href="https://scriptslug.com" target="_blank" rel="noopener noreferrer">Find screenplays ↗</a>
   <span id="stPage">—</span>
@@ -314,9 +350,20 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   <span id="stSave"></span>
 </footer>
 
+<div id="findBar" hidden>
+  <input id="findIn" placeholder="Find" spellcheck="false">
+  <span id="findCount">–</span>
+  <button class="fb" id="findPrev" title="Previous (⇧⏎)">‹</button>
+  <button class="fb" id="findNext" title="Next (⏎)">›</button>
+  <input id="replIn" placeholder="Replace" spellcheck="false">
+  <button class="fb" id="replOne">Replace</button>
+  <button class="fb" id="replAll">All</button>
+  <button class="fb" id="findClose" title="Esc">×</button>
+</div>
+
 <div id="overlay"></div>
 <div id="toast"></div>
-<input type="file" id="fileIn" accept=".pdf,.json" style="display:none">
+<input type="file" id="fileIn" accept=".pdf,.json,.fdx" style="display:none">
 
 <script>
 /*PICA-ENGINE-START*/
@@ -1130,6 +1177,105 @@ const PicaEngine = (() => {
     return { pages, count: scriptPage };
   }
 
+  // ---------- FDX: Final Draft's own format, both directions ----------
+  // Parsed with a purpose-built reader for the FDX subset (Paragraph/Text/TitlePage) —
+  // no DOMParser, so the same code runs in the browser, the app, and node tests.
+  const FDX_TYPES = {
+    'Scene Heading': 'scene', 'Action': 'action', 'Character': 'character',
+    'Parenthetical': 'paren', 'Dialogue': 'dialogue', 'Transition': 'transition',
+    'Shot': 'shot', 'General': 'general', 'Cast List': 'general',
+  };
+  const FDX_REV = { scene: 'Scene Heading', action: 'Action', character: 'Character', paren: 'Parenthetical', dialogue: 'Dialogue', transition: 'Transition', shot: 'Shot', general: 'General' };
+  const unxml = s => s.replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(+n))
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+  const toxml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  function fdxParagraphs(xml) {
+    const out = [];
+    for (const m of xml.matchAll(/<Paragraph\b([^>]*?)\/>|<Paragraph\b([^>]*)>([\s\S]*?)<\/Paragraph>/g)) {
+      const attrs = m[1] ?? m[2] ?? '';
+      const inner = m[3] ?? '';
+      const type = (attrs.match(/Type="([^"]*)"/) || [])[1] || 'Action';
+      let text = '';
+      const marks = [];
+      for (const t of inner.matchAll(/<Text\b([^>]*?)\/>|<Text\b([^>]*)>([\s\S]*?)<\/Text>/g)) {
+        const tAttrs = t[1] ?? t[2] ?? '';
+        const chunk = unxml((t[3] ?? '').replace(/<[^>]+>/g, ''));
+        if (!chunk) continue;
+        const style = (tAttrs.match(/Style="([^"]*)"/) || [])[1] || '';
+        const s0 = text.length;
+        text += chunk;
+        if (/Bold/i.test(style)) marks.push([s0, text.length, 'b']);
+        if (/Italic/i.test(style)) marks.push([s0, text.length, 'i']);
+        if (/Underline/i.test(style)) marks.push([s0, text.length, 'u']);
+      }
+      out.push({ type, text, marks });
+    }
+    return out;
+  }
+
+  function importFdx(xml) {
+    if (!/<FinalDraft\b/.test(xml)) throw new Error('not a Final Draft document');
+    const tpm = xml.match(/<TitlePage>[\s\S]*?<\/TitlePage>/);
+    const bodyXml = tpm ? xml.replace(tpm[0], '') : xml;
+    const els = [];
+    for (const p of fdxParagraphs(bodyXml)) {
+      const type = FDX_TYPES[p.type];
+      if (!type) continue;                       // outline/act furniture stays behind
+      const el = { id: uid(), type, text: p.text };
+      if (p.marks.length) el.marks = p.marks;
+      els.push(el);
+    }
+    if (!els.length) throw new Error('no script paragraphs in this FDX');
+    const doc = newDoc('UNTITLED');
+    doc.elements = els;
+    doc.titlePage = [];
+    if (tpm) {
+      const lines = fdxParagraphs(tpm[0]).map(p => p.text);
+      let row = 16;
+      for (const t of lines.slice(0, 24)) { doc.titlePage.push({ text: t, row }); row += t.trim() ? 2 : 1; }
+    }
+    const tpTitle = doc.titlePage.find(t => /[A-Za-z]{2,}/.test(t.text));
+    doc.title = (tpTitle && tpTitle.text.trim().slice(0, 40))
+      || (els.find(e => e.type === 'scene' && e.text.trim())?.text ?? 'UNTITLED').slice(0, 40);
+    return doc;
+  }
+
+  function markRunsOf(el) {
+    const text = el.text || '';
+    if (!el.marks || !el.marks.length) return [{ text, style: '' }];
+    const bits = new Uint8Array(text.length);
+    const BIT = { b: 1, i: 2, u: 4 };
+    for (const [s, e, k] of el.marks) for (let i = Math.max(0, s); i < Math.min(text.length, e); i++) bits[i] |= BIT[k] || 0;
+    const runs = [];
+    let i = 0;
+    while (i < text.length) {
+      const b = bits[i];
+      let j = i + 1;
+      while (j < text.length && bits[j] === b) j++;
+      const style = [b & 1 && 'Bold', b & 2 && 'Italic', b & 4 && 'Underline'].filter(Boolean).join('+');
+      runs.push({ text: text.slice(i, j), style });
+      i = j;
+    }
+    return runs;
+  }
+
+  function toFdx(doc) {
+    const para = el => {
+      const runs = markRunsOf(el).map(r =>
+        '<Text' + (r.style ? ' Style="' + r.style + '"' : '') + '>' + toxml(r.text.replace(/\n/g, ' ')) + '</Text>').join('');
+      return '    <Paragraph Type="' + FDX_REV[el.type] + '">' + (runs || '<Text></Text>') + '</Paragraph>';
+    };
+    const tp = (doc.titlePage || []).filter(t => t.text != null).map(t =>
+      '      <Paragraph Type="General" Alignment="Center"><Text>' + toxml(t.text) + '</Text></Paragraph>').join('\n');
+    return '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n' +
+      '<FinalDraft DocumentType="Script" Template="No" Version="5">\n' +
+      '  <Content>\n' + doc.elements.map(para).join('\n') + '\n  </Content>\n' +
+      (tp ? '  <TitlePage>\n    <Content>\n' + tp + '\n    </Content>\n  </TitlePage>\n' : '') +
+      '</FinalDraft>\n';
+  }
+
   // ---------- fountain export ----------
   function toFountain(doc) {
     const out = [];
@@ -1168,7 +1314,7 @@ const PicaEngine = (() => {
     };
   }
 
-  return { TYPES, LETTER, uid, linesFromItems, estimateCharW, wrapText, wrapElement, importPdf, paginate, toFountain, newDoc, SCENE_RE };
+  return { TYPES, LETTER, uid, linesFromItems, estimateCharW, wrapText, wrapElement, importPdf, importFdx, toFdx, paginate, toFountain, newDoc, SCENE_RE };
 })();
 /*PICA-ENGINE-END*/
 </script>
@@ -1259,6 +1405,7 @@ function openDoc(id){
   });
   printPageCSS();
   store.save(id, doc); // refresh index metadata (page count) now that we have S.res
+  draftChip();
 }
 
 // ---------- geometry ----------
@@ -1503,6 +1650,16 @@ function opSplice(i, delCount, inserted, caretAfter){
   repaginate(); renderAfterEdit();
 }
 
+// several text changes as one undo step (Replace All)
+function opTexts(changes, caretAfter){
+  const real = changes.filter(c => elById(c.id));
+  if (!real.length) return;
+  pushUndo({ k: 'texts', list: real.map(c => ({ id: c.id, before: elById(c.id).text, after: c.text })), cb: S.caret, ca: caretAfter || S.caret, ts: Date.now() });
+  for (const c of real) elById(c.id).text = c.text;
+  S.caret = caretAfter || S.caret;
+  repaginate(); renderAfterEdit();
+}
+
 function opConvert(id, type){
   const el = elById(id); if (!el) return;
   pushUndo({ k: 'retype', ids: [id], before: [{ t: el.type, x: el.text }], after: null, cb: S.caret, ca: S.caret, ts: Date.now() });
@@ -1536,6 +1693,9 @@ function undo(redo){
   else if (rec.k === 'splice') {
     if (redo) S.doc.elements.splice(rec.i, rec.removed.length, ...rec.inserted.map(e => ({ ...e })));
     else S.doc.elements.splice(rec.i, rec.inserted.length, ...rec.removed.map(e => ({ ...e })));
+  }
+  else if (rec.k === 'texts') {
+    for (const c of rec.list) { const el = elById(c.id); if (el) el.text = redo ? c.after : c.before; }
   }
   else if (rec.k === 'retype') {
     const state = redo ? rec.after : rec.before;
@@ -1702,6 +1862,17 @@ function handleEnter(){
     opConvert(el.id, 'transition');
   }
   const i = elIndex(c.el);
+  // FD's auto-(CONT\'D): the same speaker again, with no other speaker between
+  if (el.type === 'character' && el.text && S.pref?.autoContd !== false && !/CONT'D/i.test(el.text)) {
+    const base = el.text.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    for (let j = i - 1; j >= 0; j--) {
+      const p = S.doc.elements[j];
+      if (p.type !== 'character') continue;
+      const pb = p.text.replace(/\s*\([^)]*\)\s*$/, '').trim();
+      if (pb && pb === base) el.text += " (CONT'D)";
+      break;
+    }
+  }
   if (atElementEnd(el, c.off)) {
     const nt = FOLLOW[el.type] || 'action';
     const ne = newEl(nt, '');
@@ -2001,6 +2172,7 @@ function openExtMenu(){
 function openExportMenu(){
   popup([
     { label: 'PDF — print / save as pdf', key: '⌘P', act: 'pdf' },
+    { label: 'Final Draft (.fdx)', act: 'fdx' },
     { label: 'Fountain (.fountain)', act: 'fountain' },
     { label: 'PICA JSON (.json)', act: 'json' },
   ], { cap: 'export', kind: 'export', onPick: it => doExport(it.act) });
@@ -2110,6 +2282,198 @@ function smartType(el){
   }});
 }
 
+// ---------- find & replace ----------
+const F = { hits: [], at: -1, q: '' };
+function findRecompute(){
+  const q = $('#findIn').value;
+  F.q = q; F.hits = []; F.at = -1;
+  if (q.length >= 1) {
+    const needle = q.toLowerCase();
+    for (const el of S.doc.elements) {
+      const hay = el.text.toLowerCase();
+      let i = 0;
+      while ((i = hay.indexOf(needle, i)) !== -1) { F.hits.push({ id: el.id, off: i, len: q.length }); i += Math.max(1, q.length); }
+    }
+  }
+  $('#findCount').textContent = F.hits.length ? '0 / ' + F.hits.length : (q ? '0 / 0' : '–');
+}
+function findJump(dir){
+  if (!F.hits.length) return;
+  F.at = ((F.at + dir) % F.hits.length + F.hits.length) % F.hits.length;
+  $('#findCount').textContent = (F.at + 1) + ' / ' + F.hits.length;
+  const h = F.hits[F.at];
+  // locate the page holding this offset and bring it in
+  let pi = -1, hitLine = null;
+  outer: for (let i = 0; i < S.res.pages.length; i++)
+    for (const l of S.res.pages[i].lines)
+      if (l.el === h.id && h.off >= l.off && h.off <= l.off + l.text.length) { pi = i; hitLine = l; break outer; }
+  if (pi < 0) return;
+  S.pageEls[pi]?.wrap.scrollIntoView({ block: 'center' });
+  setTimeout(() => {
+    renderPage(pi);
+    // select the match (clipped to its first rendered line)
+    const pe = S.pageEls[pi];
+    for (const d of pe.page?.children || []) {
+      if (d.dataset.el !== h.id) continue;
+      const start = +d.dataset.off || 0;
+      if (h.off < start || h.off > start + d.textContent.length) continue;
+      const from = h.off - start;
+      const to = Math.min(d.textContent.length, from + h.len);
+      const r = document.createRange();
+      const walk = document.createTreeWalker(d, NodeFilter.SHOW_TEXT);
+      let acc = 0, n, sN = null, sO = 0, eN = null, eO = 0;
+      while ((n = walk.nextNode())) {
+        if (!sN && from <= acc + n.length) { sN = n; sO = from - acc; }
+        if (to <= acc + n.length) { eN = n; eO = to - acc; break; }
+        acc += n.length;
+      }
+      if (sN && eN) { r.setStart(sN, sO); r.setEnd(eN, eO); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); }
+      S.caret = { el: h.id, off: h.off + h.len };
+      break;
+    }
+    status();
+  }, 90);
+}
+function findOpen(){
+  $('#findBar').hidden = false;
+  const sel = getSelection().toString();
+  if (sel && sel.length < 60) $('#findIn').value = sel;
+  $('#findIn').focus(); $('#findIn').select();
+  findRecompute();
+}
+function findClose(){ $('#findBar').hidden = true; F.hits = []; F.at = -1; pagesEl.focus(); }
+function replaceCurrent(){
+  if (F.at < 0 || !F.hits[F.at]) { findJump(1); return; }
+  const h = F.hits[F.at];
+  const el = elById(h.id); if (!el) return;
+  const rep = $('#replIn').value;
+  opText(el.id, el.text.slice(0, h.off) + rep + el.text.slice(h.off + h.len), { el: el.id, off: h.off + rep.length });
+  const wasAt = F.at;
+  findRecompute();
+  F.at = Math.min(wasAt - 1, F.hits.length - 1);
+  findJump(1);
+}
+function replaceAll(){
+  if (!F.q || !F.hits.length) return;
+  const rep = $('#replIn').value;
+  const needle = F.q.toLowerCase();
+  const changes = [];
+  for (const el of S.doc.elements) {
+    const hay = el.text.toLowerCase();
+    if (!hay.includes(needle)) continue;
+    let out = '', i = 0, j;
+    while ((j = hay.indexOf(needle, i)) !== -1) { out += el.text.slice(i, j) + rep; i = j + F.q.length; }
+    out += el.text.slice(i);
+    changes.push({ id: el.id, text: out });
+  }
+  const n = F.hits.length;
+  opTexts(changes);
+  findRecompute();
+  toast(n + ' replaced');
+}
+
+// ---------- draft mode: named drafts, stored inside the document ----------
+function draftsOf(){ if (!Array.isArray(S.doc.drafts)) S.doc.drafts = []; return S.doc.drafts; }
+
+function saveDraft(){
+  const drafts = draftsOf();
+  const name = prompt('Name this draft', 'Draft ' + (drafts.length + 1));
+  if (name == null) return;
+  drafts.push({
+    id: E.uid(), name: (name.trim() || 'Draft ' + (drafts.length + 1)).slice(0, 40), t: Date.now(),
+    elements: JSON.parse(JSON.stringify(S.doc.elements)),
+    titlePage: JSON.parse(JSON.stringify(S.doc.titlePage)),
+  });
+  flushSave(); draftChip(); toast('draft saved · ' + drafts[drafts.length - 1].name);
+}
+
+function restoreDraft(dr){
+  if (!confirm('Restore “' + dr.name + '”? The current state is kept as its own draft first.')) return;
+  const drafts = draftsOf();
+  drafts.push({ id: E.uid(), name: 'Before restoring ' + dr.name, t: Date.now(),
+    elements: JSON.parse(JSON.stringify(S.doc.elements)), titlePage: JSON.parse(JSON.stringify(S.doc.titlePage)) });
+  const ne = JSON.parse(JSON.stringify(dr.elements));
+  opSplice(0, S.doc.elements.length, ne, ne[0] ? { el: ne[0].id, off: 0 } : null);
+  S.doc.titlePage = JSON.parse(JSON.stringify(dr.titlePage || []));
+  repaginate(); buildPages(); renderAllVisible(); restoreCaret(); rail(); status(); flushSave(); draftChip();
+  toast('restored · ' + dr.name);
+}
+
+// per-scene comparison: segment both versions by slugline, diff scene text
+function sceneMapOf(els){
+  const map = new Map(); const order = [];
+  let cur = { slug: '— before the first slugline —', texts: [] }, seen = new Map();
+  const push = () => {
+    if (!cur.texts.length && !map.size && cur.slug.startsWith('—')) return;
+    const n = (seen.get(cur.slug) || 0) + 1; seen.set(cur.slug, n);
+    const key = cur.slug + (n > 1 ? ' (' + n + ')' : '');
+    map.set(key, cur.texts.join('\n')); order.push(key);
+  };
+  for (const e of els) {
+    if (e.type === 'scene') { push(); cur = { slug: e.text || '(blank slugline)', texts: [] }; }
+    else cur.texts.push(e.type + ': ' + e.text);
+  }
+  push();
+  return { map, order };
+}
+
+function compareDraft(dr){
+  const A = sceneMapOf(dr.elements), B = sceneMapOf(S.doc.elements);
+  const keys = [...new Set([...A.order, ...B.order])];
+  let changed = 0, added = 0, removed = 0;
+  const rows = keys.map(k => {
+    const a = A.map.get(k), b = B.map.get(k);
+    let st;
+    if (a == null) { st = 'added'; added++; }
+    else if (b == null) { st = 'removed'; removed++; }
+    else if (a !== b) { st = 'changed'; changed++; }
+    else st = 'same';
+    return { k, st, a, b };
+  });
+  const esc2 = t => (t || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  overlayCard('<h2>' + esc2(dr.name) + ' → current</h2>' +
+    '<div class="sub">' + changed + ' changed · ' + added + ' added · ' + removed + ' removed · ' + (rows.length - changed - added - removed) + ' untouched</div>' +
+    '<div id="cmpList">' + rows.filter(r => r.st !== 'same').map((r, i) =>
+      '<div class="cmp-row" data-i="' + i + '"><span class="cmp-st cmp-' + r.st + '">' + r.st + '</span> <span class="cmp-slug">' + esc2(r.k) + '</span>' +
+      '<div class="cmp-body" hidden><div class="cmp-col"><h4>' + esc2(dr.name) + '</h4><pre>' + esc2(r.a || '—') + '</pre></div>' +
+      '<div class="cmp-col"><h4>current</h4><pre>' + esc2(r.b || '—') + '</pre></div></div></div>').join('') +
+    (rows.some(r => r.st !== 'same') ? '' : '<p>Identical — nothing has changed since this draft.</p>') + '</div>' +
+    '<div class="foot"><button class="hbtn" onclick="document.getElementById(\'overlay\').classList.remove(\'show\')">close</button></div>');
+  document.querySelectorAll('.cmp-row').forEach(rw => {
+    rw.addEventListener('mousedown', ev => {
+      if (ev.target.closest('.cmp-body')) return;
+      ev.preventDefault();
+      const b = rw.querySelector('.cmp-body'); b.hidden = !b.hidden;
+    });
+  });
+}
+
+function draftChip(){
+  const n = (S.doc && Array.isArray(S.doc.drafts)) ? S.doc.drafts.length : 0;
+  $('#stDrafts').textContent = n ? 'drafts · ' + n : 'drafts';
+}
+
+function draftsMenu(ev){
+  const drafts = draftsOf();
+  const items = [{ label: '＋ Save draft…', act: 'save' },
+    ...drafts.slice().reverse().map(d => ({ label: d.name + '  ·  ' + new Date(d.t).toLocaleDateString(), draft: d }))];
+  popupAt(items, ev.clientX, ev.clientY - 10 - items.length * 26, it => {
+    if (it.act === 'save') { saveDraft(); return; }
+    const d = it.draft;
+    popupAt([
+      { label: 'Compare to current', a: 'cmp' },
+      { label: 'Restore', a: 'restore' },
+      { label: 'Rename…', a: 'ren' },
+      { label: 'Delete…', a: 'del' },
+    ], ev.clientX, ev.clientY - 120, it2 => {
+      if (it2.a === 'cmp') compareDraft(d);
+      else if (it2.a === 'restore') restoreDraft(d);
+      else if (it2.a === 'ren') { const n = prompt('Rename draft', d.name); if (n != null) { d.name = n.trim() || d.name; flushSave(); } }
+      else if (it2.a === 'del') { if (confirm('Delete draft “' + d.name + '”?')) { S.doc.drafts = draftsOf().filter(x => x.id !== d.id); flushSave(); draftChip(); toast('draft deleted'); } }
+    });
+  });
+}
+
 // ---------- rail / status ----------
 function rail(){
   const dl = $('#docList');
@@ -2123,8 +2487,39 @@ function rail(){
     b.innerHTML = '<span class="ttl"></span><span class="pg"></span>';
     b.firstChild.textContent = (pinned.has(d.id) ? '• ' : '') + (d.title || 'Untitled');
     b.lastChild.textContent = d.pages ? d.pages + 'p' : '';
-    b.addEventListener('mousedown', ev => { if (ev.button !== 0) return; ev.preventDefault(); if (d.id !== S.docId) openDoc(d.id); });
+    b.addEventListener('mousedown', ev => { if (ev.button !== 0) return; if (d.id !== S.docId) openDoc(d.id); });
     b.addEventListener('contextmenu', ev => { ev.preventDefault(); docMenu(d, ev); });
+    // drag to reorder — the index array IS the manual order
+    b.draggable = true;
+    b.addEventListener('dragstart', ev => {
+      ev.dataTransfer.setData('text/pica-doc', d.id);
+      ev.dataTransfer.effectAllowed = 'move';
+      b.classList.add('dragging');
+    });
+    b.addEventListener('dragend', () => b.classList.remove('dragging'));
+    b.addEventListener('dragover', ev => {
+      ev.preventDefault(); ev.dataTransfer.dropEffect = 'move';
+      const r = b.getBoundingClientRect();
+      b.classList.toggle('drop-above', ev.clientY < r.top + r.height / 2);
+      b.classList.toggle('drop-below', ev.clientY >= r.top + r.height / 2);
+    });
+    b.addEventListener('dragleave', () => b.classList.remove('drop-above', 'drop-below'));
+    b.addEventListener('drop', ev => {
+      ev.preventDefault();
+      const below = b.classList.contains('drop-below');
+      b.classList.remove('drop-above', 'drop-below');
+      const src = ev.dataTransfer.getData('text/pica-doc');
+      if (!src || src === d.id) return;
+      const ix = store.index();
+      const from = ix.findIndex(x => x.id === src);
+      if (from < 0) return;
+      const [moved] = ix.splice(from, 1);
+      let to = ix.findIndex(x => x.id === d.id);
+      if (below) to += 1;
+      ix.splice(to, 0, moved);
+      store.saveIndex(ix);
+      rail();
+    });
     dl.appendChild(b);
   }
   const sl = $('#sceneList');
@@ -2324,6 +2719,17 @@ async function importPdfBuffer(buf, name){
   }
 }
 
+function importFdxText(text, name){
+  try {
+    const doc = E.importFdx(text);
+    if (!doc.title || doc.title === 'UNTITLED') doc.title = (name || 'SCRIPT').replace(/\.fdx$/i, '').replace(/[_-]+/g, ' ').toUpperCase();
+    const id = E.uid();
+    store.save(id, doc);
+    openDoc(id);
+    toast('imported from final draft · ' + S.res.count + ' pages');
+  } catch (e) { toast(String(e.message || e)); }
+}
+
 function importJson(text, name){
   try {
     const doc = JSON.parse(text);
@@ -2345,8 +2751,13 @@ function download(name, text, type){
 function safeName(){ return (S.doc.title || 'script').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'script'; }
 function doExport(act){
   if (act === 'fountain') download(safeName() + '.fountain', E.toFountain(S.doc));
+  else if (act === 'fdx') download(safeName() + '.fdx', E.toFdx(S.doc), 'application/xml');
   else if (act === 'json') download(safeName() + '.json', JSON.stringify(S.doc, null, 1), 'application/json');
-  else if (act === 'pdf') printAll();
+  else if (act === 'pdf') {
+    // in PICA.app this writes a real .pdf via the native save panel — no print dialog
+    if (window.webkit?.messageHandlers?.pica) window.webkit.messageHandlers.pica.postMessage({ exportPdf: true, name: safeName() });
+    else printAll();
+  }
 }
 function printPageCSS(){
   let st = $('#printPage');
@@ -2378,7 +2789,7 @@ function applyUiPrefs(){
   const ui = LS.get('pica.ui', {});
   document.documentElement.style.setProperty('--ui-base', (ui.uiBase || 20) + 'px');
   document.documentElement.style.setProperty('--page', ui.paper === 'white' ? '#ffffff' : '#fdfcf8');
-  S.pref = { smartType: ui.smartType !== false, autoDetect: ui.autoDetect !== false };
+  S.pref = { smartType: ui.smartType !== false, autoDetect: ui.autoDetect !== false, autoContd: ui.autoContd !== false };
 }
 function setUiBase(px){
   const ui = LS.get('pica.ui', {}); ui.uiBase = px; LS.set('pica.ui', ui);
@@ -2424,6 +2835,8 @@ function showSettings(){
     seg('setSmart', [['on','On'],['off','Off']], ui.smartType === false ? 'off' : 'on'))}
   ${row('Auto-detection', 'int. becomes INT. — caps ending TO: becomes a transition.',
     seg('setAuto', [['on','On'],['off','Off']], ui.autoDetect === false ? 'off' : 'on'))}
+  ${row("Auto (CONT'D)", 'The same speaker again gets (CONT\u2019D) on the cue.',
+    seg('setContd', [['on','On'],['off','Off']], ui.autoContd === false ? 'off' : 'on'))}
 
   <h3>Safekeeping</h3>
   ${row('Snapshots', snaps.length + ' kept for this script — click a time to restore.',
@@ -2488,6 +2901,7 @@ function showSettings(){
   wire('setPaper', v => { const u = LS.get('pica.ui', {}); u.paper = v; LS.set('pica.ui', u); applyUiPrefs(); rerenderAll(); });
   wire('setSmart', v => { const u = LS.get('pica.ui', {}); u.smartType = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setAuto', v => { const u = LS.get('pica.ui', {}); u.autoDetect = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
+  wire('setContd', v => { const u = LS.get('pica.ui', {}); u.autoContd = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setSnaps', v => {
     const snaps = LS.get('pica.snap.' + S.docId, []);
     const sn = snaps[+v]; if (!sn) return;
@@ -2715,6 +3129,7 @@ function applyRailPrefs(){
   document.body.classList.toggle('railhidden', !!ui.railHidden);
 }
 $('#railToggle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleRail(); });
+$('#stDrafts').addEventListener('mousedown', ev => { ev.preventDefault(); draftsMenu(ev); });
 $('#railGrip').addEventListener('mousedown', ev => {
   ev.preventDefault();
   const grip = $('#railGrip');
@@ -2751,6 +3166,7 @@ $('#fileIn').addEventListener('change', async ev => {
   const f = ev.target.files[0]; ev.target.value = '';
   if (!f) return;
   if (/\.json$/i.test(f.name)) importJson(await f.text(), f.name);
+  else if (/\.fdx$/i.test(f.name)) importFdxText(await f.text(), f.name);
   else importPdfBuffer(await f.arrayBuffer(), f.name);
 });
 addEventListener('dragover', e => e.preventDefault());
@@ -2758,7 +3174,26 @@ addEventListener('drop', async e => {
   e.preventDefault();
   const f = e.dataTransfer.files[0]; if (!f) return;
   if (/\.json$/i.test(f.name)) importJson(await f.text(), f.name);
+  else if (/\.fdx$/i.test(f.name)) importFdxText(await f.text(), f.name);
   else if (/\.pdf$/i.test(f.name)) importPdfBuffer(await f.arrayBuffer(), f.name);
+});
+
+$('#findIn').addEventListener('input', findRecompute);
+$('#findIn').addEventListener('keydown', ev => {
+  if (ev.key === 'Enter') { ev.preventDefault(); findJump(ev.shiftKey ? -1 : 1); }
+  if (ev.key === 'Escape') { ev.preventDefault(); findClose(); }
+});
+$('#replIn').addEventListener('keydown', ev => {
+  if (ev.key === 'Enter') { ev.preventDefault(); replaceCurrent(); }
+  if (ev.key === 'Escape') { ev.preventDefault(); findClose(); }
+});
+$('#findNext').addEventListener('mousedown', ev => { ev.preventDefault(); findJump(1); });
+$('#findPrev').addEventListener('mousedown', ev => { ev.preventDefault(); findJump(-1); });
+$('#replOne').addEventListener('mousedown', ev => { ev.preventDefault(); replaceCurrent(); });
+$('#replAll').addEventListener('mousedown', ev => { ev.preventDefault(); replaceAll(); });
+$('#findClose').addEventListener('mousedown', ev => { ev.preventDefault(); findClose(); });
+document.addEventListener('keydown', ev => {
+  if ((ev.metaKey || ev.ctrlKey) && !ev.shiftKey && ev.key.toLowerCase() === 'f') { ev.preventDefault(); findOpen(); }
 });
 
 $('#docTitle').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } });
@@ -2788,6 +3223,7 @@ window.PICA_API = {
       return r.arrayBuffer();
     }).then(buf => {
       if (/\.json$/i.test(name || '')) importJson(new TextDecoder().decode(buf), name);
+      else if (/\.fdx$/i.test(name || '')) importFdxText(new TextDecoder().decode(buf), name);
       else importPdfBuffer(buf, name);
     }).catch(e => toast(String(e.message || e)));
   },
