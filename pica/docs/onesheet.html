@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>PICA — one sheet</title>
+<style>
+@font-face{ font-family:"Courier Prime"; src:url("../fonts/CourierPrime-Regular.ttf") format("truetype"); }
+@page{ size: Letter; margin: 0; }
+:root{
+  --serif: "Iowan Old Style", "Palatino", Georgia, serif;
+  --mono: "Menlo", "SF Mono", monospace;
+  --courier: "Courier Prime", "Courier New", monospace;
+  --paper:#f7f6f3; --ink:#141413; --ink2:#4c4b47; --faint:#8f8e88; --line:#d6d5ce; --rule:#141413;
+}
+*{ margin:0; padding:0; box-sizing:border-box; }
+html,body{ width:8.5in; height:11in; }
+body{
+  background:var(--paper); color:var(--ink); font-family:var(--serif);
+  padding:.58in .62in .5in; overflow:hidden;
+  -webkit-print-color-adjust:exact; print-color-adjust:exact;
+}
+
+/* ---- masthead ---- */
+.mast{ display:flex; align-items:flex-end; gap:.22in; border-bottom:2.5px solid var(--rule); padding-bottom:.16in; }
+.mark{
+  width:.78in; height:.78in; background:#fff; border:1px solid var(--line); border-radius:.14in;
+  display:flex; flex-direction:column; justify-content:center; gap:.045in; padding:.14in .12in; flex:none;
+}
+.mark i{ display:block; height:.048in; background:var(--ink); border-radius:.01in; }
+.wordmark{ font-size:52px; font-weight:600; letter-spacing:.04em; line-height:.9; }
+.mast .tag{ margin-left:auto; text-align:right; font-family:var(--mono); font-size:8.2px; letter-spacing:.26em; color:var(--faint); line-height:2; }
+.dek{ font-size:11.5px; line-height:1.5; color:var(--ink2); margin:.13in 0 .17in; max-width:6.9in; }
+.dek b{ color:var(--ink); font-weight:600; }
+
+/* ---- columns ---- */
+.cols{ display:grid; grid-template-columns: 1fr 1fr; gap:.34in; }
+h2{
+  font-family:var(--mono); font-size:8.4px; letter-spacing:.3em; color:var(--faint);
+  text-transform:uppercase; display:flex; align-items:center; gap:.09in; margin:.16in 0 .07in;
+}
+h2::after{ content:""; flex:1; height:1px; background:var(--line); }
+h2:first-child{ margin-top:0; }
+
+table{ width:100%; border-collapse:collapse; }
+td{ font-size:9.6px; line-height:1.42; padding:.028in 0; vertical-align:top; color:var(--ink2); }
+td.k{ font-family:var(--mono); font-size:8.6px; letter-spacing:.04em; color:var(--ink); white-space:nowrap; padding-right:.14in; width:1.18in; }
+td.arrow{ width:.16in; color:var(--faint); }
+.gram td.k{ font-family:var(--courier); font-size:9.2px; width:1.34in; }
+
+.feat{ list-style:none; }
+.feat li{ font-size:9.7px; line-height:1.44; color:var(--ink2); padding:.032in 0 .032in .16in; position:relative; }
+.feat li::before{ content:""; position:absolute; left:0; top:.085in; width:.075in; height:.05in; background:var(--ink); }
+.feat b{ color:var(--ink); font-weight:600; }
+
+.slugwalk{
+  font-family:var(--courier); font-size:9.4px; color:var(--ink2); line-height:1.7;
+  border-left:2px solid var(--rule); padding-left:.12in; margin:.05in 0 .04in;
+}
+.slugwalk b{ color:var(--ink); font-weight:400; background:#fff; outline:1px solid var(--line); padding:0 .02in; }
+
+/* ---- footer ---- */
+.foot{
+  position:absolute; left:.62in; right:.62in; bottom:.42in;
+  border-top:1px solid var(--rule); padding-top:.09in;
+  display:flex; align-items:baseline; gap:.3in;
+  font-family:var(--mono); font-size:8px; letter-spacing:.18em; color:var(--faint);
+}
+.foot .r{ margin-left:auto; letter-spacing:.12em; }
+</style>
+</head>
+<body>
+
+<div class="mast">
+  <div class="mark">
+    <i style="width:100%"></i><i style="width:62%"></i>
+    <i style="width:24%; margin-left:38%"></i><i style="width:52%; margin-left:19%"></i>
+  </div>
+  <div class="wordmark">PICA</div>
+  <div class="tag">A SCREENWRITING INSTRUMENT<br>FEATURES &amp; COMMANDS · MMXXVI</div>
+</div>
+
+<p class="dek">The screen <b>is</b> the page. Drop in any screenplay PDF and it comes back
+<b>identical</b> — every line, indent and page break — fully editable, with Final Draft's own
+typing grammar under your hands. True Courier at true margins: screen, print and PDF are one layout.</p>
+
+<div class="cols">
+<div>
+  <h2>The grammar — Enter</h2>
+  <table class="gram">
+    <tr><td class="k">SCENE HEADING</td><td class="arrow">⏎</td><td>Action</td></tr>
+    <tr><td class="k">ACTION</td><td class="arrow">⏎</td><td>Action</td></tr>
+    <tr><td class="k">CHARACTER</td><td class="arrow">⏎</td><td>Dialogue</td></tr>
+    <tr><td class="k">PARENTHETICAL</td><td class="arrow">⏎</td><td>Dialogue</td></tr>
+    <tr><td class="k">DIALOGUE</td><td class="arrow">⏎</td><td>Action</td></tr>
+    <tr><td class="k">TRANSITION</td><td class="arrow">⏎</td><td>Scene Heading</td></tr>
+    <tr><td class="k">blank element</td><td class="arrow">⏎</td><td>the element menu — pick by number, letter or arrows</td></tr>
+  </table>
+
+  <h2>The grammar — Tab</h2>
+  <table class="gram">
+    <tr><td class="k">SCENE HEADING</td><td class="arrow">⇥</td><td>walks the slug, then Action</td></tr>
+    <tr><td class="k">ACTION</td><td class="arrow">⇥</td><td>Character</td></tr>
+    <tr><td class="k">CHARACTER</td><td class="arrow">⇥</td><td>Parenthetical — <i>blank cue:</i> Transition</td></tr>
+    <tr><td class="k">DIALOGUE</td><td class="arrow">⇥</td><td>Parenthetical, self-wrapping ( )</td></tr>
+    <tr><td class="k">PARENTHETICAL</td><td class="arrow">⇥</td><td>Dialogue, from anywhere inside</td></tr>
+    <tr><td class="k">TRANSITION</td><td class="arrow">⇥</td><td>Scene Heading</td></tr>
+  </table>
+  <div class="slugwalk">INT<b>⇥</b> INT. <b>your locations…</b> <b>⇥</b> – <b>DAY / NIGHT…</b> <b>⇥</b> Action</div>
+
+  <h2>It already knows</h2>
+  <ul class="feat">
+    <li><b>SmartType</b> — characters, locations and times complete from the script itself; in a two-hander it offers the other speaker first. <span style="font-family:var(--mono); font-size:8px">→</span> accepts.</li>
+    <li><b>int.</b> becomes INT. as you type · ALL-CAPS ending TO: becomes a transition · “(” in dialogue becomes a parenthetical.</li>
+    <li><b>Auto-(CONT'D)</b> when the same speaker resumes after action.</li>
+    <li><b>Right-click anything</b> — it names what it is and offers to change it, best guess first. Select a run and press ⇥ or ⏎ to retype it all.</li>
+    <li><b>Click anywhere</b> — the caret lands at the nearest text, no precision required.</li>
+  </ul>
+</div>
+
+<div>
+  <h2>Keyboard</h2>
+  <table>
+    <tr><td class="k">⌘1–⌘7 · ⌘0</td><td>Scene · Action · Character · Paren · Dialogue · Transition · Shot · General</td></tr>
+    <tr><td class="k">⌘\</td><td>element menu</td></tr>
+    <tr><td class="k">⌘F</td><td>find &amp; replace — ⏎ / ⇧⏎ walk the hits; Replace All is one undo</td></tr>
+    <tr><td class="k">⌘B · ⌘I · ⌘U</td><td>bold · italic · underline</td></tr>
+    <tr><td class="k">⌘Z · ⇧⌘Z</td><td>undo · redo — every operation, including Replace All and restores</td></tr>
+    <tr><td class="k">⇧⏎</td><td>hard line break inside an element</td></tr>
+    <tr><td class="k">⌥⌘S</td><td>sidebar — drag its edge to resize, double-click to reset</td></tr>
+    <tr><td class="k">⇧⌘T</td><td>title page — hidden by default; page 1 is your first written page</td></tr>
+    <tr><td class="k">⌘,</td><td>settings — interface size, theme, paper, writing aids, snapshots</td></tr>
+    <tr><td class="k">⌘N · ⌘O · ⌘I</td><td>new script · open · import PDF</td></tr>
+    <tr><td class="k">⌘P · ⇧⌘E</td><td>print · export a true .pdf file, identical pages</td></tr>
+    <tr><td class="k">zoom</td><td>pinch, ⌘+/⌘− · click % to fit · double-click for 100%</td></tr>
+    <tr><td class="k">esc</td><td>closes any menu or panel</td></tr>
+  </table>
+
+  <h2>Features</h2>
+  <ul class="feat">
+    <li><b>Imports the real world</b> — production drafts with revision headers and scene-number gutters, bare or dotted page numbers, even fonts that hide their character map: cracked, scrubbed, reproduced. Proven line-for-line on Tenet: 5,907 of 5,907.</li>
+    <li><b>Final Draft, both ways</b> — .fdx in and out, lossless, emphasis included.</li>
+    <li><b>Draft mode</b> — named drafts stored inside the document; compare any draft to the current script scene by scene; restore keeps a safety copy and is undoable.</li>
+    <li><b>The index</b> — drag to reorder, pin, rename, duplicate, export, delete; each script reopens where you left it.</li>
+    <li><b>Never lose a word</b> — autosave as you type, rolling snapshots, additive storage that every update must honour.</li>
+    <li><b>Exports</b> — PDF · Final Draft · Fountain · JSON.</li>
+  </ul>
+</div>
+</div>
+
+<div class="foot">
+  <span>PICA.APP FOR MACOS</span>
+  <span>LABERN.GITHUB.IO/CLEAN/PICA</span>
+  <span class="r">SET IN COURIER PRIME · ONE INK</span>
+</div>
+
+</body>
+</html>
