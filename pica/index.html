@@ -1,0 +1,1690 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PICA — a screenwriting instrument</title>
+<meta name="description" content="A screenplay editor that reads and writes the printed page. Import any Final Draft PDF and edit it — identically.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%A6%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* ================================================================
+   PICA — MONOGRAPH chrome (grisaille, serif+mono) around a Courier page.
+   One ink, no accent. The script page is always paper — it is the object.
+   ================================================================ */
+:root{
+  --serif: ui-serif, "New York", "Iowan Old Style", Palatino, Georgia, "Times New Roman", serif;
+  --mono:  ui-monospace, "SF Mono", "Menlo", "Cascadia Code", "Roboto Mono", monospace;
+  --courier: "Courier Prime", "Courier New", Courier, monospace;
+
+  --paper:#f6f5f2;  --paper-2:#efeee9;
+  --ink:#141413;    --ink-2:#4c4b47;   --faint:#8f8e88;
+  --line:#dad9d2;   --rule:#141413;
+  --page:#fdfcf8;   --page-ink:#1b1a17;
+  --shadow: 0 14px 44px rgba(20,20,19,.14), 0 2px 8px rgba(20,20,19,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#111110;  --paper-2:#181817;
+    --ink:#ecebe6;    --ink-2:#b1b0a9;   --faint:#706f69;
+    --line:#2a2a27;   --rule:#ecebe6;
+    --shadow: 0 18px 54px rgba(0,0,0,.55), 0 2px 10px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="light"]{
+  --paper:#f6f5f2;  --paper-2:#efeee9;
+  --ink:#141413;    --ink-2:#4c4b47;   --faint:#8f8e88;
+  --line:#dad9d2;   --rule:#141413;
+  --shadow: 0 14px 44px rgba(20,20,19,.14), 0 2px 8px rgba(20,20,19,.08);
+}
+:root[data-theme="dark"]{
+  --paper:#111110;  --paper-2:#181817;
+  --ink:#ecebe6;    --ink-2:#b1b0a9;   --faint:#706f69;
+  --line:#2a2a27;   --rule:#ecebe6;
+  --shadow: 0 18px 54px rgba(0,0,0,.55), 0 2px 10px rgba(0,0,0,.4);
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; }
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:var(--serif);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+button{ background:none; border:none; color:inherit; font:inherit; cursor:pointer; }
+::selection{ background:var(--ink); color:var(--paper); }
+.page ::selection{ background:var(--page-ink); color:var(--page); }
+
+/* ---------- masthead ---------- */
+header{
+  display:flex; align-items:baseline; gap:1.1rem;
+  padding:.62rem 1.1rem .56rem;
+  border-bottom:1px solid var(--line);
+  flex:none; user-select:none;
+}
+.wordmark{ font-family:var(--serif); font-size:1.28rem; font-weight:560; letter-spacing:.02em; }
+.wordmark sup{ font-family:var(--mono); font-size:.55rem; letter-spacing:.22em; color:var(--faint); margin-left:.45rem; text-transform:uppercase; }
+#docTitle{
+  font-family:var(--mono); font-size:.72rem; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--ink-2); outline:none; padding:.1rem .3rem; border-bottom:1px dashed transparent;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:34vw;
+}
+#docTitle:focus{ border-bottom-color:var(--faint); }
+header .grow{ flex:1; }
+.hbtn{
+  font-family:var(--mono); font-size:.68rem; letter-spacing:.2em; text-transform:uppercase;
+  color:var(--ink-2); padding:.2rem .15rem; border-bottom:1px solid transparent;
+}
+.hbtn:hover{ color:var(--ink); border-bottom-color:var(--rule); }
+
+/* ---------- body split ---------- */
+#split{ flex:1; display:flex; min-height:0; }
+
+/* ---------- rail ---------- */
+#rail{
+  width:15.5rem; flex:none; border-right:1px solid var(--line);
+  overflow-y:auto; padding:1rem .95rem 3rem;
+  scrollbar-width:thin; user-select:none;
+}
+.eyebrow{
+  display:flex; align-items:center; gap:.6rem;
+  font-family:var(--mono); font-size:.6rem; letter-spacing:.26em; text-transform:uppercase;
+  color:var(--faint); margin:1.1rem 0 .5rem;
+}
+.eyebrow::after{ content:""; flex:1; height:1px; background:var(--line); }
+.eyebrow:first-child{ margin-top:0; }
+.doc-item,.scene-item{
+  display:flex; gap:.55rem; width:100%; text-align:left;
+  font-family:var(--mono); font-size:.68rem; line-height:1.5;
+  color:var(--ink-2); padding:.22rem .3rem .22rem .45rem;
+  border-left:2px solid transparent;
+}
+.doc-item:hover,.scene-item:hover{ color:var(--ink); }
+.doc-item.current,.scene-item.current{ border-left-color:var(--rule); color:var(--ink); }
+.scene-item .no{ color:var(--faint); flex:none; width:1.7em; text-align:right; font-variant-numeric:tabular-nums; }
+.scene-item .sl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.doc-item .pg{ margin-left:auto; color:var(--faint); font-variant-numeric:tabular-nums; flex:none;}
+.rail-act{ font-family:var(--mono); font-size:.64rem; letter-spacing:.18em; color:var(--faint); padding:.25rem .45rem; text-transform:uppercase;}
+.rail-act:hover{ color:var(--ink); }
+
+/* ---------- canvas ---------- */
+#canvas{ flex:1; overflow:auto; background:var(--paper-2); min-width:0; position:relative; }
+#pages{ outline:none; padding:2.2rem 1rem 6rem; caret-color:var(--page-ink); }
+.pageWrap{ margin:0 auto 2rem; position:relative; }
+.page{
+  position:relative; background:var(--page); color:var(--page-ink);
+  box-shadow:var(--shadow); margin:0 auto;
+  font-family:var(--courier); font-variant-ligatures:none;
+}
+.line{
+  position:absolute; white-space:pre; min-width:1px;
+}
+.line:empty::after{ content:"\200B"; }
+.gen{ color:var(--page-ink); }
+.pageghost{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+  font-family:var(--mono); font-size:.65rem; letter-spacing:.3em; color:var(--faint); }
+
+/* ---------- statusbar ---------- */
+footer{
+  flex:none; display:flex; align-items:center; gap:1.2rem;
+  border-top:1px solid var(--line); padding:.42rem 1.1rem;
+  font-family:var(--mono); font-size:.66rem; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--faint); user-select:none; white-space:nowrap; overflow:hidden;
+}
+#stType{ color:var(--ink); letter-spacing:.2em; border-bottom:1px solid var(--line); padding-bottom:1px; }
+#stType:hover{ border-bottom-color:var(--rule); }
+footer .grow{ flex:1; }
+footer .z{ padding:0 .25rem; color:var(--ink-2); }
+footer .z:hover{ color:var(--ink); }
+#stSave{ font-variant-numeric:tabular-nums; }
+#stPage{ font-variant-numeric:tabular-nums; color:var(--ink-2); }
+
+/* ---------- popups ---------- */
+.pop{
+  position:fixed; z-index:50; background:var(--paper); border:1px solid var(--line);
+  box-shadow:var(--shadow); min-width:14rem; max-width:22rem; padding:.35rem 0;
+  font-family:var(--mono); font-size:.7rem; letter-spacing:.06em;
+}
+.pop .it{
+  display:flex; gap:.8rem; padding:.3rem .8rem; color:var(--ink-2); cursor:pointer; align-items:baseline;
+}
+.pop .it .k{ margin-left:auto; color:var(--faint); font-size:.62rem; letter-spacing:.1em; }
+.pop .it.sel{ background:var(--ink); color:var(--paper); }
+.pop .it.sel .k{ color:var(--paper); opacity:.6; }
+.pop .cap{ padding:.25rem .8rem .35rem; font-size:.58rem; letter-spacing:.26em; text-transform:uppercase; color:var(--faint); border-bottom:1px solid var(--line); margin-bottom:.25rem;}
+
+/* ---------- overlay (keys / import / confirm) ---------- */
+#overlay{
+  position:fixed; inset:0; z-index:80; background:color-mix(in srgb, var(--paper) 72%, transparent);
+  display:none; align-items:center; justify-content:center; backdrop-filter:blur(2px);
+}
+#overlay.show{ display:flex; }
+.card{
+  background:var(--paper); border:1px solid var(--line); box-shadow:var(--shadow);
+  max-width:34rem; width:min(34rem, 92vw); max-height:84vh; overflow:auto; padding:1.6rem 1.9rem 1.7rem;
+}
+.card h2{ font-family:var(--serif); font-weight:560; font-size:1.3rem; letter-spacing:-.01em; margin-bottom:.2rem; }
+.card .sub{ font-family:var(--mono); font-size:.62rem; letter-spacing:.24em; text-transform:uppercase; color:var(--faint); margin-bottom:1.1rem; }
+.card table{ width:100%; border-collapse:collapse; font-family:var(--mono); font-size:.7rem; }
+.card td{ padding:.32rem .2rem; border-top:1px solid var(--line); color:var(--ink-2); vertical-align:top;}
+.card td:first-child{ white-space:nowrap; padding-right:1.2rem; color:var(--ink); letter-spacing:.08em; }
+.card .foot{ margin-top:1.2rem; display:flex; gap:1.4rem; }
+.card p{ font-size:.95rem; line-height:1.55; color:var(--ink-2); max-width:60ch; margin:.4rem 0; }
+#importLog{ font-family:var(--mono); font-size:.7rem; line-height:1.9; color:var(--ink-2); white-space:pre-wrap; }
+
+/* toast */
+#toast{
+  position:fixed; left:50%; bottom:3.2rem; transform:translateX(-50%) translateY(20px);
+  background:var(--ink); color:var(--paper); font-family:var(--mono); font-size:.66rem;
+  letter-spacing:.18em; text-transform:uppercase; padding:.5rem 1rem; opacity:0; transition:.25s; z-index:90;
+  pointer-events:none; white-space:nowrap;
+}
+#toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* ---------- responsive ---------- */
+#railToggle{ display:none; }
+@media (max-width: 880px){
+  #rail{ position:fixed; left:0; top:0; bottom:0; z-index:70; background:var(--paper);
+    transform:translateX(-100%); transition:.2s; padding-top:3rem; width:16rem;}
+  #rail.open{ transform:none; box-shadow:var(--shadow); }
+  #railToggle{ display:inline; }
+  #docTitle{ max-width:20vw; }
+}
+
+/* ---------- print: the page is the artifact ---------- */
+@media print{
+  html,body{ overflow:visible; background:#fff; height:auto;}
+  header,#rail,footer,.pop,#overlay,#toast{ display:none !important; }
+  #split,#canvas{ display:block; overflow:visible; }
+  #canvas{ background:#fff; }
+  #pages{ padding:0; }
+  .pageWrap{ margin:0; break-after:page; }
+  .page{ box-shadow:none; background:#fff; color:#000; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <button id="railToggle" class="hbtn">☰</button>
+  <div class="wordmark">PICA<sup>screenwriting instrument</sup></div>
+  <span id="docTitle" contenteditable="true" spellcheck="false"></span>
+  <div class="grow"></div>
+  <button class="hbtn" id="btnNew">New</button>
+  <button class="hbtn" id="btnImport">Import</button>
+  <button class="hbtn" id="btnExport">Export</button>
+  <button class="hbtn" id="btnKeys" title="keyboard grammar">?</button>
+  <button class="hbtn" id="btnTheme" title="invert">◐</button>
+</header>
+
+<div id="split">
+  <nav id="rail">
+    <div class="eyebrow">Index</div>
+    <div id="docList"></div>
+    <button class="rail-act" id="railNew">+ new script</button>
+    <button class="rail-act" id="railImport">+ import pdf</button>
+    <div class="eyebrow">Scenes</div>
+    <div id="sceneList"></div>
+  </nav>
+  <main id="canvas">
+    <div id="pages" contenteditable="true" spellcheck="false" autocorrect="off" autocapitalize="off"></div>
+  </main>
+</div>
+
+<footer>
+  <button id="stType">—</button>
+  <span id="stHint">⌘\ elements · tab cycles · ? keys</span>
+  <div class="grow"></div>
+  <span id="stPage">—</span>
+  <button class="z" id="zOut">−</button><button class="z" id="zFit">fit</button><button class="z" id="zIn">+</button>
+  <span id="stSave"></span>
+</footer>
+
+<div id="overlay"></div>
+<div id="toast"></div>
+<input type="file" id="fileIn" accept=".pdf,.json" style="display:none">
+
+<script>
+/*PICA-ENGINE-START*/
+const PicaEngine = (() => {
+  'use strict';
+
+  // ---------- element types ----------
+  const TYPES = ['scene', 'action', 'character', 'paren', 'dialogue', 'transition', 'shot', 'general'];
+
+  // Default layout: US Letter, Final Draft standard (new blank documents)
+  const LETTER = {
+    pageW: 612, pageH: 792,
+    y0: 76.5, rowH: 12, rows: 55,
+    pnY: 40.5, pnRight: 576,
+    cols: { action: 108, dialogue: 180, paren: 216, character: 266 },
+    transRight: 540, charW: 7.2,
+    widths: { scene: 57, action: 57, character: 33, paren: 19, dialogue: 35, transition: 30, shot: 57, general: 57 },
+    moreDy: 10, contDy: -14,
+  };
+
+  const SCENE_RE = /^(INT\.?\s*\/\s*EXT|EXT\.?\s*\/\s*INT|INT|EXT|I\/E|EST)[\s.]/i;
+  const uid = () => 'e' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+
+  // ---------- line assembly from positioned text items ----------
+  // items: [{x, y (top-origin), w, str}] for one page → lines [{x, xEnd, y, text}]
+  function linesFromItems(items, charW) {
+    const its = items.filter(i => i.str && i.str.trim() !== '');
+    its.sort((a, b) => a.y - b.y || a.x - b.x);
+    const lines = [];
+    for (const it of its) {
+      const last = lines[lines.length - 1];
+      if (last && Math.abs(last.y - it.y) < 2.5) last.items.push(it);
+      else lines.push({ y: it.y, items: [it] });
+    }
+    return lines.map(L => {
+      L.items.sort((a, b) => a.x - b.x);
+      let text = '', xEnd = 0;
+      for (let i = 0; i < L.items.length; i++) {
+        const it = L.items[i];
+        if (i > 0) {
+          const gap = it.x - xEnd;
+          if (gap > charW * 0.45 && !/\s$/.test(text)) text += ' '.repeat(Math.max(1, Math.round(gap / charW)));
+        }
+        text += it.str;
+        xEnd = it.x + it.w;
+      }
+      return { x: L.items[0].x, xEnd, y: L.y, text: text.replace(/\s+$/, '') };
+    }).filter(L => L.text.length > 0);
+  }
+
+  function estimateCharW(pages) {
+    const ws = [];
+    for (const p of pages) for (const it of p.items || [])
+      if (it.str && it.str.trim().length >= 4) ws.push(it.w / it.str.length);
+    ws.sort((a, b) => a - b);
+    return ws.length ? ws[Math.floor(ws.length / 2)] : 7.2;
+  }
+
+  // ---------- text wrapping (greedy, spaces only — Final Draft style) ----------
+  function wrapText(text, width) {
+    const out = [];
+    for (const seg of String(text).split('\n')) {
+      if (seg === '') { out.push(''); continue; }
+      let rest = seg;
+      while (rest.length > width) {
+        let cut = rest.lastIndexOf(' ', width);
+        if (cut <= 0) cut = width; // unbreakable word
+        out.push(rest.slice(0, cut).replace(/\s+$/, ''));
+        rest = rest.slice(cut).replace(/^\s+/, '');
+      }
+      out.push(rest);
+    }
+    return out.length ? out : [''];
+  }
+
+  function wrapElement(el, layout) {
+    if (el.text === '') return [''];
+    return wrapText(el.text, layout.widths[el.type] || 57);
+  }
+
+  // ---------- PDF import: classify pages of lines → document ----------
+  const mode = arr => {
+    const h = new Map();
+    for (const v of arr) h.set(v, (h.get(v) || 0) + 1);
+    let best = null, n = 0;
+    for (const [v, c] of h) if (c > n) { n = c; best = v; }
+    return best;
+  };
+
+  function importPdf(rawPages, opts = {}) {
+    const charW0 = estimateCharW(rawPages);
+    const pages = rawPages.map(p => ({
+      width: p.width, height: p.height,
+      lines: p.lines ? p.lines : linesFromItems(p.items, charW0),
+    }));
+
+    // -- title page detection: first page, few lines, no sluglines, mostly centered-ish
+    let titlePage = null, bodyStart = 0;
+    if (pages.length > 1) {
+      const p0 = pages[0];
+      const slug = p0.lines.some(l => SCENE_RE.test(l.text));
+      if (p0.lines.length > 0 && p0.lines.length <= 12 && !slug) { titlePage = p0; bodyStart = 1; }
+    }
+    const body = pages.slice(bodyStart);
+
+    // -- page numbers: short "N." lines in the top margin, right side
+    const isPageNum = (l, p) => /^\d+\.$/.test(l.text.trim()) && l.x > p.width * 0.55 && l.y < 60;
+
+    // -- collect body lines / metrics
+    const allLines = [];
+    for (const p of body) for (const l of p.lines) if (!isPageNum(l, p)) allLines.push(l);
+    const gaps = [];
+    for (const p of body) {
+      const ls = p.lines.filter(l => !isPageNum(l, p));
+      for (let i = 1; i < ls.length; i++) {
+        const g = Math.round(ls[i].y - ls[i - 1].y);
+        if (g > 4 && g < 30) gaps.push(g);
+      }
+    }
+    const rowH = mode(gaps) || 12;
+    const firstYs = body.slice(1).map(p => {
+      const ls = p.lines.filter(l => !isPageNum(l, p));
+      return ls.length ? Math.round(ls[0].y * 2) / 2 : null;
+    }).filter(v => v != null);
+    // y0 = the most common first-line y that is on the dominant grid
+    const y0 = mode(firstYs) ?? 76.5;
+
+    // -- column detection from x histogram
+    const xh = new Map();
+    for (const l of allLines) {
+      const k = Math.round(l.x);
+      xh.set(k, (xh.get(k) || 0) + 1);
+    }
+    // merge near-identical bins (±2pt)
+    const bins = [...xh.entries()].sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const [x, n] of bins) {
+      const last = merged[merged.length - 1];
+      if (last && x - last.x <= 2) { last.n += n; last.x = last.n > n ? last.x : x; }
+      else merged.push({ x, n });
+    }
+    const top = merged.filter(b => b.n >= allLines.length * 0.01).sort((a, b) => b.n - a.n).slice(0, 4)
+      .sort((a, b) => a.x - b.x);
+    const cols = { ...LETTER.cols };
+    if (top.length >= 4) {
+      cols.action = top[0].x; cols.dialogue = top[1].x; cols.paren = top[2].x; cols.character = top[3].x;
+    } else if (top.length === 3) { // no parentheticals in doc
+      cols.action = top[0].x; cols.dialogue = top[1].x; cols.character = top[2].x;
+      cols.paren = Math.round((cols.dialogue + cols.character) / 2);
+    } else if (top.length > 0) {
+      cols.action = top[0].x;
+    }
+
+    // -- page number metrics
+    let pnY = LETTER.pnY, pnRight = pages[0].width - 82;
+    const pns = [];
+    for (const p of body) for (const l of p.lines) if (isPageNum(l, p)) pns.push(l);
+    if (pns.length) {
+      pnY = mode(pns.map(l => Math.round(l.y * 2) / 2));
+      pnRight = pns.map(l => l.xEnd).sort((a, b) => a - b)[Math.floor(pns.length / 2)];
+    }
+
+    // -- transition right edge: caps lines ending ':' not at any col
+    const nearCol = x => Object.values(cols).some(c => Math.abs(x - c) < 3);
+    const transEnds = allLines
+      .filter(l => /[A-Z]/.test(l.text) && l.text === l.text.toUpperCase() && /:\s*$/.test(l.text) && !nearCol(l.x))
+      .map(l => l.xEnd);
+    const transRight = transEnds.length ? transEnds.sort((a, b) => a - b)[Math.floor(transEnds.length / 2)] : pages[0].width - 96;
+
+    // -- rows per page: highest on-grid row index seen
+    let maxRow = 0;
+    for (const l of allLines) {
+      const r = (l.y - y0) / rowH;
+      if (Math.abs(r - Math.round(r)) < 0.15) maxRow = Math.max(maxRow, Math.round(r));
+    }
+    const rows = maxRow + 1;
+
+    const layout = {
+      pageW: pages[0].width, pageH: pages[0].height,
+      y0, rowH, rows, pnY, pnRight,
+      cols, transRight, charW: charW0,
+      widths: { ...LETTER.widths },
+      moreDy: 10, contDy: -14,
+    };
+
+    // ---------- classification ----------
+    const roleOf = (l) => {
+      const near = (c) => Math.abs(l.x - c) < 3;
+      if (near(cols.action)) return SCENE_RE.test(l.text) ? 'scene' : 'action';
+      if (near(cols.dialogue)) return 'dialogue';
+      if (near(cols.paren)) return 'paren';
+      if (near(cols.character)) {
+        if (l.text.trim() === '(MORE)') return 'MORE';
+        return 'character';
+      }
+      if (Math.abs(l.xEnd - transRight) < 4 && l.text === l.text.toUpperCase() && /:\s*$/.test(l.text)) return 'transition';
+      return 'general';
+    };
+
+    const els = [];
+    let open = null;           // currently-open element accumulating source lines
+    let pendingSpeech = null;  // set when (MORE) seen at a page end: awaiting continuation
+    const flush = () => { if (open) { els.push(open); open = null; } };
+
+    for (let pi = 0; pi < body.length; pi++) {
+      const p = body[pi];
+      const ls = p.lines.filter(l => !isPageNum(l, p));
+      let prevLine = null, pageStart = true;
+
+      for (const l of ls) {
+        const contCue = pageStart && /\(CONT'D\)\s*$/.test(l.text) && Math.abs(l.x - cols.character) < 3
+          && pendingSpeech;
+        if (contCue) { pageStart = false; prevLine = null; continue; } // swallow generated cue
+
+        const role = roleOf(l);
+        if (role === 'MORE') { pendingSpeech = open || pendingSpeech || true; flush(); prevLine = null; pageStart = false; continue; }
+
+        const gap = prevLine ? Math.round(l.y - prevLine.y) : null;
+        const contSameEl = open && gap !== null && gap <= rowH + 2 && open.type === role
+          && (role === 'action' || role === 'dialogue' || role === 'paren');
+
+        if (contSameEl) {
+          open.srcLines.push(l);
+        } else if (pendingSpeech && !pageStart && prevLine === null && (role === 'dialogue' || role === 'paren')) {
+          // continuation after (MORE): resume the split speech
+          const prevEl = els[els.length - 1];
+          if (role === prevEl?.type && role === 'dialogue') {
+            open = els.pop(); open.srcLines.push(l); open.splitJoin = open.srcLines.length - 1;
+          } else {
+            open = { id: uid(), type: role, srcLines: [l] };
+          }
+          pendingSpeech = null;
+        } else {
+          flush();
+          open = { id: uid(), type: role, srcLines: [l] };
+          if (prevLine) open.gapBefore = Math.max(0, Math.round((l.y - prevLine.y) / rowH) - 1);
+          if (role === 'general') open.xOverride = Math.round(l.x * 100) / 100;
+          if (role === 'transition') open.align = 'right';
+        }
+        prevLine = l; pageStart = false;
+      }
+      flush(); // elements never span pages except via (MORE) handling above
+      if (!pendingSpeech) pendingSpeech = null;
+    }
+    flush();
+
+    // ---------- join source lines → text; calibrate widths; mark hard breaks ----------
+    for (const el of els) el.joined = el.srcLines.map(s => s.text).join(' ');
+
+    // width calibration per wrapping type: try candidates, keep the one that soft-wraps the most elements
+    for (const type of ['action', 'dialogue', 'paren', 'scene', 'character']) {
+      const cands = new Set();
+      let maxObs = 0;
+      for (const el of els) if (el.type === type)
+        for (const s of el.srcLines) maxObs = Math.max(maxObs, s.text.length);
+      if (!maxObs) continue;
+      for (let w = maxObs; w <= maxObs + 4; w++) cands.add(w);
+      let bestW = maxObs, bestScore = -1;
+      for (const w of cands) {
+        let score = 0;
+        for (const el of els) {
+          if (el.type !== type) continue;
+          const wrapped = wrapText(el.joined, w);
+          if (wrapped.length === el.srcLines.length && wrapped.every((t, i) => t === el.srcLines[i].text)) score++;
+        }
+        if (score > bestScore) { bestScore = score; bestW = w; }
+      }
+      layout.widths[type] = bestW;
+      if (type === 'action') { layout.widths.shot = bestW; layout.widths.general = bestW; }
+    }
+
+    // spacing overrides: where the source's blank rows differ from the standard rule
+    for (let i = 1; i < els.length; i++) {
+      const g = els[i].gapBefore;
+      if (g == null) continue;
+      const prev = els[i - 1], cur = els[i];
+      const speechInternal = (cur.type === 'dialogue' || cur.type === 'paren')
+        && (prev.type === 'character' || prev.type === 'dialogue' || prev.type === 'paren');
+      const expected = speechInternal ? 0 : blanksBefore(prev.type, cur.type);
+      if (g !== expected && !speechInternal) cur.spaceBefore = g;
+    }
+    for (const el of els) delete el.gapBefore;
+
+    // assign final text: soft where greedy wrap reproduces the source, hard breaks otherwise
+    for (const el of els) {
+      const w = layout.widths[el.type] || 57;
+      const wrapped = wrapText(el.joined, w);
+      const src = el.srcLines.map(s => s.text);
+      el.text = (wrapped.length === src.length && wrapped.every((t, i) => t === src[i]))
+        ? el.joined : src.join('\n');
+      delete el.joined; delete el.srcLines; delete el.splitJoin;
+    }
+
+    // ---------- title page ----------
+    let tp = [];
+    if (titlePage) {
+      tp = titlePage.lines.map(l => ({
+        text: l.text,
+        row: Math.round((l.y - y0) / rowH),
+        x: Math.round(l.x * 100) / 100,
+      }));
+    }
+
+    return {
+      v: 1,
+      title: (tp[0] && tp[0].text) || (els.find(e => e.type === 'scene')?.text ?? 'UNTITLED').slice(0, 40),
+      titlePage: tp,
+      layout,
+      elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}) })),
+    };
+  }
+
+  // ---------- pagination ----------
+  const SENT_END = /[.!?…](["')\]]*)?\s*$|[-–—]\s*$/;
+
+  function xFor(el, line, layout) {
+    if (el.xOverride != null) return el.xOverride;
+    const c = layout.cols;
+    switch (el.type) {
+      case 'scene': case 'action': case 'shot': return c.action;
+      case 'dialogue': return c.dialogue;
+      case 'paren': return c.paren;
+      case 'character': return c.character;
+      case 'transition': return layout.transRight - line.length * layout.charW;
+      case 'general': return c.action;
+      default: return c.action;
+    }
+  }
+
+  // group elements into placement blocks: speeches (character + paren/dialogue run) stay together
+  function blocksOf(elements) {
+    const blocks = [];
+    let i = 0;
+    while (i < elements.length) {
+      const el = elements[i];
+      if (el.type === 'character') {
+        const parts = [el]; i++;
+        while (i < elements.length && (elements[i].type === 'dialogue' || elements[i].type === 'paren')) { parts.push(elements[i]); i++; }
+        blocks.push({ kind: 'speech', parts });
+      } else {
+        blocks.push({ kind: 'single', parts: [el] }); i++;
+      }
+    }
+    return blocks;
+  }
+
+  const blanksBefore = (prevType, curType) => {
+    if (!prevType) return 0;
+    if (curType === 'scene') return 2;
+    return 1;
+  };
+
+  function paginate(doc) {
+    const L = doc.layout;
+    const pages = [];
+    // title page
+    if (doc.titlePage && doc.titlePage.length) {
+      pages.push({
+        title: true,
+        lines: doc.titlePage.map((t, i) => ({
+          x: t.x != null ? t.x : (L.pageW - t.text.length * L.charW) / 2,
+          y: L.y0 + (t.row != null ? t.row : 17 + i * 4) * L.rowH,
+          text: t.text, el: 'title:' + i, kind: 'title', off: 0,
+        })),
+      });
+    }
+
+    let cur = { lines: [] }, row = 0, prevType = null, scriptPage = 1;
+    pages.push(cur);
+    const yAt = r => L.y0 + r * L.rowH;
+
+    const newPage = () => {
+      scriptPage++;
+      cur = { lines: [] };
+      if (scriptPage >= 2) {
+        const t = scriptPage + '.';
+        cur.lines.push({ x: L.pnRight - t.length * L.charW, y: L.pnY, text: t, el: 'pn', kind: 'pn', off: 0 });
+      }
+      pages.push(cur);
+      row = 0; prevType = null;
+    };
+
+    // wrapped lines cache with char offsets
+    const wrapWithOffsets = (el) => {
+      const lines = wrapElement(el, L);
+      const out = []; let off = 0; const text = el.text;
+      for (const ln of lines) {
+        const idx = text.indexOf(ln, off);
+        const at = idx >= 0 ? idx : off;
+        out.push({ t: ln, off: at });
+        off = at + ln.length;
+      }
+      return out;
+    };
+
+    const put = (el, lineObj, r, kind) => {
+      cur.lines.push({ x: xFor(el, lineObj.t, L), y: yAt(r), text: lineObj.t, el: el.id, kind: kind || el.type, off: lineObj.off });
+    };
+
+    // If a scene heading sits alone at the bottom of the current page and the block
+    // after it is moving to a new page, the slugline moves with it (Final Draft rule).
+    const retractSlug = () => {
+      if (prevType !== 'scene') return null;
+      let i = cur.lines.length;
+      while (i > 0 && cur.lines[i - 1].kind === 'scene') i--;
+      if (i === cur.lines.length) return null;
+      return cur.lines.splice(i);
+    };
+    const replaySlug = (pulled) => {
+      for (const sl of pulled) { cur.lines.push({ ...sl, y: yAt(row) }); row++; }
+      prevType = 'scene';
+    };
+
+    const blocks = blocksOf(doc.elements);
+
+    for (let bi = 0; bi < blocks.length; bi++) {
+      const block = blocks[bi];
+      const first = block.parts[0];
+      const blanks = row === 0 ? 0 : (first.spaceBefore ?? blanksBefore(prevType, first.type));
+
+      if (block.kind === 'single') {
+        const el = first;
+        const wl = wrapWithOffsets(el);
+        const need = blanks + wl.length;
+
+        if (row + need > L.rows) {
+          // try splitting long action at a sentence boundary
+          if ((el.type === 'action' || el.type === 'general') && wl.length > 2) {
+            const avail = L.rows - (row + blanks);
+            if (avail >= 2) {
+              let k = -1;
+              for (let i = Math.min(avail, wl.length - 1) - 1; i >= 1; i--) {
+                if (SENT_END.test(wl[i].t)) { k = i + 1; break; }
+              }
+              if (k >= 2 && wl.length - k >= 1) {
+                let r = row + blanks;
+                for (let i = 0; i < k; i++) put(el, wl[i], r++);
+                newPage();
+                for (let i = k; i < wl.length; i++) put(el, wl[i], row++);
+                prevType = el.type;
+                continue;
+              }
+            }
+          }
+          if (wl.length > L.rows) { // absurdly long element: force break
+            let r = row + blanks, i = 0;
+            for (; i < wl.length; i++) {
+              if (r >= L.rows) { newPage(); r = 0; }
+              put(el, wl[i], r++);
+            }
+            row = r; prevType = el.type; continue;
+          }
+          const pulled = retractSlug();
+          newPage();
+          if (pulled) replaySlug(pulled);
+        }
+        let r = row === 0 ? 0 : row + blanks;
+        for (const lo of wl) put(el, lo, r++);
+        row = r; prevType = el.type;
+        continue;
+      }
+
+      // ---- speech block ----
+      const cueEl = block.parts[0];
+      const cueLines = wrapWithOffsets(cueEl);
+      const flat = []; // [{el, lineObj, subIdx}]
+      for (let si = 1; si < block.parts.length; si++) {
+        const sub = block.parts[si];
+        for (const lo of wrapWithOffsets(sub)) flat.push({ el: sub, lo, si });
+      }
+      const totalNeed = blanks + cueLines.length + flat.length;
+
+      if (row + totalNeed <= L.rows) { // fits whole
+        let r = row === 0 ? 0 : row + blanks;
+        for (const lo of cueLines) put(cueEl, lo, r++);
+        for (const f of flat) put(f.el, f.lo, r++);
+        row = r; prevType = block.parts[block.parts.length - 1].type;
+        continue;
+      }
+
+      // doesn't fit: try split with (MORE)
+      const startR = row === 0 ? 0 : row + blanks;
+      const availBody = L.rows - startR - cueLines.length;
+      let k = -1; // number of speech lines on this page
+      if (availBody >= 2 && flat.length >= 3) {
+        for (let i = Math.min(availBody, flat.length - 1); i >= 2; i--) {
+          const f = flat[i - 1], nxt = flat[i];
+          const subEnd = nxt.si !== f.si; // boundary between dialogue/paren sub-elements
+          if ((f.el.type === 'dialogue' && SENT_END.test(f.lo.t)) || subEnd) { k = i; break; }
+        }
+      }
+
+      if (k >= 2) {
+        let r = startR;
+        for (const lo of cueLines) put(cueEl, lo, r++);
+        for (let i = 0; i < k; i++) put(flat[i].el, flat[i].lo, r++);
+        const lastY = yAt(r - 1);
+        cur.lines.push({ x: L.cols.character, y: lastY + L.moreDy, text: '(MORE)', el: cueEl.id, kind: 'more', off: 0 });
+        newPage();
+        const cueTxt = /\(CONT'D\)\s*$/.test(cueEl.text) ? cueEl.text : cueEl.text + " (CONT'D)";
+        cur.lines.push({ x: L.cols.character, y: L.y0 + L.contDy, text: cueTxt, el: cueEl.id, kind: 'contcue', off: 0 });
+        let r2 = 0;
+        for (let i = k; i < flat.length; i++) put(flat[i].el, flat[i].lo, r2++);
+        row = r2; prevType = block.parts[block.parts.length - 1].type;
+      } else {
+        const pulled = retractSlug();
+        newPage();
+        if (pulled) replaySlug(pulled);
+        let r = row === 0 ? 0 : row + blanks;
+        for (const lo of cueLines) put(cueEl, lo, r++);
+        for (const f of flat) {
+          if (r >= L.rows) { newPage(); r = 0; } // pathological: speech longer than a page
+          put(f.el, f.lo, r++);
+        }
+        row = r; prevType = block.parts[block.parts.length - 1].type;
+      }
+    }
+
+    return { pages, count: scriptPage };
+  }
+
+  // ---------- fountain export ----------
+  function toFountain(doc) {
+    const out = [];
+    if (doc.titlePage.length) {
+      out.push('Title: ' + (doc.title || ''));
+      const by = doc.titlePage.find(t => /by/i.test(t.text));
+      const auth = doc.titlePage[doc.titlePage.length - 1];
+      if (auth && auth.text !== doc.title) out.push('Author: ' + auth.text);
+      out.push('');
+    }
+    for (const el of doc.elements) {
+      const t = el.text.replace(/\n/g, ' ');
+      switch (el.type) {
+        case 'scene': out.push('', t.toUpperCase()); break;
+        case 'action': case 'general': out.push('', el.text); break;
+        case 'shot': out.push('', '!' + t); break;
+        case 'character': out.push('', t); break;
+        case 'paren': out.push(t); break;
+        case 'dialogue': out.push(t); break;
+        case 'transition': out.push('', '> ' + t); break;
+      }
+    }
+    return out.join('\n').replace(/^\n+/, '') + '\n';
+  }
+
+  function newDoc(title) {
+    return {
+      v: 1, title: title || 'UNTITLED',
+      titlePage: [
+        { text: (title || 'UNTITLED').toUpperCase(), row: 17 },
+        { text: 'Written by', row: 21 },
+        { text: '', row: 24 },
+      ],
+      layout: JSON.parse(JSON.stringify(LETTER)),
+      elements: [{ id: uid(), type: 'scene', text: '' }],
+    };
+  }
+
+  return { TYPES, LETTER, uid, linesFromItems, estimateCharW, wrapText, wrapElement, importPdf, paginate, toFountain, newDoc, SCENE_RE };
+})();
+/*PICA-ENGINE-END*/
+</script>
+<script>
+/* ================================================================
+   PICA UI — the editor around the engine.
+   The model is the truth; contenteditable is only a caret.
+   ================================================================ */
+(() => {
+'use strict';
+const E = PicaEngine;
+const $ = s => document.querySelector(s);
+const pagesEl = $('#pages'), canvasEl = $('#canvas');
+
+// ---------- state ----------
+const S = {
+  doc: null, docId: null, res: null,
+  caret: null,            // {el, off} — el is element id, 'title:N', or null
+  zoom: null,             // null = fit
+  k: 1,                   // px per pt
+  ring: new Map(),        // element id -> {seq, i} tab-cycle state
+  undo: [], redo: [],
+  pageEls: [],            // [{wrap, page, sig, live}]
+  vis: new Set(),         // visible page indices
+  menu: null,             // active popup {el, items, sel, onPick, kind}
+  fontPt: 12,
+  saveTimer: null, lastSave: null, snapAt: 0,
+};
+const LS = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); }catch{ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); return true; }catch(e){ return false; } },
+};
+
+// ---------- document store (never lose anything) ----------
+const store = {
+  index(){ return LS.get('pica.index', []); },
+  saveIndex(ix){ LS.set('pica.index', ix); },
+  load(id){ return LS.get('pica.doc.' + id, null); },
+  save(id, doc){
+    if (!LS.set('pica.doc.' + id, doc)) { // quota: drop oldest snapshot and retry
+      const snaps = LS.get('pica.snap.' + id, []); snaps.shift(); LS.set('pica.snap.' + id, snaps);
+      if (!LS.set('pica.doc.' + id, doc)) toast('STORAGE FULL — EXPORT YOUR WORK');
+    }
+    const ix = store.index();
+    const it = ix.find(d => d.id === id);
+    const meta = { id, title: doc.title || 'UNTITLED', pages: S.res ? S.res.count : 0, at: Date.now() };
+    if (it) Object.assign(it, meta); else ix.unshift(meta);
+    store.saveIndex(ix);
+  },
+  snapshot(id, doc){
+    const snaps = LS.get('pica.snap.' + id, []);
+    snaps.push({ t: Date.now(), doc });
+    while (snaps.length > 5) snaps.shift();
+    LS.set('pica.snap.' + id, snaps);
+  },
+};
+
+// ---------- boot ----------
+function boot(){
+  const theme = LS.get('pica.ui', {}).theme;
+  if (theme) document.documentElement.dataset.theme = theme;
+  const ix = store.index();
+  const last = LS.get('pica.ui', {}).lastDoc;
+  let id = (last && ix.some(d => d.id === last)) ? last : (ix[0] && ix[0].id);
+  if (!id) { id = E.uid(); const doc = E.newDoc('UNTITLED'); store.save(id, doc); }
+  openDoc(id);
+  const m = location.search.match(/[?&]open=([^&]+)/);
+  if (m) fetch(decodeURIComponent(m[1])).then(r => r.arrayBuffer()).then(b => importPdfBuffer(b, decodeURIComponent(m[1]).split('/').pop())).catch(()=>{});
+}
+
+function openDoc(id){
+  if (S.docId && S.doc) { flushSave(); store.snapshot(S.docId, S.doc); }
+  const doc = store.load(id) || E.newDoc('UNTITLED');
+  S.doc = doc; S.docId = id; S.undo = []; S.redo = []; S.ring.clear();
+  S.caret = doc.elements[0] ? { el: doc.elements[0].id, off: 0 } : null;
+  const ui = LS.get('pica.ui', {}); ui.lastDoc = id; LS.set('pica.ui', ui);
+  S.fontPt = doc.layout.charW / 0.6;
+  repaginate(); buildPages(); renderAllVisible(); rail(); status();
+  $('#docTitle').textContent = doc.title;
+  canvasEl.scrollTop = 0;
+  printPageCSS();
+  store.save(id, doc); // refresh index metadata (page count) now that we have S.res
+}
+
+// ---------- geometry ----------
+function fitZoom(){
+  const avail = canvasEl.clientWidth - 32;
+  return Math.min(1.08, Math.max(.3, avail / (S.doc.layout.pageW * 4 / 3)));
+}
+function computeK(){ S.k = (S.zoom == null ? fitZoom() : S.zoom) * 4 / 3; }
+
+// ---------- pagination + rendering ----------
+function repaginate(){ S.res = E.paginate(S.doc); }
+
+function pageSig(p){
+  let s = '';
+  for (const l of p.lines) s += l.x + '|' + l.y + '|' + l.el + '|' + l.text + '\n';
+  return s;
+}
+
+function buildPages(){       // (re)create page shells to match page count
+  computeK();
+  const n = S.res.pages.length;
+  pagesEl.innerHTML = '';
+  S.pageEls = [];
+  for (let i = 0; i < n; i++) {
+    const wrap = document.createElement('div');
+    wrap.className = 'pageWrap'; wrap.dataset.i = i;
+    wrap.style.width = (S.doc.layout.pageW * S.k) + 'px';
+    wrap.style.height = (S.doc.layout.pageH * S.k) + 'px';
+    const ghost = document.createElement('div');
+    ghost.className = 'pageghost'; ghost.textContent = '· ' + (i + 1) + ' ·';
+    ghost.contentEditable = 'false';
+    wrap.appendChild(ghost);
+    pagesEl.appendChild(wrap);
+    S.pageEls.push({ wrap, page: null, sig: null, live: false });
+  }
+  io.disconnect();
+  for (const pe of S.pageEls) io.observe(pe.wrap);
+}
+
+const io = new IntersectionObserver(ents => {
+  for (const en of ents) {
+    const i = +en.target.dataset.i;
+    if (en.isIntersecting) S.vis.add(i); else S.vis.delete(i);
+  }
+  renderAllVisible();
+}, { root: canvasEl, rootMargin: '600px 0px' });
+
+function renderAllVisible(){
+  const want = new Set(S.vis);
+  const ci = caretPage(); if (ci >= 0) { want.add(ci); want.add(ci + 1); }
+  for (let i = 0; i < S.pageEls.length; i++) {
+    const pe = S.pageEls[i];
+    if (want.has(i)) renderPage(i);
+    else if (pe.live && !want.has(i)) { /* keep rendered pages; cheap */ }
+  }
+}
+
+function renderPage(i){
+  const pe = S.pageEls[i]; if (!pe) return;
+  const p = S.res.pages[i];
+  const sig = pageSig(p) + '|k' + S.k;
+  if (pe.live && pe.sig === sig) return;
+  const L = S.doc.layout, k = S.k;
+  const page = document.createElement('div');
+  page.className = 'page';
+  page.style.width = (L.pageW * k) + 'px';
+  page.style.height = (L.pageH * k) + 'px';
+  page.style.fontSize = (S.fontPt * k) + 'px';
+  page.style.lineHeight = (L.rowH * k) + 'px';
+  for (const l of p.lines) {
+    const d = document.createElement('div');
+    d.className = 'line';
+    const editable = l.kind !== 'pn' && l.kind !== 'more' && l.kind !== 'contcue';
+    if (!editable) { d.contentEditable = 'false'; d.classList.add('gen'); }
+    d.dataset.el = l.el; d.dataset.off = l.off; d.dataset.kind = l.kind;
+    d.style.left = (l.x * k) + 'px';
+    d.style.top = ((l.y - S.fontPt * 0.79) * k) + 'px';
+    d.style.height = (L.rowH * k) + 'px';
+    d.textContent = l.text;
+    page.appendChild(d);
+  }
+  pe.wrap.replaceChildren(page);
+  pe.wrap.style.width = (L.pageW * k) + 'px';
+  pe.wrap.style.height = (L.pageH * k) + 'px';
+  pe.page = page; pe.sig = sig; pe.live = true;
+}
+
+function renderAfterEdit(){
+  const n = S.res.pages.length;
+  if (n !== S.pageEls.length) { buildPages(); }
+  renderAllVisible();
+  restoreCaret();
+  rail(); status(); saveSoon();
+}
+
+function rerenderAll(){ computeK(); for (const pe of S.pageEls){ pe.sig=null; } buildPages(); renderAllVisible(); restoreCaret(); }
+
+// ---------- caret mapping ----------
+function caretPage(){
+  if (!S.caret) return -1;
+  for (let i = 0; i < S.res.pages.length; i++)
+    for (const l of S.res.pages[i].lines)
+      if (l.el === S.caret.el) return i;
+  return -1;
+}
+
+function domCaret(){        // DOM selection -> {el, off} | null
+  const sel = getSelection();
+  if (!sel.anchorNode) return null;
+  let n = sel.anchorNode;
+  const line = (n.nodeType === 3 ? n.parentElement : n).closest?.('.line');
+  if (!line || !line.dataset.el || line.dataset.el === 'pn') return null;
+  const within = n.nodeType === 3 ? sel.anchorOffset : 0;
+  return { el: line.dataset.el, off: (+line.dataset.off || 0) + within };
+}
+function domRange(){        // both ends, ordered by document position
+  const sel = getSelection();
+  if (sel.rangeCount === 0) return null;
+  const a = pointFrom(sel.anchorNode, sel.anchorOffset);
+  const f = pointFrom(sel.focusNode, sel.focusOffset);
+  if (!a || !f) return null;
+  if (a.el === f.el) return a.off <= f.off ? [a, f] : [f, a];
+  const ia = orderKey(a), ifo = orderKey(f);
+  return ia <= ifo ? [a, f] : [f, a];
+}
+function pointFrom(node, offset){
+  if (!node) return null;
+  const el = (node.nodeType === 3 ? node.parentElement : node);
+  const line = el.closest?.('.line');
+  if (!line || !line.dataset.el) return null;
+  const within = node.nodeType === 3 ? offset : (offset > 0 ? line.textContent.length : 0);
+  return { el: line.dataset.el, off: (+line.dataset.off || 0) + within };
+}
+function orderKey(pt){
+  if (pt.el.startsWith('title:')) return -1e6 + (+pt.el.slice(6));
+  const i = S.doc.elements.findIndex(e => e.id === pt.el);
+  return i * 1e6 + pt.off;
+}
+
+function syncCaret(){ const dc = domCaret(); if (dc) S.caret = dc; return S.caret; }
+
+function restoreCaret(){
+  if (!S.caret) return;
+  const { el, off } = S.caret;
+  let best = null;
+  for (const pe of S.pageEls) {
+    if (!pe.live || !pe.page) continue;
+    for (const d of pe.page.children) {
+      if (d.dataset.el !== el) continue;
+      const start = +d.dataset.off || 0, len = d.textContent.length;
+      if (off >= start && off <= start + len) { best = { d, at: off - start }; }
+      else if (!best && off >= start) best = { d, at: len };
+    }
+  }
+  if (!best) { const i = caretPage(); if (i >= 0) { renderPage(i); return restoreCaretOnce(el, off); } return; }
+  placeCaret(best.d, best.at);
+}
+function restoreCaretOnce(el, off){
+  for (const pe of S.pageEls) if (pe.live && pe.page)
+    for (const d of pe.page.children)
+      if (d.dataset.el === el) {
+        const start = +d.dataset.off || 0, len = d.textContent.length;
+        if (off >= start && off <= start + len) return placeCaret(d, off - start);
+      }
+}
+function placeCaret(lineDiv, at){
+  const r = document.createRange();
+  const tn = lineDiv.firstChild;
+  if (tn && tn.nodeType === 3) r.setStart(tn, Math.min(at, tn.length));
+  else r.setStart(lineDiv, 0);
+  r.collapse(true);
+  const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}
+
+// ---------- model ops + undo ----------
+const elById = id => S.doc.elements.find(e => e.id === id);
+const elIndex = id => S.doc.elements.findIndex(e => e.id === id);
+
+function pushUndo(rec){ S.redo = []; S.undo.push(rec); if (S.undo.length > 600) S.undo.shift(); }
+
+function opText(id, text, caretAfter){
+  const el = id.startsWith('title:') ? null : elById(id);
+  if (id.startsWith('title:')) {
+    const i = +id.slice(6); const t = S.doc.titlePage[i]; if (!t) return;
+    const last = S.undo[S.undo.length - 1];
+    if (last && last.k === 'ttext' && last.i === i && Date.now() - last.ts < 900) { last.after = text; last.ca = caretAfter; last.ts = Date.now(); }
+    else pushUndo({ k: 'ttext', i, before: t.text, after: text, cb: S.caret, ca: caretAfter, ts: Date.now() });
+    t.text = text; delete t.x; // recenter on edit
+    if (i === 0) { S.doc.title = text || 'UNTITLED'; $('#docTitle').textContent = S.doc.title; }
+  } else {
+    if (!el) return;
+    const last = S.undo[S.undo.length - 1];
+    if (last && last.k === 'text' && last.id === id && Date.now() - last.ts < 900) { last.after = text; last.ca = caretAfter; last.ts = Date.now(); }
+    else pushUndo({ k: 'text', id, before: el.text, after: text, cb: S.caret, ca: caretAfter, ts: Date.now() });
+    el.text = text;
+  }
+  S.caret = caretAfter;
+  repaginate(); renderAfterEdit();
+}
+
+function opSplice(i, delCount, inserted, caretAfter){
+  const removed = S.doc.elements.slice(i, i + delCount).map(e => ({ ...e }));
+  pushUndo({ k: 'splice', i, removed, inserted: inserted.map(e => ({ ...e })), cb: S.caret, ca: caretAfter, ts: Date.now() });
+  S.doc.elements.splice(i, delCount, ...inserted);
+  S.caret = caretAfter;
+  repaginate(); renderAfterEdit();
+}
+
+function opConvert(id, type){
+  const el = elById(id); if (!el) return;
+  pushUndo({ k: 'convert', id, before: el.type, after: type, cb: S.caret, ca: S.caret, ts: Date.now() });
+  el.type = type;
+  if (type === 'scene' || type === 'character' || type === 'transition' || type === 'shot') el.text = el.text.toUpperCase();
+  repaginate(); renderAfterEdit();
+}
+
+function undo(redo){
+  const src = redo ? S.redo : S.undo, dst = redo ? S.undo : S.redo;
+  const rec = src.pop(); if (!rec) return;
+  dst.push(rec);
+  if (rec.k === 'text') { const el = elById(rec.id); if (el) el.text = redo ? rec.after : rec.before; }
+  else if (rec.k === 'ttext') { const t = S.doc.titlePage[rec.i]; if (t) { t.text = redo ? rec.after : rec.before; if (rec.i === 0) { S.doc.title = t.text; $('#docTitle').textContent = t.text; } } }
+  else if (rec.k === 'splice') {
+    if (redo) S.doc.elements.splice(rec.i, rec.removed.length, ...rec.inserted.map(e => ({ ...e })));
+    else S.doc.elements.splice(rec.i, rec.inserted.length, ...rec.removed.map(e => ({ ...e })));
+  }
+  else if (rec.k === 'convert') { const el = elById(rec.id); if (el) el.type = redo ? rec.after : rec.before; }
+  S.caret = redo ? rec.ca : rec.cb;
+  repaginate(); renderAfterEdit();
+}
+
+// ---------- editing behaviour: the Final Draft grammar ----------
+const FOLLOW = { scene:'action', action:'action', character:'dialogue', paren:'dialogue', dialogue:'action', transition:'scene', shot:'action', general:'general' };
+const TABSTART = { action:'character', character:'transition', dialogue:'paren', paren:'dialogue', scene:'action', transition:'scene', shot:'action', general:'action' };
+const RING = ['character','transition','scene','shot','general','action','dialogue','paren'];
+const UPPER = t => (t === 'scene' || t === 'character' || t === 'transition' || t === 'shot');
+const TYPE_LABEL = { scene:'Scene Heading', action:'Action', character:'Character', paren:'Parenthetical', dialogue:'Dialogue', transition:'Transition', shot:'Shot', general:'General' };
+
+function newEl(type, text){ return { id: E.uid(), type, text: text || '' }; }
+
+function handleEnter(){
+  closePops();
+  const c = syncCaret(); if (!c) return;
+  if (c.el.startsWith('title:')) { // new title line
+    const i = +c.el.slice(6);
+    const t = S.doc.titlePage[i];
+    pushUndo({ k: 'tsplice', i: i + 1, ts: Date.now(), cb: S.caret, ca: { el: 'title:' + (i + 1), off: 0 } });
+    S.doc.titlePage.splice(i + 1, 0, { text: '', row: (t.row || 0) + 2 });
+    S.caret = { el: 'title:' + (i + 1), off: 0 };
+    repaginate(); renderAfterEdit(); return;
+  }
+  const el = elById(c.el); if (!el) return;
+  if (el.text === '') { openElementMenu(); return; }        // FD: Return on empty → element menu
+  // all-caps + TO: → transition
+  if (el.type === 'action' && /TO:\s*$/.test(el.text) && el.text === el.text.toUpperCase()) {
+    opConvert(el.id, 'transition');
+  }
+  const i = elIndex(c.el);
+  if (c.off >= el.text.length) {
+    const nt = FOLLOW[el.type] || 'action';
+    const ne = newEl(nt, '');
+    opSplice(i + 1, 0, [ne], { el: ne.id, off: 0 });
+  } else if (c.off === 0) {
+    const ne = newEl(el.type === 'dialogue' ? 'character' : el.type, '');
+    opSplice(i, 0, [ne], { el: el.id, off: 0 });
+  } else { // split element
+    const head = el.text.slice(0, c.off).replace(/\s+$/, '');
+    const tail = el.text.slice(c.off).replace(/^\s+/, '');
+    const ne = newEl(el.type, tail);
+    pushUndo({ k: 'splice', i, removed: [{ ...el }], inserted: [{ ...el, text: head }, { ...ne }], cb: S.caret, ca: { el: ne.id, off: 0 }, ts: Date.now() });
+    el.text = head;
+    S.doc.elements.splice(i + 1, 0, ne);
+    S.caret = { el: ne.id, off: 0 };
+    repaginate(); renderAfterEdit();
+  }
+}
+
+function handleTab(shift){
+  const c = syncCaret(); if (!c || c.el.startsWith('title:')) return;
+  const el = elById(c.el); if (!el) return;
+  if (el.text === '') {
+    // cycle types; when the known options run out — the menu
+    let st = S.ring.get(el.id);
+    if (!st) {
+      const first = TABSTART[el.type] || 'character';
+      st = { seq: [first, ...RING.filter(t => t !== first && t !== el.type)], i: -1 };
+      S.ring.set(el.id, st);
+    }
+    st.i += shift ? -1 : 1;
+    if (st.i < 0) st.i = 0;
+    if (st.i >= st.seq.length) { S.ring.delete(el.id); openElementMenu(); return; }
+    opConvert(el.id, st.seq[st.i]);
+    return;
+  }
+  // non-empty:
+  if (el.type === 'character' && c.off >= el.text.length) { openExtMenu(); return; }
+  if (el.type === 'dialogue' && c.off >= el.text.length) { // FD: Tab from dialogue → parenthetical
+    const i = elIndex(el.id);
+    const ne = newEl('paren', '()');
+    opSplice(i + 1, 0, [ne], { el: ne.id, off: 1 });
+    return;
+  }
+  if (c.off >= el.text.length) {
+    const i = elIndex(el.id);
+    const ne = newEl(TABSTART[el.type] || 'character', '');
+    opSplice(i + 1, 0, [ne], { el: ne.id, off: 0 });
+  }
+}
+
+function handleInsertText(data){
+  const c = syncCaret(); if (!c) return;
+  const r = domRange();
+  if (r && (r[0].el !== r[1].el || r[0].off !== r[1].off)) { deleteRange(r); }
+  const cc = S.caret;
+  if (cc.el.startsWith('title:')) {
+    const t = S.doc.titlePage[+cc.el.slice(6)]; if (!t) return;
+    const txt = t.text.slice(0, cc.off) + data + t.text.slice(cc.off);
+    opText(cc.el, txt, { el: cc.el, off: cc.off + data.length });
+    return;
+  }
+  const el = elById(cc.el); if (!el) return;
+  let ins = data;
+  if (UPPER(el.type)) ins = ins.toUpperCase();
+  // "(" at start of empty dialogue → parenthetical
+  if (el.type === 'dialogue' && el.text === '' && ins === '(') {
+    opConvert(el.id, 'paren');
+    opText(el.id, '()', { el: el.id, off: 1 });
+    return;
+  }
+  // skip over the closing paren
+  if (el.type === 'paren' && ins === ')' && el.text[cc.off] === ')') {
+    S.caret = { el: el.id, off: cc.off + 1 }; restoreCaret(); status(); return;
+  }
+  let text = el.text.slice(0, cc.off) + ins + el.text.slice(cc.off);
+  let caretOff = cc.off + ins.length;
+  // int./ext. auto-detects a scene heading
+  if (el.type === 'action' && /^(INT|EXT|I\/E|EST)([./]|[./]\s?EXT)/i.test(text) && !/^(INT|EXT|I\/E|EST)$/i.test(text)) {
+    el.type = 'scene'; text = text.toUpperCase();
+  }
+  S.ring.delete(el.id);
+  opText(el.id, text, { el: el.id, off: caretOff });
+  smartType(el);
+}
+
+function deleteRange([a, b]){
+  if (a.el === b.el) {
+    if (a.el.startsWith('title:')) {
+      const t = S.doc.titlePage[+a.el.slice(6)];
+      opText(a.el, t.text.slice(0, a.off) + t.text.slice(b.off), { el: a.el, off: a.off });
+    } else {
+      const el = elById(a.el); if (!el) return;
+      opText(a.el, el.text.slice(0, a.off) + el.text.slice(b.off), { el: a.el, off: a.off });
+    }
+    return;
+  }
+  if (a.el.startsWith('title:') || b.el.startsWith('title:')) return; // don't cross the title boundary
+  const ia = elIndex(a.el), ib = elIndex(b.el);
+  if (ia < 0 || ib < 0) return;
+  const ea = elById(a.el), eb = elById(b.el);
+  const merged = { ...ea, text: ea.text.slice(0, a.off) + eb.text.slice(b.off) };
+  opSplice(ia, ib - ia + 1, [merged], { el: merged.id, off: a.off });
+}
+
+function handleBackspace(){
+  const r = domRange();
+  if (r && (r[0].el !== r[1].el || r[0].off !== r[1].off)) return deleteRange(r);
+  const c = syncCaret(); if (!c) return;
+  if (c.el.startsWith('title:')) {
+    const i = +c.el.slice(6); const t = S.doc.titlePage[i];
+    if (c.off > 0) return opText(c.el, t.text.slice(0, c.off - 1) + t.text.slice(c.off), { el: c.el, off: c.off - 1 });
+    if (t.text === '' && S.doc.titlePage.length > 1) {
+      pushUndo({ k: 'tsplice-del', i, entry: { ...t }, cb: S.caret, ca: { el: 'title:' + Math.max(0, i - 1), off: (S.doc.titlePage[i - 1] || { text: '' }).text.length }, ts: Date.now() });
+      S.doc.titlePage.splice(i, 1);
+      S.caret = { el: 'title:' + Math.max(0, i - 1), off: (S.doc.titlePage[Math.max(0, i - 1)] || { text: '' }).text.length };
+      repaginate(); renderAfterEdit();
+    }
+    return;
+  }
+  const el = elById(c.el); if (!el) return;
+  if (c.off > 0) {
+    opText(c.el, el.text.slice(0, c.off - 1) + el.text.slice(c.off), { el: c.el, off: c.off - 1 });
+    smartType(el);
+    return;
+  }
+  const i = elIndex(c.el);
+  if (i <= 0) return;
+  const prev = S.doc.elements[i - 1];
+  if (el.text === '') opSplice(i, 1, [], { el: prev.id, off: prev.text.length });
+  else {
+    const merged = { ...prev, text: prev.text + el.text };
+    opSplice(i - 1, 2, [merged], { el: prev.id, off: prev.text.length });
+  }
+}
+function handleDelete(){
+  const r = domRange();
+  if (r && (r[0].el !== r[1].el || r[0].off !== r[1].off)) return deleteRange(r);
+  const c = syncCaret(); if (!c || c.el.startsWith('title:')) return;
+  const el = elById(c.el); if (!el) return;
+  if (c.off < el.text.length) return opText(c.el, el.text.slice(0, c.off) + el.text.slice(c.off + 1), { el: c.el, off: c.off });
+  const i = elIndex(c.el);
+  const next = S.doc.elements[i + 1]; if (!next) return;
+  if (next.text === '') opSplice(i + 1, 1, [], { el: el.id, off: c.off });
+  else { const merged = { ...el, text: el.text + next.text }; opSplice(i, 2, [merged], { el: el.id, off: c.off }); }
+}
+
+// ---------- popups: element menu, smarttype, extensions, export ----------
+function closePops(){ document.querySelectorAll('.pop').forEach(p => p.remove()); S.menu = null; }
+
+function caretRect(){
+  const sel = getSelection();
+  if (sel.rangeCount) {
+    const r = sel.getRangeAt(0).cloneRange();
+    const rects = r.getClientRects();
+    if (rects.length) return rects[0];
+    const n = sel.anchorNode;
+    const el = n && (n.nodeType === 3 ? n.parentElement : n);
+    if (el && el.getBoundingClientRect) return el.getBoundingClientRect();
+  }
+  return { left: innerWidth / 2, bottom: innerHeight / 2, top: innerHeight / 2 };
+}
+
+function popup(items, opts){
+  closePops();
+  const pop = document.createElement('div');
+  pop.className = 'pop';
+  if (opts.cap) { const c = document.createElement('div'); c.className = 'cap'; c.textContent = opts.cap; pop.appendChild(c); }
+  items.forEach((it, idx) => {
+    const d = document.createElement('div');
+    d.className = 'it' + (idx === 0 ? ' sel' : '');
+    d.innerHTML = '<span></span><span class="k"></span>';
+    d.firstChild.textContent = it.label;
+    d.lastChild.textContent = it.key || '';
+    d.addEventListener('mousedown', ev => { ev.preventDefault(); pick(idx); });
+    pop.appendChild(d);
+  });
+  document.body.appendChild(pop);
+  const r = caretRect();
+  const W = pop.offsetWidth, H = pop.offsetHeight;
+  let x = Math.min(Math.max(8, r.left), innerWidth - W - 8);
+  let y = r.bottom + 6; if (y + H > innerHeight - 8) y = Math.max(8, r.top - H - 6);
+  pop.style.left = x + 'px'; pop.style.top = y + 'px';
+  const state = { el: pop, items, sel: 0, kind: opts.kind || 'menu' };
+  S.menu = state;
+  function pick(i){ const it = items[i]; closePops(); opts.onPick(it, i); }
+  state.move = d => {
+    state.sel = (state.sel + d + items.length) % items.length;
+    [...pop.querySelectorAll('.it')].forEach((n, i) => n.classList.toggle('sel', i === state.sel));
+  };
+  state.accept = () => pick(state.sel);
+}
+
+function openElementMenu(){
+  const c = S.caret; if (!c || c.el.startsWith('title:')) return;
+  const items = E.TYPES.map((t, i) => ({ label: TYPE_LABEL[t], key: '⌘' + (i + 1), type: t }));
+  popup(items, { cap: 'element', kind: 'element', onPick: it => {
+    const el = elById(S.caret.el); if (!el) return;
+    S.ring.delete(el.id);
+    opConvert(el.id, it.type);
+  }});
+}
+
+function openExtMenu(){
+  const exts = ['(V.O.)', '(O.S.)', "(CONT'D)", '(PRE-LAP)'];
+  popup(exts.map(x => ({ label: x })), { cap: 'extension', kind: 'ext', onPick: it => {
+    const el = elById(S.caret.el); if (!el) return;
+    const base = el.text.replace(/\s*\([^)]*\)\s*$/, '');
+    const txt = base + ' ' + it.label;
+    opText(el.id, txt, { el: el.id, off: txt.length });
+  }});
+}
+
+function openExportMenu(){
+  popup([
+    { label: 'PDF — print / save as pdf', key: '⌘P', act: 'pdf' },
+    { label: 'Fountain (.fountain)', act: 'fountain' },
+    { label: 'PICA JSON (.json)', act: 'json' },
+  ], { cap: 'export', kind: 'export', onPick: it => doExport(it.act) });
+}
+
+// SmartType — autocompletion from the document itself
+const TIMES = ['DAY', 'NIGHT', 'CONTINUOUS', 'LATER', 'MOMENTS LATER', 'MORNING', 'EVENING', 'DAWN', 'DUSK', 'SAME'];
+const TRANSITIONS = ['CUT TO:', 'SMASH CUT TO:', 'HARD CUT TO:', 'DISSOLVE TO:', 'MATCH CUT TO:', 'JUMP CUT TO:', 'INTERCUT WITH:', 'FADE IN:', 'FADE OUT.', 'FADE TO BLACK.'];
+
+function characterNames(){
+  const freq = new Map();
+  for (const e of S.doc.elements) if (e.type === 'character') {
+    const base = e.text.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    if (base) freq.set(base, (freq.get(base) || 0) + 1);
+  }
+  return [...freq.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]);
+}
+function locations(){
+  const freq = new Map();
+  for (const e of S.doc.elements) if (e.type === 'scene') {
+    const m = e.text.match(/^(?:INT\.?\/?EXT\.?|EXT\.?\/?INT\.?|INT|EXT|I\/E|EST)[.\s]+(.*?)(?:\s+[–—-]\s+[A-Z' ]+)?$/);
+    if (m && m[1]) freq.set(m[1].trim(), (freq.get(m[1]) || 0) + 1);
+  }
+  return [...freq.entries()].sort((a, b) => b[1] - a[1]).map(x => x[0]);
+}
+
+function smartType(el){
+  if (!S.caret || S.caret.el !== el.id || S.caret.off < el.text.length) { if (S.menu?.kind === 'smart') closePops(); return; }
+  let sugg = [], replFrom = 0;
+  const t = el.text;
+  if (el.type === 'character') {
+    sugg = characterNames().filter(n => n.startsWith(t.toUpperCase()) && n !== t.toUpperCase());
+    replFrom = 0;
+  } else if (el.type === 'scene') {
+    const mTime = t.match(/^(.*[–—-]\s+)([A-Z ]*)$/);
+    const mLoc = t.match(/^((?:INT\.?\/?EXT\.?|EXT\.?\/?INT\.?|INT\.|EXT\.|I\/E\.?|EST\.)\s+)(.*)$/);
+    if (mTime) { sugg = TIMES.filter(x => x.startsWith(mTime[2]) && x !== mTime[2]); replFrom = mTime[1].length; }
+    else if (mLoc) { sugg = locations().filter(x => x.startsWith(mLoc[2].toUpperCase()) && x !== mLoc[2].toUpperCase()); replFrom = mLoc[1].length; }
+    else { sugg = ['INT. ', 'EXT. ', 'INT./EXT. ', 'EST. '].filter(x => x.startsWith(t.toUpperCase()) && t.length > 0); replFrom = 0; }
+  } else if (el.type === 'transition') {
+    sugg = TRANSITIONS.filter(x => x.startsWith(t.toUpperCase()) && x !== t.toUpperCase()); replFrom = 0;
+  } else { if (S.menu?.kind === 'smart') closePops(); return; }
+  sugg = sugg.slice(0, 6);
+  if (!sugg.length) { if (S.menu?.kind === 'smart') closePops(); return; }
+  popup(sugg.map(x => ({ label: x })), { kind: 'smart', onPick: it => {
+    const txt = el.text.slice(0, replFrom) + it.label;
+    opText(el.id, txt, { el: el.id, off: txt.length });
+  }});
+}
+
+// ---------- rail / status ----------
+function rail(){
+  const dl = $('#docList');
+  dl.innerHTML = '';
+  for (const d of store.index()) {
+    const b = document.createElement('button');
+    b.className = 'doc-item' + (d.id === S.docId ? ' current' : '');
+    b.innerHTML = '<span class="ttl"></span><span class="pg"></span>';
+    b.firstChild.textContent = (d.title || 'UNTITLED').toLowerCase();
+    b.lastChild.textContent = d.pages ? d.pages + 'p' : '';
+    b.addEventListener('mousedown', ev => { ev.preventDefault(); if (d.id !== S.docId) openDoc(d.id); });
+    dl.appendChild(b);
+  }
+  const sl = $('#sceneList');
+  sl.innerHTML = '';
+  let n = 0;
+  const seen = new Set();
+  for (let i = 0; i < S.res.pages.length; i++) for (const l of S.res.pages[i].lines) {
+    if (l.kind !== 'scene' || seen.has(l.el) ) continue;
+    seen.add(l.el);
+    n++;
+    const b = document.createElement('button');
+    b.className = 'scene-item';
+    b.dataset.el = l.el;
+    b.innerHTML = '<span class="no"></span><span class="sl"></span>';
+    b.firstChild.textContent = n;
+    b.lastChild.textContent = l.text;
+    const pi = i, elid = l.el;
+    b.addEventListener('mousedown', ev => {
+      ev.preventDefault();
+      S.pageEls[pi]?.wrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      S.caret = { el: elid, off: 0 };
+      setTimeout(() => { renderAllVisible(); restoreCaret(); status(); }, 60);
+      $('#rail').classList.remove('open');
+    });
+    sl.appendChild(b);
+  }
+}
+
+function status(){
+  const c = S.caret;
+  let label = '—';
+  if (c) {
+    if (c.el.startsWith('title:')) label = 'TITLE PAGE';
+    else { const el = elById(c.el); if (el) label = TYPE_LABEL[el.type].toUpperCase() + ' · ⌘' + (E.TYPES.indexOf(el.type) + 1); }
+  }
+  $('#stType').textContent = label;
+  const total = S.res.count;
+  const scenes = S.doc.elements.filter(e => e.type === 'scene').length;
+  const vis = [...S.vis].sort((a, b) => a - b)[0] ?? 0;
+  const pn = Math.max(1, (S.doc.titlePage.length ? vis : vis + 1));
+  $('#stPage').textContent = 'page ' + Math.min(pn, total) + ' / ' + total + ' · ' + scenes + ' scenes';
+}
+
+function saveSoon(){
+  clearTimeout(S.saveTimer);
+  $('#stSave').textContent = '· · ·';
+  S.saveTimer = setTimeout(flushSave, 700);
+}
+function flushSave(){
+  if (!S.doc) return;
+  store.save(S.docId, S.doc);
+  S.lastSave = new Date();
+  $('#stSave').textContent = 'saved ' + S.lastSave.toTimeString().slice(0, 5);
+  if (Date.now() - S.snapAt > 4 * 60e3) { store.snapshot(S.docId, S.doc); S.snapAt = Date.now(); }
+}
+
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+// ---------- import ----------
+async function importPdfBuffer(buf, name){
+  overlayCard(`<h2>Importing</h2><div class="sub">${(name || 'pdf').replace(/</g,'&lt;')}</div><div id="importLog">reading…</div>`);
+  const log = m => { const n = $('#importLog'); if (n) n.textContent = m; };
+  try {
+    const mod = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs');
+    mod.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+    const pdf = await mod.getDocument({ data: buf }).promise;
+    const raw = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const vp = page.getViewport({ scale: 1 });
+      const tc = await page.getTextContent();
+      raw.push({
+        width: vp.width, height: vp.height,
+        items: tc.items.filter(i => i.str && i.str.length).map(i => ({
+          x: i.transform[4], y: vp.height - i.transform[5], w: i.width, str: i.str,
+        })),
+      });
+      if (p % 10 === 0 || p === pdf.numPages) log('reading page ' + p + ' / ' + pdf.numPages + ' …');
+    }
+    if (!raw.some(p => p.items.length)) throw new Error('no text layer — this looks like a scanned PDF');
+    log('classifying…');
+    await new Promise(r => setTimeout(r, 30));
+    const doc = E.importPdf(raw);
+    doc.title = doc.title || (name || 'IMPORTED').replace(/\.pdf$/i, '').toUpperCase();
+    const id = E.uid();
+    store.save(id, doc);
+    closeOverlay();
+    openDoc(id);
+    toast('imported · ' + S.res.count + ' pages · ' + doc.elements.length + ' elements');
+  } catch (err) {
+    overlayCard(`<h2>Import failed</h2><div class="sub">pdf</div><p>${String(err.message || err).replace(/</g,'&lt;')}</p>
+      <p>PICA needs a text-layer PDF (one exported from screenwriting software — not a scan). It also needs the network once, to fetch the PDF reader.</p>
+      <div class="foot"><button class="hbtn" onclick="document.getElementById('overlay').classList.remove('show')">close</button></div>`);
+  }
+}
+
+function importJson(text, name){
+  try {
+    const doc = JSON.parse(text);
+    if (!doc || !Array.isArray(doc.elements) || !doc.layout) throw new Error('not a PICA document');
+    const id = E.uid();
+    store.save(id, doc);
+    openDoc(id);
+    toast('opened · ' + (doc.title || name));
+  } catch (e) { toast('could not read json'); }
+}
+
+// ---------- export ----------
+function download(name, text, type){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: type || 'text/plain' }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function safeName(){ return (S.doc.title || 'script').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'script'; }
+function doExport(act){
+  if (act === 'fountain') download(safeName() + '.fountain', E.toFountain(S.doc));
+  else if (act === 'json') download(safeName() + '.json', JSON.stringify(S.doc, null, 1), 'application/json');
+  else if (act === 'pdf') printAll();
+}
+function printPageCSS(){
+  let st = $('#printPage');
+  if (!st) { st = document.createElement('style'); st.id = 'printPage'; document.head.appendChild(st); }
+  st.textContent = '@page{ size:' + S.doc.layout.pageW + 'pt ' + S.doc.layout.pageH + 'pt; margin:0; }';
+}
+function printAll(){
+  const zoomWas = S.zoom;
+  S.zoom = 0.75; // k = 1 → true pt size
+  computeK();
+  for (let i = 0; i < S.pageEls.length; i++) { S.pageEls[i].sig = null; renderPage(i); }
+  requestAnimationFrame(() => { window.print(); S.zoom = zoomWas; rerenderAll(); });
+}
+
+// ---------- overlay ----------
+function overlayCard(html){
+  const o = $('#overlay');
+  o.innerHTML = '<div class="card">' + html + '</div>';
+  o.classList.add('show');
+}
+function closeOverlay(){ const o = $('#overlay'); o.classList.remove('show'); o.innerHTML = ''; }
+$('#overlay').addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeOverlay(); });
+
+function showKeys(){
+  overlayCard(`<h2>The grammar</h2><div class="sub">tab to cycle · enter to advance</div>
+  <table>
+  <tr><td>Enter</td><td>next element — Scene→Action, Character→Dialogue, Dialogue→Action… On an empty element: the element menu.</td></tr>
+  <tr><td>Tab</td><td>cycle the empty element's type — Action→Character→Transition→… When the ring runs out, the menu opens. At the end of a Character cue: extensions (V.O., O.S.). At the end of Dialogue: a parenthetical.</td></tr>
+  <tr><td>⌘1 – ⌘8</td><td>set element type directly — ${E.TYPES.map((t,i)=>(i+1)+' '+TYPE_LABEL[t]).join(' · ')}</td></tr>
+  <tr><td>⌘\\</td><td>element menu</td></tr>
+  <tr><td>int. / ext.</td><td>typed in Action, becomes a Scene Heading as you type. ALL-CAPS ending in TO: becomes a Transition on Enter. “(” in empty Dialogue becomes a Parenthetical.</td></tr>
+  <tr><td>type ahead</td><td>character names, locations and times autocomplete from the script itself</td></tr>
+  <tr><td>⌘Z / ⇧⌘Z</td><td>undo / redo</td></tr>
+  <tr><td>⌘P</td><td>print · save as PDF — identical to the imported page</td></tr>
+  <tr><td>⇧Enter</td><td>hard line break inside an element</td></tr>
+  </table>
+  <div class="foot"><button class="hbtn" onclick="document.getElementById('overlay').classList.remove('show')">close</button></div>`);
+}
+
+// ---------- events ----------
+pagesEl.addEventListener('beforeinput', ev => {
+  ev.preventDefault();
+  const t = ev.inputType;
+  if (t === 'insertText' && ev.data != null) handleInsertText(ev.data);
+  else if (t === 'insertParagraph') handleEnter();
+  else if (t === 'insertLineBreak') { const c = S.caret; if (c && !c.el.startsWith('title:')) { const el = elById(c.el); if (el) opText(el.id, el.text.slice(0, c.off) + '\n' + el.text.slice(c.off), { el: el.id, off: c.off + 1 }); } }
+  else if (t === 'deleteContentBackward') handleBackspace();
+  else if (t === 'deleteContentForward') handleDelete();
+  else if (t === 'insertFromPaste') {
+    const txt = ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '';
+    if (txt) handleInsertText(txt.replace(/\r/g, ''));
+  }
+  else if (t === 'historyUndo') undo(false);
+  else if (t === 'historyRedo') undo(true);
+});
+
+pagesEl.addEventListener('keydown', ev => {
+  if (S.menu) {
+    if (ev.key === 'ArrowDown') { S.menu.move(1); ev.preventDefault(); return; }
+    if (ev.key === 'ArrowUp') { S.menu.move(-1); ev.preventDefault(); return; }
+    if (ev.key === 'Tab' && S.menu.kind === 'element') { S.menu.move(ev.shiftKey ? -1 : 1); ev.preventDefault(); return; }
+    if (ev.key === 'Enter' || (ev.key === 'Tab' && !ev.shiftKey)) { ev.preventDefault(); S.menu.accept(); return; }
+    if (ev.key === 'Escape') { closePops(); ev.preventDefault(); return; }
+    if (S.menu.kind === 'element' && /^[1-8]$/.test(ev.key)) { const i = +ev.key - 1; S.menu.sel = i; S.menu.accept(); ev.preventDefault(); return; }
+  }
+  if (ev.key === 'Tab') { ev.preventDefault(); handleTab(ev.shiftKey); return; }
+  if (ev.key === 'Escape') { closePops(); return; }
+  const mod = ev.metaKey || ev.ctrlKey;
+  if (mod && !ev.shiftKey && !ev.altKey && /^[1-8]$/.test(ev.key)) {
+    ev.preventDefault();
+    const c = S.caret; if (!c || c.el.startsWith('title:')) return;
+    S.ring.delete(c.el);
+    opConvert(c.el, E.TYPES[+ev.key - 1]);
+    return;
+  }
+  if (mod && ev.key === '\\') { ev.preventDefault(); openElementMenu(); return; }
+  if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(false); return; }
+  if (mod && ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(true); return; }
+  if (mod && ev.key.toLowerCase() === 's') { ev.preventDefault(); flushSave(); toast('saved'); return; }
+  if (mod && ev.key.toLowerCase() === 'p') { ev.preventDefault(); printAll(); return; }
+});
+
+document.addEventListener('selectionchange', () => {
+  const c = domCaret();
+  if (c) { S.caret = c; status(); }
+});
+pagesEl.addEventListener('mousedown', () => { closePops(); });
+
+canvasEl.addEventListener('scroll', () => { clearTimeout(canvasEl._t); canvasEl._t = setTimeout(status, 120); });
+
+// header + footer buttons
+$('#btnNew').addEventListener('mousedown', ev => { ev.preventDefault(); const id = E.uid(); store.save(id, E.newDoc('UNTITLED')); openDoc(id); toast('new script'); });
+$('#railNew').addEventListener('mousedown', ev => { ev.preventDefault(); $('#btnNew').dispatchEvent(new Event('mousedown')); });
+$('#btnImport').addEventListener('mousedown', ev => { ev.preventDefault(); $('#fileIn').click(); });
+$('#railImport').addEventListener('mousedown', ev => { ev.preventDefault(); $('#fileIn').click(); });
+$('#btnExport').addEventListener('mousedown', ev => { ev.preventDefault(); openExportMenu(); });
+$('#btnKeys').addEventListener('mousedown', ev => { ev.preventDefault(); showKeys(); });
+$('#btnTheme').addEventListener('mousedown', ev => {
+  ev.preventDefault();
+  const cur = document.documentElement.dataset.theme
+    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  const ui = LS.get('pica.ui', {}); ui.theme = next; LS.set('pica.ui', ui);
+});
+$('#railToggle').addEventListener('mousedown', ev => { ev.preventDefault(); $('#rail').classList.toggle('open'); });
+$('#zIn').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = Math.min(1.6, (S.zoom ?? fitZoom()) + .1); rerenderAll(); });
+$('#zOut').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = Math.max(.3, (S.zoom ?? fitZoom()) - .1); rerenderAll(); });
+$('#zFit').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = null; rerenderAll(); });
+
+$('#fileIn').addEventListener('change', async ev => {
+  const f = ev.target.files[0]; ev.target.value = '';
+  if (!f) return;
+  if (/\.json$/i.test(f.name)) importJson(await f.text(), f.name);
+  else importPdfBuffer(await f.arrayBuffer(), f.name);
+});
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', async e => {
+  e.preventDefault();
+  const f = e.dataTransfer.files[0]; if (!f) return;
+  if (/\.json$/i.test(f.name)) importJson(await f.text(), f.name);
+  else if (/\.pdf$/i.test(f.name)) importPdfBuffer(await f.arrayBuffer(), f.name);
+});
+
+$('#docTitle').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } });
+$('#docTitle').addEventListener('blur', ev => {
+  const t = ev.target.textContent.trim() || 'UNTITLED';
+  S.doc.title = t;
+  if (S.doc.titlePage[0]) S.doc.titlePage[0].text = t.toUpperCase();
+  ev.target.textContent = t;
+  repaginate(); renderAfterEdit();
+});
+
+addEventListener('resize', () => { if (S.zoom == null) { clearTimeout(window._rz); window._rz = setTimeout(rerenderAll, 150); } });
+addEventListener('beforeunload', () => flushSave());
+addEventListener('beforeprint', () => {});
+
+window.__pica = S; // debug handle
+boot();
+})();
+</script>
+</body>
+</html>
