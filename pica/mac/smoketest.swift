@@ -103,6 +103,16 @@ func stage1() {
         ls: (() => { try { localStorage.setItem('smoke','1'); return localStorage.getItem('smoke') === '1'; } catch(e){ return false; } })(),
         courier: getComputedStyle(document.querySelector('.page') || document.body).fontFamily.includes('Courier'),
         title: document.title,
+        metrics: {
+          rootFont: getComputedStyle(document.documentElement).fontSize,
+          bodyFont: getComputedStyle(document.body).fontSize,
+          hbtn: getComputedStyle(document.querySelector('.hbtn')).fontSize,
+          statusFont: getComputedStyle(document.querySelector('#stType')).fontSize,
+          pageFont: getComputedStyle(document.querySelector('.page') || document.body).fontSize,
+          dpr: devicePixelRatio, innerW: innerWidth, innerH: innerHeight,
+          canvasW: (document.querySelector('#canvas')||{}).clientWidth,
+          zoom: (window.__pica||{}).zoom, k: (window.__pica||{}).k,
+        },
       });
     })()
     """) { res in
@@ -118,6 +128,7 @@ func stage1() {
         check("localStorage available on pica:// origin", o["ls"] as? Bool == true,
               o["origin"] as? String ?? "?")
         check("script page is set in Courier", o["courier"] as? Bool == true)
+        if let m = o["metrics"] { print("  METRICS: \(m)") }
         stage2()
     }
 }

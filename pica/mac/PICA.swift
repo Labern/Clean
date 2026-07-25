@@ -100,6 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     private var handler: ResourceSchemeHandler!
     private var pendingOpen: [URL] = []
     private var ready = false
+    private var didAutoFullScreen = false
 
     // ---- lifecycle ----
 
@@ -138,33 +139,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         cfg.websiteDataStore = .default()          // persistent: localStorage survives quit
         cfg.userContentController.add(self, name: "pica")
 
-        let v = WKWebView(frame: NSRect(x: 0, y: 0, width: 1180, height: 860), configuration: cfg)
+        let v = WKWebView(frame: NSRect(x: 0, y: 0, width: 1320, height: 900), configuration: cfg)
         v.navigationDelegate = self
         v.uiDelegate = self
         v.allowsMagnification = false
         v.setValue(false, forKey: "drawsBackground")   // no white flash before the page paints
         if #available(macOS 13.3, *) { v.isInspectable = true }
+        // The UI is sized in rem, so it follows the browser's default font size. Labern's
+        // Chrome is set to 24px rather than the usual 16px; WKWebView always uses 16px, which
+        // made the app render two-thirds the size of the web build. Zoom to match.
+        // If the app ever looks off next to the browser again, re-measure
+        // getComputedStyle(document.documentElement).fontSize in both and reset this ratio.
+        v.pageZoom = UserDefaults.standard.object(forKey: "uiZoom") as? Double ?? (24.0 / 16.0)
         self.web = v
 
+        // No system title bar above the app: the page runs full-height and PICA's own header
+        // *is* the title bar, with the traffic lights floating over it. The page is told how
+        // much room to leave for them via --titlebar-inset.
         let w = NSWindow(contentRect: v.frame,
                          styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                          backing: .buffered, defer: false)
         w.title = "PICA"
-        w.titlebarAppearsTransparent = false
+        w.titlebarAppearsTransparent = true
+        w.titleVisibility = .hidden
+        w.isMovableByWindowBackground = true
         w.contentView = v
-        w.minSize = NSSize(width: 720, height: 520)
+        w.minSize = NSSize(width: 820, height: 560)
         w.setFrameAutosaveName("PicaMainWindow")
         w.isReleasedWhenClosed = false
         w.makeKeyAndOrderFront(nil)
         if w.frame.width < 800 { w.center() }
         self.window = w
 
+        for (name, _) in [(NSWindow.didEnterFullScreenNotification, 0),
+                          (NSWindow.didExitFullScreenNotification, 0)] {
+            NotificationCenter.default.addObserver(self, selector: #selector(syncTitlebarInset),
+                                                  name: name, object: w)
+        }
+
         v.load(URLRequest(url: URL(string: "pica://app/index.html")!))
+    }
+
+    // Leave room for the traffic lights when they are on screen; reclaim it in full screen.
+    // pageZoom scales CSS pixels, so the device-point inset has to be divided by it.
+    @objc private func syncTitlebarInset() {
+        guard let w = window, let v = web else { return }
+        let full = w.styleMask.contains(.fullScreen)
+        let js = full
+            ? "document.documentElement.style.removeProperty('--titlebar-inset')"
+            : "document.documentElement.style.setProperty('--titlebar-inset', '\(82.0 / v.pageZoom)px')"
+        v.evaluateJavaScript(js, completionHandler: nil)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         ready = true
+        syncTitlebarInset()
         drainPendingOpens()
+        // open full screen (set `defaults write com.labern.pica openFullScreen -bool NO` to stop)
+        if !didAutoFullScreen {
+            didAutoFullScreen = true
+            let want = UserDefaults.standard.object(forKey: "openFullScreen") as? Bool ?? true
+            if want, let w = window, !w.styleMask.contains(.fullScreen) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { w.toggleFullScreen(nil) }
+            }
+        }
     }
 
     // let the page's own <input type=file> present a normal open panel
@@ -226,6 +264,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     @objc func picaUndo(_ s: Any?)      { js("PICA_API.undo()") }
     @objc func picaRedo(_ s: Any?)      { js("PICA_API.redo()") }
     @objc func toggleSidebar(_ s: Any?) { js("PICA_API.toggleRail()") }
+    @objc func toggleTitlePage(_ s: Any?) { js("PICA_API.toggleTitlePage()") }
     @objc func invertTheme(_ s: Any?)   { js("PICA_API.toggleTheme()") }
     @objc func zoomIn(_ s: Any?)        { js("PICA_API.zoom(0.1)") }
     @objc func zoomOut(_ s: Any?)       { js("PICA_API.zoom(-0.1)") }
@@ -340,6 +379,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         // View
         let viewMenu = NSMenu(title: "View")
         viewMenu.addItem(item("Hide Sidebar", #selector(toggleSidebar(_:)), "b"))
+        viewMenu.addItem(item("Show Title Page", #selector(toggleTitlePage(_:)), "t", [.command, .shift]))
         viewMenu.addItem(item("Invert Theme", #selector(invertTheme(_:)), "j"))
         viewMenu.addItem(.separator())
         viewMenu.addItem(item("Zoom In", #selector(zoomIn(_:)), "+"))
