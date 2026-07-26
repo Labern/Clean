@@ -148,6 +148,16 @@ body.resizing #canvas{ pointer-events:none; }
 .scene-item .sl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .doc-item .pg{ margin-left:auto; color:var(--faint); font-variant-numeric:tabular-nums; flex:none;}
 .sidegrid{ display:grid; grid-template-columns:1fr 1fr; gap:.45rem; margin-bottom:.4rem; }
+#railFilter{
+  width:100%; font-family:var(--mono); font-size:.66rem; letter-spacing:.12em;
+  color:var(--ink); background:none; border:none; border-bottom:1px solid var(--line);
+  outline:none; padding:.25rem .1rem; margin:.15rem 0 .3rem;
+}
+#railFilter:focus{ border-bottom-color:var(--rule); }
+/* the index holds ten rows; past that it scrolls within itself, so SCENES always
+   starts just below the tenth entry */
+#docList{ max-height:17.6rem; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; position:relative; z-index:1; }
+#railFilter::placeholder{ color:var(--faint); opacity:.6; text-transform:uppercase; }
 .sbtn{
   font-family:var(--mono); font-size:.64rem; letter-spacing:.2em; text-transform:uppercase;
   color:var(--ink); background:transparent; border:1.5px solid var(--ink);
@@ -416,6 +426,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
       <button class="sbtn" id="railExport" data-side="exp" hidden>Export</button>
       <button class="sbtn" id="railTitle" data-side="title" hidden title="Title page (⇧⌘T)">Title</button>
     </div>
+    <input id="railFilter" placeholder="filter…" spellcheck="false">
     <button class="eyebrow" id="eyeIndex">Index</button>
     <div id="docList"></div>
     <button class="eyebrow" id="eyeScenes">Scenes</button>
@@ -1530,13 +1541,17 @@ const store = {
   },
   save(id, doc){
     store.cache.set(id, doc);
-    idb.put('doc.' + id, doc).then(() => {
-      const ix = store.index();
-      const it = ix.find(d => d.id === id);
-      const meta = { id, title: doc.title || 'UNTITLED', pages: S.res ? S.res.count : 0, at: Date.now() };
-      if (it) Object.assign(it, meta); else ix.unshift(meta);
-      store.saveIndex(ix);
-    }).catch(err => {
+    // the index is small and synchronous — write it NOW so the sidebar shows the script
+    // immediately; only the document body travels through IndexedDB
+    const ix = store.index();
+    const it = ix.find(d => d.id === id);
+    const meta = { id, title: doc.title || 'UNTITLED', pages: S.res ? S.res.count : 0, at: Date.now() };
+    if (it) Object.assign(it, meta); else ix.unshift(meta);
+    store.saveIndex(ix);
+    idb.put('doc.' + id, doc).catch(err => {
+      // the body failed to persist: withdraw the index entry rather than lie
+      store.saveIndex(store.index().filter(d => d.id !== id));
+      try { rail(); } catch {}
       overlayCard('<h2>Could not save</h2><div class="sub">storage</div>' +
         '<p>The database refused the write (' + String(err && err.message || err).replace(/</g, '&lt;') +
         '). Nothing was recorded as saved. Export your work now — Export → JSON — and tell me about this.</p>' +
@@ -2719,14 +2734,40 @@ function draftsMenu(ev){
 function rail(){
   const dl = $('#docList');
   dl.innerHTML = '';
+  const q = ($('#railFilter').value || '').trim().toLowerCase();
+  const hit = t => !q || (t || '').toLowerCase().includes(q);
   const pinned = new Set(LS.get('pica.ui', {}).pinned || []);
-  const list = store.index().slice().sort((a, b) =>
+  const archived = new Set(LS.get('pica.ui', {}).archived || []);
+  const all = store.index().slice().sort((a, b) =>
     (pinned.has(b.id) ? 1 : 0) - (pinned.has(a.id) ? 1 : 0));
-  for (const d of list) {
+  const list = all.filter(d => !archived.has(d.id) && hit(d.title));
+  const shelf = all.filter(d => archived.has(d.id) && hit(d.title));
+  for (const d of list.concat(shelf.length ? [{ __shelf: shelf }] : [])) {
+    if (d.__shelf) {
+      const eb = document.createElement('button');
+      eb.className = 'eyebrow';
+      eb.textContent = 'Archive · ' + d.__shelf.length;
+      const wrap = document.createElement('div');
+      wrap.hidden = !(LS.get('pica.ui', {}).collapse || {}).archOpen;
+      eb.addEventListener('mousedown', ev => {
+        ev.preventDefault();
+        wrap.hidden = !wrap.hidden;
+        const u = LS.get('pica.ui', {});
+        u.collapse = Object.assign({}, u.collapse, { archOpen: !wrap.hidden });
+        LS.set('pica.ui', u);
+      });
+      dl.appendChild(eb); dl.appendChild(wrap);
+      for (const a of d.__shelf) dl.__shelfWrap = wrap, addDocRow(a, wrap, pinned, true);
+      continue;
+    }
+    addDocRow(d, dl, pinned, false);
+  }
+  function addDocRow(d, host, pinned, inShelf) {
     const b = document.createElement('button');
     b.className = 'doc-item' + (d.id === S.docId ? ' current' : '');
     b.innerHTML = '<span class="ttl"></span><span class="pg"></span>';
     b.firstChild.textContent = (pinned.has(d.id) ? '• ' : '') + (d.title || 'Untitled');
+    b.firstChild.style.opacity = inShelf ? '.55' : '';
     b.lastChild.textContent = d.pages ? d.pages + 'p' : '';
     b.addEventListener('mousedown', ev => { if (ev.button !== 0) return; if (d.id !== S.docId) openDoc(d.id); });
     b.addEventListener('contextmenu', ev => { ev.preventDefault(); docMenu(d, ev); });
@@ -2761,7 +2802,7 @@ function rail(){
       store.saveIndex(ix);
       rail();
     });
-    dl.appendChild(b);
+    host.appendChild(b);
   }
   // characters: base name + cue count; click jumps to their next cue
   const cl = $('#charList');
@@ -2771,7 +2812,8 @@ function rail(){
     const base = e.text.replace(/\s*\([^)]*\)\s*$/, '').trim();
     if (base) counts.set(base, (counts.get(base) || 0) + 1);
   }
-  for (const [name, cnt] of [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40)) {
+  const q2 = ($('#railFilter').value || '').trim().toLowerCase();
+  for (const [name, cnt] of [...counts.entries()].sort((a, b) => b[1] - a[1]).filter(([n]) => !q2 || n.toLowerCase().includes(q2)).slice(0, 40)) {
     const b = document.createElement('button');
     b.className = 'scene-item';
     b.innerHTML = '<span class="sl"></span><span class="pg" style="margin-left:auto"></span>';
@@ -2814,6 +2856,8 @@ function rail(){
     if (l.kind !== 'scene' || seen.has(l.el) ) continue;
     seen.add(l.el);
     n++;
+    { const q3 = ($('#railFilter').value || '').trim().toLowerCase();
+      if (q3 && !l.text.toLowerCase().includes(q3)) continue; }
     const b = document.createElement('button');
     b.className = 'scene-item';
     b.dataset.el = l.el;
@@ -2843,6 +2887,7 @@ function docMenu(d, ev){
     { label: 'Rename…', act: 'rename' },
     { label: 'Duplicate', act: 'dup' },
     { label: isPinned ? 'Unpin' : 'Pin to top', act: 'pin' },
+    { label: (LS.get('pica.ui', {}).archived || []).includes(d.id) ? 'Unarchive' : 'Archive', act: 'arch' },
     { label: 'Export JSON', act: 'json' },
     { label: 'Delete…', act: 'del' },
   ];
@@ -2873,6 +2918,13 @@ function docMenu(d, ev){
     } else if (it.act === 'pin') {
       if (isPinned) pinned.delete(d.id); else pinned.add(d.id);
       savePinned(); rail(); toast(isPinned ? 'unpinned' : 'pinned');
+    } else if (it.act === 'arch') {
+      const u = LS.get('pica.ui', {});
+      const set = new Set(u.archived || []);
+      const was = set.has(d.id);
+      was ? set.delete(d.id) : set.add(d.id);
+      u.archived = [...set]; LS.set('pica.ui', u);
+      rail(); toast(was ? 'unarchived' : 'archived');
     } else if (it.act === 'json') {
       (async () => {
       const doc = d.id === S.docId ? S.doc : await store.load(d.id);
@@ -3464,6 +3516,8 @@ const foldWire = (eye, listId, key) => $(eye).addEventListener('mousedown', ev =
 });
 $('#railExport').addEventListener('mousedown', ev => { ev.preventDefault(); openExportMenu(); });
 $('#railTitle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleTitlePage(); });
+$('#railFilter').addEventListener('input', () => { clearTimeout(window._rf); window._rf = setTimeout(rail, 120); });
+$('#railFilter').addEventListener('keydown', ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.target.value = ''; rail(); ev.target.blur(); } });
 foldWire('#eyeIndex', '#docList', 'index');
 foldWire('#eyeScenes', '#sceneList', 'scenes');
 foldWire('#eyeChars', '#charList', 'chars');
