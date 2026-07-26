@@ -582,6 +582,24 @@ html[data-shell-compact][data-shell-convo-open] [data-shell-wallpaper] {
   display: none !important;
 }
 
+/* With the "+" and emoji buttons gone, the composer still reserved their space and
+   the caret started well inside the pill. Pull it left onto the reclaimed room. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-composer] {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+}
+/* One small inset, on the pill itself, so the text is not jammed against it. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] footer div:has(> [data-shell-composer]) {
+  padding-left: 12px !important;
+}
+/* The footer painted transparent, so the layer behind showed its doodle around the
+   composer. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] footer,
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] > footer {
+  background-color: var(--WDS-systems-chat-background-wallpaper, #0e0b1a) !important;
+}
+
 /* The composer's "+" and emoji buttons: dead weight at this width. */
 html[data-shell-compact][data-shell-convo-open] [data-shell-hidebtn] {
   display: none !important;
@@ -608,8 +626,11 @@ html[data-shell-font] body * {
    class for copyable message text — verified present live — scoped to the
    conversation so chat-list previews keep their size. */
 
-html[data-shell-msgsize] [data-shell-convo] .selectable-text,
-html[data-shell-msgsize] [data-shell-convo] .selectable-text * {
+/* Scoped to message ROWS, not the whole conversation: WhatsApp puts
+   .selectable-text on the composer's editable as well, so the unscoped version
+   resized the input along with the messages. */
+html[data-shell-msgsize] [data-shell-convo] [role="row"] .selectable-text,
+html[data-shell-msgsize] [data-shell-convo] [role="row"] .selectable-text * {
   font-size: var(--shell-msg-size) !important;
   line-height: 1.42 !important;
 }
@@ -619,6 +640,19 @@ html[data-shell-msgsize] [data-shell-convo] .selectable-text * {
    conversation up close and scans the list. The preview and timestamp are scaled
    off the same number so the row stays in proportion instead of needing three
    controls. Hooks are WhatsApp's own testids, verified live. */
+
+/* A font for contact names alone. Placed after §8's global font override and with
+   a higher attribute count, so a chosen name font wins over the chat font. */
+html[data-shell-namefont] [data-testid="cell-frame-title"],
+html[data-shell-namefont] [data-testid="cell-frame-title"] *,
+html[data-shell-namefont] #pane-side [data-testid="cell-frame-title"],
+html[data-shell-namefont] #pane-side [data-testid="cell-frame-title"] *,
+html[data-shell-namefont] [data-shell-list] [data-testid="cell-frame-title"],
+html[data-shell-namefont] [data-shell-list] [data-testid="cell-frame-title"] *,
+html[data-shell-namefont] [data-shell-convo] header span[title],
+html[data-shell-namefont] #shell-bar #shell-name {
+  font-family: var(--shell-name-font) !important;
+}
 
 html[data-shell-namesize] [data-testid="cell-frame-title"],
 html[data-shell-namesize] [data-testid="cell-frame-title"] *,

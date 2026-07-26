@@ -67,6 +67,16 @@ let kFonts: [(title: String, css: String)] = [
 
 // Quiet hours, as presets rather than a date-picker sheet — one click, no dialog.
 // `from == -1` is off. Ranges wrap past midnight.
+// Contact names can differ from the chat font — an empty css means "same as chat".
+let kNameFonts: [(title: String, css: String)] = [
+    ("Same as Chat",    ""),
+    ("System",          "-apple-system, BlinkMacSystemFont, \"Helvetica Neue\", sans-serif"),
+    ("SF Mono",         "\"SF Mono\", Menlo, monospace"),
+    ("Menlo",           "Menlo, monospace"),
+    ("New York",        "\"New York\", Georgia, serif"),
+    ("Iowan Old Style", "\"Iowan Old Style\", Palatino, serif"),
+]
+
 let kQuietPresets: [(title: String, from: Int, to: Int)] = [
     ("Off",             -1, -1),
     ("22:00 – 08:00",   22,  8),
@@ -130,6 +140,8 @@ struct Settings {
     var fadeInactive: Bool
     var fontTitle: String        // which Font-menu entry is ticked
     var fontCSS: String          // the font-family it maps to ("" = theme's own)
+    var nameFontTitle: String    // contact names can use a different typeface
+    var nameFontCSS: String
     var msgSize: Double          // 0 = WhatsApp's own size
     var nameSize: Double         // contact names + chat list, 0 = WhatsApp's own
     var msgGap: Double           // extra space between messages, 0 = none
@@ -162,6 +174,8 @@ struct Settings {
             fadeInactive: d.bool(forKey: "fadeInactive"),
             fontTitle: d.string(forKey: "fontTitle") ?? "Theme Default",
             fontCSS: d.string(forKey: "fontCSS") ?? "",
+            nameFontTitle: d.string(forKey: "nameFontTitle") ?? "Same as Chat",
+            nameFontCSS: d.string(forKey: "nameFontCSS") ?? "",
             msgSize: d.object(forKey: "msgSize") as? Double ?? 0,
             nameSize: d.object(forKey: "nameSize") as? Double ?? 0,
             msgGap: d.object(forKey: "msgGap") as? Double ?? 0,
@@ -187,6 +201,8 @@ struct Settings {
         d.set(fadeInactive, forKey: "fadeInactive")
         d.set(fontTitle, forKey: "fontTitle")
         d.set(fontCSS, forKey: "fontCSS")
+        d.set(nameFontTitle, forKey: "nameFontTitle")
+        d.set(nameFontCSS, forKey: "nameFontCSS")
         d.set(msgSize, forKey: "msgSize")
         d.set(nameSize, forKey: "nameSize")
         d.set(msgGap, forKey: "msgGap")
@@ -253,6 +269,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var nameSizeItems: [NSMenuItem] = []
     private var msgGapItems: [NSMenuItem] = []
     private var edgeGapItems: [NSMenuItem] = []
+    private var nameFontItems: [NSMenuItem] = []
     private var privacyItem: NSMenuItem!
     private var notifyItem: NSMenuItem!
     private var soundItem: NSMenuItem!
@@ -389,6 +406,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         hide: \(hideJSON), privacy: \(settings.privacy ? "true" : "false"), \
         compact: \(settings.compact ? "true" : "false"), \
         font: \(jsLiteral(settings.fontCSS)), msgSize: \(settings.msgSize), \
+        nameFont: \(jsLiteral(settings.nameFontCSS)), \
         nameSize: \(settings.nameSize), msgGap: \(settings.msgGap), \
         sounds: \(settings.sounds ? "true" : "false"), edgeGap: \(settings.edgeGap), \
         pins: \(pinsJSON) };
@@ -458,7 +476,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             // insists on — otherwise a narrow window just clips a wide layout.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.fitCompact() }
         } else {
-            UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV4")
+            UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV5")
             js("__shell.setCompact(false)")
             web?.pageZoom = CGFloat(settings.zoom)          // restore his real zoom
             if let f = fullFrame { w.setFrame(f, display: true, animate: true) }
@@ -566,14 +584,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     }
 
     private func savedCompanionFrame() -> NSRect? {
-        guard let s = UserDefaults.standard.string(forKey: "companionFrameV4") else { return nil }
+        guard let s = UserDefaults.standard.string(forKey: "companionFrameV5") else { return nil }
         let r = NSRectFromString(s)
         return (r.width > 200 && r.height > 200) ? r : nil
     }
 
     /// True once the app has parked the window off screen at least once, so the
     /// remembered frame is known to be his and not a clamped leftover.
-    private var hasUserFrame: Bool { UserDefaults.standard.string(forKey: "companionFrameV4") != nil }
+    private var hasUserFrame: Bool { UserDefaults.standard.string(forKey: "companionFrameV5") != nil }
 
     private func defaultCompanionFrame() -> NSRect {
         let screen = (window?.screen ?? NSScreen.main)?.frame
@@ -643,12 +661,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
     // Remember the companion frame as he resizes it, so it comes back the size
     // he left it — resizing is one of the things he asked for.
-    func windowDidResize(_ note: Notification) { rememberFrame() }
-    func windowDidMove(_ note: Notification)   { rememberFrame() }
+    // ONLY a live, user-driven resize may overwrite the remembered frame.
+    // windowDidResize/windowDidMove also fire for programmatic changes — the slide
+    // animation and entering focus mode — and one of those saved a clamped height,
+    // which is why it stopped opening at full height. windowDidEndLiveResize fires
+    // only after he has finished dragging an edge himself.
+    func windowDidEndLiveResize(_ note: Notification) { rememberFrame() }
 
     private func rememberFrame() {
         guard let w = window, settings.compact, !slidOut else { return }
-        UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV4")
+        UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV5")
         // Re-fit after he stops dragging, not on every frame of the drag.
         fitWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.fitCompact() }
@@ -922,6 +944,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         js("__shell.setFont(\(jsLiteral(settings.fontCSS)))")
         js("__shell.setMsgSize(\(settings.msgSize))")
         js("__shell.setNameSize(\(settings.nameSize))")
+        js("__shell.setNameFont(\(jsLiteral(settings.nameFontCSS)))")
         js("__shell.setMsgGap(\(settings.msgGap))")
         js("__shell.setEdgeGap(\(settings.edgeGap))")
         js("__shell.setSounds(\(settings.sounds ? "true" : "false"))")
@@ -969,6 +992,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         settings.nameSize = kNameSizes[sender.tag].px
         settings.save(); reinstallUserScripts()
         js("__shell.setNameSize(\(settings.nameSize))")
+        js("__shell.setNameFont(\(jsLiteral(settings.nameFontCSS)))")
+        syncMenuState()
+    }
+
+    @objc private func chooseNameFont(_ sender: NSMenuItem) {
+        let f = kNameFonts[sender.tag]
+        settings.nameFontTitle = f.title
+        settings.nameFontCSS = f.css
+        settings.save(); reinstallUserScripts()
+        js("__shell.setNameFont(\(jsLiteral(settings.nameFontCSS)))")
         syncMenuState()
     }
 
@@ -1347,6 +1380,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         for (i, item) in nameSizeItems.enumerated() {
             item.state = kNameSizes[i].px == settings.nameSize ? .on : .off
         }
+        for (i, item) in nameFontItems.enumerated() {
+            item.state = kNameFonts[i].title == settings.nameFontTitle ? .on : .off
+        }
         for (i, item) in edgeGapItems.enumerated() {
             item.state = kEdgeGaps[i].px == settings.edgeGap ? .on : .off
         }
@@ -1510,6 +1546,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         let nameItem = NSMenuItem(title: "Contact Name Size", action: nil, keyEquivalent: "")
         nameItem.submenu = nameMenu
         viewMenu.addItem(nameItem)
+
+        let nameFontMenu = NSMenu(title: "Contact Name Font")
+        for (i, f) in kNameFonts.enumerated() {
+            let it = item(f.title, #selector(chooseNameFont(_:)))
+            it.tag = i; nameFontMenu.addItem(it); nameFontItems.append(it)
+        }
+        let nameFontItem = NSMenuItem(title: "Contact Name Font", action: nil, keyEquivalent: "")
+        nameFontItem.submenu = nameFontMenu
+        viewMenu.addItem(nameFontItem)
 
         let edgeMenu = NSMenu(title: "Message Margin")
         for (i, g) in kEdgeGaps.enumerated() {

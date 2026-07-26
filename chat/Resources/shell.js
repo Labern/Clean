@@ -31,7 +31,7 @@
 
   const cfg = Object.assign({ theme: 'stock', hide: {}, privacy: false,
                               compact: false, font: '', msgSize: 0,
-                              nameSize: 0, msgGap: 0, edgeGap: 6, sounds: false,
+                              nameSize: 0, msgGap: 0, edgeGap: 6, sounds: false, nameFont: '',
                               focus: false, pins: [] },
                             window.__SHELL_CONFIG || {});
 
@@ -289,6 +289,76 @@
     return n;
   }
 
+  /* Pull the caret onto the space the removed buttons had reserved. A CSS rule on
+     the composer alone did not do it — the inset is contributed somewhere along the
+     chain between the pill and the editable — so walk that chain and zero the
+     horizontal padding on every step, then let the CSS give the pill a small inset
+     of its own. */
+  function tagComposerChain() {
+    if (!cfg.compact) return 0;
+    const pane = document.querySelector('[data-shell-convo]');
+    const footer = pane && pane.querySelector('footer');
+    const box = footer && footer.querySelector('[contenteditable="true"]');
+    if (!box) return 0;
+    let n = 0, el = box;
+    while (el && el !== footer) {
+      if (!el.hasAttribute('data-shell-composer')) { el.setAttribute('data-shell-composer', ''); n++ }
+      el = el.parentElement;
+    }
+    return n;
+  }
+
+  /* Pull the caret left by measurement. Zeroing paddings along the chain was not
+     enough — the inset is contributed by something that survives it — so measure how
+     far the text actually starts from the pill's left edge and close the difference
+     with a negative margin, leaving a deliberate 12px. Same approach as the
+     bubbles, and equally independent of whatever produces the space. */
+  function tightenComposer() {
+    if (!cfg.compact) return 0;
+    const pane = document.querySelector('[data-shell-convo]');
+    const footer = pane && pane.querySelector('footer');
+    const box = footer && footer.querySelector('[contenteditable="true"]');
+    if (!box || !footer) return 0;
+
+    const footerWidth = footer.getBoundingClientRect().width;
+    if (footerWidth < 40) return 0;
+
+    // The pill is the first ancestor wide enough to be the input's container.
+    let pill = box.parentElement;
+    while (pill && pill !== footer && pill.getBoundingClientRect().width < footerWidth * 0.6) {
+      pill = pill.parentElement;
+    }
+    if (!pill || pill === footer) return 0;
+
+    box.style.marginLeft = '';                 // measure unshifted, so this converges
+    const p = pill.getBoundingClientRect();
+
+    // Measure where the TEXT starts, not where the editable's box starts: the inset
+    // lives inside the editable, so its own rect looks fine while the caret sits far
+    // to the right. A Range over its contents reports the real position; if it is
+    // empty, fall back to the placeholder or the first child.
+    let textLeft = box.getBoundingClientRect().left;
+    try {
+      const range = document.createRange();
+      range.selectNodeContents(box);
+      const rects = range.getClientRects();
+      if (rects.length && rects[0].width >= 0) textLeft = rects[0].left;
+      else if (box.firstElementChild) textLeft = box.firstElementChild.getBoundingClientRect().left;
+    } catch (e) {}
+
+    const delta = (textLeft - p.left) - 12;
+    if (delta > 2) { box.style.marginLeft = (-delta).toFixed(1) + 'px'; return 1 }
+    return 0;
+  }
+
+  function clearComposerChain() {
+    const box = document.querySelector('[data-shell-composer][contenteditable="true"]');
+    if (box) box.style.marginLeft = '';
+    for (const el of document.querySelectorAll('[data-shell-composer]')) {
+      el.removeAttribute('data-shell-composer');
+    }
+  }
+
   function clearTrimmed() {
     for (const el of document.querySelectorAll('[data-shell-hidebtn]')) {
       el.removeAttribute('data-shell-hidebtn');
@@ -357,6 +427,7 @@
       clearPinStrip();
       clearWallpaper();
       clearTrimmed();
+      clearComposerChain();
       for (const el of document.querySelectorAll('[data-shell-out],[data-shell-in]')) {
         el.removeAttribute('data-shell-out'); el.removeAttribute('data-shell-in');
       }
@@ -384,6 +455,8 @@
     tagPinStrip();
     tagWallpaper();
     trimComposer();
+    tagComposerChain();
+    tightenComposer();
     return Object.assign(state, compactMetrics());
   }
 
@@ -785,6 +858,19 @@
 
   function setMsgSize(px)  { return setPixelVar(px, '--shell-msg-size',  'data-shell-msgsize',  'msgSize') }
   function setNameSize(px) { return setPixelVar(px, '--shell-name-size', 'data-shell-namesize', 'nameSize') }
+
+  // Contact names can carry their own typeface, separate from the chat font.
+  function setNameFont(family) {
+    cfg.nameFont = family || '';
+    if (cfg.nameFont) {
+      R().style.setProperty('--shell-name-font', cfg.nameFont);
+      R().setAttribute('data-shell-namefont', '');
+    } else {
+      R().style.removeProperty('--shell-name-font');
+      R().removeAttribute('data-shell-namefont');
+    }
+    return cfg.nameFont;
+  }
   function setMsgGap(px)   { return setPixelVar(px, '--shell-msg-gap',   'data-shell-msggap',   'msgGap') }
 
   function setEdgeGap(px) {
@@ -1074,6 +1160,7 @@
       font:        R().style.getPropertyValue('--shell-font') || '',
       msgSize:     R().style.getPropertyValue('--shell-msg-size') || '',
       nameSize:    R().style.getPropertyValue('--shell-name-size') || '',
+      nameFont:    R().style.getPropertyValue('--shell-name-font') || '',
       msgGap:      R().style.getPropertyValue('--shell-msg-gap') || '',
       edgeGap:     cfg.edgeGap,
       sounds:      cfg.sounds === true,
@@ -1142,6 +1229,7 @@
   setFont(cfg.font || '');
   setMsgSize(cfg.msgSize || 0);
   setNameSize(cfg.nameSize || 0);
+  setNameFont(cfg.nameFont || '');
   setMsgGap(cfg.msgGap || 0);
   setEdgeGap(cfg.edgeGap);
   setSounds(cfg.sounds === true);
@@ -1150,7 +1238,7 @@
   window.__shell = {
     applyTheme, applyHide, applyPrivacy, openChat, currentChatName,
     focusSearch, focusComposer, newChat, notificationClicked, checkPrivacyCoverage, state,
-    setCompact, setFont, setMsgSize, setNameSize, setMsgGap, setEdgeGap, replyTo,
+    setCompact, setFont, setMsgSize, setNameSize, setNameFont, setMsgGap, setEdgeGap, replyTo,
     setSounds, compactMetrics, tagBubbles
   };
 
@@ -1162,7 +1250,7 @@
     tagConvoPane();
     tagRail();
     tagList();
-    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); ensureFloor(); tagBubbles(); tightenBubbles(); collapseChrome(); collapseBackdrops(); tagAncestors(); tagPinStrip(); tagWallpaper(); trimComposer() }
+    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); ensureFloor(); tagBubbles(); tightenBubbles(); collapseChrome(); collapseBackdrops(); tagAncestors(); tagPinStrip(); tagWallpaper(); trimComposer(); tagComposerChain(); tightenComposer() }
     if (cfg.privacy) checkPrivacyCoverage();
     if (!announcedLink && document.querySelector('#pane-side')) {
       announcedLink = true;
@@ -1173,13 +1261,41 @@
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { installCSS(); ensureAttributes() }, { once: true });
   }
-  // Escape leaves focus mode — unless WhatsApp needs it for something of its own
-  // (an open dialog, or the search box, where Escape clears the query).
+  /* Escape closes whatever is on top, innermost first, and only leaves focus mode
+     when there is nothing left to dismiss. Menus that WhatsApp renders into its
+     popover bucket do not always answer a synthetic Escape, so they get an outside
+     click instead — aimed at our own bar, which is inert. */
+  function openOverlay() {
+    const bucket = document.getElementById('wa-popovers-bucket');
+    if (bucket && bucket.children.length) return bucket;
+    return document.querySelector('[role="menu"], [role="dialog"], [role="listbox"]');
+  }
+
+  function dismissOverlay() {
+    if (!openOverlay()) return false;
+    const bar = document.getElementById('shell-bar');
+    realClick(bar || document.body);
+    return true;
+  }
+
   window.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape' || !cfg.compact) return;
-    if (document.querySelector('[role="dialog"]')) return;
+
+    // 1. an open menu or dialog
+    if (dismissOverlay()) { e.preventDefault(); e.stopPropagation(); return }
+
+    // 2. WhatsApp's header, if "more" revealed it
+    if (R().hasAttribute('data-shell-compact-more')) {
+      R().removeAttribute('data-shell-compact-more');
+      e.preventDefault(); e.stopPropagation();
+      return;
+    }
+
+    // 3. typing? leave Escape to WhatsApp (it clears the search box)
     const active = document.activeElement;
     if (active && (active.tagName === 'INPUT' || active.isContentEditable)) return;
+
+    // 4. nothing to close — leave focus mode
     post({ type: 'exitCompact' });
   }, true);
 
