@@ -98,7 +98,52 @@ him sends him back to his phone, and the app has failed at its only job. So:
 | ⌘R | reload |
 | ⌃⌥⌘W | **global** — summon or dismiss from any app |
 
-## Companion mode
+## Focus mode (⌘⇧R) — the mode that matters
+A full-height column, 30% of the screen wide, hard against the right edge, showing
+one conversation and nothing else. **⌘R** slides it entirely off screen and back.
+His own summary of why it works: *"I don't even have to shift tab. One keyboard
+shortcut and it opens up chat instantly."* That is the bar — anything that adds a
+step is a regression.
+
+What focus mode does, and why each piece is the way it is:
+- **One bar, not two.** The window takes `.fullSizeContentView`, so the injected bar
+  IS the title bar: traffic lights · FOCUS chip · back · name · unread pill · more.
+  Two stacked bars cost 66px of a short panel.
+- **⌘R parks the window past the screen edge** rather than hiding it, so it stays
+  connected. It needs `SlidingWindow`, which overrides `constrainFrameRect` —
+  AppKit otherwise keeps a titled window's title bar reachable and leaves a sliver.
+- **⌘R is global** and hands focus back to the app he came from, putting the caret
+  in the message box on the way in. Trade-off documented at `kHotKeyMods`: a global
+  ⌘R is swallowed everywhere, so Reload/Run stop working in other apps.
+- **Everything that is not the conversation is collapsed** — nav rail, list column,
+  pinned-message strip, and the composer's `+`/emoji buttons (dead at this width).
+  All found by shape or position, never by class name.
+- **Bubbles are placed by measurement.** `tightenBubbles()` measures each bubble's
+  real distance to its side and translates it to the chosen margin. Four rounds of
+  zeroing paddings and margins on ancestors never worked; measuring does.
+- **Escape closes what is on top**: menu/dialog → the revealed header → exit.
+
+### Do not repeat these
+- **Only `windowDidEndLiveResize` may persist the frame.** `windowDidResize` and
+  `windowDidMove` also fire for programmatic changes — the slide animation, entering
+  the mode — and one intermediate, AppKit-clamped frame got saved, after which focus
+  mode stopped opening at full height. He was blunt about it: "Don't let this happen
+  again."
+- **Never remove `background-image` globally.** WhatsApp draws emoji as CSS sprite
+  background-images; killing it wipes every emoji out of the conversation.
+- **The stray vertical hairlines were a `box-shadow`/`outline`, not a border.** Four
+  rounds of border probing came back clean. Focus mode forbids all of
+  box-shadow/outline/side-border/column-rule.
+- **`.selectable-text` is on the composer as well as messages.** Scope message text
+  size to `[role="row"]`, or the input resizes with it.
+- **Do not force which side a message sits on.** WhatsApp gets it right;
+  overriding it (or zeroing the bubble's margins, which is how it right-aligns)
+  drags everything left.
+- **Diagnose from `~/Library/Application Support/CHAT/diagnostics.log`.** NSLog from
+  this app never surfaces in `log show`, which cost hours of guessing. `compactMetrics()`
+  reports widths, tag state and probes into that file.
+
+## Companion mode (superseded by focus mode above)
 One chat, small, floating beside other work. It reuses the **one** webview —
 WhatsApp Web allows a single active session per browser, so a second webview
 would be told "WhatsApp is open in another window" and fight this one for the

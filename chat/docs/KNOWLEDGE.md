@@ -101,6 +101,25 @@ Two things the parallel PICA session and his own live Chrome taught this app on
 the same day, both now fixed here: the **JS dialog delegates** (without them
 `confirm()` silently returns false) and the **storage-persistence refusal**.
 
+## What this session cost, and what it bought (2026-07-26)
+
+Focus mode took ~15 build/verify rounds, and the pattern in the failures is worth
+keeping: **every wrong turn came from changing CSS without measuring first.** The
+things that finally worked were measurements — the bubble-to-edge distance, the
+composer's real text position via a Range, the layout widths in the diagnostics
+file. The things that wasted rounds were plausible-looking selectors.
+
+Three of the bugs were mine, introduced while fixing something else: killing
+`background-image` (wiped every emoji), zeroing the bubble margins (dragged his own
+messages left, which he described as "splayed all over the place"), and persisting a
+programmatically-clamped window frame (lost full height). All three were invisible
+to the smoke test because they were visual. **The lesson: for this app, look at it —
+`mcp__computer-use__screenshot` plus `zoom` — before claiming anything is fixed.**
+
+He also asked, twice, for things I had already built but buried (Contact Name Size
+was called "Names & List Text"). Naming a control after the thing he sees on screen
+matters more than naming it after what it does internally.
+
 ## Open threads
 
 - **The name.** `CHAT` is a placeholder — he said "I'll decide later". Two lines
