@@ -25,9 +25,13 @@ and re-extracts (needs `npm i pdfjs-dist` inside tests/).
 - **Single self-contained index.html.** No build step, no framework. Only external
   refs: Google Fonts (Courier Prime) and pdfjs-dist from jsDelivr, lazy-loaded only
   when importing a PDF.
-- **Storage is additive-only, never wiped** (pica.index / pica.doc.* / pica.snap.* /
-  pica.ui in localStorage). Snapshots ring-buffer 5 deep. Sessions must survive every
-  update — hydrate old docs as-is; evolve by optional fields only.
+- **Storage: documents + snapshots live in IndexedDB** (`pica` db, `kv` store, keys
+  `doc.<id>` / `snap.<id>`); the index and prefs stay in localStorage (`pica.index`,
+  `pica.ui`). Never localStorage for bodies — WebKit's ~5MB quota silently broke
+  saves (the "1-page blank" bug). Index metadata writes synchronously, withdrawn if
+  the body fails to persist; a failed load never fabricates a blank; pagehide keeps
+  a one-slot emergency mirror that becomes a snapshot on next boot. Additive-only,
+  never wiped; snapshots ring-buffer 5 deep; drafts live INSIDE the doc (`doc.drafts`).
 - **Engine changes**: edit inside the markers, run tests, keep 100%. The tests
   extract the engine from index.html itself — there is no second copy.
 - Grammar map lives in the app (`?` overlay). Tab cycles → menu when options run
@@ -100,6 +104,17 @@ cp -R pica/fonts /tmp/ghp/pica/          # so the web build needs no Google Font
 cd /tmp/ghp && git add -A && git commit -m "Deploy pica to Pages at /Clean/pica/" && git push
 cd - && git worktree remove /tmp/ghp
 ```
+
+## The full instrument (as of 2026-07-26)
+Editor with FD-exact grammar · PDF import for the real world (revision headers,
+scene-number gutters, cipher fonts, provenance stamps — all scrubbed/decoded) ·
+FDX both ways · true PDF export · find & replace · draft mode with per-scene
+compare · emphasis (⌘B/I/U) · reader mode (⌘R, melts the app, dark surround,
+model-level edit lock) · side-by-side with page-for-page sync (⇅) · in-app
+screenplay browser (globe, native only — PDF responses import on click) · index
+at scale (10-row scroll cap, archive, drag-reorder, pin) · genre chip ·
+per-script scroll memory · settings for nearly everything. He has called it
+"better than Final Draft" — hold that bar.
 
 ## Future (parked by Labern)
 - **Character list** in the rail (hidden by default, toggleable) and **Study Mode**: source
