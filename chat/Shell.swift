@@ -76,8 +76,10 @@ let kQuietPresets: [(title: String, from: Int, to: Int)] = [
 
 let kMsgSizeMin = 11.0, kMsgSizeMax = 28.0, kMsgSizeBase = 15.0
 
-// Companion mode: a narrow floating panel, by default hugging the right edge.
-let kCompanionSize = NSSize(width: 420, height: 720)
+// Focus mode's default shape: a full-height column down the right edge, about a
+// fifth of the screen wide. His spec: "full height and about 20% width."
+let kCompanionWidthFraction: CGFloat = 0.30
+let kCompanionMinWidth: CGFloat = 300
 
 // Presets rather than steppers: two more keyboard chords would be worse than a
 // submenu, and 0 always means "leave WhatsApp's own value alone".
@@ -90,10 +92,20 @@ let kMsgGaps: [(title: String, px: Double)] = [
 
 let kNotificationCategory = "MESSAGE"
 
-// ⌃⌥⌘W — summon or dismiss from anywhere. Deliberately a three-modifier chord:
-// a global hotkey must not shadow a character or a common app shortcut.
-let kHotKeyCode = UInt32(kVK_ANSI_W)
-let kHotKeyMods = UInt32(cmdKey | optionKey | controlKey)
+// ⌘R — summon and dismiss from anywhere, per his workflow: "I can be typing
+// something, press CMD R to bring up whatsapp, type, type CMD R again and return
+// to work."
+//
+// NOTE, and it is a real trade-off: a global ⌘R is swallowed everywhere while this
+// app runs, so Reload in browsers and Run in editors stop responding to it. He
+// asked for ⌘R specifically. To take it back, change kHotKeyMods below to
+// `cmdKey | optionKey | controlKey` and Reload returns to every other app.
+let kHotKeyCode = UInt32(kVK_ANSI_R)
+let kHotKeyMods = UInt32(cmdKey)
+
+// Kept as a second, conflict-free way in.
+let kHotKeyCode2 = UInt32(kVK_ANSI_W)
+let kHotKeyMods2 = UInt32(cmdKey | optionKey | controlKey)
 
 // MARK: - settings
 
@@ -236,6 +248,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var recovered = false           // guards the off-WhatsApp recovery
     private var activity: NSObjectProtocol? // the App Nap assertion
     private var fitWork: DispatchWorkItem?  // debounces the companion re-fit
+    private var slidOut = false             // parked off the right edge
+    private var homeFrame: NSRect?          // where to slide back to
+    private var previousApp: NSRunningApplication?   // what to hand focus back to
+    private var hotKeyRef2: EventHotKeyRef?
 
     // ---- lifecycle ----
 
@@ -273,6 +289,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         if let z = web?.pageZoom { settings.zoom = Double(z) }
         settings.save()
         if let ref = hotKeyRef { UnregisterEventHotKey(ref) }
+        if let ref = hotKeyRef2 { UnregisterEventHotKey(ref) }
     }
 
     // ---- window & web view ----
@@ -418,7 +435,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             // insists on — otherwise a narrow window just clips a wide layout.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.fitCompact() }
         } else {
-            UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrame")
+            UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV3")
             js("__shell.setCompact(false)")
             web?.pageZoom = CGFloat(settings.zoom)          // restore his real zoom
             if let f = fullFrame { w.setFrame(f, display: true, animate: true) }
@@ -445,7 +462,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private func applyTitle() {
         guard let w = window else { return }
         w.title = settings.compact ? "FOCUS" : kAppName
-        w.titleVisibility = settings.compact ? .visible : .hidden
+        // In focus mode the injected bar IS the title bar: the content runs under
+        // the title bar area and the bar reserves 76px for the traffic lights. Two
+        // stacked bars cost 66px of a ~360px-tall panel, which is a lot of nothing.
+        // The mode's name moves into the bar as a small FOCUS chip.
+        if settings.compact {
+            w.styleMask.insert(.fullSizeContentView)
+            w.titleVisibility = .hidden
+            w.isMovableByWindowBackground = true      // still draggable by the bar
+        } else {
+            w.styleMask.remove(.fullSizeContentView)
+            w.titleVisibility = .hidden
+            w.isMovableByWindowBackground = false
+        }
     }
 
     /// Append a line to ~/Library/Application Support/<app>/diagnostics.log.
@@ -514,17 +543,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     }
 
     private func savedCompanionFrame() -> NSRect? {
-        guard let s = UserDefaults.standard.string(forKey: "companionFrame") else { return nil }
+        guard let s = UserDefaults.standard.string(forKey: "companionFrameV3") else { return nil }
         let r = NSRectFromString(s)
         return (r.width > 200 && r.height > 200) ? r : nil
     }
 
     private func defaultCompanionFrame() -> NSRect {
-        let screen = (window?.screen ?? NSScreen.main)?.visibleFrame
+        let screen = (window?.screen ?? NSScreen.main)?.frame
             ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        return NSRect(x: screen.maxX - kCompanionSize.width - 16,
-                      y: screen.maxY - kCompanionSize.height - 16,
-                      width: kCompanionSize.width, height: kCompanionSize.height)
+        let width = max(kCompanionMinWidth, (screen.width * kCompanionWidthFraction).rounded())
+        return NSRect(x: screen.maxX - width, y: screen.minY,
+                      width: width, height: screen.height)
+    }
+
+    /// Slide the window off the right edge and back, rather than blinking it in and
+    /// out of existence. The window stays alive and connected the whole time — it is
+    /// only parked past the screen edge — so nothing is missed while it is away.
+    @objc private func toggleSlide(_ sender: Any?) {
+        guard let w = window else { return }
+        let visible = (w.screen ?? NSScreen.main)?.frame ?? .zero
+
+        if slidOut {
+            // Coming back: remember what he was working in, so the next press can
+            // return him there rather than leaving him in WhatsApp.
+            let front = NSWorkspace.shared.frontmostApplication
+            if front?.bundleIdentifier != Bundle.main.bundleIdentifier { previousApp = front }
+            let target = homeFrame ?? defaultCompanionFrame()
+            slidOut = false
+            NSApp.activate(ignoringOtherApps: true)
+            w.makeKeyAndOrderFront(nil)
+            slide(w, to: target)
+            // Caret straight into the message box: the whole point is to type.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) { [weak self] in
+                self?.js("__shell.focusComposer()")
+            }
+        } else {
+            homeFrame = w.frame
+            slidOut = true
+            var target = w.frame
+            target.origin.x = visible.maxX + 4      // just past the edge, still alive
+            slide(w, to: target)
+            // Back to work, in the app he came from.
+            if let prev = previousApp, prev.bundleIdentifier != Bundle.main.bundleIdentifier {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) { prev.activate() }
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.24) { NSApp.hide(nil) }
+            }
+        }
+    }
+
+    private func slide(_ w: NSWindow, to target: NSRect) {
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.24
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            w.animator().setFrame(target, display: true)
+        }
     }
 
     @objc private func toggleAlwaysOnTop(_ sender: Any?) {
@@ -547,8 +620,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     func windowDidMove(_ note: Notification)   { rememberFrame() }
 
     private func rememberFrame() {
-        guard let w = window, settings.compact else { return }
-        UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrame")
+        guard let w = window, settings.compact, !slidOut else { return }
+        UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV3")
         // Re-fit after he stops dragging, not on every frame of the drag.
         fitWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.fitCompact() }
@@ -1058,11 +1131,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
         let id = EventHotKeyID(signature: OSType(0x53484C4C /* 'SHLL' */), id: 1)
         RegisterEventHotKey(kHotKeyCode, kHotKeyMods, id, GetApplicationEventTarget(), 0, &hotKeyRef)
+        let id2 = EventHotKeyID(signature: OSType(0x53484C4C /* 'SHLL' */), id: 2)
+        RegisterEventHotKey(kHotKeyCode2, kHotKeyMods2, id2, GetApplicationEventTarget(), 0, &hotKeyRef2)
     }
 
     func toggleVisibility() {
+        // Same gesture as ⌘R so summoning from anywhere looks identical.
+        if slidOut { toggleSlide(nil); return }
         if NSApp.isActive, let w = window, w.isVisible {
-            NSApp.hide(nil)
+            toggleSlide(nil)
         } else {
             showWindow()
         }
@@ -1307,7 +1384,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         fileMenu.addItem(item("Search", #selector(focusSearch(_:)), "k"))
         fileMenu.addItem(item("Find in Chats", #selector(focusSearch(_:)), "f"))
         fileMenu.addItem(.separator())
-        fileMenu.addItem(item("Reload", #selector(reload(_:)), "r"))
+        fileMenu.addItem(item("Slide Away / Back", #selector(toggleSlide(_:)), "r"))
+        fileMenu.addItem(item("Reload", #selector(reload(_:)), "r", [.command, .option]))
         fileMenu.addItem(item("Back to WhatsApp", #selector(goHome(_:)), "h", [.command, .shift]))
         fileMenu.addItem(.separator())
         fileMenu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
@@ -1359,7 +1437,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
         // Companion mode and its window behaviour — the reason he asked for this
         // round: one chat, small, floating beside whatever he's working on.
-        companionItem = item("Focus Mode", #selector(toggleCompanion(_:)), "e", [.command, .shift])
+        companionItem = item("Focus Mode", #selector(toggleCompanion(_:)), "r", [.command, .shift])
         viewMenu.addItem(companionItem)
         onTopItem = item("Always on Top", #selector(toggleAlwaysOnTop(_:)), "p", [.command, .option])
         viewMenu.addItem(onTopItem)

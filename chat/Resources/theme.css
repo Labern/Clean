@@ -373,7 +373,9 @@ html[data-shell-compact][data-shell-convo-open] #shell-floor {
 
 html[data-shell-compact] #shell-bar {
   position: fixed; top: 0; left: 0; right: 0; height: 40px; z-index: 99999;
-  display: flex; align-items: center; gap: 6px; padding: 0 6px;
+  /* 76px of left padding clears the traffic lights: in focus mode the window uses
+     fullSizeContentView so this bar IS the title bar. */
+  display: flex; align-items: center; gap: 6px; padding: 0 6px 0 76px;
   background: var(--WDS-surface-emphasized, #202c33);
   border-bottom: 1px solid var(--WDS-lines-divider, rgba(255, 255, 255, .1));
   color: var(--WDS-content-default, #e9edef);
@@ -391,6 +393,21 @@ html[data-shell-compact] #shell-bar button {
 html[data-shell-compact] #shell-bar button:hover {
   background: var(--WDS-surface-highlight, rgba(255, 255, 255, .06));
   color: var(--WDS-content-default, #e9edef);
+}
+html[data-shell-compact] #shell-bar #shell-chip {
+  flex: 0 0 auto;
+  font-size: 9px; font-weight: 700; letter-spacing: .14em;
+  color: var(--WDS-content-deemphasized, #8696a0);
+  font-family: "SF Mono", Menlo, monospace;
+}
+html[data-shell-compact] #shell-bar #shell-count {
+  flex: 0 0 auto;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  display: none; align-items: center; justify-content: center;
+  border-radius: 9px;
+  background: var(--WDS-accent, #21c063);
+  color: var(--WDS-content-on-accent, #0b141a);
+  font-size: 11px; font-weight: 700;
 }
 html[data-shell-compact] #shell-bar #shell-name {
   flex: 1 1 auto; min-width: 0;
@@ -452,18 +469,24 @@ html[data-shell-compact][data-shell-convo-open] *::after {
      hunting, focus mode simply forbids all of them — background images, shadows,
      outlines, side borders and column rules. Scoped to this one mode, and the bar
      is exempt so it keeps its divider. */
-  background-image: none !important;
+  /* NOT background-image. WhatsApp draws emoji as CSS sprite background-images, so
+     removing it here wiped every emoji out of the conversation. The hairlines were
+     never background images anyway — they were a box-shadow/outline, which is what
+     the rest of this rule takes care of. */
   box-shadow: none !important;
   outline: 0 !important;
   border-left-width: 0 !important;
   border-right-width: 0 !important;
   column-rule: none !important;
-  background-attachment: scroll !important;
 }
 
 /* Whatever div directly holds the rows keeps a percentage side padding, which is
    the ~50px of dead space he saw on the right at panel width. */
-html[data-shell-compact][data-shell-convo-open] [data-shell-convo] div:has(> [role="row"]),
+/* Every ancestor that contains a message row, not just the row's direct parent:
+   the ~54px of dead space on the right came from a container further up that the
+   direct-child selector never matched. "Padding on the right should be as small as
+   possible. As should padding on the left." */
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] div:has([role="row"]),
 html[data-shell-compact][data-shell-convo-open] [data-shell-convo] [role="application"] {
   padding-left: 0 !important;
   padding-right: 0 !important;
@@ -512,8 +535,16 @@ html[data-shell-compact][data-shell-convo-open] [data-shell-convo] [role="applic
    that element by its COMPUTED max-width and tags it, and this widens whatever
    it tagged. */
 
+/* 12px of slack so the 6px edge gap exists on both sides — with only 4px, media
+   bubbles (which carry their own intrinsic width) ran past the window edge and
+   clipped their own timestamp. */
 html[data-shell-compact] [data-shell-bubble] {
-  max-width: 97% !important;
+  max-width: calc(100% - 12px) !important;
+}
+html[data-shell-compact] [data-shell-convo] [role="row"] img,
+html[data-shell-compact] [data-shell-convo] [role="row"] video {
+  max-width: 100% !important;
+  height: auto !important;
 }
 /* "My chats should be far right, little padding. The other person's should be far
    left, little padding." Sides are decided by measurement in shell.js (see
@@ -523,8 +554,14 @@ html[data-shell-compact] [data-shell-bubble] {
    tagged attribute and mis-detected any row without a tail glyph, pushing his own
    messages to the LEFT. So this only takes the padding away and lets WhatsApp do
    the aligning. */
+/* Focus mode touches only the horizontal space here. An earlier version set the
+   padding shorthand and margin:0, which silently clobbered the Space Between
+   Messages control — that is why it stopped updating. */
 html[data-shell-compact] [data-shell-convo] [role="row"] {
-  padding: 1px 3px !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 /* Do NOT zero the bubble's margins. WhatsApp right-aligns his own messages with
    margin-left:auto — zeroing it dragged every message to the left, which is what
@@ -598,8 +635,13 @@ html[data-shell-namesize] [data-testid="cell-frame-primary-detail"] * {
    of the conversation. Two hooks because a message row is identifiable either by
    role or by the data-id WhatsApp stamps on it. */
 
-html[data-shell-msggap] [data-shell-convo] [role="row"] + [role="row"],
-html[data-shell-msggap] [data-shell-convo] [data-id] + [data-id] {
-  margin-top: var(--shell-msg-gap) !important;
+/* padding-top on every row rather than a margin between adjacent siblings: date
+   dividers and system notices sit between message rows, so the adjacent-sibling
+   form skipped exactly the pairs that mattered. Both attributes are named in the
+   first selector so this outranks the focus-mode row rule. */
+html[data-shell-msggap][data-shell-compact] [data-shell-convo] [role="row"],
+html[data-shell-msggap] [data-shell-convo] [role="row"],
+html[data-shell-msggap] [data-shell-convo] [data-id] {
+  padding-top: var(--shell-msg-gap) !important;
 }
 

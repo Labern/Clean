@@ -346,6 +346,7 @@
     ensureCompactBar();
     ensureFloor();
     tagBubbles();
+    tightenBubbles();
     collapseChrome();
     collapseBackdrops();
     tagAncestors();
@@ -525,7 +526,50 @@
     return tagged;
   }
 
+  /* Close the gap by measurement, not by CSS guesswork. Four rounds of zeroing
+     paddings and margins on ancestors failed to get the bubbles to the edges — the
+     space is contributed by somewhere I could not pin down. So: measure the real
+     distance from each bubble to its side of the pane and translate it there.
+     Deterministic, and independent of whatever produces the space.
+
+     translateX is used rather than margins so nothing in WhatsApp's own layout is
+     fought — the bubble keeps its computed position and is simply drawn where it
+     belongs. Re-run on the pump, since rows recycle and the pane resizes. */
+  const BUBBLE_EDGE_GAP = 6;   // enough that the edge reads as deliberate
+
+  function tightenBubbles() {
+    if (!cfg.compact) return 0;
+    const pane = document.querySelector('[data-shell-convo]');
+    if (!pane) return 0;
+    const p = pane.getBoundingClientRect();
+    if (p.width < 40) return 0;
+    let moved = 0;
+
+    for (const b of pane.querySelectorAll('[data-shell-bubble]')) {
+      // Measure with any previous shift removed, so this converges instead of
+      // drifting further each pass.
+      const had = b.style.transform;
+      if (had) b.style.transform = '';
+      const r = b.getBoundingClientRect();
+      if (r.width <= 0) { b.style.transform = had; continue }
+
+      const gapLeft = r.left - p.left;
+      const gapRight = p.right - r.right;
+      const outgoing = gapRight <= gapLeft;          // his own messages sit right
+      const shift = (outgoing ? gapRight : gapLeft) - BUBBLE_EDGE_GAP;
+
+      if (shift > 1) {
+        b.style.transform = 'translateX(' + (outgoing ? shift : -shift).toFixed(1) + 'px)';
+        moved++;
+      } else {
+        b.style.transform = '';
+      }
+    }
+    return moved;
+  }
+
   function clearBubbleTags() {
+    for (const el of document.querySelectorAll('[data-shell-bubble]')) el.style.transform = '';
     for (const el of document.querySelectorAll('[data-shell-bubbled]')) el.removeAttribute('data-shell-bubbled');
     for (const el of document.querySelectorAll('[data-shell-bubble]'))  el.removeAttribute('data-shell-bubble');
   }
@@ -586,8 +630,18 @@
         post({ type: 'exitCompact' });
       });
 
+      // The mode's name lives here now rather than in a second title bar — one
+      // 40px strip instead of 66px of stacked chrome, which matters in a panel
+      // this short.
+      const chip = document.createElement('span');
+      chip.id = 'shell-chip';
+      chip.textContent = 'FOCUS';
+
       const name = document.createElement('span');
       name.id = 'shell-name';
+
+      const count = document.createElement('span');
+      count.id = 'shell-count';
 
       const more = document.createElement('button');
       more.id = 'shell-more';
@@ -598,13 +652,22 @@
         R().toggleAttribute('data-shell-compact-more');
       });
 
-      bar.append(back, name, more);
+      bar.append(chip, back, name, count, more);
       document.body.appendChild(bar);
     }
 
     const label = bar.querySelector('#shell-name');
     const who = currentChatName() || 'No chat open';
     if (label && label.textContent !== who) label.textContent = who;
+
+    // Everything else waiting, at a glance, without leaving the one chat.
+    const count = bar.querySelector('#shell-count');
+    if (count) {
+      const others = Math.max(0, lastBadge < 0 ? 0 : lastBadge);
+      const text = others > 0 ? String(others) : '';
+      if (count.textContent !== text) count.textContent = text;
+      count.style.display = text ? 'flex' : 'none';
+    }
     return true;
   }
 
@@ -838,6 +901,22 @@
     return opened;
   }
 
+  // Put the caret in the message box, so ⌘R lands him ready to type.
+  function focusComposer() {
+    const box = composerBox();
+    if (!box) return false;
+    box.focus();
+    try {
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(box);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) {}
+    return true;
+  }
+
   function focusSearch() { const i = searchInput(); if (i) { i.focus(); return true } return false }
 
   function newChat() {
@@ -1027,7 +1106,7 @@
 
   window.__shell = {
     applyTheme, applyHide, applyPrivacy, openChat, currentChatName,
-    focusSearch, newChat, notificationClicked, checkPrivacyCoverage, state,
+    focusSearch, focusComposer, newChat, notificationClicked, checkPrivacyCoverage, state,
     setCompact, setFont, setMsgSize, setNameSize, setMsgGap, replyTo,
     setSounds, compactMetrics, tagBubbles
   };
@@ -1040,7 +1119,7 @@
     tagConvoPane();
     tagRail();
     tagList();
-    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); ensureFloor(); tagBubbles(); collapseChrome(); collapseBackdrops(); tagAncestors(); tagPinStrip(); tagWallpaper() }
+    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); ensureFloor(); tagBubbles(); tightenBubbles(); collapseChrome(); collapseBackdrops(); tagAncestors(); tagPinStrip(); tagWallpaper() }
     if (cfg.privacy) checkPrivacyCoverage();
     if (!announcedLink && document.querySelector('#pane-side')) {
       announcedLink = true;
@@ -1051,5 +1130,15 @@
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => { installCSS(); ensureAttributes() }, { once: true });
   }
+  // Escape leaves focus mode — unless WhatsApp needs it for something of its own
+  // (an open dialog, or the search box, where Escape clears the query).
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || !cfg.compact) return;
+    if (document.querySelector('[role="dialog"]')) return;
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.isContentEditable)) return;
+    post({ type: 'exitCompact' });
+  }, true);
+
   post({ type: 'ready' });
 })();
