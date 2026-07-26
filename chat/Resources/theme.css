@@ -582,6 +582,11 @@ html[data-shell-compact][data-shell-convo-open] [data-shell-wallpaper] {
   display: none !important;
 }
 
+/* The composer's "+" and emoji buttons: dead weight at this width. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-hidebtn] {
+  display: none !important;
+}
+
 /* The pinned-message strip goes. */
 html[data-shell-compact][data-shell-convo-open] [data-shell-pinstrip] {
   display: none !important;

@@ -265,6 +265,36 @@
     }
   }
 
+  /* The "+" and emoji buttons do not work at panel width, so they are noise:
+     "If I want to use them, I'll just press CMD shift R." Identified by position
+     rather than by class name — anything sitting in the left quarter of the
+     composer row — so this survives WhatsApp renaming its buttons. The mic, at the
+     far right, is left alone. */
+  function trimComposer() {
+    if (!cfg.compact) return 0;
+    const pane = document.querySelector('[data-shell-convo]');
+    const footer = pane && pane.querySelector('footer');
+    if (!footer) return 0;
+    const f = footer.getBoundingClientRect();
+    if (f.width < 40) return 0;
+    let n = 0;
+    for (const b of footer.querySelectorAll('button, [role="button"]')) {
+      const r = b.getBoundingClientRect();
+      if (r.width <= 0) continue;
+      const centre = r.left + r.width / 2;
+      if (centre < f.left + f.width * 0.22) {
+        if (!b.hasAttribute('data-shell-hidebtn')) { b.setAttribute('data-shell-hidebtn', ''); n++ }
+      }
+    }
+    return n;
+  }
+
+  function clearTrimmed() {
+    for (const el of document.querySelectorAll('[data-shell-hidebtn]')) {
+      el.removeAttribute('data-shell-hidebtn');
+    }
+  }
+
   function clearPinStrip() {
     for (const el of document.querySelectorAll('[data-shell-pinstrip]')) {
       el.removeAttribute('data-shell-pinstrip');
@@ -326,6 +356,7 @@
       clearAncestors();
       clearPinStrip();
       clearWallpaper();
+      clearTrimmed();
       for (const el of document.querySelectorAll('[data-shell-out],[data-shell-in]')) {
         el.removeAttribute('data-shell-out'); el.removeAttribute('data-shell-in');
       }
@@ -352,6 +383,7 @@
     tagAncestors();
     tagPinStrip();
     tagWallpaper();
+    trimComposer();
     return Object.assign(state, compactMetrics());
   }
 
@@ -1130,7 +1162,7 @@
     tagConvoPane();
     tagRail();
     tagList();
-    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); ensureFloor(); tagBubbles(); tightenBubbles(); collapseChrome(); collapseBackdrops(); tagAncestors(); tagPinStrip(); tagWallpaper() }
+    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); ensureFloor(); tagBubbles(); tightenBubbles(); collapseChrome(); collapseBackdrops(); tagAncestors(); tagPinStrip(); tagWallpaper(); trimComposer() }
     if (cfg.privacy) checkPrivacyCoverage();
     if (!announcedLink && document.querySelector('#pane-side')) {
       announcedLink = true;
