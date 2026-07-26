@@ -3068,9 +3068,9 @@ function overlayCard(html){
 }
 function closeOverlay(){ const o = $('#overlay'); o.classList.remove('show'); o.innerHTML = ''; }
 $('#overlay').addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeOverlay(); });
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { if ($('#overlay').classList.contains('show')) closeOverlay(); closePops(); }
-});
+window.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { if ($('#overlay').classList.contains('show')) { e.preventDefault(); closeOverlay(); } closePops(); }
+}, true);
 
 // ---------- settings ----------
 function applyUiPrefs(){
@@ -3786,6 +3786,7 @@ window.PICA_API = {
   toggleReader(){ inReader() ? readerOff() : readerOn(); },
   titleShown(){ return S.showTitle; },
   settings(){ showSettings(); },
+  escape(){ if ($('#overlay').classList.contains('show')) closeOverlay(); closePops(); },
   mark(kind){ applyEmphasis(kind); },
   // Scriptable hooks. The automated grammar test drives these, so Final Draft's
   // Enter/Tab behaviour is checked on every build rather than by hand.

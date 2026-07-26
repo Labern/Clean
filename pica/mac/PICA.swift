@@ -363,6 +363,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     @objc func toggleSidebar(_ s: Any?) { js("PICA_API.toggleRail()") }
     @objc func toggleTitlePage(_ s: Any?) { js("PICA_API.toggleTitlePage()") }
     @objc func toggleReader(_ s: Any?) { js("PICA_API.toggleReader()") }
+    @objc func escapePanel(_ s: Any?) { js("PICA_API.escape()") }
     @objc func invertTheme(_ s: Any?)   { js("PICA_API.toggleTheme()") }
     @objc func zoomIn(_ s: Any?)        { js("PICA_API.zoom(0.1)") }
     @objc func zoomOut(_ s: Any?)       { js("PICA_API.zoom(-0.1)") }
@@ -484,6 +485,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
 
         // View
         let viewMenu = NSMenu(title: "View")
+        let escItem = NSMenuItem(title: "Close Panel", action: #selector(escapePanel(_:)), keyEquivalent: "\u{1B}")
+        escItem.keyEquivalentModifierMask = []
+        escItem.target = self
+        escItem.isHidden = true                 // a key binding, not a menu entry
+        viewMenu.addItem(escItem)
         viewMenu.addItem(item("Reader", #selector(toggleReader(_:)), "r"))
         viewMenu.addItem(item("Hide Sidebar", #selector(toggleSidebar(_:)), "t"))
         viewMenu.addItem(item("Show Title Page", #selector(toggleTitlePage(_:)), "t", [.command, .shift]))
