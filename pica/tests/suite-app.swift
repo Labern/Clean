@@ -98,6 +98,16 @@ let steps: [Step] = [
     Step(name: "grammar: written paren ⇥ → Dialogue (the reported bug)",
          js: "(()=>{const T=PICA_API.test;T.tab(false);return T.state().slice(3).join('§')})()",
          want: "paren|(beat)§dialogue|"),
+    Step(name: "auto-(CONT'D): survives MULTIPLE interruptions",
+         js: """
+         (()=>{const T=PICA_API.test;T.reset();T.caret(0,0);T.type('INT. R - DAY');T.esc();T.enter();
+         T.tab(false);T.type('SAM');T.esc();T.enter();T.type('One.');T.esc();T.enter();
+         T.type('He paces.');T.esc();T.enter();T.tab(false);T.type('SAM');T.esc();T.enter();T.type('Two.');T.esc();T.enter();
+         T.type('She glares.');T.esc();T.enter();T.tab(false);T.type('SAM');T.esc();T.enter();T.type('Three.');T.esc();
+         const cues=__pica.doc.elements.filter(e=>e.type==='character').map(e=>e.text);
+         return cues.join('|')})()
+         """,
+         want: "SAM|SAM (CONT'D)|SAM (CONT'D)"),
     Step(name: "auto-(CONT'D): same speaker resumes after action",
          js: "(()=>{const T=PICA_API.test;T.type('Hi.');T.esc();T.enter();T.type('He paces.');T.esc();T.enter();T.tab(false);T.type('SAM');T.esc();T.enter();T.esc();const els=T.state();return els.find(x=>/CONT'D/.test(x))||'none'})()",
          want: "character|SAM (CONT'D)"),
