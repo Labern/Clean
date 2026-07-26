@@ -91,12 +91,137 @@ final class ResourceSchemeHandler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, stop task: WKURLSchemeTask) {}
 }
 
+// MARK: - the screenplay browser: browse the libraries, click a PDF, it imports
+
+final class BrowserPanel: NSObject, WKNavigationDelegate, WKDownloadDelegate, NSTextFieldDelegate {
+    weak var host: AppDelegate?
+    var window: NSWindow?
+    var web: WKWebView!
+    var urlField: NSTextField!
+    private var pendingFile: URL?
+    private var pendingName = "script.pdf"
+
+    init(host: AppDelegate) { self.host = host }
+
+    func show() {
+        if window == nil { build() }
+        window?.makeKeyAndOrderFront(nil)
+        if web.url == nil { go("https://scriptslug.com") }
+    }
+
+    private func button(_ title: String, _ action: Selector) -> NSButton {
+        let b = NSButton(title: title, target: self, action: action)
+        b.bezelStyle = .accessoryBarAction
+        b.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        return b
+    }
+
+    private func build() {
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1060, height: 800),
+                         styleMask: [.titled, .closable, .resizable],
+                         backing: .buffered, defer: false)
+        w.title = "Find Screenplays"
+        w.isReleasedWhenClosed = false
+        let root = NSView(frame: w.contentLayoutRect)
+        root.autoresizingMask = [.width, .height]
+
+        let strip = NSView(frame: NSRect(x: 0, y: root.bounds.height - 42, width: root.bounds.width, height: 42))
+        strip.autoresizingMask = [.width, .minYMargin]
+
+        let back = button("‹", #selector(goBack)); back.frame = NSRect(x: 10, y: 8, width: 30, height: 26)
+        let fwd = button("›", #selector(goFwd)); fwd.frame = NSRect(x: 42, y: 8, width: 30, height: 26)
+        urlField = NSTextField(frame: NSRect(x: 80, y: 10, width: strip.bounds.width - 420, height: 22))
+        urlField.autoresizingMask = [.width]
+        urlField.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        urlField.placeholderString = "address"
+        urlField.delegate = self
+        urlField.target = self; urlField.action = #selector(goTyped)
+        var x = strip.bounds.width - 330
+        for (t, u) in [("SLUG", "https://scriptslug.com"),
+                       ("SAVANT", "https://thescriptsavant.com"),
+                       ("IMSDB", "https://imsdb.com")] {
+            let b = button(t, #selector(goHome(_:)))
+            b.frame = NSRect(x: x, y: 8, width: 100, height: 26)
+            b.autoresizingMask = [.minXMargin]
+            b.toolTip = u
+            strip.addSubview(b)
+            x += 106
+        }
+        strip.addSubview(back); strip.addSubview(fwd); strip.addSubview(urlField)
+
+        let cfg = WKWebViewConfiguration()
+        let v = WKWebView(frame: NSRect(x: 0, y: 0, width: root.bounds.width, height: root.bounds.height - 42), configuration: cfg)
+        v.autoresizingMask = [.width, .height]
+        v.navigationDelegate = self
+        web = v
+
+        root.addSubview(v); root.addSubview(strip)
+        w.contentView = root
+        w.center()
+        window = w
+    }
+
+    @objc private func goBack() { web.goBack() }
+    @objc private func goFwd() { web.goForward() }
+    @objc private func goHome(_ sender: NSButton) { if let u = sender.toolTip { go(u) } }
+    @objc private func goTyped() {
+        var t = urlField.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        if !t.contains("://") { t = "https://" + t }
+        go(t)
+    }
+    private func go(_ u: String) { if let url = URL(string: u) { web.load(URLRequest(url: url)) } }
+
+    // ---- the capture: any PDF response becomes an import, never a page ----
+    func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
+                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        if navigationResponse.response.mimeType?.lowercased() == "application/pdf" {
+            decisionHandler(.download)
+        } else {
+            decisionHandler(.allow)
+        }
+    }
+    func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        decisionHandler(navigationAction.shouldPerformDownload ? .download : .allow)
+    }
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        download.delegate = self
+    }
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        download.delegate = self
+    }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        urlField?.stringValue = webView.url?.absoluteString ?? ""
+    }
+
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse,
+                  suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("pica-browse", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let dest = dir.appendingPathComponent(UUID().uuidString + "-" + suggestedFilename)
+        pendingFile = dest
+        pendingName = suggestedFilename
+        completionHandler(dest)
+    }
+    func downloadDidFinish(_ download: WKDownload) {
+        guard let f = pendingFile, let data = try? Data(contentsOf: f) else { return }
+        try? FileManager.default.removeItem(at: f)
+        host?.importDownloaded(data, name: pendingName)
+    }
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        let a = NSAlert(); a.messageText = "PICA"; a.informativeText = "Could not fetch that PDF: \(error.localizedDescription)"
+        a.runModal()
+    }
+}
+
 // MARK: - app
 
 final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
                          WKUIDelegate, WKScriptMessageHandler {
     var window: NSWindow!
     var web: WKWebView!
+    var browser: BrowserPanel?
     private var handler: ResourceSchemeHandler!
     private var pendingOpen: [URL] = []
     private var ready = false
@@ -294,6 +419,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         if body["exportPdf"] as? Bool == true {
             exportPDF(suggestedName: body["name"] as? String ?? "script")
         }
+        if body["browse"] as? Bool == true {
+            if browser == nil { browser = BrowserPanel(host: self) }
+            browser?.show()
+        }
+    }
+
+    // a PDF captured by the screenplay browser goes straight into the importer
+    func importDownloaded(_ data: Data, name: String) {
+        let clean = name.replacingOccurrences(of: "\\", with: "").replacingOccurrences(of: "'", with: "")
+        let id = handler.stage(data, mime: "application/pdf")
+        js("PICA_API.importUrl('/__inbox/\(id)', '\(clean)')")
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     // Export → PDF: the same identical pages, written straight to a file.

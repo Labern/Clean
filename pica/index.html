@@ -200,7 +200,7 @@ body.reader #readerPage{ opacity:1; visibility:visible; }
   transition:opacity .35s, visibility .35s;
 }
 body.reader #docGenre, body.reader #btnSplit, body.reader #btnTheme, body.reader [data-head],
-body.reader #btnKeys, body.reader #stPage, body.reader [data-foot], body.reader #stSave{
+body.reader #btnKeys, body.reader #stPage, body.reader [data-foot], body.reader #stSave, body.reader #btnBrowse{
   opacity:0 !important; visibility:hidden !important; pointer-events:none !important;
 }
 
@@ -449,6 +449,11 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   <div class="fzone right">
     <a id="footLink" data-foot="link" href="https://scriptslug.com" target="_blank" rel="noopener noreferrer">Find screenplays ↗</a>
     <span id="stSave" data-foot="saved"></span>
+    <button class="z" id="btnBrowse" title="Find screenplays — browse and import in one click">
+      <svg width="13" height="13" viewBox="0 0 14 14" style="display:block" fill="none" stroke="currentColor" stroke-width="1.1">
+        <circle cx="7" cy="7" r="5.8"/><ellipse cx="7" cy="7" rx="2.5" ry="5.8"/><path d="M1.2 7 h11.6"/>
+      </svg>
+    </button>
     <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click to fit · double-click for 100%">100%</button><button class="z" id="zIn">+</button>
   </div>
 </footer>
@@ -3628,6 +3633,12 @@ $('#btnReader').addEventListener('mousedown', ev => {
 $('#btnSplit').addEventListener('mousedown', ev => {
   ev.preventDefault();
   document.body.classList.contains('split') ? splitOff() : splitOn();
+});
+
+$('#btnBrowse').addEventListener('mousedown', ev => {
+  ev.preventDefault();
+  if (window.webkit?.messageHandlers?.pica) window.webkit.messageHandlers.pica.postMessage({ browse: true });
+  else window.open('https://scriptslug.com', '_blank', 'noopener');
 });
 
 // sync scrolling: page for page — page N tops page N, carrying the fraction into the
