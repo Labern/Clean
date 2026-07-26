@@ -277,6 +277,34 @@
     }
   }
 
+  /* The doodle is painted by a large, absolutely-positioned backdrop that is a
+     SIBLING of the conversation's ancestors — which collapseChrome deliberately
+     skips, because popovers and dialogs are absolute too. So target it by what it
+     is: big, positioned, and containing nothing interactive. That last test is
+     what keeps menus, dialogs and the emoji panel working. */
+  function collapseBackdrops() {
+    const pane = document.querySelector('[data-shell-convo]');
+    if (!pane) return 0;
+    const area = window.innerWidth * window.innerHeight;
+    let hidden = 0;
+    let el = pane;
+    while (el && el.parentElement && el.parentElement !== document.documentElement) {
+      for (const sib of Array.from(el.parentElement.children)) {
+        if (sib === el || sib.id === 'shell-bar' || sib.contains(pane)) continue;
+        if (sib.id && sib.id.startsWith('wa-popovers')) continue;
+        if (sib.getAttribute('role') === 'dialog' || sib.querySelector('[role="dialog"]')) continue;
+        const cs = getComputedStyle(sib);
+        if (cs.position !== 'absolute' && cs.position !== 'fixed') continue;
+        const r = sib.getBoundingClientRect();
+        if (r.width * r.height < area * 0.5) continue;               // small: leave it
+        if (sib.querySelector('button, [role="button"], input, [contenteditable]')) continue;
+        if (!sib.hasAttribute('data-shell-collapsed')) { sib.setAttribute('data-shell-collapsed', ''); hidden++ }
+      }
+      el = el.parentElement;
+    }
+    return hidden;
+  }
+
   function clearCollapsed() {
     for (const el of document.querySelectorAll('[data-shell-collapsed]')) {
       el.removeAttribute('data-shell-collapsed');
@@ -302,14 +330,24 @@
         el.removeAttribute('data-shell-out'); el.removeAttribute('data-shell-in');
       }
       ensureCompactBar();                 // removes it
+      ensureFloor();                      // removes it too
       return { compact: false };
     }
     tagRail(); tagList();
     R().setAttribute('data-shell-compact', '');
+    // Nothing open? Open the top conversation, then collapse around it.
+    if (!convoPane() && openTopChat()) {
+      setTimeout(() => {
+        tagConvoPane(); collapseChrome(); tagAncestors();
+        tagPinStrip(); tagBubbles(); ensureCompactBar();
+      }, 500);
+    }
     const state = reconsiderCompactList();
     ensureCompactBar();
+    ensureFloor();
     tagBubbles();
     collapseChrome();
+    collapseBackdrops();
     tagAncestors();
     tagPinStrip();
     tagWallpaper();
@@ -425,16 +463,22 @@
                    x: Math.round(r.left), w: Math.round(r.width), h: Math.round(r.height) };
         });
       })(),
-      // What is painting at these x positions?
-      probe: [0.06, 0.12, 0.56].map(f => {
-        const x = Math.round(window.innerWidth * f);
-        const y = Math.round(window.innerHeight * 0.5);
-        const el = document.elementFromPoint(x, y);
-        if (!el) return { x, el: null };
-        const cs = getComputedStyle(el);
-        return { x, tag: el.tagName, cls: String(el.className || '').slice(0, 26),
-                 bl: cs.borderLeftWidth, br: cs.borderRightWidth, bg: cs.backgroundColor,
-                 w: Math.round(el.getBoundingClientRect().width) };
+      // The lines sit at roughly CSS x=66 and x=256 (derived from a zoomed
+      // screenshot). Walk the element stack at those exact columns, reporting
+      // outline and box-shadow as well as border — a 1px box-shadow or outline
+      // draws precisely this sort of hairline, and earlier probes never looked.
+      probe: [64, 66, 68, 254, 256, 258].map(x => {
+        const y = Math.round(window.innerHeight * 0.55);
+        const stack = (document.elementsFromPoint ? document.elementsFromPoint(x, y) : []).slice(0, 4);
+        return { x, stack: stack.map(el => {
+          const cs = getComputedStyle(el);
+          const r = el.getBoundingClientRect();
+          return { tag: el.tagName, cls: String(el.className || '').slice(0, 18),
+                   left: Math.round(r.left), w: Math.round(r.width),
+                   bl: cs.borderLeftWidth, br: cs.borderRightWidth,
+                   ol: cs.outlineWidth, sh: (cs.boxShadow || 'none').slice(0, 34),
+                   bg: cs.backgroundColor };
+        }) };
       })
     };
   }
@@ -490,6 +534,41 @@
      WhatsApp's own header back when he wants to call or search. Lives in <body>
      rather than inside the conversation, because React owns that subtree and
      would eventually strip out a foreign child. */
+  /* "It should default to the top convo when I press that. No excess clicks."
+     Skips rows that are not conversations (Locked chats, Archived) — they have no
+     chat-title cell. */
+  function openTopChat() {
+    for (const row of visibleRows()) {
+      if (!row.querySelector('[data-testid="cell-frame-title"]')) continue;
+      realClick(row.querySelector('[data-testid="cell-frame-container"]') || row);
+      return true;
+    }
+    return false;
+  }
+
+  /* An opaque floor over the dead band beneath the composer. Every layout fix for
+     that gap failed (flex column, height calc, opaque ancestors) and the element
+     painting the doodle through it was never identifiable — no background-image,
+     no svg/img/canvas, no thin element. So cover it: the band sits below the
+     composer, so nothing useful is hidden, and it is sized to the measured gap so
+     it disappears entirely when there is none. */
+  function ensureFloor() {
+    let floor = document.getElementById('shell-floor');
+    if (!cfg.compact) { if (floor) floor.remove(); return 0 }
+    const pane = document.querySelector('[data-shell-convo]');
+    const footer = pane && pane.querySelector('footer');
+    const gap = footer
+      ? Math.max(0, Math.round(window.innerHeight - footer.getBoundingClientRect().bottom))
+      : 0;
+    if (!floor) {
+      floor = document.createElement('div');
+      floor.id = 'shell-floor';
+      document.body.appendChild(floor);
+    }
+    floor.style.height = gap + 'px';
+    return gap;
+  }
+
   function ensureCompactBar() {
     let bar = document.getElementById('shell-bar');
     if (!cfg.compact) { if (bar) bar.remove(); return false }
@@ -961,7 +1040,7 @@
     tagConvoPane();
     tagRail();
     tagList();
-    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); tagBubbles(); collapseChrome(); tagAncestors(); tagPinStrip(); tagWallpaper() }
+    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); ensureFloor(); tagBubbles(); collapseChrome(); collapseBackdrops(); tagAncestors(); tagPinStrip(); tagWallpaper() }
     if (cfg.privacy) checkPrivacyCoverage();
     if (!announcedLink && document.querySelector('#pane-side')) {
       announcedLink = true;

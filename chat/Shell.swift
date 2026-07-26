@@ -425,8 +425,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         }
         applyWindowLevel()
         applyTitle()
+        applyOpacity()
         settings.save()
         syncMenuState()
+    }
+
+    /// The web view is normally transparent (so there is no white flash before the
+    /// page paints). In focus mode that means anything the compositor puts behind
+    /// it can show through, which is one of the few remaining explanations for the
+    /// stray vertical lines. So in focus mode it paints its own background.
+    private func applyOpacity() {
+        web?.setValue(!settings.compact, forKey: "drawsBackground")
+        guard let w = window else { return }
+        if settings.compact, w.backgroundColor == nil { w.backgroundColor = .black }
     }
 
     /// He asked for the mode to be named in the title bar. In focus mode the

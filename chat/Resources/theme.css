@@ -360,7 +360,16 @@ html[data-shell-compact] body {
    eventually remove a foreign child from it. Colours come from the WDS tokens, so
    it matches whichever theme is on. */
 
-#shell-bar { display: none }
+#shell-bar, #shell-floor { display: none }
+
+/* Covers the dead band under the composer — see ensureFloor() in shell.js. */
+html[data-shell-compact][data-shell-convo-open] #shell-floor {
+  display: block;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 9998;
+  background-color: var(--WDS-systems-chat-background-wallpaper, #0e0b1a);
+}
 
 html[data-shell-compact] #shell-bar {
   position: fixed; top: 0; left: 0; right: 0; height: 40px; z-index: 99999;
@@ -396,7 +405,13 @@ html[data-shell-compact][data-shell-compact-more] [data-shell-convo] header {
 }
 /* Leave room for the bar by SHRINKING the pane, not padding it. Padding pushed
    the composer off the bottom of a short window. */
+/* Lay the conversation out as a column so the composer sits flush with the bottom
+   of the window. Without this there was ~68px of dead space under it, and the
+   layer behind showed its doodle through the gap — which is what kept looking like
+   a stray pattern no amount of background-image removal could kill. */
 html[data-shell-compact][data-shell-convo-open] [data-shell-convo] {
+  display: flex !important;
+  flex-direction: column !important;
   margin-top: 40px !important;
   padding-top: 0 !important;
   height: calc(100vh - 40px) !important;
@@ -428,21 +443,22 @@ html[data-shell-compact][data-shell-convo-open] [data-shell-convo] {
    and dialogs keep working. Targeting it precisely failed three times, so in
    focus mode NOTHING paints a background image. Blunt, but scoped to this one
    mode, and a flat panel is what he asked for: "Simple." */
-html[data-shell-compact][data-shell-convo-open] *,
+html[data-shell-compact][data-shell-convo-open] *:not(#shell-bar):not(#shell-bar *),
 html[data-shell-compact][data-shell-convo-open] *::before,
 html[data-shell-compact][data-shell-convo-open] *::after {
+  /* Every way a vertical hairline can be drawn, removed at once. Identifying the
+     exact painter failed repeatedly: no background-image, no svg/img/canvas, no
+     thin element, and no border anywhere in the document. So rather than keep
+     hunting, focus mode simply forbids all of them — background images, shadows,
+     outlines, side borders and column rules. Scoped to this one mode, and the bar
+     is exempt so it keeps its divider. */
   background-image: none !important;
-}
-
-/* Pin the bubble to its side with an auto margin rather than relying on the row
-   being the flex container that positions it — measured: it is not. */
-html[data-shell-compact] [role="row"][data-shell-out] [data-shell-bubble] {
-  margin-left: auto !important;
-  margin-right: 0 !important;
-}
-html[data-shell-compact] [role="row"][data-shell-in] [data-shell-bubble] {
-  margin-right: auto !important;
-  margin-left: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  border-left-width: 0 !important;
+  border-right-width: 0 !important;
+  column-rule: none !important;
+  background-attachment: scroll !important;
 }
 
 /* Whatever div directly holds the rows keeps a percentage side padding, which is
@@ -472,7 +488,9 @@ html[data-shell-compact][data-shell-convo-open] [data-shell-convo]::after {
   border: 0 !important;
   box-shadow: none !important;
 }
-html[data-shell-compact][data-shell-convo-open] [data-shell-ancestor] {
+html[data-shell-compact][data-shell-convo-open] [data-shell-ancestor],
+html[data-shell-compact][data-shell-convo-open],
+html[data-shell-compact][data-shell-convo-open] body {
   background-color: var(--WDS-systems-chat-background-wallpaper, #0e0b1a) !important;
 }
 
@@ -500,24 +518,26 @@ html[data-shell-compact] [data-shell-bubble] {
 /* "My chats should be far right, little padding. The other person's should be far
    left, little padding." Sides are decided by measurement in shell.js (see
    data-shell-out / data-shell-in), not by a class name. */
+/* WhatsApp already puts his messages right and the other person's left, and it
+   gets that right on its own — an earlier version tried to force the sides from a
+   tagged attribute and mis-detected any row without a tail glyph, pushing his own
+   messages to the LEFT. So this only takes the padding away and lets WhatsApp do
+   the aligning. */
 html[data-shell-compact] [data-shell-convo] [role="row"] {
-  display: flex !important;
-  padding: 1px 0 !important;
+  padding: 1px 3px !important;
 }
-html[data-shell-compact] [data-shell-convo] [role="row"][data-shell-out] {
-  justify-content: flex-end !important;
-  padding-right: 3px !important;
-  padding-left: 0 !important;
+/* Do NOT zero the bubble's margins. WhatsApp right-aligns his own messages with
+   margin-left:auto — zeroing it dragged every message to the left, which is what
+   "splayed all over the place" was. */
+
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] > div:has(> [role="row"]),
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] > div:has([role="row"]) {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
-html[data-shell-compact] [data-shell-convo] [role="row"][data-shell-in] {
-  justify-content: flex-start !important;
-  padding-left: 3px !important;
-  padding-right: 0 !important;
-}
-/* Percentage margins on the bubble undo the above at small widths. */
-html[data-shell-compact] [data-shell-bubble] {
-  margin-left: 0 !important;
-  margin-right: 0 !important;
+html[data-shell-compact][data-shell-convo-open] [data-shell-convo] > footer {
+  flex: 0 0 auto !important;
+  margin-bottom: 0 !important;
 }
 
 /* The doodle layer, hidden as an element since it is not a background. */
