@@ -465,6 +465,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         let editMenu = NSMenu(title: "Edit")
         editMenu.addItem(item("Undo", #selector(picaUndo(_:)), "z"))
         editMenu.addItem(item("Redo", #selector(picaRedo(_:)), "z", [.command, .shift]))
+        let redoY = item("Redo", #selector(picaRedo(_:)), "y")
+        redoY.isHidden = true                  // ⌘Y, the second spelling
+        editMenu.addItem(redoY)
         editMenu.addItem(.separator())
         editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
         editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")

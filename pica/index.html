@@ -3368,6 +3368,7 @@ pagesEl.addEventListener('keydown', ev => {
   if (mod && ev.key === '\\') { ev.preventDefault(); openElementMenu(); return; }
   if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(false); return; }
   if (mod && ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(true); return; }
+  if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'y') { ev.preventDefault(); undo(true); return; }
   if (mod && ev.key.toLowerCase() === 's') { ev.preventDefault(); flushSave(); toast('saved'); return; }
   if (mod && ev.key.toLowerCase() === 'p') { ev.preventDefault(); printAll(); return; }
 });
