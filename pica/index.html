@@ -84,8 +84,7 @@ header{
 .hzone.right{ grid-column:3; justify-content:flex-end; }
 .wordmark{ font-family:var(--serif); font-size:1.28rem; font-weight:560; letter-spacing:.045em; }
 #docTitle{
-  /* TEMPORARY (his call, may revert or become a Settings toggle): screenplay face */
-  font-family:var(--courier); font-size:.8rem; letter-spacing:.2em; text-transform:uppercase;
+  font-family:var(--mono); font-size:.76rem; letter-spacing:.2em; text-transform:uppercase;
   color:var(--ink); outline:none; padding:.22rem .7rem; border-bottom:1px dashed transparent;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:36vw; text-align:center;
   /* centred over the page (the canvas), not the window — the same optical centre the
@@ -136,8 +135,7 @@ body.resizing #canvas{ pointer-events:none; }
 .eyebrow:first-child{ margin-top:0; }
 .doc-item,.scene-item{
   display:flex; gap:.7rem; width:100%; text-align:left;
-  /* TEMPORARY: screenplay face for titles, slugs and character names */
-  font-family:var(--courier); font-size:.74rem; line-height:1.6;
+  font-family:var(--mono); font-size:.71rem; line-height:1.6;
   color:var(--ink-2); padding:.3rem .35rem .3rem .55rem;
   border-left:2px solid transparent;
 }
@@ -156,6 +154,11 @@ body.resizing #canvas{ pointer-events:none; }
   outline:none; padding:.25rem .1rem; margin:.15rem 0 .3rem;
 }
 #railFilter:focus{ border-bottom-color:var(--rule); }
+/* UI font option: Screenplay puts the title, index names, slugs and character
+   names in the script's own Courier; headers and everything else stay put */
+body.uifont-screenplay #docTitle{ font-family:var(--courier); font-size:.8rem; }
+body.uifont-screenplay .doc-item, body.uifont-screenplay .scene-item{ font-family:var(--courier); font-size:.74rem; }
+
 /* the index holds ten rows; past that it scrolls within itself, so SCENES always
    starts just below the tenth entry */
 #docList{ max-height:17.6rem; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; position:relative; z-index:1; }
@@ -3139,6 +3142,7 @@ function applyUiPrefs(){
   S.pref = { smartType: ui.smartType !== false, autoDetect: ui.autoDetect !== false, autoContd: ui.autoContd !== false };
   // footer items: zoom and ⚙ are permanent; page/scenes on by default; the rest opt-in
   document.documentElement.style.setProperty('--rfoot', (ui.readerFoot === 'max') ? '.6rem' : '.22rem');
+  document.body.classList.toggle('uifont-screenplay', ui.uiFont === 'screenplay');
   const gaps = { roomy: '2.4rem', compact: '.55rem', none: '2px' };
   document.documentElement.style.setProperty('--pagegap', gaps[ui.pageGap] || gaps.roomy);
   const foot = Object.assign({ page: true, type: false, hint: false, drafts: false, link: false, saved: false }, ui.foot || {});
@@ -3186,6 +3190,7 @@ function showSettings(){
   ${row('Paper', '', seg('setPaper', [['cream','Cream'],['white','White']], ui.paper === 'white' ? 'white' : 'cream'))}
   ${row('Page zoom', 'Pinch, or ⌘+ / ⌘−.', seg('setZoom', [['fit','Fit'],['out','−'],['in','+']], 'fit'))}
   ${row('Page gap', 'Compact is the Chrome-PDF / Final Draft look.', seg('setGap', [['roomy','Roomy'],['compact','Compact'],['none','None']], ui.pageGap || 'roomy'))}
+  ${row('UI font', 'Screenplay sets titles, slugs and names in the script\u2019s Courier.', seg('setUiFont', [['default','Default'],['screenplay','Screenplay']], ui.uiFont === 'screenplay' ? 'screenplay' : 'default'))}
 
   <h3>Layout</h3>
   ${row('Title page', 'A separate artifact — page 1 is your first written page.',
@@ -3283,6 +3288,7 @@ function showSettings(){
   });
   wire('setPaper', v => { const u = LS.get('pica.ui', {}); u.paper = v; LS.set('pica.ui', u); applyUiPrefs(); rerenderAll(); });
   wire('setGap', v => { const u = LS.get('pica.ui', {}); u.pageGap = v; LS.set('pica.ui', u); applyUiPrefs(); });
+  wire('setUiFont', v => { const u = LS.get('pica.ui', {}); u.uiFont = v; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setSmart', v => { const u = LS.get('pica.ui', {}); u.smartType = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setAuto', v => { const u = LS.get('pica.ui', {}); u.autoDetect = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
   wire('setContd', v => { const u = LS.get('pica.ui', {}); u.autoContd = v === 'on'; LS.set('pica.ui', u); applyUiPrefs(); });
