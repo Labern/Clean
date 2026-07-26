@@ -148,12 +148,6 @@ body.resizing #canvas{ pointer-events:none; }
 .scene-item .sl{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .doc-item .pg{ margin-left:auto; color:var(--faint); font-variant-numeric:tabular-nums; flex:none;}
 .sidegrid{ display:grid; grid-template-columns:1fr 1fr; gap:.45rem; margin-bottom:.4rem; }
-#railFilter{
-  width:100%; font-family:var(--mono); font-size:.66rem; letter-spacing:.12em;
-  color:var(--ink); background:none; border:none; border-bottom:1px solid var(--line);
-  outline:none; padding:.25rem .1rem; margin:.15rem 0 .3rem;
-}
-#railFilter:focus{ border-bottom-color:var(--rule); }
 /* UI font option: Screenplay puts the title, index names, slugs and character
    names in the script's own Courier; headers and everything else stay put */
 body.uifont-screenplay #docTitle{ font-family:var(--courier); font-size:.8rem; }
@@ -162,7 +156,6 @@ body.uifont-screenplay .doc-item, body.uifont-screenplay .scene-item{ font-famil
 /* the index holds ten rows; past that it scrolls within itself, so SCENES always
    starts just below the tenth entry */
 #docList{ max-height:17.6rem; overflow-y:auto; overscroll-behavior:contain; scrollbar-width:thin; position:relative; z-index:1; }
-#railFilter::placeholder{ color:var(--faint); opacity:.6; text-transform:uppercase; }
 .sbtn{
   font-family:var(--mono); font-size:.64rem; letter-spacing:.2em; text-transform:uppercase;
   color:var(--ink); background:transparent; border:1.5px solid var(--ink);
@@ -431,7 +424,6 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
       <button class="sbtn" id="railExport" data-side="exp" hidden>Export</button>
       <button class="sbtn" id="railTitle" data-side="title" hidden title="Title page (⇧⌘T)">Title</button>
     </div>
-    <input id="railFilter" placeholder="filter…" spellcheck="false">
     <button class="eyebrow" id="eyeIndex">Index</button>
     <div id="docList"></div>
     <button class="eyebrow" id="eyeScenes">Scenes</button>
@@ -2739,14 +2731,12 @@ function draftsMenu(ev){
 function rail(){
   const dl = $('#docList');
   dl.innerHTML = '';
-  const q = ($('#railFilter').value || '').trim().toLowerCase();
-  const hit = t => !q || (t || '').toLowerCase().includes(q);
   const pinned = new Set(LS.get('pica.ui', {}).pinned || []);
   const archived = new Set(LS.get('pica.ui', {}).archived || []);
   const all = store.index().slice().sort((a, b) =>
     (pinned.has(b.id) ? 1 : 0) - (pinned.has(a.id) ? 1 : 0));
-  const list = all.filter(d => !archived.has(d.id) && hit(d.title));
-  const shelf = all.filter(d => archived.has(d.id) && hit(d.title));
+  const list = all.filter(d => !archived.has(d.id));
+  const shelf = all.filter(d => archived.has(d.id));
   for (const d of list.concat(shelf.length ? [{ __shelf: shelf }] : [])) {
     if (d.__shelf) {
       const eb = document.createElement('button');
@@ -2817,8 +2807,7 @@ function rail(){
     const base = e.text.replace(/\s*\([^)]*\)\s*$/, '').trim();
     if (base) counts.set(base, (counts.get(base) || 0) + 1);
   }
-  const q2 = ($('#railFilter').value || '').trim().toLowerCase();
-  for (const [name, cnt] of [...counts.entries()].sort((a, b) => b[1] - a[1]).filter(([n]) => !q2 || n.toLowerCase().includes(q2)).slice(0, 40)) {
+  for (const [name, cnt] of [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40)) {
     const b = document.createElement('button');
     b.className = 'scene-item';
     b.innerHTML = '<span class="sl"></span><span class="pg" style="margin-left:auto"></span>';
@@ -2861,8 +2850,6 @@ function rail(){
     if (l.kind !== 'scene' || seen.has(l.el) ) continue;
     seen.add(l.el);
     n++;
-    { const q3 = ($('#railFilter').value || '').trim().toLowerCase();
-      if (q3 && !l.text.toLowerCase().includes(q3)) continue; }
     const b = document.createElement('button');
     b.className = 'scene-item';
     b.dataset.el = l.el;
@@ -3524,8 +3511,6 @@ const foldWire = (eye, listId, key) => $(eye).addEventListener('mousedown', ev =
 });
 $('#railExport').addEventListener('mousedown', ev => { ev.preventDefault(); openExportMenu(); });
 $('#railTitle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleTitlePage(); });
-$('#railFilter').addEventListener('input', () => { clearTimeout(window._rf); window._rf = setTimeout(rail, 120); });
-$('#railFilter').addEventListener('keydown', ev => { if (ev.key === 'Escape') { ev.preventDefault(); ev.target.value = ''; rail(); ev.target.blur(); } });
 foldWire('#eyeIndex', '#docList', 'index');
 foldWire('#eyeScenes', '#sceneList', 'scenes');
 foldWire('#eyeChars', '#charList', 'chars');
