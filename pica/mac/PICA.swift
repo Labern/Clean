@@ -93,7 +93,7 @@ final class ResourceSchemeHandler: NSObject, WKURLSchemeHandler {
 
 // MARK: - the screenplay browser: browse the libraries, click a PDF, it imports
 
-final class BrowserPanel: NSObject, WKNavigationDelegate, WKDownloadDelegate, NSTextFieldDelegate {
+final class BrowserPanel: NSObject, WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, NSTextFieldDelegate {
     weak var host: AppDelegate?
     var window: NSWindow?
     var web: WKWebView!
@@ -153,6 +153,7 @@ final class BrowserPanel: NSObject, WKNavigationDelegate, WKDownloadDelegate, NS
         let v = WKWebView(frame: NSRect(x: 0, y: 0, width: root.bounds.width, height: root.bounds.height - 42), configuration: cfg)
         v.autoresizingMask = [.width, .height]
         v.navigationDelegate = self
+        v.uiDelegate = self          // "Read" buttons open PDFs in a new tab; route them here
         web = v
 
         root.addSubview(v); root.addSubview(strip)
@@ -171,6 +172,15 @@ final class BrowserPanel: NSObject, WKNavigationDelegate, WKDownloadDelegate, NS
         go(t)
     }
     private func go(_ u: String) { if let url = URL(string: u) { web.load(URLRequest(url: url)) } }
+
+    // target=_blank / window.open lands in the same view — where PDFs get captured
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let url = navigationAction.request.url, url.absoluteString != "about:blank" {
+            webView.load(URLRequest(url: url))
+        }
+        return nil
+    }
 
     // ---- the capture: any PDF response becomes an import, never a page ----
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse,
