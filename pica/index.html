@@ -84,7 +84,8 @@ header{
 .hzone.right{ grid-column:3; justify-content:flex-end; }
 .wordmark{ font-family:var(--serif); font-size:1.28rem; font-weight:560; letter-spacing:.045em; }
 #docTitle{
-  font-family:var(--mono); font-size:.76rem; letter-spacing:.2em; text-transform:uppercase;
+  /* TEMPORARY (his call, may revert or become a Settings toggle): screenplay face */
+  font-family:var(--courier); font-size:.8rem; letter-spacing:.2em; text-transform:uppercase;
   color:var(--ink); outline:none; padding:.22rem .7rem; border-bottom:1px dashed transparent;
   white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:36vw; text-align:center;
   /* centred over the page (the canvas), not the window — the same optical centre the
@@ -135,7 +136,8 @@ body.resizing #canvas{ pointer-events:none; }
 .eyebrow:first-child{ margin-top:0; }
 .doc-item,.scene-item{
   display:flex; gap:.7rem; width:100%; text-align:left;
-  font-family:var(--mono); font-size:.71rem; line-height:1.6;
+  /* TEMPORARY: screenplay face for titles, slugs and character names */
+  font-family:var(--courier); font-size:.74rem; line-height:1.6;
   color:var(--ink-2); padding:.3rem .35rem .3rem .55rem;
   border-left:2px solid transparent;
 }
