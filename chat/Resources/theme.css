@@ -617,8 +617,14 @@ html[data-shell-msgsize] [data-shell-convo] .selectable-text * {
 
 html[data-shell-namesize] [data-testid="cell-frame-title"],
 html[data-shell-namesize] [data-testid="cell-frame-title"] *,
-html[data-shell-namesize] [data-shell-convo] header span[title] {
+html[data-shell-namesize] #pane-side [data-testid="cell-frame-title"],
+html[data-shell-namesize] #pane-side [data-testid="cell-frame-title"] *,
+html[data-shell-namesize] [data-shell-list] [data-testid="cell-frame-title"],
+html[data-shell-namesize] [data-shell-list] [data-testid="cell-frame-title"] *,
+html[data-shell-namesize] [data-shell-convo] header span[title],
+html[data-shell-namesize] #shell-bar #shell-name {
   font-size: var(--shell-name-size) !important;
+  line-height: 1.25 !important;
 }
 html[data-shell-namesize] [data-testid="cell-frame-secondary"],
 html[data-shell-namesize] [data-testid="cell-frame-secondary"] * {

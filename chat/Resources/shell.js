@@ -31,7 +31,7 @@
 
   const cfg = Object.assign({ theme: 'stock', hide: {}, privacy: false,
                               compact: false, font: '', msgSize: 0,
-                              nameSize: 0, msgGap: 0, sounds: false,
+                              nameSize: 0, msgGap: 0, edgeGap: 6, sounds: false,
                               focus: false, pins: [] },
                             window.__SHELL_CONFIG || {});
 
@@ -535,7 +535,9 @@
      translateX is used rather than margins so nothing in WhatsApp's own layout is
      fought — the bubble keeps its computed position and is simply drawn where it
      belongs. Re-run on the pump, since rows recycle and the pane resizes. */
-  const BUBBLE_EDGE_GAP = 6;   // enough that the edge reads as deliberate
+  // The edge gap is his to choose — View ▸ Message Margin. 6 is the minimum that
+  // still reads as deliberate rather than as a mistake.
+  function edgeGap() { return Math.max(0, Number(cfg.edgeGap) || 6) }
 
   function tightenBubbles() {
     if (!cfg.compact) return 0;
@@ -556,7 +558,7 @@
       const gapLeft = r.left - p.left;
       const gapRight = p.right - r.right;
       const outgoing = gapRight <= gapLeft;          // his own messages sit right
-      const shift = (outgoing ? gapRight : gapLeft) - BUBBLE_EDGE_GAP;
+      const shift = (outgoing ? gapRight : gapLeft) - edgeGap();
 
       if (shift > 1) {
         b.style.transform = 'translateX(' + (outgoing ? shift : -shift).toFixed(1) + 'px)';
@@ -752,6 +754,13 @@
   function setMsgSize(px)  { return setPixelVar(px, '--shell-msg-size',  'data-shell-msgsize',  'msgSize') }
   function setNameSize(px) { return setPixelVar(px, '--shell-name-size', 'data-shell-namesize', 'nameSize') }
   function setMsgGap(px)   { return setPixelVar(px, '--shell-msg-gap',   'data-shell-msggap',   'msgGap') }
+
+  function setEdgeGap(px) {
+    cfg.edgeGap = Math.max(0, Number(px) || 0);
+    R().style.setProperty('--shell-edge-gap', cfg.edgeGap + 'px');
+    tightenBubbles();
+    return cfg.edgeGap;
+  }
 
 
   /* ── 4. notifications ──────────────────────────────────────────────────────
@@ -1034,6 +1043,7 @@
       msgSize:     R().style.getPropertyValue('--shell-msg-size') || '',
       nameSize:    R().style.getPropertyValue('--shell-name-size') || '',
       msgGap:      R().style.getPropertyValue('--shell-msg-gap') || '',
+      edgeGap:     cfg.edgeGap,
       sounds:      cfg.sounds === true,
       collapsed:   document.querySelectorAll('[data-shell-collapsed]').length,
       storageShim: true,
@@ -1101,13 +1111,14 @@
   setMsgSize(cfg.msgSize || 0);
   setNameSize(cfg.nameSize || 0);
   setMsgGap(cfg.msgGap || 0);
+  setEdgeGap(cfg.edgeGap);
   setSounds(cfg.sounds === true);
   if (cfg.compact) setCompact(true);
 
   window.__shell = {
     applyTheme, applyHide, applyPrivacy, openChat, currentChatName,
     focusSearch, focusComposer, newChat, notificationClicked, checkPrivacyCoverage, state,
-    setCompact, setFont, setMsgSize, setNameSize, setMsgGap, replyTo,
+    setCompact, setFont, setMsgSize, setNameSize, setMsgGap, setEdgeGap, replyTo,
     setSounds, compactMetrics, tagBubbles
   };
 

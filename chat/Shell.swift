@@ -84,10 +84,17 @@ let kCompanionMinWidth: CGFloat = 300
 // Presets rather than steppers: two more keyboard chords would be worse than a
 // submenu, and 0 always means "leave WhatsApp's own value alone".
 let kNameSizes: [(title: String, px: Double)] = [
-    ("Default", 0), ("Smaller", 12), ("Small", 13), ("Larger", 16), ("Largest", 18),
+    ("Default", 0), ("11", 11), ("12", 12), ("13", 13), ("14", 14),
+    ("15", 15), ("16", 16), ("18", 18), ("20", 20),
 ]
 let kMsgGaps: [(title: String, px: Double)] = [
     ("Default", 0), ("Snug", 3), ("Roomy", 8), ("Airy", 14), ("Wide", 22),
+]
+
+// How far a message bubble sits from its edge of the window in focus mode.
+// 6 is the minimum that still reads as deliberate rather than as a mistake.
+let kEdgeGaps: [(title: String, px: Double)] = [
+    ("Minimum", 6), ("Small", 12), ("Medium", 20), ("Large", 32), ("Extra", 48),
 ]
 
 let kNotificationCategory = "MESSAGE"
@@ -126,6 +133,7 @@ struct Settings {
     var msgSize: Double          // 0 = WhatsApp's own size
     var nameSize: Double         // contact names + chat list, 0 = WhatsApp's own
     var msgGap: Double           // extra space between messages, 0 = none
+    var edgeGap: Double          // how far a bubble sits from the window edge
     var menuBar: Bool
     var quietFrom: Int           // -1 = quiet hours off
     var quietTo: Int
@@ -157,6 +165,7 @@ struct Settings {
             msgSize: d.object(forKey: "msgSize") as? Double ?? 0,
             nameSize: d.object(forKey: "nameSize") as? Double ?? 0,
             msgGap: d.object(forKey: "msgGap") as? Double ?? 0,
+            edgeGap: d.object(forKey: "edgeGap") as? Double ?? 6,
             menuBar: d.object(forKey: "menuBar") as? Bool ?? true,
             quietFrom: d.object(forKey: "quietFrom") as? Int ?? -1,
             quietTo: d.object(forKey: "quietTo") as? Int ?? -1,
@@ -181,6 +190,7 @@ struct Settings {
         d.set(msgSize, forKey: "msgSize")
         d.set(nameSize, forKey: "nameSize")
         d.set(msgGap, forKey: "msgGap")
+        d.set(edgeGap, forKey: "edgeGap")
         d.set(menuBar, forKey: "menuBar")
         d.set(quietFrom, forKey: "quietFrom")
         d.set(quietTo, forKey: "quietTo")
@@ -214,6 +224,18 @@ func jsLiteral(_ s: String) -> String {
 /// Carbon hot-key callbacks are C function pointers and cannot capture context.
 private weak var gDelegate: AppDelegate?
 
+// MARK: - a window that may leave the screen
+
+/// AppKit keeps a titled window's title bar on screen: it runs every frame change
+/// through `constrainFrameRect` and clamps anything that would put the title bar out
+/// of reach. That is why ⌘R left a sliver of the window visible instead of parking
+/// it fully off the edge. Focus mode wants it gone, so opt out.
+final class SlidingWindow: NSWindow {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        frameRect
+    }
+}
+
 // MARK: - app
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
@@ -230,6 +252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var quietItems: [NSMenuItem] = []
     private var nameSizeItems: [NSMenuItem] = []
     private var msgGapItems: [NSMenuItem] = []
+    private var edgeGapItems: [NSMenuItem] = []
     private var privacyItem: NSMenuItem!
     private var notifyItem: NSMenuItem!
     private var soundItem: NSMenuItem!
@@ -323,9 +346,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         // A normal title bar, tinted to the theme. Not .fullSizeContentView:
         // WhatsApp's nav rail runs to the very top of its own layout, and the
         // traffic lights would sit on top of it.
-        let w = NSWindow(contentRect: v.frame,
-                         styleMask: [.titled, .closable, .miniaturizable, .resizable],
-                         backing: .buffered, defer: false)
+        let w = SlidingWindow(contentRect: v.frame,
+                              styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                              backing: .buffered, defer: false)
         w.title = kAppName
         w.titlebarAppearsTransparent = true
         w.titleVisibility = .hidden
@@ -367,7 +390,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         compact: \(settings.compact ? "true" : "false"), \
         font: \(jsLiteral(settings.fontCSS)), msgSize: \(settings.msgSize), \
         nameSize: \(settings.nameSize), msgGap: \(settings.msgGap), \
-        sounds: \(settings.sounds ? "true" : "false"), \
+        sounds: \(settings.sounds ? "true" : "false"), edgeGap: \(settings.edgeGap), \
         pins: \(pinsJSON) };
         """
 
@@ -435,7 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             // insists on — otherwise a narrow window just clips a wide layout.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.fitCompact() }
         } else {
-            UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV3")
+            UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV4")
             js("__shell.setCompact(false)")
             web?.pageZoom = CGFloat(settings.zoom)          // restore his real zoom
             if let f = fullFrame { w.setFrame(f, display: true, animate: true) }
@@ -543,10 +566,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     }
 
     private func savedCompanionFrame() -> NSRect? {
-        guard let s = UserDefaults.standard.string(forKey: "companionFrameV3") else { return nil }
+        guard let s = UserDefaults.standard.string(forKey: "companionFrameV4") else { return nil }
         let r = NSRectFromString(s)
         return (r.width > 200 && r.height > 200) ? r : nil
     }
+
+    /// True once the app has parked the window off screen at least once, so the
+    /// remembered frame is known to be his and not a clamped leftover.
+    private var hasUserFrame: Bool { UserDefaults.standard.string(forKey: "companionFrameV4") != nil }
 
     private func defaultCompanionFrame() -> NSRect {
         let screen = (window?.screen ?? NSScreen.main)?.frame
@@ -581,7 +608,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             homeFrame = w.frame
             slidOut = true
             var target = w.frame
-            target.origin.x = visible.maxX + 4      // just past the edge, still alive
+            target.origin.x = visible.maxX          // left edge on the screen edge: fully gone
             slide(w, to: target)
             // Back to work, in the app he came from.
             if let prev = previousApp, prev.bundleIdentifier != Bundle.main.bundleIdentifier {
@@ -621,7 +648,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
     private func rememberFrame() {
         guard let w = window, settings.compact, !slidOut else { return }
-        UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV3")
+        UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV4")
         // Re-fit after he stops dragging, not on every frame of the drag.
         fitWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.fitCompact() }
@@ -896,6 +923,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         js("__shell.setMsgSize(\(settings.msgSize))")
         js("__shell.setNameSize(\(settings.nameSize))")
         js("__shell.setMsgGap(\(settings.msgGap))")
+        js("__shell.setEdgeGap(\(settings.edgeGap))")
         js("__shell.setSounds(\(settings.sounds ? "true" : "false"))")
         js("__shell.setCompact(\(settings.compact ? "true" : "false"))")
     }
@@ -944,10 +972,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         syncMenuState()
     }
 
+    @objc private func chooseEdgeGap(_ sender: NSMenuItem) {
+        settings.edgeGap = kEdgeGaps[sender.tag].px
+        settings.save(); reinstallUserScripts()
+        js("__shell.setEdgeGap(\(settings.edgeGap))")
+        syncMenuState()
+    }
+
     @objc private func chooseMsgGap(_ sender: NSMenuItem) {
         settings.msgGap = kMsgGaps[sender.tag].px
         settings.save(); reinstallUserScripts()
         js("__shell.setMsgGap(\(settings.msgGap))")
+        js("__shell.setEdgeGap(\(settings.edgeGap))")
         js("__shell.setSounds(\(settings.sounds ? "true" : "false"))")
         syncMenuState()
     }
@@ -1311,6 +1347,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         for (i, item) in nameSizeItems.enumerated() {
             item.state = kNameSizes[i].px == settings.nameSize ? .on : .off
         }
+        for (i, item) in edgeGapItems.enumerated() {
+            item.state = kEdgeGaps[i].px == settings.edgeGap ? .on : .off
+        }
         for (i, item) in msgGapItems.enumerated() {
             item.state = kMsgGaps[i].px == settings.msgGap ? .on : .off
         }
@@ -1463,14 +1502,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         viewMenu.addItem(item("Smaller Message Text", #selector(msgSmaller(_:)), "-", [.command, .option]))
         viewMenu.addItem(item("Default Message Text", #selector(msgReset(_:)), "0", [.command, .option]))
 
-        let nameMenu = NSMenu(title: "Names & List Text")
+        let nameMenu = NSMenu(title: "Contact Name Size")
         for (i, n) in kNameSizes.enumerated() {
             let it = item(n.title, #selector(chooseNameSize(_:)))
             it.tag = i; nameMenu.addItem(it); nameSizeItems.append(it)
         }
-        let nameItem = NSMenuItem(title: "Names & List Text", action: nil, keyEquivalent: "")
+        let nameItem = NSMenuItem(title: "Contact Name Size", action: nil, keyEquivalent: "")
         nameItem.submenu = nameMenu
         viewMenu.addItem(nameItem)
+
+        let edgeMenu = NSMenu(title: "Message Margin")
+        for (i, g) in kEdgeGaps.enumerated() {
+            let it = item(g.title, #selector(chooseEdgeGap(_:)))
+            it.tag = i; edgeMenu.addItem(it); edgeGapItems.append(it)
+        }
+        let edgeItem = NSMenuItem(title: "Message Margin", action: nil, keyEquivalent: "")
+        edgeItem.submenu = edgeMenu
+        viewMenu.addItem(edgeItem)
 
         let gapMenu = NSMenu(title: "Space Between Messages")
         for (i, g) in kMsgGaps.enumerated() {
