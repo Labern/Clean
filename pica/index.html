@@ -168,7 +168,7 @@ body.uifont-screenplay .doc-item, body.uifont-screenplay .scene-item{ font-famil
 /* ---------- canvas ---------- */
 #canvas{ flex:1; overflow:auto; background:var(--paper-2); min-width:0; position:relative; }
 #pages{ outline:none; padding:2.6rem 1rem 6rem; caret-color:var(--page-ink); }
-.pageWrap{ margin:0 auto var(--pagegap, 2.4rem); position:relative; }
+.pageWrap{ margin:0 auto var(--pagegap, 7rem); position:relative; }
 .page{
   position:relative; background:var(--page); color:var(--page-ink);
   box-shadow:var(--shadow); margin:0 auto;
@@ -337,7 +337,7 @@ footer .z:hover{ color:var(--ink); }
 .set-row .hint{ grid-column:1; font-family:var(--ui); font-size:.78rem; color:var(--faint); line-height:1.4; margin-top:-.5rem; }
 .set-row .ctl{ grid-column:2; grid-row:1 / span 2; display:flex; align-items:center; gap:.9rem; justify-content:flex-end; }
 .set-row:has(.hint) .ctl{ align-self:center; }
-.seg{ display:flex; gap:1.1rem; }
+.seg{ display:flex; gap:1.1rem; flex-wrap:wrap; }
 .seg button{
   font-family:var(--ui); font-size:.88rem; padding:.1rem 0;
   color:var(--faint); border-bottom:2px solid transparent;
@@ -721,6 +721,60 @@ const PicaEngine = (() => {
     return gutter.size > 0;
   }
 
+  // Production drafts star every changed line with an asterisk in the outer margin
+  // ("VINCENT                                      *"). The star shares its row with
+  // the writing, so line assembly welds it into the text — where it poisons sentence
+  // detection, (CONT'D) regeneration, cue matching and width calibration. Like all
+  // apparatus it is detected by behaviour, not format: a bare run of *s at a line's
+  // edge, detached by a wide gap, stacking in one narrow x band in the margin across
+  // the document. The stars are stripped from the text but not lost — each line
+  // remembers it was starred (l.rev) and the band's x survives as layout.revX, so the
+  // render puts them back exactly where the source printed them.
+  function stripRevisionMarks(body, charW) {
+    const BARE = /^\s*\*+\s*$/;
+    const pageW = body[0] ? body[0].width : 612;
+    // pass 1 — find the band: bare stars clearly detached from the text they flank
+    const cands = [];
+    for (const p of body) for (const l of p.lines) {
+      const its = l.items || [];
+      for (const pos of its.length === 1 ? [0] : [0, its.length - 1]) {
+        const it = its[pos];
+        if (!BARE.test(it.str)) continue;
+        if (its.length > 1) {
+          const gap = pos === 0 ? its[1].x - (it.x + it.w) : it.x - (its[pos - 1].x + its[pos - 1].w);
+          if (gap < charW * 2) continue;
+        }
+        cands.push(it);
+      }
+    }
+    // the band is a ZONE, not a point: typewriter/OCR drafts (There Will Be Blood)
+    // smear their star column across 90pt, so membership is "in the outer margin",
+    // right or left — never the middle of the page, where a bare * could be content
+    const inRight = x => x > pageW * 0.78, inLeft = x => x < pageW * 0.15;
+    const nR = cands.filter(it => inRight(it.x)).length, nL = cands.filter(it => inLeft(it.x)).length;
+    if (Math.max(nR, nL) < 4) return null;
+    const inZone = nR >= nL ? inRight : inLeft;
+    // pass 2 — strip every edge star sitting in the zone, detached or not: a long
+    // line can run to within a space of its star, but the star's x doesn't lie
+    const xs = [];
+    for (const p of body) for (const l of p.lines) {
+      const its = l.items || [];
+      for (const pos of its.length === 1 ? [0] : [0, its.length - 1]) {
+        const it = its[pos];
+        if (!BARE.test(it.str) || !inZone(it.x)) continue;
+        const rest = its.filter(i => i !== it);
+        l.rev = true; xs.push(it.x);
+        if (!rest.length) { l.items = rest; l.text = ''; break; }
+        const j = joinItems(rest, charW);
+        l.items = rest; l.x = rest[0].x; l.xEnd = j.xEnd; l.text = j.text;
+        break;
+      }
+    }
+    for (const p of body) p.lines = p.lines.filter(l => l.text.length > 0);
+    xs.sort((a, b) => a - b);
+    return { x: Math.round(xs[Math.floor(xs.length / 2)] * 100) / 100, count: xs.length };
+  }
+
   function estimateCharW(pages) {
     const ws = [];
     for (const p of pages) for (const it of p.items || [])
@@ -789,6 +843,9 @@ const PicaEngine = (() => {
       }
     }
     const body = pages.slice(bodyStart);
+    // stars first: a trailing star otherwise shields a right-gutter scene number
+    // from the gutter stripper (the number is no longer the last detached item)
+    const revMarks = stripRevisionMarks(body, charW0);
     stripSceneNumbers(body, charW0);
 
     // -- page furniture ------------------------------------------------------------
@@ -934,6 +991,7 @@ const PicaEngine = (() => {
       cols, transRight, charW: charW0,
       widths: { ...LETTER.widths },
       moreDy: 10, contDy: -14,
+      ...(revMarks ? { revX: revMarks.x } : {}),
     };
 
     // Any line still sitting above the body area that reads as apparatus — a header row
@@ -1075,6 +1133,9 @@ const PicaEngine = (() => {
       const src = el.srcLines.map(s => s.text);
       el.text = (wrapped.length === src.length && wrapped.every((t, i) => t === src[i]))
         ? el.joined : src.join('\n');
+      const rl = [];
+      el.srcLines.forEach((s, i) => { if (s.rev) rl.push(i); });
+      if (rl.length) el.rev = rl; // starred wrap-lines, by index — render restores the stars
       delete el.joined; delete el.srcLines; delete el.splitJoin;
     }
 
@@ -1094,7 +1155,7 @@ const PicaEngine = (() => {
       titlePage: tp,
       ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
-      elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}) })),
+      elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}), ...(e.rev ? { rev: e.rev } : {}) })),
     };
   }
 
@@ -1175,14 +1236,15 @@ const PicaEngine = (() => {
       for (const ln of lines) {
         const idx = text.indexOf(ln, off);
         const at = idx >= 0 ? idx : off;
-        out.push({ t: ln, off: at });
+        out.push({ t: ln, off: at, i: out.length });
         off = at + ln.length;
       }
       return out;
     };
 
     const put = (el, lineObj, r, kind) => {
-      cur.lines.push({ x: xFor(el, lineObj.t, L), y: yAt(r), text: lineObj.t, el: el.id, kind: kind || el.type, off: lineObj.off });
+      cur.lines.push({ x: xFor(el, lineObj.t, L), y: yAt(r), text: lineObj.t, el: el.id, kind: kind || el.type, off: lineObj.off,
+        ...(el.rev && el.rev.includes(lineObj.i) ? { rev: true } : {}) });
     };
 
     // If a scene heading sits alone at the bottom of the current page and the block
@@ -1273,7 +1335,9 @@ const PicaEngine = (() => {
       if (availBody >= 2 && flat.length >= 3) {
         for (let i = Math.min(availBody, flat.length - 1); i >= 2; i--) {
           const f = flat[i - 1], nxt = flat[i];
-          const subEnd = nxt.si !== f.si; // boundary between dialogue/paren sub-elements
+          // a sub-element boundary is breakable — but never straight after a
+          // parenthetical: FD keeps "(beat)" welded to the dialogue it modifies
+          const subEnd = nxt.si !== f.si && f.el.type !== 'paren';
           if ((f.el.type === 'dialogue' && SENT_END.test(f.lo.t)) || subEnd) { k = i; break; }
         }
       }
@@ -1752,6 +1816,17 @@ function renderPage(i){
     if (bits) d.innerHTML = markedHTML(l.text, bits);
     else d.textContent = l.text;
     page.appendChild(d);
+    if (l.rev && L.revX) { // the source's revision star, back at its own margin x
+      const m = document.createElement('div');
+      m.className = 'line gen';
+      m.contentEditable = 'false';
+      m.dataset.kind = 'rev';
+      m.style.left = (L.revX * k) + 'px';
+      m.style.top = ((l.y - S.fontPt * 0.79) * k) + 'px';
+      m.style.height = (L.rowH * k) + 'px';
+      m.textContent = '*';
+      page.appendChild(m);
+    }
   }
   pe.wrap.replaceChildren(page);
   pe.wrap.style.width = (L.pageW * k) + 'px';
@@ -3130,8 +3205,8 @@ function applyUiPrefs(){
   // footer items: zoom and ⚙ are permanent; page/scenes on by default; the rest opt-in
   document.documentElement.style.setProperty('--rfoot', (ui.readerFoot === 'max') ? '.6rem' : '.22rem');
   document.body.classList.toggle('uifont-screenplay', ui.uiFont === 'screenplay');
-  const gaps = { roomy: '2.4rem', compact: '.55rem', none: '2px' };
-  document.documentElement.style.setProperty('--pagegap', gaps[ui.pageGap] || gaps.roomy);
+  const gaps = { none: '2px', compact: '.55rem', roomy: '2.4rem', wide: '4.4rem', max: '7rem' };
+  document.documentElement.style.setProperty('--pagegap', gaps[ui.pageGap] || gaps.max);
   const foot = Object.assign({ page: true, type: false, hint: false, drafts: false, link: false, saved: false }, ui.foot || {});
   S.foot = foot;
   for (const el of document.querySelectorAll('[data-foot]')) el.hidden = !foot[el.dataset.foot];
@@ -3176,7 +3251,7 @@ function showSettings(){
   ${row('Theme', '', seg('setTheme', [['auto','Auto'],['light','Light'],['dark','Dark']], theme))}
   ${row('Paper', '', seg('setPaper', [['cream','Cream'],['white','White']], ui.paper === 'white' ? 'white' : 'cream'))}
   ${row('Page zoom', 'Pinch, or ⌘+ / ⌘−.', seg('setZoom', [['fit','Fit'],['out','−'],['in','+']], 'fit'))}
-  ${row('Page gap', 'Compact is the Chrome-PDF / Final Draft look.', seg('setGap', [['roomy','Roomy'],['compact','Compact'],['none','None']], ui.pageGap || 'roomy'))}
+  ${row('Page gap', 'Compact is the Chrome-PDF / Final Draft look.', seg('setGap', [['none','None'],['compact','Compact'],['roomy','Roomy'],['wide','Wide'],['max','Max']], ui.pageGap || 'max'))}
   ${row('UI font', 'Screenplay sets titles, slugs and names in the script\u2019s Courier.', seg('setUiFont', [['default','Default'],['screenplay','Screenplay']], ui.uiFont === 'screenplay' ? 'screenplay' : 'default'))}
 
   <h3>Layout</h3>
