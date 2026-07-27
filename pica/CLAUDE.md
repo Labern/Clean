@@ -105,6 +105,23 @@ cd /tmp/ghp && git add -A && git commit -m "Deploy pica to Pages at /Clean/pica/
 cd - && git worktree remove /tmp/ghp
 ```
 
+## Revision stars are marginalia, never text
+Production drafts (Collateral, TWBB, Whiplash) star changed lines with `*` in the
+outer margin. Line assembly used to weld the star into the text
+(`"VINCENT      *"`), which poisoned SENT_END (no legal split points → breaks
+after parentheticals), (CONT'D) regeneration (`VINCENT   * (CONT'D)`), cue
+matching and width calibration — 452 contaminated elements in Collateral alone.
+`stripRevisionMarks` (runs BEFORE `stripSceneNumbers` — a trailing star otherwise
+shields the right-gutter scene number from the gutter stripper) detects them by
+behaviour: bare `*` runs at a line's edge, ≥4 of them detached in one outer-margin
+ZONE (right or left ~fifth of the page — a zone, not a ±3 band, because OCR-era
+drafts smear the column 90pt). Stripped from text, remembered as `el.rev`
+(wrap-line indices) + `layout.revX`; the paginator threads `rev` onto lines and
+the render draws the star back at its true x. Never "fix" this by deleting the
+stars outright — they're real screenplay data — and never let them into text.
+Related: the paginator never breaks a speech straight after a parenthetical
+(`subEnd` excludes `paren`) — FD welds "(beat)" to the dialogue it modifies.
+
 ## The full instrument (as of 2026-07-26)
 Editor with FD-exact grammar · PDF import for the real world (revision headers,
 scene-number gutters, cipher fonts, provenance stamps — all scrubbed/decoded) ·

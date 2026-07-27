@@ -66,6 +66,17 @@ console.log('§ 2 · Real-world PDF classes — structural invariants per diseas
       ok('  opens on material', /FADE IN|INT\.|EXT\./.test(doc.elements[0].text));
       ok('  scenes found', doc.elements.filter(e => e.type === 'scene').length > 150);
       ok('  deep top margin honoured', doc.layout.y0 > 75, 'y0=' + doc.layout.y0);
+      // revision stars: marginalia, never text — stripped, remembered, re-rendered
+      ok('  no absorbed margin stars', doc.elements.filter(e => /\s{2,}\*+(\s|$)/.test(e.text) || /^\*+$/.test(e.text.trim())).length === 0);
+      ok('  star band x recorded', Math.abs((doc.layout.revX ?? 0) - 568.8) < 2, 'revX=' + doc.layout.revX);
+      ok('  starred lines remembered', doc.elements.filter(e => e.rev).length > 300);
+      const all = res.pages.flatMap(p => p.lines);
+      ok('  stars thread into pagination', all.filter(l => l.rev).length > 400);
+      ok("  no star inside a (CONT'D) cue", all.filter(l => l.kind === 'contcue' && /\*/.test(l.text)).length === 0);
+      let parenMore = 0;
+      for (const p of res.pages) for (let i = 1; i < p.lines.length; i++)
+        if (p.lines[i].kind === 'more' && p.lines[i - 1].kind === 'paren') parenMore++;
+      ok('  no (MORE) dangling after a parenthetical', parenMore === 0);
     }],
     ['dl-Kill_Bill.json', 'Kill Bill (bare page numbers)', (doc, res) => {
       ok('  no stray numeric elements', doc.elements.filter(e => /^[A-Za-z]?\d+[A-Za-z]?[.:]?$/.test(e.text.trim())).length <= 2);
