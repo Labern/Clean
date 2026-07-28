@@ -48,6 +48,7 @@ h1 span:nth-child(3){color:var(--rb-yellow);animation-delay:.3s}
 h1 span:nth-child(4){color:var(--rb-green);animation-delay:.45s}
 h1 span:nth-child(5){color:var(--rb-blue);animation-delay:.6s}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.survive{font-size:1.08rem;font-weight:bold;margin-top:4px}
 .tagline{font-size:.95rem;color:var(--faint);margin-top:2px}
 #todayline{display:inline-block;margin-top:10px;font-size:.92rem;font-weight:bold;
   background:#fff;border:3px solid var(--ink);border-radius:99px;padding:7px 18px;box-shadow:var(--hard-sm)}
@@ -257,12 +258,14 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
 
 <header>
   <h1><span>C</span><span>Y</span><span>C</span><span>L</span><span>E</span></h1>
+  <div class="survive">how to survive the <b style="color:var(--ph-luteal)">luteal phase</b></div>
   <div class="tagline">mood weather, phase by phase — know the storm before it lands</div>
   <div id="todayline">…</div>
   <div id="viewbar">
     <button class="vchip sel" id="chipmine">👤 mine</button>
     <button class="vchip" id="chiptheirs" hidden>💞 theirs</button>
     <button class="vchip share" id="chipshare">💌 share mine</button>
+    <button class="vchip" id="chipweather">🌦 forecast: on</button>
   </div>
 </header>
 
@@ -346,7 +349,7 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
     <span class="lchip">✎ has a note</span>
   </div>
   <div id="calhint" style="font-family:var(--font-read);font-size:.72rem;color:var(--faint);margin-top:8px">
-    tap any day to write a note or tag the moods you felt (🔥 😖 …) — or to mark it as a period start 🌹 (mark as many past starts as you like; past cycles then use their real lengths)
+    tap any day to write a note or tag the moods you felt (🔥 😖 …) — your mood emoji replaces the forecast on that day. mark period starts 🌹 on as many past days as you like; past cycles then use their real lengths. the 🌦 forecast button up top hides the default weather emojis entirely
   </div>
 </section>
 
@@ -487,7 +490,7 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
 'use strict';
 /* ══════════════ state — saved to localStorage on every change ═════════ */
 const KEY = 'cycle.state.v1';
-const DEFAULTS = { v:1, starts:[], cycleLen:28, periodLen:5, monthsView:1, notes:{}, moods:{}, name:'', theirs:null, view:'mine' };
+const DEFAULTS = { v:1, starts:[], cycleLen:28, periodLen:5, monthsView:1, notes:{}, moods:{}, name:'', theirs:null, view:'mine', showWeather:true };
 let state;
 try { state = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(KEY) || '{}')); }
 catch(e){ state = Object.assign({}, DEFAULTS); }
@@ -666,6 +669,9 @@ function renderToday(){
 /* ══════════════ render: view chrome (mine vs theirs) ══════════════════ */
 function renderView(){
   document.getElementById('chipmine').classList.toggle('sel', mine());
+  const cw = document.getElementById('chipweather');
+  cw.textContent = '🌦 forecast: ' + (state.showWeather ? 'on' : 'off');
+  cw.classList.toggle('sel', state.showWeather);
   const ct = document.getElementById('chiptheirs');
   ct.hidden = !state.theirs;
   ct.classList.toggle('sel', !mine());
@@ -741,6 +747,7 @@ function buildMonth(first){
     const cell = document.createElement('div'); cell.className = 'day'; cell.dataset.key = key;
     let inner = '<span class="n">' + d + '</span>';
     const ci = cycleInfo(date);
+    let wxEmoji = '';
     if (ci){
       const P = d0.periodLen;
       const ph = phaseOf(ci.day, ci.len, P);
@@ -749,8 +756,7 @@ function buildMonth(first){
         const dtb = toBreak(ci.day, ci.len);
         if (dtb <= 5){ cell.classList.add('danger5'); if (dtb === 5) cell.classList.add('is-peak'); }
       }
-      const w = weather(ci.day, ci.len, P);
-      inner += '<span class="wx">' + w.wx + '</span>';
+      wxEmoji = weather(ci.day, ci.len, P).wx;
       const marks = [];
       if (ph === 'luteal' && toBreak(ci.day, ci.len) === 5) marks.push('⚠');
       if (ci.day === ovuDay(ci.len, P) && ph === 'ovulation') marks.push('⭐');
@@ -758,9 +764,12 @@ function buildMonth(first){
       if (date > today) cell.classList.add('is-future');
     }
     if (d0.starts.includes(key)) cell.classList.add('is-start');
+    /* the user's own mood emoji owns the day; the forecast only fills the gaps (and can be turned off) */
     const mm = moodsFor(d0, key);
-    let tags = mm.slice(0,2).map(k => MOOD_BY_K[k].e).join('');
-    if (mm.length > 2) tags += '⁺';
+    const big = mm.length ? MOOD_BY_K[mm[0]].e : (state.showWeather ? wxEmoji : '');
+    if (big) inner += '<span class="wx">' + big + '</span>';
+    let tags = mm.slice(1,3).map(k => MOOD_BY_K[k].e).join('');
+    if (mm.length > 3) tags += '⁺';
     if (d0.notes[key]) tags += '✎';
     if (tags) inner += '<span class="tags">' + tags + '</span>';
     if (key === todayKey) cell.classList.add('is-today');
@@ -977,6 +986,7 @@ $('todaybtn').addEventListener('click', () => { viewOffset = 0; renderCalendar()
 $('chipmine').addEventListener('click', () => { state.view = 'mine'; save(); renderAll(); });
 $('chiptheirs').addEventListener('click', () => { if (state.theirs){ state.view = 'theirs'; save(); renderAll(); } });
 $('chipshare').addEventListener('click', doShare);
+$('chipweather').addEventListener('click', () => { state.showWeather = !state.showWeather; save(); });
 
 /* ══════════════ boot + midnight rollover ══════════════════════════════ */
 function renderAll(){ renderView(); renderToday(); renderRibbon(); renderCalendar(); syncControls(); }
