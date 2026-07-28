@@ -20,7 +20,10 @@ else — phases, calendar, notes — supports that one arc.
   cycles render from their **real** lengths; future is predicted from the last
   start + the cycle-length slider (default 28, exact numbers shown).
 - Notes + tappable mood tags per day (🔥 very turned on, 😖 stressed, 😡 😭 😌
-  ⚡ — tap a day), mood-weather tooltips on hover, 1/2/3/6-month views,
+  ⚡ — tap a day). A tagged mood REPLACES the forecast emoji as the day's big
+  emoji; the 🌦 header chip (state.showWeather) hides forecast emojis entirely
+  so only user-tagged emojis (or nothing) show. Mood-weather tooltips on
+  hover, 1/2/3/6-month views,
   full-cycle rainbow ribbon that tracks hover. PMDD explainer + verified
   further-reading links (curl-checked 200 before shipping) at the foot.
   Calendar emoji are sized with container-query units (~1/3 of each cell).
