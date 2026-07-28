@@ -105,6 +105,39 @@ cd /tmp/ghp && git add -A && git commit -m "Deploy pica to Pages at /Clean/pica/
 cd - && git worktree remove /tmp/ghp
 ```
 
+## Typography is captured at import — underlines are DRAWN, not encoded
+A PDF underline is a vector line just below the baseline, invisible to
+getTextContent; bold/italic live in the font NAMES. The extractor
+(importPdfBuffer) walks each page's operator list with the transform tracked,
+keeps thin horizontal INK (fill/stroke — never clip: Oppenheimer draws hundreds
+of text-clip rects that are not underlines), and emits per-page `ul` segments +
+per-item `fs` style bits (1=bold, 2=italic, from the resolved font name — resolve
+via commonObjs only AFTER getOperatorList has loaded fonts). The engine attaches
+segments to their row (`l.us`), then finalization replays joinItems' exact layout
+to convert item styles + underline x-ranges into `el.marks` — the same b/i/u
+marks the editor already renders, prints and round-trips. Corpus counts:
+Whiplash 199b/105i/234u, LaLaLand 241 italic (lyrics), Collateral 96u,
+Oppenheimer 37u, Tenet's temporal cards 3u. Fixture opp-raw.json carries ul/fs;
+the fidelity gate compares text+geometry only, so it is style-agnostic.
+
+## Post-review fixes that must not regress (engine audit, 2026-07-29)
+- A (MORE) promises a continuation ONLY at the top of the next page: pendingAt
+  tracks the page that set pendingSpeech and any carry beyond pi-1 clears it
+  (the old `if (!pendingSpeech) pendingSpeech = null` was a no-op, and a stale
+  pendingSpeech mis-attributed a later speaker's dialogue).
+- The post-(MORE) continuation loop page-breaks like its sibling (a speech can
+  outlast a second page; it used to draw off the paper).
+- Right-margin-only scene numbers form a gutter too (counted from detached
+  trailing numbers), and stripping accepts gutter-BAND membership (±2.2 chars)
+  because right-aligned numbers of different widths start at different x — a
+  long slug can touch its number ("...CONTINUOUS72A", Whiplash).
+- Title-page rows are computed against the CLAMPED y0f (the paginator's base),
+  not raw y0 — negative rows are legal (title matter above the body's first row).
+- Dual rebuild carries each row's revision star into its srcLines (left column
+  owns the row's star).
+- estimateCharW guards zero/NaN widths (else joinItems hits ' '.repeat(Infinity));
+  importPdf([]) returns an empty doc instead of throwing.
+
 ## Furniture is caught by BEHAVIOUR — verbatim repetition at the same height
 Oppenheimer's running head ("Gadget 2023-04-21 FINAL Shooting Script") broke the
 whole import: its ISO date matched no header regex, so ~200 leaked lines poisoned

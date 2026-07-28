@@ -116,6 +116,9 @@ console.log('§ 2 · Real-world PDF classes — structural invariants per diseas
       ok("  no doubled (CONT'D) markers", doc.elements.filter(e => /\(CONT['’]D\)\s*\(CONT['’]D\)/.test(e.text)).length === 0);
       const dcue = doc.elements.filter(e => e.dual && e.type === 'character').length;
       ok('  dual cues typed as cues', dcue >= 80, String(dcue));
+      // typography: underlines are DRAWN in PDFs — the import must carry them as marks
+      const uMarks = doc.elements.reduce((a, e) => a + (e.marks || []).filter(m => m[2] === 'u').length, 0);
+      ok('  underline marks captured', uMarks >= 30, String(uMarks));
     }],
   ];
   for (const [f, name, fn] of cases) {

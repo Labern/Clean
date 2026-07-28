@@ -43,6 +43,9 @@ if (!fs.existsSync(rawPath)) {
         x: +i.transform[4].toFixed(2), y: +(vp.height - i.transform[5]).toFixed(2),
         w: +i.width.toFixed(2), str: i.str,
       })),
+      // typography (underline vectors / font styles) is captured by the app's
+      // extractor; the fidelity gate compares text+geometry only, so the fixture
+      // works with or without it
     });
   }
   fs.writeFileSync(rawPath, JSON.stringify({ pages }));
