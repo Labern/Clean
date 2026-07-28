@@ -137,6 +137,29 @@ text. Empty-on-blur deletes. `.noteLayer` is contentEditable=false and both
 `keydown` and `beforeinput` handlers bail on events from it — note textareas must
 never feed the typing grammar. Notes are excluded from print/PDF by design.
 
+## Storyboard mode (⇧⌘S) — e-conte panels, left margin
+Photos of hand-drawn boards become panels left of the page, each anchored where
+its shot BEGINS — a POSITION anchor `{el, off}`, per both traditions (e-conte puts
+the cut's picture against the row where the cut starts; a lined script marks a
+shot from a point in the text). `el.panels = [{id, off, imgKey, ar}]`; offsets
+ride `shiftMarks` (never auto-deleted). **Images never live in the doc body** —
+snapshots ring-buffer whole docs — each panel's JPEG (canvas-recompressed, max
+1400px) is its own idb record `img.<key>`, cached in `imgCache`. Drop photos on
+the page (storyboard mode on) to anchor at the drop point; drag a panel to
+re-anchor; click opens the lightbox (#sbZoom); hover × deletes panel AND its img
+record. Doc DUPLICATE re-keys and copies img records (shared keys would let one
+twin's delete blind the other); doc DELETE leaves img orphans deliberately
+(safety > tidiness). Panels clamp onto the paper's left margin when the window is
+tight — the canvas cannot scroll into negative space, so the clamp is mandatory,
+not cosmetic. Excluded from print.
+
+## Both margin tools are mode-gated — the pristine page is the default
+Annotation and storyboard layers render ONLY while their mode is on (footer
+buttons — the last two of the bottom-left group, in that order — or ⇧⌘A / ⇧⌘S).
+Independent, together, or neither; data persists regardless; reader mode forces
+both off; toggles are no-ops inside reader. Zero interference is the contract:
+with both modes off the app must behave exactly as before either tool existed.
+
 ## Selection must survive the forgiving caret
 The forgiving-caret mousedown (blank-paper clicks) calls preventDefault, which
 kills the browser's native drag anchor — dragging a selection FROM blank paper
