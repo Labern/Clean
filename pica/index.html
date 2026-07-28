@@ -70,6 +70,24 @@ button{ background:none; border:none; color:inherit; font:inherit; cursor:pointe
 ::selection{ background:var(--ink); color:var(--paper); }
 .page ::selection{ background:var(--page-ink); color:var(--page); }
 
+/* ---------- annotations: margin notes ---------- */
+.noteLayer{ position:absolute; inset:0; pointer-events:none; z-index:3; }
+.noteHl{ position:absolute; background:rgba(27,26,23,.10); pointer-events:none; }
+.noteBox{
+  position:absolute; width:210px; pointer-events:auto;
+  background:var(--paper); border:1px solid var(--line);
+  padding:.42rem .55rem;
+}
+.noteBox:focus-within{ border-color:var(--faint); }
+.noteBox textarea{
+  display:block; width:100%; resize:none; background:transparent; border:none; outline:none;
+  font-family:var(--mono); font-size:.66rem; line-height:1.55; letter-spacing:.01em;
+  color:var(--ink); overflow:hidden; padding:0;
+}
+.noteBox textarea::placeholder{ color:var(--faint); }
+.noteLead{ position:absolute; background:var(--faint); opacity:.55; pointer-events:none; }
+#btnAnnot.on{ color:var(--ink); }
+
 /* ---------- masthead ---------- */
 header{
   position:relative;
@@ -208,7 +226,7 @@ body.reader #readerPage{ opacity:1; visibility:visible; }
   transition:opacity .35s, visibility .35s;
 }
 body.reader #docGenre, body.reader #btnSplit, body.reader #btnTheme, body.reader [data-head],
-body.reader #btnKeys, body.reader #stPage, body.reader [data-foot], body.reader #stSave, body.reader #btnBrowse{
+body.reader #btnKeys, body.reader #stPage, body.reader [data-foot], body.reader #stSave, body.reader #btnBrowse, body.reader #btnAnnot{
   opacity:0 !important; visibility:hidden !important; pointer-events:none !important;
 }
 
@@ -378,6 +396,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 @media print{
   html,body{ overflow:visible; background:#fff; height:auto;}
   header,#rail,footer,.pop,#overlay,#toast{ display:none !important; }
+  .noteLayer{ display:none !important; }   /* notes are his, not the script's — PDF stays pristine */
   #split,#canvas{ display:block; overflow:visible; }
   #canvas{ background:#fff; }
   #pages{ padding:0; }
@@ -452,6 +471,11 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
     <button id="stType" data-foot="type">—</button>
     <span id="stHint" data-foot="hint"></span>
     <button id="stDrafts" data-foot="drafts" title="Named drafts">drafts</button>
+    <button class="z" id="btnAnnot" title="Annotate — select a passage and a note appears in the margin (⇧⌘A)">
+      <svg width="13" height="13" viewBox="0 0 14 14" style="display:block" fill="none" stroke="currentColor" stroke-width="1.1">
+        <path d="M1 3.5h5M1 10.5h5M1 7h7.5"/><rect x="8.5" y="4" width="4.5" height="6" rx="1"/>
+      </svg>
+    </button>
   </div>
   <span class="fcenter"><span id="stPage" data-foot="page">—</span><span id="readerPage"></span></span>
   <div class="fzone right">
@@ -1832,6 +1856,7 @@ function renderPage(i){
   pe.wrap.style.width = (L.pageW * k) + 'px';
   pe.wrap.style.height = (L.pageH * k) + 'px';
   pe.page = page; pe.sig = sig; pe.live = true;
+  renderNotes(i);
 }
 
 function renderAfterEdit(){
@@ -1922,8 +1947,7 @@ function restoreCaretOnce(el, off){
         if (off >= start && off <= start + len) return placeCaret(d, off - start);
       }
 }
-function placeCaret(lineDiv, at){
-  const r = document.createRange();
+function domPosIn(lineDiv, at){   // (line div, char offset) → [text node, node offset]
   const walk = document.createTreeWalker(lineDiv, NodeFilter.SHOW_TEXT);
   let n, acc = 0, target = null, off = 0;
   while ((n = walk.nextNode())) {
@@ -1931,8 +1955,12 @@ function placeCaret(lineDiv, at){
     acc += n.length;
     target = n; off = n.length;
   }
-  if (target) r.setStart(target, Math.min(off, target.length));
-  else r.setStart(lineDiv, 0);
+  return target ? [target, Math.min(off, target.length)] : [lineDiv, 0];
+}
+function placeCaret(lineDiv, at){
+  const r = document.createRange();
+  const [n, o] = domPosIn(lineDiv, at);
+  r.setStart(n, o);
   r.collapse(true);
   const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
 }
@@ -2093,11 +2121,22 @@ function markedHTML(text, bits){
   return out;
 }
 function shiftMarks(el, at, delta){
-  if (!el || !el.marks) return;
-  el.marks = el.marks
-    .map(([s, e, k]) => [s >= at ? s + delta : s, e >= at ? e + delta : e, k])
-    .filter(([s, e]) => e > s);
-  if (!el.marks.length) delete el.marks;
+  if (!el) return;
+  if (el.marks) {
+    el.marks = el.marks
+      .map(([s, e, k]) => [s >= at ? s + delta : s, e >= at ? e + delta : e, k])
+      .filter(([s, e]) => e > s);
+    if (!el.marks.length) delete el.marks;
+  }
+  // margin notes ride the same shifts — but never die with their span: the span
+  // is an anchor, the words in the box are his
+  if (el.notes) for (const n of el.notes) {
+    let s = n.off, e = n.off + n.len;
+    if (s >= at) s += delta;
+    if (e >= at) e += delta;
+    s = Math.max(0, s); e = Math.max(s, e);
+    n.off = s; n.len = e - s;
+  }
 }
 function rangeHasMark(el, s, e, kind){
   if (!el.marks) return false;
@@ -2154,6 +2193,132 @@ function applyEmphasis(kind){
   repaginate(); renderAfterEdit();
   const sel = getSelection();
   if (sel.rangeCount) { /* keep the visible selection where it was */ }
+}
+
+// ---------- annotations: margin notes anchored to passages ----------
+// A note lives on its element ({id, off, len, text}) so it travels with saves,
+// snapshots, drafts and the emergency mirror; its offsets ride the same shifts as
+// emphasis marks. On screen: a quiet wash over the passage, and a box in the right
+// margin joined to it by a hairline — at the passage's own y, the margin geometry
+// the source itself uses. Notes never print: the exported page stays pristine.
+function toggleAnnotate(){
+  const r = domRange();
+  if (r && (r[0].el !== r[1].el || r[0].off !== r[1].off)) { annotateSelection(); return; }
+  S.annotate = !S.annotate;
+  document.body.classList.toggle('annotate', S.annotate);
+  $('#btnAnnot')?.classList.toggle('on', S.annotate);
+  toast(S.annotate ? 'annotate — select a passage' : 'annotate off');
+}
+function annotateSelection(){
+  const r = domRange(); if (!r) return;
+  const [a, b] = r;
+  if (a.el.startsWith('title:')) return;
+  const el = elById(a.el); if (!el) return;
+  const end = a.el === b.el ? b.off : el.text.length;   // a sweep across elements notes the first
+  if (end <= a.off) return;
+  const n = { id: E.uid(), off: a.off, len: end - a.off, text: '' };
+  (el.notes = el.notes || []).push(n);
+  getSelection().removeAllRanges();
+  renderNotesAll();
+  saveSoon();
+  document.querySelector('.noteBox[data-note="' + n.id + '"] textarea')?.focus();
+}
+function deleteNote(elId, noteId){
+  const el = elById(elId); if (!el || !el.notes) return;
+  el.notes = el.notes.filter(n => n.id !== noteId);
+  if (!el.notes.length) delete el.notes;
+  renderNotesAll(); saveSoon();
+}
+function renderNotesAll(){
+  for (let i = 0; i < S.pageEls.length; i++) if (S.pageEls[i].live) renderNotes(i);
+}
+function renderNotes(pi){
+  const pe = S.pageEls[pi]; if (!pe || !pe.page) return;
+  pe.wrap.querySelector('.noteLayer')?.remove();
+  const p = S.res.pages[pi]; if (!p || p.title) return;
+  const L = S.doc.layout, k = S.k;
+  const layer = document.createElement('div');
+  layer.className = 'noteLayer';
+  layer.contentEditable = 'false';
+  const boxes = [];
+  for (const l of p.lines) {
+    if (l.kind === 'pn' || l.kind === 'more' || l.kind === 'contcue') continue;
+    const el = elById(l.el); if (!el || !el.notes) continue;
+    for (const n of el.notes) {
+      const s = Math.max(n.off, l.off), e = Math.min(n.off + n.len, l.off + l.text.length);
+      const yTop = (l.y - S.fontPt * 0.79) * k;
+      if (e > s) {
+        const h = document.createElement('div');
+        h.className = 'noteHl';
+        h.style.left = (l.x + (s - l.off) * L.charW) * k + 'px';
+        h.style.top = yTop + 'px';
+        h.style.width = (e - s) * L.charW * k + 'px';
+        h.style.height = L.rowH * k + 'px';
+        layer.appendChild(h);
+      }
+      // the box anchors where the note begins
+      if (n.off >= l.off && n.off <= l.off + l.text.length && !boxes.some(x => x.n === n))
+        boxes.push({ n, el, y: yTop });
+    }
+  }
+  if (!layer.childNodes.length && !boxes.length) return;
+  const gutter = L.pageW * k;                 // page's right edge, in layer coords
+  // keep the boxes on screen: when the window leaves no room to the right of the
+  // page, they slide onto the paper's own margin — where margin notes belong anyway
+  const boxW = 210;
+  const room = canvasEl.clientWidth - pe.wrap.offsetLeft - boxW - 10;
+  const boxLeft = Math.min(gutter + 16, Math.max(room, gutter - boxW * 0.7));
+  boxes.sort((x, y) => x.y - y.y);
+  for (const b of boxes) {
+    const box = document.createElement('div');
+    box.className = 'noteBox';
+    box.dataset.note = b.n.id; box.dataset.el = b.el.id;
+    box.style.left = boxLeft + 'px';
+    const ta = document.createElement('textarea');
+    ta.rows = 1; ta.value = b.n.text || ''; ta.placeholder = '…';
+    ta.spellcheck = false;
+    box.appendChild(ta);
+    layer.appendChild(box);
+    b.box = box; b.ta = ta;
+    ta.addEventListener('input', () => {
+      b.n.text = ta.value;
+      ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px';
+      layoutNoteBoxes(layer, boxes, L, k);
+      saveSoon();
+    });
+    ta.addEventListener('keydown', kv => { kv.stopPropagation(); if (kv.key === 'Escape') ta.blur(); });
+    ta.addEventListener('blur', () => { if (!ta.value.trim()) deleteNote(b.el.id, b.n.id); });
+  }
+  pe.wrap.appendChild(layer);
+  for (const b of boxes) { b.ta.style.height = 'auto'; b.ta.style.height = b.ta.scrollHeight + 'px'; }
+  layoutNoteBoxes(layer, boxes, L, k);
+}
+// stack the boxes without overlap, then join each to its passage with a hairline
+// elbow: a stub off the page edge at the passage's y, down the gutter, into the box
+function layoutNoteBoxes(layer, boxes, L, k){
+  layer.querySelectorAll('.noteLead').forEach(d => d.remove());
+  const gutter = L.pageW * k;
+  const boxLeft = boxes.length ? parseFloat(boxes[0].box.style.left) : 0;
+  const kneeX = Math.min(gutter + 8, boxLeft - 4);
+  let prevBottom = -Infinity;
+  for (const b of boxes) {
+    const top = Math.max(b.y, prevBottom + 10);
+    b.box.style.top = top + 'px';
+    prevBottom = top + b.box.offsetHeight;
+    const aMid = b.y + (L.rowH * k) / 2;
+    const bMid = top + b.box.offsetHeight / 2;
+    const seg = (x, y, w, h) => {
+      const d = document.createElement('div');
+      d.className = 'noteLead';
+      d.style.left = x + 'px'; d.style.top = y + 'px';
+      d.style.width = w + 'px'; d.style.height = h + 'px';
+      layer.appendChild(d);
+    };
+    if (kneeX > gutter + 2) seg(gutter + 2, aMid, kneeX - gutter - 2, 1); // off the page
+    if (Math.abs(bMid - aMid) > 1)
+      seg(kneeX, Math.min(aMid, bMid), 1, Math.abs(bMid - aMid));         // down the gutter
+    if (boxLeft > kneeX) seg(kneeX, bMid, boxLeft - kneeX, 1);            // into the box
+  }
 }
 
 // The caret counts as "at the end" when it sits just inside a parenthetical's closing
@@ -3312,6 +3477,7 @@ function showSettings(){
   <tr><td>⌥⌘S</td><td>show / hide the sidebar</td></tr>
   <tr><td>⇧⌘T</td><td>show / hide the title page</td></tr>
   <tr><td>⌘, </td><td>these settings</td></tr>
+  <tr><td>⇧⌘A</td><td>annotate — select a passage and a note box appears in the margin, joined by a hairline. As a mode, every selection you finish gets one. An emptied note removes itself. Notes never print.</td></tr>
   <tr><td>⌘Z / ⇧⌘Z</td><td>undo / redo</td></tr>
   <tr><td>⌘P</td><td>print · save as PDF, identical to the imported page</td></tr>
   <tr><td>⇧Enter</td><td>hard line break inside an element</td></tr>
@@ -3399,6 +3565,7 @@ function showKeys(){
   <tr><td>⇧⌘T</td><td>show / hide the title page — hidden by default, so page 1 is the first page you write</td></tr>
   <tr><td>int. / ext.</td><td>typed in Action, becomes a Scene Heading as you type. ALL-CAPS ending in TO: becomes a Transition on Enter. “(” in empty Dialogue becomes a Parenthetical; “(” in a Character cue offers extensions.</td></tr>
   <tr><td>type ahead</td><td>SmartType completes character names, locations, times, transitions and extensions — → accepts. In a two-hander it offers the other speaker first.</td></tr>
+  <tr><td>⇧⌘A</td><td>annotate — a note box in the margin for the selected passage</td></tr>
   <tr><td>⌘Z / ⇧⌘Z</td><td>undo / redo</td></tr>
   <tr><td>⌘P</td><td>print · save as PDF — identical to the imported page</td></tr>
   <tr><td>⇧Enter</td><td>hard line break inside an element</td></tr>
@@ -3408,6 +3575,7 @@ function showKeys(){
 
 // ---------- events ----------
 pagesEl.addEventListener('beforeinput', ev => {
+  if (ev.target.closest?.('.noteLayer')) return;   // note boxes edit themselves
   ev.preventDefault();
   const t = ev.inputType;
   if (t === 'insertText' && ev.data != null) handleInsertText(ev.data);
@@ -3424,6 +3592,7 @@ pagesEl.addEventListener('beforeinput', ev => {
 });
 
 pagesEl.addEventListener('keydown', ev => {
+  if (ev.target.closest?.('.noteLayer')) return;   // note boxes edit themselves
   if (inReader()) {
     // reading: only find, settings, zoom and navigation get through
     const mod = ev.metaKey || ev.ctrlKey;
@@ -3509,30 +3678,65 @@ pagesEl.addEventListener('mousedown', ev => { if (ev.button !== 2) closePops(); 
 // Forgiving caret placement: a click anywhere on the paper lands the cursor at the
 // nearest text position — end of the nearest line when you click past its edge —
 // instead of demanding a pixel-perfect hit on the type itself.
-pagesEl.addEventListener('mousedown', ev => {
-  if (ev.button !== 0 || inReader()) return;
-  const page = ev.target.closest('.page');
-  if (!page || ev.target.closest('.line')) return;      // direct text clicks behave natively
+function forgivingPos(clientX, clientY, pageHint){
+  let page = pageHint || document.elementFromPoint(clientX, clientY)?.closest?.('.page');
+  if (!page) {                                          // beside/between pages: nearest live page
+    let bd = Infinity;
+    for (const pe of S.pageEls) {
+      if (!pe.live || !pe.page) continue;
+      const r = pe.page.getBoundingClientRect();
+      const dy = clientY < r.top ? r.top - clientY : (clientY > r.bottom ? clientY - r.bottom : 0);
+      if (dy < bd) { bd = dy; page = pe.page; }
+    }
+  }
+  if (!page) return null;
   const lines = [...page.children].filter(d =>
     d.classList.contains('line') && d.dataset.el && !d.dataset.el.startsWith('title:') &&
     d.dataset.kind !== 'pn' && d.dataset.kind !== 'more' && d.dataset.kind !== 'contcue');
-  if (!lines.length) return;
+  if (!lines.length) return null;
   let best = null, bd = Infinity;
   for (const d of lines) {
     const r = d.getBoundingClientRect();
-    const dy = ev.clientY < r.top ? r.top - ev.clientY : (ev.clientY > r.bottom ? ev.clientY - r.bottom : 0);
-    const dx = ev.clientX < r.left ? r.left - ev.clientX : (ev.clientX > r.right ? ev.clientX - r.right : 0);
+    const dy = clientY < r.top ? r.top - clientY : (clientY > r.bottom ? clientY - r.bottom : 0);
+    const dx = clientX < r.left ? r.left - clientX : (clientX > r.right ? clientX - r.right : 0);
     const score = dy * 120 + dx;                        // the same row wins decisively
     if (score < bd) { bd = score; best = { d, r }; }
   }
-  if (!best) return;
-  ev.preventDefault();
+  if (!best) return null;
   const len = best.d.textContent.length;
   const cw = len ? best.r.width / len : 1;
-  const at = Math.max(0, Math.min(len, Math.round((ev.clientX - best.r.left) / cw)));
-  placeCaret(best.d, at);
-  S.caret = { el: best.d.dataset.el, off: (+best.d.dataset.off || 0) + at };
+  const at = Math.max(0, Math.min(len, Math.round((clientX - best.r.left) / cw)));
+  return { d: best.d, at };
+}
+pagesEl.addEventListener('mousedown', ev => {
+  if (ev.button !== 0 || inReader()) return;
+  const page = ev.target.closest('.page');
+  const lineHit = ev.target.closest('.line');
+  if (!page || (lineHit && lineHit.dataset.el)) return; // direct text clicks behave natively
+  const hit = forgivingPos(ev.clientX, ev.clientY, page);
+  if (!hit) return;
+  ev.preventDefault();
+  placeCaret(hit.d, hit.at);
+  S.caret = { el: hit.d.dataset.el, off: (+hit.d.dataset.off || 0) + hit.at };
   status();
+  // preventDefault above killed the browser's own drag anchor — so a selection
+  // started on blank paper (the natural grip when sweeping up from the end of a
+  // passage) is extended by hand from the forgiven position
+  const [an, ao] = domPosIn(hit.d, hit.at);
+  let moved = false;
+  const move = mv => {
+    const p = forgivingPos(mv.clientX, mv.clientY, null);
+    if (!p) return;
+    moved = true;
+    const [fn, fo] = domPosIn(p.d, p.at);
+    getSelection().setBaseAndExtent(an, ao, fn, fo);
+  };
+  const up = () => {
+    removeEventListener('mousemove', move); removeEventListener('mouseup', up);
+    if (moved) syncCaret();
+  };
+  addEventListener('mousemove', move);
+  addEventListener('mouseup', up);
 });
 
 // right-click in the script: name what this is, offer to change it
@@ -3595,6 +3799,8 @@ $('#btnImport').addEventListener('mousedown', ev => { ev.preventDefault(); $('#f
 $('#railImport').addEventListener('mousedown', ev => { ev.preventDefault(); $('#fileIn').click(); });
 $('#btnExport').addEventListener('mousedown', ev => { ev.preventDefault(); openExportMenu(); });
 $('#btnKeys').addEventListener('mousedown', ev => { ev.preventDefault(); showSettings(); });
+// preventDefault keeps any live selection alive, so the button can annotate it directly
+$('#btnAnnot').addEventListener('mousedown', ev => { ev.preventDefault(); toggleAnnotate(); });
 $('#btnTitle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleTitlePage(); });
 $('#footLink').addEventListener('click', ev => { if (window.webkit?.messageHandlers?.pica) { ev.preventDefault(); window.webkit.messageHandlers.pica.postMessage({ openURL: ev.currentTarget.href }); } });
 $('#btnTheme').addEventListener('mousedown', ev => {
@@ -3869,6 +4075,16 @@ $('#replAll').addEventListener('mousedown', ev => { ev.preventDefault(); replace
 $('#findClose').addEventListener('mousedown', ev => { ev.preventDefault(); findClose(); });
 document.addEventListener('keydown', ev => {
   if ((ev.metaKey || ev.ctrlKey) && !ev.shiftKey && ev.key.toLowerCase() === 'f') { ev.preventDefault(); findOpen(); }
+  if ((ev.metaKey || ev.ctrlKey) && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); toggleAnnotate(); }
+});
+
+// annotate mode: finishing a selection spawns its margin note, ready to type
+document.addEventListener('mouseup', ev => {
+  if (!S.annotate || ev.target.closest?.('.noteLayer')) return;
+  setTimeout(() => {                      // let the selection settle first
+    const r = domRange();
+    if (r && (r[0].el !== r[1].el || r[0].off !== r[1].off)) annotateSelection();
+  }, 0);
 });
 
 $('#docTitle').addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } });
@@ -3918,6 +4134,7 @@ window.PICA_API = {
   toggleRail(){ toggleRail(); },
   toggleTitlePage(){ toggleTitlePage(); },
   toggleReader(){ inReader() ? readerOff() : readerOn(); },
+  toggleAnnotate(){ toggleAnnotate(); },
   titleShown(){ return S.showTitle; },
   settings(){ showSettings(); },
   escape(){ if ($('#overlay').classList.contains('show')) closeOverlay(); closePops(); },
@@ -3925,7 +4142,7 @@ window.PICA_API = {
   // Scriptable hooks. The automated grammar test drives these, so Final Draft's
   // Enter/Tab behaviour is checked on every build rather than by hand.
   test: {
-    reset(){ const id = E.uid(); store.save(id, E.newDoc('TEST')); openDoc(id); return id; },
+    reset(){ const id = E.uid(); store.save(id, E.newDoc('TEST')); return openDoc(id).then(() => id); },
     caret(i, off){
       const el = S.doc.elements[i]; if (!el) return false;
       S.caret = { el: el.id, off: off == null ? el.text.length : off };
@@ -3937,6 +4154,16 @@ window.PICA_API = {
     esc(){ closePops(); return true; },
     state(){ return S.doc.elements.map(e => e.type + '|' + e.text); },
     caretAt(){ const c = S.caret; return c ? (elIndex(c.el) + ':' + c.off) : 'none'; },
+    note(i, off, len, text){
+      const el = S.doc.elements[i]; if (!el) return false;
+      const n = { id: E.uid(), off, len, text: text || '' };
+      (el.notes = el.notes || []).push(n);
+      for (let p = 0; p < S.pageEls.length; p++) renderPage(p);
+      renderNotesAll(); saveSoon(); return n.id;
+    },
+    notes(i){ const el = S.doc.elements[i]; return JSON.stringify((el && el.notes) || []); },
+    delNote(i, id){ const el = S.doc.elements[i]; if (el) deleteNote(el.id, id); return true; },
+    noteBoxes(){ return document.querySelectorAll('.noteBox').length + ':' + document.querySelectorAll('.noteHl').length; },
   },
   toggleTheme(){ $('#btnTheme').dispatchEvent(new Event('mousedown')); },
   zoom(d){ S.zoom = Math.max(.3, Math.min(1.6, (S.zoom ?? fitZoom()) + d)); rerenderAll(); },
