@@ -284,13 +284,13 @@ let grammarSteps: [Step] = [
     // A note can cover a cue AND its dialogue: washes on both elements, ONE box,
     // and delete clears every segment.
     Step(desc: "annotation: multi-element note — two washes, one box, delete clears all",
-         js: "await T.reset(); T.caret(0,0); T.type('INT. TWO - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('We were never here.'); T.esc(); window.PICA_API.toggleAnnotate(); const nid = T.noteMulti(1, 0, 2, 8); const b1 = T.noteBoxes(); T.delNote(0, nid); const b2 = T.noteBoxes(); const left = JSON.parse(T.notes(1)).length + JSON.parse(T.notes(2)).length; window.PICA_API.toggleAnnotate(); return b1 + '/' + b2 + '/' + left",
-         expect: "1:2/0:0/0"),
+         js: "await T.reset(); T.caret(0,0); T.type('INT. TWO - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('We were never here.'); T.esc(); window.PICA_API.toggleAnnotate(); const nid = T.noteMulti(1, 0, 2, 8); const b1 = T.noteBoxes(); T.delNote(0, nid); const b2 = T.noteBoxes(); window.PICA_API.undo(); const b3 = T.noteBoxes(); const back = JSON.parse(T.notes(1)).length + JSON.parse(T.notes(2)).length; window.PICA_API.redo(); const b4 = T.noteBoxes(); window.PICA_API.toggleAnnotate(); return b1 + '/' + b2 + '/' + b3 + '/' + back + '/' + b4",
+         expect: "1:2/0:0/1:2/2/0:0"),
     // Storyboard: same gating; a panel anchors at a position, shifts with typing,
     // hides when the mode turns off, returns when it turns on, deletes clean.
     Step(desc: "storyboard: mode-gated, panel anchors, shifts, survives toggling, deletes",
-         js: "await T.reset(); T.caret(0,0); T.type('INT. BOARD - DAY'); T.esc(); T.enter(); T.type('The cab rolls through the empty intersection.'); T.esc(); T.panel(1, 4); const gated = T.sbCount(); window.PICA_API.toggleStoryboard(); const on = T.sbCount(); T.caret(1, 0); T.type('XX'); const off = JSON.parse(T.panels(1))[0].off; window.PICA_API.toggleStoryboard(); const hidden = T.sbCount(); window.PICA_API.toggleStoryboard(); const back = T.sbCount(); const pid = JSON.parse(T.panels(1))[0].id; T.delPanel(1, pid); const after = T.sbCount(); window.PICA_API.toggleStoryboard(); return gated + '/' + on + '/' + off + '/' + hidden + '/' + back + '/' + after",
-         expect: "0/1/6/0/1/0"),
+         js: "await T.reset(); T.caret(0,0); T.type('INT. BOARD - DAY'); T.esc(); T.enter(); T.type('The cab rolls through the empty intersection.'); T.esc(); T.panel(1, 4); const gated = T.sbCount(); window.PICA_API.toggleStoryboard(); const on = T.sbCount(); T.caret(1, 0); T.type('XX'); const off = JSON.parse(T.panels(1))[0].off; window.PICA_API.toggleStoryboard(); const hidden = T.sbCount(); window.PICA_API.toggleStoryboard(); const back = T.sbCount(); const pid = JSON.parse(T.panels(1))[0].id; T.delPanel(1, pid); const after = T.sbCount(); window.PICA_API.undo(); const restored = T.sbCount(); window.PICA_API.toggleStoryboard(); return gated + '/' + on + '/' + off + '/' + hidden + '/' + back + '/' + after + '/' + restored",
+         expect: "0/1/6/0/1/0/1"),
 ]
 
 func runGrammar(_ i: Int) {

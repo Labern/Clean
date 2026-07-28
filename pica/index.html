@@ -2103,8 +2103,18 @@ function undo(redo){
       if (state[i]) el.marks = JSON.parse(JSON.stringify(state[i])); else delete el.marks;
     });
   }
+  else if (rec.k === 'notes' || rec.k === 'panels') {
+    const state = redo ? rec.after : rec.before;
+    rec.ids.forEach((id, i) => {
+      const el = elById(id); if (!el) return;
+      if (state[i]) el[rec.k] = JSON.parse(JSON.stringify(state[i])); else delete el[rec.k];
+    });
+    if (rec.k === 'notes') ensureAnnotate(); else ensureStoryboard();
+  }
   S.caret = redo ? rec.ca : rec.cb;
   repaginate(); renderAfterEdit();
+  // margins track whatever came back: re-render both layers (they bail when off)
+  renderNotesAll(); renderPanelsAll();
 }
 
 // ---------- editing behaviour: the Final Draft grammar ----------
@@ -2265,6 +2275,31 @@ function toggleAnnotate(){
   document.querySelectorAll('.noteLayer').forEach(d => d.remove());
   toast('annotate off');
 }
+// ---------- margin-tool undo: notes and panels ride the same ⌘Z stream ----------
+// The record shape mirrors emphasis marks: touched element ids + a deep before/after
+// of each element's notes (or panels) array. Every structural op — create, delete,
+// re-highlight, comment edit, panel move — is one record, so ⌘Z walks back through
+// the margins exactly as it walks back through the writing.
+function annotRec(key, elIds){
+  const ids = [...new Set(elIds)];
+  return { k: key, ids,
+    before: ids.map(id => { const el = elById(id); const v = el && el[key]; return v ? JSON.parse(JSON.stringify(v)) : null; }),
+    cb: S.caret, ca: S.caret, ts: Date.now() };
+}
+function commitAnnotRec(rec){
+  rec.after = rec.ids.map(id => { const el = elById(id); const v = el && el[rec.k]; return v ? JSON.parse(JSON.stringify(v)) : null; });
+  pushUndo(rec);
+}
+// undo made a margin change visible — make sure its layer is actually showing
+function ensureAnnotate(){
+  if (S.annotate || inReader()) return;
+  S.annotate = true; document.body.classList.add('annotate'); $('#btnAnnot')?.classList.add('on');
+}
+function ensureStoryboard(){
+  if (S.storyboard || inReader()) return;
+  S.storyboard = true; document.body.classList.add('storyboard'); $('#btnSb')?.classList.add('on');
+}
+
 // a selection can run across elements — a cue AND its dialogue is one thought.
 // Each covered element gets a span entry sharing the note's id; the words live on
 // the first (the owner), continuations carry seg:1. Every entry shifts with its
@@ -2284,12 +2319,14 @@ function noteTargets(){
   }
   return targets.length ? targets : null;
 }
-function createNote(targets, text){
+function createNote(targets, text, norec){
+  const rec = norec ? null : annotRec('notes', targets.map(([el]) => el.id));
   const nid = E.uid();
   targets.forEach(([el, s, e], i) => {
     const n = { id: nid, off: s, len: e - s, ...(i === 0 ? { text: text || '' } : { seg: 1 }) };
     (el.notes = el.notes || []).push(n);
   });
+  if (rec) commitAnnotRec(rec);
   renderNotesAll(); saveSoon();
   return nid;
 }
@@ -2297,12 +2334,15 @@ function annotateSelection(){
   const targets = noteTargets(); if (!targets) return;
   if (S.rehl) {                                // "change highlight": move it, keep the words
     let text = '';
+    const oldIds = S.doc.elements.filter(el => (el.notes || []).some(n => n.id === S.rehl)).map(el => el.id);
     for (const el of S.doc.elements)
       for (const n of el.notes || []) if (n.id === S.rehl && !n.seg) text = n.text || '';
+    const rec = annotRec('notes', [...oldIds, ...targets.map(([el]) => el.id)]); // one record for the whole move
     deleteNote(null, S.rehl, true);
     S.rehl = null;
     getSelection().removeAllRanges();
-    createNote(targets, text);
+    createNote(targets, text, true);
+    commitAnnotRec(rec);
     toast('highlight moved');
     return;
   }
@@ -2311,10 +2351,13 @@ function annotateSelection(){
   document.querySelector('.noteBox[data-note="' + nid + '"] textarea')?.focus();
 }
 function deleteNote(_elId, noteId, quiet){
+  const touched = S.doc.elements.filter(el => (el.notes || []).some(n => n.id === noteId)).map(el => el.id);
+  const rec = quiet || !touched.length ? null : annotRec('notes', touched);
   for (const el of S.doc.elements) if (el.notes) {
     el.notes = el.notes.filter(n => n.id !== noteId);
     if (!el.notes.length) delete el.notes;
   }
+  if (rec) commitAnnotRec(rec);
   if (!quiet) { renderNotesAll(); saveSoon(); }
 }
 function goToNote(b){
@@ -2386,7 +2429,18 @@ function renderNotes(pi){
       saveSoon();
     });
     ta.addEventListener('keydown', kv => { kv.stopPropagation(); if (kv.key === 'Escape') ta.blur(); });
-    ta.addEventListener('blur', () => { if (!ta.value.trim()) deleteNote(null, b.n.id); });
+    ta.addEventListener('focus', () => { ta._orig = ta.value; });
+    ta.addEventListener('blur', () => {
+      if (!ta.value.trim()) { deleteNote(null, b.n.id); return; }
+      // one editing session = one undo step, with the pre-focus words as "before"
+      if (ta._orig != null && ta.value !== ta._orig) {
+        const rec = annotRec('notes', [b.el.id]);
+        const own = (rec.before[0] || []).find(n => n.id === b.n.id);
+        if (own) own.text = ta._orig;
+        commitAnnotRec(rec);
+        ta._orig = ta.value;
+      }
+    });
     box.addEventListener('contextmenu', ev => {
       ev.preventDefault(); ev.stopPropagation();
       popupAt([
@@ -2480,6 +2534,7 @@ async function addPanelFiles(files, clientX, clientY){
   if (!hit) { toast('drop on the page, where the shot begins'); return; }
   const el = elById(hit.d.dataset.el); if (!el) return;
   const off = (+hit.d.dataset.off || 0) + hit.at;
+  const rec = annotRec('panels', [el.id]);
   let n = 0;
   for (const f of files) {
     const packed = await packImage(f).catch(() => null);
@@ -2490,14 +2545,16 @@ async function addPanelFiles(files, clientX, clientY){
     (el.panels = el.panels || []).push({ id: E.uid(), off, imgKey: key, ar: packed.ar });
     n++;
   }
-  if (n) { renderPanelsAll(); saveSoon(); toast(n === 1 ? 'panel placed' : n + ' panels placed'); }
+  if (n) { commitAnnotRec(rec); renderPanelsAll(); saveSoon(); toast(n === 1 ? 'panel placed' : n + ' panels placed'); }
 }
 function deletePanel(elId, pid){
   const el = elById(elId); if (!el || !el.panels) return;
-  const p = el.panels.find(x => x.id === pid);
+  const rec = annotRec('panels', [el.id]);
   el.panels = el.panels.filter(x => x.id !== pid);
   if (!el.panels.length) delete el.panels;
-  if (p) { idb.del('img.' + p.imgKey); imgCache.delete(p.imgKey); }
+  // the image record stays: ⌘Z must be able to bring the drawing back, and an
+  // orphaned image is a far smaller sin than an unrecoverable one
+  commitAnnotRec(rec);
   renderPanelsAll(); saveSoon();
 }
 function renderPanelsAll(){
@@ -2587,6 +2644,7 @@ function wirePanelDrag(box, b){
       const hit = forgivingPos(e.clientX, e.clientY, null);
       const nel = hit && elById(hit.d.dataset.el);
       if (!nel) { renderPanelsAll(); return; }
+      const rec = annotRec('panels', [b.el.id, nel.id]);   // the move is one undo step
       const old = elById(b.el.id);
       if (old && old.panels) {
         old.panels = old.panels.filter(x => x.id !== b.pn.id);
@@ -2594,6 +2652,7 @@ function wirePanelDrag(box, b){
       }
       b.pn.off = (+hit.d.dataset.off || 0) + hit.at;
       (nel.panels = nel.panels || []).push(b.pn);
+      commitAnnotRec(rec);
       renderPanelsAll(); saveSoon();
     };
     addEventListener('mousemove', mv); addEventListener('mouseup', up);

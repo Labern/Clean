@@ -136,7 +136,14 @@ id — the first (owner) carries `text`, continuations carry `seg:1` — so ever
 segment shifts with its own element and deletion sweeps all elements by id.
 Right-click a note box: Change highlight (arms `S.rehl`; the next finished
 selection becomes the note's new span(s), words kept; Esc cancels) · Go to
-passage · Copy comment · Delete. Hover × also deletes; empty-on-blur still does. Washes are GEOMETRY (charW rectangles in a
+passage · Copy comment · Delete. Hover × also deletes; empty-on-blur still does.
+**Both margin tools are fully in the ⌘Z stream**: create, delete, re-highlight
+(one compound record), a comment editing session (focus→blur), panel add/move/
+delete — all 'notes'/'panels' undo records (ids + before/after, the marks
+pattern). Undo of a margin record re-enables its mode so the comeback is visible,
+and every undo re-renders both layers. Consequence: `deletePanel` must NOT delete
+the panel's `img.*` record — ⌘Z needs it back; orphaned images are the accepted
+price (same policy as doc deletion). Washes are GEOMETRY (charW rectangles in a
 `.noteLayer` per page), not markup; boxes clamp into the viewport (sliding onto the
 paper's margin when the window is tight); leads skip segments that would cross
 text. Empty-on-blur deletes. `.noteLayer` is contentEditable=false and both
