@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Cycle — mood weather, phase by phase</title>
+<style>
+/* ── design tokens — rainbow sticker style, cycle edition ─────────────── */
+:root{
+  --paper:#fff9e8; --card:#ffffff; --ink:#1c1c1c; --faint:#4a433c;
+  --line:#1c1c1c; --hard:4px 5px 0 rgba(28,28,28,.9); --hard-sm:3px 3px 0 rgba(28,28,28,.85);
+  --rb-red:#e8433f; --rb-orange:#f2792f; --rb-yellow:#f4c93c; --rb-green:#57a94e; --rb-blue:#3a7de0; --rb-purple:#6b3fbf;
+  --rainbow:linear-gradient(90deg,var(--rb-red),var(--rb-orange),var(--rb-yellow),var(--rb-green),var(--rb-blue),var(--rb-purple));
+
+  /* phase palette — luteal is RED (the star of the show), ovulation is gold (unique) */
+  --ph-menstrual:#f26bb8;  --ph-menstrual-soft:#ffd9ec;
+  --ph-follicular:#57a94e; --ph-follicular-soft:#d9f0d2;
+  --ph-ovulation:#f4c93c;  --ph-ovulation-soft:#fff0bd;
+  --ph-luteal:#e8433f;     --ph-luteal-soft:#ffd9d5;  --ph-danger:#c9302c;
+  --hazard:repeating-linear-gradient(45deg,#1c1c1c 0 7px,var(--rb-yellow) 7px 14px);
+
+  --font:"Comic Sans MS","Comic Sans","Chalkboard SE","Marker Felt","Segoe Print",cursive;
+  --font-read:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --radius:22px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--font);color:var(--ink);background:var(--paper);min-height:100vh;
+  padding:18px 14px calc(40px + env(safe-area-inset-bottom));overflow-x:hidden}
+
+/* rainbow arcs backdrop + paper grain */
+body::before{content:"";position:fixed;inset:0;z-index:-2;background:
+  radial-gradient(circle at 12% -14%, transparent 118px, var(--rb-red) 118px 132px, var(--rb-orange) 132px 146px, var(--rb-yellow) 146px 160px, var(--rb-green) 160px 174px, var(--rb-blue) 174px 188px, var(--rb-purple) 188px 202px, transparent 202px),
+  radial-gradient(circle at 96% 108%, transparent 130px, var(--rb-purple) 130px 144px, var(--rb-blue) 144px 158px, var(--rb-green) 158px 172px, var(--rb-yellow) 172px 186px, var(--rb-orange) 186px 200px, var(--rb-red) 200px 214px, transparent 214px),
+  var(--paper);opacity:.42}
+body::after{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+.wrap{max-width:1180px;margin:0 auto}
+
+/* ── header ───────────────────────────────────────────────────────────── */
+header{text-align:center;margin-bottom:14px}
+h1{font-size:clamp(2rem,6vw,3rem);letter-spacing:.06em;line-height:1.1}
+h1 span{display:inline-block;animation:bob 3.8s ease-in-out infinite}
+h1 span:nth-child(1){color:var(--rb-red);animation-delay:0s}
+h1 span:nth-child(2){color:var(--rb-orange);animation-delay:.15s}
+h1 span:nth-child(3){color:var(--rb-yellow);animation-delay:.3s}
+h1 span:nth-child(4){color:var(--rb-green);animation-delay:.45s}
+h1 span:nth-child(5){color:var(--rb-blue);animation-delay:.6s}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+.tagline{font-size:.95rem;color:var(--faint);margin-top:2px}
+#todayline{display:inline-block;margin-top:10px;font-size:.92rem;font-weight:bold;
+  background:#fff;border:3px solid var(--ink);border-radius:99px;padding:7px 18px;box-shadow:var(--hard-sm)}
+#todayline .brk{color:var(--rb-purple)}
+#todayline.dangernow{background:#ffd9d5;outline:3px solid var(--ph-danger);outline-offset:2px}
+#viewbar{display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap}
+
+/* ── cards ────────────────────────────────────────────────────────────── */
+.card{background:var(--card);border:3px solid var(--line);border-radius:var(--radius);
+  box-shadow:var(--hard);padding:16px 18px;margin:16px 0}
+.section-chip{display:inline-block;font-size:.8rem;background:#fff;border:2.5px dashed var(--ink);
+  padding:5px 14px;border-radius:99px;margin:4px 0 10px;box-shadow:var(--hard-sm)}
+
+/* ── controls ─────────────────────────────────────────────────────────── */
+.controls{display:flex;flex-wrap:wrap;gap:14px 26px;align-items:flex-end}
+.ctl{display:flex;flex-direction:column;gap:6px}
+.ctl label{font-size:.8rem;font-weight:bold}
+.ctl .val{color:var(--rb-purple)}
+input[type=date],input[type=text]{font-family:var(--font-read);font-size:.95rem;padding:7px 10px;border:2.5px solid var(--ink);
+  border-radius:12px;background:#fffbe0;box-shadow:var(--hard-sm);color:var(--ink)}
+input[type=text]{width:130px}
+.sliderrow{display:flex;align-items:center;gap:10px}
+input[type=range]{-webkit-appearance:none;appearance:none;width:170px;height:12px;border-radius:8px;border:2.5px solid var(--ink);
+  background:var(--rainbow);background-size:250% 100%;animation:slide 7s linear infinite;box-shadow:var(--hard-sm);cursor:pointer}
+@keyframes slide{0%{background-position:0% 0}100%{background-position:250% 0}}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:50%;
+  background:#fff;border:3px solid var(--ink);box-shadow:2px 2px 0 rgba(28,28,28,.8);cursor:grab}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#fff;border:3px solid var(--ink);cursor:grab}
+input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;width:62px;padding:6px 4px 6px 10px;text-align:center;
+  border:2.5px solid var(--ink);border-radius:12px;background:#fff;box-shadow:var(--hard-sm)}
+.chiprow{display:flex;gap:8px}
+.vchip{font-family:var(--font);font-weight:bold;font-size:.9rem;border:2.5px solid var(--ink);border-radius:99px;
+  background:#fff;padding:6px 14px;cursor:pointer;box-shadow:var(--hard-sm);transition:transform .07s,box-shadow .07s}
+.vchip:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(28,28,28,.85)}
+.vchip.sel{background:var(--rainbow);background-size:250% 100%;animation:slide 7s linear infinite;color:#fff;
+  transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(28,28,28,.85)}
+.vchip.share{background:#e6dcff}
+.vchip[hidden]{display:none}
+#avghint{font-size:.8rem;color:var(--faint);font-family:var(--font-read);margin-top:10px}
+#avghint button{font-family:var(--font);font-weight:bold;font-size:.78rem;border:2px solid var(--ink);border-radius:99px;
+  background:#fffbe0;padding:2px 10px;cursor:pointer;box-shadow:2px 2px 0 rgba(28,28,28,.7);margin-left:6px}
+#avghint button:active{transform:translate(1px,1px);box-shadow:none}
+
+/* ── theirs banner ────────────────────────────────────────────────────── */
+#theirsbar{background:#f3ecff}
+#theirsbar .big{font-size:1rem;font-weight:bold;margin-bottom:4px}
+#theirsbar p{font-family:var(--font-read);font-size:.82rem;line-height:1.5;color:var(--faint)}
+
+/* ── cycle ribbon — the whole cycle as one rainbow strip ──────────────── */
+#ribbon{position:relative;display:flex;height:26px;border:3px solid var(--ink);border-radius:99px;overflow:hidden;box-shadow:var(--hard-sm);background:#fff}
+#ribbon .seg{flex:1;min-width:0}
+#ribbon .seg.peak{background-image:var(--hazard) !important}
+#rmark,#rhover{position:absolute;top:-9px;font-size:1rem;transform:translateX(-50%);transition:left .18s ease;pointer-events:none;
+  filter:drop-shadow(1px 1px 0 rgba(28,28,28,.6))}
+#rmark::after{content:"▾"}
+#rhover{opacity:0}#rhover::after{content:"▾";color:var(--rb-purple)}
+#rhover.on{opacity:1}
+#riblabels{display:flex;justify-content:space-between;font-size:.7rem;color:var(--faint);font-family:var(--font-read);padding:3px 6px 0}
+
+/* ── calendar ─────────────────────────────────────────────────────────── */
+.calbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.navbtn{font-family:var(--font);font-weight:bold;font-size:1rem;border:2.5px solid var(--ink);border-radius:99px;
+  background:#fff;padding:6px 16px;cursor:pointer;box-shadow:var(--hard-sm)}
+.navbtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(28,28,28,.85)}
+#months{display:grid;grid-template-columns:repeat(var(--mcols,1),1fr);gap:16px}
+.month{background:rgba(255,255,255,.7);border:3px solid var(--ink);border-radius:18px;padding:10px 10px 12px;box-shadow:var(--hard-sm)}
+.mtitle{text-align:center;font-weight:bold;font-size:1.05rem;margin-bottom:6px}
+.mtitle small{color:var(--faint);font-weight:normal}
+.dow{display:grid;grid-template-columns:repeat(7,1fr);font-family:var(--font-read);font-size:.68rem;font-weight:700;
+  color:var(--faint);text-align:center;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.day{position:relative;aspect-ratio:1/1.06;border:2.5px solid transparent;border-radius:12px;padding:3px 4px;
+  font-family:var(--font-read);font-size:.85rem;font-weight:600;cursor:pointer;background:#fff;
+  transition:transform .12s ease;user-select:none;-webkit-user-select:none}
+.day:hover{transform:rotate(-1.6deg) scale(1.12);z-index:5;border-color:var(--ink);box-shadow:var(--hard-sm)}
+.day.blank{visibility:hidden;pointer-events:none}
+.day .n{position:absolute;top:3px;left:6px}
+.day .wx{position:absolute;bottom:2px;right:4px;font-size:.9em;line-height:1}
+.day .mark{position:absolute;top:1px;right:3px;font-size:.72em;line-height:1.2}
+.day .notedot{position:absolute;bottom:3px;left:6px;width:7px;height:7px;border-radius:50%;
+  background:var(--rb-blue);border:1.5px solid var(--ink)}
+.day.ph-menstrual{background:var(--ph-menstrual-soft)}
+.day.ph-follicular{background:var(--ph-follicular-soft)}
+.day.ph-ovulation{background:var(--ph-ovulation-soft)}
+/* luteal mood ramp — the fuse shortens, the red deepens…                 */
+.day.lut-1{background:#ffe4e1}.day.lut-2{background:#ffcfc9}
+/* …and the LAST FIVE DAYS are the danger zone: deepest red + hazard bar  */
+.day.danger5{background:#ff9d92}
+.day.danger5 .n{font-weight:800}
+.day.danger5::after{content:"";position:absolute;left:4px;right:4px;bottom:-1px;height:5px;border-radius:4px;background:var(--hazard)}
+.day.is-peak{background:#ff8b7e;outline:3px solid var(--ph-danger);outline-offset:-2.5px}
+.day.is-today{border-color:var(--ink);box-shadow:0 0 0 3px #fff,0 0 0 5.5px var(--rb-purple)}
+.day.is-future .n{opacity:.75}
+.day.is-start .n{color:#fff;background:var(--ph-menstrual);border:2px solid var(--ink);border-radius:99px;
+  padding:0 5px;left:3px;top:2px;font-weight:700}
+#months.compact .day{font-size:.72rem;border-radius:9px}
+#months.compact .day .wx{font-size:.78em}
+#months.compact .mtitle{font-size:.9rem}
+
+/* ── legend ───────────────────────────────────────────────────────────── */
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;font-family:var(--font-read)}
+.lchip{display:inline-flex;align-items:center;gap:6px;font-size:.75rem;font-weight:600;
+  border:2.5px solid var(--ink);border-radius:99px;padding:4px 11px;background:#fff;box-shadow:2px 2px 0 rgba(28,28,28,.7)}
+.lchip i{width:13px;height:13px;border-radius:50%;border:2px solid var(--ink);display:inline-block;flex-shrink:0}
+.lchip.peak i{border-radius:4px;background-image:var(--hazard)}
+
+/* ── tooltip ──────────────────────────────────────────────────────────── */
+#tip{position:fixed;z-index:60;max-width:270px;background:#fff;border:3px solid var(--ink);border-radius:16px;
+  padding:10px 13px;box-shadow:var(--hard);font-family:var(--font-read);font-size:.8rem;line-height:1.45;
+  pointer-events:none;opacity:0;transition:opacity .12s}
+#tip.on{opacity:1}
+#tip .t-day{font-family:var(--font);font-weight:bold;font-size:.88rem;margin-bottom:3px}
+#tip .t-phase{display:inline-block;font-weight:700;border:2px solid var(--ink);border-radius:99px;padding:1px 9px;margin-bottom:5px}
+#tip .t-danger{color:var(--ph-danger);font-weight:700}
+#tip .t-kind{color:var(--faint);font-style:italic;font-size:.72rem;margin-top:4px}
+
+/* ── the mood arc strip ───────────────────────────────────────────────── */
+#arc .arcflow{display:flex;align-items:stretch;gap:6px;overflow-x:auto;padding:6px 2px 10px;font-family:var(--font-read)}
+#arc .step{flex:1;min-width:96px;text-align:center;border:2.5px solid var(--ink);border-radius:14px;
+  padding:9px 7px;font-size:.74rem;font-weight:600;box-shadow:var(--hard-sm);background:#fff}
+#arc .step .big{font-size:1.5rem;display:block;margin-bottom:3px}
+#arc .step.s-peak{background:#ff9d92;outline:3px solid var(--ink);outline-offset:2px;position:relative}
+#arc .step.s-peak::before{content:"";position:absolute;left:6px;right:6px;top:-8px;height:6px;border-radius:4px;background:var(--hazard)}
+#arc .step.s-break{background:linear-gradient(135deg,#ffd9ec 0%,#fff0bd 55%,#d9f0d2 100%)}
+#arc .arrow{align-self:center;font-weight:bold;color:var(--faint)}
+
+/* ── phase overview cards ─────────────────────────────────────────────── */
+#phases{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+.phase-card{background:#fff;border:3px solid var(--ink);border-radius:var(--radius);box-shadow:var(--hard);
+  padding:15px 16px;transition:transform .15s ease}
+.phase-card:hover{transform:rotate(-.7deg) translateY(-3px)}
+.phase-card.star{outline:3px solid var(--ph-danger);outline-offset:3px}
+.phase-card h3{font-size:1.05rem;display:flex;align-items:center;gap:8px;margin-bottom:2px}
+.phase-card h3 i{width:16px;height:16px;border-radius:50%;border:2.5px solid var(--ink);flex-shrink:0}
+.phase-card .days{font-family:var(--font-read);font-size:.72rem;color:var(--faint);font-weight:700;
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.phase-card .rule{height:7px;border-radius:6px;border:2px solid var(--ink);margin:6px 0 10px}
+.phase-card dl{font-family:var(--font-read);font-size:.8rem;line-height:1.5}
+.phase-card dt{font-weight:700;margin-top:8px}
+.phase-card dt::before{content:"— ";color:var(--faint)}
+.phase-card dd{margin:1px 0 0}
+
+/* ── day panel (click a day) ──────────────────────────────────────────── */
+#overlay{position:fixed;inset:0;background:rgba(28,28,28,.35);z-index:70;display:none}
+#overlay.on{display:block}
+#panel{position:fixed;z-index:71;left:50%;top:50%;transform:translate(-50%,-50%) rotate(-.6deg);width:min(430px,92vw);
+  max-height:88vh;overflow-y:auto;background:#fff;border:3px solid var(--ink);border-radius:var(--radius);
+  box-shadow:6px 7px 0 rgba(28,28,28,.9);padding:18px 20px;display:none}
+#panel.on{display:block}
+#panel h3{font-size:1.15rem;margin-bottom:2px;padding-right:34px}
+#panel .p-sub{font-family:var(--font-read);font-size:.82rem;color:var(--faint);margin-bottom:10px}
+#panel .p-phase{font-family:var(--font-read);font-size:.83rem;line-height:1.5;border:2.5px dashed var(--ink);
+  border-radius:14px;padding:9px 12px;margin-bottom:12px;background:var(--paper)}
+#markstart{display:block;width:100%;font-family:var(--font);font-weight:bold;font-size:.95rem;border:3px solid var(--ink);
+  border-radius:14px;padding:11px 12px;background:#fff;cursor:pointer;box-shadow:var(--hard-sm);margin-bottom:12px;
+  transition:transform .07s,box-shadow .07s}
+#markstart:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(28,28,28,.85)}
+#markstart.marked{background:var(--ph-menstrual-soft)}
+#markstart:disabled{opacity:.45;cursor:not-allowed}
+#panel label{font-size:.82rem;font-weight:bold;display:block;margin-bottom:5px}
+#notebox{width:100%;min-height:96px;font-family:var(--font-read);font-size:.9rem;line-height:1.5;padding:10px 12px;
+  border:2.5px solid var(--ink);border-radius:14px;background:#fffbe0;resize:vertical;box-shadow:inset 2px 2px 0 rgba(28,28,28,.08)}
+#notebox:focus{outline:3px solid var(--rb-blue);outline-offset:1px}
+#notebox[readonly]{background:#f3ecff}
+#savedflag{font-family:var(--font-read);font-size:.7rem;color:var(--rb-green);font-weight:700;height:14px;margin-top:4px;
+  opacity:0;transition:opacity .3s}
+#savedflag.on{opacity:1}
+#closepanel{position:absolute;top:10px;right:12px;font-family:var(--font);font-weight:bold;font-size:1rem;
+  border:2.5px solid var(--ink);border-radius:50%;width:34px;height:34px;background:#ffd9d5;cursor:pointer;box-shadow:2px 2px 0 rgba(28,28,28,.8)}
+
+/* ── toast ────────────────────────────────────────────────────────────── */
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:90;font-family:var(--font);font-weight:bold;
+  font-size:.9rem;background:#fff;border:3px solid var(--ink);border-radius:99px;padding:10px 22px;box-shadow:var(--hard);
+  opacity:0;pointer-events:none;transition:opacity .25s;max-width:92vw;text-align:center}
+#toast.on{opacity:1}
+
+.foot{text-align:center;font-family:var(--font-read);font-size:.72rem;color:var(--faint);margin-top:26px}
+
+@media (max-width:840px){ #months{--mcols:1 !important} .controls{gap:12px 18px} }
+@media (max-width:1020px){ #months.cols3,#months.cols6{--mcols:2 !important} }
+@media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none !important;transition:none !important} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1><span>C</span><span>Y</span><span>C</span><span>L</span><span>E</span></h1>
+  <div class="tagline">mood weather, phase by phase — know the storm before it lands</div>
+  <div id="todayline">…</div>
+  <div id="viewbar">
+    <button class="vchip sel" id="chipmine">👤 mine</button>
+    <button class="vchip" id="chiptheirs" hidden>💞 theirs</button>
+    <button class="vchip share" id="chipshare">💌 share mine</button>
+  </div>
+</header>
+
+<!-- ── theirs banner (only in 💞 view) ── -->
+<section class="card" id="theirsbar" hidden>
+  <div class="big" id="theirs-title">💞 their cycle</div>
+  <p id="theirs-info"></p>
+</section>
+
+<!-- ── settings (only in 👤 view) ── -->
+<section class="card" id="settings">
+  <span class="section-chip">⚙️ your cycle</span>
+  <div class="controls">
+    <div class="ctl">
+      <label for="laststart">last period started</label>
+      <input type="date" id="laststart">
+    </div>
+    <div class="ctl">
+      <label>cycle length — <span class="val" id="cyclelenval">28</span> days</label>
+      <div class="sliderrow">
+        <input type="range" id="cyclelen" min="21" max="40" value="28">
+        <input type="number" id="cyclelennum" min="21" max="40" value="28">
+      </div>
+    </div>
+    <div class="ctl">
+      <label>period length — <span class="val" id="periodlenval">5</span> days</label>
+      <div class="sliderrow">
+        <input type="range" id="periodlen" min="2" max="10" value="5">
+        <input type="number" id="periodlennum" min="2" max="10" value="5">
+      </div>
+    </div>
+    <div class="ctl">
+      <label for="myname">your name <span style="font-weight:normal;color:var(--faint)">(for sharing)</span></label>
+      <input type="text" id="myname" placeholder="optional" maxlength="24">
+    </div>
+  </div>
+  <div id="avghint"></div>
+</section>
+
+<!-- ── months-in-view + ribbon (both views) ── -->
+<section class="card">
+  <div class="controls">
+    <div class="ctl">
+      <label>months in view</label>
+      <div class="chiprow" id="viewchips">
+        <button class="vchip" data-m="1">1</button>
+        <button class="vchip" data-m="2">2</button>
+        <button class="vchip" data-m="3">3</button>
+        <button class="vchip" data-m="6">6</button>
+      </div>
+    </div>
+    <div class="ctl" style="flex:1;min-width:220px">
+      <label>🌈 one full cycle — the red end is the point</label>
+      <div style="position:relative;padding-top:12px">
+        <div id="ribbon"></div>
+        <div id="rmark" style="left:0"></div>
+        <div id="rhover" style="left:0"></div>
+      </div>
+      <div id="riblabels"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── calendar ── -->
+<section class="card">
+  <div class="calbar">
+    <button class="navbtn" id="prevm">← earlier</button>
+    <button class="navbtn" id="todaybtn">today</button>
+    <button class="navbtn" id="nextm">later →</button>
+  </div>
+  <div id="months"></div>
+  <div class="legend">
+    <span class="lchip"><i style="background:var(--ph-menstrual)"></i>menstrual</span>
+    <span class="lchip"><i style="background:var(--ph-follicular)"></i>follicular</span>
+    <span class="lchip"><i style="background:var(--ph-ovulation)"></i>ovulation ⭐</span>
+    <span class="lchip"><i style="background:var(--ph-luteal)"></i>luteal — red deepens</span>
+    <span class="lchip peak"><i></i>⚠ danger zone — last 5 luteal days, worst at its start</span>
+    <span class="lchip">🌈 the break — day 1</span>
+    <span class="lchip">🩸 recorded start</span>
+    <span class="lchip"><i style="background:var(--rb-blue);border-radius:50%"></i>has a note</span>
+  </div>
+  <div id="calhint" style="font-family:var(--font-read);font-size:.72rem;color:var(--faint);margin-top:8px">
+    tap any day to write a note — or to mark it as a period start 🩸 (mark as many past starts as you like; past cycles then use their real lengths)
+  </div>
+</section>
+
+<!-- ── the mood arc ── -->
+<section class="card" id="arc">
+  <span class="section-chip">⛈ the mood arc — why the worst day is 5 days out</span>
+  <div class="arcflow">
+    <div class="step"><span class="big">☀️</span>follicular<br><span style="font-weight:400">sunny &amp; rising</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="big">🌟</span>ovulation<br><span style="font-weight:400">radiant peak</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="big">⛅</span>early luteal<br><span style="font-weight:400">clouding over</span></div>
+    <div class="arrow">→</div>
+    <div class="step"><span class="big">🌧</span>late luteal<br><span style="font-weight:400">fuse shortening</span></div>
+    <div class="arrow">→</div>
+    <div class="step s-peak"><span class="big">⛈</span>⚠ DANGER ZONE<br><span style="font-weight:400">the last 5 days — worst at their start, 5 days before bleeding</span></div>
+    <div class="arrow">→</div>
+    <div class="step s-break"><span class="big">🌈</span>THE BREAK<br><span style="font-weight:400">day 1 — bleeding starts, the storm lifts</span></div>
+  </div>
+  <p style="font-family:var(--font-read);font-size:.8rem;line-height:1.55;color:var(--faint);margin-top:4px">
+    In the last stretch of the luteal phase, progesterone and oestrogen fall off a cliff together — that
+    withdrawal is what makes moods most volatile roughly <b>five days before menstruation</b>, and keeps them
+    stormy right up to bleeding. The moment it begins, hormones bottom out and stabilise, and the mood
+    <b>breaks like weather</b>: within a day or two of day 1, calm returns. 🌈
+  </p>
+</section>
+
+<!-- ── phase overview ── -->
+<section>
+  <span class="section-chip" style="margin-left:4px">📖 what each phase is doing</span>
+  <div id="phases">
+
+    <div class="phase-card">
+      <h3><i style="background:var(--ph-menstrual)"></i>Menstrual 🌈</h3>
+      <div class="days" data-days="menstrual">days 1–5</div>
+      <div class="rule" style="background:var(--ph-menstrual)"></div>
+      <dl>
+        <dt>Biology</dt><dd>The uterine lining sheds. Oestrogen and progesterone sit at their lowest — and that hormonal floor is exactly why the storm breaks.</dd>
+        <dt>Mood</dt><dd><b>The break.</b> The luteal storm lifts within a day or two of bleeding starting — irritability drains away, calm and clarity return. Tired, but fine.</dd>
+        <dt>Body</dt><dd>Cramps, heavier fatigue on days 1–2, headaches, lower-back ache.</dd>
+      </dl>
+    </div>
+
+    <div class="phase-card">
+      <h3><i style="background:var(--ph-follicular)"></i>Follicular ☀️</h3>
+      <div class="days" data-days="follicular">days 6–12</div>
+      <div class="rule" style="background:var(--ph-follicular)"></div>
+      <dl>
+        <dt>Biology</dt><dd>FSH recruits a new egg follicle and oestrogen climbs steadily, rebuilding the uterine lining. (Strictly this phase begins on day 1 and overlaps the period — shown here from the period&rsquo;s end.)</dd>
+        <dt>Mood</dt><dd>The best stretch: energy, optimism, focus and sociability all rise with oestrogen.</dd>
+        <dt>Body</dt><dd>Energy returns, skin clears, sleep steadies, workouts feel easier.</dd>
+      </dl>
+    </div>
+
+    <div class="phase-card">
+      <h3><i style="background:var(--ph-ovulation)"></i>Ovulation 🌟</h3>
+      <div class="days" data-days="ovulation">days 13–15</div>
+      <div class="rule" style="background:var(--ph-ovulation)"></div>
+      <dl>
+        <dt>Biology</dt><dd>A surge of LH releases the egg — reliably about <b>14 days before the next period</b>, whatever the cycle length. Oestrogen peaks, with a little testosterone bump.</dd>
+        <dt>Mood</dt><dd>Radiant peak: confidence, charm, verbal fluency and libido at their highest.</dd>
+        <dt>Body</dt><dd>Possible one-sided twinge (mittelschmerz), clear stretchy discharge, slight temperature rise afterwards.</dd>
+      </dl>
+    </div>
+
+    <div class="phase-card star">
+      <h3><i style="background:var(--ph-luteal)"></i>Luteal ⛈ <span style="font-size:.7em;color:var(--ph-danger)">— the one to watch</span></h3>
+      <div class="days" data-days="luteal">days 16–28</div>
+      <div class="rule" style="background:linear-gradient(90deg,var(--ph-luteal-soft),var(--ph-luteal) 60%,var(--ph-danger))"></div>
+      <dl>
+        <dt>Biology</dt><dd>The empty follicle becomes the corpus luteum and pumps out progesterone. With no pregnancy, progesterone <i>and</i> oestrogen collapse over the final ~5 days — the crash behind PMS.</dd>
+        <dt>Mood</dt><dd>A gradually shortening fuse: irritability, anxiety, tearfulness, low patience. <b style="color:var(--ph-danger)">⚠ The last five days are the danger zone — worst at their start, five days before bleeding</b> — then it breaks on day 1. 🌈</dd>
+        <dt>Body</dt><dd>Bloating, breast tenderness, cravings, spots, poorer sleep, lower energy.</dd>
+      </dl>
+    </div>
+
+  </div>
+</section>
+
+<p class="foot">everything is saved on this device, automatically, as you change it — sharing puts your cycle inside the link itself; nothing touches a server 🔒</p>
+</div>
+
+<div id="tip"></div>
+<div id="toast"></div>
+<div id="overlay"></div>
+<div id="panel">
+  <button id="closepanel" aria-label="close">✕</button>
+  <h3 id="p-date"></h3>
+  <div class="p-sub" id="p-sub"></div>
+  <div class="p-phase" id="p-phase"></div>
+  <button id="markstart">🩸 period started this day</button>
+  <label for="notebox" id="notelabel">how are you feeling? ✎</label>
+  <textarea id="notebox" placeholder="write anything — it saves as you type…"></textarea>
+  <div id="savedflag">saved ✓</div>
+</div>
+
+<script>
+'use strict';
+/* ══════════════ state — saved to localStorage on every change ═════════ */
+const KEY = 'cycle.state.v1';
+const DEFAULTS = { v:1, starts:[], cycleLen:28, periodLen:5, monthsView:1, notes:{}, name:'', theirs:null, view:'mine' };
+let state;
+try { state = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(KEY) || '{}')); }
+catch(e){ state = Object.assign({}, DEFAULTS); }
+state.notes = state.notes || {};
+state.starts = (state.starts || []).slice().sort();
+if (state.view === 'theirs' && !state.theirs) state.view = 'mine';
+function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+
+/* the active dataset — mine, or the imported person's */
+function D(){ return (state.view === 'theirs' && state.theirs) ? state.theirs : state; }
+const mine = () => state.view === 'mine';
+
+/* ══════════════ date helpers (local-time safe) ════════════════════════ */
+const DAY = 864e5;
+const fmtKey = d => d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+const parseKey = k => { const [y,m,dd] = k.split('-').map(Number); return new Date(y, m-1, dd); };
+const dayDiff = (a,b) => Math.round((b - a) / DAY);        // whole days from a to b
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOWS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+let today = new Date(); today = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+let todayKey = fmtKey(today);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+/* ══════════════ cycle model ═══════════════════════════════════════════ */
+/* Returns {day, len, kind} for a date, or null if no starts recorded.
+   kind: 'recorded' (between two real starts — real length),
+         'current'  (the cycle running now), 'predicted' (future),
+         'projected' (before the earliest recorded start).                */
+function cycleInfo(date){
+  const d = D();
+  const starts = d.starts.map(parseKey);
+  if (!starts.length) return null;
+  const L = d.cycleLen;
+  if (date < starts[0]){
+    const back = dayDiff(date, starts[0]);              // > 0
+    const day = ((L - (back % L)) % L) + 1;
+    return { day, len:L, kind:'projected' };
+  }
+  for (let i = 0; i < starts.length; i++){
+    const next = starts[i+1];
+    if (date >= starts[i] && (next === undefined || date < next)){
+      if (next !== undefined){
+        return { day: dayDiff(starts[i], date) + 1, len: dayDiff(starts[i], next), kind:'recorded' };
+      }
+      const off = dayDiff(starts[i], date);
+      return { day:(off % L) + 1, len:L, kind: off < L ? 'current' : 'predicted' };
+    }
+  }
+  return null;
+}
+function phaseOf(day, len, P){
+  const ovu = Math.max(P + 2, len - 14);                 // ovulation ~14 days before next period
+  if (day <= P) return 'menstrual';
+  if (day >= ovu - 1 && day <= ovu + 1) return 'ovulation';
+  if (day < ovu - 1) return 'follicular';
+  return 'luteal';
+}
+const ovuDay = (len,P) => Math.max(P + 2, len - 14);
+const toBreak = (day,len) => len - day + 1;              // days until next day 1
+
+/* mood weather — the heart of the app */
+function weather(day, len, P){
+  if (day === 1) return { wx:'🌈', label:'THE BREAK — the storm lifts' };
+  if (day <= P)  return { wx:'🌤', label:'clearing — calm coming back' };
+  const ph = phaseOf(day, len, P);
+  if (ph === 'follicular') return { wx:'☀️', label:'sunny — energy climbing' };
+  if (ph === 'ovulation'){
+    return day === ovuDay(len,P)
+      ? { wx:'🌟', label:'radiant — egg released today, peak confidence' }
+      : { wx:'🌟', label:'radiant — peak confidence & charm' };
+  }
+  const dtb = toBreak(day, len);
+  if (dtb === 5) return { wx:'⛈', label:'⚠ DANGER ZONE begins — moods at their worst; 5 days to the break' };
+  if (dtb < 5)   return { wx:'⛈', label:'⚠ danger zone — handle with care; ' + dtb + ' day' + (dtb===1?'':'s') + ' to the break' };
+  if (dtb <= 9)  return { wx:'🌧', label:'rain — fuse shortening' };
+  return { wx:'⛅', label:'clouding over — PMS building' };
+}
+const PHASE_BLURB = {
+  menstrual:  'Lining sheds; hormones at their floor — which is why the mood storm breaks now.',
+  follicular: 'Oestrogen climbing, lining rebuilding — the upbeat stretch.',
+  ovulation:  'LH surge releases the egg ~14 days before the next period. Oestrogen peaks.',
+  luteal:     'Progesterone rises then collapses — PMS builds toward the final five days.'
+};
+const PHASE_NAME = { menstrual:'Menstrual', follicular:'Follicular', ovulation:'Ovulation', luteal:'Luteal' };
+const PHASE_SOFT = {
+  menstrual:'var(--ph-menstrual-soft)', follicular:'var(--ph-follicular-soft)',
+  ovulation:'var(--ph-ovulation-soft)', luteal:'var(--ph-luteal-soft)'
+};
+const PHASE_COL = {
+  menstrual:'var(--ph-menstrual)', follicular:'var(--ph-follicular)',
+  ovulation:'var(--ph-ovulation)', luteal:'var(--ph-luteal)'
+};
+
+/* ══════════════ share — the whole cycle inside the link ═══════════════ */
+function encodeShare(){
+  const p = { v:1, name:state.name || '', starts:state.starts, cycleLen:state.cycleLen,
+              periodLen:state.periodLen, notes:state.notes, sharedAt:todayKey };
+  return btoa(unescape(encodeURIComponent(JSON.stringify(p))))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function decodeShare(b64){
+  b64 = b64.replace(/-/g,'+').replace(/_/g,'/');
+  while (b64.length % 4) b64 += '=';
+  const p = JSON.parse(decodeURIComponent(escape(atob(b64))));
+  if (!p || !Array.isArray(p.starts)) throw new Error('bad payload');
+  return { name:String(p.name||''), starts:p.starts.slice().sort(), cycleLen:+p.cycleLen||28,
+           periodLen:+p.periodLen||5, notes:(p.notes && typeof p.notes==='object') ? p.notes : {},
+           sharedAt:String(p.sharedAt||'') };
+}
+async function doShare(){
+  if (!state.starts.length){ toast('mark a period start first — then share 💌'); return; }
+  const url = location.origin + location.pathname + '#s=' + encodeShare();
+  const who = state.name ? state.name + '’s' : 'my';
+  if (navigator.share){
+    try { await navigator.share({ title:'Cycle', text:'💌 ' + who + ' cycle — see what I’m going through, day by day', url }); return; }
+    catch(e){ if (e && e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(url); toast('link copied — send it to them 💌'); }
+  catch(e){ prompt('copy this link and send it:', url); }
+}
+function importShare(){
+  const m = location.hash.match(/[#&]s=([A-Za-z0-9_-]+)/);
+  if (!m) return;
+  try {
+    state.theirs = decodeShare(m[1]);
+    state.view = 'theirs';
+    save();
+    toast('💞 imported — this is ' + (state.theirs.name ? state.theirs.name + '’s' : 'their') + ' cycle');
+  } catch(e){ toast('hmm — that shared link would not open'); }
+  history.replaceState(null, '', location.pathname + location.search);
+}
+let toastTimer = null;
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2600);
+}
+
+/* ══════════════ render: header line ═══════════════════════════════════ */
+function renderToday(){
+  const el = document.getElementById('todayline');
+  const ci = cycleInfo(today);
+  el.classList.remove('dangernow');
+  if (!ci){ el.innerHTML = '👋 pick the last period start date below to begin'; return; }
+  const P = D().periodLen;
+  const ph = phaseOf(ci.day, ci.len, P);
+  const w = weather(ci.day, ci.len, P);
+  const dtb = toBreak(ci.day, ci.len);
+  const whose = mine() ? 'today' : esc(state.theirs.name || 'they') + ' · today';
+  let tail = ph === 'menstrual' ? '<span class="brk">the break is here 🌈</span>'
+           : dtb + ' day' + (dtb===1?'':'s') + ' to <span class="brk">the break 🌈</span>';
+  el.innerHTML = whose + ' · day <b>' + ci.day + '</b> of ' + ci.len + ' · <b>' + PHASE_NAME[ph].toUpperCase() + '</b> ' + w.wx + ' · ' + tail;
+  if (ph === 'luteal' && dtb <= 5) el.classList.add('dangernow');
+}
+
+/* ══════════════ render: view chrome (mine vs theirs) ══════════════════ */
+function renderView(){
+  document.getElementById('chipmine').classList.toggle('sel', mine());
+  const ct = document.getElementById('chiptheirs');
+  ct.hidden = !state.theirs;
+  ct.classList.toggle('sel', !mine());
+  ct.textContent = '💞 ' + (state.theirs && state.theirs.name ? state.theirs.name.toLowerCase() : 'theirs');
+  document.getElementById('settings').hidden = !mine();
+  const tb = document.getElementById('theirsbar');
+  tb.hidden = mine();
+  if (!mine()){
+    const t = state.theirs;
+    document.getElementById('theirs-title').textContent = '💞 ' + (t.name ? t.name + '’s' : 'their') + ' cycle';
+    const ntCount = Object.keys(t.notes).length;
+    document.getElementById('theirs-info').innerHTML =
+      'shared with you on <b>' + esc(t.sharedAt || '?') + '</b> · cycle <b>' + t.cycleLen + '</b> days, period <b>' + t.periodLen +
+      '</b> days, <b>' + t.starts.length + '</b> recorded start' + (t.starts.length===1?'':'s') +
+      (ntCount ? ', <b>' + ntCount + '</b> note' + (ntCount===1?'':'s') + ' ✎' : '') +
+      '.<br>Hover or tap any day to see what they’re going through — the red run into ⚠ hazard stripes is the stretch to watch. ' +
+      'Their notes sit on the days with a blue dot. Everything here is read-only; flip back to 👤 mine any time.';
+  }
+  document.getElementById('calhint').hidden = !mine();
+}
+
+/* ══════════════ render: ribbon ════════════════════════════════════════ */
+function renderRibbon(){
+  const rib = document.getElementById('ribbon'), labs = document.getElementById('riblabels');
+  const L = D().cycleLen, P = D().periodLen;
+  rib.innerHTML = ''; labs.innerHTML = '';
+  for (let d = 1; d <= L; d++){
+    const s = document.createElement('div');
+    s.className = 'seg' + (toBreak(d,L) === 5 ? ' peak' : '');
+    const ph = phaseOf(d, L, P);
+    let col = PHASE_COL[ph];
+    if (ph === 'luteal'){
+      const dtb = toBreak(d,L);
+      col = dtb <= 5 ? 'var(--ph-danger)' : dtb <= 9 ? '#f07f74' : '#f7b3ab';
+    }
+    s.style.background = col;
+    rib.appendChild(s);
+  }
+  labs.innerHTML = '<span>day 1 🌈</span><span>⭐ day ' + ovuDay(L,P) + '</span><span>⚠ days ' + (L-4) + '–' + L + '</span>';
+  const ci = cycleInfo(today), mark = document.getElementById('rmark');
+  if (ci && ci.len === L){ mark.style.display=''; mark.style.left = ((ci.day - .5) / L * 100) + '%'; }
+  else mark.style.display = 'none';
+}
+function ribbonHover(day, len){
+  const h = document.getElementById('rhover');
+  if (day == null || len !== D().cycleLen){ h.classList.remove('on'); return; }
+  h.style.left = ((day - .5) / len * 100) + '%';
+  h.classList.add('on');
+}
+
+/* ══════════════ render: calendar ══════════════════════════════════════ */
+let viewOffset = 0;                                       // months from current month
+function renderCalendar(){
+  const wrap = document.getElementById('months');
+  const n = state.monthsView;
+  wrap.style.setProperty('--mcols', n === 1 ? 1 : n === 2 ? 2 : 3);
+  wrap.className = (n >= 3 ? 'compact ' : '') + 'cols' + n;
+  wrap.innerHTML = '';
+  const base = new Date(today.getFullYear(), today.getMonth() + viewOffset, 1);
+  for (let m = 0; m < n; m++){
+    wrap.appendChild(buildMonth(new Date(base.getFullYear(), base.getMonth() + m, 1)));
+  }
+}
+function buildMonth(first){
+  const y = first.getFullYear(), mo = first.getMonth();
+  const d0 = D();
+  const box = document.createElement('div'); box.className = 'month';
+  box.innerHTML = '<div class="mtitle">' + MONTHS[mo] + ' <small>' + y + '</small></div>' +
+    '<div class="dow">' + DOWS.map(d => '<span>' + d[0] + '</span>').join('') + '</div>';
+  const grid = document.createElement('div'); grid.className = 'grid';
+  const lead = (first.getDay() + 6) % 7;                  // Monday-first
+  for (let i = 0; i < lead; i++){ const b = document.createElement('div'); b.className='day blank'; grid.appendChild(b); }
+  const days = new Date(y, mo + 1, 0).getDate();
+  for (let d = 1; d <= days; d++){
+    const date = new Date(y, mo, d), key = fmtKey(date);
+    const cell = document.createElement('div'); cell.className = 'day'; cell.dataset.key = key;
+    let inner = '<span class="n">' + d + '</span>';
+    const ci = cycleInfo(date);
+    if (ci){
+      const P = d0.periodLen;
+      const ph = phaseOf(ci.day, ci.len, P);
+      cell.classList.add('ph-' + ph);
+      if (ph === 'luteal'){
+        const dtb = toBreak(ci.day, ci.len);
+        if (dtb <= 5){ cell.classList.add('danger5'); if (dtb === 5) cell.classList.add('is-peak'); }
+        else cell.classList.add(dtb <= 9 ? 'lut-2' : 'lut-1');
+      }
+      const w = weather(ci.day, ci.len, P);
+      inner += '<span class="wx">' + w.wx + '</span>';
+      const marks = [];
+      if (ph === 'luteal' && toBreak(ci.day, ci.len) === 5) marks.push('⚠');
+      if (ci.day === ovuDay(ci.len, P) && ph === 'ovulation') marks.push('⭐');
+      if (marks.length) inner += '<span class="mark">' + marks.join('') + '</span>';
+      if (date > today) cell.classList.add('is-future');
+    }
+    if (d0.starts.includes(key)) cell.classList.add('is-start');
+    if (d0.notes[key]) inner += '<span class="notedot"></span>';
+    if (key === todayKey) cell.classList.add('is-today');
+    cell.innerHTML = inner;
+    cell.addEventListener('mouseenter', () => showTip(cell, date));
+    cell.addEventListener('mouseleave', hideTip);
+    cell.addEventListener('click', () => openPanel(key));
+    grid.appendChild(cell);
+  }
+  box.appendChild(grid);
+  return box;
+}
+
+/* ══════════════ tooltip ═══════════════════════════════════════════════ */
+const tip = document.getElementById('tip');
+function dayStory(date){
+  const ci = cycleInfo(date);
+  if (!ci) return null;
+  const P = D().periodLen;
+  const ph = phaseOf(ci.day, ci.len, P);
+  const w = weather(ci.day, ci.len, P);
+  const kindTxt = { recorded:'from a recorded cycle (' + ci.len + ' days, real dates)',
+    current:'current cycle', predicted:'predicted from the last recorded start',
+    projected:'projected back before the first recorded start' }[ci.kind];
+  return { ci, ph, w, kindTxt };
+}
+function showTip(cell, date){
+  const s = dayStory(date);
+  ribbonHover(s ? s.ci.day : null, s ? s.ci.len : 0);
+  if (!s) return;
+  const nice = DOWS[(date.getDay()+6)%7] + ' ' + date.getDate() + ' ' + MONTHS[date.getMonth()].slice(0,3);
+  let extra = '';
+  const dtb = toBreak(s.ci.day, s.ci.len);
+  if (s.ph === 'luteal' && dtb <= 5){
+    extra = dtb === 5
+      ? '<div class="t-danger">⚠ DANGER ZONE BEGINS — worst mood day, 5 days before bleeding</div>'
+      : '<div class="t-danger">⚠ danger zone — ' + dtb + ' day' + (dtb===1?'':'s') + ' to the break</div>';
+  }
+  else if (s.ci.day === 1) extra = '<div style="color:var(--rb-purple);font-weight:700">🌈 THE BREAK — bleeding starts, the storm lifts</div>';
+  const note = D().notes[fmtKey(date)];
+  const noteWho = mine() ? '✎ note' : '✎ their note';
+  tip.innerHTML =
+    '<div class="t-day">' + nice + ' · day ' + s.ci.day + ' of ' + s.ci.len + '</div>' +
+    '<span class="t-phase" style="background:' + PHASE_SOFT[s.ph] + '">' + PHASE_NAME[s.ph] + ' ' + s.w.wx + '</span>' +
+    extra +
+    '<div>' + PHASE_BLURB[s.ph] + '</div>' +
+    '<div><b>Mood:</b> ' + s.w.label + '</div>' +
+    (note ? '<div><b>' + noteWho + ':</b> ' + esc(note.slice(0,90)) + (note.length>90?'…':'') + '</div>' : '') +
+    '<div class="t-kind">' + s.kindTxt + '</div>';
+  const r = cell.getBoundingClientRect();
+  tip.classList.add('on');
+  const tw = tip.offsetWidth, th = tip.offsetHeight;
+  let x = r.left + r.width/2 - tw/2, y = r.top - th - 12;
+  x = Math.max(8, Math.min(x, innerWidth - tw - 8));
+  if (y < 8) y = r.bottom + 12;
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function hideTip(){ tip.classList.remove('on'); ribbonHover(null, 0); }
+
+/* ══════════════ day panel — notes + marking starts ════════════════════ */
+const overlay = document.getElementById('overlay'), panel = document.getElementById('panel');
+const notebox = document.getElementById('notebox'), markBtn = document.getElementById('markstart');
+let panelKey = null;
+function openPanel(key){
+  hideTip();
+  panelKey = key;
+  const date = parseKey(key);
+  document.getElementById('p-date').textContent =
+    DOWS[(date.getDay()+6)%7] + ' ' + date.getDate() + ' ' + MONTHS[date.getMonth()] + ' ' + date.getFullYear();
+  const s = dayStory(date);
+  document.getElementById('p-sub').textContent = s ? ('cycle day ' + s.ci.day + ' of ' + s.ci.len + ' · ' + s.kindTxt) : 'no cycle data yet';
+  document.getElementById('p-phase').innerHTML = s
+    ? '<b>' + PHASE_NAME[s.ph] + ' ' + s.w.wx + '</b> — ' + PHASE_BLURB[s.ph] + '<br><b>Mood:</b> ' + s.w.label
+    : 'Mark a period start to bring this calendar to life.';
+  if (mine()){
+    markBtn.style.display = '';
+    const marked = state.starts.includes(key);
+    markBtn.textContent = marked ? '🩸 marked as a period start — tap to unmark' : '🩸 period started this day';
+    markBtn.classList.toggle('marked', marked);
+    markBtn.disabled = date > today && !marked;
+    document.getElementById('notelabel').textContent = 'how are you feeling? ✎';
+    notebox.readOnly = false;
+    notebox.placeholder = 'write anything — it saves as you type…';
+    notebox.value = state.notes[key] || '';
+  } else {
+    markBtn.style.display = 'none';
+    document.getElementById('notelabel').textContent = '✎ their note';
+    notebox.readOnly = true;
+    notebox.placeholder = 'no note on this day';
+    notebox.value = state.theirs.notes[key] || '';
+  }
+  overlay.classList.add('on'); panel.classList.add('on');
+  if (mine()) notebox.focus({ preventScroll:true });
+}
+function closePanel(){
+  overlay.classList.remove('on'); panel.classList.remove('on');
+  panelKey = null; renderAll();                            // reflect note dots / start marks
+}
+overlay.addEventListener('click', closePanel);
+document.getElementById('closepanel').addEventListener('click', closePanel);
+addEventListener('keydown', e => { if (e.key === 'Escape' && panelKey) closePanel(); });
+markBtn.addEventListener('click', () => {
+  if (!panelKey || !mine()) return;
+  const i = state.starts.indexOf(panelKey);
+  if (i >= 0) state.starts.splice(i, 1); else { state.starts.push(panelKey); state.starts.sort(); }
+  save(); syncControls();
+  openPanel(panelKey);                                     // refresh button state
+});
+let savedTimer = null;
+notebox.addEventListener('input', () => {
+  if (!panelKey || !mine()) return;
+  const v = notebox.value;
+  if (v.trim() === '') delete state.notes[panelKey]; else state.notes[panelKey] = v;
+  save();
+  const f = document.getElementById('savedflag');
+  f.classList.add('on');
+  clearTimeout(savedTimer); savedTimer = setTimeout(() => f.classList.remove('on'), 1200);
+});
+
+/* ══════════════ controls ══════════════════════════════════════════════ */
+const $ = id => document.getElementById(id);
+function syncControls(){
+  $('cyclelen').value = $('cyclelennum').value = state.cycleLen;
+  $('cyclelenval').textContent = state.cycleLen;
+  $('periodlen').value = $('periodlennum').value = state.periodLen;
+  $('periodlenval').textContent = state.periodLen;
+  $('laststart').value = state.starts.length ? state.starts[state.starts.length-1] : '';
+  $('myname').value = state.name || '';
+  document.querySelectorAll('#viewchips .vchip').forEach(c => c.classList.toggle('sel', +c.dataset.m === state.monthsView));
+  /* average of recorded cycles */
+  const st = state.starts.map(parseKey);
+  const hint = $('avghint');
+  if (st.length >= 2){
+    const lens = []; for (let i=1;i<st.length;i++) lens.push(dayDiff(st[i-1], st[i]));
+    const avg = lens.reduce((a,b)=>a+b,0) / lens.length;
+    const rounded = Math.round(avg);
+    hint.innerHTML = '📊 ' + lens.length + ' recorded cycle' + (lens.length===1?'':'s') + ': ' + lens.join(', ') +
+      ' days — average <b>' + avg.toFixed(1) + '</b>' +
+      (rounded !== state.cycleLen && rounded >= 21 && rounded <= 40
+        ? ' <button id="useavg">use ' + rounded + '</button>' : '');
+    const b = $('useavg');
+    if (b) b.addEventListener('click', () => { state.cycleLen = rounded; save(); syncControls(); renderAll(); });
+  } else {
+    hint.innerHTML = state.starts.length
+      ? 'mark more past period starts in the calendar and the real average appears here 📊'
+      : '';
+  }
+  /* phase-card day ranges follow the active view */
+  const L = D().cycleLen, P = D().periodLen, ov = ovuDay(L,P);
+  const set = (k,t) => { const el = document.querySelector('[data-days="'+k+'"]'); if (el) el.textContent = t; };
+  set('menstrual','days 1–' + P + ' · the break 🌈');
+  set('follicular','days ' + (P+1) + '–' + (ov-2));
+  set('ovulation','days ' + (ov-1) + '–' + (ov+1) + ' · egg on day ' + ov);
+  set('luteal','days ' + (ov+2) + '–' + L + ' · ⚠ danger days ' + (L-4) + '–' + L);
+}
+function bindRange(rid, nid, prop){
+  const apply = v => {
+    v = Math.max(+$(rid).min, Math.min(+$(rid).max, +v || DEFAULTS[prop]));
+    state[prop] = v; save(); syncControls(); renderAll();
+  };
+  $(rid).addEventListener('input', e => apply(e.target.value));
+  $(nid).addEventListener('change', e => apply(e.target.value));
+}
+bindRange('cyclelen','cyclelennum','cycleLen');
+bindRange('periodlen','periodlennum','periodLen');
+$('laststart').addEventListener('change', e => {
+  const v = e.target.value; if (!v) return;
+  if (state.starts.length) state.starts[state.starts.length-1] = v;   // edit the most recent start
+  else state.starts.push(v);
+  state.starts = [...new Set(state.starts)].sort();
+  save(); syncControls(); renderAll();
+});
+$('myname').addEventListener('input', e => { state.name = e.target.value.slice(0,24); save(); });
+document.querySelectorAll('#viewchips .vchip').forEach(c => c.addEventListener('click', () => {
+  state.monthsView = +c.dataset.m; save(); syncControls(); renderCalendar();
+}));
+$('prevm').addEventListener('click', () => { viewOffset--; renderCalendar(); });
+$('nextm').addEventListener('click', () => { viewOffset++; renderCalendar(); });
+$('todaybtn').addEventListener('click', () => { viewOffset = 0; renderCalendar(); });
+$('chipmine').addEventListener('click', () => { state.view = 'mine'; save(); renderAll(); });
+$('chiptheirs').addEventListener('click', () => { if (state.theirs){ state.view = 'theirs'; save(); renderAll(); } });
+$('chipshare').addEventListener('click', doShare);
+
+/* ══════════════ boot + midnight rollover ══════════════════════════════ */
+function renderAll(){ renderView(); renderToday(); renderRibbon(); renderCalendar(); syncControls(); }
+importShare();
+renderAll();
+setInterval(() => {
+  const now = new Date(), k = fmtKey(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
+  if (k !== todayKey){ today = parseKey(k); todayKey = k; renderAll(); }
+}, 60000);
+</script>
+</body>
+</html>
