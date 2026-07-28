@@ -289,6 +289,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var activity: NSObjectProtocol? // the App Nap assertion
     private var fitWork: DispatchWorkItem?  // debounces the companion re-fit
     private var slidOut = false             // parked off the right edge
+    private var programmaticFrameChange = false   // suppresses frame persistence
     private var homeFrame: NSRect?          // where to slide back to
     private var previousApp: NSRunningApplication?   // what to hand focus back to
     private var hotKeyRef2: EventHotKeyRef?
@@ -377,10 +378,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         w.isReleasedWhenClosed = false
         w.delegate = self
         w.makeKeyAndOrderFront(nil)
-        // The autosaved frame may have been saved while in focus mode, which would
-        // launch the FULL layout into a tiny window — WhatsApp crammed and unusable.
-        // Focus mode is deliberately not restored at launch, so neither is its size.
-        if w.frame.width < 760 || w.frame.height < 560 {
+        // Two ways the restored frame can be wrong, both seen:
+        //  1. saved while in focus mode → the FULL layout crammed into a sliver;
+        //  2. saved while PARKED off screen by ⌘R → the window comes back invisible.
+        //     SlidingWindow overrides constrainFrameRect, so macOS no longer drags a
+        //     stray window back onto the display; nothing would ever bring it back.
+        let vis = (w.screen ?? NSScreen.main)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let onScreen = w.frame.intersection(vis)
+        if w.frame.width < 760 || w.frame.height < 560
+            || onScreen.width < 200 || onScreen.height < 200 {
             w.setContentSize(NSSize(width: 1180, height: 820))
             w.center()
         }
@@ -469,20 +475,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 
         if settings.compact {
             fullFrame = w.frame
-            let target = savedCompanionFrame() ?? defaultCompanionFrame()
             js("__shell.setCompact(true)")
-            w.setFrame(target, display: true, animate: true)
+            applyTitle()                       // style mask BEFORE the frame: changing
+                                               // it afterwards resizes the window again
+            let target = savedCompanionFrame() ?? defaultCompanionFrame()
+            withProgrammaticFrame { w.setFrame(target, display: true, animate: true) }
             // Let the CSS reflow land, then scale to whatever width WhatsApp still
             // insists on — otherwise a narrow window just clips a wide layout.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.fitCompact() }
         } else {
-            UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV5")
             js("__shell.setCompact(false)")
+            applyTitle()                       // drop fullSizeContentView first
             web?.pageZoom = CGFloat(settings.zoom)          // restore his real zoom
-            if let f = fullFrame { w.setFrame(f, display: true, animate: true) }
+            withProgrammaticFrame { w.setFrame(normalFrame(), display: true, animate: true) }
         }
         applyWindowLevel()
-        applyTitle()
         applyOpacity()
         settings.save()
         syncMenuState()
@@ -583,10 +590,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         }
     }
 
+    /// The remembered focus frame, and ONLY if he resized it himself. Twice now a
+    /// programmatically-produced frame (clamped, or mid-style-mask-change) has been
+    /// persisted and quietly replaced the full-height default. So the saved value is
+    /// ignored unless `focusResized` says a live resize put it there.
     private func savedCompanionFrame() -> NSRect? {
-        guard let s = UserDefaults.standard.string(forKey: "companionFrameV5") else { return nil }
+        guard UserDefaults.standard.bool(forKey: "focusResized"),
+              let s = UserDefaults.standard.string(forKey: "companionFrameV5") else { return nil }
         let r = NSRectFromString(s)
-        return (r.width > 200 && r.height > 200) ? r : nil
+        guard r.width > 200, r.height > 200 else { return nil }
+        // A height that reaches the top of the display cannot have come from a drag —
+        // AppKit will not let him drag a title bar under the menu bar. Reject it.
+        if let scr = window?.screen ?? NSScreen.main {
+            let maxSane = scr.frame.height - NSStatusBar.system.thickness + 2
+            if r.height > maxSane { return nil }
+        }
+        return r
+    }
+
+    /// A frame for normal (non-focus) mode that fits on screen. Leaving focus mode
+    /// used to restore the full-height focus frame, which then spilled over the top
+    /// because a normal window sits inside the visible area, not the whole display.
+    private func normalFrame() -> NSRect {
+        let vis = (window?.screen ?? NSScreen.main)?.visibleFrame
+            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        var f = fullFrame ?? NSRect(x: 0, y: 0, width: 1180, height: 820)
+        f.size.width = min(f.width, vis.width)
+        f.size.height = min(f.height, vis.height)
+        if f.maxY > vis.maxY { f.origin.y = vis.maxY - f.height }
+        if f.minY < vis.minY { f.origin.y = vis.minY }
+        if f.maxX > vis.maxX { f.origin.x = vis.maxX - f.width }
+        if f.minX < vis.minX { f.origin.x = vis.minX }
+        return f
     }
 
     /// True once the app has parked the window off screen at least once, so the
@@ -594,11 +629,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var hasUserFrame: Bool { UserDefaults.standard.string(forKey: "companionFrameV5") != nil }
 
     private func defaultCompanionFrame() -> NSRect {
-        let screen = (window?.screen ?? NSScreen.main)?.frame
-            ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let width = max(kCompanionMinWidth, (screen.width * kCompanionWidthFraction).rounded())
-        return NSRect(x: screen.maxX - width, y: screen.minY,
-                      width: width, height: screen.height)
+        let scr = window?.screen ?? NSScreen.main
+        let full = scr?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let vis = scr?.visibleFrame ?? full
+        let width = max(kCompanionMinWidth, (full.width * kCompanionWidthFraction).rounded())
+        // Top: just under the menu bar. Using the display's own top put the bar
+        // BEHIND the menu bar, which draws above every ordinary window — the result
+        // was the focus bar tangled up in the menu bar. Bottom: the very bottom of
+        // the display, under the Dock, so there is no gap down there either.
+        // With "automatically hide the menu bar" on, visibleFrame reports the FULL
+        // height, so subtracting it gave zero inset and the focus bar ended up
+        // tangled in the menu bar whenever it appeared. Take whichever is larger:
+        // the real inset, or the status bar's own thickness.
+        let menuHeight = max(full.maxY - vis.maxY, NSStatusBar.system.thickness)
+        let top = full.maxY - menuHeight
+        let bottom = full.minY
+        return NSRect(x: full.maxX - width, y: bottom, width: width, height: top - bottom)
     }
 
     /// Slide the window off the right edge and back, rather than blinking it in and
@@ -637,6 +683,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         }
     }
 
+    /// Any frame change the app makes itself. windowDidEndLiveResize fires for
+    /// ANIMATED programmatic resizes as well as for real drags, so without this flag
+    /// the app's own moves get recorded as his — which is exactly how a full-display
+    /// height got saved and left the focus bar sitting on top of the menu bar.
+    private func withProgrammaticFrame(_ body: () -> Void) {
+        programmaticFrameChange = true
+        body()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self.programmaticFrameChange = false }
+    }
+
     private func slide(_ w: NSWindow, to target: NSRect) {
         NSAnimationContext.runAnimationGroup { ctx in
             ctx.duration = 0.24
@@ -669,7 +725,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     func windowDidEndLiveResize(_ note: Notification) { rememberFrame() }
 
     private func rememberFrame() {
-        guard let w = window, settings.compact, !slidOut else { return }
+        guard let w = window, settings.compact, !slidOut, !programmaticFrameChange else { return }
+        UserDefaults.standard.set(true, forKey: "focusResized")
         UserDefaults.standard.set(NSStringFromRect(w.frame), forKey: "companionFrameV5")
         // Re-fit after he stops dragging, not on every frame of the drag.
         fitWork?.cancel()
@@ -910,7 +967,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             }
         case "badge":
             unread = (body["count"] as? Int) ?? 0
-            NSApp.dockTile.badgeLabel = unread > 0 ? String(unread) : nil
+            // No badge on the Dock icon — he does not want it there. The count still
+            // shows in the menu bar and on the focus bar's pill.
+            NSApp.dockTile.badgeLabel = nil
             updateStatusItem()
         case "exitCompact":
             // The "‹" button on the companion bar: back to the full window and
@@ -1204,15 +1263,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         RegisterEventHotKey(kHotKeyCode2, kHotKeyMods2, id2, GetApplicationEventTarget(), 0, &hotKeyRef2)
     }
 
-    func toggleVisibility() {
-        // Same gesture as ⌘R so summoning from anywhere looks identical.
+    /// ⌘R, one key, three states — his spec: "CMD R moves it straight into focus
+    /// view if it isn't. Then pops it off screen if it is. Then pops it back."
+    ///
+    ///   parked off screen        → slide back
+    ///   not in focus mode        → switch into it (opening the top chat if needed)
+    ///   in focus mode, on screen → park it off screen
+    ///
+    /// ⌘⇧R remains the way out of focus mode altogether.
+    @objc func summon(_ sender: Any? = nil) {
+        // Remember what he was working in before we take the foreground, so parking
+        // the window later can hand focus straight back.
+        let front = NSWorkspace.shared.frontmostApplication
+        if front?.bundleIdentifier != Bundle.main.bundleIdentifier { previousApp = front }
+
         if slidOut { toggleSlide(nil); return }
-        if NSApp.isActive, let w = window, w.isVisible {
-            toggleSlide(nil)
-        } else {
-            showWindow()
+
+        if !settings.compact {
+            NSApp.activate(ignoringOtherApps: true)
+            window?.makeKeyAndOrderFront(nil)
+            toggleCompanion(nil)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) { [weak self] in
+                self?.js("__shell.focusComposer()")
+            }
+            return
         }
+
+        toggleSlide(nil)
     }
+
+    func toggleVisibility() { summon(nil) }
 
     // ---- menu actions ----
 
@@ -1459,7 +1539,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         fileMenu.addItem(item("Search", #selector(focusSearch(_:)), "k"))
         fileMenu.addItem(item("Find in Chats", #selector(focusSearch(_:)), "f"))
         fileMenu.addItem(.separator())
-        fileMenu.addItem(item("Slide Away / Back", #selector(toggleSlide(_:)), "r"))
+        fileMenu.addItem(item("Focus / Away", #selector(summon(_:)), "r"))
         fileMenu.addItem(item("Reload", #selector(reload(_:)), "r", [.command, .option]))
         fileMenu.addItem(item("Back to WhatsApp", #selector(goHome(_:)), "h", [.command, .shift]))
         fileMenu.addItem(.separator())

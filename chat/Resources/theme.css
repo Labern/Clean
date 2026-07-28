@@ -589,9 +589,12 @@ html[data-shell-compact][data-shell-convo-open] [data-shell-composer] {
   margin-left: 0 !important;
   text-indent: 0 !important;
 }
-/* One small inset, on the pill itself, so the text is not jammed against it. */
-html[data-shell-compact][data-shell-convo-open] [data-shell-convo] footer div:has(> [data-shell-composer]) {
-  padding-left: 12px !important;
+/* Exactly ONE inset, on the editable itself. The previous rule here targeted any
+   div with a tagged child — and since the whole chain is tagged, that re-applied
+   12px at every level: measured 0 → 12 → 24 → 36 → 48 → 96 → 108, which is why the
+   caret sat 108px in no matter how many paddings were zeroed above. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-composer][contenteditable="true"] {
+  padding-left: 10px !important;
 }
 /* The footer painted transparent, so the layer behind showed its doodle around the
    composer. */

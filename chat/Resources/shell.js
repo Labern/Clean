@@ -286,6 +286,26 @@
         if (!b.hasAttribute('data-shell-hidebtn')) { b.setAttribute('data-shell-hidebtn', ''); n++ }
       }
     }
+
+    // Hiding the buttons left their CONTAINER behind: measured, the message pill
+    // still began 38px in, holding an empty block where the "+" and emoji used to
+    // be. So also collapse any sibling that sits wholly to the left of the pill.
+    // Width-capped so a genuinely wide neighbour is never swallowed.
+    const box = footer.querySelector('[contenteditable="true"]');
+    let pill = box && box.parentElement;
+    while (pill && pill !== footer && pill.getBoundingClientRect().width < f.width * 0.6) {
+      pill = pill.parentElement;
+    }
+    if (pill && pill !== footer && pill.parentElement) {
+      const pillLeft = pill.getBoundingClientRect().left;
+      for (const sib of Array.from(pill.parentElement.children)) {
+        if (sib === pill) continue;
+        const r = sib.getBoundingClientRect();
+        if (r.width > 0 && r.right <= pillLeft + 2 && r.width < f.width * 0.3) {
+          if (!sib.hasAttribute('data-shell-hidebtn')) { sib.setAttribute('data-shell-hidebtn', ''); n++ }
+        }
+      }
+    }
     return n;
   }
 
@@ -560,6 +580,28 @@
       })(),
       viewportRight: Math.round(window.innerWidth),
       wallpapers: document.querySelectorAll('[data-shell-wallpaper]').length,
+      composer: (() => {
+        const pane = document.querySelector('[data-shell-convo]');
+        const footer = pane && pane.querySelector('footer');
+        const box = footer && footer.querySelector('[contenteditable="true"]');
+        if (!box || !footer) return null;
+        const fw = footer.getBoundingClientRect().width;
+        let pill = box.parentElement;
+        while (pill && pill !== footer && pill.getBoundingClientRect().width < fw * 0.6) pill = pill.parentElement;
+        let textLeft = null;
+        try { const rg = document.createRange(); rg.selectNodeContents(box);
+              const rs = rg.getClientRects(); if (rs.length) textLeft = Math.round(rs[0].left) } catch (e) {}
+        const chain = []; let el = box;
+        while (el && el !== footer) {
+          const cs = getComputedStyle(el); const r = el.getBoundingClientRect();
+          chain.push({ tag: el.tagName, left: Math.round(r.left), w: Math.round(r.width),
+                       pl: cs.paddingLeft, ml: cs.marginLeft, pos: cs.position, ti: cs.textIndent });
+          el = el.parentElement;
+        }
+        return { footerLeft: Math.round(footer.getBoundingClientRect().left),
+                 pillLeft: pill ? Math.round(pill.getBoundingClientRect().left) : null,
+                 boxLeft: Math.round(box.getBoundingClientRect().left), textLeft, chain };
+      })(),
       kids: (() => {
         const pane = document.querySelector('[data-shell-convo]');
         if (!pane) return [];
