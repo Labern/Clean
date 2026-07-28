@@ -758,7 +758,7 @@ function buildMonth(first){
       }
       wxEmoji = weather(ci.day, ci.len, P).wx;
       const marks = [];
-      if (ph === 'luteal' && toBreak(ci.day, ci.len) === 5) marks.push('⚠️');
+      if (ph === 'luteal' && toBreak(ci.day, ci.len) <= 5) marks.push('⚠️');
       if (ci.day === ovuDay(ci.len, P) && ph === 'ovulation') marks.push('⭐');
       if (marks.length) inner += '<span class="mark">' + marks.join('') + '</span>';
       if (date > today) cell.classList.add('is-future');
