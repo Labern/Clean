@@ -768,9 +768,22 @@ const PicaEngine = (() => {
       if (!e) at.set(k, e = { n: 0, num: 0 });
       e.n++;
       if (SCENE_NO.test(l.items[0].str.trim())) e.num++;
+      // right-margin numbering has no left twin — count detached trailing numbers
+      // at their own x, or a right-only-numbered draft never forms a gutter at all
+      if (l.items.length > 1) {
+        const lastIt = l.items[l.items.length - 1], prev = l.items[l.items.length - 2];
+        if (SCENE_NO.test(lastIt.str.trim()) && lastIt.x - (prev.x + prev.w) >= charW * 3) {
+          const kr = Math.round(lastIt.x);
+          let er = at.get(kr);
+          if (!er) at.set(kr, er = { n: 0, num: 0 });
+          er.n++; er.num++;
+        }
+      }
     }
     const gutter = new Set();
     for (const [x, e] of at) if (e.n >= 8 && e.num / e.n >= 0.6) gutter.add(x);
+    // right-aligned numbers start at different x per width — membership is a band
+    const nearGutter = x => { for (const g of gutter) if (Math.abs(g - x) <= charW * 2.2) return true; return false; };
 
     for (const p of body) {
       for (const l of p.lines) {
@@ -778,11 +791,13 @@ const PicaEngine = (() => {
         if (!l.items || l.items.length < 2) continue;
         let items = l.items;
         if (gutter.has(Math.round(l.x)) && SCENE_NO.test(items[0].str.trim())) items = items.slice(1);
-        // the matching number at the right margin, only when clearly detached
+        // the matching number at the right margin: detached, OR sitting in an
+        // established gutter column — a long slug can run to within a point of
+        // its number ("...CONTINUOUS72A"), but the number's x doesn't lie
         while (items.length > 1) {
           const lastIt = items[items.length - 1], prev = items[items.length - 2];
           if (!SCENE_NO.test(lastIt.str.trim())) break;
-          if (lastIt.x - (prev.x + prev.w) < charW * 3) break;
+          if (lastIt.x - (prev.x + prev.w) < charW * 3 && !nearGutter(lastIt.x)) break;
           items = items.slice(0, -1);
         }
         if (items.length === l.items.length) continue;
@@ -853,9 +868,10 @@ const PicaEngine = (() => {
   function estimateCharW(pages) {
     const ws = [];
     for (const p of pages) for (const it of p.items || [])
-      if (it.str && it.str.trim().length >= 4) ws.push(it.w / it.str.length);
+      if (it.str && it.str.trim().length >= 4 && Number.isFinite(it.w) && it.w > 0) ws.push(it.w / it.str.length);
     ws.sort((a, b) => a - b);
-    return ws.length ? ws[Math.floor(ws.length / 2)] : 7.2;
+    const v = ws.length ? ws[Math.floor(ws.length / 2)] : 7.2;
+    return v > 0.5 ? v : 7.2;   // a zero/NaN charW turns joinItems into ' '.repeat(Infinity)
   }
 
   // ---------- text wrapping (greedy, spaces only — Final Draft style) ----------
@@ -890,6 +906,7 @@ const PicaEngine = (() => {
   };
 
   function importPdf(rawPages, opts = {}) {
+    if (!rawPages || !rawPages.length) return newDoc('IMPORTED');
     // fonts with no usable Unicode map yield cipher text — crack them first,
     // since classification reads the words (INT., EXT., …), not just positions
     let decodeNote = null;
@@ -902,6 +919,22 @@ const PicaEngine = (() => {
       width: p.width, height: p.height,
       lines: p.lines ? p.lines : linesFromItems(p.items, charW0),
     }));
+
+    // -- typography: underline segments (drawn as vector lines just below the
+    // baseline) attach to the row they underline; bold/italic ride the items'
+    // font-style flags. Both become el.marks later, at finalization.
+    for (let pi = 0; pi < pages.length; pi++) {
+      const segs = rawPages[pi] && rawPages[pi].ul;
+      if (!segs || !segs.length) continue;
+      for (const l of pages[pi].lines) {
+        for (const u of segs) {
+          const dy = u.y - l.y;
+          if (dy < 0.2 || dy > 7) continue;
+          if (u.x2 < l.x - 2 || u.x1 > l.xEnd + 2) continue;
+          (l.us = l.us || []).push(u);
+        }
+      }
+    }
 
     // -- title page detection: first page, few lines, no sluglines, mostly centered-ish
     let titlePage = null, bodyStart = 0;
@@ -1196,28 +1229,29 @@ const PicaEngine = (() => {
         const y00 = cueLine ? cueLine.y : rows[0].l.y;
         const rel = y => Math.round((y - y00) / rowH);
         const g = uid();
-        const mk = (type, its, y) => ({
+        const mk = (type, its, y, rev) => ({
           id: uid(), type,
-          srcLines: [{ text: joinItems(its, charW0).text, x: its[0].x, xEnd: 0, y, items: its }],
+          srcLines: [{ text: joinItems(its, charW0).text, x: its[0].x, xEnd: 0, y, items: its, ...(rev ? { rev: true } : {}) }],
           xOverride: Math.round(its[0].x * 100) / 100,
           dual: { g, r: rel(y) },
         });
         const L = [], R = [];
-        if (cueLine) L.push(mk('character', cueLine.items, cueLine.y));
+        if (cueLine) L.push(mk('character', cueLine.items, cueLine.y, cueLine.rev));
         for (const r of rows) {
           if (r.sp.left.length) {
             const t = joinItems(r.sp.left, charW0).text;
             const last = L[L.length - 1];
             if (!CUEISH(t) && last && last.type === 'dialogue' && rel(r.l.y) === last.dual.r + last.srcLines.length)
-              last.srcLines.push({ text: t, x: r.sp.left[0].x, xEnd: 0, y: r.l.y, items: r.sp.left });
-            else L.push(mk(CUEISH(t) ? 'character' : 'dialogue', r.sp.left, r.l.y));
+              last.srcLines.push({ text: t, x: r.sp.left[0].x, xEnd: 0, y: r.l.y, items: r.sp.left, ...(r.l.rev ? { rev: true } : {}) });
+            else L.push(mk(CUEISH(t) ? 'character' : 'dialogue', r.sp.left, r.l.y, r.l.rev));
           }
           if (r.sp.right.length) {
             const t = joinItems(r.sp.right, charW0).text;
             const last = R[R.length - 1];
+            const rrev = r.l.rev && !r.sp.left.length;   // star belongs to the row once — left owns it when present
             if (!CUEISH(t) && last && last.type === 'dialogue' && rel(r.l.y) === last.dual.r + last.srcLines.length)
-              last.srcLines.push({ text: t, x: r.sp.right[0].x, xEnd: 0, y: r.l.y, items: r.sp.right });
-            else R.push(mk(CUEISH(t) ? 'character' : 'dialogue', r.sp.right, r.l.y));
+              last.srcLines.push({ text: t, x: r.sp.right[0].x, xEnd: 0, y: r.l.y, items: r.sp.right, ...(rrev ? { rev: true } : {}) });
+            else R.push(mk(CUEISH(t) ? 'character' : 'dialogue', r.sp.right, r.l.y, rrev));
           }
         }
         const group = [...L, ...R];
@@ -1234,10 +1268,14 @@ const PicaEngine = (() => {
     let pendingSpeech = null;  // set when (MORE) seen at a page end: awaiting continuation
     const flush = () => { if (open) { els.push(open); open = null; } };
 
+    let pendingAt = -1;   // the page whose (MORE) set pendingSpeech
     for (let pi = 0; pi < body.length; pi++) {
       const p = body[pi];
       const ls = bodyLines(p);
       let prevLine = null, pageStart = true;
+      // a (MORE) promises a continuation at the TOP of the next page and nowhere
+      // else — carried further it swallows some later, unrelated (CONT'D) cue
+      if (pendingSpeech && pendingAt !== pi - 1) pendingSpeech = null;
 
       for (const l of ls) {
         if (l.dualSkip) { prevLine = l; pageStart = false; continue; }
@@ -1255,7 +1293,7 @@ const PicaEngine = (() => {
         if (contCue) { pageStart = false; prevLine = null; continue; } // swallow generated cue
 
         const role = roleOf(l);
-        if (role === 'MORE') { pendingSpeech = open || pendingSpeech || true; flush(); prevLine = null; pageStart = false; continue; }
+        if (role === 'MORE') { pendingSpeech = open || pendingSpeech || true; pendingAt = pi; flush(); prevLine = null; pageStart = false; continue; }
 
         const gap = prevLine ? Math.round(l.y - prevLine.y) : null;
         const contSameEl = open && gap !== null && gap <= rowH + 2 && open.type === role
@@ -1282,7 +1320,6 @@ const PicaEngine = (() => {
         prevLine = l; pageStart = false;
       }
       flush(); // elements never span pages except via (MORE) handling above
-      if (!pendingSpeech) pendingSpeech = null;
     }
     flush();
 
@@ -1333,11 +1370,64 @@ const PicaEngine = (() => {
     }
     for (const el of els) delete el.gapBefore;
 
+    // typography per source line → char ranges, replaying joinItems' exact layout
+    const lineMarkRanges = (line) => {
+      const its = line.items || [];
+      if (!its.length) return null;
+      const out = [];
+      let text = '', xEnd = 0;
+      const spans = [];
+      for (let i = 0; i < its.length; i++) {
+        const it = its[i];
+        if (i > 0) {
+          const gap = it.x - xEnd;
+          if (gap > charW0 * 0.45 && !/\s$/.test(text)) text += ' '.repeat(Math.max(1, Math.round(gap / charW0)));
+        }
+        spans.push({ it, s: text.length });
+        text += it.str; xEnd = it.x + it.w;
+      }
+      for (const { it, s } of spans) {
+        if (it.fs & 1) out.push([s, s + it.str.length, 'b']);
+        if (it.fs & 2) out.push([s, s + it.str.length, 'i']);
+      }
+      for (const u of line.us || []) {
+        let s = -1, e = -1;
+        for (const { it, s: cs } of spans) {
+          const n = it.str.length || 1, cw = it.w / n;
+          for (let k = 0; k < n; k++) {
+            const cx = it.x + k * cw;
+            if (cx + cw > u.x1 + 0.5 && cx < u.x2 - 0.5) { if (s < 0) s = cs + k; e = cs + k + 1; }
+          }
+        }
+        if (s >= 0 && e > s) out.push([s, e, 'u']);
+      }
+      return out.length ? out : null;
+    };
+    const attachMarks = (el, src) => {
+      const marks = [];
+      let off = 0;
+      for (let k = 0; k < el.srcLines.length; k++) {
+        const rs = lineMarkRanges(el.srcLines[k]);
+        if (rs) for (const [s, e, kind] of rs) marks.push([off + s, off + e, kind]);
+        off += src[k].length + 1;                  // ' ' and '\n' joins both cost 1
+      }
+      if (!marks.length) return;
+      marks.sort((a, b) => (a[2] < b[2] ? -1 : a[2] > b[2] ? 1 : a[0] - b[0]));
+      const merged = [];
+      for (const m of marks) {
+        const last = merged[merged.length - 1];
+        if (last && last[2] === m[2] && m[0] <= last[1] + 1) last[1] = Math.max(last[1], m[1]);
+        else merged.push([...m]);
+      }
+      el.marks = merged;
+    };
+
     // assign final text: soft where greedy wrap reproduces the source, hard breaks otherwise
     for (const el of els) {
       const src = el.srcLines.map(s => s.text);
       if (el.dual) {                 // dual columns keep their exact source lines
         el.text = src.join('\n');
+        attachMarks(el, src);
         const rl0 = [];
         el.srcLines.forEach((s, i) => { if (s.rev) rl0.push(i); });
         if (rl0.length) el.rev = rl0;
@@ -1352,6 +1442,7 @@ const PicaEngine = (() => {
       // FD's own appended one — "GROVES (CONT'D) (CONT’D)". One is apparatus stutter.
       if (el.type === 'character')
         el.text = el.text.replace(/\(CONT['’]D\)\s*(?:\(CONT['’]D\)\s*)+$/, "(CONT’D)");
+      attachMarks(el, src);
       const rl = [];
       el.srcLines.forEach((s, i) => { if (s.rev) rl.push(i); });
       if (rl.length) el.rev = rl; // starred wrap-lines, by index — render restores the stars
@@ -1363,7 +1454,7 @@ const PicaEngine = (() => {
     if (titlePage) {
       tp = titlePage.lines.filter(l => !PROVENANCE.test(l.text)).map(l => ({
         text: l.text,
-        row: Math.round((l.y - y0) / rowH),
+        row: Math.round((l.y - y0f) / rowH),   // the paginator draws at y0f; same base or the title drifts
         x: Math.round(l.x * 100) / 100,
       }));
     }
@@ -1374,7 +1465,7 @@ const PicaEngine = (() => {
       titlePage: tp,
       ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
-      elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}), ...(e.rev ? { rev: e.rev } : {}), ...(e.dual ? { dual: e.dual } : {}) })),
+      elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}), ...(e.rev ? { rev: e.rev } : {}), ...(e.dual ? { dual: e.dual } : {}), ...(e.marks ? { marks: e.marks } : {}) })),
     };
   }
 
@@ -1598,7 +1689,10 @@ const PicaEngine = (() => {
         const cueTxt = /\(CONT'D\)\s*$/.test(cueEl.text) ? cueEl.text : cueEl.text + " (CONT'D)";
         cur.lines.push({ x: L.cols.character, y: L.y0 + L.contDy, text: cueTxt, el: cueEl.id, kind: 'contcue', off: 0 });
         let r2 = 0;
-        for (let i = k; i < flat.length; i++) put(flat[i].el, flat[i].lo, r2++);
+        for (let i = k; i < flat.length; i++) {
+          if (r2 >= L.rows) { newPage(); r2 = 0; }   // a speech can outlast a second page
+          put(flat[i].el, flat[i].lo, r2++);
+        }
         row = r2; prevType = block.parts[block.parts.length - 1].type;
       } else {
         const pulled = retractSlug();
@@ -3816,16 +3910,66 @@ async function importPdfBuffer(buf, name){
     }).promise;
     const raw = [];
     let badPages = 0;
+    // font style by name (Bold/Italic faces), cached per font id
+    const styleCache = new Map();
+    const styleOf = (page, fn) => {
+      if (styleCache.has(fn)) return styleCache.get(fn);
+      let v = 0;
+      try {
+        const f = page.commonObjs.get(fn);
+        const nm = (f && f.name) || '';
+        if (/bold|black|heavy/i.test(nm)) v |= 1;
+        if (/ital|obli/i.test(nm)) v |= 2;
+      } catch {}
+      styleCache.set(fn, v);
+      return v;
+    };
+    // underlines are DRAWN, not encoded: walk the operator list for thin horizontal
+    // ink (fill/stroke, never clip) with the transform tracked, in page space
+    const OPS = mod.OPS;
+    const INK = new Set([OPS.fill, OPS.eoFill, OPS.stroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeStroke, OPS.closeFillStroke, OPS.closeEOFillStroke].filter(x => x != null));
+    const underlinesFrom = (ol, vp) => {
+      const out = [];
+      let ctm = [1, 0, 0, 1, 0, 0]; const stack = [];
+      const mul = (m, n) => [m[0]*n[0]+m[2]*n[1], m[1]*n[0]+m[3]*n[1], m[0]*n[2]+m[2]*n[3], m[1]*n[2]+m[3]*n[3], m[0]*n[4]+m[2]*n[5]+m[4], m[1]*n[4]+m[3]*n[5]+m[5]];
+      for (let i = 0; i < ol.fnArray.length; i++) {
+        const fn = ol.fnArray[i];
+        if (fn === OPS.save) stack.push(ctm.slice());
+        else if (fn === OPS.restore) ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+        else if (fn === OPS.transform) ctm = mul(ctm, ol.argsArray[i]);
+        else if (fn === OPS.constructPath && INK.has(ol.fnArray[i + 1])) {
+          const [ops, co] = ol.argsArray[i];
+          let ci = 0, cur = null;
+          const seg = (x1, y1, x2, y2) => {
+            const tx1 = ctm[0]*x1 + ctm[2]*y1 + ctm[4], ty1 = ctm[1]*x1 + ctm[3]*y1 + ctm[5];
+            const tx2 = ctm[0]*x2 + ctm[2]*y2 + ctm[4], ty2 = ctm[1]*x2 + ctm[3]*y2 + ctm[5];
+            if (Math.abs(ty2 - ty1) < 2.6 && Math.abs(tx2 - tx1) > 4 && Math.abs(tx2 - tx1) < vp.width * 0.85)
+              out.push({ x1: Math.min(tx1, tx2), x2: Math.max(tx1, tx2), y: vp.height - Math.max(ty1, ty2) });
+          };
+          for (const op of ops) {
+            if (op === OPS.moveTo) { cur = [co[ci], co[ci + 1]]; ci += 2; }
+            else if (op === OPS.lineTo) { if (cur) seg(cur[0], cur[1], co[ci], co[ci + 1]); cur = [co[ci], co[ci + 1]]; ci += 2; }
+            else if (op === OPS.rectangle) { seg(co[ci], co[ci + 1], co[ci] + co[ci + 2], co[ci + 1] + co[ci + 3]); ci += 4; }
+            else if (op === OPS.curveTo) ci += 6;
+            else if (op === OPS.curveTo2 || op === OPS.curveTo3) ci += 4;
+          }
+        }
+      }
+      return out;
+    };
     for (let p = 1; p <= pdf.numPages; p++) {
       // one unreadable page must cost one page, never the whole script
       try {
         const page = await pdf.getPage(p);
         const vp = page.getViewport({ scale: 1 });
+        let ul = [];
+        try { ul = underlinesFrom(await page.getOperatorList(), vp); } catch {}
         const tc = await page.getTextContent();
         raw.push({
-          width: vp.width, height: vp.height,
+          width: vp.width, height: vp.height, ul,
           items: tc.items.filter(i => i.str && i.str.length).map(i => ({
             x: i.transform[4], y: vp.height - i.transform[5], w: i.width, str: i.str, font: i.fontName,
+            fs: styleOf(page, i.fontName),
           })),
         });
       } catch (pageErr) {
