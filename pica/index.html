@@ -88,6 +88,30 @@ button{ background:none; border:none; color:inherit; font:inherit; cursor:pointe
 .noteLead{ position:absolute; background:var(--faint); opacity:.55; pointer-events:none; }
 #btnAnnot.on{ color:var(--ink); }
 
+/* ---------- storyboard: e-conte panels, left of the page ---------- */
+.sbLayer{ position:absolute; inset:0; pointer-events:none; z-index:3; }
+.sbPanel{
+  position:absolute; width:240px; pointer-events:auto; cursor:grab;
+  background:var(--paper); border:1px solid var(--line); padding:4px;
+}
+.sbPanel img{ display:block; width:100%; height:auto; user-select:none; -webkit-user-drag:none; background:var(--paper-2); }
+.sbPanel .x{
+  position:absolute; top:1px; right:1px; width:1.05rem; height:1.05rem; line-height:1rem;
+  text-align:center; font-family:var(--mono); font-size:.62rem; color:var(--faint);
+  background:var(--paper); border:1px solid var(--line); opacity:0; cursor:pointer; padding:0;
+}
+.sbPanel:hover .x{ opacity:1; }
+.sbPanel .x:hover{ color:var(--ink); }
+.sbPanel.dragging{ opacity:.45; cursor:grabbing; z-index:5; }
+.sbLead{ position:absolute; background:var(--faint); opacity:.55; pointer-events:none; }
+#btnSb.on{ color:var(--ink); }
+#sbZoom{
+  position:fixed; inset:0; z-index:60; display:none; align-items:center; justify-content:center;
+  background:rgba(8,8,8,.74); cursor:zoom-out;
+}
+#sbZoom.show{ display:flex; }
+#sbZoom img{ max-width:92vw; max-height:92vh; background:#fff; padding:6px; box-shadow:var(--shadow); }
+
 /* ---------- masthead ---------- */
 header{
   position:relative;
@@ -226,7 +250,7 @@ body.reader #readerPage{ opacity:1; visibility:visible; }
   transition:opacity .35s, visibility .35s;
 }
 body.reader #docGenre, body.reader #btnSplit, body.reader #btnTheme, body.reader [data-head],
-body.reader #btnKeys, body.reader #stPage, body.reader [data-foot], body.reader #stSave, body.reader #btnBrowse, body.reader #btnAnnot{
+body.reader #btnKeys, body.reader #stPage, body.reader [data-foot], body.reader #stSave, body.reader #btnBrowse, body.reader #btnAnnot, body.reader #btnSb{
   opacity:0 !important; visibility:hidden !important; pointer-events:none !important;
 }
 
@@ -396,7 +420,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 @media print{
   html,body{ overflow:visible; background:#fff; height:auto;}
   header,#rail,footer,.pop,#overlay,#toast{ display:none !important; }
-  .noteLayer{ display:none !important; }   /* notes are his, not the script's — PDF stays pristine */
+  .noteLayer,.sbLayer{ display:none !important; }   /* notes and boards are his, not the script's — PDF stays pristine */
   #split,#canvas{ display:block; overflow:visible; }
   #canvas{ background:#fff; }
   #pages{ padding:0; }
@@ -476,6 +500,11 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
         <path d="M1 3.5h5M1 10.5h5M1 7h7.5"/><rect x="8.5" y="4" width="4.5" height="6" rx="1"/>
       </svg>
     </button>
+    <button class="z" id="btnSb" title="Storyboard — drop photos of your boards where they occur, e-conte style (⇧⌘S)">
+      <svg width="13" height="13" viewBox="0 0 14 14" style="display:block" fill="none" stroke="currentColor" stroke-width="1.1">
+        <rect x="1" y="4" width="4.5" height="6" rx="1"/><path d="M8 3.5h5M8 10.5h5M5.5 7h7.5"/>
+      </svg>
+    </button>
   </div>
   <span class="fcenter"><span id="stPage" data-foot="page">—</span><span id="readerPage"></span></span>
   <div class="fzone right">
@@ -489,6 +518,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
     <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click to fit · double-click for 100%">100%</button><button class="z" id="zIn">+</button>
   </div>
 </footer>
+<div id="sbZoom"><img alt=""></div>
 
 <div id="findBar" hidden>
   <input id="findIn" placeholder="Find" spellcheck="false">
@@ -1857,6 +1887,7 @@ function renderPage(i){
   pe.wrap.style.height = (L.pageH * k) + 'px';
   pe.page = page; pe.sig = sig; pe.live = true;
   renderNotes(i);
+  renderPanels(i);
 }
 
 function renderAfterEdit(){
@@ -2137,6 +2168,9 @@ function shiftMarks(el, at, delta){
     s = Math.max(0, s); e = Math.max(s, e);
     n.off = s; n.len = e - s;
   }
+  // storyboard panels are position anchors — same rule, never deleted by an edit
+  if (el.panels) for (const p of el.panels)
+    if (p.off >= at) p.off = Math.max(0, p.off + delta);
 }
 function rangeHasMark(el, s, e, kind){
   if (!el.marks) return false;
@@ -2202,12 +2236,24 @@ function applyEmphasis(kind){
 // margin joined to it by a hairline — at the passage's own y, the margin geometry
 // the source itself uses. Notes never print: the exported page stays pristine.
 function toggleAnnotate(){
+  if (inReader()) return;                      // reader owns the page; both tools stay off
   const r = domRange();
-  if (r && (r[0].el !== r[1].el || r[0].off !== r[1].off)) { annotateSelection(); return; }
-  S.annotate = !S.annotate;
-  document.body.classList.toggle('annotate', S.annotate);
-  $('#btnAnnot')?.classList.toggle('on', S.annotate);
-  toast(S.annotate ? 'annotate — select a passage' : 'annotate off');
+  const hasSel = r && (r[0].el !== r[1].el || r[0].off !== r[1].off);
+  if (!S.annotate) {
+    S.annotate = true;
+    document.body.classList.add('annotate');
+    $('#btnAnnot')?.classList.add('on');
+    renderNotesAll();
+    if (hasSel) annotateSelection();
+    else toast('annotate — select a passage');
+    return;
+  }
+  if (hasSel) { annotateSelection(); return; } // already on: the button annotates the selection
+  S.annotate = false;
+  document.body.classList.remove('annotate');
+  $('#btnAnnot')?.classList.remove('on');
+  document.querySelectorAll('.noteLayer').forEach(d => d.remove());
+  toast('annotate off');
 }
 function annotateSelection(){
   const r = domRange(); if (!r) return;
@@ -2235,6 +2281,7 @@ function renderNotesAll(){
 function renderNotes(pi){
   const pe = S.pageEls[pi]; if (!pe || !pe.page) return;
   pe.wrap.querySelector('.noteLayer')?.remove();
+  if (!S.annotate) return;                     // the pristine page is the default
   const p = S.res.pages[pi]; if (!p || p.title) return;
   const L = S.doc.layout, k = S.k;
   const layer = document.createElement('div');
@@ -2319,6 +2366,180 @@ function layoutNoteBoxes(layer, boxes, L, k){
       seg(kneeX, Math.min(aMid, bMid), 1, Math.abs(bMid - aMid));         // down the gutter
     if (boxLeft > kneeX) seg(kneeX, bMid, boxLeft - kneeX, 1);            // into the box
   }
+}
+
+// ---------- storyboard: e-conte panels in the left margin ----------
+// Both traditions agree on the anchor: the Japanese e-conte puts each cut's picture
+// against the text row where the cut BEGINS (cut · picture · content · seconds),
+// and a lined script marks a shot as starting at a point in the text. So a panel is
+// a POSITION anchor — {element, offset} — and the left column read top-down is the
+// cut order; coverage runs implicitly to the next panel. Images never live in the
+// doc body (snapshots ring-buffer whole docs): each panel carries an imgKey → a
+// separate idb 'img.<key>' record, compressed JPEG.
+const imgCache = new Map();
+async function imgFor(key){
+  if (imgCache.has(key)) return imgCache.get(key);
+  const v = await idb.get('img.' + key).catch(() => null);
+  if (v) imgCache.set(key, v);
+  return v;
+}
+function toggleStoryboard(){
+  if (inReader()) return;
+  S.storyboard = !S.storyboard;
+  document.body.classList.toggle('storyboard', S.storyboard);
+  $('#btnSb')?.classList.toggle('on', S.storyboard);
+  if (S.storyboard) renderPanelsAll();
+  else document.querySelectorAll('.sbLayer').forEach(d => d.remove());
+  toast(S.storyboard ? 'storyboard — drop photos where they occur' : 'storyboard off');
+}
+function packImage(file){
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const u = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(u);
+      const MAX = 1400;
+      const sc = Math.min(1, MAX / Math.max(img.naturalWidth, img.naturalHeight));
+      const w = Math.round(img.naturalWidth * sc), h = Math.round(img.naturalHeight * sc);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      res({ url: c.toDataURL('image/jpeg', 0.82), ar: w / h });
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('decode')); };
+    img.src = u;
+  });
+}
+async function addPanelFiles(files, clientX, clientY){
+  const hit = forgivingPos(clientX, clientY, null);
+  if (!hit) { toast('drop on the page, where the shot begins'); return; }
+  const el = elById(hit.d.dataset.el); if (!el) return;
+  const off = (+hit.d.dataset.off || 0) + hit.at;
+  let n = 0;
+  for (const f of files) {
+    const packed = await packImage(f).catch(() => null);
+    if (!packed) { toast('could not read ' + f.name); continue; }
+    const key = E.uid();
+    try { await idb.put('img.' + key, packed.url); } catch { toast('storage refused the image — not placed'); continue; }
+    imgCache.set(key, packed.url);
+    (el.panels = el.panels || []).push({ id: E.uid(), off, imgKey: key, ar: packed.ar });
+    n++;
+  }
+  if (n) { renderPanelsAll(); saveSoon(); toast(n === 1 ? 'panel placed' : n + ' panels placed'); }
+}
+function deletePanel(elId, pid){
+  const el = elById(elId); if (!el || !el.panels) return;
+  const p = el.panels.find(x => x.id === pid);
+  el.panels = el.panels.filter(x => x.id !== pid);
+  if (!el.panels.length) delete el.panels;
+  if (p) { idb.del('img.' + p.imgKey); imgCache.delete(p.imgKey); }
+  renderPanelsAll(); saveSoon();
+}
+function renderPanelsAll(){
+  for (let i = 0; i < S.pageEls.length; i++) if (S.pageEls[i].live) renderPanels(i);
+}
+function renderPanels(pi){
+  const pe = S.pageEls[pi]; if (!pe || !pe.page) return;
+  pe.wrap.querySelector('.sbLayer')?.remove();
+  if (!S.storyboard) return;                   // the pristine page is the default
+  const p = S.res.pages[pi]; if (!p || p.title) return;
+  const L = S.doc.layout, k = S.k;
+  const panels = [];
+  for (const l of p.lines) {
+    if (l.kind === 'pn' || l.kind === 'more' || l.kind === 'contcue') continue;
+    const el = elById(l.el); if (!el || !el.panels) continue;
+    for (const pn of el.panels)
+      if (pn.off >= l.off && pn.off <= l.off + l.text.length && !panels.some(x => x.pn === pn))
+        panels.push({ pn, el, y: (l.y - S.fontPt * 0.79) * k });
+  }
+  if (!panels.length) return;
+  const layer = document.createElement('div');
+  layer.className = 'sbLayer';
+  layer.contentEditable = 'false';
+  // left mirror of the note clamp: the canvas cannot scroll into negative space,
+  // so when the window leaves no room left of the page, panels slide onto the paper
+  const boxW = 240;
+  const room = pe.wrap.offsetLeft;
+  const boxLeft = Math.min(-boxW * 0.3, Math.max(-(boxW + 16), 10 - room));
+  panels.sort((a, b) => a.y - b.y);
+  let prevBottom = -Infinity;
+  for (const b of panels) {
+    const imh = Math.round((boxW - 10) / (b.pn.ar || 1.5));
+    const h = imh + 10;                        // deterministic: no image wait for layout
+    const top = Math.max(b.y, prevBottom + 10);
+    prevBottom = top + h;
+    const box = document.createElement('div');
+    box.className = 'sbPanel';
+    box.dataset.panel = b.pn.id; box.dataset.el = b.el.id;
+    box.style.left = boxLeft + 'px'; box.style.top = top + 'px';
+    const im = document.createElement('img');
+    im.width = boxW - 10; im.height = imh;
+    imgFor(b.pn.imgKey).then(u => { if (u) im.src = u; });
+    box.appendChild(im);
+    const x = document.createElement('button');
+    x.className = 'x'; x.textContent = '×'; x.title = 'Remove panel';
+    x.addEventListener('mousedown', ev => { ev.preventDefault(); ev.stopPropagation(); deletePanel(b.el.id, b.pn.id); });
+    box.appendChild(x);
+    wirePanelDrag(box, b);
+    layer.appendChild(box);
+    // the lead: a stub off the page's left edge at the cut's row, down the gutter,
+    // into the panel — the mirror of a note's elbow
+    const aMid = b.y + (L.rowH * k) / 2;
+    const bMid = top + h / 2;
+    const boxRight = boxLeft + boxW;
+    const kneeX = Math.max(-8, boxRight + 4);
+    const seg = (x2, y2, w2, h2) => {
+      const d = document.createElement('div');
+      d.className = 'sbLead';
+      d.style.left = x2 + 'px'; d.style.top = y2 + 'px';
+      d.style.width = w2 + 'px'; d.style.height = h2 + 'px';
+      layer.appendChild(d);
+    };
+    if (kneeX < -2) seg(kneeX, aMid, -2 - kneeX, 1);
+    else seg(kneeX, aMid, 7, 1);               // clamped onto the paper: still tick the anchor row
+    if (Math.abs(bMid - aMid) > 1) seg(kneeX, Math.min(aMid, bMid), 1, Math.abs(bMid - aMid));
+    if (boxRight < kneeX) seg(boxRight, bMid, kneeX - boxRight, 1);
+  }
+  pe.wrap.appendChild(layer);
+}
+// click opens the drawing full-size; a real drag re-anchors it where it lands
+function wirePanelDrag(box, b){
+  box.addEventListener('mousedown', ev => {
+    if (ev.button !== 0 || ev.target.closest('.x')) return;
+    ev.preventDefault();
+    const sx = ev.clientX, sy = ev.clientY;
+    let moved = false;
+    const mv = e => {
+      if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) < 5) return;
+      moved = true;
+      box.classList.add('dragging');
+      box.style.transform = 'translate(' + (e.clientX - sx) + 'px,' + (e.clientY - sy) + 'px)';
+    };
+    const up = e => {
+      removeEventListener('mousemove', mv); removeEventListener('mouseup', up);
+      if (!moved) { sbZoomOpen(b.pn.imgKey); return; }
+      box.classList.remove('dragging'); box.style.transform = '';
+      const hit = forgivingPos(e.clientX, e.clientY, null);
+      const nel = hit && elById(hit.d.dataset.el);
+      if (!nel) { renderPanelsAll(); return; }
+      const old = elById(b.el.id);
+      if (old && old.panels) {
+        old.panels = old.panels.filter(x => x.id !== b.pn.id);
+        if (!old.panels.length) delete old.panels;
+      }
+      b.pn.off = (+hit.d.dataset.off || 0) + hit.at;
+      (nel.panels = nel.panels || []).push(b.pn);
+      renderPanelsAll(); saveSoon();
+    };
+    addEventListener('mousemove', mv); addEventListener('mouseup', up);
+  });
+}
+function sbZoomOpen(key){
+  imgFor(key).then(u => {
+    if (!u) return;
+    const z = $('#sbZoom');
+    z.querySelector('img').src = u;
+    z.classList.add('show');
+  });
 }
 
 // The caret counts as "at the end" when it sits just inside a parenthetical's closing
@@ -3143,6 +3364,13 @@ function docMenu(d, ev){
       const copy = JSON.parse(JSON.stringify(doc));
       copy.title = (doc.title || 'UNTITLED') + ' copy';
       copy.elements = copy.elements.map(e => ({ ...e, id: E.uid() }));
+      // storyboard images are separate idb records — re-key and copy them, or the
+      // twin docs would share images and deleting a panel in one would blind the other
+      for (const el of copy.elements) if (el.panels) for (const pn of el.panels) {
+        const ok = pn.imgKey, nk = E.uid();
+        pn.imgKey = nk; pn.id = E.uid();
+        idb.get('img.' + ok).then(v => { if (v != null) return idb.put('img.' + nk, v); }).catch(() => {});
+      }
       const id = E.uid();
       store.save(id, copy);
       openDoc(id); toast('duplicated');
@@ -3358,7 +3586,12 @@ function overlayCard(html){
 function closeOverlay(){ const o = $('#overlay'); o.classList.remove('show'); o.innerHTML = ''; }
 $('#overlay').addEventListener('mousedown', e => { if (e.target === e.currentTarget) closeOverlay(); });
 window.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { if ($('#overlay').classList.contains('show')) { e.preventDefault(); closeOverlay(); } closePops(); }
+  if (e.key === 'Escape') {
+    const z = $('#sbZoom');
+    if (z && z.classList.contains('show')) { e.preventDefault(); z.classList.remove('show'); return; }
+    if ($('#overlay').classList.contains('show')) { e.preventDefault(); closeOverlay(); }
+    closePops();
+  }
 }, true);
 
 // ---------- settings ----------
@@ -3477,7 +3710,8 @@ function showSettings(){
   <tr><td>⌥⌘S</td><td>show / hide the sidebar</td></tr>
   <tr><td>⇧⌘T</td><td>show / hide the title page</td></tr>
   <tr><td>⌘, </td><td>these settings</td></tr>
-  <tr><td>⇧⌘A</td><td>annotate — select a passage and a note box appears in the margin, joined by a hairline. As a mode, every selection you finish gets one. An emptied note removes itself. Notes never print.</td></tr>
+  <tr><td>⇧⌘A</td><td>annotate — select a passage and a note box appears in the right margin, joined by a hairline; every selection you finish gets one while the mode is on. An emptied note removes itself. Hidden unless the mode is on; never prints.</td></tr>
+  <tr><td>⇧⌘S</td><td>storyboard — e-conte: drop photos of your hand-drawn boards onto the page and each becomes a panel in the left margin, anchored where its shot begins. Drag a panel to re-anchor it, click to see it full size, × removes it. Hidden unless the mode is on; never prints.</td></tr>
   <tr><td>⌘Z / ⇧⌘Z</td><td>undo / redo</td></tr>
   <tr><td>⌘P</td><td>print · save as PDF, identical to the imported page</td></tr>
   <tr><td>⇧Enter</td><td>hard line break inside an element</td></tr>
@@ -3565,7 +3799,8 @@ function showKeys(){
   <tr><td>⇧⌘T</td><td>show / hide the title page — hidden by default, so page 1 is the first page you write</td></tr>
   <tr><td>int. / ext.</td><td>typed in Action, becomes a Scene Heading as you type. ALL-CAPS ending in TO: becomes a Transition on Enter. “(” in empty Dialogue becomes a Parenthetical; “(” in a Character cue offers extensions.</td></tr>
   <tr><td>type ahead</td><td>SmartType completes character names, locations, times, transitions and extensions — → accepts. In a two-hander it offers the other speaker first.</td></tr>
-  <tr><td>⇧⌘A</td><td>annotate — a note box in the margin for the selected passage</td></tr>
+  <tr><td>⇧⌘A</td><td>annotate — a note box in the right margin for the selected passage</td></tr>
+  <tr><td>⇧⌘S</td><td>storyboard — drop photos, panels anchor in the left margin where the shot begins</td></tr>
   <tr><td>⌘Z / ⇧⌘Z</td><td>undo / redo</td></tr>
   <tr><td>⌘P</td><td>print · save as PDF — identical to the imported page</td></tr>
   <tr><td>⇧Enter</td><td>hard line break inside an element</td></tr>
@@ -3801,6 +4036,8 @@ $('#btnExport').addEventListener('mousedown', ev => { ev.preventDefault(); openE
 $('#btnKeys').addEventListener('mousedown', ev => { ev.preventDefault(); showSettings(); });
 // preventDefault keeps any live selection alive, so the button can annotate it directly
 $('#btnAnnot').addEventListener('mousedown', ev => { ev.preventDefault(); toggleAnnotate(); });
+$('#btnSb').addEventListener('mousedown', ev => { ev.preventDefault(); toggleStoryboard(); });
+$('#sbZoom').addEventListener('mousedown', () => $('#sbZoom').classList.remove('show'));
 $('#btnTitle').addEventListener('mousedown', ev => { ev.preventDefault(); toggleTitlePage(); });
 $('#footLink').addEventListener('click', ev => { if (window.webkit?.messageHandlers?.pica) { ev.preventDefault(); window.webkit.messageHandlers.pica.postMessage({ openURL: ev.currentTarget.href }); } });
 $('#btnTheme').addEventListener('mousedown', ev => {
@@ -3934,6 +4171,11 @@ function splitOff(){
 function readerOn(){
   document.body.classList.add('reader');
   pagesEl.setAttribute('contenteditable', 'false');
+  // reading is reading: both margin tools go dark (their data stays put)
+  S.annotate = false; S.storyboard = false;
+  document.body.classList.remove('annotate', 'storyboard');
+  $('#btnAnnot')?.classList.remove('on'); $('#btnSb')?.classList.remove('on');
+  document.querySelectorAll('.noteLayer, .sbLayer').forEach(d => d.remove());
   S.readerPrevRail = document.body.classList.contains('railhidden');
   if (!S.readerPrevRail && !matchMedia('(max-width: 880px)').matches) toggleRail();
   // the surround goes dark to start; the page stays paper
@@ -4053,7 +4295,15 @@ $('#fileIn').addEventListener('change', async ev => {
 addEventListener('dragover', e => e.preventDefault());
 addEventListener('drop', async e => {
   e.preventDefault();
-  const f = e.dataTransfer.files[0]; if (!f) return;
+  const files = [...e.dataTransfer.files]; if (!files.length) return;
+  // photos are storyboard panels — but only when the tool is on (zero interference)
+  const imgs = files.filter(f => /^image\//.test(f.type) || /\.(png|jpe?g|heic|heif|webp|gif|tiff?)$/i.test(f.name));
+  if (imgs.length === files.length) {
+    if (S.storyboard) addPanelFiles(imgs, e.clientX, e.clientY);
+    else toast('turn on storyboard mode to place panels');
+    return;
+  }
+  const f = files[0];
   if (/\.json$/i.test(f.name)) importJson(await f.text(), f.name);
   else if (/\.fdx$/i.test(f.name)) importFdxText(await f.text(), f.name);
   else if (/\.pdf$/i.test(f.name)) importPdfBuffer(await f.arrayBuffer(), f.name);
@@ -4076,6 +4326,7 @@ $('#findClose').addEventListener('mousedown', ev => { ev.preventDefault(); findC
 document.addEventListener('keydown', ev => {
   if ((ev.metaKey || ev.ctrlKey) && !ev.shiftKey && ev.key.toLowerCase() === 'f') { ev.preventDefault(); findOpen(); }
   if ((ev.metaKey || ev.ctrlKey) && ev.shiftKey && ev.key.toLowerCase() === 'a') { ev.preventDefault(); toggleAnnotate(); }
+  if ((ev.metaKey || ev.ctrlKey) && ev.shiftKey && ev.key.toLowerCase() === 's') { ev.preventDefault(); toggleStoryboard(); }
 });
 
 // annotate mode: finishing a selection spawns its margin note, ready to type
@@ -4135,6 +4386,7 @@ window.PICA_API = {
   toggleTitlePage(){ toggleTitlePage(); },
   toggleReader(){ inReader() ? readerOff() : readerOn(); },
   toggleAnnotate(){ toggleAnnotate(); },
+  toggleStoryboard(){ toggleStoryboard(); },
   titleShown(){ return S.showTitle; },
   settings(){ showSettings(); },
   escape(){ if ($('#overlay').classList.contains('show')) closeOverlay(); closePops(); },
@@ -4164,6 +4416,19 @@ window.PICA_API = {
     notes(i){ const el = S.doc.elements[i]; return JSON.stringify((el && el.notes) || []); },
     delNote(i, id){ const el = S.doc.elements[i]; if (el) deleteNote(el.id, id); return true; },
     noteBoxes(){ return document.querySelectorAll('.noteBox').length + ':' + document.querySelectorAll('.noteHl').length; },
+    panel(i, off){
+      const el = S.doc.elements[i]; if (!el) return false;
+      const key = E.uid();
+      const url = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+      imgCache.set(key, url); idb.put('img.' + key, url).catch(() => {});
+      const n = { id: E.uid(), off, imgKey: key, ar: 1.5 };
+      (el.panels = el.panels || []).push(n);
+      for (let p = 0; p < S.pageEls.length; p++) renderPage(p);
+      renderPanelsAll(); saveSoon(); return n.id;
+    },
+    panels(i){ const el = S.doc.elements[i]; return JSON.stringify((el && el.panels) || []); },
+    delPanel(i, id){ const el = S.doc.elements[i]; if (el) deletePanel(el.id, id); return true; },
+    sbCount(){ return document.querySelectorAll('.sbPanel').length; },
   },
   toggleTheme(){ $('#btnTheme').dispatchEvent(new Event('mousedown')); },
   zoom(d){ S.zoom = Math.max(.3, Math.min(1.6, (S.zoom ?? fitZoom()) + d)); rerenderAll(); },
