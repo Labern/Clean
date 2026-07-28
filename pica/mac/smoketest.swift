@@ -276,11 +276,21 @@ let grammarSteps: [Step] = [
     Step(desc: "Transition + Enter gives a Scene Heading",
          js: "await T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.tab(false); T.esc(); T.type('CUT TO:'); T.esc(); T.enter(); return T.state().slice(1).join('§')",
          expect: "transition|CUT TO:§scene|"),
+    // Input must NEVER be eaten: macOS substitutions (double-space→period, smart
+    // quotes) arrive as insertReplacementText; ⌥⌫ as deleteWordBackward; dead keys
+    // via composition. All must land in the model.
+    Step(desc: "input never eaten: replacement text, word delete, composition",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. Z - DAY'); T.esc(); T.enter(); T.type('Hello'); T.esc(); const bi = (ty, d) => document.querySelector('#pages').dispatchEvent(new InputEvent('beforeinput', { inputType: ty, data: d, bubbles: true, cancelable: true })); bi('insertReplacementText', '. '); T.type('word'); T.esc(); bi('deleteWordBackward'); const P = document.querySelector('#pages'); P.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })); P.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: 'é' })); return JSON.stringify(window.__pica.doc.elements[1].text)",
+         expect: "\"Hello. é\""),
+    // Tab from a BLANK dialogue must give a visible \"()\" with the caret inside
+    Step(desc: "Tab on blank dialogue shows () immediately",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. Y - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.tab(false); const els = window.__pica.doc.elements; const el = els[els.length - 1]; return el.type + '|' + el.text + '|' + T.caretAt()",
+         expect: "paren|()|2:1"),
     // THE bug he hit: same speaker again + Enter must append (CONT'D) to the cue
     // and land in dialogue — never split the cue into a stray "(CONT'D)" element.
     Step(desc: "auto-(CONT'D): appended to the cue, caret lands in dialogue",
-         js: "await T.reset(); T.caret(0,0); T.type('INT. A - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('Hello there.'); T.esc(); T.enter(); T.type('He waits.'); T.esc(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); return T.state().slice(1).join('§') + '¶' + T.caretAt()",
-         expect: "character|SAM§dialogue|Hello there.§action|He waits.§character|SAM (CONT'D)§dialogue|¶5:0"),
+         js: "await T.reset(); T.caret(0,0); T.type('INT. A - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('Hello there.'); T.esc(); T.enter(); T.type('He waits.'); T.esc(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); const after = T.state().slice(1).join('§') + '¶' + T.caretAt(); window.PICA_API.undo(); const undone = T.state().slice(1).join('§'); window.PICA_API.redo(); return after + '¤' + undone",
+         expect: "character|SAM§dialogue|Hello there.§action|He waits.§character|SAM (CONT'D)§dialogue|¶5:0¤character|SAM§dialogue|Hello there.§action|He waits.§character|SAM"),
     // Enter on a blank Character with no list open falls back to Action
     Step(desc: "Enter on a blank Character (no list) gives Action",
          js: "await T.reset(); T.caret(0,0); T.type('INT. B - DAY'); T.esc(); T.enter(); T.tab(false); T.esc(); T.enter(); return T.state().slice(1).join('§')",
