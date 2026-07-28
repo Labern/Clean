@@ -1288,7 +1288,7 @@ const PicaEngine = (() => {
           pageStart = false;
           continue;
         }
-        const contCue = pageStart && /\(CONT'D\)\s*$/.test(l.text) && Math.abs(l.x - cols.character) < 3
+        const contCue = pageStart && /\(CONT['’]D\)\s*$/.test(l.text) && Math.abs(l.x - cols.character) < 3
           && pendingSpeech;
         if (contCue) { pageStart = false; prevLine = null; continue; } // swallow generated cue
 
@@ -1686,7 +1686,7 @@ const PicaEngine = (() => {
         const lastY = yAt(r - 1);
         cur.lines.push({ x: L.cols.character, y: lastY + L.moreDy, text: '(MORE)', el: cueEl.id, kind: 'more', off: 0 });
         newPage();
-        const cueTxt = /\(CONT'D\)\s*$/.test(cueEl.text) ? cueEl.text : cueEl.text + " (CONT'D)";
+        const cueTxt = /\(CONT['’]D\)\s*$/.test(cueEl.text) ? cueEl.text : cueEl.text + " (CONT'D)";
         cur.lines.push({ x: L.cols.character, y: L.y0 + L.contDy, text: cueTxt, el: cueEl.id, kind: 'contcue', off: 0 });
         let r2 = 0;
         for (let i = k; i < flat.length; i++) {
@@ -2150,6 +2150,27 @@ function renderAllVisible(){
     if (want.has(i)) renderPage(i);
     else if (pe.live && !want.has(i)) { /* keep rendered pages; cheap */ }
   }
+  positionTitle();
+}
+
+// The title sits on the same vertical axis the character cues sit on — the DOC'S
+// OWN axis, not the page centre. They coincide on FD-standard geometry (Tenet),
+// but an import keeps its source's cue column (Oppenheimer: 252pt, short names),
+// so the axis is computed per document and tracked through zoom, rail moves and
+// doc switches. Page centre is the proxy when a script is too young to have cues.
+function positionTitle(){
+  const el = document.getElementById('docTitle'); if (!el) return;
+  if (matchMedia('(max-width: 880px)').matches) { el.style.left = ''; return; }
+  const pe = S.pageEls.find(p => p.wrap);
+  if (!pe || !S.doc) { el.style.left = ''; return; }
+  const r = pe.wrap.getBoundingClientRect();
+  if (!r.width) { el.style.left = ''; return; }
+  const L = S.doc.layout;
+  const cues = S.doc.elements.filter(e => e.type === 'character' && !e.dual).slice(0, 400);
+  const axis = cues.length >= 3
+    ? cues.reduce((a, e) => a + L.cols.character + (e.text.length * L.charW) / 2, 0) / cues.length
+    : L.pageW / 2;
+  el.style.left = (r.left + axis * S.k) + 'px';
 }
 
 function renderPage(i){
@@ -2989,7 +3010,15 @@ function handleEnter(){
     repaginate(); renderAfterEdit(); return;
   }
   const el = elById(c.el); if (!el) return;
-  if (el.text === '') { openElementMenu(); return; }        // FD: Return on empty → element menu
+  if (el.text === '') {
+    // A blank element + Return, with no list open, means "never mind": an empty
+    // Character obviously wants Action, an abandoned Parenthetical wants the
+    // Dialogue it was modifying. Only a blank Action asks the question — that is
+    // the one place the element menu belongs.
+    const back = { character: 'action', dialogue: 'action', paren: 'dialogue', transition: 'action', shot: 'action', scene: 'action' }[el.type];
+    if (back) { opConvert(el.id, back); return; }
+    openElementMenu(); return;
+  }
   // a written parenthetical never splits on Enter — you leave it, into the dialogue
   if (el.type === 'paren') c.off = el.text.length;
   // all-caps + TO: → transition
@@ -2998,13 +3027,16 @@ function handleEnter(){
   }
   const i = elIndex(c.el);
   // FD's auto-(CONT\'D): the same speaker again, with no other speaker between
-  if (el.type === 'character' && el.text && S.pref?.autoContd !== false && !/CONT'D/i.test(el.text)) {
+  // The append lengthens the cue, so the caret must move to the new end WITH it —
+  // otherwise the at-end check below sees an interior caret and SPLITS the cue
+  // into "CHAIR" + a stray "(CONT'D)" element on the next line.
+  if (el.type === 'character' && el.text && S.pref?.autoContd !== false && !/CONT['’]D/i.test(el.text)) {
     const base = el.text.replace(/\s*\([^)]*\)\s*$/, '').trim();
     for (let j = i - 1; j >= 0; j--) {
       const p = S.doc.elements[j];
       if (p.type !== 'character') continue;
       const pb = p.text.replace(/\s*\([^)]*\)\s*$/, '').trim();
-      if (pb && pb === base) el.text += " (CONT'D)";
+      if (pb && pb === base && atElementEnd(el, c.off)) { el.text += " (CONT'D)"; c.off = el.text.length; }
       break;
     }
   }
@@ -4174,7 +4206,7 @@ function showSettings(){
 
   <h3>Writing</h3>
   <table>
-  <tr><td>Enter</td><td>the next element, exactly as Final Draft defines it — Scene Heading→Action, Action→Action, Character→Dialogue, Parenthetical→Dialogue, Dialogue→Action, Transition→Scene Heading, Shot→Action. On a <em>blank</em> element it opens the element menu instead.</td></tr>
+  <tr><td>Enter</td><td>the next element, exactly as Final Draft defines it — Scene Heading→Action, Action→Action, Character→Dialogue, Parenthetical→Dialogue, Dialogue→Action, Transition→Scene Heading, Shot→Action. On a <em>blank</em> Character/Dialogue it falls back to Action (a blank Parenthetical to Dialogue); only a blank Action opens the element menu.</td></tr>
   <tr><td>Tab</td><td>one deterministic jump, not a cycle. From a blank paragraph it converts it; from the end of a written one it starts the next: Scene Heading→Action, Action→Character, Character→Parenthetical (a <em>blank</em> Character→Transition), Dialogue→Parenthetical, Parenthetical→Dialogue, Transition→Scene Heading. ⇧Tab steps back.</td></tr>
   <tr><td>Tab in a slug</td><td>walks the scene heading: INT → adds “. ” and offers your locations → adds the time separator and offers times → then Action.</td></tr>
   <tr><td>⌘1 – ⌘7, ⌘0</td><td>${E.TYPES.map(t => SHORTCUT_OF[t] + ' ' + TYPE_LABEL[t]).join(' · ')}</td></tr>
@@ -4466,6 +4498,7 @@ pagesEl.addEventListener('contextmenu', ev => {
 });
 
 canvasEl.addEventListener('scroll', () => {
+  if (canvasEl.scrollLeft !== S._sx) { S._sx = canvasEl.scrollLeft; positionTitle(); }
   clearTimeout(canvasEl._t);
   canvasEl._t = setTimeout(() => {
     status();
@@ -4532,6 +4565,7 @@ function toggleRail(){
   if (matchMedia('(max-width: 880px)').matches) { $('#rail').classList.toggle('open'); return; }
   const hidden = document.body.classList.toggle('railhidden');
   const ui = LS.get('pica.ui', {}); ui.railHidden = hidden; LS.set('pica.ui', ui);
+  positionTitle();
   if (S.zoom == null) setTimeout(rerenderAll, 30);   // refit the page to the wider canvas
 }
 function applyRailPrefs(){
@@ -4739,6 +4773,7 @@ $('#railGrip').addEventListener('mousedown', ev => {
   const move = e => {
     const w = Math.max(150, Math.min(560, e.clientX));
     document.documentElement.style.setProperty('--railw', w + 'px');
+    positionTitle();
   };
   const up = () => {
     removeEventListener('mousemove', move); removeEventListener('mouseup', up);
@@ -4752,6 +4787,7 @@ $('#railGrip').addEventListener('mousedown', ev => {
 $('#railGrip').addEventListener('dblclick', () => {
   document.documentElement.style.setProperty('--railw', '15.5rem');
   const ui = LS.get('pica.ui', {}); delete ui.railW; LS.set('pica.ui', ui);
+  positionTitle();
   if (S.zoom == null) rerenderAll();
 });
 $('#zIn').addEventListener('mousedown', ev => { ev.preventDefault(); S.zoom = Math.min(1.6, (S.zoom ?? fitZoom()) + .1); rerenderAll(); });
@@ -4827,6 +4863,7 @@ $('#docTitle').addEventListener('blur', ev => {
 });
 
 addEventListener('resize', () => {
+  positionTitle();
   if (S.zoom == null) { clearTimeout(window._rz); window._rz = setTimeout(rerenderAll, 150); }
   if (B.doc) { clearTimeout(window._rzB); window._rzB = setTimeout(renderBShells, 170); }
 });

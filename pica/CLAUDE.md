@@ -138,6 +138,31 @@ the fidelity gate compares text+geometry only, so it is style-agnostic.
 - estimateCharW guards zero/NaN widths (else joinItems hits ' '.repeat(Infinity));
   importPdf([]) returns an empty doc instead of throwing.
 
+## The title sits on the DOC'S OWN cue axis — computed, not assumed
+The header title's "centred over the page" was a proxy that only coincided with
+the character-cue axis on FD-standard geometry (Tenet ≈ 306pt). Imports keep
+their source's cue column (Oppenheimer: 252pt + short names → axis ≈ 288), so
+`positionTitle()` now computes the mean visual centre of the doc's cues and pins
+the title there, tracking zoom, rail toggle/drag/reset, resize, horizontal
+scroll and doc switches (choke point: renderAllVisible; plus the rail handlers).
+Page centre is only the fallback for docs with < 3 cues.
+
+## Enter on a blank element falls BACK, it doesn't ask
+A blank Character/Dialogue + Return (no list open) converts to Action; a blank
+Parenthetical to Dialogue; blank Transition/Shot/Scene to Action. Only a blank
+Action opens the element menu. (His report: "if it's not a list of CHARS,
+obviously I'm after action.")
+
+## auto-(CONT'D) must move the caret WITH the append
+handleEnter appends " (CONT'D)" to the cue BEFORE the at-end check; without
+`c.off = el.text.length` the check sees an interior caret and SPLITS the cue
+into "CHAIR" + a stray "(CONT'D)" element. Also: two separate edits later
+re-typed the contCue/cueTxt regexes with ASCII apostrophes, silently undoing
+the curly-apostrophe fix — which is why tests/run.mjs now carries the
+ALWAYS-RUN Oppenheimer mini-gate (doubled-CONT'D, dual welds, cue counts,
+underlines, running head) and the smoketest drives the exact same-speaker-Enter
+flow. Coverage that isn't run is coverage that doesn't exist.
+
 ## Furniture is caught by BEHAVIOUR — verbatim repetition at the same height
 Oppenheimer's running head ("Gadget 2023-04-21 FINAL Shooting Script") broke the
 whole import: its ISO date matched no header regex, so ~200 leaked lines poisoned

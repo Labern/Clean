@@ -276,6 +276,15 @@ let grammarSteps: [Step] = [
     Step(desc: "Transition + Enter gives a Scene Heading",
          js: "await T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.tab(false); T.esc(); T.type('CUT TO:'); T.esc(); T.enter(); return T.state().slice(1).join('§')",
          expect: "transition|CUT TO:§scene|"),
+    // THE bug he hit: same speaker again + Enter must append (CONT'D) to the cue
+    // and land in dialogue — never split the cue into a stray "(CONT'D)" element.
+    Step(desc: "auto-(CONT'D): appended to the cue, caret lands in dialogue",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. A - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('Hello there.'); T.esc(); T.enter(); T.type('He waits.'); T.esc(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); return T.state().slice(1).join('§') + '¶' + T.caretAt()",
+         expect: "character|SAM§dialogue|Hello there.§action|He waits.§character|SAM (CONT'D)§dialogue|¶5:0"),
+    // Enter on a blank Character with no list open falls back to Action
+    Step(desc: "Enter on a blank Character (no list) gives Action",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. B - DAY'); T.esc(); T.enter(); T.tab(false); T.esc(); T.enter(); return T.state().slice(1).join('§')",
+         expect: "action|"),
     // Annotation: hidden until the mode is on (zero interference); then the box +
     // wash render, the span shifts with typing ahead of it, and delete clears.
     Step(desc: "annotation: mode-gated, box renders, span shifts, delete clears",

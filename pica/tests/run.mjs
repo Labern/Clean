@@ -100,5 +100,26 @@ const bres = E.paginate(blank);
 check('new doc paginates (title + 1 page)', bres.pages.length === 2, String(bres.pages.length));
 check('toFountain produces text', E.toFountain(doc).length > 100000);
 
+// -- 7. the Oppenheimer mini-gate: ALWAYS runs when the fixture is present.
+// Two real bugs hid in the built-but-unrun suite; the diseases this fixture
+// carries (curly-apostrophe CONT'D, dual columns, running heads, typography)
+// are checked on every single run from now on.
+const oppPath = path.join(FIX, 'opp-raw.json');
+if (fs.existsSync(oppPath)) {
+  const opp = JSON.parse(fs.readFileSync(oppPath)).pages;
+  const od = E.importPdf(opp);
+  const ores = E.paginate(od);
+  const dbl = /\(CONT['’]D\)\s*\(CONT['’]D\)/;
+  check("opp: no doubled (CONT'D) in elements", od.elements.filter(e => dbl.test(e.text)).length === 0);
+  check("opp: no doubled (CONT'D) in rendered lines", ores.pages.flatMap(p => p.lines).filter(l => dbl.test(l.text)).length === 0);
+  check('opp: no welded dual columns', od.elements.filter(e => e.type !== 'character' && / {6,}/.test(e.text.replace(/\n/g, ' '))).length === 0);
+  check('opp: cues classified as cues', od.elements.filter(e => e.type === 'character').length > 1700);
+  check('opp: dual groups found', new Set(od.elements.filter(e => e.dual).map(e => e.dual.g)).size >= 40);
+  check('opp: underline marks captured', od.elements.reduce((a, e) => a + (e.marks || []).filter(m => m[2] === 'u').length, 0) >= 30);
+  check('opp: running head scrubbed', od.elements.filter(e => /gadget.*gadget|shooting script|\d{4}-\d{2}-\d{2}/i.test(e.text)).length === 0);
+} else {
+  console.log('  (opp-raw.json missing — Oppenheimer mini-gate skipped)');
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);
