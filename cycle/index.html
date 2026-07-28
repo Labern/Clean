@@ -12,10 +12,10 @@
   --rb-red:#e8433f; --rb-orange:#f2792f; --rb-yellow:#f4c93c; --rb-green:#57a94e; --rb-blue:#3a7de0; --rb-purple:#6b3fbf;
   --rainbow:linear-gradient(90deg,var(--rb-red),var(--rb-orange),var(--rb-yellow),var(--rb-green),var(--rb-blue),var(--rb-purple));
 
-  /* phase palette — luteal is RED (the star of the show), ovulation is gold (unique) */
+  /* phase palette — one flat colour per phase; luteal is RED (the star), ovulation is BLUE (unique) */
   --ph-menstrual:#f26bb8;  --ph-menstrual-soft:#ffd9ec;
   --ph-follicular:#57a94e; --ph-follicular-soft:#d9f0d2;
-  --ph-ovulation:#f4c93c;  --ph-ovulation-soft:#fff0bd;
+  --ph-ovulation:#3a7de0;  --ph-ovulation-soft:#d7e5fb;
   --ph-luteal:#e8433f;     --ph-luteal-soft:#ffd9d5;  --ph-danger:#c9302c;
   --hazard:repeating-linear-gradient(45deg,#1c1c1c 0 7px,var(--rb-yellow) 7px 14px);
 
@@ -127,18 +127,15 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
 .day .n{position:absolute;top:3px;left:6px}
 .day .wx{position:absolute;bottom:2px;right:4px;font-size:.9em;line-height:1}
 .day .mark{position:absolute;top:1px;right:3px;font-size:.72em;line-height:1.2}
-.day .notedot{position:absolute;bottom:3px;left:6px;width:7px;height:7px;border-radius:50%;
-  background:var(--rb-blue);border:1.5px solid var(--ink)}
+.day .tags{position:absolute;bottom:2px;left:5px;font-size:.68em;line-height:1;letter-spacing:-.5px;white-space:nowrap}
 .day.ph-menstrual{background:var(--ph-menstrual-soft)}
 .day.ph-follicular{background:var(--ph-follicular-soft)}
 .day.ph-ovulation{background:var(--ph-ovulation-soft)}
-/* luteal mood ramp — the fuse shortens, the red deepens…                 */
-.day.lut-1{background:#ffe4e1}.day.lut-2{background:#ffcfc9}
-/* …and the LAST FIVE DAYS are the danger zone: deepest red + hazard bar  */
-.day.danger5{background:#ff9d92}
+.day.ph-luteal{background:var(--ph-luteal-soft)}
+/* the LAST FIVE DAYS are the danger zone — same red, extra visuals only  */
 .day.danger5 .n{font-weight:800}
 .day.danger5::after{content:"";position:absolute;left:4px;right:4px;bottom:-1px;height:5px;border-radius:4px;background:var(--hazard)}
-.day.is-peak{background:#ff8b7e;outline:3px solid var(--ph-danger);outline-offset:-2.5px}
+.day.is-peak{outline:3px solid var(--ph-danger);outline-offset:-2.5px}
 .day.is-today{border-color:var(--ink);box-shadow:0 0 0 3px #fff,0 0 0 5.5px var(--rb-purple)}
 .day.is-future .n{opacity:.75}
 .day.is-start .n{color:#fff;background:var(--ph-menstrual);border:2px solid var(--ink);border-radius:99px;
@@ -169,7 +166,7 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
 #arc .step{flex:1;min-width:96px;text-align:center;border:2.5px solid var(--ink);border-radius:14px;
   padding:9px 7px;font-size:.74rem;font-weight:600;box-shadow:var(--hard-sm);background:#fff}
 #arc .step .big{font-size:1.5rem;display:block;margin-bottom:3px}
-#arc .step.s-peak{background:#ff9d92;outline:3px solid var(--ink);outline-offset:2px;position:relative}
+#arc .step.s-peak{background:var(--ph-luteal-soft);outline:3px solid var(--ink);outline-offset:2px;position:relative}
 #arc .step.s-peak::before{content:"";position:absolute;left:6px;right:6px;top:-8px;height:6px;border-radius:4px;background:var(--hazard)}
 #arc .step.s-break{background:linear-gradient(135deg,#ffd9ec 0%,#fff0bd 55%,#d9f0d2 100%)}
 #arc .arrow{align-self:center;font-weight:bold;color:var(--faint)}
@@ -207,6 +204,18 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
 #markstart:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(28,28,28,.85)}
 #markstart.marked{background:var(--ph-menstrual-soft)}
 #markstart:disabled{opacity:.45;cursor:not-allowed}
+.moodrow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.moodchip{font-family:var(--font-read);font-size:.78rem;font-weight:600;border:2.5px solid var(--ink);border-radius:99px;
+  background:#fff;padding:5px 11px;cursor:pointer;box-shadow:2px 2px 0 rgba(28,28,28,.7);transition:transform .07s}
+.moodchip.sel{transform:translate(1px,1px);box-shadow:1px 1px 0 rgba(28,28,28,.7)}
+.moodchip[data-k="fire"].sel{background:#ffd0cd}
+.moodchip[data-k="stressed"].sel{background:#ffe4c9}
+.moodchip[data-k="irritable"].sel{background:#ffd7d5}
+.moodchip[data-k="tearful"].sel{background:#dbe9ff}
+.moodchip[data-k="calm"].sel{background:#d5eccf}
+.moodchip[data-k="energised"].sel{background:#fff0bd}
+.moodchip:disabled{cursor:default;opacity:.4}
+.moodchip.sel:disabled{opacity:1}
 #panel label{font-size:.82rem;font-weight:bold;display:block;margin-bottom:5px}
 #notebox{width:100%;min-height:96px;font-family:var(--font-read);font-size:.9rem;line-height:1.5;padding:10px 12px;
   border:2.5px solid var(--ink);border-radius:14px;background:#fffbe0;resize:vertical;box-shadow:inset 2px 2px 0 rgba(28,28,28,.08)}
@@ -317,14 +326,15 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
     <span class="lchip"><i style="background:var(--ph-menstrual)"></i>menstrual</span>
     <span class="lchip"><i style="background:var(--ph-follicular)"></i>follicular</span>
     <span class="lchip"><i style="background:var(--ph-ovulation)"></i>ovulation ⭐</span>
-    <span class="lchip"><i style="background:var(--ph-luteal)"></i>luteal — red deepens</span>
+    <span class="lchip"><i style="background:var(--ph-luteal)"></i>luteal</span>
     <span class="lchip peak"><i></i>⚠ danger zone — last 5 luteal days, worst at its start</span>
     <span class="lchip">🌈 the break — day 1</span>
-    <span class="lchip">🩸 recorded start</span>
-    <span class="lchip"><i style="background:var(--rb-blue);border-radius:50%"></i>has a note</span>
+    <span class="lchip">🌹 recorded start</span>
+    <span class="lchip">🔥😖 moods tagged that day</span>
+    <span class="lchip">✎ has a note</span>
   </div>
   <div id="calhint" style="font-family:var(--font-read);font-size:.72rem;color:var(--faint);margin-top:8px">
-    tap any day to write a note — or to mark it as a period start 🩸 (mark as many past starts as you like; past cycles then use their real lengths)
+    tap any day to write a note or tag the moods you felt (🔥 😖 …) — or to mark it as a period start 🌹 (mark as many past starts as you like; past cycles then use their real lengths)
   </div>
 </section>
 
@@ -393,7 +403,7 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
     <div class="phase-card star">
       <h3><i style="background:var(--ph-luteal)"></i>Luteal ⛈ <span style="font-size:.7em;color:var(--ph-danger)">— the one to watch</span></h3>
       <div class="days" data-days="luteal">days 16–28</div>
-      <div class="rule" style="background:linear-gradient(90deg,var(--ph-luteal-soft),var(--ph-luteal) 60%,var(--ph-danger))"></div>
+      <div class="rule" style="background:var(--ph-luteal)"></div>
       <dl>
         <dt>Biology</dt><dd>The empty follicle becomes the corpus luteum and pumps out progesterone. With no pregnancy, progesterone <i>and</i> oestrogen collapse over the final ~5 days — the crash behind PMS.</dd>
         <dt>Mood</dt><dd>A gradually shortening fuse: irritability, anxiety, tearfulness, low patience. <b style="color:var(--ph-danger)">⚠ The last five days are the danger zone — worst at their start, five days before bleeding</b> — then it breaks on day 1. 🌈</dd>
@@ -401,6 +411,25 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
       </dl>
     </div>
 
+  </div>
+</section>
+
+<!-- ── PMDD ── -->
+<section class="card" id="pmdd">
+  <span class="section-chip">🖤 when it&rsquo;s more than PMS — PMDD</span>
+  <div style="font-family:var(--font-read);font-size:.82rem;line-height:1.6">
+    <p><b>PMDD (premenstrual dysphoric disorder)</b> is the severe form of the luteal mood dip — it affects
+    roughly <b>3–8%</b> of people who menstruate. The hormones themselves behave normally; the brain is
+    unusually sensitive to the progesterone-and-oestrogen crash of the final luteal days, which disturbs
+    serotonin.</p>
+    <p style="margin-top:8px">The pattern is the same shape as this app&rsquo;s danger zone, but far deeper: not a short fuse so much as
+    <b>despair, rage, severe anxiety, hopelessness, feeling out of control</b> — strong enough to disrupt work
+    and relationships — arriving in the last luteal week and <b>switching off within a day or two of bleeding</b>,
+    exactly like the break, followed by a fully symptom-free stretch after the period.</p>
+    <p style="margin-top:8px"><b>What helps:</b> it is diagnosable — symptoms tracked daily across two or more cycles, which is precisely
+    what this calendar&rsquo;s notes and mood tags record — and very treatable: SSRIs (often taken during the luteal
+    phase only), hormonal options, and cycle-aware planning. <b>If the danger zone here reads as despair rather
+    than irritability, take that pattern to a GP</b> — it has a name, and it responds to treatment.</p>
   </div>
 </section>
 
@@ -415,7 +444,9 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
   <h3 id="p-date"></h3>
   <div class="p-sub" id="p-sub"></div>
   <div class="p-phase" id="p-phase"></div>
-  <button id="markstart">🩸 period started this day</button>
+  <label id="moodlabel">moods felt this day</label>
+  <div class="moodrow" id="moodrow"></div>
+  <button id="markstart">🌹 period started this day</button>
   <label for="notebox" id="notelabel">how are you feeling? ✎</label>
   <textarea id="notebox" placeholder="write anything — it saves as you type…"></textarea>
   <div id="savedflag">saved ✓</div>
@@ -425,11 +456,12 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
 'use strict';
 /* ══════════════ state — saved to localStorage on every change ═════════ */
 const KEY = 'cycle.state.v1';
-const DEFAULTS = { v:1, starts:[], cycleLen:28, periodLen:5, monthsView:1, notes:{}, name:'', theirs:null, view:'mine' };
+const DEFAULTS = { v:1, starts:[], cycleLen:28, periodLen:5, monthsView:1, notes:{}, moods:{}, name:'', theirs:null, view:'mine' };
 let state;
 try { state = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(KEY) || '{}')); }
 catch(e){ state = Object.assign({}, DEFAULTS); }
 state.notes = state.notes || {};
+state.moods = state.moods || {};
 state.starts = (state.starts || []).slice().sort();
 if (state.view === 'theirs' && !state.theirs) state.view = 'mine';
 function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
@@ -519,10 +551,22 @@ const PHASE_COL = {
   ovulation:'var(--ph-ovulation)', luteal:'var(--ph-luteal)'
 };
 
+/* mood tags the user can pin to any day */
+const MOODS = [
+  { k:'fire',      e:'🔥', label:'very turned on' },
+  { k:'stressed',  e:'😖', label:'stressed' },
+  { k:'irritable', e:'😡', label:'irritable' },
+  { k:'tearful',   e:'😭', label:'tearful' },
+  { k:'calm',      e:'😌', label:'calm' },
+  { k:'energised', e:'⚡', label:'energised' }
+];
+const MOOD_BY_K = Object.fromEntries(MOODS.map(m => [m.k, m]));
+const moodsFor = (d, key) => (d.moods && Array.isArray(d.moods[key])) ? d.moods[key].filter(k => MOOD_BY_K[k]) : [];
+
 /* ══════════════ share — the whole cycle inside the link ═══════════════ */
 function encodeShare(){
   const p = { v:1, name:state.name || '', starts:state.starts, cycleLen:state.cycleLen,
-              periodLen:state.periodLen, notes:state.notes, sharedAt:todayKey };
+              periodLen:state.periodLen, notes:state.notes, moods:state.moods, sharedAt:todayKey };
   return btoa(unescape(encodeURIComponent(JSON.stringify(p))))
     .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
@@ -533,6 +577,7 @@ function decodeShare(b64){
   if (!p || !Array.isArray(p.starts)) throw new Error('bad payload');
   return { name:String(p.name||''), starts:p.starts.slice().sort(), cycleLen:+p.cycleLen||28,
            periodLen:+p.periodLen||5, notes:(p.notes && typeof p.notes==='object') ? p.notes : {},
+           moods:(p.moods && typeof p.moods==='object') ? p.moods : {},
            sharedAt:String(p.sharedAt||'') };
 }
 async function doShare(){
@@ -595,12 +640,14 @@ function renderView(){
     const t = state.theirs;
     document.getElementById('theirs-title').textContent = '💞 ' + (t.name ? t.name + '’s' : 'their') + ' cycle';
     const ntCount = Object.keys(t.notes).length;
+    const mdCount = Object.keys(t.moods || {}).length;
     document.getElementById('theirs-info').innerHTML =
       'shared with you on <b>' + esc(t.sharedAt || '?') + '</b> · cycle <b>' + t.cycleLen + '</b> days, period <b>' + t.periodLen +
       '</b> days, <b>' + t.starts.length + '</b> recorded start' + (t.starts.length===1?'':'s') +
       (ntCount ? ', <b>' + ntCount + '</b> note' + (ntCount===1?'':'s') + ' ✎' : '') +
+      (mdCount ? ', <b>' + mdCount + '</b> mood-tagged day' + (mdCount===1?'':'s') + ' 🔥' : '') +
       '.<br>Hover or tap any day to see what they’re going through — the red run into ⚠ hazard stripes is the stretch to watch. ' +
-      'Their notes sit on the days with a blue dot. Everything here is read-only; flip back to 👤 mine any time.';
+      'Their notes and tagged moods sit on the days marked ✎ / emoji. Everything here is read-only; flip back to 👤 mine any time.';
   }
   document.getElementById('calhint').hidden = !mine();
 }
@@ -612,14 +659,9 @@ function renderRibbon(){
   rib.innerHTML = ''; labs.innerHTML = '';
   for (let d = 1; d <= L; d++){
     const s = document.createElement('div');
-    s.className = 'seg' + (toBreak(d,L) === 5 ? ' peak' : '');
     const ph = phaseOf(d, L, P);
-    let col = PHASE_COL[ph];
-    if (ph === 'luteal'){
-      const dtb = toBreak(d,L);
-      col = dtb <= 5 ? 'var(--ph-danger)' : dtb <= 9 ? '#f07f74' : '#f7b3ab';
-    }
-    s.style.background = col;
+    s.className = 'seg' + (ph === 'luteal' && toBreak(d,L) <= 5 ? ' peak' : '');
+    s.style.background = PHASE_COL[ph];
     rib.appendChild(s);
   }
   labs.innerHTML = '<span>day 1 🌈</span><span>⭐ day ' + ovuDay(L,P) + '</span><span>⚠ days ' + (L-4) + '–' + L + '</span>';
@@ -669,7 +711,6 @@ function buildMonth(first){
       if (ph === 'luteal'){
         const dtb = toBreak(ci.day, ci.len);
         if (dtb <= 5){ cell.classList.add('danger5'); if (dtb === 5) cell.classList.add('is-peak'); }
-        else cell.classList.add(dtb <= 9 ? 'lut-2' : 'lut-1');
       }
       const w = weather(ci.day, ci.len, P);
       inner += '<span class="wx">' + w.wx + '</span>';
@@ -680,7 +721,11 @@ function buildMonth(first){
       if (date > today) cell.classList.add('is-future');
     }
     if (d0.starts.includes(key)) cell.classList.add('is-start');
-    if (d0.notes[key]) inner += '<span class="notedot"></span>';
+    const mm = moodsFor(d0, key);
+    let tags = mm.slice(0,2).map(k => MOOD_BY_K[k].e).join('');
+    if (mm.length > 2) tags += '⁺';
+    if (d0.notes[key]) tags += '✎';
+    if (tags) inner += '<span class="tags">' + tags + '</span>';
     if (key === todayKey) cell.classList.add('is-today');
     cell.innerHTML = inner;
     cell.addEventListener('mouseenter', () => showTip(cell, date));
@@ -720,12 +765,14 @@ function showTip(cell, date){
   else if (s.ci.day === 1) extra = '<div style="color:var(--rb-purple);font-weight:700">🌈 THE BREAK — bleeding starts, the storm lifts</div>';
   const note = D().notes[fmtKey(date)];
   const noteWho = mine() ? '✎ note' : '✎ their note';
+  const mm = moodsFor(D(), fmtKey(date));
   tip.innerHTML =
     '<div class="t-day">' + nice + ' · day ' + s.ci.day + ' of ' + s.ci.len + '</div>' +
     '<span class="t-phase" style="background:' + PHASE_SOFT[s.ph] + '">' + PHASE_NAME[s.ph] + ' ' + s.w.wx + '</span>' +
     extra +
     '<div>' + PHASE_BLURB[s.ph] + '</div>' +
     '<div><b>Mood:</b> ' + s.w.label + '</div>' +
+    (mm.length ? '<div><b>' + (mine() ? 'Felt' : 'They felt') + ':</b> ' + mm.map(k => MOOD_BY_K[k].e + ' ' + MOOD_BY_K[k].label).join(' · ') + '</div>' : '') +
     (note ? '<div><b>' + noteWho + ':</b> ' + esc(note.slice(0,90)) + (note.length>90?'…':'') + '</div>' : '') +
     '<div class="t-kind">' + s.kindTxt + '</div>';
   const r = cell.getBoundingClientRect();
@@ -756,7 +803,7 @@ function openPanel(key){
   if (mine()){
     markBtn.style.display = '';
     const marked = state.starts.includes(key);
-    markBtn.textContent = marked ? '🩸 marked as a period start — tap to unmark' : '🩸 period started this day';
+    markBtn.textContent = marked ? '🌹 marked as a period start — tap to unmark' : '🌹 period started this day';
     markBtn.classList.toggle('marked', marked);
     markBtn.disabled = date > today && !marked;
     document.getElementById('notelabel').textContent = 'how are you feeling? ✎';
@@ -770,8 +817,35 @@ function openPanel(key){
     notebox.placeholder = 'no note on this day';
     notebox.value = state.theirs.notes[key] || '';
   }
+  renderPanelMoods(key);
   overlay.classList.add('on'); panel.classList.add('on');
   if (mine()) notebox.focus({ preventScroll:true });
+}
+/* mood chips inside the panel — toggle on tap, saved instantly */
+function renderPanelMoods(key){
+  const row = document.getElementById('moodrow');
+  const src = mine() ? moodsFor(state, key) : moodsFor(state.theirs, key);
+  document.getElementById('moodlabel').textContent = mine()
+    ? 'moods felt this day — tap all that apply'
+    : '💞 moods they felt' + (src.length ? '' : ' — none tagged');
+  row.innerHTML = '';
+  MOODS.forEach(m => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'moodchip' + (src.includes(m.k) ? ' sel' : '');
+    b.dataset.k = m.k;
+    b.textContent = m.e + ' ' + m.label;
+    if (mine()){
+      b.addEventListener('click', () => {
+        const arr = state.moods[key] || [];
+        const i = arr.indexOf(m.k);
+        if (i >= 0) arr.splice(i, 1); else arr.push(m.k);
+        if (arr.length) state.moods[key] = arr; else delete state.moods[key];
+        save(); renderPanelMoods(key); flashSaved();
+      });
+    } else b.disabled = true;
+    row.appendChild(b);
+  });
 }
 function closePanel(){
   overlay.classList.remove('on'); panel.classList.remove('on');
@@ -788,14 +862,16 @@ markBtn.addEventListener('click', () => {
   openPanel(panelKey);                                     // refresh button state
 });
 let savedTimer = null;
+function flashSaved(){
+  const f = document.getElementById('savedflag');
+  f.classList.add('on');
+  clearTimeout(savedTimer); savedTimer = setTimeout(() => f.classList.remove('on'), 1200);
+}
 notebox.addEventListener('input', () => {
   if (!panelKey || !mine()) return;
   const v = notebox.value;
   if (v.trim() === '') delete state.notes[panelKey]; else state.notes[panelKey] = v;
-  save();
-  const f = document.getElementById('savedflag');
-  f.classList.add('on');
-  clearTimeout(savedTimer); savedTimer = setTimeout(() => f.classList.remove('on'), 1200);
+  save(); flashSaved();
 });
 
 /* ══════════════ controls ══════════════════════════════════════════════ */
@@ -839,7 +915,10 @@ function bindRange(rid, nid, prop){
     v = Math.max(+$(rid).min, Math.min(+$(rid).max, +v || DEFAULTS[prop]));
     state[prop] = v; save(); syncControls(); renderAll();
   };
+  /* 'input' fires on every drag tick so the calendar recolours live;
+     'change' is the end-of-drag backstop for browsers that miss ticks */
   $(rid).addEventListener('input', e => apply(e.target.value));
+  $(rid).addEventListener('change', e => apply(e.target.value));
   $(nid).addEventListener('change', e => apply(e.target.value));
 }
 bindRange('cyclelen','cyclelennum','cycleLen');
