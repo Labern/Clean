@@ -467,7 +467,7 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
   </ul>
 </section>
 
-<p class="foot">everything is saved on this device, automatically, as you change it — sharing puts your cycle inside the link itself; nothing touches a server 🔒</p>
+<p class="foot">everything is saved on this device, automatically, as you change it. sharing puts a snapshot inside the link itself <b>and</b> keeps a live copy on a public message relay under a random secret id — only people with your link can find it. their view refreshes itself whenever you change things 🔒</p>
 </div>
 
 <div id="tip"></div>
@@ -486,11 +486,12 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
   <div id="savedflag">saved ✓</div>
 </div>
 
+<script src="vendor/mqtt.min.js"></script>
 <script>
 'use strict';
 /* ══════════════ state — saved to localStorage on every change ═════════ */
 const KEY = 'cycle.state.v1';
-const DEFAULTS = { v:1, starts:[], cycleLen:28, periodLen:5, monthsView:1, notes:{}, moods:{}, name:'', theirs:null, view:'mine', showWeather:true };
+const DEFAULTS = { v:1, starts:[], cycleLen:28, periodLen:5, monthsView:1, notes:{}, moods:{}, name:'', theirs:null, view:'mine', showWeather:true, channel:null };
 let state;
 try { state = Object.assign({}, DEFAULTS, JSON.parse(localStorage.getItem(KEY) || '{}')); }
 catch(e){ state = Object.assign({}, DEFAULTS); }
@@ -504,7 +505,7 @@ function scheduleRender(){
   if (renderQueued) return; renderQueued = true;
   requestAnimationFrame(() => { renderQueued = false; renderAll(); });
 }
-function save(){ localStorage.setItem(KEY, JSON.stringify(state)); scheduleRender(); }
+function save(){ localStorage.setItem(KEY, JSON.stringify(state)); scheduleRender(); schedulePublish(); }
 
 /* the active dataset — mine, or the imported person's */
 function D(){ return (state.view === 'theirs' && state.theirs) ? state.theirs : state; }
@@ -603,11 +604,14 @@ const MOODS = [
 const MOOD_BY_K = Object.fromEntries(MOODS.map(m => [m.k, m]));
 const moodsFor = (d, key) => (d.moods && Array.isArray(d.moods[key])) ? d.moods[key].filter(k => MOOD_BY_K[k]) : [];
 
-/* ══════════════ share — the whole cycle inside the link ═══════════════ */
+/* ══════════════ share — snapshot in the link + live channel ═══════════ */
+function sharePayload(){
+  return { v:1, name:state.name || '', starts:state.starts, cycleLen:state.cycleLen,
+           periodLen:state.periodLen, notes:state.notes, moods:state.moods,
+           sharedAt:todayKey, updatedAt:Date.now() };
+}
 function encodeShare(){
-  const p = { v:1, name:state.name || '', starts:state.starts, cycleLen:state.cycleLen,
-              periodLen:state.periodLen, notes:state.notes, moods:state.moods, sharedAt:todayKey };
-  return btoa(unescape(encodeURIComponent(JSON.stringify(p))))
+  return btoa(unescape(encodeURIComponent(JSON.stringify(sharePayload()))))
     .replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 function decodeShare(b64){
@@ -618,30 +622,89 @@ function decodeShare(b64){
   return { name:String(p.name||''), starts:p.starts.slice().sort(), cycleLen:+p.cycleLen||28,
            periodLen:+p.periodLen||5, notes:(p.notes && typeof p.notes==='object') ? p.notes : {},
            moods:(p.moods && typeof p.moods==='object') ? p.moods : {},
-           sharedAt:String(p.sharedAt||'') };
+           sharedAt:String(p.sharedAt||''), updatedAt:+p.updatedAt || 0 };
 }
 async function doShare(){
   if (!state.starts.length){ toast('mark a period start first — then share 💌'); return; }
-  const url = location.origin + location.pathname + '#s=' + encodeShare();
+  if (!state.channel){ state.channel = Math.random().toString(36).slice(2,12); save(); connectSync(); }
+  publishAll();                                            // freshest retained copy before they open it
+  const url = location.origin + location.pathname + '#s=' + encodeShare() + '&c=' + state.channel;
   const who = state.name ? state.name + '’s' : 'my';
   if (navigator.share){
-    try { await navigator.share({ title:'Cycle', text:'💌 ' + who + ' cycle — see what I’m going through, day by day', url }); return; }
+    try { await navigator.share({ title:'Cycle', text:'💌 ' + who + ' cycle — live: it updates on your side when I change things', url }); return; }
     catch(e){ if (e && e.name === 'AbortError') return; }
   }
-  try { await navigator.clipboard.writeText(url); toast('link copied — send it to them 💌'); }
+  try { await navigator.clipboard.writeText(url); toast('live link copied — send it to them 💌'); }
   catch(e){ prompt('copy this link and send it:', url); }
 }
 function importShare(){
-  const m = location.hash.match(/[#&]s=([A-Za-z0-9_-]+)/);
-  if (!m) return;
+  const ms = location.hash.match(/[#&]s=([A-Za-z0-9_-]+)/);
+  const mc = location.hash.match(/[#&]c=([a-z0-9]+)/);
+  if (!ms && !mc) return;
   try {
-    state.theirs = decodeShare(m[1]);
+    if (ms) state.theirs = decodeShare(ms[1]);
+    else if (!state.theirs) state.theirs = { name:'', starts:[], cycleLen:28, periodLen:5, notes:{}, moods:{}, sharedAt:'', updatedAt:0 };
+    if (mc) state.theirs.channel = mc[1];
     state.view = 'theirs';
     save();
-    toast('💞 imported — this is ' + (state.theirs.name ? state.theirs.name + '’s' : 'their') + ' cycle');
+    toast('💞 imported — this is ' + (state.theirs.name ? state.theirs.name + '’s' : 'their') + ' cycle' + (mc ? ' (live)' : ''));
   } catch(e){ toast('hmm — that shared link would not open'); }
   history.replaceState(null, '', location.pathname + location.search);
 }
+
+/* ══════════════ live sync — retained state on public MQTT relays ══════ */
+/* Political-app pattern: vendored mqtt.js, multiple public brokers over
+   WSS. Retained messages act as a tiny keyed store: the sharer publishes
+   their payload retained under a random channel id; the viewer's
+   subscribe gets the LATEST copy on every connect (i.e. every refresh),
+   plus pushes while the page is open. Retained state does not replicate
+   across brokers, so we publish to and subscribe on ALL of them and keep
+   the newest by updatedAt. If no relay is reachable, the snapshot from
+   the link still works.                                                 */
+const BROKERS = ["wss://broker.emqx.io:8084/mqtt","wss://broker.hivemq.com:8884/mqtt","wss://test.mosquitto.org:8081/"];
+const TOPIC = cid => 'cycle/v1/' + cid;
+let conns = [], syncLive = false, subscribedTo = null;
+function connectSync(){
+  if (typeof mqtt === 'undefined') return;                 // vendor blocked — snapshot mode
+  if (!state.channel && !(state.theirs && state.theirs.channel)) return;
+  if (conns.length){ resubscribe(); return; }
+  BROKERS.forEach(url => {
+    let c;
+    try { c = mqtt.connect(url, { clientId:'cy_' + Math.random().toString(36).slice(2,10),
+      clean:true, connectTimeout:8000, reconnectPeriod:20000 }); } catch(e){ return; }
+    conns.push(c);
+    c.on('connect', () => {
+      if (state.theirs && state.theirs.channel){ c.subscribe(TOPIC(state.theirs.channel), {qos:1}); subscribedTo = state.theirs.channel; }
+      publishTo(c);
+      syncLive = true; scheduleRender();
+    });
+    c.on('message', (topic, msg) => {
+      try {
+        const p = JSON.parse(msg.toString());
+        if (!p || !Array.isArray(p.starts)) return;
+        const cur = (state.theirs && state.theirs.updatedAt) || 0;
+        if ((+p.updatedAt || 0) <= cur) return;            // newest wins across brokers
+        const ch = state.theirs && state.theirs.channel;
+        state.theirs = Object.assign(decodeShare(btoa(unescape(encodeURIComponent(JSON.stringify(p))))), { channel: ch });
+        save();
+        if (!mine()) toast('💞 updated — fresh from their side');
+      } catch(e){}
+    });
+    c.on('error', () => {});
+  });
+}
+function resubscribe(){
+  if (!(state.theirs && state.theirs.channel) || state.theirs.channel === subscribedTo) return;
+  conns.forEach(c => { if (c.connected){ if (subscribedTo) c.unsubscribe(TOPIC(subscribedTo)); c.subscribe(TOPIC(state.theirs.channel), {qos:1}); } });
+  subscribedTo = state.theirs.channel;
+}
+function publishTo(c){
+  if (!state.channel || !c || !c.connected) return;
+  try { c.publish(TOPIC(state.channel), JSON.stringify(sharePayload()), { retain:true, qos:1 }); } catch(e){}
+}
+function publishAll(){ conns.forEach(publishTo); }
+let pubTimer = null;
+function schedulePublish(){ if (!state.channel) return; clearTimeout(pubTimer); pubTimer = setTimeout(publishAll, 900); }
 let toastTimer = null;
 function toast(msg){
   const t = document.getElementById('toast');
@@ -689,7 +752,11 @@ function renderView(){
       '</b> days, <b>' + t.starts.length + '</b> recorded start' + (t.starts.length===1?'':'s') +
       (ntCount ? ', <b>' + ntCount + '</b> note' + (ntCount===1?'':'s') + ' ✎' : '') +
       (mdCount ? ', <b>' + mdCount + '</b> mood-tagged day' + (mdCount===1?'':'s') + ' 🔥' : '') +
-      '.<br>Hover or tap any day to see what they’re going through — the red run into ⚠️ hazard stripes is the stretch to watch. ' +
+      '.<br>' + (t.channel
+        ? (syncLive ? '🟢 <b>live</b> — this view updates when they change things, and every time you refresh. '
+                    : '⏳ connecting to the live relay — showing the copy from the link meanwhile. ')
+        : '📦 snapshot from the link — ask them to re-share for a live-updating link. ') +
+      'Hover or tap any day to see what they’re going through — the red run into ⚠️ hazard stripes is the stretch to watch. ' +
       'Their notes and tagged moods sit on the days marked ✎ / emoji. Everything here is read-only; flip back to 👤 mine any time.';
   }
   document.getElementById('calhint').hidden = !mine();
@@ -992,6 +1059,7 @@ $('chipweather').addEventListener('click', () => { state.showWeather = !state.sh
 function renderAll(){ renderView(); renderToday(); renderRibbon(); renderCalendar(); syncControls(); }
 importShare();
 renderAll();
+connectSync();
 setInterval(() => {
   const now = new Date(), k = fmtKey(new Date(now.getFullYear(), now.getMonth(), now.getDate()));
   if (k !== todayKey){ today = parseKey(k); todayKey = k; renderAll(); }
