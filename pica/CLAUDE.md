@@ -111,15 +111,54 @@ whole import: its ISO date matched no header regex, so ~200 leaked lines poisone
 the column histogram → the character column landed on furniture x → 1,739 cues
 mis-filed as parentheticals, CUT TO: became a character, 249 pages from 198.
 Two structural rules now prevent the CLASS, not the instance:
-1. **Same text at the same y across ≥25% of pages = furniture, whatever it says**
-   (regex-free catch-all in the furniture pass). Writing can't repeat at a fixed
-   height — page breaks move it — which is also why The Social Network's 32
-   genuine "INT. FIRST DEPOSITION ROOM" slugs survive: different y every time.
+1. **Same text at the same y across ≥25% of pages = furniture — but ONLY inside
+   the page's margin bands** (y < 8.5% or > 94% of page height). The first cut of
+   this rule ran everywhere and was wrong: writing CAN repeat at a fixed height —
+   "OPPENHEIMER (CONT'D)" legitimately sits at the first body row on dozens of
+   pages. Confined to the bands it eats running heads and stamps and can never
+   touch a cue. (The Social Network's 32 genuine deposition slugs also survive:
+   different y every time.)
 2. **Overprint dedupe in linesFromItems**: identical string within 1pt of the
    previous item is double-strike bold / a duplicated layer ("GadgetGadget") —
    drop it before joining.
 The header regex also learned ISO dates + "shooting script", but the repetition
 rule is the real fence. Suite: opp-raw.json disease case asserts all of it.
+
+## Dual dialogue is detected by SHAPE and rebuilt whole
+Two speeches side by side (Oppenheimer ×46, Whiplash, La La Land). The left
+column's dialogue x can COINCIDE with the action column, so per-line
+classification can never recover it: row assembly used to weld the columns into
+single lines ("Well, it was technically      ROBB (CONT'D)"). The importer now
+detects the region by shape — rows whose items split into two clusters (strict
+48pt gap to OPEN a region, lenient 28pt to CONTINUE it; right cluster past
+mid-page), the cue row above, right-only rows allowed to skip one row (staggers
+do) — and rebuilds it as L-cue/L-dialogue/R-cue/R-dialogue sharing `el.dual =
+{g, r}`: true x in xOverride, row offset r inside the region. `blocksOf` groups a
+dual run into one unbreakable block; the paginator lays each element at
+start+r. Guards that matter: sluglines never dual; a number-ish right cluster is
+a missed gutter, not a voice; single-row regions are noise; right-only rows are
+never transitions; interior cues type as cues (CUEISH strips a trailing
+extension — "PIANIST (O.S.)" is a cue). NoCountry's motel rate sign detects as a
+2-column block — faithful, leave it.
+
+## (CONT'D) has TWO apostrophes in the wild
+FD emits the CURLY one (’). Every CONT'D regex must match both `['’]` — an
+ASCII-only match silently skips every FD-made continuation cue: page-top cues
+stop merging and the paginator appends a second (CONT'D) to already-continued
+cues. Cue finalization also collapses the source's own stutter
+("GROVES (CONT'D) (CONT’D)" — typed + FD-appended) to one.
+
+## Ghost UNTITLEDs: never resurrect, and sweep the provably empty
+openDoc used to fabricate-and-save an UNTITLED under any missing id (stale
+lastDoc, deleted doc) — ghost index rows. Now: missing ids walk to the next real
+script (loop-guarded), fabrication only when nothing opens, and always under a
+FRESH id. Delete scrubs lastDoc/scroll/emergency satellites. Boot quietly drops
+UNTITLED entries that are provably content-free (no text, title page, notes,
+panels, drafts) — that's the never-lose bar for auto-cleanup.
+
+## The webview must NOT be inspectable in normal use
+`isInspectable = true` let WebKit claim ⌘⇧C (element picker). It is now gated
+behind the PICA_INSPECT=1 env var.
 
 ## Revision stars are marginalia, never text
 Production drafts (Collateral, TWBB, Whiplash) star changed lines with `*` in the

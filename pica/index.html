@@ -754,7 +754,8 @@ const PicaEngine = (() => {
   // and left in place they become the leftmost column, so every real column is read one
   // slot out and nothing classifies correctly. Detect the gutter by the fact that almost
   // everything starting there is a scene number, then strip and re-anchor the line.
-  const SCENE_NO = /^[A-Z]{0,2}\d{1,3}[A-Z]{0,2}$/;
+  // plain (12), lettered (12A, A12), ranged (68-69), star-welded (123A*), OCR'd (126*')
+  const SCENE_NO = /^[A-Z]{0,2}\d{1,3}[A-Z]{0,2}(?:[-–][A-Z]{0,2}\d{1,3}[A-Z]{0,2})?\*{0,2}'?$/;
   // "CONTINUED:", "(CONTINUED)", "CONTINUED: (2)" — all printing apparatus, never writing
   const CONTINUED_RE = /^\(?\s*CONTINUED\s*\)?\s*[.:]?\s*(\(\s*\d+\s*\))?\s*$/i;
 
@@ -805,7 +806,7 @@ const PicaEngine = (() => {
   // remembers it was starred (l.rev) and the band's x survives as layout.revX, so the
   // render puts them back exactly where the source printed them.
   function stripRevisionMarks(body, charW) {
-    const BARE = /^\s*\*+\s*$/;
+    const BARE = /^\s*[*•]+\s*$/;   // stars, or the OCR'd dot form of the same mark
     const pageW = body[0] ? body[0].width : 612;
     // pass 1 — find the band: bare stars clearly detached from the text they flank
     const cands = [];
@@ -957,18 +958,23 @@ const PicaEngine = (() => {
         // on a few pages must survive
         if (marks >= arr.length * 0.9 || headerish >= arr.length * 0.7)
           for (const l of arr) furniture.add(l);
-        // and the pattern-free catch-all: the SAME line at the SAME height on page
-        // after page is apparatus by definition — running heads, watermarks,
-        // production stamps — whatever it says, in whatever date format. Writing
-        // can't do that: page breaks move it. This is what keeps unknown header
-        // styles from leaking into the body and poisoning the column histogram.
-        const seen = new Map();
-        for (const l of arr) {
-          const t = l.text.replace(/\s+/g, ' ').trim();
-          seen.set(t, (seen.get(t) || 0) + 1);
+        // and the pattern-free catch-all, CONFINED to the margins: the SAME line at
+        // the SAME height on page after page, in the page's extreme top or bottom
+        // band, is apparatus whatever it says — running heads, watermarks, stamps,
+        // any date format. It must never reach the body: a continuation cue
+        // ("OPPENHEIMER (CONT'D)") legitimately repeats at the FIRST BODY ROW on
+        // dozens of pages, and eating it orphans every continued speech.
+        const pH = body[0] ? body[0].height : 792;
+        const yv = arr[0].y;
+        if (yv < pH * 0.085 || yv > pH * 0.94) {
+          const seen = new Map();
+          for (const l of arr) {
+            const t = l.text.replace(/\s+/g, ' ').trim();
+            seen.set(t, (seen.get(t) || 0) + 1);
+          }
+          for (const l of arr)
+            if ((seen.get(l.text.replace(/\s+/g, ' ').trim()) || 0) >= minPages) furniture.add(l);
         }
-        for (const l of arr)
-          if ((seen.get(l.text.replace(/\s+/g, ' ').trim()) || 0) >= minPages) furniture.add(l);
       }
     }
     const bodyLines = p => p.lines.filter(l => !furniture.has(l));
@@ -1115,8 +1121,113 @@ const PicaEngine = (() => {
         return 'character';
       }
       if (Math.abs(l.xEnd - transRight) < 4 && l.text === l.text.toUpperCase() && /:\s*$/.test(l.text)) return 'transition';
+      // end marks without the colon — FADE OUT. / CUT TO BLACK. — are transitions too
+      if (l.text === l.text.toUpperCase() && /^(FADE OUT|FADE TO BLACK|CUT TO BLACK)\.?\s*$/.test(l.text.trim())) return 'transition';
       return 'general';
     };
+
+    // -- dual dialogue --------------------------------------------------------------
+    // Two speeches side by side. The left column's dialogue x can COINCIDE with the
+    // action column (Oppenheimer: both 108), so no per-line classification can ever
+    // recover it — the region must be detected by shape and rebuilt whole. Shape: a
+    // run of rows whose items split into two clusters (left starting in the body,
+    // right starting past mid-page, wide gap between), plus the cue row above.
+    // Rebuilt as L-cue, L-dialogue, R-cue, R-dialogue sharing a dual group: each
+    // element keeps its true x and its row offset inside the region, and the
+    // paginator lays the group back down as one unbreakable two-column block.
+    const pageWd = body[0] ? body[0].width : 612;
+    // strict gap to OPEN a region (no false positives on ordinary spacing), a
+    // lenient one to CONTINUE it — inside a known dual, columns can run close
+    const splitDual = (l, lenient) => {
+      const its = l.items || [];
+      if (its.length < 2) return null;
+      let gi = -1, gap = 0;
+      for (let i = 1; i < its.length; i++) {
+        const g = its[i].x - (its[i - 1].x + its[i - 1].w);
+        if (g > gap) { gap = g; gi = i; }
+      }
+      if (gi < 1 || gap < (lenient ? 28 : 48)) return null;
+      const right = its[gi];
+      if (right.x < pageWd * 0.5) return null;
+      if (its[0].x > pageWd * 0.35) return null;
+      // a slugline never speaks in two columns, and a right cluster that is only a
+      // scene number / revision junk is a gutter the stripper missed, not a voice
+      if (SCENE_RE.test(l.text)) return null;
+      const rt = its.slice(gi).map(i => i.str).join(' ').replace(/\s+/g, ' ').trim();
+      if (/^[A-Z]{0,2}\d{1,3}[A-Z]{0,2}(?:[-–][A-Z]{0,2}\d{1,3}[A-Z]{0,2})?[*'.\s]*$/.test(rt)) return null;
+      return { left: its.slice(0, gi), right: its.slice(gi) };
+    };
+    const CUEISH = t => {
+      const s = t.trim();
+      if (s !== s.toUpperCase() || !/[A-Z]/.test(s) || s.length >= 34) return false;
+      const bare = s.replace(/\s*\([^)]*\)\s*$/, '');   // "PIANIST (O.S.)" → "PIANIST"
+      return bare.length > 0 && !/[.!?,]$/.test(bare);
+    };
+    for (const p of body) {
+      const ls = bodyLines(p);
+      for (let i = 0; i < ls.length; i++) {
+        if (ls[i].dualSkip || ls[i].dualRegion) continue;
+        const sp = splitDual(ls[i]);
+        if (!sp) continue;
+        // grow the region: consecutive tight rows that also split, or tight rows
+        // hugging the left column (a longer left speech running past the right one)
+        const rows = [{ l: ls[i], sp }];
+        let j = i + 1;
+        while (j < ls.length) {
+          const dy = ls[j].y - ls[j - 1].y;
+          if (dy > rowH * 2.2) break;              // a column may skip one row (staggers do)
+          const s2 = splitDual(ls[j], true);
+          if (s2) rows.push({ l: ls[j], sp: s2 });
+          // left-only continuation only at a TIGHT gap — anything after a blank row
+          // at the left x is the next action line, not more of this column
+          else if (dy <= rowH * 1.2 && Math.abs(ls[j].x - sp.left[0].x) <= 2) rows.push({ l: ls[j], sp: { left: ls[j].items, right: [] } });
+          else if (ls[j].x >= pageWd * 0.5
+                   && !(ls[j].text === ls[j].text.toUpperCase() && /:\s*$/.test(ls[j].text)))
+            rows.push({ l: ls[j], sp: { left: [], right: ls[j].items } });
+          else break;
+          j++;
+        }
+        // the left cue usually sits one row above the first split row
+        let cueLine = null;
+        if (i > 0 && ls[i].y - ls[i - 1].y <= rowH * 1.2 && ls[i - 1].items.length
+            && !ls[i - 1].dualRegion && !ls[i - 1].dualSkip
+            && CUEISH(ls[i - 1].text) && ls[i - 1].x > cols.action + 20 && ls[i - 1].x < pageWd * 0.5)
+          cueLine = ls[i - 1];
+        const y00 = cueLine ? cueLine.y : rows[0].l.y;
+        const rel = y => Math.round((y - y00) / rowH);
+        const g = uid();
+        const mk = (type, its, y) => ({
+          id: uid(), type,
+          srcLines: [{ text: joinItems(its, charW0).text, x: its[0].x, xEnd: 0, y, items: its }],
+          xOverride: Math.round(its[0].x * 100) / 100,
+          dual: { g, r: rel(y) },
+        });
+        const L = [], R = [];
+        if (cueLine) L.push(mk('character', cueLine.items, cueLine.y));
+        for (const r of rows) {
+          if (r.sp.left.length) {
+            const t = joinItems(r.sp.left, charW0).text;
+            const last = L[L.length - 1];
+            if (!CUEISH(t) && last && last.type === 'dialogue' && rel(r.l.y) === last.dual.r + last.srcLines.length)
+              last.srcLines.push({ text: t, x: r.sp.left[0].x, xEnd: 0, y: r.l.y, items: r.sp.left });
+            else L.push(mk(CUEISH(t) ? 'character' : 'dialogue', r.sp.left, r.l.y));
+          }
+          if (r.sp.right.length) {
+            const t = joinItems(r.sp.right, charW0).text;
+            const last = R[R.length - 1];
+            if (!CUEISH(t) && last && last.type === 'dialogue' && rel(r.l.y) === last.dual.r + last.srcLines.length)
+              last.srcLines.push({ text: t, x: r.sp.right[0].x, xEnd: 0, y: r.l.y, items: r.sp.right });
+            else R.push(mk(CUEISH(t) ? 'character' : 'dialogue', r.sp.right, r.l.y));
+          }
+        }
+        const group = [...L, ...R];
+        if (group.length >= 2 && rows.length >= 2) {   // one lonely split row is noise, not a dual
+          const anchor = cueLine || rows[0].l;   // region starts at the cue: spacing above it survives
+          anchor.dualRegion = { els: group, lastY: rows[rows.length - 1].l.y };
+          for (const r of rows) if (r.l !== anchor) r.l.dualSkip = true;
+        }
+      }
+    }
 
     const els = [];
     let open = null;           // currently-open element accumulating source lines
@@ -1129,6 +1240,16 @@ const PicaEngine = (() => {
       let prevLine = null, pageStart = true;
 
       for (const l of ls) {
+        if (l.dualSkip) { prevLine = l; pageStart = false; continue; }
+        if (l.dualRegion) {
+          flush();
+          const first = l.dualRegion.els[0];
+          if (prevLine) first.gapBefore = Math.max(0, Math.round((l.y - prevLine.y) / rowH) - 1);
+          els.push(...l.dualRegion.els);
+          prevLine = { y: l.dualRegion.lastY };
+          pageStart = false;
+          continue;
+        }
         const contCue = pageStart && /\(CONT'D\)\s*$/.test(l.text) && Math.abs(l.x - cols.character) < 3
           && pendingSpeech;
         if (contCue) { pageStart = false; prevLine = null; continue; } // swallow generated cue
@@ -1214,11 +1335,23 @@ const PicaEngine = (() => {
 
     // assign final text: soft where greedy wrap reproduces the source, hard breaks otherwise
     for (const el of els) {
+      const src = el.srcLines.map(s => s.text);
+      if (el.dual) {                 // dual columns keep their exact source lines
+        el.text = src.join('\n');
+        const rl0 = [];
+        el.srcLines.forEach((s, i) => { if (s.rev) rl0.push(i); });
+        if (rl0.length) el.rev = rl0;
+        delete el.joined; delete el.srcLines; delete el.splitJoin;
+        continue;
+      }
       const w = layout.widths[el.type] || 57;
       const wrapped = wrapText(el.joined, w);
-      const src = el.srcLines.map(s => s.text);
       el.text = (wrapped.length === src.length && wrapped.every((t, i) => t === src[i]))
         ? el.joined : src.join('\n');
+      // some shooting scripts carry a typed (CONT'D) inside the character name AND
+      // FD's own appended one — "GROVES (CONT'D) (CONT’D)". One is apparatus stutter.
+      if (el.type === 'character')
+        el.text = el.text.replace(/\(CONT['’]D\)\s*(?:\(CONT['’]D\)\s*)+$/, "(CONT’D)");
       const rl = [];
       el.srcLines.forEach((s, i) => { if (s.rev) rl.push(i); });
       if (rl.length) el.rev = rl; // starred wrap-lines, by index — render restores the stars
@@ -1241,7 +1374,7 @@ const PicaEngine = (() => {
       titlePage: tp,
       ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
-      elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}), ...(e.rev ? { rev: e.rev } : {}) })),
+      elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}), ...(e.rev ? { rev: e.rev } : {}), ...(e.dual ? { dual: e.dual } : {}) })),
     };
   }
 
@@ -1268,6 +1401,12 @@ const PicaEngine = (() => {
     let i = 0;
     while (i < elements.length) {
       const el = elements[i];
+      if (el.dual) {                 // a dual group travels as one unbreakable block
+        const g = el.dual.g, parts = [];
+        while (i < elements.length && elements[i].dual && elements[i].dual.g === g) { parts.push(elements[i]); i++; }
+        blocks.push({ kind: 'dual', parts });
+        continue;
+      }
       if (el.type === 'character') {
         const parts = [el]; i++;
         while (i < elements.length && (elements[i].type === 'dialogue' || elements[i].type === 'paren')) { parts.push(elements[i]); i++; }
@@ -1393,6 +1532,27 @@ const PicaEngine = (() => {
         let r = row === 0 ? 0 : row + blanks;
         for (const lo of wl) put(el, lo, r++);
         row = r; prevType = el.type;
+        continue;
+      }
+
+      if (block.kind === 'dual') {
+        // two columns, one block: every element lays down at its own x, offset by
+        // its row inside the region — the source's exact stagger — and the whole
+        // thing moves to the next page rather than ever splitting
+        const partLines = block.parts.map(el => ({ el, wl: wrapWithOffsets(el) }));
+        let needRows = 0;
+        for (const p2 of partLines) needRows = Math.max(needRows, p2.el.dual.r + p2.wl.length);
+        if (row !== 0 && row + blanks + needRows > L.rows) {
+          const pulled = retractSlug();
+          newPage();
+          if (pulled) replaySlug(pulled);
+        }
+        const start = row === 0 ? 0 : row + blanks;
+        for (const p2 of partLines) {
+          let r = start + p2.el.dual.r;
+          for (const lo of p2.wl) put(p2.el, lo, r++);
+        }
+        row = start + needRows; prevType = 'dialogue';
         continue;
       }
 
@@ -1758,6 +1918,22 @@ async function boot(){
   applyRailPrefs();
   await idb.open();
   await store.migrate();
+  // hygiene: an UNTITLED with no words, no title page, no notes, no panels and no
+  // drafts is provably content-free — a fabrication or abandoned scratch. Those
+  // rows don't belong in the index. Anything with a single character stays.
+  try {
+    const ix0 = store.index();
+    const keep = [];
+    for (const d of ix0) {
+      if (d.title !== 'UNTITLED') { keep.push(d); continue; }
+      const doc = await store.load(d.id);
+      const empty = !doc || ((doc.elements || []).every(e => !e.text && !(e.notes || []).length && !(e.panels || []).length)
+        && !(doc.titlePage || []).some(t => t.text) && !(doc.drafts || []).length);
+      if (empty) { store.cache.delete(d.id); idb.del('doc.' + d.id); idb.del('snap.' + d.id); }
+      else keep.push(d);
+    }
+    if (keep.length !== ix0.length) store.saveIndex(keep);
+  } catch {}
   const ix = store.index();
   const last = LS.get('pica.ui', {}).lastDoc;
   let id = (last && ix.some(d => d.id === last)) ? last : (ix[0] && ix[0].id);
@@ -1769,16 +1945,22 @@ async function boot(){
   if (m) fetch(decodeURIComponent(m[1])).then(r => r.arrayBuffer()).then(b => importPdfBuffer(b, decodeURIComponent(m[1]).split('/').pop())).catch(()=>{});
 }
 
-async function openDoc(id){
+async function openDoc(id, _tried){
   if (S.docId && S.doc) { flushSave(); store.snapshot(S.docId, S.doc); }
   let doc = await store.load(id);
   if (!doc) {
-    // never fabricate a blank in place of a script that would not load
+    // never fabricate a blank in place of a script that would not load — and never
+    // resurrect a stale or deleted id as a saved UNTITLED: that is how ghost
+    // entries linger in the index. Walk to the next real script instead;
+    // fabricate only when nothing in the library will open.
     const ix = store.index();
-    if (ix.some(d => d.id === id)) {
-      toast('could not load that script — its data is missing');
-      if (S.doc) return;
-    }
+    if (ix.some(d => d.id === id)) toast('could not load that script — its data is missing');
+    if (S.doc) return;
+    const tried = _tried || new Set();
+    tried.add(id);
+    const fallback = ix.find(d => !tried.has(d.id));
+    if (fallback) return openDoc(fallback.id, tried);
+    id = E.uid();                       // fresh id: never overwrite a broken entry
     doc = E.newDoc('UNTITLED');
     store.save(id, doc);
   }
@@ -3547,6 +3729,11 @@ function docMenu(d, ev){
       idb.del('doc.' + d.id); idb.del('snap.' + d.id);
       try { localStorage.removeItem('pica.doc.' + d.id); localStorage.removeItem('pica.snap.' + d.id); } catch {}
       pinned.delete(d.id); savePinned();
+      // scrub the satellites too, or the id haunts the app: a stale lastDoc used
+      // to resurrect at boot as a saved UNTITLED
+      { const u = LS.get('pica.ui', {}); if (u.lastDoc === d.id) { delete u.lastDoc; LS.set('pica.ui', u); }
+        const sc = LS.get('pica.scroll', {}); if (sc[d.id] != null) { delete sc[d.id]; LS.set('pica.scroll', sc); }
+        const em = LS.get('pica.emergency', null); if (em && em.id === d.id) { try { localStorage.removeItem('pica.emergency'); } catch {} } }
       if (d.id === S.docId) {
         const next = ix[0] && ix[0].id;
         if (next) openDoc(next);

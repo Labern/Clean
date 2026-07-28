@@ -108,6 +108,14 @@ console.log('§ 2 · Real-world PDF classes — structural invariants per diseas
       ok('  transitions found', (h.transition || 0) > 20, String(h.transition));
       ok('  scenes found', (h.scene || 0) > 250, String(h.scene));
       ok('  page count near source (198)', Math.abs(res.count - 198) <= 12, String(res.count));
+      // dual dialogue: Nolan's two-column speech must be split, typed and paired —
+      // never welded into single lines
+      const dualGroups = new Set(doc.elements.filter(e => e.dual).map(e => e.dual.g)).size;
+      ok('  dual-dialogue groups found', dualGroups >= 40, String(dualGroups));
+      ok('  no welded two-column lines', doc.elements.filter(e => e.type !== 'character' && / {6,}/.test(e.text.replace(/\n/g, ' '))).length === 0);
+      ok("  no doubled (CONT'D) markers", doc.elements.filter(e => /\(CONT['’]D\)\s*\(CONT['’]D\)/.test(e.text)).length === 0);
+      const dcue = doc.elements.filter(e => e.dual && e.type === 'character').length;
+      ok('  dual cues typed as cues', dcue >= 80, String(dcue));
     }],
   ];
   for (const [f, name, fn] of cases) {

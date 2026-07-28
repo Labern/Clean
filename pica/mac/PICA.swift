@@ -279,7 +279,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         v.uiDelegate = self
         v.allowsMagnification = false
         v.setValue(false, forKey: "drawsBackground")   // no white flash before the page paints
-        if #available(macOS 13.3, *) { v.isInspectable = true }
+        // inspectable WebKit claims ⌘⇧C for its element picker — dev-only, opt in:
+        // PICA_INSPECT=1 /Applications/PICA.app/Contents/MacOS/PICA
+        if #available(macOS 13.3, *), ProcessInfo.processInfo.environment["PICA_INSPECT"] != nil { v.isInspectable = true }
         // The UI is sized in rem, so it follows the browser's default font size. Labern's
         // Chrome is set to 24px rather than the usual 16px; WKWebView always uses 16px, which
         // made the app render two-thirds the size of the web build. Zoom to match.
