@@ -560,7 +560,7 @@ const PicaEngine = (() => {
     pnY: 40.5, pnRight: 576,
     cols: { action: 108, dialogue: 180, paren: 216, character: 266 },
     transRight: 540, charW: 7.2,
-    widths: { scene: 57, action: 57, character: 33, paren: 19, dialogue: 35, transition: 30, shot: 57, general: 57 },
+    widths: { scene: 57, action: 57, character: 33, paren: 25, dialogue: 35, transition: 30, shot: 57, general: 57 },   // paren 25 = FD12's own 3.00"–5.50" (Screenplay.fdxt)
     moreDy: 10, contDy: -14,
   };
 
@@ -1472,13 +1472,13 @@ const PicaEngine = (() => {
   // ---------- pagination ----------
   const SENT_END = /[.!?…](["')\]]*)?\s*$|[-–—]\s*$/;
 
-  function xFor(el, line, layout) {
+  function xFor(el, line, layout, idx) {
     if (el.xOverride != null) return el.xOverride;
     const c = layout.cols;
     switch (el.type) {
       case 'scene': case 'action': case 'shot': return c.action;
       case 'dialogue': return c.dialogue;
-      case 'paren': return c.paren;
+      case 'paren': return layout.parenHang && idx === 0 ? c.paren - layout.charW : c.paren;
       case 'character': return c.character;
       case 'transition': return layout.transRight - line.length * layout.charW;
       case 'general': return c.action;
@@ -1559,7 +1559,7 @@ const PicaEngine = (() => {
     };
 
     const put = (el, lineObj, r, kind) => {
-      cur.lines.push({ x: xFor(el, lineObj.t, L), y: yAt(r), text: lineObj.t, el: el.id, kind: kind || el.type, off: lineObj.off,
+      cur.lines.push({ x: xFor(el, lineObj.t, L, lineObj.i), y: yAt(r), text: lineObj.t, el: el.id, kind: kind || el.type, off: lineObj.off,
         ...(el.rev && el.rev.includes(lineObj.i) ? { rev: true } : {}) });
     };
 
@@ -1843,7 +1843,7 @@ const PicaEngine = (() => {
         { text: 'Written by', row: 21 },
         { text: '', row: 24 },
       ],
-      layout: JSON.parse(JSON.stringify(LETTER)),
+      layout: { ...JSON.parse(JSON.stringify(LETTER)), parenHang: 1 },   // FD's -0.10" first indent: the "(" hangs
       elements: [{ id: uid(), type: 'scene', text: '' }],
     };
   }
@@ -3030,21 +3030,30 @@ function handleEnter(){
   // The append lengthens the cue, so the caret must move to the new end WITH it —
   // otherwise the at-end check below sees an interior caret and SPLITS the cue
   // into "CHAIR" + a stray "(CONT'D)" element on the next line.
+  let preContd = null;   // snapshot for one ATOMIC undo step: append + new element
   if (el.type === 'character' && el.text && S.pref?.autoContd !== false && !/CONT['’]D/i.test(el.text)) {
     const base = el.text.replace(/\s*\([^)]*\)\s*$/, '').trim();
     for (let j = i - 1; j >= 0; j--) {
       const p = S.doc.elements[j];
       if (p.type !== 'character') continue;
       const pb = p.text.replace(/\s*\([^)]*\)\s*$/, '').trim();
-      if (pb && pb === base && atElementEnd(el, c.off)) { el.text += " (CONT'D)"; c.off = el.text.length; }
+      if (pb && pb === base && atElementEnd(el, c.off)) { preContd = { ...el }; el.text += " (CONT'D)"; c.off = el.text.length; }
       break;
     }
   }
   if (atElementEnd(el, c.off)) {
     const nt = FOLLOW[el.type] || 'action';
     const ne = newEl(nt, '');
-    opSplice(i + 1, 0, [ne], { el: ne.id, off: 0 });
-    if (nt === 'character') guessCharacter(ne.id);
+    if (preContd) {
+      // ⌘Z must take back the (CONT'D) it added, not just the dialogue after it
+      pushUndo({ k: 'splice', i, removed: [preContd], inserted: [{ ...el }, { ...ne }], cb: S.caret, ca: { el: ne.id, off: 0 }, ts: Date.now() });
+      S.doc.elements.splice(i + 1, 0, ne);
+      S.caret = { el: ne.id, off: 0 };
+      repaginate(); renderAfterEdit();
+    } else {
+      opSplice(i + 1, 0, [ne], { el: ne.id, off: 0 });
+      if (nt === 'character') guessCharacter(ne.id);
+    }
   } else if (c.off === 0) {
     const ne = newEl(el.type === 'dialogue' ? 'character' : el.type, '');
     opSplice(i, 0, [ne], { el: el.id, off: 0 });
@@ -3120,6 +3129,7 @@ function handleTab(shift){
     const next = (shift ? TAB_BACK : TAB_BLANK)[el.type];
     if (!next) return;
     opConvert(el.id, next);
+    if (next === 'paren') opText(el.id, '()', { el: el.id, off: 1 });   // visible at once, caret inside
     if (next === 'character') guessCharacter(el.id);
     return;
   }
@@ -4329,13 +4339,66 @@ pagesEl.addEventListener('beforeinput', ev => {
   else if (t === 'insertLineBreak') { const c = S.caret; if (c && !c.el.startsWith('title:')) { const el = elById(c.el); if (el) opText(el.id, el.text.slice(0, c.off) + '\n' + el.text.slice(c.off), { el: el.id, off: c.off + 1 }); } }
   else if (t === 'deleteContentBackward') handleBackspace();
   else if (t === 'deleteContentForward') handleDelete();
+  else if (t === 'deleteWordBackward' || t === 'deleteWordForward' || t === 'deleteSoftLineBackward') handleBigDelete(t);
   else if (t === 'insertFromPaste') {
     const txt = ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '';
     if (txt) handleInsertText(txt.replace(/\r/g, ''));
   }
+  else if (t === 'insertReplacementText') {
+    // macOS substitutions: double-space→period, smart quotes, autocorrect,
+    // accepted spelling suggestions. The system tells us what range it is
+    // replacing — honour it, or the keystroke vanishes.
+    const txt = ev.data != null ? ev.data : (ev.dataTransfer ? ev.dataTransfer.getData('text/plain') : '');
+    if (txt != null && txt !== '') {
+      const ranges = ev.getTargetRanges ? ev.getTargetRanges() : [];
+      let done = false;
+      if (ranges.length) {
+        const a = pointFrom(ranges[0].startContainer, ranges[0].startOffset);
+        const b = pointFrom(ranges[0].endContainer, ranges[0].endOffset);
+        if (a && b && a.el === b.el && !a.el.startsWith('title:')) {
+          const el = elById(a.el);
+          if (el) {
+            const s0 = Math.min(a.off, b.off), e0 = Math.max(a.off, b.off);
+            shiftMarks(el, e0, s0 - e0 + txt.length);
+            opText(el.id, el.text.slice(0, s0) + txt + el.text.slice(e0), { el: el.id, off: s0 + txt.length });
+            done = true;
+          }
+        }
+      }
+      if (!done) handleInsertText(txt);         // never eat it
+    }
+  }
   else if (t === 'historyUndo') undo(false);
   else if (t === 'historyRedo') undo(true);
+  else if (/^insert/.test(t) && ev.data) handleInsertText(ev.data);   // unknown insert: never eat typed text
 });
+
+// ⌥⌫ / ⌥-fn-⌫ / ⌘⌫ — word and line deletes, in the model
+function handleBigDelete(kind){
+  const r = domRange();
+  if (r && (r[0].el !== r[1].el || r[0].off !== r[1].off)) return deleteRange(r);
+  const c = syncCaret(); if (!c || c.el.startsWith('title:')) return;
+  const el = elById(c.el); if (!el) return;
+  if (kind === 'deleteWordBackward') {
+    if (c.off === 0) return handleBackspace();
+    let s0 = c.off;
+    while (s0 > 0 && /\s/.test(el.text[s0 - 1])) s0--;
+    while (s0 > 0 && !/\s/.test(el.text[s0 - 1])) s0--;
+    shiftMarks(el, c.off, s0 - c.off);
+    opText(el.id, el.text.slice(0, s0) + el.text.slice(c.off), { el: el.id, off: s0 });
+  } else if (kind === 'deleteWordForward') {
+    if (c.off >= el.text.length) return handleDelete();
+    let e0 = c.off;
+    while (e0 < el.text.length && /\s/.test(el.text[e0])) e0++;
+    while (e0 < el.text.length && !/\s/.test(el.text[e0])) e0++;
+    shiftMarks(el, e0, c.off - e0);
+    opText(el.id, el.text.slice(0, c.off) + el.text.slice(e0), { el: el.id, off: c.off });
+  } else {                                       // deleteSoftLineBackward (⌘⌫)
+    if (c.off === 0) return handleBackspace();
+    shiftMarks(el, c.off, -c.off);
+    opText(el.id, el.text.slice(c.off), { el: el.id, off: 0 });
+  }
+}
 
 pagesEl.addEventListener('keydown', ev => {
   if (ev.target.closest?.('.noteLayer')) return;   // note boxes edit themselves
@@ -4416,8 +4479,18 @@ pagesEl.addEventListener('keydown', ev => {
 });
 
 document.addEventListener('selectionchange', () => {
+  if (S.composing) return;                    // mid-composition DOM is not the truth
   const c = domCaret();
   if (c) { S.caret = c; status(); }
+});
+pagesEl.addEventListener('compositionstart', () => {
+  S.composing = { caret: S.caret ? { ...S.caret } : null };
+});
+pagesEl.addEventListener('compositionend', ev => {
+  const st = S.composing; S.composing = null;
+  if (!st || !st.caret || !ev.data) { renderAfterEdit(); return; }
+  S.caret = st.caret;                         // insert where composition began
+  handleInsertText(ev.data);
 });
 pagesEl.addEventListener('mousedown', ev => { if (ev.button !== 2) closePops(); });
 
