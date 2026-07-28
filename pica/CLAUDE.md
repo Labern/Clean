@@ -105,6 +105,22 @@ cd /tmp/ghp && git add -A && git commit -m "Deploy pica to Pages at /Clean/pica/
 cd - && git worktree remove /tmp/ghp
 ```
 
+## Furniture is caught by BEHAVIOUR — verbatim repetition at the same height
+Oppenheimer's running head ("Gadget 2023-04-21 FINAL Shooting Script") broke the
+whole import: its ISO date matched no header regex, so ~200 leaked lines poisoned
+the column histogram → the character column landed on furniture x → 1,739 cues
+mis-filed as parentheticals, CUT TO: became a character, 249 pages from 198.
+Two structural rules now prevent the CLASS, not the instance:
+1. **Same text at the same y across ≥25% of pages = furniture, whatever it says**
+   (regex-free catch-all in the furniture pass). Writing can't repeat at a fixed
+   height — page breaks move it — which is also why The Social Network's 32
+   genuine "INT. FIRST DEPOSITION ROOM" slugs survive: different y every time.
+2. **Overprint dedupe in linesFromItems**: identical string within 1pt of the
+   previous item is double-strike bold / a duplicated layer ("GadgetGadget") —
+   drop it before joining.
+The header regex also learned ISO dates + "shooting script", but the repetition
+rule is the real fence. Suite: opp-raw.json disease case asserts all of it.
+
 ## Revision stars are marginalia, never text
 Production drafts (Collateral, TWBB, Whiplash) star changed lines with `*` in the
 outer margin. Line assembly used to weld the star into the text

@@ -594,6 +594,16 @@ const PicaEngine = (() => {
     }
     return lines.map(L => {
       L.items.sort((a, b) => a.x - b.x);
+      // some PDFs draw their text twice at the same origin (double-strike bold,
+      // duplicated watermark layers) — "Gadget" extracts as "GadgetGadget".
+      // An identical string within a point of the previous one is overprint.
+      const its2 = [];
+      for (const it of L.items) {
+        const prev = its2[its2.length - 1];
+        if (prev && prev.str === it.str && Math.abs(prev.x - it.x) < 1) continue;
+        its2.push(it);
+      }
+      L.items = its2;
       const j = joinItems(L.items, charW);
       return { x: L.items[0].x, xEnd: j.xEnd, y: L.y, text: j.text, items: L.items };
     }).filter(L => L.text.length > 0);
@@ -924,7 +934,7 @@ const PicaEngine = (() => {
     const FURNITURE_WORD = /^\(?\s*(CONTINUED|CONT'D|MORE)\s*\)?[.:]?$/i;
     // revision headers: "10/11/03 MM revs. (goldenrod)  5." — a date or the word revs,
     // usually trailing the page number. Printing apparatus, never writing.
-    const FURNITURE_HEADER = /\d{1,2}\/\d{1,2}\/\d{2,4}|\brevs?[.\s]|\brevisions?\b|\bdraft\b.*\d{1,2}\/\d{1,2}/i;
+    const FURNITURE_HEADER = /\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|\brevs?[.\s]|\brevisions?\b|\bshooting script\b|\bdraft\b.*\d{1,2}\/\d{1,2}/i;
     // provenance stamps ("Downloaded from …", site names, urls) are not writing either
     const PROVENANCE = /\b(downloaded|imported|provided|courtesy)\s+(from|of|by)\b|scriptslug|script\s*savant|simplyscripts|imsdb|dailyscript|awesomefilm|8flix|screenplays?\s*online|for educational purposes|www\.[a-z0-9-]+\.[a-z]{2,}|https?:\/\//i;
     const furniture = new Set();
@@ -947,6 +957,18 @@ const PicaEngine = (() => {
         // on a few pages must survive
         if (marks >= arr.length * 0.9 || headerish >= arr.length * 0.7)
           for (const l of arr) furniture.add(l);
+        // and the pattern-free catch-all: the SAME line at the SAME height on page
+        // after page is apparatus by definition — running heads, watermarks,
+        // production stamps — whatever it says, in whatever date format. Writing
+        // can't do that: page breaks move it. This is what keeps unknown header
+        // styles from leaking into the body and poisoning the column histogram.
+        const seen = new Map();
+        for (const l of arr) {
+          const t = l.text.replace(/\s+/g, ' ').trim();
+          seen.set(t, (seen.get(t) || 0) + 1);
+        }
+        for (const l of arr)
+          if ((seen.get(l.text.replace(/\s+/g, ' ').trim()) || 0) >= minPages) furniture.add(l);
       }
     }
     const bodyLines = p => p.lines.filter(l => !furniture.has(l));

@@ -94,6 +94,21 @@ console.log('§ 2 · Real-world PDF classes — structural invariants per diseas
       const c = doc.layout.cols;
       ok('  four distinct columns', c.dialogue - c.action > 30 && c.character - c.paren > 20, JSON.stringify(c));
     }],
+    ['opp-raw.json', 'Oppenheimer (overprinted text + ISO-dated running head)', (doc, res) => {
+      // the disease: an unrecognized running head leaks on every page, its items
+      // poison the column histogram, and every cue mis-files as parenthetical
+      ok('  running head scrubbed', doc.elements.filter(e => /gadget.*gadget|shooting script|\d{4}-\d{2}-\d{2}/i.test(e.text)).length === 0);
+      ok('  no doubled overprint text', doc.elements.filter(e => /(\b\w{5,}\b)\1/.test(e.text.replace(/\s+/g, ''))).length === 0);
+      const c = doc.layout.cols;
+      ok('  columns in order', c.action < c.dialogue && c.dialogue < c.paren && c.paren < c.character, JSON.stringify(c));
+      const h = {};
+      for (const e of doc.elements) h[e.type] = (h[e.type] || 0) + 1;
+      ok('  cues classified as cues', (h.character || 0) > 1500, String(h.character));
+      ok('  parens sane', (h.paren || 0) < 300, String(h.paren));
+      ok('  transitions found', (h.transition || 0) > 20, String(h.transition));
+      ok('  scenes found', (h.scene || 0) > 250, String(h.scene));
+      ok('  page count near source (198)', Math.abs(res.count - 198) <= 12, String(res.count));
+    }],
   ];
   for (const [f, name, fn] of cases) {
     const raw = load(f);
