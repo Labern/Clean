@@ -21,7 +21,9 @@ else — phases, calendar, notes — supports that one arc.
   start + the cycle-length slider (default 28, exact numbers shown).
 - Notes + tappable mood tags per day (🔥 very turned on, 😖 stressed, 😡 😭 😌
   ⚡ — tap a day), mood-weather tooltips on hover, 1/2/3/6-month views,
-  full-cycle rainbow ribbon that tracks hover. PMDD explainer card at the foot.
+  full-cycle rainbow ribbon that tracks hover. PMDD explainer + verified
+  further-reading links (curl-checked 200 before shipping) at the foot.
+  Calendar emoji are sized with container-query units (~1/3 of each cell).
 - **Sharing:** whole state (starts, lengths, notes, moods) is base64url-encoded
   into `#s=…` in the link — no server. Opening a shared link imports it as a
   persistent read-only "💞 theirs" view alongside "👤 mine".

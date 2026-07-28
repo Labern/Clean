@@ -13,10 +13,10 @@
   --rainbow:linear-gradient(90deg,var(--rb-red),var(--rb-orange),var(--rb-yellow),var(--rb-green),var(--rb-blue),var(--rb-purple));
 
   /* phase palette — one flat colour per phase; luteal is RED (the star), ovulation is BLUE (unique) */
-  --ph-menstrual:#f26bb8;  --ph-menstrual-soft:#ffd9ec;
-  --ph-follicular:#57a94e; --ph-follicular-soft:#d9f0d2;
-  --ph-ovulation:#3a7de0;  --ph-ovulation-soft:#d7e5fb;
-  --ph-luteal:#e8433f;     --ph-luteal-soft:#ffd9d5;  --ph-danger:#c9302c;
+  --ph-menstrual:#f26bb8;  --ph-menstrual-soft:#ffb3d9;
+  --ph-follicular:#57a94e; --ph-follicular-soft:#a6e096;
+  --ph-ovulation:#3a7de0;  --ph-ovulation-soft:#a9c8f5;
+  --ph-luteal:#e8433f;     --ph-luteal-soft:#ffa79f;  --ph-danger:#c9302c;
   --hazard:repeating-linear-gradient(45deg,#1c1c1c 0 7px,var(--rb-yellow) 7px 14px);
 
   --font:"Comic Sans MS","Comic Sans","Chalkboard SE","Marker Felt","Segoe Print",cursive;
@@ -113,7 +113,8 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
   background:#fff;padding:6px 16px;cursor:pointer;box-shadow:var(--hard-sm)}
 .navbtn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 rgba(28,28,28,.85)}
 #months{display:grid;grid-template-columns:repeat(var(--mcols,1),1fr);gap:16px}
-.month{background:rgba(255,255,255,.7);border:3px solid var(--ink);border-radius:18px;padding:10px 10px 12px;box-shadow:var(--hard-sm)}
+.month{background:rgba(255,255,255,.7);border:3px solid var(--ink);border-radius:18px;padding:10px 10px 12px;box-shadow:var(--hard-sm);
+  container-type:inline-size}
 .mtitle{text-align:center;font-weight:bold;font-size:1.05rem;margin-bottom:6px}
 .mtitle small{color:var(--faint);font-weight:normal}
 .dow{display:grid;grid-template-columns:repeat(7,1fr);font-family:var(--font-read);font-size:.68rem;font-weight:700;
@@ -125,9 +126,12 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
 .day:hover{transform:rotate(-1.6deg) scale(1.12);z-index:5;border-color:var(--ink);box-shadow:var(--hard-sm)}
 .day.blank{visibility:hidden;pointer-events:none}
 .day .n{position:absolute;top:3px;left:6px}
-.day .wx{position:absolute;bottom:2px;right:4px;font-size:.9em;line-height:1}
+/* the weather emoji is the story — ~1/3 of the cell, scaling with the month box */
+.day .wx{position:absolute;bottom:1px;right:3px;font-size:1.3em;line-height:1}
+.day .wx{font-size:4.6cqi}
 .day .mark{position:absolute;top:1px;right:3px;font-size:.72em;line-height:1.2}
-.day .tags{position:absolute;bottom:2px;left:5px;font-size:.68em;line-height:1;letter-spacing:-.5px;white-space:nowrap}
+.day .tags{position:absolute;bottom:2px;left:4px;font-size:.95em;line-height:1;letter-spacing:-.5px;white-space:nowrap}
+.day .tags{font-size:3.2cqi}
 .day.ph-menstrual{background:var(--ph-menstrual-soft)}
 .day.ph-follicular{background:var(--ph-follicular-soft)}
 .day.ph-ovulation{background:var(--ph-ovulation-soft)}
@@ -141,7 +145,6 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
 .day.is-start .n{color:#fff;background:var(--ph-menstrual);border:2px solid var(--ink);border-radius:99px;
   padding:0 5px;left:3px;top:2px;font-weight:700}
 #months.compact .day{font-size:.72rem;border-radius:9px}
-#months.compact .day .wx{font-size:.78em}
 #months.compact .mtitle{font-size:.9rem}
 
 /* ── legend ───────────────────────────────────────────────────────────── */
@@ -226,6 +229,14 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
 #savedflag.on{opacity:1}
 #closepanel{position:absolute;top:10px;right:12px;font-family:var(--font);font-weight:bold;font-size:1rem;
   border:2.5px solid var(--ink);border-radius:50%;width:34px;height:34px;background:#ffd9d5;cursor:pointer;box-shadow:2px 2px 0 rgba(28,28,28,.8)}
+
+/* ── further reading ──────────────────────────────────────────────────── */
+#reading ul{list-style:none;font-family:var(--font-read);font-size:.82rem;line-height:1.55}
+#reading li{margin:9px 0;padding-left:22px;position:relative}
+#reading li::before{content:"→";position:absolute;left:2px;color:var(--rb-purple);font-weight:700}
+#reading a{color:var(--ink);font-weight:700;text-decoration:none;border-bottom:2.5px solid var(--ph-luteal)}
+#reading a:hover{background:var(--ph-luteal-soft)}
+#reading .src{color:var(--faint);font-weight:600}
 
 /* ── toast ────────────────────────────────────────────────────────────── */
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:90;font-family:var(--font);font-weight:bold;
@@ -433,6 +444,25 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
   </div>
 </section>
 
+<!-- ── further reading ── -->
+<section class="card" id="reading">
+  <span class="section-chip">🔗 dig deeper — the luteal phase, mood &amp; how intense it can get</span>
+  <ul>
+    <li><a href="https://my.clevelandclinic.org/health/articles/24417-luteal-phase" target="_blank" rel="noopener">Luteal phase: what happens, hormone by hormone</a>
+      <span class="src">— Cleveland Clinic.</span> The clearest walk-through of the phase this app circles in red.</li>
+    <li><a href="https://www.nhs.uk/conditions/pre-menstrual-syndrome/" target="_blank" rel="noopener">PMS: symptoms and what helps</a>
+      <span class="src">— NHS.</span> Why the run-up to a period drags mood down, and the first steps that actually help.</li>
+    <li><a href="https://iapmd.org/about-pmdd" target="_blank" rel="noopener">About PMDD — when the luteal crash is severe</a>
+      <span class="src">— IAPMD.</span> How intense it can get: the international specialist charity, with symptom trackers and help finding care.</li>
+    <li><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC4890701/" target="_blank" rel="noopener">Premenstrual Dysphoric Disorder: Epidemiology and Treatment</a>
+      <span class="src">— Hantsoo &amp; Epperson, research review.</span> The science: why some brains react so strongly to normal hormone swings (serotonin, GABA), and what the treatment evidence says.</li>
+    <li><a href="https://medlineplus.gov/premenstrualsyndrome.html" target="_blank" rel="noopener">Premenstrual syndrome — vetted resource hub</a>
+      <span class="src">— MedlinePlus (NIH).</span> A curated jumping-off point for going further.</li>
+    <li><a href="https://womenshealth.gov/menstrual-cycle/premenstrual-syndrome" target="_blank" rel="noopener">Premenstrual syndrome Q&amp;A</a>
+      <span class="src">— Office on Women&rsquo;s Health.</span> Practical and thorough, question by question.</li>
+  </ul>
+</section>
+
 <p class="foot">everything is saved on this device, automatically, as you change it — sharing puts your cycle inside the link itself; nothing touches a server 🔒</p>
 </div>
 
@@ -464,7 +494,13 @@ state.notes = state.notes || {};
 state.moods = state.moods || {};
 state.starts = (state.starts || []).slice().sort();
 if (state.view === 'theirs' && !state.theirs) state.view = 'mine';
-function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+/* every state change re-renders the whole UI — the calendar can never go stale */
+let renderQueued = false;
+function scheduleRender(){
+  if (renderQueued) return; renderQueued = true;
+  requestAnimationFrame(() => { renderQueued = false; renderAll(); });
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(state)); scheduleRender(); }
 
 /* the active dataset — mine, or the imported person's */
 function D(){ return (state.view === 'theirs' && state.theirs) ? state.theirs : state; }
