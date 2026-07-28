@@ -2167,7 +2167,9 @@ function positionTitle(){
   if (!r.width) { el.style.left = ''; return; }
   const L = S.doc.layout;
   const cues = S.doc.elements.filter(e => e.type === 'character' && !e.dual).slice(0, 400);
-  const axis = cues.length >= 3
+  // ANY cue defines the axis — a two-cue script deserves the alignment as much as
+  // a finished one (page centre only until the first cue exists)
+  const axis = cues.length
     ? cues.reduce((a, e) => a + L.cols.character + (e.text.length * L.charW) / 2, 0) / cues.length
     : L.pageW / 2;
   el.style.left = (r.left + axis * S.k) + 'px';
