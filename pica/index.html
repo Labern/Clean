@@ -72,12 +72,19 @@ button{ background:none; border:none; color:inherit; font:inherit; cursor:pointe
 
 /* ---------- annotations: margin notes ---------- */
 .noteLayer{ position:absolute; inset:0; pointer-events:none; z-index:3; }
-.noteHl{ position:absolute; background:rgba(27,26,23,.10); pointer-events:none; }
+.noteHl{ position:absolute; background:rgba(27,26,23,.16); border-bottom:1px solid rgba(27,26,23,.42); pointer-events:none; }
 .noteBox{
   position:absolute; width:210px; pointer-events:auto;
   background:var(--paper); border:1px solid var(--line);
   padding:.42rem .55rem;
 }
+.noteBox .x{
+  position:absolute; top:1px; right:1px; width:1.05rem; height:1.05rem; line-height:1rem;
+  text-align:center; font-family:var(--mono); font-size:.62rem; color:var(--faint);
+  background:var(--paper); border:1px solid var(--line); opacity:0; cursor:pointer; padding:0;
+}
+.noteBox:hover .x{ opacity:1; }
+.noteBox .x:hover{ color:var(--ink); }
 .noteBox:focus-within{ border-color:var(--faint); }
 .noteBox textarea{
   display:block; width:100%; resize:none; background:transparent; border:none; outline:none;
@@ -495,14 +502,17 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
     <button id="stType" data-foot="type">—</button>
     <span id="stHint" data-foot="hint"></span>
     <button id="stDrafts" data-foot="drafts" title="Named drafts">drafts</button>
-    <button class="z" id="btnAnnot" title="Annotate — select a passage and a note appears in the margin (⇧⌘A)">
-      <svg width="13" height="13" viewBox="0 0 14 14" style="display:block" fill="none" stroke="currentColor" stroke-width="1.1">
-        <path d="M1 3.5h5M1 10.5h5M1 7h7.5"/><rect x="8.5" y="4" width="4.5" height="6" rx="1"/>
-      </svg>
-    </button>
     <button class="z" id="btnSb" title="Storyboard — drop photos of your boards where they occur, e-conte style (⇧⌘S)">
       <svg width="13" height="13" viewBox="0 0 14 14" style="display:block" fill="none" stroke="currentColor" stroke-width="1.1">
-        <rect x="1" y="4" width="4.5" height="6" rx="1"/><path d="M8 3.5h5M8 10.5h5M5.5 7h7.5"/>
+        <rect x="1.5" y="2.5" width="11" height="9" rx="1"/>
+        <circle cx="4.8" cy="5.6" r="1"/>
+        <path d="M3 11.5 L6.4 7.6 8.3 9.7 10.2 7.4 12 11.5"/>
+      </svg>
+    </button>
+    <button class="z" id="btnAnnot" title="Annotate — select a passage and a note appears in the margin (⇧⌘A)">
+      <svg width="13" height="13" viewBox="0 0 14 14" style="display:block" fill="none" stroke="currentColor" stroke-width="1.1">
+        <path d="M11.6 1.9 L12.6 2.9 5.6 9.9 3.9 10.4 4.4 8.7 Z"/>
+        <path d="M2 12.5h10"/>
       </svg>
     </button>
   </div>
@@ -2255,25 +2265,63 @@ function toggleAnnotate(){
   document.querySelectorAll('.noteLayer').forEach(d => d.remove());
   toast('annotate off');
 }
-function annotateSelection(){
-  const r = domRange(); if (!r) return;
+// a selection can run across elements — a cue AND its dialogue is one thought.
+// Each covered element gets a span entry sharing the note's id; the words live on
+// the first (the owner), continuations carry seg:1. Every entry shifts with its
+// own element's edits, which is the whole reason to store them per-element.
+function noteTargets(){
+  const r = domRange(); if (!r) return null;
   const [a, b] = r;
-  if (a.el.startsWith('title:')) return;
-  const el = elById(a.el); if (!el) return;
-  const end = a.el === b.el ? b.off : el.text.length;   // a sweep across elements notes the first
-  if (end <= a.off) return;
-  const n = { id: E.uid(), off: a.off, len: end - a.off, text: '' };
-  (el.notes = el.notes || []).push(n);
-  getSelection().removeAllRanges();
-  renderNotesAll();
-  saveSoon();
-  document.querySelector('.noteBox[data-note="' + n.id + '"] textarea')?.focus();
+  if (a.el.startsWith('title:') || b.el.startsWith('title:')) return null;
+  const ia = elIndex(a.el), ib = elIndex(b.el);
+  if (ia < 0 || ib < 0) return null;
+  const targets = [];
+  for (let i = ia; i <= ib; i++) {
+    const el = S.doc.elements[i];
+    const s = i === ia ? a.off : 0;
+    const e = i === ib ? b.off : el.text.length;
+    if (e > s) targets.push([el, s, e]);
+  }
+  return targets.length ? targets : null;
 }
-function deleteNote(elId, noteId){
-  const el = elById(elId); if (!el || !el.notes) return;
-  el.notes = el.notes.filter(n => n.id !== noteId);
-  if (!el.notes.length) delete el.notes;
+function createNote(targets, text){
+  const nid = E.uid();
+  targets.forEach(([el, s, e], i) => {
+    const n = { id: nid, off: s, len: e - s, ...(i === 0 ? { text: text || '' } : { seg: 1 }) };
+    (el.notes = el.notes || []).push(n);
+  });
   renderNotesAll(); saveSoon();
+  return nid;
+}
+function annotateSelection(){
+  const targets = noteTargets(); if (!targets) return;
+  if (S.rehl) {                                // "change highlight": move it, keep the words
+    let text = '';
+    for (const el of S.doc.elements)
+      for (const n of el.notes || []) if (n.id === S.rehl && !n.seg) text = n.text || '';
+    deleteNote(null, S.rehl, true);
+    S.rehl = null;
+    getSelection().removeAllRanges();
+    createNote(targets, text);
+    toast('highlight moved');
+    return;
+  }
+  const nid = createNote(targets, '');
+  getSelection().removeAllRanges();
+  document.querySelector('.noteBox[data-note="' + nid + '"] textarea')?.focus();
+}
+function deleteNote(_elId, noteId, quiet){
+  for (const el of S.doc.elements) if (el.notes) {
+    el.notes = el.notes.filter(n => n.id !== noteId);
+    if (!el.notes.length) delete el.notes;
+  }
+  if (!quiet) { renderNotesAll(); saveSoon(); }
+}
+function goToNote(b){
+  S.caret = { el: b.el.id, off: b.n.off };
+  const pi = caretPage();
+  if (pi >= 0 && S.pageEls[pi]) S.pageEls[pi].wrap.scrollIntoView({ block: 'center' });
+  setTimeout(() => { restoreCaret(); status(); }, 90);
 }
 function renderNotesAll(){
   for (let i = 0; i < S.pageEls.length; i++) if (S.pageEls[i].live) renderNotes(i);
@@ -2303,8 +2351,8 @@ function renderNotes(pi){
         h.style.height = L.rowH * k + 'px';
         layer.appendChild(h);
       }
-      // the box anchors where the note begins
-      if (n.off >= l.off && n.off <= l.off + l.text.length && !boxes.some(x => x.n === n))
+      // the box anchors where the note begins — on its owner entry only
+      if (!n.seg && n.off >= l.off && n.off <= l.off + l.text.length && !boxes.some(x => x.n === n))
         boxes.push({ n, el, y: yTop });
     }
   }
@@ -2325,6 +2373,10 @@ function renderNotes(pi){
     ta.rows = 1; ta.value = b.n.text || ''; ta.placeholder = '…';
     ta.spellcheck = false;
     box.appendChild(ta);
+    const x = document.createElement('button');
+    x.className = 'x'; x.textContent = '×'; x.title = 'Delete note';
+    x.addEventListener('mousedown', ev => { ev.preventDefault(); ev.stopPropagation(); deleteNote(null, b.n.id); });
+    box.appendChild(x);
     layer.appendChild(box);
     b.box = box; b.ta = ta;
     ta.addEventListener('input', () => {
@@ -2334,7 +2386,21 @@ function renderNotes(pi){
       saveSoon();
     });
     ta.addEventListener('keydown', kv => { kv.stopPropagation(); if (kv.key === 'Escape') ta.blur(); });
-    ta.addEventListener('blur', () => { if (!ta.value.trim()) deleteNote(b.el.id, b.n.id); });
+    ta.addEventListener('blur', () => { if (!ta.value.trim()) deleteNote(null, b.n.id); });
+    box.addEventListener('contextmenu', ev => {
+      ev.preventDefault(); ev.stopPropagation();
+      popupAt([
+        { label: 'Change highlight', act: 'rehl' },
+        { label: 'Go to passage', act: 'go' },
+        { label: 'Copy comment', act: 'copy' },
+        { label: 'Delete note', act: 'del' },
+      ], ev.clientX, ev.clientY, it => {
+        if (it.act === 'del') deleteNote(null, b.n.id);
+        else if (it.act === 'rehl') { S.rehl = b.n.id; getSelection().removeAllRanges(); toast('select the new passage — Esc cancels'); }
+        else if (it.act === 'copy') { navigator.clipboard?.writeText(b.n.text || ''); toast('copied'); }
+        else if (it.act === 'go') goToNote(b);
+      });
+    });
   }
   pe.wrap.appendChild(layer);
   for (const b of boxes) { b.ta.style.height = 'auto'; b.ta.style.height = b.ta.scrollHeight + 'px'; }
@@ -3589,6 +3655,7 @@ window.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     const z = $('#sbZoom');
     if (z && z.classList.contains('show')) { e.preventDefault(); z.classList.remove('show'); return; }
+    if (S.rehl) { S.rehl = null; toast('re-highlight cancelled'); }
     if ($('#overlay').classList.contains('show')) { e.preventDefault(); closeOverlay(); }
     closePops();
   }
@@ -4414,7 +4481,17 @@ window.PICA_API = {
       renderNotesAll(); saveSoon(); return n.id;
     },
     notes(i){ const el = S.doc.elements[i]; return JSON.stringify((el && el.notes) || []); },
-    delNote(i, id){ const el = S.doc.elements[i]; if (el) deleteNote(el.id, id); return true; },
+    delNote(i, id){ deleteNote(null, id); return true; },
+    noteMulti(i1, o1, i2, o2){
+      const targets = [];
+      for (let i = i1; i <= i2; i++) {
+        const el = S.doc.elements[i]; if (!el) return false;
+        const s = i === i1 ? o1 : 0, e = i === i2 ? o2 : el.text.length;
+        if (e > s) targets.push([el, s, e]);
+      }
+      for (let p = 0; p < S.pageEls.length; p++) renderPage(p);
+      return createNote(targets, '');
+    },
     noteBoxes(){ return document.querySelectorAll('.noteBox').length + ':' + document.querySelectorAll('.noteHl').length; },
     panel(i, off){
       const el = S.doc.elements[i]; if (!el) return false;

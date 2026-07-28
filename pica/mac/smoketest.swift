@@ -281,6 +281,11 @@ let grammarSteps: [Step] = [
     Step(desc: "annotation: mode-gated, box renders, span shifts, delete clears",
          js: "await T.reset(); T.caret(0,0); T.type('INT. NOTE - DAY'); T.esc(); T.enter(); T.type('He waits a long moment before answering.'); T.esc(); T.note(1, 3, 5, 'love this'); const gated = T.noteBoxes(); window.PICA_API.toggleAnnotate(); const b1 = T.noteBoxes(); T.caret(1, 0); T.type('XX'); const n = JSON.parse(T.notes(1))[0]; const shifted = n.off + ',' + n.len + ',' + n.text; T.delNote(1, n.id); const b2 = T.noteBoxes(); window.PICA_API.toggleAnnotate(); return gated + '/' + b1 + '/' + shifted + '/' + b2",
          expect: "0:0/1:1/5,5,love this/0:0"),
+    // A note can cover a cue AND its dialogue: washes on both elements, ONE box,
+    // and delete clears every segment.
+    Step(desc: "annotation: multi-element note — two washes, one box, delete clears all",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. TWO - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('We were never here.'); T.esc(); window.PICA_API.toggleAnnotate(); const nid = T.noteMulti(1, 0, 2, 8); const b1 = T.noteBoxes(); T.delNote(0, nid); const b2 = T.noteBoxes(); const left = JSON.parse(T.notes(1)).length + JSON.parse(T.notes(2)).length; window.PICA_API.toggleAnnotate(); return b1 + '/' + b2 + '/' + left",
+         expect: "1:2/0:0/0"),
     // Storyboard: same gating; a panel anchors at a position, shifts with typing,
     // hides when the mode turns off, returns when it turns on, deletes clean.
     Step(desc: "storyboard: mode-gated, panel anchors, shifts, survives toggling, deletes",

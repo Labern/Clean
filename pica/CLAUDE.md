@@ -130,7 +130,13 @@ selection it annotates immediately, otherwise it arms a mode where every finishe
 selection spawns a note. Data: `el.notes = [{id, off, len, text}]` ON the element —
 rides saves/snapshots/drafts/mirror automatically; offsets shift through the same
 `shiftMarks` path as emphasis (but notes are never auto-deleted — span collapse
-keeps the box, the words are his). Washes are GEOMETRY (charW rectangles in a
+keeps the box, the words are his). A note may span MULTIPLE elements (cue +
+dialogue as one thought): each covered element holds an entry sharing the note's
+id — the first (owner) carries `text`, continuations carry `seg:1` — so every
+segment shifts with its own element and deletion sweeps all elements by id.
+Right-click a note box: Change highlight (arms `S.rehl`; the next finished
+selection becomes the note's new span(s), words kept; Esc cancels) · Go to
+passage · Copy comment · Delete. Hover × also deletes; empty-on-blur still does. Washes are GEOMETRY (charW rectangles in a
 `.noteLayer` per page), not markup; boxes clamp into the viewport (sliding onto the
 paper's margin when the window is tight); leads skip segments that would cross
 text. Empty-on-blur deletes. `.noteLayer` is contentEditable=false and both
