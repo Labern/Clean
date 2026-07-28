@@ -38,7 +38,12 @@ let app = NSApplication.shared
 app.setActivationPolicy(.prohibited)
 
 let here = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-let webRoot = here.appendingPathComponent("build/PICA.app/Contents/Resources/web")
+// the bundle build.sh actually produced: PICA_BUILD_DIR, else /tmp/pica-build (the
+// default since builds moved out of the iCloud-synced tree), else the old mac/build
+let buildDir = ProcessInfo.processInfo.environment["PICA_BUILD_DIR"].map { URL(fileURLWithPath: $0) }
+    ?? (FileManager.default.fileExists(atPath: "/tmp/pica-build/PICA.app/Contents/Resources/web/index.html")
+        ? URL(fileURLWithPath: "/tmp/pica-build") : here.appendingPathComponent("build"))
+let webRoot = buildDir.appendingPathComponent("PICA.app/Contents/Resources/web")
 guard FileManager.default.fileExists(atPath: webRoot.appendingPathComponent("index.html").path) else {
     print("FAIL: build/PICA.app not found — run ./build.sh first"); exit(1)
 }
@@ -233,7 +238,7 @@ struct Step { let desc: String; let js: String; let expect: String }
 let grammarSteps: [Step] = [
     // Scene Heading + Enter → Action
     Step(desc: "slug typed, Enter gives Action",
-         js: "T.reset(); T.caret(0,0); T.type('INT. HOUSE - DAY'); T.esc(); T.enter(); return T.state().join('§')",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. HOUSE - DAY'); T.esc(); T.enter(); return T.state().join('§')",
          expect: "scene|INT. HOUSE - DAY§action|"),
     // Action + Enter → Action
     Step(desc: "Action + Enter gives Action",
@@ -257,7 +262,7 @@ let grammarSteps: [Step] = [
          expect: "paren|(beat)§dialogue|"),
     // Parenthetical + Enter → Dialogue
     Step(desc: "Enter from inside a Parenthetical gives Dialogue",
-         js: "T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.tab(false); T.type('beat'); T.esc(); T.enter(); return T.state().slice(2).join('§')",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.tab(false); T.type('beat'); T.esc(); T.enter(); return T.state().slice(2).join('§')",
          expect: "paren|(beat)§dialogue|"),
     // Dialogue + Enter → Action
     Step(desc: "Dialogue + Enter gives Action",
@@ -269,15 +274,23 @@ let grammarSteps: [Step] = [
          expect: "scene|INT. BARN"),
     // Transition + Enter → Scene Heading
     Step(desc: "Transition + Enter gives a Scene Heading",
-         js: "T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.tab(false); T.esc(); T.type('CUT TO:'); T.esc(); T.enter(); return T.state().slice(1).join('§')",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.tab(false); T.esc(); T.type('CUT TO:'); T.esc(); T.enter(); return T.state().slice(1).join('§')",
          expect: "transition|CUT TO:§scene|"),
+    // Annotation: a note renders its margin box + wash, its span shifts with typing
+    // ahead of it, and deleting it clears the margin.
+    Step(desc: "annotation: box renders, span shifts with edits, delete clears",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. NOTE - DAY'); T.esc(); T.enter(); T.type('He waits a long moment before answering.'); T.esc(); T.note(1, 3, 5, 'love this'); const b1 = T.noteBoxes(); T.caret(1, 0); T.type('XX'); const n = JSON.parse(T.notes(1))[0]; const shifted = n.off + ',' + n.len + ',' + n.text; T.delNote(1, n.id); return b1 + '/' + shifted + '/' + T.noteBoxes()",
+         expect: "1:1/5,5,love this/0:0"),
 ]
 
 func runGrammar(_ i: Int) {
     if i >= grammarSteps.count { finishAll(); return }
     let s = grammarSteps[i]
-    eval("(() => { try { const T = window.PICA_API.test; " + s.js + " } catch(e) { return 'ERR: ' + (e && e.message || e); } })()") { res in
-        let got = (res as? String) ?? "<no result>"
+    let body = "try { const T = window.PICA_API.test; " + s.js + " } catch(e) { return 'ERR: ' + (e && e.message || e); }"
+    web.callAsyncJavaScript(body, arguments: [:], in: nil, in: .page) { result in
+        var got = "<no result>"
+        if case .success(let v) = result { got = (v as? String) ?? "<no result>" }
+        if case .failure(let e) = result { got = "EVALERR: " + String(describing: e) }
         check("grammar: " + s.desc, got == s.expect, got == s.expect ? "" : "got “\(got)” want “\(s.expect)”")
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { runGrammar(i + 1) }
     }

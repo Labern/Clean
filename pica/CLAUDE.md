@@ -122,6 +122,38 @@ stars outright — they're real screenplay data — and never let them into text
 Related: the paginator never breaks a speech straight after a parenthetical
 (`subEnd` excludes `paren`) — FD welds "(beat)" to the dialogue it modifies.
 
+## Annotations (⇧⌘A)
+Margin notes on passages: select text → a hairline box appears right of the page at
+the passage's own y, joined by an elbow lead; type the comment. One toggle (footer
+button, right-most of bottom-left; ⇧⌘A; View▸Annotate in the app): with a live
+selection it annotates immediately, otherwise it arms a mode where every finished
+selection spawns a note. Data: `el.notes = [{id, off, len, text}]` ON the element —
+rides saves/snapshots/drafts/mirror automatically; offsets shift through the same
+`shiftMarks` path as emphasis (but notes are never auto-deleted — span collapse
+keeps the box, the words are his). Washes are GEOMETRY (charW rectangles in a
+`.noteLayer` per page), not markup; boxes clamp into the viewport (sliding onto the
+paper's margin when the window is tight); leads skip segments that would cross
+text. Empty-on-blur deletes. `.noteLayer` is contentEditable=false and both
+`keydown` and `beforeinput` handlers bail on events from it — note textareas must
+never feed the typing grammar. Notes are excluded from print/PDF by design.
+
+## Selection must survive the forgiving caret
+The forgiving-caret mousedown (blank-paper clicks) calls preventDefault, which
+kills the browser's native drag anchor — dragging a selection FROM blank paper
+(the natural grip when sweeping up from a passage's end) silently did nothing.
+Fix: the handler extends the selection by hand (forgivingPos each mousemove +
+setBaseAndExtent from the forgiven anchor). Don't remove the preventDefault; do
+keep the manual drag.
+
+## The smoketest tests the BUILT bundle — keep it pointed at the real one
+smoketest.swift loads `PICA_BUILD_DIR` → `/tmp/pica-build` → `mac/build`, in that
+order. It once hardcoded `mac/build` while build.sh wrote to /tmp/pica-build (the
+iCloud-codesign move): every run silently verified a fossil page from days earlier
+and stayed green while the real app drifted. If grammar steps ever fail with typing
+landing in the wrong document, it's the async `openDoc` race: `T.reset()` returns a
+promise and steps run via `callAsyncJavaScript` with `await T.reset()` — keep it
+that way.
+
 ## The full instrument (as of 2026-07-26)
 Editor with FD-exact grammar · PDF import for the real world (revision headers,
 scene-number gutters, cipher fonts, provenance stamps — all scrubbed/decoded) ·
