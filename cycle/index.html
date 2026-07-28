@@ -265,7 +265,7 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
     <button class="vchip sel" id="chipmine">👤 mine</button>
     <button class="vchip" id="chiptheirs" hidden>💞 theirs</button>
     <button class="vchip share" id="chipshare">💌 share mine</button>
-    <button class="vchip" id="chipweather">🌦 forecast: on</button>
+    <button class="vchip" id="chipweather">🌦️ forecast: on</button>
   </div>
 </header>
 
@@ -342,20 +342,20 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
     <span class="lchip"><i style="background:var(--ph-follicular)"></i>follicular</span>
     <span class="lchip"><i style="background:var(--ph-ovulation)"></i>ovulation ⭐</span>
     <span class="lchip"><i style="background:var(--ph-luteal)"></i>luteal</span>
-    <span class="lchip peak"><i></i>⚠ danger zone — last 5 luteal days, worst at its start</span>
+    <span class="lchip peak"><i></i>⚠️ danger zone — last 5 luteal days, worst at its start</span>
     <span class="lchip">🌈 the break — day 1</span>
     <span class="lchip">🌹 recorded start</span>
     <span class="lchip">🔥😖 moods tagged that day</span>
     <span class="lchip">✎ has a note</span>
   </div>
   <div id="calhint" style="font-family:var(--font-read);font-size:.72rem;color:var(--faint);margin-top:8px">
-    tap any day to write a note or tag the moods you felt (🔥 😖 …) — your mood emoji replaces the forecast on that day. mark period starts 🌹 on as many past days as you like; past cycles then use their real lengths. the 🌦 forecast button up top hides the default weather emojis entirely
+    tap any day to write a note or tag the moods you felt (🔥 😖 …) — your mood emoji replaces the forecast on that day. mark period starts 🌹 on as many past days as you like; past cycles then use their real lengths. the 🌦️ forecast button up top hides the default weather emojis entirely
   </div>
 </section>
 
 <!-- ── the mood arc ── -->
 <section class="card" id="arc">
-  <span class="section-chip">⛈ the mood arc — why the worst day is 5 days out</span>
+  <span class="section-chip">⛈️ the mood arc — why the worst day is 5 days out</span>
   <div class="arcflow">
     <div class="step"><span class="big">☀️</span>follicular<br><span style="font-weight:400">sunny &amp; rising</span></div>
     <div class="arrow">→</div>
@@ -363,9 +363,9 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
     <div class="arrow">→</div>
     <div class="step"><span class="big">⛅</span>early luteal<br><span style="font-weight:400">clouding over</span></div>
     <div class="arrow">→</div>
-    <div class="step"><span class="big">🌧</span>late luteal<br><span style="font-weight:400">fuse shortening</span></div>
+    <div class="step"><span class="big">🌧️</span>late luteal<br><span style="font-weight:400">fuse shortening</span></div>
     <div class="arrow">→</div>
-    <div class="step s-peak"><span class="big">⛈</span>⚠ DANGER ZONE<br><span style="font-weight:400">the last 5 days — worst at their start, 5 days before bleeding</span></div>
+    <div class="step s-peak"><span class="big">⛈️</span>⚠️ DANGER ZONE<br><span style="font-weight:400">the last 5 days — worst at their start, 5 days before bleeding</span></div>
     <div class="arrow">→</div>
     <div class="step s-break"><span class="big">🌈</span>THE BREAK<br><span style="font-weight:400">day 1 — bleeding starts, the storm lifts</span></div>
   </div>
@@ -416,12 +416,12 @@ input[type=number]{font-family:var(--font-read);font-weight:bold;font-size:1rem;
     </div>
 
     <div class="phase-card star">
-      <h3><i style="background:var(--ph-luteal)"></i>Luteal ⛈ <span style="font-size:.7em;color:var(--ph-danger)">— the one to watch</span></h3>
+      <h3><i style="background:var(--ph-luteal)"></i>Luteal ⛈️ <span style="font-size:.7em;color:var(--ph-danger)">— the one to watch</span></h3>
       <div class="days" data-days="luteal">days 16–28</div>
       <div class="rule" style="background:var(--ph-luteal)"></div>
       <dl>
         <dt>Biology</dt><dd>The empty follicle becomes the corpus luteum and pumps out progesterone. With no pregnancy, progesterone <i>and</i> oestrogen collapse over the final ~5 days — the crash behind PMS.</dd>
-        <dt>Mood</dt><dd>A gradually shortening fuse: irritability, anxiety, tearfulness, low patience. <b style="color:var(--ph-danger)">⚠ The last five days are the danger zone — worst at their start, five days before bleeding</b> — then it breaks on day 1. 🌈</dd>
+        <dt>Mood</dt><dd>A gradually shortening fuse: irritability, anxiety, tearfulness, low patience. <b style="color:var(--ph-danger)">⚠️ The last five days are the danger zone — worst at their start, five days before bleeding</b> — then it breaks on day 1. 🌈</dd>
         <dt>Body</dt><dd>Bloating, breast tenderness, cravings, spots, poorer sleep, lower energy.</dd>
       </dl>
     </div>
@@ -561,7 +561,7 @@ const toBreak = (day,len) => len - day + 1;              // days until next day 
 /* mood weather — the heart of the app */
 function weather(day, len, P){
   if (day === 1) return { wx:'🌈', label:'THE BREAK — the storm lifts' };
-  if (day <= P)  return { wx:'🌤', label:'clearing — calm coming back' };
+  if (day <= P)  return { wx:'🌤️', label:'clearing — calm coming back' };
   const ph = phaseOf(day, len, P);
   if (ph === 'follicular') return { wx:'☀️', label:'sunny — energy climbing' };
   if (ph === 'ovulation'){
@@ -570,9 +570,9 @@ function weather(day, len, P){
       : { wx:'🌟', label:'radiant — peak confidence & charm' };
   }
   const dtb = toBreak(day, len);
-  if (dtb === 5) return { wx:'⛈', label:'⚠ DANGER ZONE begins — moods at their worst; 5 days to the break' };
-  if (dtb < 5)   return { wx:'⛈', label:'⚠ danger zone — handle with care; ' + dtb + ' day' + (dtb===1?'':'s') + ' to the break' };
-  if (dtb <= 9)  return { wx:'🌧', label:'rain — fuse shortening' };
+  if (dtb === 5) return { wx:'⛈️', label:'⚠️ DANGER ZONE begins — moods at their worst; 5 days to the break' };
+  if (dtb < 5)   return { wx:'⛈️', label:'⚠️ danger zone — handle with care; ' + dtb + ' day' + (dtb===1?'':'s') + ' to the break' };
+  if (dtb <= 9)  return { wx:'🌧️', label:'rain — fuse shortening' };
   return { wx:'⛅', label:'clouding over — PMS building' };
 }
 const PHASE_BLURB = {
@@ -670,7 +670,7 @@ function renderToday(){
 function renderView(){
   document.getElementById('chipmine').classList.toggle('sel', mine());
   const cw = document.getElementById('chipweather');
-  cw.textContent = '🌦 forecast: ' + (state.showWeather ? 'on' : 'off');
+  cw.textContent = '🌦️ forecast: ' + (state.showWeather ? 'on' : 'off');
   cw.classList.toggle('sel', state.showWeather);
   const ct = document.getElementById('chiptheirs');
   ct.hidden = !state.theirs;
@@ -689,7 +689,7 @@ function renderView(){
       '</b> days, <b>' + t.starts.length + '</b> recorded start' + (t.starts.length===1?'':'s') +
       (ntCount ? ', <b>' + ntCount + '</b> note' + (ntCount===1?'':'s') + ' ✎' : '') +
       (mdCount ? ', <b>' + mdCount + '</b> mood-tagged day' + (mdCount===1?'':'s') + ' 🔥' : '') +
-      '.<br>Hover or tap any day to see what they’re going through — the red run into ⚠ hazard stripes is the stretch to watch. ' +
+      '.<br>Hover or tap any day to see what they’re going through — the red run into ⚠️ hazard stripes is the stretch to watch. ' +
       'Their notes and tagged moods sit on the days marked ✎ / emoji. Everything here is read-only; flip back to 👤 mine any time.';
   }
   document.getElementById('calhint').hidden = !mine();
@@ -707,7 +707,7 @@ function renderRibbon(){
     s.style.background = PHASE_COL[ph];
     rib.appendChild(s);
   }
-  labs.innerHTML = '<span>day 1 🌈</span><span>⭐ day ' + ovuDay(L,P) + '</span><span>⚠ days ' + (L-4) + '–' + L + '</span>';
+  labs.innerHTML = '<span>day 1 🌈</span><span>⭐ day ' + ovuDay(L,P) + '</span><span>⚠️ days ' + (L-4) + '–' + L + '</span>';
   const ci = cycleInfo(today), mark = document.getElementById('rmark');
   if (ci && ci.len === L){ mark.style.display=''; mark.style.left = ((ci.day - .5) / L * 100) + '%'; }
   else mark.style.display = 'none';
@@ -758,7 +758,7 @@ function buildMonth(first){
       }
       wxEmoji = weather(ci.day, ci.len, P).wx;
       const marks = [];
-      if (ph === 'luteal' && toBreak(ci.day, ci.len) === 5) marks.push('⚠');
+      if (ph === 'luteal' && toBreak(ci.day, ci.len) === 5) marks.push('⚠️');
       if (ci.day === ovuDay(ci.len, P) && ph === 'ovulation') marks.push('⭐');
       if (marks.length) inner += '<span class="mark">' + marks.join('') + '</span>';
       if (date > today) cell.classList.add('is-future');
@@ -805,8 +805,8 @@ function showTip(cell, date){
   const dtb = toBreak(s.ci.day, s.ci.len);
   if (s.ph === 'luteal' && dtb <= 5){
     extra = dtb === 5
-      ? '<div class="t-danger">⚠ DANGER ZONE BEGINS — worst mood day, 5 days before bleeding</div>'
-      : '<div class="t-danger">⚠ danger zone — ' + dtb + ' day' + (dtb===1?'':'s') + ' to the break</div>';
+      ? '<div class="t-danger">⚠️ DANGER ZONE BEGINS — worst mood day, 5 days before bleeding</div>'
+      : '<div class="t-danger">⚠️ danger zone — ' + dtb + ' day' + (dtb===1?'':'s') + ' to the break</div>';
   }
   else if (s.ci.day === 1) extra = '<div style="color:var(--rb-purple);font-weight:700">🌈 THE BREAK — bleeding starts, the storm lifts</div>';
   const note = D().notes[fmtKey(date)];
@@ -954,7 +954,7 @@ function syncControls(){
   set('menstrual','days 1–' + P + ' · the break 🌈');
   set('follicular','days ' + (P+1) + '–' + (ov-2));
   set('ovulation','days ' + (ov-1) + '–' + (ov+1) + ' · egg on day ' + ov);
-  set('luteal','days ' + (ov+2) + '–' + L + ' · ⚠ danger days ' + (L-4) + '–' + L);
+  set('luteal','days ' + (ov+2) + '–' + L + ' · ⚠️ danger days ' + (L-4) + '–' + L);
 }
 function bindRange(rid, nid, prop){
   const apply = v => {
