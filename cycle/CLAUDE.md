@@ -27,14 +27,21 @@ else — phases, calendar, notes — supports that one arc.
   full-cycle rainbow ribbon that tracks hover. PMDD explainer + verified
   further-reading links (curl-checked 200 before shipping) at the foot.
   Calendar emoji are sized with container-query units (~1/3 of each cell).
-- **Sharing:** whole state (starts, lengths, notes, moods) is base64url-encoded
-  into `#s=…` in the link — no server. Opening a shared link imports it as a
-  persistent read-only "💞 theirs" view alongside "👤 mine".
+- **Sharing (live):** the link carries a snapshot (`#s=…`, base64url) AND a
+  channel id (`&c=…`). The sharer publishes their payload as an MQTT
+  **retained** message under `cycle/v1/<channel>` on every change (debounced
+  ~1s), to ALL of the political app's three public WSS brokers (retained state
+  doesn't replicate across brokers — publish/subscribe everywhere, newest
+  `updatedAt` wins). The viewer's subscribe redelivers the retained copy on
+  every refresh + pushes live while open; the snapshot is the no-relay
+  fallback. `vendor/mqtt.min.js` is copied from `political/vendor/`. Opening a
+  shared link imports a persistent read-only "💞 theirs" view alongside
+  "👤 mine".
 
 ## State
 
 `localStorage['cycle.state.v1']` — `{starts, cycleLen, periodLen, monthsView,
-notes, moods, name, theirs, view}`. **Never lose progress:** additive-only schema,
+notes, moods, name, theirs, view, showWeather, channel}`. **Never lose progress:** additive-only schema,
 hydrate-over-defaults; never wipe or rename keys, only add optional ones.
 
 ## Deploy
