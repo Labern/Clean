@@ -276,6 +276,10 @@ let grammarSteps: [Step] = [
     Step(desc: "Transition + Enter gives a Scene Heading",
          js: "await T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.tab(false); T.esc(); T.type('CUT TO:'); T.esc(); T.enter(); return T.state().slice(1).join('§')",
          expect: "transition|CUT TO:§scene|"),
+    // FD keeps emphasis through splits and merges; Tab acts from anywhere
+    Step(desc: "bold survives split and merge; Tab acts mid-paragraph",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. Q - DAY'); T.esc(); T.enter(); T.type('Bold words here now.'); T.esc(); window.__pica.doc.elements[1].marks = [[5, 19, 'b']]; T.caret(1, 12); T.enter(); const sp = JSON.stringify(window.__pica.doc.elements[1].marks) + JSON.stringify(window.__pica.doc.elements[2].marks); T.caret(2, 0); document.querySelector('#pages').dispatchEvent(new InputEvent('beforeinput', { inputType: 'deleteContentBackward', bubbles: true, cancelable: true })); const mg = JSON.stringify(window.__pica.doc.elements[1].marks); T.caret(1, 4); T.tab(false); return sp + '¤' + mg + '¤' + window.__pica.doc.elements[2].type",
+         expect: "[[5,12,\"b\"]][[0,7,\"b\"]]¤[[5,19,\"b\"]]¤character"),
     // Input must NEVER be eaten: macOS substitutions (double-space→period, smart
     // quotes) arrive as insertReplacementText; ⌥⌫ as deleteWordBackward; dead keys
     // via composition. All must land in the model.

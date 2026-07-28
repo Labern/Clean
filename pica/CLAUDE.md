@@ -38,6 +38,16 @@ and re-extracts (needs `npm i pdfjs-dist` inside tests/).
   out; Enter on empty → menu; ⌘1–8 direct; int./ext. auto-detects; SmartType feeds
   from the script itself.
 
+## Typed-doc geometry is FD12's own template, to the point
+LETTER (new docs) mirrors Screenplay.fdxt exactly: action/scene 1.5"–7.5" (60),
+dialogue 2.5"–6.0" (35), parenthetical 3.0"–5.5" (25, hanging -0.10" first
+line), character 3.5"–7.25" (252pt, width 37), transition right edge 7.10"
+(511.2pt). Imports never use these — they reproduce their sources. Emphasis
+marks, notes and panels are CARRIED through element splits and merges
+(handleEnter split branch, carryMerge in the three merge sites) — FD keeps
+styles on both sides and so do we. Tab acts from ANY caret position in a
+written paragraph (FD), not only the end; the slug walk still needs the end.
+
 ## The element grammar is Final Draft's, verbatim — do not "improve" it
 `FOLLOW` is FD12's own `ReturnKey=` attribute, read out of
 `/Applications/Final Draft 12.app/Contents/Resources/Data/Templates/Script/Screenplay.fdxt`

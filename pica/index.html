@@ -558,9 +558,9 @@ const PicaEngine = (() => {
     pageW: 612, pageH: 792,
     y0: 76.5, rowH: 12, rows: 55,
     pnY: 40.5, pnRight: 576,
-    cols: { action: 108, dialogue: 180, paren: 216, character: 266 },
-    transRight: 540, charW: 7.2,
-    widths: { scene: 57, action: 57, character: 33, paren: 25, dialogue: 35, transition: 30, shot: 57, general: 57 },   // paren 25 = FD12's own 3.00"–5.50" (Screenplay.fdxt)
+    cols: { action: 108, dialogue: 180, paren: 216, character: 252 },   // FD12: character left 3.50"
+    transRight: 511.2, charW: 7.2,                                       // FD12: transition right 7.10"
+    widths: { scene: 60, action: 60, character: 37, paren: 25, dialogue: 35, transition: 16, shot: 60, general: 60 },   // FD12's own margins (Screenplay.fdxt): action 1.5"–7.5", cue 3.5"–7.25", paren 3.0"–5.5", transition 5.5"–7.1"
     moreDy: 10, contDy: -14,
   };
 
@@ -2511,6 +2511,41 @@ function shiftMarks(el, at, delta){
   if (el.panels) for (const p of el.panels)
     if (p.off >= at) p.off = Math.max(0, p.off + delta);
 }
+// FD keeps emphasis through paragraph merges; PICA also carries its margin data.
+// Build the carried fields for a merge: `a` keeps its first aKeepLen chars,
+// `b` contributes from bDropLen onward, landing at offset aKeepLen.
+function carryMerge(a, aKeepLen, b, bDropLen, totalLen){
+  const out = {};
+  const marks = [];
+  for (const [s0, e0, k] of a.marks || []) if (s0 < aKeepLen) marks.push([s0, Math.min(e0, aKeepLen), k]);
+  for (const [s0, e0, k] of b.marks || []) {
+    const s1 = Math.max(0, s0 - bDropLen) + aKeepLen, e1 = Math.max(0, e0 - bDropLen) + aKeepLen;
+    if (e1 > s1) marks.push([s1, Math.min(e1, totalLen), k]);
+  }
+  const mv = marks.filter(([x, y]) => y > x)
+    .sort((p, q) => (p[2] < q[2] ? -1 : p[2] > q[2] ? 1 : p[0] - q[0]));
+  const coal = [];
+  for (const m of mv) {
+    const last = coal[coal.length - 1];
+    if (last && last[2] === m[2] && m[0] <= last[1]) last[1] = Math.max(last[1], m[1]);
+    else coal.push([...m]);
+  }
+  if (coal.length) out.marks = coal;
+  const notes = [];
+  for (const n of a.notes || []) if (n.off < aKeepLen || n.len === 0)
+    notes.push({ ...n, off: Math.min(n.off, aKeepLen), len: Math.max(0, Math.min(n.off + n.len, aKeepLen) - Math.min(n.off, aKeepLen)) });
+  for (const n of b.notes || []) {
+    const off = Math.max(0, n.off - bDropLen) + aKeepLen;
+    notes.push({ ...n, off: Math.min(off, totalLen), len: Math.max(0, Math.min(off + n.len, totalLen) - Math.min(off, totalLen)) });
+  }
+  if (notes.length) out.notes = notes;
+  const panels = [];
+  for (const pn of a.panels || []) panels.push({ ...pn, off: Math.min(pn.off, aKeepLen) });
+  for (const pn of b.panels || []) panels.push({ ...pn, off: Math.min(Math.max(0, pn.off - bDropLen) + aKeepLen, totalLen) });
+  if (panels.length) out.panels = panels;
+  return out;
+}
+
 function rangeHasMark(el, s, e, kind){
   if (!el.marks) return false;
   for (let i = s; i < e; i++) {
@@ -3057,12 +3092,45 @@ function handleEnter(){
   } else if (c.off === 0) {
     const ne = newEl(el.type === 'dialogue' ? 'character' : el.type, '');
     opSplice(i, 0, [ne], { el: el.id, off: 0 });
-  } else { // split element
-    const head = el.text.slice(0, c.off).replace(/\s+$/, '');
-    const tail = el.text.slice(c.off).replace(/^\s+/, '');
+  } else { // split element — FD keeps emphasis (and PICA's margin data) on BOTH sides
+    const raw = el.text;
+    const head = raw.slice(0, c.off).replace(/\s+$/, '');
+    const tailRaw = raw.slice(c.off);
+    const lead = tailRaw.length - tailRaw.replace(/^\s+/, '').length;
+    const tail = tailRaw.slice(lead);
+    const tailOff = c.off + lead;             // original index of the tail's first char
     const ne = newEl(el.type, tail);
-    pushUndo({ k: 'splice', i, removed: [{ ...el }], inserted: [{ ...el, text: head }, { ...ne }], cb: S.caret, ca: { el: ne.id, off: 0 }, ts: Date.now() });
+    const removedSnap = JSON.parse(JSON.stringify({ ...el }));
+    if (el.marks) {
+      const hm = [], tm = [];
+      for (const [s0, e0, k] of el.marks) {
+        if (s0 < head.length && e0 > 0) hm.push([Math.max(0, s0), Math.min(e0, head.length), k]);
+        if (e0 > tailOff) tm.push([Math.max(0, s0 - tailOff), Math.min(tail.length, e0 - tailOff), k]);
+      }
+      const hv = hm.filter(([a, b]) => b > a), tv = tm.filter(([a, b]) => b > a);
+      if (hv.length) el.marks = hv; else delete el.marks;
+      if (tv.length) ne.marks = tv;
+    }
+    if (el.notes) {
+      const hn = [], tn = [];
+      for (const n of el.notes) {
+        if (n.off >= tailOff) tn.push({ ...n, off: n.off - tailOff, len: Math.max(0, Math.min(n.len, tail.length - (n.off - tailOff))) });
+        else hn.push({ ...n, off: Math.min(n.off, head.length), len: Math.max(0, Math.min(n.off + n.len, head.length) - Math.min(n.off, head.length)) });
+      }
+      if (hn.length) el.notes = hn; else delete el.notes;
+      if (tn.length) ne.notes = tn;
+    }
+    if (el.panels) {
+      const hp = [], tp2 = [];
+      for (const pn of el.panels) {
+        if (pn.off >= tailOff) tp2.push({ ...pn, off: pn.off - tailOff });
+        else hp.push({ ...pn, off: Math.min(pn.off, head.length) });
+      }
+      if (hp.length) el.panels = hp; else delete el.panels;
+      if (tp2.length) ne.panels = tp2;
+    }
     el.text = head;
+    pushUndo({ k: 'splice', i, removed: [removedSnap], inserted: [JSON.parse(JSON.stringify({ ...el })), JSON.parse(JSON.stringify({ ...ne }))], cb: S.caret, ca: { el: ne.id, off: 0 }, ts: Date.now() });
     S.doc.elements.splice(i + 1, 0, ne);
     S.caret = { el: ne.id, off: 0 };
     repaginate(); renderAfterEdit();
@@ -3142,8 +3210,10 @@ function handleTab(shift){
     opSplice(i + 1, 0, [ne], { el: ne.id, off: 0 });
     return;
   }
-  if (shift || !atElementEnd(el, c.off)) return;   // Tab acts only from the end of a paragraph
-  if (el.type === 'scene' && sceneTab(el)) return;
+  if (shift) return;
+  // FD: Tab acts from ANYWHERE in a written paragraph — the next element is
+  // created after it. The slug's sub-field walk still needs the caret at the end.
+  if (el.type === 'scene' && atElementEnd(el, c.off) && sceneTab(el)) return;
 
   const nt = TAB_TO[el.type] || 'character';
   const ne = newEl(nt, nt === 'paren' ? '()' : '');
@@ -3210,7 +3280,12 @@ function deleteRange([a, b]){
   const ia = elIndex(a.el), ib = elIndex(b.el);
   if (ia < 0 || ib < 0) return;
   const ea = elById(a.el), eb = elById(b.el);
-  const merged = { ...ea, text: ea.text.slice(0, a.off) + eb.text.slice(b.off) };
+  const mtext = ea.text.slice(0, a.off) + eb.text.slice(b.off);
+  const merged = { ...ea, text: mtext, marks: undefined, notes: undefined, panels: undefined,
+    ...carryMerge(ea, a.off, eb, b.off, mtext.length) };
+  if (!merged.marks) delete merged.marks;
+  if (!merged.notes) delete merged.notes;
+  if (!merged.panels) delete merged.panels;
   opSplice(ia, ib - ia + 1, [merged], { el: merged.id, off: a.off });
 }
 
@@ -3241,7 +3316,12 @@ function handleBackspace(){
   const prev = S.doc.elements[i - 1];
   if (el.text === '') opSplice(i, 1, [], { el: prev.id, off: prev.text.length });
   else {
-    const merged = { ...prev, text: prev.text + el.text };
+    const mtext = prev.text + el.text;
+    const merged = { ...prev, text: mtext, marks: undefined, notes: undefined, panels: undefined,
+      ...carryMerge(prev, prev.text.length, el, 0, mtext.length) };
+    if (!merged.marks) delete merged.marks;
+    if (!merged.notes) delete merged.notes;
+    if (!merged.panels) delete merged.panels;
     opSplice(i - 1, 2, [merged], { el: prev.id, off: prev.text.length });
   }
 }
@@ -3257,7 +3337,15 @@ function handleDelete(){
   const i = elIndex(c.el);
   const next = S.doc.elements[i + 1]; if (!next) return;
   if (next.text === '') opSplice(i + 1, 1, [], { el: el.id, off: c.off });
-  else { const merged = { ...el, text: el.text + next.text }; opSplice(i, 2, [merged], { el: el.id, off: c.off }); }
+  else {
+    const mtext = el.text + next.text;
+    const merged = { ...el, text: mtext, marks: undefined, notes: undefined, panels: undefined,
+      ...carryMerge(el, el.text.length, next, 0, mtext.length) };
+    if (!merged.marks) delete merged.marks;
+    if (!merged.notes) delete merged.notes;
+    if (!merged.panels) delete merged.panels;
+    opSplice(i, 2, [merged], { el: el.id, off: c.off });
+  }
 }
 
 // ---------- popups: element menu, smarttype, extensions, export ----------
