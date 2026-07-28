@@ -1271,7 +1271,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     ///   in focus mode, on screen → park it off screen
     ///
     /// ⌘⇧R remains the way out of focus mode altogether.
+    private var lastSummon = Date.distantPast
+
     @objc func summon(_ sender: Any? = nil) {
+        // Debounced. A single press was arriving twice — the mode flipped on and
+        // straight back off, which looked like the key doing nothing. A summon key
+        // should ignore a repeat inside a few hundred milliseconds regardless.
+        guard Date().timeIntervalSince(lastSummon) > 0.4 else { return }
+        lastSummon = Date()
+
         // Remember what he was working in before we take the foreground, so parking
         // the window later can hand focus straight back.
         let front = NSWorkspace.shared.frontmostApplication
@@ -1539,7 +1547,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         fileMenu.addItem(item("Search", #selector(focusSearch(_:)), "k"))
         fileMenu.addItem(item("Find in Chats", #selector(focusSearch(_:)), "f"))
         fileMenu.addItem(.separator())
-        fileMenu.addItem(item("Focus / Away", #selector(summon(_:)), "r"))
+        // No key equivalent here: the GLOBAL ⌘R hotkey already delivers this. With both
+        // registered, a press while CHAT was frontmost fired summon() twice — into
+        // focus mode and straight back out again, which is why it behaved erratically
+        // whenever the app had focus.
+        fileMenu.addItem(item("Focus / Away  (⌘R)", #selector(summon(_:)), ""))
         fileMenu.addItem(item("Reload", #selector(reload(_:)), "r", [.command, .option]))
         fileMenu.addItem(item("Back to WhatsApp", #selector(goHome(_:)), "h", [.command, .shift]))
         fileMenu.addItem(.separator())

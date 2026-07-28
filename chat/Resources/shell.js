@@ -371,6 +371,37 @@
     return 0;
   }
 
+  /* The placeholder ("Type a message") is absolutely positioned, and an absolutely
+     positioned element anchors to its ancestor's PADDING BOX — so the 10px inset on
+     the editable moves the caret but not the placeholder, leaving the caret sitting
+     inside the word. Tag the placeholder and give it the same inset so the two line
+     up exactly. */
+  function tagPlaceholder() {
+    if (!cfg.compact) return false;
+    const pane = document.querySelector('[data-shell-convo]');
+    const footer = pane && pane.querySelector('footer');
+    const box = footer && footer.querySelector('[contenteditable="true"]');
+    if (!box) return false;
+    const host = box.parentElement;
+    if (!host) return false;
+    for (const el of host.querySelectorAll('*')) {
+      if (el === box || el.contains(box) || box.contains(el)) continue;
+      const cs = getComputedStyle(el);
+      if (cs.position !== 'absolute') continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 20 || r.height < 8) continue;
+      if (!el.hasAttribute('data-shell-placeholder')) el.setAttribute('data-shell-placeholder', '');
+      return true;
+    }
+    return false;
+  }
+
+  function clearPlaceholder() {
+    for (const el of document.querySelectorAll('[data-shell-placeholder]')) {
+      el.removeAttribute('data-shell-placeholder');
+    }
+  }
+
   function clearComposerChain() {
     const box = document.querySelector('[data-shell-composer][contenteditable="true"]');
     if (box) box.style.marginLeft = '';
@@ -448,6 +479,7 @@
       clearWallpaper();
       clearTrimmed();
       clearComposerChain();
+      clearPlaceholder();
       for (const el of document.querySelectorAll('[data-shell-out],[data-shell-in]')) {
         el.removeAttribute('data-shell-out'); el.removeAttribute('data-shell-in');
       }
@@ -476,6 +508,7 @@
     tagWallpaper();
     trimComposer();
     tagComposerChain();
+    tagPlaceholder();
     tightenComposer();
     return Object.assign(state, compactMetrics());
   }
@@ -1292,7 +1325,7 @@
     tagConvoPane();
     tagRail();
     tagList();
-    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); ensureFloor(); tagBubbles(); tightenBubbles(); collapseChrome(); collapseBackdrops(); tagAncestors(); tagPinStrip(); tagWallpaper(); trimComposer(); tagComposerChain(); tightenComposer() }
+    if (cfg.compact) { reconsiderCompactList(); ensureCompactBar(); ensureFloor(); tagBubbles(); tightenBubbles(); collapseChrome(); collapseBackdrops(); tagAncestors(); tagPinStrip(); tagWallpaper(); trimComposer(); tagComposerChain(); tagPlaceholder(); tightenComposer() }
     if (cfg.privacy) checkPrivacyCoverage();
     if (!announcedLink && document.querySelector('#pane-side')) {
       announcedLink = true;

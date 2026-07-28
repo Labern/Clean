@@ -596,6 +596,12 @@ html[data-shell-compact][data-shell-convo-open] [data-shell-composer] {
 html[data-shell-compact][data-shell-convo-open] [data-shell-composer][contenteditable="true"] {
   padding-left: 10px !important;
 }
+/* The placeholder ignores that padding — it is absolutely positioned, so it anchors
+   to the padding box — which left the caret sitting inside the word "Type". Give it
+   the same inset so the two start on the same pixel. */
+html[data-shell-compact][data-shell-convo-open] [data-shell-placeholder] {
+  padding-left: 10px !important;
+}
 /* The footer painted transparent, so the layer behind showed its doodle around the
    composer. */
 html[data-shell-compact][data-shell-convo-open] [data-shell-convo] footer,
