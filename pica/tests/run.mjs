@@ -117,8 +117,71 @@ if (fs.existsSync(oppPath)) {
   check('opp: dual groups found', new Set(od.elements.filter(e => e.dual).map(e => e.dual.g)).size >= 40);
   check('opp: underline marks captured', od.elements.reduce((a, e) => a + (e.marks || []).filter(m => m[2] === 'u').length, 0) >= 30);
   check('opp: running head scrubbed', od.elements.filter(e => /gadget.*gadget|shooting script|\d{4}-\d{2}-\d{2}/i.test(e.text)).length === 0);
+  check('opp: no overprint-doubled words', od.elements.filter(e => /(\b\w{5,}\b)\1/.test(e.text.replace(/\s+/g, ''))).length === 0);
+  check('opp: dual cues typed as cues', od.elements.filter(e => e.dual && e.type === 'character').length >= 80);
+  let oppPM = 0;
+  for (const p of ores.pages) for (let i = 1; i < p.lines.length; i++)
+    if (p.lines[i].kind === 'more' && p.lines[i - 1].kind === 'paren') oppPM++;
+  check('opp: no (MORE) dangling after a parenthetical', oppPM === 0);
 } else {
   console.log('  (opp-raw.json missing — Oppenheimer mini-gate skipped)');
+}
+
+// -- 8. the Collateral mini-gate: revision stars are marginalia, gutters strip
+const colPath = path.join(FIX, 'col-raw.json');
+if (fs.existsSync(colPath)) {
+  const col = JSON.parse(fs.readFileSync(colPath)).pages;
+  const cd = E.importPdf(col);
+  const cres = E.paginate(cd);
+  check('col: no absorbed margin stars', cd.elements.filter(e => /\s{2,}\*+(\s|$)/.test(e.text) || /^\*+$/.test(e.text.trim())).length === 0);
+  check('col: star band recorded', Math.abs((cd.layout.revX ?? 0) - 568.8) < 2, 'revX=' + cd.layout.revX);
+  check('col: starred lines remembered', cd.elements.filter(e => e.rev).length > 300);
+  check('col: stars thread into pagination', cres.pages.flatMap(p => p.lines).filter(l => l.rev).length > 400);
+  check("col: no star inside a (CONT'D) cue", cres.pages.flatMap(p => p.lines).filter(l => l.kind === 'contcue' && /\*/.test(l.text)).length === 0);
+  check('col: revision headers scrubbed', cd.elements.filter(e => /revs\.|goldenrod|salmon/i.test(e.text)).length === 0);
+  check('col: scene-number gutters stripped', cd.elements.filter(e => e.type === 'scene' && /\d[A-Z]?$/.test(e.text.trim()) && !/DAY|NIGHT|LATER|CONTINUOUS|MORNING|EVENING|DUSK|DAWN/.test(e.text)).length <= 1);
+  check('col: underlines captured', cd.elements.reduce((a, e) => a + (e.marks || []).filter(m => m[2] === 'u').length, 0) >= 60);
+} else {
+  console.log('  (col-raw.json missing — Collateral mini-gate skipped)');
+}
+
+// -- 9. the Whiplash mini-gate: typography + right-margin-only scene numbers + duals
+const whipPath = path.join(FIX, 'whip-raw.json');
+if (fs.existsSync(whipPath)) {
+  const whip = JSON.parse(fs.readFileSync(whipPath)).pages;
+  const wd = E.importPdf(whip);
+  const wb = wd.elements.reduce((a, e) => a + (e.marks || []).filter(m => m[2] === 'b').length, 0);
+  const wi = wd.elements.reduce((a, e) => a + (e.marks || []).filter(m => m[2] === 'i').length, 0);
+  const wu = wd.elements.reduce((a, e) => a + (e.marks || []).filter(m => m[2] === 'u').length, 0);
+  check('whip: bold captured', wb >= 150, String(wb));
+  check('whip: italic captured', wi >= 80, String(wi));
+  check('whip: underline captured', wu >= 180, String(wu));
+  check('whip: right-only scene numbers stripped (no CONTINUOUS72A)', wd.elements.filter(e => e.type === 'scene' && /[A-Z0-9]\d+[A-Z]?$/.test(e.text.trim()) && !/\d{4}$/.test(e.text.trim())).length === 0);
+  check('whip: dual overlaps found', new Set(wd.elements.filter(e => e.dual).map(e => e.dual.g)).size >= 4);
+  check('whip: no welded dual lines', wd.elements.filter(e => e.type !== 'character' && / {6,}/.test(e.text.replace(/\n/g, ' '))).length === 0);
+} else {
+  console.log('  (whip-raw.json missing — Whiplash mini-gate skipped)');
+}
+
+// -- 10. FD-exact typed geometry (Screenplay.fdxt is the reference)
+{
+  const nd = E.newDoc('GEOM');
+  const L = nd.layout;
+  check('FD geometry: paren width 25 (3.00"–5.50")', L.widths.paren === 25);
+  check('FD geometry: action width 60 (1.5"–7.5")', L.widths.action === 60 && L.widths.scene === 60);
+  check('FD geometry: cue at 3.50" width 37', L.cols.character === 252 && L.widths.character === 37);
+  check('FD geometry: transition right edge 7.10"', L.transRight === 511.2);
+  check('FD geometry: paren hang flag on typed docs', L.parenHang === 1);
+  nd.elements = [
+    { id: 'g1', type: 'scene', text: 'INT. A - DAY' },
+    { id: 'g2', type: 'character', text: 'SAM' },
+    { id: 'g3', type: 'paren', text: '(a parenthetical long enough to wrap onto another line)' },
+    { id: 'g4', type: 'dialogue', text: 'Hello.' },
+  ];
+  const gres = E.paginate(nd);
+  const pl = gres.pages[1].lines.filter(l => l.el === 'g3');
+  check('FD geometry: paren wraps at 25', pl.length >= 2, String(pl.length));
+  check('FD geometry: paren first line hangs 0.10" left', pl.length >= 2 && Math.abs(pl[0].x - (216 - 7.2)) < 0.01 && Math.abs(pl[1].x - 216) < 0.01, pl.map(l => l.x).join(','));
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');

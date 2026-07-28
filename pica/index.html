@@ -5094,6 +5094,16 @@ window.PICA_API = {
     },
     notes(i){ const el = S.doc.elements[i]; return JSON.stringify((el && el.notes) || []); },
     delNote(i, id){ deleteNote(null, id); return true; },
+    openId(id){ return openDoc(id); },
+    titleDelta(){
+      const tEl = document.getElementById('docTitle'); const page = document.querySelector('.page');
+      if (!tEl || !page) return 'no-dom';
+      const t = tEl.getBoundingClientRect(); const p = page.getBoundingClientRect();
+      const L = S.doc.layout;
+      const cues = S.doc.elements.filter(e => e.type === 'character' && !e.dual).slice(0, 400);
+      const axis = cues.length ? cues.reduce((a, e) => a + L.cols.character + (e.text.length * L.charW) / 2, 0) / cues.length : L.pageW / 2;
+      return Math.abs((t.left + t.width / 2) - (p.left + axis * S.k)) < 1.5;
+    },
     noteMulti(i1, o1, i2, o2){
       const targets = [];
       for (let i = i1; i <= i2; i++) {

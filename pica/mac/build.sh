@@ -5,6 +5,20 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# THE CONTRACT, enforced at the door: nothing ships to /Applications without the
+# gates green. The fidelity gate + every regression mini-gate run first; the
+# headless smoketest runs against the built bundle after. PICA_SKIP_TESTS=1 only
+# for emergencies, and you had better mean it.
+if [ "${1:-}" = "--install" ] && [ -z "${PICA_SKIP_TESTS:-}" ]; then
+  echo "› gates: fidelity + regression mini-gates"
+  if ! node ../tests/run.mjs > /tmp/pica-gate.log 2>&1; then
+    echo "GATES RED — install refused. tail of /tmp/pica-gate.log:"
+    tail -12 /tmp/pica-gate.log
+    exit 1
+  fi
+  tail -1 /tmp/pica-gate.log
+fi
+
 APP_NAME="PICA"
 BUNDLE_ID="com.labern.pica"
 VERSION="1.0"
@@ -106,6 +120,16 @@ fi
 echo "› built $APP"
 
 if [ "${1:-}" = "--install" ]; then
+  if [ -z "${PICA_SKIP_TESTS:-}" ]; then
+    echo "› smoketest: driving the built bundle headlessly"
+    swiftc -O smoketest.swift -o "$BUILD/smoketest" 2>/dev/null
+    if ! PICA_BUILD_DIR="$BUILD" "$BUILD/smoketest" > /tmp/pica-smoke.log 2>&1; then
+      echo "SMOKETEST RED — install refused. tail of /tmp/pica-smoke.log:"
+      tail -12 /tmp/pica-smoke.log
+      exit 1
+    fi
+    tail -1 /tmp/pica-smoke.log
+  fi
   rm -rf "/Applications/$APP_NAME.app"
   cp -R "$APP" "/Applications/$APP_NAME.app"
   echo "› installed to /Applications/$APP_NAME.app"

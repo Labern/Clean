@@ -15,9 +15,17 @@ regeneration, slugline retraction, per-element `spaceBefore` overrides captured 
 import. The UI treats contenteditable as a caret only: every `beforeinput` is
 intercepted and applied to the model, never the DOM.
 
-## THE CONTRACT — never break it
+## THE CONTRACT — never break it, and it is ENFORCED AT THE DOOR
 `node tests/run.mjs` must print **100.00%** (5,907/5,907 lines of Tenet identical
-across 148 pages) before any engine change ships. Fixtures are pre-extracted in
+across 148 pages) before any engine change ships — plus the regression mini-gates
+(Oppenheimer: apostrophes/duals/typography/running heads; Collateral: revision
+stars/gutters; Whiplash: bold-italic-underline/right-only gutters/overlaps; FD
+typed geometry incl. the paren hang). `./mac/build.sh --install` REFUSES to
+install unless run.mjs is green AND the headless smoketest passes against the
+built bundle (PICA_SKIP_TESTS=1 exists for emergencies only). Every bug he has
+reported lives in one of these always-run checks — keep it that way: when a bug
+is fixed, its check goes into run.mjs or smoketest.swift, never only into the
+built-but-unrun suite. Fixtures are pre-extracted in
 `tests/fixtures/` (gitignored — copyrighted source); if absent, run.mjs re-downloads
 and re-extracts (needs `npm i pdfjs-dist` inside tests/).
 
