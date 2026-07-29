@@ -2112,7 +2112,14 @@ const store = {
     const fresh = JSON.parse(JSON.stringify(E.LETTER));
     doc.layout = { ...L, cols: fresh.cols, widths: fresh.widths, transRight: fresh.transRight, parenHang: 1 };
   },
+  // A deleted script must never be written back. Deleting the one that is OPEN used to
+  // do nothing at all: the delete filtered the index, then openDoc() flushed a save of
+  // the outgoing document, and that save put the row straight back. A debounced save,
+  // a snapshot or the pagehide mirror could do the same a second later. So the id is
+  // remembered as gone, and every write checks.
+  gone: new Set(),
   save(id, doc){
+    if (store.gone.has(id)) return;
     store.cache.set(id, doc);
     // the index is small and synchronous — write it NOW so the sidebar shows the script
     // immediately; only the document body travels through IndexedDB
@@ -2132,6 +2139,7 @@ const store = {
     });
   },
   async snapshot(id, doc){
+    if (store.gone.has(id)) return;
     let snaps = null;
     try { snaps = await idb.get('snap.' + id); } catch {}
     if (!snaps) snaps = LS.get('pica.snap.' + id, []);
@@ -2236,7 +2244,7 @@ async function openDoc(id, _tried){
   S.caret = doc.elements[0] ? { el: doc.elements[0].id, off: 0 } : null;
   const ui = LS.get('pica.ui', {}); ui.lastDoc = id; LS.set('pica.ui', ui);
   S.fontPt = doc.layout.charW / 0.6;
-  repaginate(); buildPages(); renderAllVisible(); rail(); status();
+  repaginate(); buildPages(); renderAllVisible(); status();
   $('#docTitle').textContent = doc.title;
   $('#docGenre').textContent = doc.genre || '';
   const saved = LS.get('pica.scroll', {})[id];
@@ -2246,7 +2254,12 @@ async function openDoc(id, _tried){
     setTimeout(() => { canvasEl.scrollTop = saved; renderAllVisible(); status(); }, 90);
   });
   printPageCSS();
-  store.save(id, doc); // refresh index metadata (page count) now that we have S.res
+  // the index row is written from S.res, so it has to be saved AND drawn after
+  // pagination — drawing it first is what left every freshly imported script
+  // reading "1p" in the sidebar until something else happened to redraw it
+  store.save(id, doc);
+  rail();
+  positionTitle();     // the cue axis only exists once the pages are laid out
   draftChip();
 }
 
@@ -4195,9 +4208,11 @@ function docMenu(d, ev){
     } else if (it.act === 'del') {
       // a script is never removed without saying so, and never silently
       if (!confirm('Delete “' + (d.title || 'UNTITLED') + '”?\n\nThis removes it from PICA on this device. Export it first if you want to keep a copy.')) return;
+      store.gone.add(d.id);            // no pending or later write may resurrect it
       const ix = store.index().filter(x => x.id !== d.id);
       store.saveIndex(ix);
       store.cache.delete(d.id);
+      if (d.id === S.docId) { clearTimeout(S.saveTimer); S.saveTimer = null; }
       idb.del('doc.' + d.id); idb.del('snap.' + d.id);
       try { localStorage.removeItem('pica.doc.' + d.id); localStorage.removeItem('pica.snap.' + d.id); } catch {}
       pinned.delete(d.id); savePinned();
@@ -4435,7 +4450,9 @@ async function importPdfBuffer(buf, name){
     const id = E.uid();
     store.save(id, doc);
     closeOverlay();
-    openDoc(id);
+    // wait for it to open: the toast reads S.res, and unawaited it reported the
+    // page count of the script that was on screen BEFORE the import
+    await openDoc(id);
     toast(doc.importNote
       ? 'imported · ' + S.res.count + ' pages · ' + doc.importNote
       : 'imported · ' + S.res.count + ' pages · ' + doc.elements.length + ' elements');
