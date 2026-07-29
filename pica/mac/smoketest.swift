@@ -276,6 +276,17 @@ let grammarSteps: [Step] = [
     Step(desc: "Transition + Enter gives a Scene Heading",
          js: "await T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.tab(false); T.esc(); T.type('CUT TO:'); T.esc(); T.enter(); return T.state().slice(1).join('§')",
          expect: "transition|CUT TO:§scene|"),
+    // ⌘B/I/U must PAINT (pageSig once ignored marks — set but never rendered),
+    // and anticipation styles what you type next at a collapsed caret.
+    Step(desc: "emphasis renders: selection ⌘U paints, anticipation ⌘B styles typed text",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. U - DAY'); T.esc(); T.enter(); T.type('Underline these words here.'); T.esc(); const line = [...document.querySelectorAll('.line')].find(d => d.textContent.startsWith('Underline')); getSelection().setBaseAndExtent(line.firstChild, 10, line.firstChild, 15); document.querySelector('#pages').dispatchEvent(new KeyboardEvent('keydown', { key: 'u', metaKey: true, bubbles: true, cancelable: true })); await new Promise(r => setTimeout(r, 120)); const u = document.querySelectorAll('.page u').length; T.caret(1, window.__pica.doc.elements[1].text.length); await new Promise(r => setTimeout(r, 40)); document.querySelector('#pages').dispatchEvent(new KeyboardEvent('keydown', { key: 'b', metaKey: true, bubbles: true, cancelable: true })); T.type(' STRONG'); await new Promise(r => setTimeout(r, 100)); return u + '/' + document.querySelectorAll('.page b').length",
+         expect: "1/1"),
+    // Typing through a wrap/page boundary must never teleport the caret or
+    // scramble the text (the restoreCaret first-line fallback once sent typing
+    // a hundred characters back).
+    Step(desc: "typing across the page boundary keeps text and caret intact",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. SPLIT - DAY'); T.esc(); for (let i = 0; i < 23; i++) { T.enter(); T.type('Filler action line number ' + i + '.'); T.esc(); } T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); const id = window.__pica.caret.el; let typed = ''; const msg = 'This is a very long speech. It keeps going with more sentences. And more still after that. It should split across the page cleanly now. Still typing away here at the end.'; for (const ch of msg) { T.type(ch); typed += ch; } const el = window.__pica.doc.elements.find(e => e.id === id); return String(el.text === typed && window.__pica.caret.el === id && window.__pica.caret.off === typed.length)",
+         expect: "true"),
     // The title sits on the doc's own cue axis from the FIRST cue; a margin note
     // follows its words through a split; a stale id never resurrects a ghost.
     Step(desc: "title on cue axis (2 cues); note follows split; no ghost from stale id",

@@ -204,6 +204,33 @@ let steps: [Step] = [
     Step(name: "FDX import via the native file route",
          js: "String(typeof PICA_API.importUrl==='function' && typeof PicaEngine.importFdx==='function')",
          want: "true"),
+
+    // ---- interaction battery (parked per instruction: run only on his order) ----
+    // Errors of the caret/typing kind: boundaries, compositions, substitutions.
+    Step(name: "battery: marathon typing across two page boundaries stays intact",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. M - DAY'); T.esc(); for (let i = 0; i < 24; i++) { T.enter(); T.type('Filler block line ' + i + ' with a bit of length to it.'); T.esc(); } T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); const id = window.__pica.caret.el; let typed = ''; for (let k = 0; k < 40; k++) { const w = 'sentence' + k + ' word. '; for (const ch of w) { T.type(ch); typed += ch; } } const el = window.__pica.doc.elements.find(e => e.id === id); return String(el.text === typed && window.__pica.caret.off === typed.length)",
+         want: "true"),
+    Step(name: "battery: composition storm never double-inserts or wedges the guard",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. C - DAY'); T.esc(); T.enter(); T.type('Caf'); T.esc(); const P = document.querySelector('#pages'); for (let i = 0; i < 3; i++) { P.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true })); P.dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertCompositionText', data: '´', bubbles: true, cancelable: true })); P.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: 'é' })); } return JSON.stringify(window.__pica.doc.elements[1].text) + '/' + String(!window.__pica.composing)",
+         want: "\"Cafééé\"/true"),
+    Step(name: "battery: replacement text lands, at any position",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. R - DAY'); T.esc(); T.enter(); T.type('A line built to be fairly long for the test'); T.esc(); const el = window.__pica.doc.elements[1]; document.querySelector('#pages').dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertReplacementText', data: '. ', bubbles: true, cancelable: true })); return String(el.text.endsWith('. '))",
+         want: "true"),
+    Step(name: "battery: word-delete at element start falls through to a clean merge",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. W - DAY'); T.esc(); T.enter(); T.type('First.'); T.esc(); T.enter(); T.type('Second.'); T.esc(); T.caret(2, 0); document.querySelector('#pages').dispatchEvent(new InputEvent('beforeinput', { inputType: 'deleteWordBackward', bubbles: true, cancelable: true })); return window.__pica.doc.elements[1].text",
+         want: "First.Second."),
+    Step(name: "battery: anticipation combos toggle on and off cleanly",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. A - DAY'); T.esc(); T.enter(); T.type('Base '); T.esc(); const kd = k => document.querySelector('#pages').dispatchEvent(new KeyboardEvent('keydown', { key: k, metaKey: true, bubbles: true, cancelable: true })); kd('b'); kd('i'); T.type('two'); kd('b'); kd('i'); T.type(' plain'); const m = window.__pica.doc.elements[1].marks || []; return JSON.stringify(m.map(x => x[2]).sort()) + '/' + window.__pica.doc.elements[1].text",
+         want: "[\"b\",\"i\"]/Base two plain"),
+    Step(name: "battery: undo walks back a mid-speech split without residue",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. Z - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('One two three.'); T.esc(); const before = T.state().slice(1).join('§'); T.caret(2, 7); T.enter(); window.PICA_API.undo(); return String(T.state().slice(1).join('§') === before)",
+         want: "true"),
+    Step(name: "battery: typed-doc legacy layout upgrades to FD12 on load",
+         js: "localStorage.setItem('pica.doc.batleg', JSON.stringify({ v: 1, title: 'BATLEG', titlePage: [], layout: { pageW: 612, pageH: 792, y0: 76.5, rowH: 12, rows: 55, pnY: 40.5, pnRight: 576, cols: { action: 108, dialogue: 180, paren: 216, character: 266 }, transRight: 540, charW: 7.2, widths: { scene: 57, action: 57, character: 33, paren: 19, dialogue: 35, transition: 30, shot: 57, general: 57 }, moreDy: 10, contDy: -14 }, elements: [{ id: 'B1', type: 'scene', text: 'INT. B - DAY' }] })); const ix = JSON.parse(localStorage.getItem('pica.index') || '[]'); ix.unshift({ id: 'batleg', title: 'BATLEG', pages: 1, at: 1 }); localStorage.setItem('pica.index', JSON.stringify(ix)); await T.openId('batleg'); const L = window.__pica.doc.layout; return [L.widths.paren, L.widths.action, L.cols.character, L.transRight, L.parenHang].join(',')",
+         want: "25,60,252,511.2,1"),
+    Step(name: "battery: typing after existing marks never disturbs them",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. D - DAY'); T.esc(); T.enter(); T.type('Plain action.'); T.esc(); const el = window.__pica.doc.elements[1]; el.marks = [[0, 5, 'b']]; T.caret(1, 13); T.type(' more'); return JSON.stringify(el.marks)",
+         want: "[[0,5,\"b\"]]"),
 ]
 
 final class Nav: NSObject, WKNavigationDelegate {
