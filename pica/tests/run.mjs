@@ -224,8 +224,26 @@ if (fs.existsSync(whipPath)) {
   const src = E.importPdf(raw);
   check('import: every element survives conforming', conf.elements.length === src.elements.length,
     conf.elements.length + ' vs ' + src.elements.length);
+  // emphasis survives — but a style covering a whole element type is the source's
+  // typeface, not emphasis (Jackie Brown sets every speech bold), and is dropped
   check('import: emphasis survives conforming',
     conf.elements.filter(e => e.marks).length === src.elements.filter(e => e.marks).length);
+  {
+    // a document whose every speech is bold arrives with plain speeches
+    const faux = JSON.parse(JSON.stringify(src));
+    for (const e of faux.elements)
+      if (e.type === 'dialogue' && e.text.length) e.marks = [[0, e.text.length, 'b']];
+    const flat = E.toFinalDraft(faux);
+    check('import: a whole-type style is the source\'s face, not emphasis',
+      flat.elements.every(e => e.type !== 'dialogue' || !(e.marks || []).some(m => m[2] === 'b')));
+    check('import: exceptional emphasis is not swept up with it',
+      E.toFinalDraft((() => {
+        const one = JSON.parse(JSON.stringify(src));
+        const d = one.elements.find(e => e.type === 'dialogue' && e.text.length > 8);
+        d.marks = [[0, 4, 'b']];
+        return one;
+      })()).elements.some(e => (e.marks || []).some(m => m[2] === 'b')));
+  }
   const words = e => e.text.replace(/\s+/g, ' ').trim();
   check('import: no word is lost when paragraphs reflow',
     conf.elements.every((e, i) => words(e) === words(src.elements[i])));

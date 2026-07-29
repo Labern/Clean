@@ -1928,6 +1928,36 @@ const PicaEngine = (() => {
       // a hard x from the source fights FD's columns — centring survives via align
       delete el.xOverride;
     }
+    // Emphasis is what DIFFERS from the base face. Jackie Brown's PDF sets every
+    // speech in a bold Courier and every action line in an oblique one — import that
+    // literally and the whole script arrives bold and italic. So per element type:
+    // if a style covers almost all of that type's text it is the source's typeface,
+    // not the writer emphasising anything, and it goes. A few italic words inside
+    // ordinary action are nowhere near the threshold and stay.
+    {
+      const total = {}, byKind = {};
+      for (const el of doc.elements) {
+        if (!el.text) continue;
+        total[el.type] = (total[el.type] || 0) + el.text.length;
+        for (const [s, e, k] of el.marks || []) {
+          byKind[el.type] = byKind[el.type] || {};
+          byKind[el.type][k] = (byKind[el.type][k] || 0) + Math.max(0, Math.min(e, el.text.length) - Math.max(0, s));
+        }
+      }
+      const base = {};
+      for (const t of Object.keys(byKind)) {
+        if ((total[t] || 0) < 200) continue;       // too little text to judge a face
+        for (const k of Object.keys(byKind[t]))
+          if (byKind[t][k] / total[t] >= 0.8) (base[t] = base[t] || new Set()).add(k);
+      }
+      if (Object.keys(base).length) for (const el of doc.elements) {
+        const drop = base[el.type];
+        if (!drop || !el.marks) continue;
+        el.marks = el.marks.filter(m => !drop.has(m[2]));
+        if (!el.marks.length) delete el.marks;
+      }
+    }
+
     if (L.revX != null) fd.revX = fd.pageW - 54;   // revision stars at FD's right margin
     doc.layout = fd;
     return doc;
