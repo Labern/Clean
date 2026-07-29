@@ -1947,8 +1947,15 @@ const PicaEngine = (() => {
       const base = {};
       for (const t of Object.keys(byKind)) {
         if ((total[t] || 0) < 200) continue;       // too little text to judge a face
-        for (const k of Object.keys(byKind[t]))
+        for (const k of Object.keys(byKind[t])) {
+          // Only bold and italic can be a typeface: they are read off the font's NAME,
+          // so a PDF set in a bold Courier reports every speech as bold. An underline
+          // is ink somebody drew — on a scan, pixels somebody typed over — and is
+          // always deliberate, however much of the script carries it. There Will Be
+          // Blood underlines every slug, and that is the script, not its typesetting.
+          if (k === 'u') continue;
           if (byKind[t][k] / total[t] >= 0.8) (base[t] = base[t] || new Set()).add(k);
+        }
       }
       if (Object.keys(base).length) for (const el of doc.elements) {
         const drop = base[el.type];
@@ -4295,6 +4302,63 @@ async function importPdfBuffer(buf, name){
       styleCache.set(fn, v);
       return v;
     };
+    // Some scripts are not typeset files at all: There Will Be Blood is a SCAN — a
+    // page image with a hidden OCR text layer (font "HiddenHorzOCR") and not one
+    // vector path on the page. Its underlines are pixels, so no amount of walking the
+    // operator list will ever find them. For those pages, render the image and read
+    // the rules straight off it: an underline is a run of dark pixels that is long
+    // and thin, which is exactly what a row of text is not.
+    const rasterCanvas = document.createElement('canvas');
+    const RS = 2;                                   // render scale: a 1pt rule → 2px
+    const underlinesFromRaster = async (page, vp) => {
+      const w = Math.ceil(vp.width * RS), h = Math.ceil(vp.height * RS);
+      rasterCanvas.width = w; rasterCanvas.height = h;
+      const ctx = rasterCanvas.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale: RS }) }).promise;
+      const px = ctx.getImageData(0, 0, w, h).data;
+      const minLen = Math.round(10 * RS), maxLen = Math.round(vp.width * 0.85 * RS);
+      // horizontal runs of dark pixels, row by row
+      const runs = [];
+      for (let y = 0; y < h; y++) {
+        let start = -1;
+        const row = y * w;
+        for (let x = 0; x <= w; x++) {
+          const i = (row + x) * 4;
+          const dark = x < w && (px[i] + px[i + 1] + px[i + 2]) < 450;
+          if (dark) { if (start < 0) start = x; }
+          else if (start >= 0) {
+            const len = x - start;
+            if (len >= minLen && len <= maxLen) runs.push({ y, x1: start, x2: x });
+            start = -1;
+          }
+        }
+      }
+      // stack overlapping runs from consecutive rows: a rule stays thin, a line of
+      // text grows into a band as tall as its type and is thrown away
+      const bands = [];
+      for (const r of runs) {
+        let into = null;
+        for (let i = bands.length - 1; i >= 0; i--) {
+          const b = bands[i];
+          if (b.y2 < r.y - 1 || r.x1 >= b.x2 + 1 || r.x2 <= b.x1 - 1) continue;
+          if (into) {                              // this run bridges two bands: fuse them
+            into.y1 = Math.min(into.y1, b.y1); into.y2 = Math.max(into.y2, b.y2);
+            into.x1 = Math.min(into.x1, b.x1); into.x2 = Math.max(into.x2, b.x2);
+            bands.splice(i, 1);
+          } else {
+            b.y1 = Math.min(b.y1, r.y); b.y2 = Math.max(b.y2, r.y);
+            b.x1 = Math.min(b.x1, r.x1); b.x2 = Math.max(b.x2, r.x2);
+            into = b;
+          }
+        }
+        if (!into) bands.push({ y1: r.y, y2: r.y, x1: r.x1, x2: r.x2 });
+      }
+      const maxThick = Math.round(3 * RS);
+      return bands.filter(b => b.y2 - b.y1 <= maxThick)
+        .map(b => ({ x1: b.x1 / RS, x2: b.x2 / RS, y: b.y1 / RS }));
+    };
+
     // underlines are DRAWN, not encoded: walk the operator list for thin horizontal
     // ink (fill/stroke, never clip) with the transform tracked, in page space
     const OPS = mod.OPS;
@@ -4334,7 +4398,14 @@ async function importPdfBuffer(buf, name){
         const page = await pdf.getPage(p);
         const vp = page.getViewport({ scale: 1 });
         let ul = [];
-        try { ul = underlinesFrom(await page.getOperatorList(), vp); } catch {}
+        try {
+          const ol = await page.getOperatorList();
+          ul = underlinesFrom(ol, vp);
+          // a scanned page draws an image and no ink at all — read its rules off the
+          // pixels instead, or the script imports with every underline missing
+          if (!ul.length && ol.fnArray.some(f => f === OPS.paintImageXObject || f === OPS.paintJpegXObject))
+            ul = await underlinesFromRaster(page, vp);
+        } catch {}
         const tc = await page.getTextContent();
         raw.push({
           width: vp.width, height: vp.height, ul,
@@ -4356,7 +4427,7 @@ async function importPdfBuffer(buf, name){
     const doc = E.toFinalDraft(E.importPdf(raw));
     doc.src = 'pdf';
     if (!doc.elements.some(e => e.text.trim() !== '')) throw new Error('nothing readable came out of this PDF');
-    const fileTitle = (name || 'IMPORTED').replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim().toUpperCase();
+    const fileTitle = titleFromFilename(name, 'pdf');
     // a garbled or missing title (tiny unmapped title-page fonts) falls back to the filename
     const junk = (doc.title || '').replace(/[A-Za-z0-9\s.,:'!?&-]/g, '').length;
     if (!doc.title || junk > (doc.title.length * 0.3)) doc.title = fileTitle;
@@ -4375,11 +4446,24 @@ async function importPdfBuffer(buf, name){
   }
 }
 
+// "ThereWillBeBlood.pdf" is a title, not a word: separators become spaces and runs of
+// CamelCase come apart at their capitals, so it reads THERE WILL BE BLOOD. Filenames
+// that are already spaced or already shouting are left exactly as they are.
+function titleFromFilename(name, ext){
+  let s = (name || 'IMPORTED').replace(new RegExp('\\.' + ext + '$', 'i'), '');
+  s = s.replace(/[_\-.]+/g, ' ').trim();
+  if (!/\s/.test(s) && /[a-z]/.test(s) && /[A-Z]/.test(s)) {
+    s = s.replace(/([a-z0-9])([A-Z])/g, '$1 $2')      // thereWill → there Will
+         .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');  // ABCWord   → ABC Word
+  }
+  return s.replace(/\s+/g, ' ').trim().toUpperCase() || 'IMPORTED';
+}
+
 function importFdxText(text, name){
   try {
     const doc = E.toFinalDraft(E.importFdx(text));
     doc.src = 'fdx';
-    if (!doc.title || doc.title === 'UNTITLED') doc.title = (name || 'SCRIPT').replace(/\.fdx$/i, '').replace(/[_-]+/g, ' ').toUpperCase();
+    if (!doc.title || doc.title === 'UNTITLED') doc.title = titleFromFilename(name || 'SCRIPT', 'fdx');
     const id = E.uid();
     store.save(id, doc);
     openDoc(id);
