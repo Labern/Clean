@@ -3960,6 +3960,7 @@ function docMenu(d, ev){
   const items = [
     { label: 'Rename…', act: 'rename' },
     { label: 'Duplicate', act: 'dup' },
+    { label: 'New with this layout', act: 'newlike' },
     { label: isPinned ? 'Unpin' : 'Pin to top', act: 'pin' },
     { label: (LS.get('pica.ui', {}).archived || []).includes(d.id) ? 'Unarchive' : 'Archive', act: 'arch' },
     { label: 'Export JSON', act: 'json' },
@@ -3995,6 +3996,20 @@ function docMenu(d, ev){
       const id = E.uid();
       store.save(id, copy);
       openDoc(id); toast('duplicated');
+      })();
+    } else if (it.act === 'newlike') {
+      // transcribing an import needs ITS margins, not the blank default's — a
+      // fresh script that wraps exactly where the source wraps
+      (async () => {
+        const src = d.id === S.docId ? S.doc : await store.load(d.id);
+        if (!src) return;
+        const nd = E.newDoc('UNTITLED');
+        nd.layout = JSON.parse(JSON.stringify(src.layout));
+        delete nd.layout.revX;
+        const id = E.uid();
+        store.save(id, nd);
+        openDoc(id);
+        toast('new script — wraps like “' + (src.title || 'source') + '”');
       })();
     } else if (it.act === 'pin') {
       if (isPinned) pinned.delete(d.id); else pinned.add(d.id);
