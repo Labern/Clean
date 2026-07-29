@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HOW TO READ A SCREENPLAY</title>
+<meta name="description" content="An annotated copy: a correctly-formatted screenplay that teaches you how to read screenplays — margins, minutes, and the tricks of the writers who direct.">
+<meta property="og:title" content="HOW TO READ A SCREENPLAY">
+<meta property="og:description" content="An annotated copy. One page equals one minute — read the margins.">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23141312'/><text x='50' y='72' font-size='62' text-anchor='middle' fill='%23e56b5c' font-family='Georgia,serif'>&#182;</text></svg>">
+<style>
+/* ————————————————————————— tokens ————————————————————————— */
+:root{
+  --serif: ui-serif, "New York", "Iowan Old Style", Palatino, Georgia, "Times New Roman", serif;
+  --mono:  ui-monospace, "SF Mono", "Menlo", "Cascadia Code", "Roboto Mono", monospace;
+  --courier: "Courier Prime", "Courier New", Courier, monospace;
+
+  /* dark desk (default): a script under a lamp at night */
+  --desk:#131211;      --desk-2:#1a1918;
+  --desk-ink:#d8d5cc;  --desk-faint:#7c7a72;  --desk-line:#2e2c29;
+  --paper:#f9f8f4;     --paper-edge:#e8e6dd;
+  --ink:#1c1b18;       --ink-2:#4c4b47;
+  --pencil-desk:#e06a58;   /* marginalia off the page, on the desk */
+  --pencil-paper:#b23a2b;  /* pencil marks on the paper itself */
+  --shadow: 0 24px 60px rgba(0,0,0,.55), 0 4px 14px rgba(0,0,0,.4);
+  --hole: #131211;
+  --tx: 0px;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --desk:#e9e7e0;      --desk-2:#e2dfd6;
+    --desk-ink:#22211e;  --desk-faint:#8b897f;  --desk-line:#d2cfc4;
+    --paper:#fdfcf9;     --paper-edge:#eceade;
+    --pencil-desk:#a53527;
+    --shadow: 0 18px 44px rgba(30,28,20,.18), 0 3px 10px rgba(30,28,20,.12);
+    --hole:#e9e7e0;
+  }
+}
+
+/* ————————————————————————— base ————————————————————————— */
+*{ box-sizing:border-box; margin:0; padding:0 }
+html{ overflow-x:hidden }
+body{
+  background: radial-gradient(1200px 700px at 50% 8%, var(--desk-2), var(--desk) 70%);
+  background-attachment: fixed;
+  color:var(--desk-ink);
+  font-family:var(--serif);
+  overflow-x:hidden;
+  min-height:100vh;
+}
+::selection{ background: color-mix(in srgb, var(--pencil-paper) 25%, transparent) }
+
+/* ————————————————————————— masthead / colophon ————————————————————————— */
+.mast, .colophon{
+  font-family:var(--mono);
+  font-size:.68rem; letter-spacing:.26em; text-transform:uppercase;
+  color:var(--desk-faint); text-align:center;
+}
+.mast{ padding: clamp(2.2rem,6vh,4rem) 1rem 0 }
+.mast .rule{ width:min(20rem,70vw); height:1px; background:var(--desk-line); margin:1.1rem auto 0 }
+.colophon{ padding: 1rem 1rem clamp(3rem,8vh,5rem); line-height:2 }
+
+/* ————————————————————————— the desk & sheets ————————————————————————— */
+.desk{
+  display:flex; flex-direction:column; align-items:center;
+  gap: clamp(2rem, 5vh, 3.4rem);
+  padding: clamp(1.6rem,4vh,3rem) 1rem;
+}
+.sheet{ position:relative; width:max-content; translate: var(--tx) 14px; opacity:0;
+        transition: opacity .7s ease, translate .7s ease }
+.sheet.in{ translate: var(--tx) 0; opacity:1 }
+
+/* ————————————————————————— the page: US letter, Courier, real margins —————————————————————————
+   10 cpi · left 1.5in=15ch · text 6in=60ch · right 1in=10ch  → 85ch = 8.5in            */
+.page{
+  position:relative;
+  font-family:var(--courier);
+  font-size: min(13.5px, calc((100vw - 2.2rem) / 51));
+  line-height:1.16;
+  box-sizing:content-box;
+  width:60ch;
+  padding: 6.9em 10ch 6.5em 15ch;
+  min-height:53em;
+  background:
+    linear-gradient(115deg, rgba(255,255,255,.5), transparent 40%),
+    var(--paper);
+  color:var(--ink);
+  box-shadow: var(--shadow);
+  border-radius: 2px;
+}
+/* three punched holes on the binding edge; brads top + bottom, middle hole empty */
+.page::before{
+  content:''; position:absolute; left:.55in; left:5.5ch; top:0; bottom:0; width:2em;
+  margin-left:-1em;
+  background:
+    radial-gradient(closest-side, #c9a961 0 42%, #8a6f34 46% 60%, rgba(0,0,0,.25) 62% 70%, transparent 72%) 50% 6%/1.35em 1.35em no-repeat,
+    radial-gradient(closest-side, var(--hole) 0 52%, rgba(0,0,0,.22) 56% 68%, transparent 70%) 50% 50%/1.15em 1.15em no-repeat,
+    radial-gradient(closest-side, #c9a961 0 42%, #8a6f34 46% 60%, rgba(0,0,0,.25) 62% 70%, transparent 72%) 50% 94%/1.35em 1.35em no-repeat;
+  pointer-events:none;
+}
+.pgnum{ position:absolute; top:3em; right:10ch }
+
+/* screenplay element grammar — offsets are the real Final Draft inches */
+.act   { margin-top:1.16em; width:60ch }
+.slug  { margin-top:1.16em }
+.char  { margin-top:1.16em; margin-left:22ch }   /* 3.7in from page edge */
+.paren { margin-left:16ch; width:20ch }          /* 3.1in */
+.dlg   { margin-left:10ch; width:35ch }          /* 2.5in */
+.trans { margin-top:1.16em; text-align:right }
+.ann   { display:block }
+u{ text-underline-offset:.18em }
+
+/* dual dialogue */
+.dual{ margin-top:1.16em; display:grid; grid-template-columns:28ch 28ch; column-gap:4ch }
+.dual .char2{ margin-left:9ch }
+.dual .dlg2 { margin-left:2ch; width:24ch }
+
+/* title page */
+.tp{ display:flex; flex-direction:column; text-align:center }
+.tp .tblock{ margin-top:14em }
+.tp .title{ text-decoration:underline; text-underline-offset:.4em }
+.tp .by{ margin-top:2.32em }
+.tp .name{ margin-top:1.16em }
+.tp .foot{ margin-top:auto; padding-top:8em; display:flex; justify-content:space-between; text-align:left }
+
+/* ————————————————————————— marginalia ————————————————————————— */
+body{ counter-reset: note }
+.ann{ counter-increment: note }
+.tgt::after{
+  content: counter(note);
+  font-family:var(--serif); font-style:italic;
+  font-size:max(.62em, .55rem);
+  vertical-align:super; line-height:0;
+  color:var(--pencil-paper);
+  margin-left:.15em;
+}
+.tgt{
+  border-bottom:1px dashed color-mix(in srgb, var(--pencil-paper) 55%, transparent);
+  padding-bottom:1px;
+}
+.ann:hover .tgt{
+  border-bottom-style:solid;
+  background: color-mix(in srgb, var(--pencil-paper) 10%, transparent);
+}
+.note{
+  font-family:var(--serif); font-style:italic;
+  font-size:.88rem; line-height:1.45;
+  letter-spacing:.005em;
+  text-align:left;
+}
+@media (min-width:1080px){
+  :root{ --tx:-10rem }
+  .note{
+    position:absolute; top:auto; left:calc(100% + 2.6rem);
+    width:17.5rem;
+    color: color-mix(in srgb, var(--pencil-desk) 88%, transparent);
+    transition: color .25s ease;
+  }
+  .note::before{
+    content: counter(note);
+    position:absolute; left:-1.5rem; top:.1em;
+    font-size:.72rem;
+    color: color-mix(in srgb, var(--pencil-desk) 70%, transparent);
+  }
+  .ann:hover .note{ color: var(--pencil-desk) }
+}
+@media (max-width:1079px){
+  .note{
+    display:block; margin:.9em 0 .9em 3ch;
+    font-size:clamp(.7rem, 3vw, .88rem);
+    max-width:44ch;
+    padding-left:1em;
+    border-left:2px solid color-mix(in srgb, var(--pencil-paper) 60%, transparent);
+    color: var(--pencil-paper);
+  }
+  .note::before{ content: counter(note) ' · '; }
+}
+body.clean .note{ display:none }
+body.clean .tgt{ border-color:transparent; background:none }
+body.clean .tgt::after{ content:none }
+
+/* ————————————————————————— chrome: toggle + clock ————————————————————————— */
+.chip{
+  position:fixed; z-index:5;
+  font-family:var(--mono); font-size:.66rem; letter-spacing:.18em; text-transform:uppercase;
+  color:var(--desk-ink);
+  background: color-mix(in srgb, var(--desk) 78%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  border:1px solid var(--desk-line);
+  border-radius:2px;
+  padding:.5em .9em;
+}
+#marginsBtn{ top:.9rem; right:.9rem; cursor:pointer }
+#marginsBtn .dot{ color:var(--pencil-desk) }
+#clock{ bottom:.9rem; right:.9rem; font-variant-numeric:tabular-nums; pointer-events:none }
+#clock b{ font-weight:400; color:var(--desk-faint) }
+
+@media (prefers-reduced-motion: reduce){
+  .sheet{ opacity:1; translate:var(--tx) 0; transition:none }
+}
+</style>
+</head>
+<body>
+
+<header class="mast">
+  LABERN &middot; AN ANNOTATED COPY &middot; ONE PAGE &asymp; ONE MINUTE
+  <div class="rule"></div>
+</header>
+
+<main class="desk">
+
+  <!-- ———————————————— TITLE PAGE ———————————————— -->
+  <div class="sheet">
+    <div class="page tp">
+      <span class="ann"><span class="note">Courier, 12&nbsp;point — not nostalgia, arithmetic. Ten characters to the inch, six lines to the inch, fifty-five lines to the page: one page of script &asymp; one minute of screen time. Hold that. Everything else follows from it.</span></span>
+      <div class="tblock">
+        <span class="ann"><div class="title"><span class="tgt">HOW TO READ A SCREENPLAY</span></div><span class="note">A spec title page holds a title, a byline, a contact — nothing else. No draft number, no date, no epigraph. Bare is confident.</span></span>
+        <div class="by">written by</div>
+        <div class="name">No One</div>
+        <div class="by">annotated by</div>
+        <div class="name">The Margins</div>
+      </div>
+      <div class="foot">
+        <span class="ann"><span class="tgt">FIRST AND FINAL DRAFT</span><span class="note">Three punched holes, two brass brads, top and bottom only. Nobody has ever used the middle hole. Tradition doesn&rsquo;t explain itself.</span></span>
+        <span>labern.github.io/Clean</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ———————————————— PAGE 1 · THE ANATOMY ———————————————— -->
+  <div class="sheet timed">
+    <div class="page">
+      <span class="pgnum">1.</span>
+
+      <span class="ann"><div class="act" style="margin-top:0"><span class="tgt">FADE IN:</span></div><span class="note">The starting pistol. A script opens with FADE&nbsp;IN and ends with FADE&nbsp;OUT, and everything between the two is screen time. Nothing else is in the movie.</span></span>
+
+      <span class="ann"><div class="slug"><span class="tgt">INT. YOUR ROOM - NIGHT</span></div><span class="note">A slugline: INT. or EXT., the place, the time of day. Every new slugline is a cut — and a company move. Count them and you can price the film: few means a play, many means a chase.</span></span>
+
+      <span class="ann"><div class="act">A <span class="tgt">LAMP</span>. A chair. You. In your lap: a hundred and ten pages of Courier, punched three times, held together by two brass brads. This page is one of them.</div><span class="note">Caps are the writer grabbing your sleeve — a character&rsquo;s first entrance, a crucial sound, a prop that will matter. Capitalized on page one, fired by page ninety.</span></span>
+
+      <span class="ann"><div class="act"><span class="tgt">You turn it over. It makes the sound paper makes</span> when a movie is about to start.</div><span class="note">Action lines run in present tense, always: film only has now. Read them at the speed they&rsquo;d play on screen, not the speed you skim.</span></span>
+
+      <span class="ann"><div class="char"><span class="tgt">YOU</span></div><span class="note">The name hangs 3.7 inches from the left edge; dialogue sits in its own narrow column at 2.5 — a typewriter&rsquo;s grid, so your eye falls straight down the page at the speed of speech.</span></span>
+      <span class="ann"><div class="paren"><span class="tgt">(reading aloud)</span></div><span class="note">A parenthetical — actors call them wrylies. A whispered note on delivery. The best writers almost never spend one, so when they do, it&rsquo;s law.</span></span>
+      <div class="dlg">One page. One minute.</div>
+
+      <div class="act">You check the number in the corner. It checks out.</div>
+
+      <span class="ann"><div class="char">YOU <span class="tgt">(CONT'D)</span></div><span class="note">Same speaker on both sides of an interruption: the script says (CONT&rsquo;D) so nobody loses count. Ignore it; it&rsquo;s bookkeeping.</span></span>
+      <div class="dlg">So this isn't a document. It's a clock.</div>
+
+      <div class="act">You read the black parts. You hear the white parts.</div>
+
+      <div class="char">YOU (CONT'D)</div>
+      <div class="dlg">And nobody's going to explain the rules to me?</div>
+
+      <span class="ann"><div class="char">THE MARGINS <span class="tgt">(V.O.)</span></div><span class="note">V.O. is a voice from outside the scene; O.S. is someone in it you can&rsquo;t see. Readers who track who&rsquo;s in the room read twice as fast.</span></span>
+      <div class="dlg">Worse. We're going to explain them while you read.</div>
+
+      <div class="act">The lamp BUZZES once. It's in on it.</div>
+
+      <span class="ann"><div class="trans"><span class="tgt">CUT TO:</span></div><span class="note">Transitions live on the right margin. Mostly ceremony now — every slugline already cuts. But SMASH&nbsp;CUT&nbsp;TO: is a drumroll, and MATCH&nbsp;CUT&nbsp;TO: is a rhyme.</span></span>
+    </div>
+  </div>
+
+  <!-- ———————————————— PAGE 2 · WHITE SPACE & THE CLOCK ———————————————— -->
+  <div class="sheet timed">
+    <div class="page">
+      <span class="pgnum">2.</span>
+
+      <div class="slug" style="margin-top:0">INT. YOUR ROOM - LATER</div>
+
+      <span class="ann"><div class="act">You do something no novel allows: <span class="tgt">you fan the pages like a flipbook, reading nothing.</span></div><span class="note">The flip test. Screenwriters design in white space: dense black paragraphs play slow, white pages play fast. You can read a script&rsquo;s pacing from a meter away, before you read a word.</span></span>
+
+      <div class="act">Pages of dense black. Then pages of nearly nothing.</div>
+
+      <div class="char">YOU</div>
+      <div class="dlg">I can see where it speeds up.</div>
+
+      <div class="char">THE MARGINS (V.O.)</div>
+      <div class="dlg">You can see the cutting. Now find page twenty-five.</div>
+
+      <div class="act">You do. Something has just gone wrong for somebody.</div>
+
+      <span class="ann"><div class="char">THE MARGINS <span class="tgt">(V.O.) (CONT'D)</span></div><span class="note">A script is the only literature where you always know how far you are from the end. Writers build against the number: pages 1&ndash;10 earn the read, ~25 breaks the world, ~55 locks the door, ~90 sends the bill.</span></span>
+      <div class="dlg">It always has. Page fifty-five: no way back. Around ninety: everything owed comes due.</div>
+
+      <span class="ann"><div class="act"><span class="tgt">INSERT - THE PAGE NUMBER</span>, top right corner, patient as a metronome.</div><span class="note">INSERT cuts to a detail — a note, a headline, a trigger — and BACK&nbsp;TO&nbsp;SCENE returns. It&rsquo;s the writer briefly steering your eyeball: the closest a script comes to a close-up.</span></span>
+
+      <div class="act">BACK TO SCENE.</div>
+
+      <div class="act">Then the strangest thing on the shelf: two columns of dialogue standing side by side, like an argument drawn to scale.</div>
+
+      <span class="ann"><div class="dual">
+        <div>
+          <div class="char2">YOU</div>
+          <div class="dlg2">Wait. Both at once? How do I --</div>
+        </div>
+        <div>
+          <div class="char2"><span class="tgt">THE MARGINS</span></div>
+          <div class="dlg2">Both at once. Some writers score talk like music.</div>
+        </div>
+      </div><span class="note">Dual dialogue: two people talking over each other, printed as columns. Greta Gerwig scores whole scenes of LITTLE WOMEN this way — overlap on the page becomes family in the room.</span></span>
+    </div>
+  </div>
+
+  <!-- ———————————————— PAGE 3 · HOW TO READ ONE ———————————————— -->
+  <div class="sheet timed">
+    <div class="page">
+      <span class="pgnum">3.</span>
+
+      <div class="slug" style="margin-top:0">INT. YOUR ROOM - LATER STILL</div>
+
+      <span class="ann"><div class="act"><span class="tgt">You do <u>not</u> get up for coffee.</span> The movie would not stop for it either.</div><span class="note">Two tricks in one line. Read a script in one sitting, at the speed of speech — it was engineered for a two-hour trance. And underlining is the one emphasis Courier owns, a survivor from the typewriter: when a script underlines, hit the word with your eyes.</span></span>
+
+      <span class="ann"><div class="act">Outside, <span class="tgt">a car IDLES. It has been idling since page one.</span></div><span class="note">Everything on a page must be shootable, so everything on the page is a purchase. The writer left your room undescribed and spent a whole line on that car — twice now. Trust the spending: nothing is decoration. If it idles, it arrives.</span></span>
+
+      <div class="char">YOU</div>
+      <div class="paren">(to the script)</div>
+      <div class="dlg">Just say what you mean.</div>
+
+      <span class="ann"><div class="char">THE MARGINS (V.O.)</div>
+      <div class="dlg"><span class="tgt">Nobody in a movie says what they mean.</span> Watch what they do while they say something else.</div><span class="note">Dialogue is negotiation, not information. When a character answers a question exactly, be suspicious — flat honesty in a script is usually a lie about something else.</span></span>
+
+      <div class="char">YOU</div>
+      <div class="dlg">Are you at least on my side?</div>
+
+      <div class="char">THE MARGINS (V.O.)</div>
+      <div class="dlg">We are in your lap.</div>
+
+      <span class="ann"><div class="act"><span class="tgt">Beat.</span></div><span class="note">A beat is screenwriting&rsquo;s rest note — a held breath, not an instruction. When a script writes &ldquo;Beat.&rdquo;, give it one before you read on.</span></span>
+
+      <div class="char">YOU</div>
+      <div class="dlg">That's not what I asked.</div>
+
+      <span class="ann"><div class="act"><span class="tgt">You storm to the window.</span> You do not walk angrily. Nobody in a movie has ever walked angrily.</div><span class="note">Watch the verbs. Amateurs decorate with adverbs; professionals spend verbs. &ldquo;Walks angrily&rdquo; is a note to nobody — &ldquo;storms&rdquo; is a shot. In a good script every verb is load-bearing.</span></span>
+
+      <div class="act">Below, the car sits. Idling. Patient.</div>
+
+      <div class="trans">CUT TO:</div>
+    </div>
+  </div>
+
+  <!-- ———————————————— PAGE 4 · THE ONES WHO DIRECT ———————————————— -->
+  <div class="sheet timed">
+    <div class="page">
+      <span class="pgnum">4.</span>
+
+      <div class="slug" style="margin-top:0">INT. THE SHELF - ETERNAL NIGHT</div>
+
+      <div class="act">A long shelf of produced screenplays. Every trick on it was written by someone who could already see the film.</div>
+
+      <span class="ann"><div class="act"><span class="tgt">The corridor is empty.</span></div>
+      <div class="act">A sound.</div>
+      <div class="act">Steel, settling.</div><span class="note">The staccato page: one-line paragraphs, each line its own shot. Walter Hill&rsquo;s rewrite of ALIEN made this famous — a line break is a cut, and writers who direct edit the film on the page, using your eye as the splicer.</span></span>
+
+      <span class="ann"><div class="act"><span class="tgt">We drift down the shelf.</span> We are in no hurry. We have never been in a hurry.</div><span class="note">&ldquo;We see. We hear. We drift.&rdquo; The forbidden camera, smuggled in as a pronoun. The manuals ban it; the Coen brothers built a career on it — every sentence has a point of view, and the reader stands exactly where the camera will.</span></span>
+
+      <span class="ann"><div class="act">A TITLE CARD:</div>
+      <div class="char" style="margin-left:14ch"><span class="tgt">"CHAPTER FOUR: THE MARGINS STRIKE BACK"</span></div><span class="note">Tarantino writes chapters because chapters are a reader&rsquo;s pleasure — he writes the read first and trusts the audience to feel the shape. His scripts also call their needle-drops by name; the soundtrack is already playing on the page.</span></span>
+
+      <span class="ann"><div class="act"><span class="tgt">Nothing happens for a while. It is magnificent.</span></div><span class="note">Paul Thomas Anderson will hold a master for pages; THERE WILL BE BLOOD runs nearly fifteen minutes before its first line of dialogue. On the page that&rsquo;s acres of silent white — writers who direct trust silence, because they&rsquo;ll be in the room when it plays.</span></span>
+
+      <span class="ann"><div class="act">The <span class="tgt">SPOON circles the TEACUP</span>. Slowly. The shelf goes very quiet.</div><span class="note">Jordan Peele writes horror in sound: in GET&nbsp;OUT the capitalized props are the score. When an object earns caps twice, it isn&rsquo;t a prop anymore — it&rsquo;s a trigger, and the reader flinches at typography.</span></span>
+
+      <span class="ann"><div class="act"><span class="tgt">And yes -- this is the kind of shelf you'll own too,</span> if this page does its job.</div><span class="note">Shane Black talks straight to the reader mid-scene (&ldquo;the kind of house I&rsquo;ll buy if this movie is a hit&rdquo;). Illegal, charming, undefeated — he directs the reading. That&rsquo;s the secret of all of them: the page is the first cut.</span></span>
+
+      <div class="trans">CUT TO:</div>
+    </div>
+  </div>
+
+  <!-- ———————————————— PAGE 5 · FADE OUT ———————————————— -->
+  <div class="sheet timed">
+    <div class="page">
+      <span class="pgnum">5.</span>
+
+      <div class="slug" style="margin-top:0">INT. YOUR ROOM - DAWN</div>
+
+      <div class="act">The script is finished. You are not. The lamp is still on. Outside, the car has arrived.</div>
+
+      <span class="ann"><div class="char">THE MARGINS (V.O.)</div>
+      <div class="dlg"><span class="tgt">CHINATOWN for structure. NETWORK for speeches. FARGO for deadpan. ALIEN for silence. PULP FICTION for music. GET OUT for sound.</span></div><span class="note">All of these circulate freely online as PDFs. Read the script first, then watch the film with the pages in your lap — the gap between the two is called directing, and you will never unsee it.</span></span>
+
+      <div class="char">YOU</div>
+      <div class="dlg">Tonight?</div>
+
+      <div class="char">THE MARGINS (V.O.)</div>
+      <div class="dlg">Real time. Lamp on. One page, one minute.</div>
+
+      <span class="ann"><div class="act"><span class="tgt">You pick up a pencil. You have margins of your own now.</span></div><span class="note">The last trick: read with a pencil. The people who read scripts for a living argue with them in the margins — the way this copy argued with you. An annotated script is a conversation; a clean one is just a clock that hasn&rsquo;t started.</span></span>
+
+      <div class="trans">FADE OUT.</div>
+
+      <div class="char" style="margin-left:25ch">THE END</div>
+    </div>
+  </div>
+
+</main>
+
+<footer class="colophon">
+  SET IN COURIER &middot; TWELVE POINT &middot; ONE PAGE &asymp; ONE MINUTE<br>
+  LABERN &middot; MMXXVI
+</footer>
+
+<button class="chip" id="marginsBtn" aria-pressed="true">MARGINS &middot; <span class="dot">ON</span></button>
+<div class="chip" id="clock"><b>PG</b> 1 &middot; 00:00</div>
+
+<script>
+(function(){
+  var reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* reveal */
+  var sheets = [].slice.call(document.querySelectorAll('.sheet'));
+  if (!reduced && 'IntersectionObserver' in window){
+    var io = new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+    }, {threshold:.04});
+    sheets.forEach(function(s){ io.observe(s); });
+    setTimeout(function(){ sheets.forEach(function(s){ s.classList.add('in'); }); }, 2600);
+  } else {
+    sheets.forEach(function(s){ s.classList.add('in'); });
+  }
+
+  /* marginalia toggle */
+  var btn = document.getElementById('marginsBtn');
+  btn.addEventListener('click', function(){
+    var clean = document.body.classList.toggle('clean');
+    btn.setAttribute('aria-pressed', String(!clean));
+    btn.innerHTML = 'MARGINS &middot; <span class="dot">' + (clean ? 'OFF' : 'ON') + '</span>';
+  });
+
+  /* desktop marginalia: nudge overlapping notes apart (top-down, per sheet) */
+  function layoutNotes(){
+    var wide = matchMedia('(min-width:1080px)').matches;
+    var prevBottom = -1e9;
+    document.querySelectorAll('.note').forEach(function(n){
+      n.style.marginTop = '';
+      if (!wide) return;
+      var a = n.closest('.ann');
+      var t = a ? a.querySelector('.tgt') : null;
+      var anchorTop = ((t || a || n).getBoundingClientRect()).top;
+      var r = n.getBoundingClientRect();
+      var desired = Math.max(anchorTop, prevBottom + 14);
+      var shift = Math.round(desired - r.top);
+      if (shift) n.style.marginTop = shift + 'px';
+      prevBottom = desired + r.height;
+    });
+  }
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(layoutNotes);
+  addEventListener('load', layoutNotes);
+  var rz; addEventListener('resize', function(){ clearTimeout(rz); rz = setTimeout(layoutNotes, 120); });
+
+  /* the screen-time clock: one page = one minute */
+  var timed = [].slice.call(document.querySelectorAll('.sheet.timed'));
+  var clock = document.getElementById('clock');
+  function fmt(s){ s = Math.max(0, Math.round(s));
+    return ('0'+Math.floor(s/60)).slice(-2) + ':' + ('0'+(s%60)).slice(-2); }
+  function tick(){
+    var line = innerHeight * .42, cur = 0;
+    for (var i = 0; i < timed.length; i++){
+      var r = timed[i].getBoundingClientRect();
+      if (r.top < line) cur = i + Math.min(1, (line - r.top) / r.height);
+    }
+    var pg = Math.min(timed.length, Math.floor(cur) + 1);
+    clock.innerHTML = '<b>PG</b> ' + pg + ' &middot; ' + fmt(cur * 60);
+  }
+  var tq = false;
+  addEventListener('scroll', function(){
+    if (tq) return; tq = true;
+    requestAnimationFrame(function(){ tick(); tq = false; });
+  }, {passive:true});
+  tick();
+})();
+</script>
+</body>
+</html>
