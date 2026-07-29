@@ -45,7 +45,7 @@ const profile = fs.mkdtempSync('/tmp/pica-chrome-');
 const DP = 9500 + (process.pid % 400);
 const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-  '--disable-extensions', '--mute-audio', `--user-data-dir=${profile}`,
+  '--disable-extensions', '--mute-audio', '--window-size=1440,1000', `--user-data-dir=${profile}`,
   `--remote-debugging-port=${DP}`, `http://127.0.0.1:${PORT}/index.html`,
 ], { stdio: 'ignore' });
 

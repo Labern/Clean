@@ -344,6 +344,13 @@ let grammarSteps: [Step] = [
     Step(desc: "annotation: multi-element note — two washes, one box, delete clears all",
          js: "await T.reset(); T.caret(0,0); T.type('INT. TWO - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('We were never here.'); T.esc(); window.PICA_API.toggleAnnotate(); const nid = T.noteMulti(1, 0, 2, 8); const b1 = T.noteBoxes(); T.delNote(0, nid); const b2 = T.noteBoxes(); window.PICA_API.undo(); const b3 = T.noteBoxes(); const back = JSON.parse(T.notes(1)).length + JSON.parse(T.notes(2)).length; window.PICA_API.redo(); const b4 = T.noteBoxes(); window.PICA_API.toggleAnnotate(); return b1 + '/' + b2 + '/' + b3 + '/' + back + '/' + b4",
          expect: "1:2/0:0/1:2/2/0:0"),
+    // Deleting the script that is OPEN used to do nothing at all: the delete filtered
+    // the index, then openDoc() flushed a save of the outgoing document and put the row
+    // straight back. The index must lose the row, and keep having lost it after the
+    // save debounce has had its chance.
+    Step(desc: "delete: the open script leaves the index and stays gone",
+         js: "window.confirm = () => true; const ix0 = () => JSON.parse(localStorage.getItem('pica.index') || '[]'); await T.reset(); T.caret(0,0); T.type('INT. ONE - DAY'); await T.reset(); T.caret(0,0); T.type('INT. TWO - DAY'); await new Promise(r => setTimeout(r, 60)); const before = ix0().length; const openId = window.__pica.docId; const rows = [...document.querySelectorAll('#docList .doc-item')]; const at = ix0().findIndex(d => d.id === openId); const row = rows[at] || rows[0]; row.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, cancelable:true, clientX:60, clientY:140})); await new Promise(r => setTimeout(r, 40)); const del = [...document.querySelectorAll('.pop *')].find(n => /^delete/i.test(n.textContent.trim())); if (!del) return 'no-delete-item'; del.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); del.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); await new Promise(r => setTimeout(r, 80)); const mid = ix0(); const goneNow = !mid.some(d => d.id === openId); await new Promise(r => setTimeout(r, 900)); const stillGone = !ix0().some(d => d.id === openId); return (before >= 2) + '/' + goneNow + '/' + stillGone",
+         expect: "true/true/true"),
     // Storyboard: same gating; a panel anchors at a position, shifts with typing,
     // hides when the mode turns off, returns when it turns on, deletes clean.
     Step(desc: "storyboard: mode-gated, panel anchors, shifts, survives toggling, deletes",
