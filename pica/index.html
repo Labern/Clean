@@ -905,6 +905,29 @@ const PicaEngine = (() => {
     return best;
   };
 
+  // The distance between two baselines is the row pitch — but a plain mode gets it
+  // wrong on scripts made mostly of one-line paragraphs, where the *paragraph* gap
+  // (two pitches) is the commonest gap of all. There Will Be Blood elects 25 that
+  // way and reads as double-spaced, 26 rows to the page. Rounding splits a 12.7pt
+  // pitch across 12 and 13 too, so each candidate is counted with its neighbours,
+  // and the answer is the smallest frequent gap that the dominant gap is a
+  // multiple of — because paragraph gaps are always multiples of the pitch.
+  function rowPitch(gaps) {
+    if (!gaps.length) return 12;
+    const h = new Map();
+    for (const g of gaps) h.set(g, (h.get(g) || 0) + 1);
+    const win = g => (h.get(g - 1) || 0) + (h.get(g) || 0) + (h.get(g + 1) || 0);
+    let top = 0, topG = 12;
+    for (const g of h.keys()) { const c = win(g); if (c > top) { top = c; topG = g; } }
+    for (const g of [...h.keys()].sort((a, b) => a - b)) {
+      if (g < 7 || g >= topG) break;                  // below screenplay leading, or not smaller
+      if (win(g) < top * 0.35) continue;              // not frequent enough to be the grid
+      const mult = topG / g;
+      if (Math.abs(mult - Math.round(mult)) <= 0.12) return g;   // topG is a multiple of it
+    }
+    return topG;
+  }
+
   function importPdf(rawPages, opts = {}) {
     if (!rawPages || !rawPages.length) return newDoc('IMPORTED');
     // fonts with no usable Unicode map yield cipher text — crack them first,
@@ -1023,7 +1046,7 @@ const PicaEngine = (() => {
         if (g > 4 && g < 30) gaps.push(g);
       }
     }
-    const rowH = mode(gaps) || 12;
+    const rowH = rowPitch(gaps);
     const firstYs = body.slice(1).map(p => {
       const ls = bodyLines(p);
       return ls.length ? Math.round(ls[0].y * 2) / 2 : null;
@@ -1835,6 +1858,81 @@ const PicaEngine = (() => {
     return out.join('\n').replace(/^\n+/, '') + '\n';
   }
 
+  // ---------- conforming an import to Final Draft ----------
+  // A PDF carries whatever geometry its author happened to use. There Will Be
+  // Blood is set ~11.2pt on 25pt leading — double spaced, 69 characters to the
+  // action line; Jackie Brown is its own shape again. Reproducing that faithfully
+  // gives you the source's typesetting, not a screenplay: text splits onto lines
+  // Final Draft would never break, and anything typed afterwards wraps somewhere
+  // else entirely. So the extractor measures the source exactly (that is what
+  // proves the read was right) and everything that reaches the editor is then
+  // conformed to FD12's grid. The words are the source's; the typesetting is FD's.
+  function toFinalDraft(doc) {
+    const L = doc.layout || LETTER;
+    const fd = { ...JSON.parse(JSON.stringify(LETTER)), parenHang: 1 };
+    const srcMidX = (L.pageW || fd.pageW) / 2;
+    const xScale = fd.charW / (L.charW || fd.charW);
+    const rowScale = (L.rowH || fd.rowH) / fd.rowH;
+    const toFdX = x => Math.round((fd.pageW / 2 + (x - srcMidX) * xScale) * 100) / 100;
+
+    // A source line break is either a decision or an accident. The importer keeps
+    // the source's breaks verbatim whenever greedy wrap can't reproduce them, which
+    // is right for reproduction and wrong for conformance: a break the source made
+    // because it ran out of room at 69 characters becomes a permanent hard break on
+    // FD's 60-character grid — text splitting onto lines for no reason. So ask of
+    // every break: would the next word have fitted? If it would have, the writer
+    // meant it and it stays; if it wouldn't, the source simply ran out of room and
+    // the text flows again. (Joining swaps "\n" for " " — one character for one —
+    // so emphasis offsets are untouched.)
+    // Greedy wrap at width W produces exactly these lines when every line fits
+    // (W ≥ longest line) and every break was forced (W < line + 1 + the next
+    // line's first word). That pins W to an interval; if the interval is
+    // non-empty, some width explains all of it and the breaks are the source's
+    // margin talking, not the writer. A blank line, or a break with room to
+    // spare, empties the interval — and those breaks are kept.
+    for (const el of doc.elements) {
+      if (el.dual) continue;                       // columns keep their exact lines
+      if (el.text.indexOf('\n') < 0) continue;
+      const lines = el.text.split('\n');
+      const srcW = (L.widths && L.widths[el.type]) || 0;
+      // Inside a paragraph, a line break belongs to the page it was set on, not to
+      // the writing: a Final Draft export breaks where its margin fell, and a typed
+      // transcription — There Will Be Blood is one — breaks wherever the typist hit
+      // return, at no consistent width at all. Neither survives a change of measure,
+      // so the paragraph flows and FD's margin breaks it again. Two exceptions: a
+      // blank line is structure, and a short line in capitals is a shot or slug the
+      // importer folded into the paragraph below, which must not be swallowed by it.
+      const CAPS = s => s === s.toUpperCase() && /[A-Z]/.test(s);
+      const foldedHeading = /^(action|shot|general|scene)$/.test(el.type);
+      let out = lines[0];
+      for (let i = 1; i < lines.length; i++) {
+        const prev = lines[i - 1];
+        const heading = foldedHeading && CAPS(prev) && prev.length < (srcW || 60) * 0.8;
+        const keep = lines[i] === '' || prev === '' || heading;
+        out += (keep ? '\n' : ' ') + lines[i];
+      }
+      el.text = out;
+    }
+
+    // the title page is positioned rather than flowed, so it moves with the grid
+    if (doc.titlePage) doc.titlePage = doc.titlePage.map(t => {
+      const o = { ...t };
+      if (o.row != null) o.row = Math.max(0, Math.round(o.row * rowScale));
+      if (o.x != null) o.x = toFdX(o.x);
+      return o;
+    });
+    for (const el of doc.elements) {
+      // measured blank-row gaps encode the source's rhythm (double spacing lives
+      // here); dropping them hands spacing back to FD's own rule
+      delete el.spaceBefore;
+      // a hard x from the source fights FD's columns — centring survives via align
+      delete el.xOverride;
+    }
+    if (L.revX != null) fd.revX = fd.pageW - 54;   // revision stars at FD's right margin
+    doc.layout = fd;
+    return doc;
+  }
+
   function newDoc(title) {
     return {
       v: 1, title: title || 'UNTITLED',
@@ -1848,7 +1946,7 @@ const PicaEngine = (() => {
     };
   }
 
-  return { TYPES, LETTER, uid, linesFromItems, estimateCharW, wrapText, wrapElement, importPdf, importFdx, toFdx, paginate, toFountain, newDoc, SCENE_RE };
+  return { TYPES, LETTER, uid, linesFromItems, estimateCharW, wrapText, wrapElement, importPdf, importFdx, toFdx, toFinalDraft, paginate, toFountain, newDoc, SCENE_RE };
 })();
 /*PICA-ENGINE-END*/
 </script>
@@ -1948,7 +2046,12 @@ const store = {
   // numbers; imported docs are never touched — they reproduce their sources.
   upgradeTypedLayout(doc){
     const L = doc && doc.layout;
-    if (!L || doc.importNote || L.revX != null) return;
+    // never an import: those carry provenance now, and older ones are recognised
+    // by the traces only a measured document has (import note, star margin,
+    // positioned title page, per-element geometry)
+    if (!L || doc.src || doc.importNote || L.revX != null) return;
+    if ((doc.titlePage || []).some(t => t.x != null)) return;
+    if ((doc.elements || []).some(e => e.xOverride != null || e.align || e.spaceBefore != null || e.rev || e.dual)) return;
     const typed = L.pageW === 612 && L.cols && L.cols.action === 108 && L.cols.dialogue === 180
       && L.cols.paren === 216 && (L.cols.character === 266 || L.cols.character === 252)
       && (L.widths.action === 57 || L.widths.action === 60);
@@ -2636,14 +2739,22 @@ function applyEmphasis(kind){
   const ia = elIndex(a.el), ib = elIndex(b.el);
   if (ia < 0 || ib < 0) return;
   if (ia === ib && a.off === b.off) {
-    // FD: toggling emphasis at a collapsed caret styles what you type NEXT
+    // FD: toggling emphasis at a collapsed caret sets the style of what you type
+    // NEXT — as an ABSOLUTE state. Typing at the end of an italic run inherits
+    // italic (the mark extends), so ⌘I there must mean OFF, and the typed text
+    // is carved out of the inherited style.
     if (a.el.startsWith('title:')) return;
-    if (!S.pend || S.pend.el !== a.el || S.pend.off !== a.off) S.pend = { el: a.el, off: a.off, kinds: [] };
+    if (!S.pend || S.pend.el !== a.el || S.pend.off !== a.off) {
+      const el0 = elById(a.el);
+      const inherited = [];
+      for (const [s0, e0, k] of (el0 && el0.marks) || [])
+        if (a.off > s0 && a.off <= e0 && !inherited.includes(k)) inherited.push(k);
+      S.pend = { el: a.el, off: a.off, kinds: inherited };
+    }
     const i2 = S.pend.kinds.indexOf(kind);
     if (i2 >= 0) S.pend.kinds.splice(i2, 1); else S.pend.kinds.push(kind);
     const names = { b: 'bold', i: 'italic', u: 'underline' };
-    toast(S.pend.kinds.length ? S.pend.kinds.map(k => names[k]).join(' + ') + ' — as you type' : 'plain');
-    if (!S.pend.kinds.length) S.pend = null;
+    toast(S.pend.kinds.length ? S.pend.kinds.map(k => names[k]).join(' + ') + ' — as you type' : 'plain — as you type');
     return;
   }
 
@@ -3323,9 +3434,10 @@ function handleInsertText(data){
     el.type = 'scene'; text = text.toUpperCase();
   }
   opText(el.id, text, { el: el.id, off: caretOff });
-  // a pending ⌘B/I/U (armed at a collapsed caret) styles what lands here
+  // a pending ⌘B/I/U (armed at a collapsed caret) sets the ABSOLUTE style of
+  // what lands here — including switching an inherited style OFF
   if (S.pend && S.pend.el === el.id && S.pend.off === cc.off && ins) {
-    for (const k of S.pend.kinds) setMark(el, cc.off, cc.off + ins.length, k, true);
+    for (const k of ['b', 'i', 'u']) setMark(el, cc.off, cc.off + ins.length, k, S.pend.kinds.includes(k));
     S.pend.off = cc.off + ins.length;
   }
   // FD: "(" in a Character cue raises the Character Extension list
@@ -4194,7 +4306,9 @@ async function importPdfBuffer(buf, name){
     if (!raw.some(p => p.items.length)) throw new Error('no text layer — this looks like a scanned PDF');
     log('classifying…');
     await new Promise(r => setTimeout(r, 30));
-    const doc = E.importPdf(raw);
+    // measured exactly, then conformed — an import is Final Draft typeset, always
+    const doc = E.toFinalDraft(E.importPdf(raw));
+    doc.src = 'pdf';
     if (!doc.elements.some(e => e.text.trim() !== '')) throw new Error('nothing readable came out of this PDF');
     const fileTitle = (name || 'IMPORTED').replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim().toUpperCase();
     // a garbled or missing title (tiny unmapped title-page fonts) falls back to the filename
@@ -4217,7 +4331,8 @@ async function importPdfBuffer(buf, name){
 
 function importFdxText(text, name){
   try {
-    const doc = E.importFdx(text);
+    const doc = E.toFinalDraft(E.importFdx(text));
+    doc.src = 'fdx';
     if (!doc.title || doc.title === 'UNTITLED') doc.title = (name || 'SCRIPT').replace(/\.fdx$/i, '').replace(/[_-]+/g, ' ').toUpperCase();
     const id = E.uid();
     store.save(id, doc);
@@ -5176,6 +5291,17 @@ window.PICA_API = {
     tab(shift){ handleTab(!!shift); return true; },
     esc(){ closePops(); return true; },
     state(){ return S.doc.elements.map(e => e.type + '|' + e.text); },
+    // per-character emphasis as the model holds it: '.' plain, else b/i/u letters
+    marks(i){
+      const el = S.doc.elements[i]; if (!el) return '';
+      const bits = markBitsFor(el, 0, el.text.length);
+      let out = '';
+      for (let k = 0; k < el.text.length; k++) {
+        const b = (bits && bits[k]) || 0;
+        out += b ? ((b & 1 ? 'b' : '') + (b & 2 ? 'i' : '') + (b & 4 ? 'u' : '')) : '.';
+      }
+      return out;
+    },
     caretAt(){ const c = S.caret; return c ? (elIndex(c.el) + ':' + c.off) : 'none'; },
     note(i, off, len, text){
       const el = S.doc.elements[i]; if (!el) return false;
