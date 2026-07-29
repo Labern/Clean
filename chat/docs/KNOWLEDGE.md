@@ -3,6 +3,68 @@
 Technical facts, DOM hooks and gotchas live in `../CLAUDE.md` — this file holds
 only what that doesn't: why the shape is what it is, and what's still open.
 
+## CHAT is a background app now — and how to put it back (2026-07-29)
+
+Labern: *"I'd like to remove CHAT and MU as cmd tab apps. I still want them to run
+as Swift apps, but I don't want them to fill up the bar. I want them to be running
+in the background."* Then, narrowing it: *"The only change I want is the items in
+the CMD Tab. Everything else — identical."*
+
+CHAT now launches as an **accessory** app: no Dock tile, no ⌘-Tab slot. It still
+runs full-time, still holds the App Nap assertion, still notifies, still answers
+⌘R and ⌃⌥⌘W. Nothing was lost — the unread count already lived in the menu-bar `◦`
+rather than on a Dock badge, so the Dock tile was pure furniture.
+
+**macOS couples the Dock icon and the ⌘-Tab slot to one setting** — the activation
+policy (`.regular` / `.accessory` / `.prohibited`). You cannot have one without
+the other. So it's set in two places, and both matter:
+
+- `LSUIElement` = `true` in the `Info.plist` `build.sh` writes — the launch-time
+  default. Without it the icon flashes up before the code can demote it.
+- `app.setActivationPolicy(Prefs.showInDock ? .regular : .accessory)` in
+  `ShellApp.main()`, reading a saved pref — which is what makes it reversible.
+
+### Three ways back to the ⌘-Tab version, cheapest first
+
+1. **App ▸ Show in Dock & ⌘-Tab** (right-click the menu-bar `◦` to reach the menu).
+   Takes effect immediately, no restart, persists. Untick to hide again.
+2. **From a terminal**, same switch without the GUI:
+   `defaults write com.labern.chat showInDock -bool true` then relaunch CHAT.
+   `-bool false` puts it back.
+3. **The whole pre-change app**, if something about the new build is wrong:
+   `ditto ~/AppSnapshots/2026-07-29-pre-accessory/CHAT.app /Applications/CHAT.app`
+   — a byte-identical copy of the signed bundle as it ran that morning. The source
+   is tagged too: `git checkout pre-accessory-chat -- chat/ && cd chat && ./build.sh --install`.
+
+`LSUIElement=true` plus a runtime `.regular` is the supported combination — it's
+how every app with a "Show icon in Dock" checkbox works. The reverse (no plist
+key, runtime `.accessory`) is the one that flashes on launch.
+
+### Why right-click on the `◦` opens the whole menu now
+
+An accessory app **never draws its menu bar**. The ⌘-key equivalents still fire —
+AppKit consults `NSApp.mainMenu` for those whether or not it's displayed — but
+File/Edit/Chats/View/Window would have become unreachable by mouse. So
+`showStatusMenu()` mirrors the live tree onto the status item on right-click.
+
+It *mirrors* rather than calling `buildMenu()` twice on purpose: `buildMenu()`
+also binds every `themeItems` / `hideItems` / `privacyItem` / … reference that
+`syncMenuState()` writes to, so a second call would rebind that bookkeeping to
+the copy and freeze the real menu's checkmarks. `mirror()` walks the live tree
+instead, so one source of truth stays, and any menu item added later shows up
+there for free. It copies field-by-field rather than via `NSMenuItem.copy()` so
+nothing depends on how AppKit carries `target` across a copy.
+
+### The launch-time notification alert is gone — don't add it back
+
+`prepareNotifications()` used to raise a modal at **every** launch when macOS had
+notifications switched off for CHAT, reasoning that silent notification failure is
+total failure for this app. Labern answered that, 2026-07-29: *"Stop asking me
+whether I want to turn on notifications for CHAT. I don't."* The state is still
+tracked — the App menu still reads "Notifications — BLOCKED by macOS", and
+App ▸ Check Notifications Work… still explains it in full **when he asks**. The
+unprompted modal is what he rejected, not the information.
+
 ## Why a wrapper and not a real client (2026-07-25)
 
 Four options were put to Labern with the trade-offs stated plainly:

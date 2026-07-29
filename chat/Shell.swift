@@ -252,6 +252,22 @@ final class SlidingWindow: NSWindow {
     }
 }
 
+// MARK: - the switch that must be readable before the delegate exists
+
+/// Deliberately a raw `UserDefaults` key rather than a field on `Settings`: the
+/// activation policy has to be decided in `main()`, before any `Settings` is
+/// loaded, and keeping it out of that struct means an existing settings file
+/// still loads untouched.
+enum Prefs {
+    /// Off by default — CHAT is a background app that you summon. Turning this on
+    /// (App ▸ Show in Dock & ⌘-Tab) restores the Dock tile, the ⌘-Tab slot and the
+    /// visible menu bar, i.e. exactly how the app behaved before 2026-07-29.
+    static var showInDock: Bool {
+        get { UserDefaults.standard.bool(forKey: "showInDock") }
+        set { UserDefaults.standard.set(newValue, forKey: "showInDock") }
+    }
+}
+
 // MARK: - app
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
@@ -277,6 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private var onTopItem: NSMenuItem!
     private var fadeItem: NSMenuItem!
     private var menuBarItem: NSMenuItem!
+    private var dockItem: NSMenuItem!
     private var pinItems: [NSMenuItem] = []
     private var unpinMenu: NSMenu!
     private var hotKeyRef: EventHotKeyRef?
@@ -759,7 +776,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             let s = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
             s.button?.target = self
             s.button?.action = #selector(statusItemClicked(_:))
-            s.button?.toolTip = "\(kAppName) — click to show or hide"
+            // Right-click has to reach the button too, or the mirrored menu is
+            // unreachable — buttons send on left-mouse-up by default.
+            s.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            s.button?.toolTip = "\(kAppName) — click to show or hide, right-click for the menu"
             statusItem = s
         }
         updateStatusItem()
@@ -771,7 +791,74 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         b.font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: unread > 0 ? .bold : .regular)
     }
 
-    @objc private func statusItemClicked(_ sender: Any?) { toggleVisibility() }
+    @objc private func statusItemClicked(_ sender: Any?) {
+        let e = NSApp.currentEvent
+        if e?.type == .rightMouseUp || e?.modifierFlags.contains(.control) == true {
+            showStatusMenu()
+        } else {
+            toggleVisibility()
+        }
+    }
+
+    /// An accessory app never draws its menu bar, so in the default (hidden)
+    /// configuration the whole File/Edit/Chats/View/Window tree would be
+    /// unreachable by mouse — the ⌘-key equivalents still fire, but you couldn't
+    /// browse them. Right-clicking the menu-bar ◦ mirrors the real menu instead.
+    ///
+    /// Mirrored rather than rebuilt on purpose: `buildMenu()` also binds every
+    /// `themeItems` / `hideItems` / … reference that `syncMenuState()` writes to,
+    /// so calling it a second time would silently rebind that bookkeeping to the
+    /// copy and leave the real menu's checkmarks frozen. Walking the live tree
+    /// keeps one source of truth, and any future menu item appears here for free.
+    private func showStatusMenu() {
+        guard let s = statusItem, let main = NSApp.mainMenu else { return }
+        syncMenuState()                       // copy the checkmarks as they are now
+        // Set → click → unset. An NSStatusItem with a permanently attached menu
+        // swallows the plain left-click, and left-click has to keep toggling the
+        // window. (Same trick Mu uses for its right-click-only gate menu.)
+        s.menu = mirror(main)
+        s.button?.performClick(nil)
+        s.menu = nil
+    }
+
+    /// Deep copy of a menu tree. Explicit field-by-field rather than
+    /// `NSMenuItem.copy()` so nothing depends on how AppKit chooses to carry
+    /// `target` across a copy. Items with a nil target (Cut/Copy/Paste, Close
+    /// Window, Minimize) stay nil and keep dispatching down the responder chain.
+    private func mirror(_ menu: NSMenu) -> NSMenu {
+        let out = NSMenu(title: menu.title)
+        for src in menu.items {
+            if src.isSeparatorItem { out.addItem(.separator()); continue }
+            // The top-level wrappers (File, Edit, View…) are untitled NSMenuItems
+            // whose submenu carries the name; the menu bar renders the submenu's
+            // title, a pop-up menu renders the item's.
+            let title = src.title.isEmpty ? (src.submenu?.title ?? "") : src.title
+            let dst = NSMenuItem(title: title, action: src.action, keyEquivalent: src.keyEquivalent)
+            dst.keyEquivalentModifierMask = src.keyEquivalentModifierMask
+            dst.target = src.target
+            dst.tag = src.tag
+            dst.state = src.state
+            dst.representedObject = src.representedObject
+            if let sub = src.submenu { dst.submenu = mirror(sub) }
+            out.addItem(dst)
+        }
+        return out
+    }
+
+    @objc private func toggleShowInDock(_ sender: Any?) {
+        Prefs.showInDock.toggle()
+        NSApp.setActivationPolicy(Prefs.showInDock ? .regular : .accessory)
+        if Prefs.showInDock {
+            // Promoting accessory → regular doesn't draw the menu bar until the app
+            // is activated again; without this you get a Dock tile whose menus never
+            // appear. Next runloop tick — the policy change hasn't settled yet.
+            DispatchQueue.main.async { [weak self] in
+                NSApp.activate(ignoringOtherApps: true)
+                self?.window?.makeKeyAndOrderFront(nil)
+            }
+        }
+        syncMenuState()
+    }
 
     @objc private func toggleMenuBar(_ sender: Any?) {
         settings.menuBar.toggle()
@@ -1130,15 +1217,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
                 self?.notificationsReady = granted
                 self?.notificationsDenied = !granted
                 self?.syncMenuState()
-                // Silent notification failure is total failure for this app — it
-                // sends him back to his phone, the one thing it exists to stop. So
-                // it is surfaced rather than swallowed.
-                if !granted { self?.warnNotificationsBlocked(atLaunch: true) }
+                // No alert here. This used to warn at every launch when macOS had
+                // notifications off, on the reasoning that silent failure sends him
+                // back to his phone. He has answered that question — 2026-07-29,
+                // "Stop asking me whether I want to turn on notifications for CHAT.
+                // I don't." — and a modal on every launch is worse than the risk it
+                // guards. The state is still tracked: the App menu says
+                // "Notifications — BLOCKED by macOS", and App ▸ Check Notifications
+                // Work… still explains it in full when HE asks. Don't add it back.
             }
         }
     }
 
-    private func warnNotificationsBlocked(atLaunch: Bool) {
+    /// Only ever reached from App ▸ Check Notifications Work… — i.e. when he asks.
+    /// Never on launch.
+    private func warnNotificationsBlocked() {
         let a = NSAlert()
         a.messageText = "\(kAppName) can't show notifications"
         a.informativeText = """
@@ -1150,7 +1243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         """
         a.alertStyle = .warning
         a.addButton(withTitle: "Open Notification Settings")
-        a.addButton(withTitle: atLaunch ? "Later" : "OK")
+        a.addButton(withTitle: "OK")
         if a.runModal() == .alertFirstButtonReturn,
            let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
             NSWorkspace.shared.open(url)
@@ -1165,7 +1258,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
                 self.notificationsReady = ok
                 self.notificationsDenied = !ok
                 self.syncMenuState()
-                if !ok { self.warnNotificationsBlocked(atLaunch: false); return }
+                if !ok { self.warnNotificationsBlocked(); return }
                 // Prove it end to end, so he never has to wonder.
                 self.notify(title: "\(kAppName) is working",
                             body: "Notifications will arrive like this. You can reply from here too.",
@@ -1457,6 +1550,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         onTopItem?.state = settings.alwaysOnTop ? .on : .off
         fadeItem?.state = settings.fadeInactive ? .on : .off
         menuBarItem?.state = settings.menuBar ? .on : .off
+        dockItem?.state = Prefs.showInDock ? .on : .off
 
         for (i, item) in fontItems.enumerated() {
             item.state = kFonts[i].title == settings.fontTitle ? .on : .off
@@ -1511,8 +1605,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
     private func buildMenu() {
         let main = NSMenu()
 
-        // App
-        let appMenu = NSMenu()
+        // App. Titled, unlike the other submenus' wrappers, because showStatusMenu()
+        // falls back to the submenu's title when it mirrors this tree onto the
+        // menu-bar item — an untitled app menu would show up there as a blank row.
+        let appMenu = NSMenu(title: kAppName)
         appMenu.addItem(withTitle: "About \(kAppName)",
                         action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
@@ -1531,6 +1627,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
         let quietItem = NSMenuItem(title: "Quiet Hours", action: nil, keyEquivalent: "")
         quietItem.submenu = quietMenu
         appMenu.addItem(quietItem)
+        appMenu.addItem(.separator())
+        dockItem = item("Show in Dock & ⌘-Tab", #selector(toggleShowInDock(_:)))
+        appMenu.addItem(dockItem)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: "Hide \(kAppName)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         let hideOthers = NSMenuItem(title: "Hide Others",
@@ -1707,7 +1806,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
 struct ShellApp {
     static func main() {
         let app = NSApplication.shared
-        app.setActivationPolicy(.regular)      // Dock tile, ⌘-Tab slot, unread badge
+        // Quiet by default: no Dock tile, no ⌘-Tab slot. Nothing is lost — the
+        // unread count already lived in the menu bar rather than on a Dock badge
+        // (see the "badge" case in userContentController), and the app is reached
+        // by its global ⌘R / ⌃⌥⌘W hotkeys and the menu-bar ◦. `LSUIElement` in
+        // Info.plist is what stops the icon flashing up before this line runs;
+        // this line is what lets App ▸ Show in Dock & ⌘-Tab put it back.
+        app.setActivationPolicy(Prefs.showInDock ? .regular : .accessory)
         let delegate = AppDelegate()
         app.delegate = delegate
         app.run()

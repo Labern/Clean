@@ -62,6 +62,11 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleIconFile</key><string>$APP_NAME</string>
   <key>LSMinimumSystemVersion</key><string>$MIN_OS</string>
   <key>NSHighResolutionCapable</key><true/>
+  <!-- Background app: no Dock tile, no CMD-Tab slot. Shell.swift can still promote
+       it to .regular at runtime (App > Show in Dock & CMD-Tab); this key is what
+       stops the icon flashing up during launch before that code runs. To go back
+       to a permanent Dock app, delete this line and rebuild. -->
+  <key>LSUIElement</key><true/>
   <key>LSApplicationCategoryType</key><string>public.app-category.social-networking</string>
   <key>NSHumanReadableCopyright</key><string>A native macOS client for WhatsApp</string>
   <key>NSMicrophoneUsageDescription</key><string>So you can record voice messages and take calls.</string>

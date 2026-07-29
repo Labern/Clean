@@ -11,9 +11,28 @@
 Real `web.whatsapp.com` in a WKWebView, wrapped in a proper Mac app. It does
 **not** touch the WhatsApp protocol — the account links exactly as a browser
 links it, so there is no ban risk. What the wrapper adds is everything a browser
-tab can't: a Dock tile with an unread badge, real macOS notifications, his own
+tab can't: real macOS notifications, an unread count in the menu bar, his own
 themes, the furniture removed, ⌘1–9 jumps to pinned chats, a global summon
 hotkey, and a privacy blur for screen-sharing.
+
+## It's a background app — no Dock tile, no ⌘-Tab slot (2026-07-29)
+CHAT launches as an **accessory** app (`LSUIElement` in the plist +
+`setActivationPolicy` in `ShellApp.main()`). It runs full-time and is reached by
+⌘R, ⌃⌥⌘W, or the menu-bar `◦`. macOS ties the Dock icon and the ⌘-Tab slot to
+that one setting — you can't have one without the other.
+
+**To put it back:** App ▸ **Show in Dock & ⌘-Tab** (right-click the `◦` to reach
+the menu) — live, no restart. Or `defaults write com.labern.chat showInDock -bool
+true` and relaunch. Full details, plus the bundle snapshot and git tag to restore
+the pre-change build, are in `docs/KNOWLEDGE.md`.
+
+Two consequences worth knowing before changing menu code:
+- **Right-clicking the `◦` mirrors the whole main menu** (`showStatusMenu()` /
+  `mirror()`), because an accessory app never draws its menu bar. Don't "simplify"
+  that into a second `buildMenu()` call — see `docs/KNOWLEDGE.md` for why that
+  silently freezes the real menu's checkmarks.
+- **Native Full Screen is degraded** in accessory mode (the space has no menu
+  bar). Ticking Show in Dock & ⌘-Tab restores it.
 
 ## Files
 - `Shell.swift` — the whole app (~700 lines). Window, menus, notifications,
@@ -77,9 +96,12 @@ him sends him back to his phone, and the app has failed at its only job. So:
   and notifications stop — silently.
 - `windowShouldClose` orders the window out instead of closing it, so ⌘W never
   severs the connection.
-- If macOS has blocked notifications the app says so loudly (an alert at launch,
-  the App-menu item renaming itself to "BLOCKED by macOS") rather than going
-  quiet. App ▸ Check Notifications Work… re-checks and fires a real test one.
+- If macOS has blocked notifications the App-menu item renames itself to
+  "BLOCKED by macOS" rather than going quiet. App ▸ Check Notifications Work…
+  re-checks and fires a real test one.
+  **There is deliberately no alert at launch any more** — it used to raise one on
+  every launch, and he ruled on it 2026-07-29: *"Stop asking me whether I want to
+  turn on notifications for CHAT. I don't."* Don't add it back.
 
 ## Shortcuts
 | | |
