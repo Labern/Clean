@@ -184,5 +184,56 @@ if (fs.existsSync(whipPath)) {
   check('FD geometry: paren first line hangs 0.10" left', pl.length >= 2 && Math.abs(pl[0].x - (216 - 7.2)) < 0.01 && Math.abs(pl[1].x - 216) < 0.01, pl.map(l => l.x).join(','));
 }
 
+// -- 11. every import is conformed to Final Draft (There Will Be Blood came in
+//        double-spaced at 69 characters to the line and read as a different script)
+{
+  // The row pitch is the smallest frequent gap the dominant gap is a multiple of:
+  // a script made of one-line paragraphs makes the PARAGRAPH gap the commonest of
+  // all, and a plain mode then reads the script as double-spaced. Synthetic page:
+  // lines 12pt apart, paragraphs 24pt apart, paragraph gaps in the majority.
+  const items = [];
+  let y = 100;
+  for (let p = 0; p < 30; p++) {
+    items.push({ x: 108, y, w: 200, str: 'Body line one of paragraph ' + p });
+    y += 12;
+    items.push({ x: 108, y, w: 200, str: 'and its second line here.' });
+    y += 24;                                       // paragraph gap = two pitches
+  }
+  const dbl = E.importPdf([{ width: 612, height: 792,
+    items: items.map(i => ({ x: i.x, y: i.y, w: i.w, str: i.str })) }]);
+  check('import: row pitch is the line gap, not the paragraph gap', dbl.layout.rowH === 12,
+    'rowH=' + dbl.layout.rowH);
+
+  // conformance, on the real fixture
+  const conf = E.toFinalDraft(E.importPdf(raw));
+  const fresh = E.newDoc('X').layout;
+  check('import: conformed to FD page and type', conf.layout.pageW === 612 && conf.layout.charW === 7.2
+    && conf.layout.rowH === 12, [conf.layout.pageW, conf.layout.charW, conf.layout.rowH].join('/'));
+  check('import: conformed to FD columns', JSON.stringify(conf.layout.cols) === JSON.stringify(fresh.cols));
+  check('import: conformed to FD widths', JSON.stringify(conf.layout.widths) === JSON.stringify(fresh.widths));
+  check('import: conformed to FD transition edge', conf.layout.transRight === fresh.transRight);
+  check('import: no source x survives to fight the columns',
+    conf.elements.every(e => e.xOverride == null));
+  check('import: source blank-row gaps give way to FD spacing',
+    conf.elements.every(e => e.spaceBefore == null));
+  // an import wraps exactly where a script typed in PICA wraps — the whole point
+  const typedW = fresh.widths;
+  check('import: wraps at the same measure as a typed script',
+    conf.layout.widths.action === typedW.action && conf.layout.widths.dialogue === typedW.dialogue);
+  // and nothing was lost conforming it
+  const src = E.importPdf(raw);
+  check('import: every element survives conforming', conf.elements.length === src.elements.length,
+    conf.elements.length + ' vs ' + src.elements.length);
+  check('import: emphasis survives conforming',
+    conf.elements.filter(e => e.marks).length === src.elements.filter(e => e.marks).length);
+  const words = e => e.text.replace(/\s+/g, ' ').trim();
+  check('import: no word is lost when paragraphs reflow',
+    conf.elements.every((e, i) => words(e) === words(src.elements[i])));
+  // paragraph line breaks belong to the source's page, not to the script
+  const dialogueBreaks = conf.elements.filter(e => e.type === 'dialogue' && !e.dual && e.text.includes('\n'));
+  check('import: speeches flow rather than keeping the source\'s line breaks',
+    dialogueBreaks.length === 0, dialogueBreaks.length + ' left');
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);

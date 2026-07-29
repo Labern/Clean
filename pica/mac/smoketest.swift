@@ -203,9 +203,17 @@ func poll(attempts: Int) {
     (() => { const S = window.__pica;
       const failed = !!document.querySelector('#overlay.show .card h2') &&
                      document.querySelector('#overlay.show .card h2').textContent.includes('failed');
+      const L = S && S.doc ? S.doc.layout : null;
       return JSON.stringify({ done: !!(S && S.res && S.res.count > 1), failed,
         pages: S && S.res ? S.res.count : 0, els: S && S.doc ? S.doc.elements.length : 0,
-        title: S && S.doc ? S.doc.title : '' });
+        title: S && S.doc ? S.doc.title : '',
+        // an import must arrive in Final Draft's typesetting, never the source's
+        fd: !!(L && L.pageW === 612 && L.charW === 7.2 && L.rowH === 12
+               && L.widths && L.widths.action === 60 && L.widths.dialogue === 35
+               && L.cols && L.cols.character === 252),
+        geom: L ? [L.pageW, L.charW, L.rowH, L.widths && L.widths.action].join('/') : '',
+        src: S && S.doc ? (S.doc.src || '') : '',
+        flowed: S && S.doc ? S.doc.elements.filter(e => e.type === 'dialogue' && !e.dual && e.text.indexOf(String.fromCharCode(10)) >= 0).length : -1 });
     })()
     """) { res in
         guard let s = res as? String, let d = s.data(using: .utf8),
@@ -216,15 +224,22 @@ func poll(attempts: Int) {
             check("PDF import completed offline", false, "importer reported failure")
             finish(); return
         }
-        // res.count is script pages (147); the rendered array adds the title page (148)
-        if (o["pages"] as? Int ?? 0) >= 147 {
+        // Tenet conformed to FD Letter paginates at 156 script pages (the rendered
+        // array adds the title page); at the source's own geometry it was 147
+        if (o["pages"] as? Int ?? 0) >= 150 {
             let pages = o["pages"] as? Int ?? 0
             let els = o["els"] as? Int ?? 0
             let title = o["title"] as? String ?? ""
             check("PDF imported offline with bundled pdf.js", true,
                   "\(pages) script pages · \(els) elements · “\(title)”")
-            check("import produced the expected document", pages == 147 && els > 3500 && title == "TENET",
-                  "expected 147 pages / >3500 elements / TENET")
+            check("import produced the expected document", pages == 156 && els > 3500 && title == "TENET",
+                  "expected 156 pages / >3500 elements / TENET")
+            check("import lands in Final Draft's typesetting, not the source's",
+                  o["fd"] as? Bool == true, o["geom"] as? String ?? "")
+            check("import is stamped as imported (never re-geometried as a typed doc)",
+                  (o["src"] as? String) == "pdf", o["src"] as? String ?? "")
+            check("speeches flow — no source line breaks left inside dialogue",
+                  (o["flowed"] as? Int ?? -1) == 0, String(o["flowed"] as? Int ?? -1))
             finish(); return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { poll(attempts: attempts + 1) }

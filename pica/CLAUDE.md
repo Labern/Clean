@@ -46,6 +46,49 @@ and re-extracts (needs `npm i pdfjs-dist` inside tests/).
   out; Enter on empty → menu; ⌘1–8 direct; int./ext. auto-detects; SmartType feeds
   from the script itself.
 
+## An import is CONFORMED to Final Draft, never typeset like its source
+His words, twice, after There Will Be Blood and Jackie Brown came in wrong:
+*"If a screenplay is imported, always convert it to the Final Draft style."*
+
+Two stages, and the distinction is the whole design:
+- **Extract exactly.** `E.importPdf` still measures the source and reproduces it —
+  that is what proves the read was right, and it is what run.mjs's 100% gate tests.
+  Do not change this to "fix" an import.
+- **Then conform.** `E.toFinalDraft(doc)` is applied by BOTH import paths
+  (`importPdfUrl` and `importFdxText`) before the doc is saved or opened. It replaces
+  the layout with LETTER (612×792, 12pt Courier charW 7.2, rowH 12, FD columns and
+  widths, transRight 511.2, parenHang 1), rescales the positioned title page onto the
+  new grid, drops every `xOverride` and `spaceBefore` (source x and measured blank-row
+  gaps belong to the old grid; FD's own spacing rule takes over), and moves `revX` to
+  FD's right margin. Content — text, types, order, `marks`, `align`, `dual`, `rev` — is
+  untouched. The doc is stamped `src:'pdf'|'fdx'`.
+
+**Paragraphs reflow.** Inside an element, a line break belongs to the page it was set
+on, not to the writing: an FD export breaks where its margin fell, and a typed
+transcription (There Will Be Blood) breaks wherever the typist hit return, at no
+consistent width. `toFinalDraft` joins them all so FD's margin can break them again.
+Two exceptions only: a blank line is structure, and a short ALL-CAPS line at the head
+of an action/shot/scene element is a slug the importer folded in — never swallow the
+paragraph beneath it into it. (Joining swaps `\n` for a space — same length — so
+emphasis offsets need no remapping.)
+
+**`rowH` is the LINE pitch, not the paragraph gap.** `rowPitch()` replaced a plain
+`mode(gaps)`, which elected 25 on There Will Be Blood — a script of mostly one-line
+paragraphs makes the *paragraph* gap the commonest gap in the document, so the whole
+script read as double-spaced (26 rows to the page, 173 pages). Rounding also splits a
+12.7pt pitch across 12 and 13, so candidates are counted with their neighbours, and
+the answer is the smallest frequent gap that the dominant gap is a multiple of.
+
+**The typed-doc upgrade must never touch an import.** `store.upgradeTypedLayout` now
+bails on `doc.src`, an import note, a star margin, a positioned title page, or any
+per-element geometry. It rewrites column widths, and doing that to an import moves
+every wrap point in the script.
+
+Gated by run.mjs §11 (pitch, conformance, nothing lost, speeches flowed) and by
+smoketest steps against the built bundle (Tenet must arrive at 612/7.2/12/60, stamped
+`pdf`, with zero line breaks left inside dialogue). **Tenet conformed paginates at 156
+script pages, not the source's 147** — that number is in both gates.
+
 ## Typed-doc geometry is FD12's own template, to the point
 LETTER (new docs) mirrors Screenplay.fdxt exactly: action/scene 1.5"–7.5" (60),
 dialogue 2.5"–6.0" (35), parenthetical 3.0"–5.5" (25, hanging -0.10" first
