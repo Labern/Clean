@@ -2035,8 +2035,24 @@ const store = {
       doc = LS.get('pica.doc.' + id, null);            // legacy localStorage copy
       if (doc) idb.put('doc.' + id, doc).catch(() => {});
     }
-    if (doc) { store.upgradeTypedLayout(doc); store.cache.set(id, doc); }
+    if (doc) { store.conformImport(doc, id); store.upgradeTypedLayout(doc); store.cache.set(id, doc); }
     return doc;
+  },
+  // Scripts imported before conforming existed still carry their source's
+  // typesetting — There Will Be Blood double-spaced at 69 characters to the line.
+  // Their layout still holds the measured widths, so the same conversion works on
+  // open, and nothing has to be imported twice.
+  conformImport(doc, id){
+    const L = doc && doc.layout;
+    if (!L || !L.widths) return;
+    if (L.charW === 7.2 && L.rowH === 12 && L.widths.action === 60 && L.pageW === 612) return;
+    const measured = doc.src || doc.importNote || L.revX != null
+      || (doc.titlePage || []).some(t => t.x != null)
+      || (doc.elements || []).some(e => e.xOverride != null || e.spaceBefore != null || e.rev || e.dual);
+    if (!measured) return;                       // a typed doc — upgradeTypedLayout's job
+    E.toFinalDraft(doc);
+    doc.src = doc.src || 'pdf';
+    if (id) store.save(id, doc);
   },
   // Layouts freeze into each doc at creation — so geometry fixes only ever reached
   // NEW docs, and a script typed last week keeps wrapping at the old widths
