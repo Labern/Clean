@@ -67,6 +67,7 @@ func doImport() {
       const errs = [];
       addEventListener('unhandledrejection', e => errs.push(String(e.reason && (e.reason.stack || e.reason.message) || e.reason)));
       window.__unwrapDebug = [];
+      const __t0 = Date.now();
       let thrown = null;
       try { await window.PICA_API.importUrl('pica://app/__inbox/\(id)', 'probe.pdf'); }
       catch (e) { thrown = String(e && (e.stack || e.message) || e); }
@@ -104,6 +105,16 @@ func doImport() {
         nSpaceBefore: doc.elements.filter(e => e.spaceBefore != null).length,
         xOverrideSample: doc.elements.filter(e => e.xOverride != null).slice(0,5).map(e => e.type+'@'+e.xOverride+'|'+e.text.slice(0,32)),
         rows: L.rows, pageH: L.pageH, y0: L.y0,
+        importMs: Date.now() - __t0,
+        markKinds: (() => {
+          const c = {};
+          for (const e of doc.elements) for (const m of e.marks || []) {
+            const k = e.type + ':' + m[2];
+            c[k] = (c[k] || 0) + 1;
+          }
+          return c;
+        })(),
+        underlineSample: doc.elements.filter(e => (e.marks||[]).some(m=>m[2]==='u')).slice(0,4).map(e => e.type+'|'+e.text.slice(0,50)),
         unwrapDebug: (window.__unwrapDebug || []).slice(0, 6),
         find: (() => {
           const q = 'I do my own drilling';
@@ -138,6 +149,6 @@ func doImport() {
 }
 
 web.load(URLRequest(url: URL(string: "pica://app/index.html")!))
-let deadline = Date().addingTimeInterval(240)
+let deadline = Date().addingTimeInterval(1500)
 while Date() < deadline { RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.1)) }
 print("FAIL: import timed out"); exit(1)

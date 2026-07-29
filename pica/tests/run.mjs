@@ -253,5 +253,24 @@ if (fs.existsSync(whipPath)) {
     dialogueBreaks.length === 0, dialogueBreaks.length + ' left');
 }
 
+// -- 12. titles taken from a filename read as titles
+{
+  const cases = [
+    ['ThereWillBeBlood.pdf', 'THERE WILL BE BLOOD'],
+    ['Jackie-Brown.pdf', 'JACKIE BROWN'],
+    ['there_will_be_blood.pdf', 'THERE WILL BE BLOOD'],
+    ['TENET.pdf', 'TENET'],
+    ['The Master.pdf', 'THE MASTER'],
+  ];
+  // the helper lives in the UI half of index.html, not the engine block
+  const src = html.match(/function titleFromFilename[\s\S]*?\n}/);
+  const titleFromFilename = src ? new Function(src[0] + '; return titleFromFilename;')() : null;
+  check('title: filename helper present', !!titleFromFilename);
+  if (titleFromFilename)
+    for (const [file, want] of cases)
+      check('title: ' + file + ' → ' + want, titleFromFilename(file, 'pdf') === want,
+        titleFromFilename(file, 'pdf'));
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);
