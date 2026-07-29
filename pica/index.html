@@ -1937,8 +1937,24 @@ const store = {
       doc = LS.get('pica.doc.' + id, null);            // legacy localStorage copy
       if (doc) idb.put('doc.' + id, doc).catch(() => {});
     }
-    if (doc) store.cache.set(id, doc);
+    if (doc) { store.upgradeTypedLayout(doc); store.cache.set(id, doc); }
     return doc;
+  },
+  // Layouts freeze into each doc at creation — so geometry fixes only ever reached
+  // NEW docs, and a script typed last week keeps wrapping at the old widths
+  // ("action wraps too early", "paren issue still there"). A TYPED doc is
+  // recognisable: its layout is exactly a former LETTER (imports carry measured
+  // geometry, import notes or star bands). Those upgrade in place to FD12's
+  // numbers; imported docs are never touched — they reproduce their sources.
+  upgradeTypedLayout(doc){
+    const L = doc && doc.layout;
+    if (!L || doc.importNote || L.revX != null) return;
+    const typed = L.pageW === 612 && L.cols && L.cols.action === 108 && L.cols.dialogue === 180
+      && L.cols.paren === 216 && (L.cols.character === 266 || L.cols.character === 252)
+      && (L.widths.action === 57 || L.widths.action === 60);
+    if (!typed) return;
+    const fresh = JSON.parse(JSON.stringify(E.LETTER));
+    doc.layout = { ...L, cols: fresh.cols, widths: fresh.widths, transRight: fresh.transRight, parenHang: 1 };
   },
   save(id, doc){
     store.cache.set(id, doc);
@@ -2109,7 +2125,17 @@ function toggleTitlePage(){
 
 function pageSig(p){
   let s = '';
-  for (const l of p.lines) s += l.x + '|' + l.y + '|' + l.el + '|' + l.text + '\n';
+  const seen = new Set();
+  for (const l of p.lines) {
+    s += l.x + '|' + l.y + '|' + l.el + '|' + l.text + '\n';
+    // emphasis changes no text and no geometry — without the marks in the
+    // signature, ⌘B/I/U never repaints and "underline doesn't work at all"
+    if (!seen.has(l.el)) {
+      seen.add(l.el);
+      const el = elById(l.el);
+      if (el && el.marks) s += 'm' + JSON.stringify(el.marks) + '\n';
+    }
+  }
   return s;
 }
 
@@ -2235,10 +2261,15 @@ function rerenderAll(){ computeK(); for (const pe of S.pageEls){ pe.sig=null; } 
 // ---------- caret mapping ----------
 function caretPage(){
   if (!S.caret) return -1;
+  const { el, off } = S.caret;
+  let any = -1;
   for (let i = 0; i < S.res.pages.length; i++)
-    for (const l of S.res.pages[i].lines)
-      if (l.el === S.caret.el) return i;
-  return -1;
+    for (const l of S.res.pages[i].lines) {
+      if (l.el !== el || l.kind === 'more' || l.kind === 'contcue' || l.kind === 'pn') continue;
+      if (any < 0) any = i;
+      if (off >= (l.off || 0) && off <= (l.off || 0) + l.text.length) return i;
+    }
+  return any;
 }
 
 function domCaret(){        // DOM selection -> {el, off} | null
@@ -2283,31 +2314,51 @@ function orderKey(pt){
   return i * 1e6 + pt.off;
 }
 
-function syncCaret(){ const dc = domCaret(); if (dc) S.caret = dc; return S.caret; }
+function syncCaret(){
+  const dc = domCaret();
+  if (dc) {
+    // A wrap trims the trailing space from the rendered line, so a caret sitting
+    // just after that space has no DOM home — the DOM reads one char left. That
+    // reading must defer to the model or the next keystroke lands INSIDE the space.
+    const amb = S.caret && dc.el === S.caret.el && S.caret.off === dc.off + 1
+      && (elById(dc.el)?.text?.[dc.off] === ' ');
+    if (!amb) S.caret = dc;
+  }
+  return S.caret;
+}
 
-function restoreCaret(){
-  if (!S.caret) return;
-  const { el, off } = S.caret;
-  let best = null;
+// Find the line that truly CONTAINS the caret offset. Generated lines ((MORE),
+// (CONT'D) cues, page numbers) share a real element's id at off 0 and must never
+// match. If the containing line isn't rendered yet — the tail of a speech that
+// just crossed onto a fresh page — render the caret's page and look again;
+// only then fall back to the nearest line BELOW the offset. The old fallback
+// grabbed the element's FIRST line and clamped, teleporting the caret a hundred
+// characters back mid-typing.
+function caretLine(el, off){
+  let contain = null, below = null;
   for (const pe of S.pageEls) {
     if (!pe.live || !pe.page) continue;
     for (const d of pe.page.children) {
       if (d.dataset.el !== el) continue;
+      const k = d.dataset.kind;
+      if (k === 'more' || k === 'contcue' || k === 'pn') continue;
       const start = +d.dataset.off || 0, len = d.textContent.length;
-      if (off >= start && off <= start + len) { best = { d, at: off - start }; }
-      else if (!best && off >= start) best = { d, at: len };
+      if (off >= start && off <= start + len) contain = { d, at: off - start };
+      else if (off > start + len && (!below || start > (+below.d.dataset.off || 0))) below = { d, at: len };
     }
   }
-  if (!best) { const i = caretPage(); if (i >= 0) { renderPage(i); return restoreCaretOnce(el, off); } return; }
-  placeCaret(best.d, best.at);
+  return { contain, below };
 }
-function restoreCaretOnce(el, off){
-  for (const pe of S.pageEls) if (pe.live && pe.page)
-    for (const d of pe.page.children)
-      if (d.dataset.el === el) {
-        const start = +d.dataset.off || 0, len = d.textContent.length;
-        if (off >= start && off <= start + len) return placeCaret(d, off - start);
-      }
+function restoreCaret(){
+  if (!S.caret) return;
+  const { el, off } = S.caret;
+  let { contain, below } = caretLine(el, off);
+  if (!contain) {
+    const i = caretPage();
+    if (i >= 0) { renderPage(i); renderPage(i + 1); ({ contain, below } = caretLine(el, off)); }
+  }
+  const best = contain || below;
+  if (best) placeCaret(best.d, best.at);
 }
 function domPosIn(lineDiv, at){   // (line div, char offset) → [text node, node offset]
   const walk = document.createTreeWalker(lineDiv, NodeFilter.SHOW_TEXT);
@@ -2584,7 +2635,17 @@ function applyEmphasis(kind){
   if (a.el.startsWith('title:') || b.el.startsWith('title:')) return;
   const ia = elIndex(a.el), ib = elIndex(b.el);
   if (ia < 0 || ib < 0) return;
-  if (ia === ib && a.off === b.off) { toast('select some text first'); return; }
+  if (ia === ib && a.off === b.off) {
+    // FD: toggling emphasis at a collapsed caret styles what you type NEXT
+    if (a.el.startsWith('title:')) return;
+    if (!S.pend || S.pend.el !== a.el || S.pend.off !== a.off) S.pend = { el: a.el, off: a.off, kinds: [] };
+    const i2 = S.pend.kinds.indexOf(kind);
+    if (i2 >= 0) S.pend.kinds.splice(i2, 1); else S.pend.kinds.push(kind);
+    const names = { b: 'bold', i: 'italic', u: 'underline' };
+    toast(S.pend.kinds.length ? S.pend.kinds.map(k => names[k]).join(' + ') + ' — as you type' : 'plain');
+    if (!S.pend.kinds.length) S.pend = null;
+    return;
+  }
 
   const targets = [];
   for (let i = ia; i <= ib; i++) {
@@ -3262,6 +3323,11 @@ function handleInsertText(data){
     el.type = 'scene'; text = text.toUpperCase();
   }
   opText(el.id, text, { el: el.id, off: caretOff });
+  // a pending ⌘B/I/U (armed at a collapsed caret) styles what lands here
+  if (S.pend && S.pend.el === el.id && S.pend.off === cc.off && ins) {
+    for (const k of S.pend.kinds) setMark(el, cc.off, cc.off + ins.length, k, true);
+    S.pend.off = cc.off + ins.length;
+  }
   // FD: "(" in a Character cue raises the Character Extension list
   if (el.type === 'character' && ins === '(') { openExtMenu(); return; }
   smartType(el);
@@ -4460,6 +4526,7 @@ pagesEl.addEventListener('beforeinput', ev => {
   }
   else if (t === 'historyUndo') undo(false);
   else if (t === 'historyRedo') undo(true);
+  else if (t === 'insertCompositionText' || t === 'deleteCompositionText') { /* composition owns the DOM until compositionend */ }
   else if (/^insert/.test(t) && ev.data) handleInsertText(ev.data);   // unknown insert: never eat typed text
 });
 
@@ -4569,12 +4636,22 @@ pagesEl.addEventListener('keydown', ev => {
 });
 
 document.addEventListener('selectionchange', () => {
-  if (S.composing) return;                    // mid-composition DOM is not the truth
+  if (S.composing) {
+    if (Date.now() - (S.composing.t || 0) < 5000) return;   // mid-composition DOM is not the truth
+    S.composing = null;                                     // stuck guard self-heals
+  }
   const c = domCaret();
-  if (c) { S.caret = c; status(); }
+  if (c) {
+    // typing somewhere else ends a pending ⌘B/I/U anticipation
+    if (S.pend && (c.el !== S.pend.el || c.off !== S.pend.off)) S.pend = null;
+    const amb = S.caret && c.el === S.caret.el && S.caret.off === c.off + 1
+      && (elById(c.el)?.text?.[c.off] === ' ');
+    if (!amb) S.caret = c;
+    status();
+  }
 });
 pagesEl.addEventListener('compositionstart', () => {
-  S.composing = { caret: S.caret ? { ...S.caret } : null };
+  S.composing = { caret: S.caret ? { ...S.caret } : null, t: Date.now() };
 });
 pagesEl.addEventListener('compositionend', ev => {
   const st = S.composing; S.composing = null;
