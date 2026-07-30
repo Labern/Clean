@@ -393,5 +393,84 @@ if (fs.existsSync(whipPath)) {
     && t.elements.filter(e => e.type === 'dialogue').length > 400);
 }
 
+// -- 15. the rest of what Some Like It Hot exposed
+{
+  const rowH = 12, y0 = 76.5, charW = 7.2;
+  const A = 32, S2 = 128;
+  const line = (x, row, str) => ({ x, y: y0 + row * rowH, w: str.length * charW, str });
+
+  // (a) a slug numbered on BOTH sides with no INT/EXT at all is still a slug, and the
+  //     mirrored number must not survive to wrap onto a line of its own
+  // (b) title matter at the top of page one belongs on the title page
+  // (c) a parenthetical that runs onto a second line must not swallow the cue above it
+  // (d) a cue is always followed by what was said, even when that line is typed at the
+  //     action margin
+  const pages = [];
+  for (let p = 0; p < 3; p++) {
+    const items = []; let r = 0;
+    if (p === 0) {
+      items.push(line(A, r++, '"A TITLE IN QUOTES"'));
+      r++;
+      items.push(line(A, r++, 'Screenplay by'));
+      items.push(line(A, r++, 'Someone Entirely'));
+      r++;
+      items.push(line(A, r++, 'November 12, 1958'));
+      r++;
+    }
+    items.push(line(A, r++, (p + 1) + '.      CITY AT NIGHT.                       ' + (p + 1) + '.'));
+    r++;
+    items.push(line(A, r++, 'A hearse proceeds at a dignified pace.'));
+    r++;
+    items.push(line(S2, r++, 'JOE'));
+    items.push(line(S2, r++, '(points to the cord running across'));   // paren over two lines
+    items.push(line(S2, r++, 'the back of the berth)'));
+    items.push(line(A, r++, 'Then pull the emergency brake!'));        // speech at the action margin
+    r++;
+    items.push(line(A, r++, 'OMITTED'));                               // signage, not a cue
+    r++;
+    items.push(line(A, r++, 'She exits. He turns furiously.'));
+    pages.push({ width: 612, height: 792, items });
+  }
+  const d = E.importPdf(pages);
+  const typeOf = t => (d.elements.find(e => e.text.trim().startsWith(t)) || {}).type;
+
+  check('some: a mirrored-numbered slug with no INT/EXT is a scene',
+    typeOf('CITY AT NIGHT') === 'scene', typeOf('CITY AT NIGHT'));
+  check('some: the mirrored number is gone from the slug',
+    !d.elements.some(e => /^\d+\.$/.test(e.text.trim())));
+  check('some: title matter moves to the title page',
+    (d.titlePage || []).some(t2 => /A TITLE IN QUOTES/.test(t2.text)), JSON.stringify((d.titlePage || []).map(x => x.text)));
+  check('some: the quotes are not part of the title', d.title === 'A TITLE IN QUOTES', d.title);
+  check('some: the title matter is out of the script',
+    !d.elements.some(e => /Screenplay by/.test(e.text)));
+  check('some: a two-line parenthetical is a parenthetical',
+    typeOf('(points to the cord') === 'paren', typeOf('(points to the cord'));
+  check('some: the cue above it survives as a cue', typeOf('JOE') === 'character', typeOf('JOE'));
+  check('some: speech typed at the action margin is still speech',
+    typeOf('Then pull the emergency') === 'dialogue', typeOf('Then pull the emergency'));
+  check('some: signage is not mistaken for a cue', typeOf('OMITTED') !== 'character', typeOf('OMITTED'));
+  check('some: nothing is left unclassified',
+    d.elements.filter(e => e.type === 'general').length === 0);
+
+  // (e) dual dialogue must survive CONFORMING: its two columns ARE its xOverride, and
+  //     dropping them stacks both speeches on one x so they print through each other.
+  //     The fidelity gate never saw this — it tests the extractor, before conformance.
+  const whipPath = path.join(FIX, 'whip-raw.json');
+  if (fs.existsSync(whipPath)) {
+    const wd2 = E.toFinalDraft(E.importPdf(JSON.parse(fs.readFileSync(whipPath, 'utf8')).pages));
+    const groups = new Map();
+    for (const e of wd2.elements) if (e.dual) {
+      if (!groups.has(e.dual.g)) groups.set(e.dual.g, []);
+      groups.get(e.dual.g).push(e);
+    }
+    const twoColumned = [...groups.values()]
+      .filter(g => new Set(g.map(e => e.xOverride)).size >= 2).length;
+    check('some: dual dialogue keeps its two columns through conforming',
+      groups.size > 0 && twoColumned === groups.size, twoColumned + ' of ' + groups.size);
+    check('some: every dual element still has an x on the page',
+      wd2.elements.filter(e => e.dual).every(e => e.xOverride > 0 && e.xOverride < 612));
+  }
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);

@@ -44,3 +44,41 @@ window.__convertProbe = async function (url, name) {
     first: els.slice(0, 10).map(e => e.type + ' :: ' + e.text.slice(0, 46)),
   }, null, 1);
 };
+
+// The head of the document: title page entries, first elements, and where page 1 draws.
+window.__headProbe = async function (url, name) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, name);
+  for (let i = 0; i < 1200; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  const S = window.__pica, doc = S.doc, res = S.res;
+  const p1 = res.pages[0];
+  return JSON.stringify({
+    titlePageEntries: (doc.titlePage || []).map(t => 'row=' + t.row + ' x=' + (t.x == null ? '-' : t.x) + ' :: ' + JSON.stringify(t.text.slice(0, 40))),
+    firstElements: doc.elements.slice(0, 12).map((e, i) => i + ' ' + e.type + (e.dual ? ' DUAL g=' + e.dual.g + ' r=' + e.dual.r : '') + (e.xOverride != null ? ' x=' + e.xOverride : '') + ' :: ' + JSON.stringify(e.text.slice(0, 46))),
+    dualCount: doc.elements.filter(e => e.dual).length,
+    page1Lines: p1.lines.slice(0, 16).map(l => 'y=' + Math.round(l.y) + ' x=' + Math.round(l.x) + ' ' + (l.kind || 'line') + ' :: ' + JSON.stringify(l.text.slice(0, 44))),
+  }, null, 1);
+};
+
+// Dump the neighbourhood of specific element indexes.
+window.__aroundProbe = async function (url, name, idxs) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, name);
+  for (let i = 0; i < 1200; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  const els = window.__pica.doc.elements;
+  const out = [];
+  for (const i of idxs) {
+    for (let j = Math.max(0, i - 3); j <= Math.min(els.length - 1, i + 3); j++)
+      out.push((j === i ? '>> ' : '   ') + j + ' ' + els[j].type + ' :: ' + JSON.stringify(els[j].text.slice(0, 60)));
+    out.push('');
+  }
+  return JSON.stringify(out, null, 1);
+};

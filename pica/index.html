@@ -570,6 +570,9 @@ const PicaEngine = (() => {
   };
 
   const SCENE_RE = /^(INT\.?\s*\/\s*EXT|EXT\.?\s*\/\s*INT|INT|EXT|I\/E|EST)[\s.]/i;
+  // a numbered slug's opening token, and the words that mark a page as title matter
+  const INLINE_NO_HEAD = /^\s*[A-Z]{0,2}\d{1,3}[A-Z]{0,2}[.)]\s/;
+  const TITLE_HEAD_RE = /screenplay by|written by|story by|directed by|produced by|copyright|\bdraft\b|\d{1,2}\/\d{1,2}\/\d{2,4}|[A-Z][a-z]+ \d{1,2},\s*\d{4}/i;
   const uid = () => 'e' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
   // ---------- line assembly from positioned text items ----------
@@ -972,20 +975,28 @@ const PicaEngine = (() => {
     // the right goes with it, but only when it is the same number.
     const INLINE_NO = /^\s*([A-Z]{0,2}\d{1,3}[A-Z]{0,2})[.)]?\s+/;
     const TRAIL_NO = /\s+([A-Z]{0,2}\d{1,3}[A-Z]{0,2})[.)]?\s*$/;
+    // A line that OPENS and CLOSES with the same number is a numbered slug whatever it
+    // says between them — this script's first scene is "1.  CITY AT NIGHT.  1.", with no
+    // INT/EXT at all, so requiring one left the number in the text and wrapped the
+    // mirrored copy onto a line of its own. The mirrored pair is signature enough.
     for (const p of pages) for (const l of p.lines) {
       const m = INLINE_NO.exec(l.text);
       if (!m) continue;
       const rest = l.text.slice(m[0].length);
-      if (!SCENE_RE.test(rest)) continue;              // only ever touches real sluglines
       const tm = TRAIL_NO.exec(rest);
-      l.text = (tm && tm[1] === m[1] ? rest.slice(0, tm.index) : rest).trim();
+      const mirrored = tm && tm[1] === m[1];
+      if (!mirrored && !SCENE_RE.test(rest)) continue;
+      l.text = (mirrored ? rest.slice(0, tm.index) : rest).trim();
+      if (mirrored) l.slugNo = m[1];                  // numbered: it is a scene heading
     }
 
     // -- title page detection: first page, few lines, no sluglines, mostly centered-ish
     let titlePage = null, bodyStart = 0;
     if (pages.length > 1) {
       const p0 = pages[0];
-      const slug = p0.lines.some(l => SCENE_RE.test(l.text));
+      // a numbered slug counts as a slugline even with no INT/EXT — otherwise a script
+      // that opens on "1. CITY AT NIGHT." has its whole first page taken for a title page
+      const slug = p0.lines.some(l => SCENE_RE.test(l.text) || l.slugNo != null);
       // a title page has no slugline and reads as title matter — byline, draft stamps,
       // dates, contact blocks, revision-colour tables — not as flowing script
       const TITLE_MATTER = /written by|screenplay|story by|revised|revs?[.\s]|revision|draft|\d{1,2}\/\d{1,2}\/\d{2,4}|copyright|all rights|educational|contact|final|shooting script|table of contents/i;
@@ -995,6 +1006,30 @@ const PicaEngine = (() => {
         titlePage = p0; bodyStart = 1;
       }
     }
+    // A script may carry its title matter at the TOP of its first page rather than on a
+    // page of its own. Some Like It Hot does: the title, the credits, the company's
+    // address with the date beside it, then FADE IN: and scene 1. Left in the script those
+    // lines are body text — and the address and the date, sharing a row, read as two
+    // columns and print through each other. Converting to Final Draft means they belong on
+    // the title page. Take the head of page one up to the first slug or FADE IN.
+    let titleHead = null;
+    if (!titlePage && pages.length) {
+      const ls0 = pages[0].lines;
+      let cut = -1;
+      for (let i2 = 0; i2 < Math.min(ls0.length, 20); i2++) {
+        const t = ls0[i2].text.trim();
+        if (SCENE_RE.test(t) || /^(FADE|DISSOLVE)\b/i.test(t) || INLINE_NO_HEAD.test(t)
+            || ls0[i2].slugNo != null) { cut = i2; break; }
+      }
+      const head = cut > 1 ? ls0.slice(0, cut) : [];
+      // it has to READ as title matter, or an ordinary script loses its first paragraph
+      if (head.length >= 2 && head.length <= 14 && head.some(l => TITLE_HEAD_RE.test(l.text))) {
+        titleHead = head;
+        const skip = new Set(head);
+        pages[0].lines = ls0.filter(l => !skip.has(l));
+      }
+    }
+
     const body = pages.slice(bodyStart);
     // stars first: a trailing star otherwise shields a right-gutter scene number
     // from the gutter stripper (the number is no longer the last detached item)
@@ -1208,7 +1243,9 @@ const PicaEngine = (() => {
     const nearestCol = (x) => {
       let best = null, bd = Infinity;
       for (const [k, c] of colList) { const d = Math.abs(x - c); if (d < bd) { bd = d; best = k; } }
-      return bd <= colTol ? best : null;
+      // With two columns there is no third answer: a line is on one side or the other, and
+      // refusing to choose leaves it unclassified ('general'), which is never right.
+      return (speechCollapsed || bd <= colTol) ? best : null;
     };
     // The cue and parenthetical columns are close together — 3.0" and 3.5" on FD's grid —
     // and a source only has to drift a few points for a line to be assigned to the wrong
@@ -1229,7 +1266,17 @@ const PicaEngine = (() => {
       // A wider tolerance also swallows the transitions, which sit between the two
       // columns: catch them by shape first — capitals ending in a colon is never speech.
       if (speechCollapsed && /[A-Z]/.test(t) && t === t.toUpperCase() && /:$/.test(t)) return 'transition';
-      if (col === 'action') return SCENE_RE.test(l.text) ? 'scene' : 'action';
+      // a slugline is a slugline wherever it sits: with one shared speech column an
+      // indented scene heading otherwise reads as somebody's dialogue
+      if (speechCollapsed && SCENE_RE.test(t)) return 'scene';
+      // Likewise a bracket and a cue are unmistakable wherever they sit. A speech line
+      // typed a few spaces off lands nearer the action margin than the speech one, and
+      // then a cue merges with the parenthetical under it into a lump of action.
+      // A parenthetical may run onto a second line, so the first one closes no bracket:
+      // testing for a WHOLLY bracketed line leaves "(points to the cord running across"
+      // as action, which then swallows the cue above it.
+      if (speechCollapsed && t !== '(MORE)' && (whollyBracketed(t) || /^\(/.test(t))) return 'paren';
+      if (col === 'action') return (l.slugNo != null || SCENE_RE.test(l.text)) ? 'scene' : 'action';
       // One column doing three jobs: nothing positional can separate them, so read the
       // line. Bracketed is a parenthetical; a short shout with no sentence ending is a cue
       // ("JOE", "NELLIE'S VOICE", "JOE (CONT'D)"); everything else is what was said —
@@ -1348,7 +1395,12 @@ const PicaEngine = (() => {
           }
         }
         const group = [...L, ...R];
-        if (group.length >= 2 && rows.length >= 2) {   // one lonely split row is noise, not a dual
+        // Dual dialogue is two people SPEAKING at once, so at least one column has to be
+        // headed by a character cue. Without that test any two blocks of text sharing a
+        // row band qualify — Some Like It Hot's title page paired the production
+        // company's address with the date, and the two then printed through each other.
+        const hasCue = group.some(e => e.type === 'character');
+        if (hasCue && group.length >= 2 && rows.length >= 2) {   // one lonely split row is noise, not a dual
           const anchor = cueLine || rows[0].l;   // region starts at the cue: spacing above it survives
           anchor.dualRegion = { els: group, lastY: rows[rows.length - 1].l.y };
           for (const r of rows) if (r.l !== anchor) r.l.dualSkip = true;
@@ -1365,7 +1417,7 @@ const PicaEngine = (() => {
     for (let pi = 0; pi < body.length; pi++) {
       const p = body[pi];
       const ls = bodyLines(p);
-      let prevLine = null, pageStart = true;
+      let prevLine = null, pageStart = true, openParen = false;
       // a (MORE) promises a continuation at the TOP of the next page and nowhere
       // else — carried further it swallows some later, unrelated (CONT'D) cue
       if (pendingSpeech && pendingAt !== pi - 1) pendingSpeech = null;
@@ -1385,7 +1437,15 @@ const PicaEngine = (() => {
           && pendingSpeech;
         if (contCue) { pageStart = false; prevLine = null; continue; } // swallow generated cue
 
-        const role = roleOf(l);
+        let role = roleOf(l);
+        // A parenthetical may take two lines, and the second closes the bracket without
+        // opening one — on a collapsed column it would otherwise read as dialogue and
+        // orphan the speech beneath it. Keep the parenthetical open until it closes.
+        if (speechCollapsed) {
+          if (openParen) role = 'paren';
+          const o = (l.text.match(/\(/g) || []).length, c = (l.text.match(/\)/g) || []).length;
+          openParen = role === 'paren' && o > c;
+        }
         if (role === 'MORE') { pendingSpeech = open || pendingSpeech || true; pendingAt = pi; flush(); prevLine = null; pageStart = false; continue; }
 
         const gap = prevLine ? Math.round(l.y - prevLine.y) : null;
@@ -1448,6 +1508,30 @@ const PicaEngine = (() => {
           && e.srcLines[0].text.length < 70 && PROVENANCE.test(e.srcLines[0].text)
           && /^(downloaded|imported|provided|courtesy)\b|www\.|https?:|scriptslug|script\s*savant|imsdb|for educational/i.test(e.srcLines[0].text.trim())) {
         els.splice(i, 1);
+      }
+    }
+
+    // A character cue is always followed by what was said. When one shared column carries
+    // every kind of speech, a line typed a little off falls to the action margin and comes
+    // back as action — leaving the cue above it with nothing to say. Give it its speech.
+    if (speechCollapsed) {
+      // A cue is only a cue if something is SAID after it. Judged on the line alone, every
+      // piece of signage in the script qualifies — OMITTED, WELCOME DELEGATES, FADE OUT —
+      // so the test is the element that follows.
+      const cueText = t => t.length <= 35 && !t.includes('\n') && /[A-Z]/.test(t)
+        && t === t.toUpperCase() && !/[.!?]$/.test(t) && !/^\(.*\)$/.test(t);
+      // element text is not assigned until finalisation — read the source lines
+      const txtOf = e => (e.srcLines || []).map(sl => sl.text).join('\n').trim();
+      for (let i = 0; i < els.length - 1; i++) {
+        const e = els[i], nxt = els[i + 1];
+        if (e.type === 'action' && (nxt.type === 'paren' || nxt.type === 'dialogue')
+            && cueText(txtOf(e))) e.type = 'character';
+      }
+      // …and once it is a cue, what follows it is what was said, not action.
+      for (let i = 1; i < els.length; i++) {
+        if (els[i].type !== 'action') continue;
+        const prev = els[i - 1].type;
+        if (prev === 'character' || prev === 'paren') els[i].type = 'dialogue';
       }
     }
 
@@ -1550,13 +1634,23 @@ const PicaEngine = (() => {
         row: Math.round((l.y - y0f) / rowH),   // the paginator draws at y0f; same base or the title drifts
         x: Math.round(l.x * 100) / 100,
       }));
+    } else if (titleHead) {
+      // the header lifted off page one becomes the title page, dropped down the sheet the
+      // way Final Draft sets one rather than clinging to the top margin
+      const h0 = titleHead[0].y;
+      tp = titleHead.filter(l => !PROVENANCE.test(l.text)).map(l => ({
+        text: l.text.trim(),
+        row: Math.round((l.y - h0) / rowH) + 14,
+        x: Math.round(l.x * 100) / 100,
+      }));
     }
 
     return {
       v: 1,
       // A slugline is never a title. With no title page, say so and let the caller decide —
       // it knows the filename and can read the script's own opening line.
-      title: (tp[0] && tp[0].text) || 'UNTITLED',
+      // a title page usually prints the name in quotes — they are not part of the title
+      title: ((tp[0] && tp[0].text) || 'UNTITLED').replace(/^["“”']+|["“”']+$/g, '').trim() || 'UNTITLED',
       titlePage: tp,
       ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
@@ -1945,7 +2039,13 @@ const PicaEngine = (() => {
     const srcMidX = (L.pageW || fd.pageW) / 2;
     const xScale = fd.charW / (L.charW || fd.charW);
     const rowScale = (L.rowH || fd.rowH) / fd.rowH;
-    const toFdX = x => Math.round((fd.pageW / 2 + (x - srcMidX) * xScale) * 100) / 100;
+    // Map x from the LEFT TEXT MARGIN, not the page centre. Some Like It Hot sets its
+    // block at x=32 with a 6.0pt character, and scaling that about the centre threw every
+    // title-page line to x=-22.8 — off the sheet. Anchoring on the margin keeps a narrow
+    // source on the page, and for a source already on FD's grid it is a pure translation.
+    const srcLeft = (L.cols && L.cols.action != null) ? L.cols.action : fd.cols.action;
+    const toFdX = x => Math.max(0, Math.min(fd.pageW - 12,
+      Math.round((fd.cols.action + (x - srcLeft) * xScale) * 100) / 100));
 
     // A source line break is either a decision or an accident. The importer keeps
     // the source's breaks verbatim whenever greedy wrap can't reproduce them, which
@@ -1997,8 +2097,11 @@ const PicaEngine = (() => {
       // measured blank-row gaps encode the source's rhythm (double spacing lives
       // here); dropping them hands spacing back to FD's own rule
       delete el.spaceBefore;
-      // a hard x from the source fights FD's columns — centring survives via align
-      delete el.xOverride;
+      // A hard x from the source fights FD's columns, so it goes — EXCEPT for dual
+      // dialogue, whose two side-by-side columns ARE its xOverride. Dropping it there
+      // stacks both speeches on the same x and they print through each other.
+      if (el.dual) { if (el.xOverride != null) el.xOverride = toFdX(el.xOverride); }
+      else delete el.xOverride;
     }
     // Emphasis is what DIFFERS from the base face. Jackie Brown's PDF sets every
     // speech in a bold Courier and every action line in an oblique one — import that
