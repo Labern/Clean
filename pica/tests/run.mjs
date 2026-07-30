@@ -544,5 +544,38 @@ if (fs.existsSync(whipPath)) {
   check('scan: a lone cue is never the last thing on a page', !endsOnCue);
 }
 
+// -- 17. the search reads what it downloads and prefers a cleaner copy. The web has
+//        several copies of most scripts and they are not equally good — one a clean
+//        export, the next a photocopy read by a machine.
+{
+  const src = /function scoreImport\(doc\)\{[\s\S]*?\n\}/.exec(html);
+  const scoreImport = src ? new Function(src[0] + '; return scoreImport;')() : null;
+  check('quality: the judge is present', !!scoreImport);
+  if (scoreImport) {
+    const good = E.toFinalDraft(E.importPdf(raw));
+    const gq = scoreImport(good);
+    check('quality: a clean export reads as clean', gq.score >= 88, gq.score + ' ' + gq.notes.join(','));
+
+    // the same script with a tenth of its lines unplaced, as a bad scan arrives
+    const rough = JSON.parse(JSON.stringify(good));
+    for (let i = 0; i < rough.elements.length; i += 10) rough.elements[i].type = 'general';
+    const rq = scoreImport(rough);
+    check('quality: a rough copy scores below a clean one', rq.score < gq.score,
+      rq.score + ' vs ' + gq.score);
+    check('quality: and says what is wrong with it', rq.notes.some(n => /unplaced/.test(n)),
+      rq.notes.join(','));
+
+    // a copy with no scene headings at all is not a screenplay
+    const headless = JSON.parse(JSON.stringify(good));
+    for (const e of headless.elements) if (e.type === 'scene') e.type = 'action';
+    check('quality: a copy with no scene headings is marked down',
+      scoreImport(headless).score < gq.score - 30, String(scoreImport(headless).score));
+
+    // and a stub is not a script
+    const stub = { elements: good.elements.slice(0, 40) };
+    check('quality: a stub is marked down', scoreImport(stub).score < 80, String(scoreImport(stub).score));
+  }
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);
