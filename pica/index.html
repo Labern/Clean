@@ -964,6 +964,23 @@ const PicaEngine = (() => {
       }
     }
 
+    // Some drafts number scenes inline at the action margin — "8.  INT. OFFICE - DAY.  8."
+    // Some Like It Hot does. No gutter forms there, because the number shares its x with
+    // every action line in the script, so stripSceneNumbers cannot see it: the slug then
+    // begins "8." rather than INT/EXT and never reads as a scene at all. That script
+    // imported with ZERO scene headings. Lift the number off the text; the mirrored one at
+    // the right goes with it, but only when it is the same number.
+    const INLINE_NO = /^\s*([A-Z]{0,2}\d{1,3}[A-Z]{0,2})[.)]?\s+/;
+    const TRAIL_NO = /\s+([A-Z]{0,2}\d{1,3}[A-Z]{0,2})[.)]?\s*$/;
+    for (const p of pages) for (const l of p.lines) {
+      const m = INLINE_NO.exec(l.text);
+      if (!m) continue;
+      const rest = l.text.slice(m[0].length);
+      if (!SCENE_RE.test(rest)) continue;              // only ever touches real sluglines
+      const tm = TRAIL_NO.exec(rest);
+      l.text = (tm && tm[1] === m[1] ? rest.slice(0, tm.index) : rest).trim();
+    }
+
     // -- title page detection: first page, few lines, no sluglines, mostly centered-ish
     let titlePage = null, bodyStart = 0;
     if (pages.length > 1) {
@@ -1081,8 +1098,21 @@ const PicaEngine = (() => {
     }
     const top = clusters.filter(b => b.n >= allLines.length * 0.01).sort((a, b) => b.n - a.n).slice(0, 4)
       .sort((a, b) => a.x - b.x);
+    // Not every script separates speech into three columns. Some Like It Hot (1958) sets
+    // the cue, the parenthetical AND the dialogue all flush at 1.78" — the only indent on
+    // the page besides action. Measured across 30 pages: 1051 lines at x=128 against 390 at
+    // x=32, and nothing else above noise. Reading such a page by column assigns every one
+    // of those 1051 lines to a single element type, which is how 3,754 of 4,781 elements
+    // came back as character cues. When only two columns carry the page, the speech column
+    // is one column doing three jobs, and shape has to settle which — see roleOf.
+    const major = clusters.filter(b => b.n >= allLines.length * 0.12).sort((a, b) => a.x - b.x);
+    const speechCollapsed = major.length === 2;
+
     const cols = { ...LETTER.cols };
-    if (top.length >= 4) {
+    if (speechCollapsed) {
+      cols.action = major[0].x;
+      cols.dialogue = cols.paren = cols.character = major[1].x;
+    } else if (top.length >= 4) {
       cols.action = top[0].x; cols.dialogue = top[1].x; cols.paren = top[2].x; cols.character = top[3].x;
     } else if (top.length === 3) { // no parentheticals in doc
       cols.action = top[0].x; cols.dialogue = top[1].x; cols.character = top[2].x;
@@ -1162,10 +1192,19 @@ const PicaEngine = (() => {
     // tolerance derived from how far apart the columns actually are.
     const colList = [['action', cols.action], ['dialogue', cols.dialogue],
                      ['paren', cols.paren], ['character', cols.character]];
-    const colXs = colList.map(c => c[1]).sort((a, b) => a - b);
+    // DISTINCT column positions: when speech is collapsed, three of the four names share
+    // one x, and counting that as a zero gap makes the tolerance negative — every line
+    // then matches no column at all and the whole script imports as 'general'.
+    const colXs = [...new Set(colList.map(c => c[1]))].sort((a, b) => a - b);
     let minGap = Infinity;
     for (let i = 1; i < colXs.length; i++) minGap = Math.min(minGap, colXs[i] - colXs[i - 1]);
-    const colTol = Math.max(3, Math.min(9, Math.floor(minGap / 2) - 1));
+    if (!Number.isFinite(minGap)) minGap = 36;
+    // With four columns 36pt apart a tight tolerance keeps them distinct. With only two,
+    // 96pt apart, that same tolerance strands every line typed a few spaces in — an
+    // indented action beat, a scene number — as 'general'. Widen it to the actual gap.
+    const colTol = speechCollapsed
+      ? Math.floor(minGap / 2) - 1
+      : Math.max(3, Math.min(9, Math.floor(minGap / 2) - 1));
     const nearestCol = (x) => {
       let best = null, bd = Infinity;
       for (const [k, c] of colList) { const d = Math.abs(x - c); if (d < bd) { bd = d; best = k; } }
@@ -1187,7 +1226,20 @@ const PicaEngine = (() => {
       const col = nearestCol(l.x);
       const near = (c) => Math.abs(l.x - c) <= colTol;
       const t = l.text.trim();
+      // A wider tolerance also swallows the transitions, which sit between the two
+      // columns: catch them by shape first — capitals ending in a colon is never speech.
+      if (speechCollapsed && /[A-Z]/.test(t) && t === t.toUpperCase() && /:$/.test(t)) return 'transition';
       if (col === 'action') return SCENE_RE.test(l.text) ? 'scene' : 'action';
+      // One column doing three jobs: nothing positional can separate them, so read the
+      // line. Bracketed is a parenthetical; a short shout with no sentence ending is a cue
+      // ("JOE", "NELLIE'S VOICE", "JOE (CONT'D)"); everything else is what was said —
+      // including a shouted line, because that ends in . ! or ?
+      if (speechCollapsed && (col === 'dialogue' || col === 'paren' || col === 'character')) {
+        if (t === '(MORE)') return 'MORE';
+        if (whollyBracketed(t)) return 'paren';
+        if (cueShaped(t) && t.length <= 35 && !/[.!?]$/.test(t)) return 'character';
+        return 'dialogue';
+      }
       if (col === 'dialogue') return 'dialogue';
       if (col === 'paren') return cueShaped(t) ? 'character' : 'paren';
       if (col === 'character') {
@@ -1502,7 +1554,9 @@ const PicaEngine = (() => {
 
     return {
       v: 1,
-      title: (tp[0] && tp[0].text) || (els.find(e => e.type === 'scene')?.text ?? 'UNTITLED').slice(0, 40),
+      // A slugline is never a title. With no title page, say so and let the caller decide —
+      // it knows the filename and can read the script's own opening line.
+      title: (tp[0] && tp[0].text) || 'UNTITLED',
       titlePage: tp,
       ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
@@ -4499,7 +4553,19 @@ async function importPdfBuffer(buf, name){
     const fileTitle = titleFromFilename(name, 'pdf');
     // a garbled or missing title (tiny unmapped title-page fonts) falls back to the filename
     const junk = (doc.title || '').replace(/[A-Za-z0-9\s.,:'!?&-]/g, '').length;
-    if (!doc.title || junk > (doc.title.length * 0.3)) doc.title = fileTitle;
+    // 'UNTITLED' counts as no title: it is the placeholder the importer falls back to when
+    // it finds no title page, and leaving it there means a script called UNTITLED forever.
+    // A title-page-less script usually opens on its own name in capitals — Some Like It
+    // Hot does — so prefer that, then the filename.
+    if (!doc.title || doc.title === 'UNTITLED' || junk > (doc.title.length * 0.3)) {
+      const head = (doc.elements[0] || {}).text || '';
+      const shouted = head.trim();
+      // a title page often prints the name in quotes — they are not part of the title
+      const bare = shouted.replace(/^["“”'']+|["“”'']+$/g, '').trim();
+      doc.title = (bare && bare.length <= 45 && !bare.includes('\n')
+        && /[A-Z]/.test(bare) && bare === bare.toUpperCase() && !E.SCENE_RE.test(bare))
+        ? bare : fileTitle;
+    }
     if (badPages) doc.importNote = (doc.importNote ? doc.importNote + ' · ' : '') + badPages + ' unreadable page(s) skipped';
     const id = E.uid();
     store.save(id, doc);

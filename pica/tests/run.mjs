@@ -335,5 +335,63 @@ if (fs.existsSync(whipPath)) {
   check('cue/paren: no page ends on a character cue', orphans.length === 0, orphans.slice(0, 3).join(' '));
 }
 
+// -- 14. a script whose speech columns are COLLAPSED into one. Some Like It Hot (1958)
+//        sets cue, parenthetical and dialogue all flush at 1.78" — the only indent on the
+//        page besides action. Read by column, all 1,051 speech lines a page get one type:
+//        it imported as 3,754 character cues out of 4,781 elements, and zero scene
+//        headings, because its slugs begin with an inline scene number.
+{
+  const rowH = 12, y0 = 76.5, charW = 7.2;
+  const A = 32, S2 = 128;                       // the two columns this format has
+  const line = (x, row, str) => ({ x, y: y0 + row * rowH, w: str.length * charW, str });
+  const pages = [];
+  for (let p = 0; p < 4; p++) {
+    const items = []; let r = 0;
+    // slug numbered inline at the action margin, mirrored on the right
+    items.push(line(A, r++, (p + 1) + '.      INT.  OFFICE - DAY.                    ' + (p + 1) + '.'));
+    r++;
+    items.push(line(A, r++, 'Someone crosses the room and answers the telephone.'));
+    r++;
+    items.push(line(S2, r++, 'JOE'));           // cue, parenthetical and dialogue…
+    items.push(line(S2, r++, '(looking up)'));  // …all on the SAME column
+    items.push(line(S2, r++, 'Anything today?'));
+    r++;
+    items.push(line(S2, r++, "NELLIE'S VOICE"));
+    items.push(line(S2, r++, "Oh, it's you! You got a lot of nerve -"));
+    r++;
+    items.push(line(A, r++, 'He shuts the door quickly, starts to move on.'));
+    r++;
+    items.push(line(74, r++, 'DISSOLVE TO:'));  // transitions sit between the columns
+    pages.push({ width: 612, height: 792, items });
+  }
+  const d = E.importPdf(pages);
+  const typeOf = t => (d.elements.find(e => e.text.trim() === t) || {}).type;
+  check('collapsed columns: the cue is a cue', typeOf('JOE') === 'character', typeOf('JOE'));
+  check('collapsed columns: the parenthetical is a parenthetical',
+    typeOf('(looking up)') === 'paren', typeOf('(looking up)'));
+  check('collapsed columns: the speech is dialogue',
+    typeOf('Anything today?') === 'dialogue', typeOf('Anything today?'));
+  check('collapsed columns: a cue with an apostrophe is still a cue',
+    typeOf("NELLIE'S VOICE") === 'character', typeOf("NELLIE'S VOICE"));
+  check('collapsed columns: action stays action',
+    typeOf('He shuts the door quickly, starts to move on.') === 'action');
+  check('collapsed columns: the transition survives a wider tolerance',
+    typeOf('DISSOLVE TO:') === 'transition', typeOf('DISSOLVE TO:'));
+  // an inline scene number must not stop a slug being a slug, and must not stay in it
+  const scenes = d.elements.filter(e => e.type === 'scene');
+  check('collapsed columns: inline-numbered slugs are scene headings', scenes.length === 4,
+    scenes.length + ' found');
+  check('collapsed columns: the scene number is lifted off the slug',
+    scenes.every(e => /^INT\./.test(e.text.trim())), (scenes[0] || {}).text);
+  // nothing may be left unclassified, and no page may end on a cue
+  check('collapsed columns: nothing falls through to general',
+    d.elements.filter(e => e.type === 'general').length === 0);
+  // and a normally-columned script is untouched by any of it
+  const t = E.importPdf(raw);
+  check('collapsed columns: a four-column script is unaffected',
+    t.elements.filter(e => e.type === 'character').length > 400
+    && t.elements.filter(e => e.type === 'dialogue').length > 400);
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);

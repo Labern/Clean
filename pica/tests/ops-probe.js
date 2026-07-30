@@ -162,3 +162,58 @@ window.__shootProbe = async function (url, pageNo) {
   return JSON.stringify({ clip: { x: b.left + scrollX, y: b.top + scrollY, width: b.width, height: b.height },
     pages: wraps.length });
 };
+
+// Where does text actually start on the page? A histogram of line-start x values.
+window.__colProbe = async function (url, pageNo) {
+  const mod = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs');
+  mod.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+  const pdf = await mod.getDocument({ url }).promise;
+  const hist = {}, samples = {};
+  const from = pageNo || 5, to = Math.min(from + 5, pdf.numPages);
+  let vpw = 0, vph = 0;
+  for (let p = from; p <= to; p++) {
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    vpw = vp.width; vph = vp.height;
+    const tc = await page.getTextContent();
+    // group items into lines by y, then take each line's leftmost x
+    const rows = new Map();
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const y = Math.round(vp.height - it.transform[5]);
+      if (!rows.has(y)) rows.set(y, []);
+      rows.get(y).push(it);
+    }
+    for (const [y, its] of rows) {
+      its.sort((a, b) => a.transform[4] - b.transform[4]);
+      const x = Math.round(its[0].transform[4]);
+      hist[x] = (hist[x] || 0) + 1;
+      if (!samples[x]) samples[x] = its.map(i => i.str).join('').slice(0, 46);
+    }
+  }
+  const top = Object.entries(hist).sort((a, b) => b[1] - a[1]).slice(0, 14)
+    .map(([x, n]) => x + ' ×' + n + '  ' + JSON.stringify(samples[x]));
+  return JSON.stringify({ viewport: [vpw, vph], pagesScanned: [from, to], topColumns: top }, null, 1);
+};
+
+// Histogram every text item's x across many pages — each showText is one whole line here.
+window.__xProbe = async function (url, fromP, toP) {
+  const mod = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs');
+  mod.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+  const pdf = await mod.getDocument({ url }).promise;
+  const hist = {}, sample = {};
+  const a = fromP || 10, b = Math.min(toP || 30, pdf.numPages);
+  for (let p = a; p <= b; p++) {
+    const page = await pdf.getPage(p);
+    const tc = await page.getTextContent();
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const x = Math.round(it.transform[4]);
+      hist[x] = (hist[x] || 0) + 1;
+      if (!sample[x]) sample[x] = it.str.slice(0, 40);
+    }
+  }
+  const top = Object.entries(hist).sort((a2, b2) => b2[1] - a2[1]).slice(0, 12)
+    .map(([x, n]) => 'x=' + x + ' ×' + n + '  ' + JSON.stringify(sample[x]));
+  return JSON.stringify({ pages: [a, b], distinctX: Object.keys(hist).length, top }, null, 1);
+};
