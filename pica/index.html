@@ -5501,65 +5501,6 @@ window.PICA_API = {
     notes(i){ const el = S.doc.elements[i]; return JSON.stringify((el && el.notes) || []); },
     delNote(i, id){ deleteNote(null, id); return true; },
     openId(id){ return openDoc(id); },
-    // THE TITLE SITS ON THE CHARACTER COLUMN — reported three times, never to break
-    // again. Walks everything that moves the page under the title and measures the
-    // title's FIRST CHARACTER against a cue as actually DRAWN each time. Returns
-    // 'aligned', or the readings that failed. Run by the smoketest on every install.
-    async titleAudit(){
-      const wait = ms => new Promise(r => setTimeout(r, ms));
-      const readings = [];
-      const gap = () => {
-        const tEl = document.getElementById('docTitle');
-        if (!tEl) return 'no-title';
-        const cs = getComputedStyle(tEl);
-        const textLeft = tEl.getBoundingClientRect().left + (parseFloat(cs.paddingLeft) || 0);
-        for (const d of document.querySelectorAll('#pages div[data-el]')) {
-          const el = elById(d.dataset.el);
-          if (!el || el.type !== 'character' || el.dual) continue;
-          const r = d.getBoundingClientRect();
-          if (r.width) return Math.abs(textLeft - r.left);   // every cue shares this edge
-        }
-        return 'no-cue';
-      };
-      const note = why => { const g = gap(); readings.push(why + '=' + (typeof g === 'number' ? g.toFixed(1) : g)); };
-
-      await PICA_API.test.reset();
-      const T = PICA_API.test;
-      T.caret(0, 0); T.type('INT. ROOM - DAY'); T.esc(); T.enter(); T.type('A door.'); T.esc();
-      T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('One.'); T.esc();
-      T.enter(); T.tab(false); T.type('ALEXANDRA-JANE'); T.esc(); T.enter(); T.type('Two.'); T.esc();
-      await wait(40); note('typed');
-      // the sidebar opening and closing slides the page under the title
-      PICA_API.toggleRail(); await wait(40); note('rail-hidden');
-      PICA_API.toggleRail(); await wait(40); note('rail-shown');
-      // the axis is in page points, so it has to survive rescaling
-      PICA_API.zoom(0.12); await wait(30); note('zoomed-in');
-      PICA_API.zoom(-0.24); await wait(30); note('zoomed-out');
-      PICA_API.zoomFit(); await wait(30); note('zoom-fit');
-      // a title page shifts every page index beneath it
-      PICA_API.toggleTitlePage(); await wait(40); note('titlepage-on');
-      PICA_API.toggleTitlePage(); await wait(40); note('titlepage-off');
-      // a long title must still BEGIN on the column rather than centre itself
-      const was = S.doc.title;
-      S.doc.title = 'A VERY LONG TITLE INDEED THAT KEEPS GOING';
-      document.getElementById('docTitle').textContent = S.doc.title;
-      positionTitle(); await wait(30); note('long-title');
-      S.doc.title = was; document.getElementById('docTitle').textContent = was; positionTitle();
-      // scrolling through the script
-      canvasEl.scrollTop = 140; await wait(40); note('scrolled');
-      canvasEl.scrollTop = 0; await wait(30);
-      // and it must not be achieved by centring: a CSS change back to translateX(-50%)
-      // would silently undo every one of these
-      const cs = getComputedStyle(document.getElementById('docTitle'));
-      const centred = !(cs.textAlign === 'left'
-        && (cs.transform === 'none' || cs.transform === 'matrix(1, 0, 0, 1, 0, 0)'));
-      const bad = readings.filter(r => {
-        const v = r.slice(r.indexOf('=') + 1);
-        return !/^[\d.]+$/.test(v) || parseFloat(v) >= 1.5;
-      });
-      if (!bad.length && !centred) return 'aligned';
-      return 'OFF ' + readings.join(' ') + (centred ? ' · placed by centring, not by edge' : '');
-    },
     // Measured against where the cues are actually DRAWN whenever any is on screen —
     // comparing the title with the same formula that places it can only ever agree
     // with itself, which is how a misaligned title passed this check for days.

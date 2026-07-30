@@ -48,6 +48,11 @@ guard FileManager.default.fileExists(atPath: webRoot.appendingPathComponent("ind
     print("FAIL: build/PICA.app not found — run ./build.sh first"); exit(1)
 }
 let pdfPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "../tests/fixtures/Tenet.pdf"
+// The title-alignment audit lives in its own file — tests/title-audit.js — rather than
+// inside the app, so the app ships no test code and the check is readable on its own.
+// Injected into the page before the steps run; the step then calls window.__titleAudit().
+let auditJS: String = (try? String(contentsOf: here.appendingPathComponent("../tests/title-audit.js")
+    .standardizedFileURL, encoding: .utf8)) ?? ""
 
 let handler = Handler(root: webRoot)
 let cfg = WKWebViewConfiguration()
@@ -356,7 +361,7 @@ let grammarSteps: [Step] = [
     // (which is exactly how a misaligned title passed this suite for days). It also
     // fails if the placement is being done by centring again.
     Step(desc: "title: first character sits on the cue column, through rail/zoom/titlepage/scroll",
-         js: "return await T.titleAudit()",
+         js: auditJS.isEmpty ? "return 'MISSING tests/title-audit.js'" : (auditJS + "\n; return await window.__titleAudit()"),
          expect: "aligned"),
     // Deleting the script that is OPEN used to do nothing at all: the delete filtered
     // the index, then openDoc() flushed a save of the outgoing document and put the row
