@@ -2353,21 +2353,31 @@ function renderAllVisible(){
 // but an import keeps its source's cue column (Oppenheimer: 252pt, short names),
 // so the axis is computed per document and tracked through zoom, rail moves and
 // doc switches. Page centre is the proxy when a script is too young to have cues.
+// The title begins where the character names begin.
+//
+// Every cue starts at the same x — 3.5" on FD's grid — so that edge is a hard vertical
+// line running the length of the script, and it is the line the eye follows. Centring
+// the title on the cues' optical CENTRE instead (which this did for a while) puts its
+// left edge ~95px to the left of that line and its right edge past their ragged ends,
+// so nothing shares an edge and the alignment reads as broken. Left edge to left edge.
+function titleAxisX(){                    // in page points
+  return (S.doc && S.doc.layout.cols.character) || 252;
+}
 function positionTitle(){
   const el = document.getElementById('docTitle'); if (!el) return;
-  if (matchMedia('(max-width: 880px)').matches) { el.style.left = ''; return; }
+  const clear = () => { el.style.left = ''; el.style.transform = ''; el.style.textAlign = ''; };
+  if (matchMedia('(max-width: 880px)').matches) return clear();
   const pe = S.pageEls.find(p => p.wrap);
-  if (!pe || !S.doc) { el.style.left = ''; return; }
+  if (!pe || !S.doc) return clear();
   const r = pe.wrap.getBoundingClientRect();
-  if (!r.width) { el.style.left = ''; return; }
-  const L = S.doc.layout;
-  const cues = S.doc.elements.filter(e => e.type === 'character' && !e.dual).slice(0, 400);
-  // ANY cue defines the axis — a two-cue script deserves the alignment as much as
-  // a finished one (page centre only until the first cue exists)
-  const axis = cues.length
-    ? cues.reduce((a, e) => a + L.cols.character + (e.text.length * L.charW) / 2, 0) / cues.length
-    : L.pageW / 2;
-  el.style.left = (r.left + axis * S.k) + 'px';
+  if (!r.width) return clear();
+  // the box is centred by default (transform + text-align); to place its FIRST
+  // CHARACTER we position the box's content edge instead
+  const cs = getComputedStyle(el);
+  const padL = parseFloat(cs.paddingLeft) || 0;
+  el.style.transform = 'none';
+  el.style.textAlign = 'left';
+  el.style.left = (r.left + titleAxisX() * S.k - padL) + 'px';
 }
 
 function renderPage(i){
@@ -5460,14 +5470,24 @@ window.PICA_API = {
     notes(i){ const el = S.doc.elements[i]; return JSON.stringify((el && el.notes) || []); },
     delNote(i, id){ deleteNote(null, id); return true; },
     openId(id){ return openDoc(id); },
+    // Measured against where the cues are actually DRAWN whenever any is on screen —
+    // comparing the title with the same formula that places it can only ever agree
+    // with itself, which is how a misaligned title passed this check for days.
     titleDelta(){
       const tEl = document.getElementById('docTitle'); const page = document.querySelector('.page');
       if (!tEl || !page) return 'no-dom';
-      const t = tEl.getBoundingClientRect(); const p = page.getBoundingClientRect();
-      const L = S.doc.layout;
-      const cues = S.doc.elements.filter(e => e.type === 'character' && !e.dual).slice(0, 400);
-      const axis = cues.length ? cues.reduce((a, e) => a + L.cols.character + (e.text.length * L.charW) / 2, 0) / cues.length : L.pageW / 2;
-      return Math.abs((t.left + t.width / 2) - (p.left + axis * S.k)) < 1.5;
+      const t = tEl.getBoundingClientRect(), p = page.getBoundingClientRect();
+      const cs = getComputedStyle(tEl);
+      const textLeft = t.left + (parseFloat(cs.paddingLeft) || 0);
+      let want = null;
+      for (const d of document.querySelectorAll('#pages div[data-el]')) {
+        const el = elById(d.dataset.el);
+        if (!el || el.type !== 'character' || el.dual) continue;
+        const r = d.getBoundingClientRect();
+        if (r.width) { want = r.left; break; }          // every cue shares this edge
+      }
+      if (want == null) want = p.left + titleAxisX() * S.k;
+      return Math.abs(textLeft - want) < 1.5;
     },
     noteMulti(i1, o1, i2, o2){
       const targets = [];
