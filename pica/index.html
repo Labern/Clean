@@ -332,9 +332,10 @@ footer .z{ padding:0 .25rem; color:var(--ink-2); }
 #trialBar .tb-what span{ color:var(--faint); margin-left:.5rem; }
 #trialBar .tb-sub{ margin-top:.28rem; color:var(--faint); font-size:.66rem; }
 #trialBar .tb-btn{
-  font-family:var(--mono); font-size:.68rem; letter-spacing:.05em;
+  font-family:var(--mono); font-size:.68rem; letter-spacing:.05em; white-space:nowrap;
   padding:.2rem .55rem; border:1px solid var(--rule); border-radius:3px; color:var(--ink-2);
 }
+#trialBar .tb-q{ white-space:nowrap; }
 #trialBar .tb-btn:hover{ color:var(--ink); border-color:var(--ink-2); }
 #trialBar .tb-yes{ color:var(--ink); border-color:var(--ink-2); }
 #trialBar .tb-quiet{ border-color:transparent; color:var(--faint); }
@@ -521,6 +522,18 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   </nav>
   <div id="railGrip" title="Drag to resize"></div>
   <main id="canvas">
+    <!-- Shown while a found script is on TRIAL: nothing is saved until he says so. -->
+    <div id="trialBar" hidden>
+      <div class="tb-row">
+        <span class="tb-q">Is this the one?</span>
+        <span class="tb-what"><b id="tbTitle">—</b><span id="tbMeta"></span></span>
+        <span class="grow"></span>
+        <button class="tb-btn tb-yes" id="tbAccept">Accept</button>
+        <button class="tb-btn" id="tbAgain">Try again</button>
+        <button class="tb-btn tb-quiet" id="tbCancel">Cancel</button>
+      </div>
+      <div class="tb-row tb-sub"><span id="tbFrom"></span><span class="grow"></span><span id="tbCount"></span></div>
+    </div>
     <div id="pages" contenteditable="true" spellcheck="false" autocorrect="off" autocapitalize="off"></div>
   </main>
   <main id="canvasB" hidden>
@@ -570,17 +583,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 </footer>
 <div id="sbZoom"><img alt=""></div>
 
-<!-- Shown while a found script is on TRIAL: nothing is saved until he says so. -->
-<div id="trialBar" hidden>
-  <div class="tb-row">
-    <span class="tb-q">Is this the one?</span>
-    <span class="tb-what"><b id="tbTitle">—</b><span id="tbMeta"></span></span>
-    <span class="grow"></span>
-    <button class="tb-btn tb-yes" id="tbAccept">Accept</button>
-    <button class="tb-btn" id="tbAgain">Try again</button>
-    <button class="tb-btn tb-quiet" id="tbCancel">Cancel</button>
-  </div>
-  <div class="tb-row tb-sub"><span id="tbFrom"></span><span class="grow"></span><span id="tbCount"></span></div>
+
 </div>
 
 <div id="findBar" hidden>
@@ -1098,7 +1101,10 @@ const PicaEngine = (() => {
     // usually trailing the page number. Printing apparatus, never writing.
     const FURNITURE_HEADER = /\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|\brevs?[.\s]|\brevisions?\b|\bshooting script\b|\bdraft\b.*\d{1,2}\/\d{1,2}/i;
     // provenance stamps ("Downloaded from …", site names, urls) are not writing either
-    const PROVENANCE = /\b(downloaded|imported|provided|courtesy)\s+(from|of|by)\b|scriptslug|script\s*savant|simplyscripts|imsdb|dailyscript|awesomefilm|8flix|screenplays?\s*online|for educational purposes|www\.[a-z0-9-]+\.[a-z]{2,}|https?:\/\//i;
+    // Sites stamp the scripts they host. A bare domain on its own line is one of those
+    // stamps wherever it sits — The Social Network's copy carries "DEADLINE.com" on every
+    // page, which became 165 stray elements and, worse, the script's title.
+    const PROVENANCE = /\b(downloaded|imported|provided|courtesy)\s+(from|of|by)\b|scriptslug|script\s*savant|simplyscripts|imsdb|dailyscript|awesomefilm|8flix|screenplays?\s*online|for educational purposes|for your consideration|www\.[a-z0-9-]+\.[a-z]{2,}|https?:\/\/|^[a-z0-9-]{2,}\.(com|net|org|co\.uk|io|ru)$/i;
     const furniture = new Set();
     {
       const byY = new Map();
@@ -1727,7 +1733,12 @@ const PicaEngine = (() => {
       // A slugline is never a title. With no title page, say so and let the caller decide —
       // it knows the filename and can read the script's own opening line.
       // a title page usually prints the name in quotes — they are not part of the title
-      title: ((tp[0] && tp[0].text) || 'UNTITLED').replace(/^["“”']+|["“”']+$/g, '').trim() || 'UNTITLED',
+      // a title page usually prints the name in quotes, and a typewriter spaces it out —
+      // neither belongs in the title, and a site's stamp is not a title at all
+      title: (() => {
+        const t0 = ((tp[0] && tp[0].text) || '').replace(/^["“”']+|["“”']+$/g, '').replace(/\s+/g, ' ').trim();
+        return (!t0 || PROVENANCE.test(t0)) ? 'UNTITLED' : t0;
+      })(),
       titlePage: tp,
       ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
@@ -4753,10 +4764,15 @@ async function importPdfBuffer(buf, name, opts){
       const head = (doc.elements[0] || {}).text || '';
       const shouted = head.trim();
       // a title page often prints the name in quotes — they are not part of the title
-      const bare = shouted.replace(/^["“”'']+|["“”'']+$/g, '').trim();
-      doc.title = (bare && bare.length <= 45 && !bare.includes('\n')
-        && /[A-Z]/.test(bare) && bare === bare.toUpperCase() && !E.SCENE_RE.test(bare))
-        ? bare : fileTitle;
+      const bare = shouted.replace(/^["“”'']+|["“”'']+$/g, '').replace(/\s+/g, ' ').trim();
+      // The opening line is only the title if it READS like one. The Social Network's copy
+      // opens "FROM THE BLACK WE HEAR--", which is a stage direction, not a name: a title
+      // does not trail off, end in punctuation, or describe a shot.
+      const titleish = bare && bare.length <= 45 && !bare.includes('\n')
+        && /[A-Z]/.test(bare) && bare === bare.toUpperCase()
+        && /[A-Z0-9)]$/.test(bare) && !/--|\.\.\./.test(bare)
+        && !E.SCENE_RE.test(bare) && !/\b(WE |CAMERA|ANGLE|FADE|CUT|DISSOLVE|INT|EXT)\b/.test(bare);
+      doc.title = titleish ? bare : fileTitle;
     }
     if (badPages) doc.importNote = (doc.importNote ? doc.importNote + ' · ' : '') + badPages + ' unreadable page(s) skipped';
     const id = E.uid();
