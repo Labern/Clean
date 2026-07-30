@@ -1615,6 +1615,10 @@ const PicaEngine = (() => {
       const wrapped = wrapText(el.joined, w);
       el.text = (wrapped.length === src.length && wrapped.every((t, i) => t === src[i]))
         ? el.joined : src.join('\n');
+      // A typewriter puts two spaces after a full stop, so slugs arrive as
+      // "EXT.  PIER - NIGHT." Final Draft sets one. Scene headings only — the same
+      // double space inside action is the writer's own rhythm and is left alone.
+      if (el.type === 'scene') el.text = el.text.replace(/[ \t]{2,}/g, ' ').trim();
       // some shooting scripts carry a typed (CONT'D) inside the character name AND
       // FD's own appended one — "GROVES (CONT'D) (CONT’D)". One is apparatus stutter.
       if (el.type === 'character')
@@ -1635,14 +1639,39 @@ const PicaEngine = (() => {
         x: Math.round(l.x * 100) / 100,
       }));
     } else if (titleHead) {
-      // the header lifted off page one becomes the title page, dropped down the sheet the
-      // way Final Draft sets one rather than clinging to the top margin
-      const h0 = titleHead[0].y;
-      tp = titleHead.filter(l => !PROVENANCE.test(l.text)).map(l => ({
-        text: l.text.trim(),
-        row: Math.round((l.y - h0) / rowH) + 14,
-        x: Math.round(l.x * 100) / 100,
-      }));
+      // The header lifted off page one becomes the title page, dropped down the sheet the
+      // way Final Draft sets one rather than clinging to the top margin.
+      // Rows come from the block's OWN line spacing, not the document's measured pitch:
+      // one is measured over the whole script and rounds the title block's blank lines
+      // away, welding "SOME LIKE IT HOT" onto the address above it. The median gap
+      // between these lines IS one row here, by construction.
+      const gaps = [];
+      for (let g = 1; g < titleHead.length; g++) gaps.push(titleHead[g].y - titleHead[g - 1].y);
+      const sorted = gaps.slice().sort((a, b) => a - b);
+      const unit = sorted.length ? sorted[Math.floor(sorted.length / 2)] : rowH;
+      const rowAt = new Map();
+      let cursor = 14;
+      rowAt.set(titleHead[0], cursor);
+      for (let g = 1; g < titleHead.length; g++) {
+        cursor += Math.max(1, Math.round((titleHead[g].y - titleHead[g - 1].y) / (unit || rowH)));
+        rowAt.set(titleHead[g], cursor);
+      }
+      const rx = x => Math.round(x * 100) / 100;
+      for (const l of titleHead) {
+        if (PROVENANCE.test(l.text)) continue;
+        const row = rowAt.get(l);
+        // A title line often carries TWO columns — the company on the left, the date on
+        // the right — held apart by a run of spaces. Kept as one padded string it is far
+        // wider than the page once set in FD's character, and the right-hand half runs
+        // off the edge ("November 12, 195"). Two columns, two entries.
+        const m = /^(.*?\S)(\s{6,})(\S.*)$/.exec(l.text);
+        if (m) {
+          tp.push({ text: m[1].trim(), row, x: rx(l.x) });
+          tp.push({ text: m[3].trim(), row, x: rx(l.x + (m[1].length + m[2].length) * charW0) });
+        } else {
+          tp.push({ text: l.text.trim(), row, x: rx(l.x) });
+        }
+      }
     }
 
     return {
@@ -2090,7 +2119,14 @@ const PicaEngine = (() => {
     if (doc.titlePage) doc.titlePage = doc.titlePage.map(t => {
       const o = { ...t };
       if (o.row != null) o.row = Math.max(0, Math.round(o.row * rowScale));
-      if (o.x != null) o.x = toFdX(o.x);
+      if (o.x != null) {
+        // Clamping the START of the line keeps its first character on the page and lets
+        // the rest run off the edge: a date set against the right margin came back as
+        // "November 12, 195". Place it so the line ENDS inside the margin.
+        const w = ((o.text || '').length) * fd.charW;
+        const rightMost = Math.max(0, fd.pageW - 72 - w);
+        o.x = Math.max(0, Math.min(toFdX(o.x), rightMost));
+      }
       return o;
     });
     for (const el of doc.elements) {
