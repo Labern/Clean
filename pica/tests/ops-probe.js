@@ -318,3 +318,30 @@ window.__wrapProbe = async function (url) {
     canvasHidden: canvas.hidden,
   }, null, 1);
 };
+
+// Per-page: where do LINES start? (leftmost item per baseline.) A scan can sit each page
+// in a slightly different place.
+window.__pageOffsetProbe = async function (url, from, to) {
+  const mod = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs');
+  mod.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+  const pdf = await mod.getDocument({ url }).promise;
+  const out = [];
+  for (let p = from; p <= Math.min(to, pdf.numPages); p++) {
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    const rows = new Map();
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const y = Math.round(vp.height - it.transform[5]);
+      const x = it.transform[4];
+      if (!rows.has(y) || x < rows.get(y)) rows.set(y, x);
+    }
+    const xs = [...rows.values()].map(Math.round).sort((a, b) => a - b);
+    const hist = {};
+    for (const x of xs) hist[x] = (hist[x] || 0) + 1;
+    const top = Object.entries(hist).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([x, n]) => x + '×' + n);
+    out.push('p' + p + ' lines=' + xs.length + ' min=' + xs[0] + ' top=[' + top.join(' ') + ']');
+  }
+  return JSON.stringify(out, null, 1);
+};

@@ -99,3 +99,56 @@ window.__scenesProbe = async function (url, name) {
     sample: sc.slice(0, 8).map(e => JSON.stringify(e.text)),
   }, null, 1);
 };
+
+// What are the unclassified elements, and where do they sit?
+window.__generalProbe = async function (url, name) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, name);
+  for (let i = 0; i < 1200; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  const S = window.__pica, els = S.doc.elements;
+  const gen = els.map((e, i) => ({ e, i })).filter(x => x.e.type === 'general');
+  // where does each land on the page?
+  const xs = {};
+  for (const pg of S.res.pages) for (const l of pg.lines) {
+    const el = els.find(e => e.id === l.el);
+    if (el && el.type === 'general') { const k = Math.round(l.x); xs[k] = (xs[k] || 0) + 1; }
+  }
+  return JSON.stringify({
+    total: els.length, general: gen.length,
+    xHistogram: Object.entries(xs).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([x, n]) => 'x=' + x + ' ×' + n),
+    lengths: { under10: gen.filter(g => g.e.text.length < 10).length,
+               under30: gen.filter(g => g.e.text.length < 30).length,
+               over60: gen.filter(g => g.e.text.length > 60).length },
+    allCaps: gen.filter(g => g.e.text === g.e.text.toUpperCase() && /[A-Z]/.test(g.e.text)).length,
+    sample: gen.slice(0, 14).map(g => g.i + ' :: ' + JSON.stringify(g.e.text.slice(0, 54))),
+  }, null, 1);
+};
+window.__dbgProbe = async function (url, name) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, name);
+  for (let i = 0; i < 1200; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  return JSON.stringify(window.__pica.doc.__dbg || {}, null, 1);
+};
+window.__transProbe = async function (url, name) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, name);
+  for (let i = 0; i < 1200; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  const els = window.__pica.doc.elements;
+  const tr = els.filter(e => e.type === 'transition');
+  const counts = {};
+  for (const e of tr) { const k = e.text.trim(); counts[k] = (counts[k] || 0) + 1; }
+  return JSON.stringify({ total: tr.length,
+    distinct: Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([k,n])=>n+'× '+JSON.stringify(k)) }, null, 1);
+};

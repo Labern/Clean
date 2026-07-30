@@ -487,5 +487,62 @@ if (fs.existsSync(whipPath)) {
   }
 }
 
+// -- 16. a SCAN does not sit still. There Will Be Blood's columns are at 94/174/252 on its
+//        early pages and 102/184/263 by page 70, then back again — the sheet moved under
+//        the glass. At a fixed tolerance 664 lines, whole speeches included, matched no
+//        column at all. Each page's own offset is measured and taken out first.
+{
+  const rowH = 12, y0 = 76.5, charW = 7.2;
+  const line = (x, row, str) => ({ x, y: y0 + row * rowH, w: str.length * charW, str });
+  const build = drift => {
+    const pages = [];
+    for (let p = 0; p < 12; p++) {
+      const d = drift ? p : 0;                   // the sheet creeps, a point a page
+      const items = []; let r = 0;
+      items.push(line(108 + d, r++, 'INT. OFFICE ' + p + ' - DAY'));
+      r++;
+      items.push(line(108 + d, r++, 'Someone crosses the room and answers the telephone.'));
+      r++;
+      items.push(line(252 + d, r++, 'JOE'));
+      items.push(line(216 + d, r++, '(quietly)'));
+      items.push(line(180 + d, r++, 'Anything today at all?'));
+      r++;
+      items.push(line(252 + d, r++, 'NELLIE'));
+      items.push(line(180 + d, r++, 'Nothing whatever, I am afraid.'));
+      r++;
+      items.push(line(400 + d, r++, 'CUT TO:'));
+      pages.push({ width: 612, height: 792, items });
+    }
+    return E.importPdf(pages);
+  };
+  const still = build(false), wandering = build(true);
+  const tally = d => {
+    const t = {};
+    for (const e of d.elements) t[e.type] = (t[e.type] || 0) + 1;
+    return t;
+  };
+  const a = tally(still), b = tally(wandering);
+  check('scan: a still page and a wandering one classify the same',
+    JSON.stringify(a) === JSON.stringify(b), JSON.stringify(a) + ' vs ' + JSON.stringify(b));
+  check('scan: nothing is left unclassified when the sheet moves',
+    (b.general || 0) === 0, String(b.general || 0));
+  check('scan: the cues survive the drift', (b.character || 0) === 24, String(b.character || 0));
+  // a shouted line ending in a colon is a transition wherever the scan put it
+  check('scan: transitions survive the drift', (b.transition || 0) === 12, String(b.transition || 0));
+  // and a lone cue must never be left at the foot of a page
+  const lone = E.newDoc('L');
+  lone.elements = [];
+  for (let i = 0; i < 52; i++) lone.elements.push({ id: 'a' + i, type: 'action', text: 'A line of action ' + i + '.' });
+  lone.elements.push({ id: 'cue', type: 'character', text: 'SAM' });
+  lone.elements.push({ id: 'dlg', type: 'dialogue', text: 'At last.' });
+  const lres = E.paginate({ ...lone, titlePage: [] });
+  const endsOnCue = lres.pages.some(pg => {
+    const body = pg.lines.filter(l => l.kind !== 'pn' && l.kind !== 'rev' && l.kind !== 'more');
+    const last = body[body.length - 1];
+    return last && last.el === 'cue';
+  });
+  check('scan: a lone cue is never the last thing on a page', !endsOnCue);
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);
