@@ -24,8 +24,11 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.
   '.pdf': 'application/pdf', '.ttf': 'font/ttf', '.json': 'application/json' };
 const server = http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split('?')[0]);
-  const base = url.startsWith('/dl/') ? path.join(process.env.HOME, 'Downloads') : root;
-  const rel = url.startsWith('/dl/') ? url.slice(4) : url;
+  // /dl/ → ~/Downloads, /tmpdl/ → a scratch dir a test can fill, otherwise pica/
+  const SCRATCH = process.env.PICA_SCRATCH || '/tmp';
+  const base = url.startsWith('/dl/') ? path.join(process.env.HOME, 'Downloads')
+    : url.startsWith('/tmpdl/') ? SCRATCH : root;
+  const rel = url.startsWith('/dl/') ? url.slice(4) : url.startsWith('/tmpdl/') ? url.slice(7) : url;
   const f = path.join(base, rel === '/' ? 'index.html' : rel);
   if (!f.startsWith(base)) { res.writeHead(403).end(); return; }
   fs.readFile(f, (e, d) => {

@@ -237,3 +237,84 @@ window.__titleShot = async function (url, name) {
   const b = pe.getBoundingClientRect();
   return JSON.stringify({ clip: { x: b.left + scrollX, y: b.top + scrollY, width: b.width, height: b.height } });
 };
+
+// Import and photograph the ordinary reading view, scrolled to a page.
+window.__viewShot = async function (url, pageNo) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, 'x.pdf');
+  for (let i = 0; i < 900; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  await sleep(500);
+  const c = document.getElementById('canvas');
+  const total = window.__pica.res.count || 1;
+  c.scrollTop = Math.max(0, (c.scrollHeight * (pageNo - 1)) / total);
+  await sleep(900);
+  return JSON.stringify({ clip: { x: 0, y: 0, width: innerWidth, height: Math.min(innerHeight, 1000) },
+    scrolled: Math.round(c.scrollTop), pages: total });
+};
+
+// After a normal import: is anything actually laid out?
+window.__layoutProbe = async function (url) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, 'x.pdf');
+  for (let i = 0; i < 900; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  const snap = () => {
+    const c = document.getElementById('canvas');
+    const wraps = document.querySelectorAll('.pageWrap');
+    const w0 = wraps[0];
+    return {
+      pages: window.__pica.res ? window.__pica.res.count : null,
+      wraps: wraps.length,
+      firstWrap: w0 ? [Math.round(w0.getBoundingClientRect().width), Math.round(w0.getBoundingClientRect().height)] : null,
+      canvasScrollH: c.scrollHeight, canvasClientH: c.clientHeight, canvasClientW: c.clientWidth,
+      linesDrawn: document.querySelectorAll('#pages div[data-el]').length,
+      k: window.__pica.k, zoom: window.__pica.zoom,
+      pagesElChildren: document.getElementById('pages').children.length,
+      trialBarHidden: document.getElementById('trialBar').hidden,
+    };
+  };
+  const now = snap();
+  await sleep(1200);
+  const later = snap();
+  // does a resize/rerender fix it?
+  window.dispatchEvent(new Event('resize'));
+  await sleep(600);
+  const afterResize = snap();
+  return JSON.stringify({ now, later, afterResize }, null, 1);
+};
+
+window.__wrapProbe = async function (url) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, 'x.pdf');
+  for (let i = 0; i < 900; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  await sleep(800);
+  const pages = document.getElementById('pages');
+  const w = pages.querySelector('.pageWrap');
+  const cs = w ? getComputedStyle(w) : null;
+  const canvas = document.getElementById('canvas');
+  const ccs = getComputedStyle(canvas);
+  return JSON.stringify({
+    layout: { pageW: window.__pica.doc.layout.pageW, pageH: window.__pica.doc.layout.pageH, k: window.__pica.k },
+    wrapInline: w ? w.getAttribute('style') : null,
+    wrapRect: w ? [Math.round(w.getBoundingClientRect().width), Math.round(w.getBoundingClientRect().height)] : null,
+    wrapDisplay: cs ? cs.display : null,
+    wrapVisibility: cs ? cs.visibility : null,
+    pagesRect: [Math.round(pages.getBoundingClientRect().width), Math.round(pages.getBoundingClientRect().height)],
+    pagesDisplay: getComputedStyle(pages).display,
+    canvasRect: [Math.round(canvas.getBoundingClientRect().width), Math.round(canvas.getBoundingClientRect().height)],
+    canvasDisplay: ccs.display, canvasOverflow: ccs.overflow,
+    bodyClass: document.body.className,
+    canvasHidden: canvas.hidden,
+  }, null, 1);
+};
