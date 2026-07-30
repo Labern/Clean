@@ -122,7 +122,12 @@ echo "› built $APP"
 if [ "${1:-}" = "--install" ]; then
   if [ -z "${PICA_SKIP_TESTS:-}" ]; then
     echo "› smoketest: driving the built bundle headlessly"
-    swiftc -O smoketest.swift -o "$BUILD/smoketest" 2>/dev/null
+    # NEVER hide this: a compile error here used to leave a STALE smoketest binary in
+    # place, which then passed happily without running the step that had just been added.
+    if ! swiftc -O smoketest.swift -o "$BUILD/smoketest"; then
+      echo "SMOKETEST DID NOT COMPILE — install refused"
+      exit 1
+    fi
     if ! PICA_BUILD_DIR="$BUILD" "$BUILD/smoketest" > /tmp/pica-smoke.log 2>&1; then
       echo "SMOKETEST RED — install refused. tail of /tmp/pica-smoke.log:"
       tail -12 /tmp/pica-smoke.log

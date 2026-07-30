@@ -306,6 +306,39 @@ footer{
 #stType:hover{ border-bottom-color:var(--rule); }
 footer .grow{ flex:1; }
 footer .z{ padding:0 .25rem; color:var(--ink-2); }
+/* ---------- find-a-screenplay ---------- */
+#getForm{ display:flex; align-items:center; }
+#getIn{
+  font-family:var(--mono); font-size:.7rem; letter-spacing:.04em; color:var(--ink);
+  background:transparent; border:none; border-bottom:1px solid var(--rule);
+  padding:.12rem .3rem; width:9.5rem; outline:none; transition:width .18s, border-color .18s;
+}
+#getIn::placeholder{ color:var(--faint); }
+#getIn:focus{ width:15rem; border-bottom-color:var(--ink-2); }
+#getIn::-webkit-search-cancel-button{ -webkit-appearance:none; }
+#getForm.busy #getIn{ border-bottom-color:var(--ink); }
+/* the trial bar sits above the first page and owns the decision */
+#trialBar{
+  position:sticky; top:0; z-index:40; margin:0 auto .55rem; max-width:min(92vw, 780px);
+  background:var(--bg); border:1px solid var(--rule); border-radius:4px;
+  padding:.5rem .7rem; box-shadow:0 6px 22px rgba(0,0,0,.18);
+  font-family:var(--mono); font-size:.72rem;
+}
+#trialBar[hidden]{ display:none; }
+#trialBar .tb-row{ display:flex; align-items:center; gap:.6rem; }
+#trialBar .grow{ flex:1; }
+#trialBar .tb-q{ color:var(--ink); letter-spacing:.06em; text-transform:uppercase; font-size:.66rem; }
+#trialBar .tb-what{ color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#trialBar .tb-what span{ color:var(--faint); margin-left:.5rem; }
+#trialBar .tb-sub{ margin-top:.28rem; color:var(--faint); font-size:.66rem; }
+#trialBar .tb-btn{
+  font-family:var(--mono); font-size:.68rem; letter-spacing:.05em;
+  padding:.2rem .55rem; border:1px solid var(--rule); border-radius:3px; color:var(--ink-2);
+}
+#trialBar .tb-btn:hover{ color:var(--ink); border-color:var(--ink-2); }
+#trialBar .tb-yes{ color:var(--ink); border-color:var(--ink-2); }
+#trialBar .tb-quiet{ border-color:transparent; color:var(--faint); }
+@media (max-width: 880px){ #getIn{ width:6.5rem; } #getIn:focus{ width:9rem; } }
 footer .z:hover{ color:var(--ink); }
 #stSave{ font-variant-numeric:tabular-nums; }
 #stPage{ font-variant-numeric:tabular-nums; color:var(--ink-2); }
@@ -530,10 +563,25 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
         <circle cx="7" cy="7" r="5.8"/><ellipse cx="7" cy="7" rx="2.5" ry="5.8"/><path d="M1.2 7 h11.6"/>
       </svg>
     </button>
+    <form id="getForm" autocomplete="off"><input id="getIn" type="search" spellcheck="false"
+      placeholder="Find a screenplay…" title="Type a film's name — PICA finds a script for it, shows it to you, and saves it only if you say so"></form>
     <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click to fit · double-click for 100%">100%</button><button class="z" id="zIn">+</button>
   </div>
 </footer>
 <div id="sbZoom"><img alt=""></div>
+
+<!-- Shown while a found script is on TRIAL: nothing is saved until he says so. -->
+<div id="trialBar" hidden>
+  <div class="tb-row">
+    <span class="tb-q">Is this the one?</span>
+    <span class="tb-what"><b id="tbTitle">—</b><span id="tbMeta"></span></span>
+    <span class="grow"></span>
+    <button class="tb-btn tb-yes" id="tbAccept">Accept</button>
+    <button class="tb-btn" id="tbAgain">Try again</button>
+    <button class="tb-btn tb-quiet" id="tbCancel">Cancel</button>
+  </div>
+  <div class="tb-row tb-sub"><span id="tbFrom"></span><span class="grow"></span><span id="tbCount"></span></div>
+</div>
 
 <div id="findBar" hidden>
   <input id="findIn" placeholder="Find" spellcheck="false">
@@ -2331,6 +2379,10 @@ const store = {
   gone: new Set(),
   save(id, doc){
     if (store.gone.has(id)) return;
+    // A script found by search is on TRIAL until he accepts it: it opens, it paginates,
+    // it can be read — but nothing about it reaches the library. Guarding here rather
+    // than at the call sites catches the debounced save and the page-count refresh too.
+    if (S.trial && S.trial.id === id) { store.cache.set(id, doc); return; }
     store.cache.set(id, doc);
     // the index is small and synchronous — write it NOW so the sidebar shows the script
     // immediately; only the document body travels through IndexedDB
@@ -4529,8 +4581,9 @@ function toast(msg){
 }
 
 // ---------- import ----------
-async function importPdfBuffer(buf, name){
-  overlayCard(`<h2>Importing</h2><div class="sub">${(name || 'pdf').replace(/</g,'&lt;')}</div><div id="importLog">reading…</div>`);
+async function importPdfBuffer(buf, name, opts){
+  opts = opts || {};
+  if (!opts.quiet) overlayCard(`<h2>Importing</h2><div class="sub">${(name || 'pdf').replace(/</g,'&lt;')}</div><div id="importLog">reading…</div>`);
   const log = m => { const n = $('#importLog'); if (n) n.textContent = m; };
   try {
     // PICA.app bundles pdf.js so import works with no network; the web build uses the CDN.
@@ -4707,15 +4760,19 @@ async function importPdfBuffer(buf, name){
     }
     if (badPages) doc.importNote = (doc.importNote ? doc.importNote + ' · ' : '') + badPages + ' unreadable page(s) skipped';
     const id = E.uid();
+    if (opts.trial) S.trial = { id, prev: S.docId };   // guards every write until accepted
     store.save(id, doc);
+    if (opts.trial) store.cache.set(id, doc);          // openDoc reads it from here
     closeOverlay();
     // wait for it to open: the toast reads S.res, and unawaited it reported the
     // page count of the script that was on screen BEFORE the import
     await openDoc(id);
+    if (opts.trial) return { id, doc, pages: S.res.count };
     toast(doc.importNote
       ? 'imported · ' + S.res.count + ' pages · ' + doc.importNote
       : 'imported · ' + S.res.count + ' pages · ' + doc.elements.length + ' elements');
   } catch (err) {
+    if (opts.trial) { S.trial = null; throw err; }     // the caller tries the next one
     overlayCard(`<h2>Import failed</h2><div class="sub">pdf</div><p>${String(err.message || err).replace(/</g,'&lt;')}</p>
       <p>PICA needs a text-layer PDF (one exported from screenwriting software — not a scan). It also needs the network once, to fetch the PDF reader.</p>
       <div class="foot"><button class="hbtn" onclick="document.getElementById('overlay').classList.remove('show')">close</button></div>`);
@@ -5653,6 +5710,259 @@ addEventListener('beforeprint', () => {});
 // ---------- native bridge ----------
 // PICA.app drives the page through this. Harmless in a browser; the app's menu bar,
 // Dock drops and Print command all land here rather than duplicating any editor logic.
+/* ══════════════════════════════════════════════════════════════════════════════
+   FIND A SCREENPLAY — type a film's name, read what comes back, keep it or don't.
+   Nothing is saved unless he says Accept. Try again moves to the next candidate;
+   Cancel puts back whatever he was reading.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+// One GET. The native app proxies through its own scheme handler (a WKWebView on a
+// custom scheme is subject to CORS like anything else); the web build goes direct and
+// gets what CORS allows.
+// A seam for the tests: they stub the network so the DECISION can be exercised —
+// nothing reaches the library unless he accepts — without depending on the internet.
+let NET_STUB = null;
+const WEB = {
+  proxied: () => location.protocol === 'pica:',
+  url: u => WEB.proxied() ? 'pica://app/__web/' + encodeURIComponent(u) : u,
+  async text(u){
+    const r = await fetch(WEB.url(u), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  },
+  async bytes(u){
+    if (NET_STUB && NET_STUB.bytes) return NET_STUB.bytes(u);
+    const r = await fetch(WEB.url(u), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const b = await r.arrayBuffer();
+    if (b.byteLength < 6000) throw new Error('too small to be a screenplay');
+    const head = new TextDecoder('latin1').decode(new Uint8Array(b.slice(0, 5)));
+    if (head !== '%PDF-') throw new Error('not a PDF');
+    return b;
+  },
+};
+
+// The archives worth reading, and the index page each one publishes. Searching these is
+// better than searching the web: they are curated, the links are stable, and what comes
+// back is a screenplay rather than a review of one. Fetched once per session.
+const SCRIPT_INDEXES = [
+  'https://www.dailyscript.com/movie.html',
+  'https://www.dailyscript.com/movie_n-z.html',
+  'https://www.moviescriptsandscreenplays.com/',
+  'https://www.awesomefilm.com/',
+];
+const SCRIPT_HOSTS = [
+  'dailyscript.com', 'moviescriptsandscreenplays.com', 'awesomefilm.com',
+  'thescriptsavant.com', 'scriptslug.com', 'imsdb.com', 'sfy.ru', 'screenplays.io',
+  // studios and trades post the real thing during awards season, and the archive keeps it
+  'deadline.com', 'archive.org', 'indiegroundfilms.files.wordpress.com',
+  'thesuccessfulscreenwriter.com', 'raindance.org', 'nofilmschool.com',
+];
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+const slugify = q => q.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const norm = t => t.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+const indexCache = new Map();
+async function readIndex(url){
+  if (indexCache.has(url)) return indexCache.get(url);
+  let links = [];
+  try {
+    const html = await WEB.text(url);
+    const base = new URL(url);
+    for (const m of html.matchAll(/href="([^"]+)"[^>]*>([^<]{2,120})</gi)) {
+      let href = m[1];
+      if (!/\.pdf(\?|$)/i.test(href)) continue;           // PICA imports PDFs
+      try { href = new URL(href, base).href; } catch { continue; }
+      links.push({ url: href, text: m[2].replace(/&amp;/g, '&').trim() });
+    }
+  } catch {}
+  indexCache.set(url, links);
+  return links;
+}
+
+// DuckDuckGo needs no key and is the fallback when the archives have nothing.
+async function searchWeb(query){
+  const html = await WEB.text('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query));
+  const out = [];
+  for (const m of html.matchAll(/href="(\/\/duckduckgo\.com\/l\/\?uddg=[^"]+|https?:\/\/[^"]+)"/g)) {
+    let href = m[1];
+    if (href.startsWith('//')) href = 'https:' + href;
+    const wrapped = /[?&]uddg=([^&"]+)/.exec(href);
+    if (wrapped) { try { href = decodeURIComponent(wrapped[1]); } catch { continue; } }
+    if (!/^https?:\/\//.test(href) || /duckduckgo\.com/.test(href)) continue;
+    if (!out.includes(href)) out.push(href);
+  }
+  return out;
+}
+
+// How well does a link answer the question? Every significant word of the title has to be
+// there, in the link's own text or its URL; an archive scores above the open web.
+function scoreLink(link, query){
+  const words = norm(query).split(' ').filter(w => w.length > 2);
+  const hay = norm((link.text || '') + ' ' + decodeURIComponent(link.url));
+  if (!words.length) return 0;
+  const hits = words.filter(w => hay.includes(w)).length;
+  if (hits < words.length) return 0;                      // partial matches are noise
+  let score = 40 + Math.round(20 * (hits / words.length));
+  if (SCRIPT_HOSTS.includes(hostOf(link.url))) score += 30;
+  if (norm(link.text || '') === norm(query)) score += 25;  // the archive names it exactly
+  if (/trailer|poster|review|wikipedia|imdb|reddit|youtube|amazon|ebay/.test(link.url.toLowerCase())) score -= 80;
+  return score;
+}
+
+// The hunt: the archives first, the open web after, best first, no duplicates.
+async function gatherCandidates(query){
+  if (NET_STUB && NET_STUB.candidates) return NET_STUB.candidates(query);
+  const found = [];
+  const lists = await Promise.all(SCRIPT_INDEXES.map(readIndex));
+  for (const list of lists) for (const l of list) {
+    const score = scoreLink(l, query);
+    if (score > 0) found.push({ url: l.url, host: hostOf(l.url), label: l.text, score });
+  }
+  if (found.length < 3) {
+    for (const q of ['"' + query + '" screenplay pdf', query + ' screenplay script pdf']) {
+      try {
+        for (const u of await searchWeb(q)) {
+          if (!/\.pdf(\?|$)/i.test(u)) continue;
+          const score = scoreLink({ url: u, text: '' }, query);
+          if (score > 0) found.push({ url: u, host: hostOf(u), label: '', score: score - 5 });
+        }
+      } catch {}
+      if (found.length >= 3) break;
+    }
+  }
+  const seen = new Set();
+  return found.sort((a, b) => b.score - a.score)
+    .filter(c => { const k = c.url.replace(/[?#].*$/, '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 8);
+}
+
+/* ---------- the trial ---------- */
+const TRIAL = { query: '', list: [], at: -1, running: false, prev: null };
+
+const trialBar = () => document.getElementById('trialBar');
+function trialShow(state, info){
+  const bar = trialBar(); if (!bar) return;
+  bar.hidden = false;
+  const set = (id, t) => { const n = document.getElementById(id); if (n) n.textContent = t; };
+  const btn = (id, on) => { const n = document.getElementById(id); if (n) n.style.display = on ? '' : 'none'; };
+  if (state === 'searching') {
+    set('tbTitle', 'Looking for “' + TRIAL.query + '”…');
+    set('tbMeta', ''); set('tbFrom', WEB.proxied() ? 'searching the web' : 'searching the web (browser build — some sites will refuse)');
+    set('tbCount', '');
+    btn('tbAccept', false); btn('tbAgain', false); btn('tbCancel', true);
+  } else if (state === 'trial') {
+    set('tbTitle', info.title);
+    set('tbMeta', info.pages + ' pages · ' + info.elements + ' elements');
+    set('tbFrom', 'from ' + info.host);
+    set('tbCount', 'candidate ' + (TRIAL.at + 1) + ' of ' + TRIAL.list.length);
+    btn('tbAccept', true); btn('tbAgain', true); btn('tbCancel', true);
+  } else if (state === 'empty') {
+    set('tbTitle', info.title);
+    set('tbMeta', ''); set('tbFrom', info.detail || ''); set('tbCount', '');
+    btn('tbAccept', false); btn('tbAgain', !!info.canRetry); btn('tbCancel', true);
+  }
+}
+function trialHide(){ const b = trialBar(); if (b) b.hidden = true; }
+
+// Put back whatever he was reading, and leave nothing of the trial behind.
+async function trialDiscard(){
+  const t = S.trial;
+  if (!t) return;
+  // The guard must OUTLIVE the switch. openDoc begins by flushing a save of the document
+  // it is leaving — which is the trial — so clearing S.trial first is exactly how a
+  // rejected script ended up in the library anyway. Tombstone it as well, so no pending
+  // write can bring it back a second later.
+  store.gone.add(t.id);
+  store.cache.delete(t.id);
+  try { await idb.del('doc.' + t.id); } catch {}
+  const ix = store.index();
+  const back = (t.prev && t.prev !== t.id && ix.some(d => d.id === t.prev)) ? t.prev
+    : (ix[0] ? ix[0].id : null);
+  if (back) await openDoc(back);
+  else { S.trial = null; const id = E.uid(); store.save(id, E.newDoc('UNTITLED')); await openDoc(id); }
+  S.trial = null;
+}
+
+async function trialNext(){
+  if (TRIAL.running) return;
+  TRIAL.running = true;
+  const form = document.getElementById('getForm');
+  if (form) form.classList.add('busy');
+  try {
+    while (TRIAL.at + 1 < TRIAL.list.length) {
+      TRIAL.at++;
+      const c = TRIAL.list[TRIAL.at];
+      trialShow('empty', { title: 'Fetching from ' + c.host + '…', detail: c.url.slice(0, 90), canRetry: false });
+      try {
+        const buf = await WEB.bytes(c.url);
+        await trialDiscard();                       // clear the previous trial first
+        const r = await importPdfBuffer(buf, TRIAL.query + '.pdf', { trial: true, quiet: true });
+        if (!r) throw new Error('nothing readable came out of it');
+        trialShow('trial', { title: r.doc.title || TRIAL.query, pages: r.pages,
+                             elements: r.doc.elements.length, host: c.host });
+        return;
+      } catch (e) {
+        // a dead link, a login wall, a scan with no text layer: move along
+        trialShow('empty', { title: 'That one was no good', detail: c.host + ' — ' + (e.message || e), canRetry: false });
+        await new Promise(r2 => setTimeout(r2, 450));
+      }
+    }
+    trialShow('empty', {
+      title: 'Nothing else for “' + TRIAL.query + '”',
+      detail: TRIAL.list.length ? 'tried ' + TRIAL.list.length + ' candidates' :
+        (WEB.proxied() ? 'no results' : 'the browser build cannot reach most script archives — use PICA.app'),
+      canRetry: false });
+  } finally {
+    TRIAL.running = false;
+    if (form) form.classList.remove('busy');
+  }
+}
+
+async function findScreenplay(query){
+  query = (query || '').trim();
+  if (!query) return;
+  if (S.trial) await trialDiscard();
+  TRIAL.query = query; TRIAL.list = []; TRIAL.at = -1;
+  trialShow('searching');
+  const form = document.getElementById('getForm');
+  if (form) form.classList.add('busy');
+  try {
+    TRIAL.list = await gatherCandidates(query);
+  } catch (e) {
+    trialShow('empty', { title: 'Could not search', detail: String(e.message || e) });
+    if (form) form.classList.remove('busy');
+    return;
+  }
+  if (form) form.classList.remove('busy');
+  if (!TRIAL.list.length) {
+    trialShow('empty', { title: 'Found nothing for “' + query + '”',
+      detail: WEB.proxied() ? 'try the film\'s full title' : 'the browser build cannot reach most script archives — use PICA.app' });
+    return;
+  }
+  await trialNext();
+}
+
+(() => {
+  const form = document.getElementById('getForm');
+  const input = document.getElementById('getIn');
+  if (form) form.addEventListener('submit', ev => { ev.preventDefault(); input.blur(); findScreenplay(input.value); });
+  const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
+  on('tbAccept', async () => {
+    const t = S.trial; if (!t) { trialHide(); return; }
+    const doc = S.doc;
+    S.trial = null;                                  // the guard lifts, and it saves
+    store.gone.delete(t.id);                         // it was never rejected
+    store.save(t.id, doc);
+    rail();
+    trialHide();
+    if (input) input.value = '';
+    toast('saved · ' + (doc.title || 'UNTITLED') + ' · ' + S.res.count + ' pages');
+  });
+  on('tbAgain', () => { trialNext(); });
+  on('tbCancel', async () => { trialHide(); await trialDiscard(); TRIAL.list = []; TRIAL.at = -1; });
+})();
+
 window.PICA_API = {
   newDoc(){ const id = E.uid(); store.save(id, E.newDoc('UNTITLED')); openDoc(id); toast('new script'); },
   importPdf(){ $('#fileIn').click(); },
@@ -5697,6 +6007,10 @@ window.PICA_API = {
     tab(shift){ handleTab(!!shift); return true; },
     esc(){ closePops(); return true; },
     state(){ return S.doc.elements.map(e => e.type + '|' + e.text); },
+    // the search feature: stub the network, then drive Accept / Try again / Cancel
+    stubNet(s){ NET_STUB = s; },
+    find(q){ return findScreenplay(q); },
+    trialId(){ return S.trial ? S.trial.id : null; },
     // per-character emphasis as the model holds it: '.' plain, else b/i/u letters
     marks(i){
       const el = S.doc.elements[i]; if (!el) return '';

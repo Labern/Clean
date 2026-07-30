@@ -48,6 +48,7 @@ guard FileManager.default.fileExists(atPath: webRoot.appendingPathComponent("ind
     print("FAIL: build/PICA.app not found — run ./build.sh first"); exit(1)
 }
 let pdfPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "../tests/fixtures/Tenet.pdf"
+var trialInbox = ""
 // The title-alignment audit lives in its own file — tests/title-audit.js — rather than
 // inside the app, so the app ships no test code and the check is readable on its own.
 // Injected into the page before the steps run; the step then calls window.__titleAudit().
@@ -55,6 +56,9 @@ let auditJS: String = (try? String(contentsOf: here.appendingPathComponent("../t
     .standardizedFileURL, encoding: .utf8)) ?? ""
 
 let handler = Handler(root: webRoot)
+// A second copy of the PDF, staged now, for the find-a-screenplay step: that step stubs
+// the network so the DECISION is what gets tested, not the internet.
+if let trialPdf = try? Data(contentsOf: URL(fileURLWithPath: pdfPath)) { trialInbox = handler.stage(trialPdf) }
 let cfg = WKWebViewConfiguration()
 cfg.setURLSchemeHandler(handler, forURLScheme: "pica")
 // capture anything the page throws, so a failure names its own cause
@@ -354,6 +358,13 @@ let grammarSteps: [Step] = [
     Step(desc: "index: the right-clicked row marks itself; the list animates after a delete",
          js: "window.confirm = () => true; const rows = () => [...document.querySelectorAll('#docList .doc-item')]; for (const n of ['ONE','TWO','THREE']) { await T.reset(); T.caret(0,0); T.type('INT. ' + n + ' - DAY'); } await new Promise(r => setTimeout(r, 60)); const ids = rows().every(x => !!x.dataset.doc); const r2 = rows()[1]; r2.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, cancelable:true, clientX:60, clientY:140})); await new Promise(r => setTimeout(r, 40)); const marked = document.querySelectorAll('#docList .doc-item.menuing').length + '/' + r2.classList.contains('menuing'); const del = [...document.querySelectorAll('.pop *')].find(n => /^delete/i.test(n.textContent.trim())); if (!del) return 'no-delete-item'; del.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); del.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); await new Promise(r => setTimeout(r, 30)); const moving = rows().filter(x => x.getAnimations && x.getAnimations().length).length > 0; await new Promise(r => setTimeout(r, 400)); const cleared = document.querySelectorAll('#docList .doc-item.menuing').length === 0; return ids + '/' + marked + '/' + moving + '/' + cleared",
          expect: "true/1/true/true/true"),
+    // FIND A SCREENPLAY: the promise is that nothing reaches the library unless he
+    // accepts it. Cancel must put back what he was reading and leave no trace — the
+    // first cut of this saved the rejected script anyway, because openDoc flushes a
+    // save of the document it is leaving and the guard had already been lifted.
+    Step(desc: "find: a trial stays out of the library; cancel restores; accept keeps",
+         js: "const T2 = window.PICA_API.test; const idx = () => JSON.parse(localStorage.getItem('pica.index') || '[]'); const buf = await (await fetch('pica://app/__inbox/\(trialInbox)')).arrayBuffer(); T2.stubNet({ candidates: async () => ([{url:'stub://one', host:'stub.test', label:'', score:99}]), bytes: async () => buf.slice(0) }); const before = idx().length; const openBefore = window.__pica.docId; await T2.find('A Script'); await new Promise(r => setTimeout(r, 300)); const during = idx().length; const tid = T2.trialId(); const shown = document.getElementById('trialBar').hidden === false; document.getElementById('tbCancel').click(); await new Promise(r => setTimeout(r, 500)); const afterCancel = idx().length; const backTo = window.__pica.docId === openBefore; await T2.find('A Script'); await new Promise(r => setTimeout(r, 300)); const tid2 = T2.trialId(); document.getElementById('tbAccept').click(); await new Promise(r => setTimeout(r, 400)); const kept = idx().some(d => d.id === tid2); T2.stubNet(null); return ['shown=' + shown, 'idxHeld=' + (during === before), 'trial=' + !!tid, 'cancelClean=' + (afterCancel === before), 'restored=' + backTo, 'accepted=' + kept].join(' ')",
+         expect: "shown=true idxHeld=true trial=true cancelClean=true restored=true accepted=true"),
     // THE TITLE SITS ON THE CHARACTER COLUMN. Reported three times; never again.
     // titleAudit() walks everything that moves the page under the title — the sidebar,
     // zoom, the title page, a long title, scrolling — and measures the title's FIRST
