@@ -344,6 +344,20 @@ let grammarSteps: [Step] = [
     Step(desc: "annotation: multi-element note — two washes, one box, delete clears all",
          js: "await T.reset(); T.caret(0,0); T.type('INT. TWO - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('We were never here.'); T.esc(); window.PICA_API.toggleAnnotate(); const nid = T.noteMulti(1, 0, 2, 8); const b1 = T.noteBoxes(); T.delNote(0, nid); const b2 = T.noteBoxes(); window.PICA_API.undo(); const b3 = T.noteBoxes(); const back = JSON.parse(T.notes(1)).length + JSON.parse(T.notes(2)).length; window.PICA_API.redo(); const b4 = T.noteBoxes(); window.PICA_API.toggleAnnotate(); return b1 + '/' + b2 + '/' + b3 + '/' + back + '/' + b4",
          expect: "1:2/0:0/1:2/2/0:0"),
+    // The row a context menu belongs to marks itself (so Delete can never look like it
+    // landed on the wrong script), and the list animates into its new shape afterwards.
+    Step(desc: "index: the right-clicked row marks itself; the list animates after a delete",
+         js: "window.confirm = () => true; const rows = () => [...document.querySelectorAll('#docList .doc-item')]; for (const n of ['ONE','TWO','THREE']) { await T.reset(); T.caret(0,0); T.type('INT. ' + n + ' - DAY'); } await new Promise(r => setTimeout(r, 60)); const ids = rows().every(x => !!x.dataset.doc); const r2 = rows()[1]; r2.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, cancelable:true, clientX:60, clientY:140})); await new Promise(r => setTimeout(r, 40)); const marked = document.querySelectorAll('#docList .doc-item.menuing').length + '/' + r2.classList.contains('menuing'); const del = [...document.querySelectorAll('.pop *')].find(n => /^delete/i.test(n.textContent.trim())); if (!del) return 'no-delete-item'; del.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); del.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); await new Promise(r => setTimeout(r, 30)); const moving = rows().filter(x => x.getAnimations && x.getAnimations().length).length > 0; await new Promise(r => setTimeout(r, 400)); const cleared = document.querySelectorAll('#docList .doc-item.menuing').length === 0; return ids + '/' + marked + '/' + moving + '/' + cleared",
+         expect: "true/1/true/true/true"),
+    // THE TITLE SITS ON THE CHARACTER COLUMN. Reported three times; never again.
+    // titleAudit() walks everything that moves the page under the title — the sidebar,
+    // zoom, the title page, a long title, scrolling — and measures the title's FIRST
+    // CHARACTER against a cue as actually DRAWN, not against the formula that places it
+    // (which is exactly how a misaligned title passed this suite for days). It also
+    // fails if the placement is being done by centring again.
+    Step(desc: "title: first character sits on the cue column, through rail/zoom/titlepage/scroll",
+         js: "return await T.titleAudit()",
+         expect: "aligned"),
     // Deleting the script that is OPEN used to do nothing at all: the delete filtered
     // the index, then openDoc() flushed a save of the outgoing document and put the row
     // straight back. The index must lose the row, and keep having lost it after the

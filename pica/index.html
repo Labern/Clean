@@ -191,6 +191,11 @@ body.resizing #canvas{ pointer-events:none; }
 .doc-item:hover,.scene-item:hover{ color:var(--ink); }
 .doc-item.current,.scene-item.current{ border-left-color:var(--rule); color:var(--ink); }
 .doc-item.dragging{ opacity:.45; }
+/* the row a context menu belongs to, so an action can never land on the wrong script */
+.doc-item.menuing,.scene-item.menuing{
+  color:var(--ink); background:var(--rule-soft, rgba(127,127,127,.13));
+  border-left-color:var(--faint);
+}
 .doc-item.drop-above{ box-shadow:0 -2px 0 var(--rule); }
 .doc-item.drop-below{ box-shadow:0 2px 0 var(--rule); }
 .scene-item .no{ color:var(--faint); flex:none; width:1.7em; text-align:right; font-variant-numeric:tabular-nums; }
@@ -3605,7 +3610,11 @@ function handleDelete(){
 }
 
 // ---------- popups: element menu, smarttype, extensions, export ----------
-function closePops(){ document.querySelectorAll('.pop').forEach(p => p.remove()); S.menu = null; }
+function closePops(){
+  document.querySelectorAll('.pop').forEach(p => p.remove());
+  document.querySelectorAll('.doc-item.menuing, .scene-item.menuing').forEach(n => n.classList.remove('menuing'));
+  S.menu = null;
+}
 
 function caretRect(){
   const sel = getSelection();
@@ -4000,6 +4009,13 @@ function draftsMenu(ev){
 // ---------- rail / status ----------
 function rail(){
   const dl = $('#docList');
+  // Where every row sits BEFORE the rebuild. After it, any row that has moved is
+  // animated from its old place to its new one, so a delete, a drag or a pin visibly
+  // settles instead of the list snapping to a different shape. Web Animations rather
+  // than a transition: nothing is left behind on the element, and it needs no rAF.
+  const wasAt = new Map();
+  for (const n of dl.querySelectorAll('.doc-item[data-doc]'))
+    wasAt.set(n.dataset.doc, n.getBoundingClientRect().top);
   dl.innerHTML = '';
   const pinned = new Set(LS.get('pica.ui', {}).pinned || []);
   const archived = new Set(LS.get('pica.ui', {}).archived || []);
@@ -4035,7 +4051,12 @@ function rail(){
     b.firstChild.style.opacity = inShelf ? '.55' : '';
     b.lastChild.textContent = d.pages ? d.pages + 'p' : '';
     b.addEventListener('mousedown', ev => { if (ev.button !== 0) return; if (d.id !== S.docId) openDoc(d.id); });
-    b.addEventListener('contextmenu', ev => { ev.preventDefault(); docMenu(d, ev); });
+    // the row the menu belongs to says so, so a Delete can never land on the wrong script
+    b.addEventListener('contextmenu', ev => {
+      ev.preventDefault();
+      docMenu(d, ev);            // opens the popup, which clears any previous mark…
+      b.classList.add('menuing');  // …so this row marks itself afterwards
+    });
     // drag to reorder — the index array IS the manual order
     b.draggable = true;
     b.addEventListener('dragstart', ev => {
@@ -4067,7 +4088,22 @@ function rail(){
       store.saveIndex(ix);
       rail();
     });
+    b.dataset.doc = d.id;
     host.appendChild(b);
+  }
+  // the list settles into its new shape rather than jumping to it
+  if (wasAt.size && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    for (const n of dl.querySelectorAll('.doc-item[data-doc]')) {
+      const before = wasAt.get(n.dataset.doc);
+      if (before == null) {                        // a row that wasn't there: fade it in
+        if (n.animate) n.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+        continue;
+      }
+      const dy = before - n.getBoundingClientRect().top;
+      if (Math.abs(dy) > 0.5 && n.animate)
+        n.animate([{ transform: 'translateY(' + dy + 'px)' }, { transform: 'none' }],
+          { duration: 220, easing: 'cubic-bezier(.22,.61,.36,1)' });
+    }
   }
   // characters: base name + cue count; click jumps to their next cue
   const cl = $('#charList');
@@ -5470,6 +5506,65 @@ window.PICA_API = {
     notes(i){ const el = S.doc.elements[i]; return JSON.stringify((el && el.notes) || []); },
     delNote(i, id){ deleteNote(null, id); return true; },
     openId(id){ return openDoc(id); },
+    // THE TITLE SITS ON THE CHARACTER COLUMN — reported three times, never to break
+    // again. Walks everything that moves the page under the title and measures the
+    // title's FIRST CHARACTER against a cue as actually DRAWN each time. Returns
+    // 'aligned', or the readings that failed. Run by the smoketest on every install.
+    async titleAudit(){
+      const wait = ms => new Promise(r => setTimeout(r, ms));
+      const readings = [];
+      const gap = () => {
+        const tEl = document.getElementById('docTitle');
+        if (!tEl) return 'no-title';
+        const cs = getComputedStyle(tEl);
+        const textLeft = tEl.getBoundingClientRect().left + (parseFloat(cs.paddingLeft) || 0);
+        for (const d of document.querySelectorAll('#pages div[data-el]')) {
+          const el = elById(d.dataset.el);
+          if (!el || el.type !== 'character' || el.dual) continue;
+          const r = d.getBoundingClientRect();
+          if (r.width) return Math.abs(textLeft - r.left);   // every cue shares this edge
+        }
+        return 'no-cue';
+      };
+      const note = why => { const g = gap(); readings.push(why + '=' + (typeof g === 'number' ? g.toFixed(1) : g)); };
+
+      await PICA_API.test.reset();
+      const T = PICA_API.test;
+      T.caret(0, 0); T.type('INT. ROOM - DAY'); T.esc(); T.enter(); T.type('A door.'); T.esc();
+      T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('One.'); T.esc();
+      T.enter(); T.tab(false); T.type('ALEXANDRA-JANE'); T.esc(); T.enter(); T.type('Two.'); T.esc();
+      await wait(40); note('typed');
+      // the sidebar opening and closing slides the page under the title
+      PICA_API.toggleRail(); await wait(40); note('rail-hidden');
+      PICA_API.toggleRail(); await wait(40); note('rail-shown');
+      // the axis is in page points, so it has to survive rescaling
+      PICA_API.zoom(0.12); await wait(30); note('zoomed-in');
+      PICA_API.zoom(-0.24); await wait(30); note('zoomed-out');
+      PICA_API.zoomFit(); await wait(30); note('zoom-fit');
+      // a title page shifts every page index beneath it
+      PICA_API.toggleTitlePage(); await wait(40); note('titlepage-on');
+      PICA_API.toggleTitlePage(); await wait(40); note('titlepage-off');
+      // a long title must still BEGIN on the column rather than centre itself
+      const was = S.doc.title;
+      S.doc.title = 'A VERY LONG TITLE INDEED THAT KEEPS GOING';
+      document.getElementById('docTitle').textContent = S.doc.title;
+      positionTitle(); await wait(30); note('long-title');
+      S.doc.title = was; document.getElementById('docTitle').textContent = was; positionTitle();
+      // scrolling through the script
+      canvasEl.scrollTop = 140; await wait(40); note('scrolled');
+      canvasEl.scrollTop = 0; await wait(30);
+      // and it must not be achieved by centring: a CSS change back to translateX(-50%)
+      // would silently undo every one of these
+      const cs = getComputedStyle(document.getElementById('docTitle'));
+      const centred = !(cs.textAlign === 'left'
+        && (cs.transform === 'none' || cs.transform === 'matrix(1, 0, 0, 1, 0, 0)'));
+      const bad = readings.filter(r => {
+        const v = r.slice(r.indexOf('=') + 1);
+        return !/^[\d.]+$/.test(v) || parseFloat(v) >= 1.5;
+      });
+      if (!bad.length && !centred) return 'aligned';
+      return 'OFF ' + readings.join(' ') + (centred ? ' · placed by centring, not by edge' : '');
+    },
     // Measured against where the cues are actually DRAWN whenever any is on screen —
     // comparing the title with the same formula that places it can only ever agree
     // with itself, which is how a misaligned title passed this check for days.

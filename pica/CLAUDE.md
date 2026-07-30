@@ -199,6 +199,57 @@ the fidelity gate compares text+geometry only, so it is style-agnostic.
 - estimateCharW guards zero/NaN widths (else joinItems hits ' '.repeat(Infinity));
   importPdf([]) returns an empty doc instead of throwing.
 
+## THE TITLE BEGINS WHERE THE CHARACTER NAMES BEGIN — and it is guarded
+His instruction, after reporting it three times: *"Do not. EVER. Fuck this up again.
+Write a test for this. After every change run this test."*
+
+The contract: the screenplay title's **first character** sits on the character-cue
+column — the same x every cue starts at (3.5" on FD's grid; the measured spread across
+cues is 0.0px). That hard vertical edge is the line the eye follows. It is NOT centred
+on the cues' optical centre: that put the title's left edge ~95px left of the column and
+its right edge past their ragged ends, so nothing shared an edge and it read as broken
+however close the centres were (they were 1.7px apart, and he still called it out).
+
+`positionTitle()` therefore sets `transform:none`, `text-align:left`, and places the
+box's **content** edge (left minus padding-left) at `pageLeft + cols.character * k`.
+
+**The guard: `PICA_API.test.titleAudit()`**, run by the smoketest on every
+`build.sh --install`, so it gates the install door. It walks everything that moves the
+page under the title — sidebar hidden/shown, zoom in/out/fit, title page on/off, a very
+long title, scrolling — and after each one measures the title's first character against
+a cue **as actually DRAWN**, requiring < 1.5px. It also fails if the placement is being
+done by centring again (`text-align`/`transform` check).
+
+**Why measuring against the drawn cue matters:** the old `titleDelta()` compared the
+title with *the same formula that positioned it*, so it could only ever agree with
+itself — a misaligned title passed the suite for days. Never test a placement against
+its own arithmetic. The audit has been proven to fail: reintroducing centring reports
+`OFF typed=53.4 … long-title=167.4 · placed by centring, not by edge`.
+
+Quick check outside the bundle: `node tests/chrome-run.mjs title-probe.js __titleAudit`.
+
+## Headless verification: WebKit cannot render, Chromium can
+A windowless `WKWebView` is treated as a **hidden page**: `requestAnimationFrame` never
+fires and timers are throttled to ~460ms. DOM layout and `getBoundingClientRect` work
+fine (which is why the smoketest can measure geometry), but anything needing canvas
+rasterisation or real timing hangs there — `page.render()` never completes, and a
+390-second import that "lost every mark" was the harness, not the app.
+
+- `tests/chrome-run.mjs <probe.js> <fn> [args-json]` runs a probe against the app in
+  **headless Chromium over CDP**, on a throwaway profile, opening no window. Serves
+  `pica/` plus `~/Downloads` under `/dl/`. `SHOT=<path>` screenshots a returned `clip`.
+  Pass `--window-size` is already set to 1440×1000 — below 880px the app takes its
+  mobile branch and title positioning is deliberately skipped.
+- Use it for anything visual. **Look at the rendered page** before believing a number.
+
+## The index marks what a menu is acting on, and settles when it changes
+Right-clicking a row adds `.menuing` to it (set *after* `docMenu()`, because opening a
+popup calls `closePops()` which clears the mark), so a Delete can never look like it
+landed on the wrong script. `rail()` records each row's top before the rebuild and
+animates any row that moved from its old position to its new one (Web Animations, not a
+transition — nothing is left on the element and it needs no rAF, which the headless
+harness does not have). New rows fade in; `prefers-reduced-motion` skips it all.
+
 ## The title sits on the DOC'S OWN cue axis — computed, not assumed
 The header title's "centred over the page" was a proxy that only coincided with
 the character-cue axis on FD-standard geometry (Tenet ≈ 306pt). Imports keep
