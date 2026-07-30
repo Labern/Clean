@@ -154,7 +154,9 @@ window.__titleAxisProbe = async function (url) {
     const cues = [...document.querySelectorAll('#pages div[data-el]')]
       .filter(d => { const el = S.doc.elements.find(e => e.id === d.dataset.el); return el && el.type === 'character' && !el.dual; });
     if (cues.length >= 3) {
-      const t = document.getElementById('docTitle').getBoundingClientRect();
+      const tEl = document.getElementById('docTitle');
+  const t = tEl.getBoundingClientRect();
+  const padL = parseFloat(getComputedStyle(tEl).paddingLeft) || 0;
       const centres = cues.map(d => { const r = d.getBoundingClientRect(); return r.left + r.width / 2; });
       const mean = centres.reduce((a, b) => a + b, 0) / centres.length;
       return JSON.stringify({
@@ -196,4 +198,49 @@ window.__cutToProbe = async function (url) {
   }
   const empties = els.filter(e => !e.text.trim()).length;
   return JSON.stringify({ emptyElements: empties, around: out }, null, 1);
+};
+
+// Show the thing: title bar and a page of cues in one frame, plus the numbers.
+window.__lookProbe = async function (url) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, 'ThereWillBeBlood.pdf');
+  for (let i = 0; i < 600; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  if (!window.PICA_API.titleShown || !window.PICA_API.titleShown()) {
+    // make sure the title is on screen at all
+    try { window.PICA_API.title && window.PICA_API.title(); } catch {}
+  }
+  const S = window.__pica;
+  const c = document.getElementById('canvas');
+  // find a page with several cues on it
+  for (let pass = 0; pass < 40; pass++) {
+    const cues = [...document.querySelectorAll('#pages div[data-el]')]
+      .filter(d => { const el = S.doc.elements.find(e => e.id === d.dataset.el); return el && el.type === 'character' && !el.dual; });
+    if (cues.length >= 4) break;
+    c.scrollTop += 600; await sleep(120);
+  }
+  await sleep(200);
+  const cues = [...document.querySelectorAll('#pages div[data-el]')]
+    .map(d => ({ d, el: S.doc.elements.find(e => e.id === d.dataset.el) }))
+    .filter(x => x.el && x.el.type === 'character' && !x.el.dual);
+  const tEl = document.getElementById('docTitle');
+  const t = tEl.getBoundingClientRect();
+  const padL = parseFloat(getComputedStyle(tEl).paddingLeft) || 0;
+  const lefts = cues.map(x => x.d.getBoundingClientRect().left);
+  const centres = cues.map(x => { const r = x.d.getBoundingClientRect(); return r.left + r.width / 2; });
+  const mean = a => a.reduce((p, q) => p + q, 0) / a.length;
+  return JSON.stringify({
+    clip: { x: 0, y: 0, width: innerWidth, height: Math.min(innerHeight, 1000) },
+    cues: cues.map(x => x.el.text).slice(0, 10),
+    titleLeft: +t.left.toFixed(1), titleCentre: +(t.left + t.width / 2).toFixed(1), titleRight: +t.right.toFixed(1),
+    cueLeftEdge: +mean(lefts).toFixed(1), cueLeftEdgesAllSame: (Math.max(...lefts) - Math.min(...lefts)).toFixed(1),
+    cueCentreMean: +mean(centres).toFixed(1),
+    titleTextLeft: +(t.left + padL).toFixed(1),
+    titleTextLeftVsCueLeft: +((t.left + padL) - mean(lefts)).toFixed(1),
+    onAxis: window.PICA_API.test.titleDelta(),
+    titleCentreVsCueCentre: +((t.left + t.width / 2) - mean(centres)).toFixed(1),
+  }, null, 1);
 };

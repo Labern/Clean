@@ -113,6 +113,6 @@ try {
 } finally {
   chrome.kill('SIGKILL');
   server.close();
-  fs.rmSync(profile, { recursive: true, force: true });
+  try { fs.rmSync(profile, { recursive: true, force: true, maxRetries: 3 }); } catch {}
   process.exit(code);
 }
