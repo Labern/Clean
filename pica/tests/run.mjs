@@ -272,5 +272,68 @@ if (fs.existsSync(whipPath)) {
         titleFromFilename(file, 'pdf'));
 }
 
+// -- 13. cue vs parenthetical: the two columns are 0.5" apart, and a source only has to
+//        drift for a line to be assigned to the wrong one. Jackie Brown's "ORDELL
+//        (CONT'D)" became a parenthetical — wrong indent, and invisible to the
+//        paginator's speech rules, so it sat alone at the foot of a page with its speech
+//        overleaf. There Will Be Blood made the opposite mistake with "(beat)".
+{
+  const rowH = 12, y0 = 76.5, charW = 7.2;
+  const line = (x, row, str) => ({ x, y: y0 + row * rowH, w: str.length * charW, str });
+  // three pages of ordinary geometry, so the importer measures FD's columns…
+  const pages = [];
+  for (let p = 0; p < 3; p++) {
+    const items = [];
+    let r = 0;
+    items.push(line(108, r++, 'INT. OFFICE ' + p + ' - DAY'));
+    r++;
+    items.push(line(108, r++, 'Someone crosses the room and picks up the telephone.'));
+    r++;
+    items.push(line(252, r++, 'SAM'));
+    items.push(line(180, r++, 'A line of dialogue goes here.'));
+    r++;
+    items.push(line(252, r++, 'ALEX'));
+    items.push(line(216, r++, '(quietly)'));
+    items.push(line(180, r++, 'Another line of dialogue.'));
+    r++;
+    // …then the two mistakes, each planted on the WRONG column:
+    // a cue sitting on the parenthetical column
+    items.push(line(216, r++, 'ORDELL (CONT’D)'));
+    items.push(line(180, r++, 'The speech that belongs to it.'));
+    r++;
+    // a parenthetical sitting on the character column
+    items.push(line(252, r++, 'SAM'));
+    items.push(line(252, r++, '(beat)'));
+    items.push(line(180, r++, 'And the line after the beat.'));
+    pages.push({ width: 612, height: 792, items });
+  }
+  const d = E.importPdf(pages);
+  const find = t => d.elements.find(e => e.text.trim() === t);
+  const cue = find('ORDELL (CONT’D)');
+  const beat = find('(beat)');
+  check('cue/paren: a cue on the parenthetical column is still a cue',
+    !!cue && cue.type === 'character', cue ? cue.type : 'not found');
+  check('cue/paren: a parenthetical on the cue column is still a parenthetical',
+    !!beat && beat.type === 'paren', beat ? beat.type : 'not found');
+  check('cue/paren: ordinary cues and parentheticals are untouched',
+    (find('SAM') || {}).type === 'character' && (find('(quietly)') || {}).type === 'paren');
+
+  // and the invariant it protects: a page must never end on a character cue, its
+  // speech stranded overleaf
+  const orphans = [];
+  for (const doc of [d, E.importPdf(raw)]) {
+    const res = E.paginate({ ...doc, titlePage: [] });
+    const byId = new Map(doc.elements.map(e => [e.id, e]));
+    res.pages.forEach((pg, pi) => {
+      const body = pg.lines.filter(l => l.kind !== 'pn' && l.kind !== 'rev' && l.kind !== 'more');
+      const last = body[body.length - 1];
+      if (!last) return;
+      const el = byId.get(last.el);
+      if (el && el.type === 'character') orphans.push('p' + (pi + 1) + ':' + last.text.slice(0, 20));
+    });
+  }
+  check('cue/paren: no page ends on a character cue', orphans.length === 0, orphans.slice(0, 3).join(' '));
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);

@@ -1171,15 +1171,28 @@ const PicaEngine = (() => {
       for (const [k, c] of colList) { const d = Math.abs(x - c); if (d < bd) { bd = d; best = k; } }
       return bd <= colTol ? best : null;
     };
+    // The cue and parenthetical columns are close together — 3.0" and 3.5" on FD's grid —
+    // and a source only has to drift a few points for a line to be assigned to the wrong
+    // one. Jackie Brown's "ORDELL (CONT'D)" landed on the parenthetical column, which made
+    // it a parenthetical: drawn at the wrong indent, and invisible to the paginator's
+    // speech rules, so it sat alone at the foot of a page with its speech overleaf. There
+    // Will Be Blood made the opposite mistake and typed "(beat)" as a character.
+    //
+    // The text's own shape settles it, and outranks a few points of x drift. Wholly
+    // bracketed is a parenthetical; SHOUTED and not bracketed is a cue. Only these two
+    // columns are cross-checked — shouted dialogue and capitalised action sit elsewhere.
+    const whollyBracketed = t => /^\(.*\)$/.test(t);
+    const cueShaped = t => t.length <= 45 && /[A-Z]/.test(t) && t === t.toUpperCase() && !whollyBracketed(t);
     const roleOf = (l) => {
       const col = nearestCol(l.x);
       const near = (c) => Math.abs(l.x - c) <= colTol;
+      const t = l.text.trim();
       if (col === 'action') return SCENE_RE.test(l.text) ? 'scene' : 'action';
       if (col === 'dialogue') return 'dialogue';
-      if (col === 'paren') return 'paren';
+      if (col === 'paren') return cueShaped(t) ? 'character' : 'paren';
       if (col === 'character') {
-        if (l.text.trim() === '(MORE)') return 'MORE';
-        return 'character';
+        if (t === '(MORE)') return 'MORE';
+        return whollyBracketed(t) ? 'paren' : 'character';
       }
       if (Math.abs(l.xEnd - transRight) < 4 && l.text === l.text.toUpperCase() && /:\s*$/.test(l.text)) return 'transition';
       // end marks without the colon — FADE OUT. / CUT TO BLACK. — are transitions too
