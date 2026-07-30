@@ -14,6 +14,9 @@ final class Handler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
         guard let url = task.request.url else { task.didFailWithError(URLError(.badURL)); return }
         var p = url.path; if p.isEmpty || p == "/" { p = "/index.html" }
+        // the very proxy the app ships, so the step below proves the app's network path
+        if serveWebProxy(task: task, url: url, path: p) { return }
+
         if p.hasPrefix("/__inbox/"), let d = inbox.removeValue(forKey: String(p.dropFirst(9))) {
             let r = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
                 headerFields: ["Content-Type": "application/pdf", "Content-Length": "\(d.count)"])!
@@ -358,6 +361,17 @@ let grammarSteps: [Step] = [
     Step(desc: "index: the right-clicked row marks itself; the list animates after a delete",
          js: "window.confirm = () => true; const rows = () => [...document.querySelectorAll('#docList .doc-item')]; for (const n of ['ONE','TWO','THREE']) { await T.reset(); T.caret(0,0); T.type('INT. ' + n + ' - DAY'); } await new Promise(r => setTimeout(r, 60)); const ids = rows().every(x => !!x.dataset.doc); const r2 = rows()[1]; r2.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, cancelable:true, clientX:60, clientY:140})); await new Promise(r => setTimeout(r, 40)); const marked = document.querySelectorAll('#docList .doc-item.menuing').length + '/' + r2.classList.contains('menuing'); const del = [...document.querySelectorAll('.pop *')].find(n => /^delete/i.test(n.textContent.trim())); if (!del) return 'no-delete-item'; del.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); del.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); await new Promise(r => setTimeout(r, 30)); const moving = rows().filter(x => x.getAnimations && x.getAnimations().length).length > 0; await new Promise(r => setTimeout(r, 400)); const cleared = document.querySelectorAll('#docList .doc-item.menuing').length === 0; return ids + '/' + marked + '/' + moving + '/' + cleared",
          expect: "true/1/true/true/true"),
+    // THE APP'S WINDOW ON THE WEB. A WKWebView on a custom scheme is subject to CORS, so
+    // without this proxy the search cannot reach an archive at all. This goes online for
+    // real: it asks an archive's index page for its links and counts the PDFs.
+    Step(desc: "find: the app can reach the web and read an archive's index",
+         js: "try { const r = await fetch('pica://app/__web/' + encodeURIComponent('https://www.dailyscript.com/movie.html')); if (!r.ok) return 'HTTP ' + r.status; const t = await r.text(); const pdfs = (t.match(/href=\"[^\"]+\\.pdf\"/gi) || []).length; return pdfs > 100 ? 'reached' : 'only ' + pdfs + ' pdfs'; } catch (e) { return 'threw: ' + (e.message || e); }",
+         expect: "reached"),
+    // A REAL search, over the real web, inside the app: what does it find for a film?
+    // Reported, not asserted — the network is not something an install should hang on.
+    Step(desc: "find: a live search (reported, not gated)",
+         js: "try { const c = await window.PICA_API.test.search('Pulp Fiction'); return c.length ? ('found ' + c.length + ': ' + c.slice(0,3).map(x => x.host).join(', ')) : 'found none'; } catch (e) { return 'threw: ' + (e.message || e); }",
+         expect: "*"),
     // FIND A SCREENPLAY: the promise is that nothing reaches the library unless he
     // accepts it. Cancel must put back what he was reading and leave no trace — the
     // first cut of this saved the rejected script anyway, because openDoc flushes a
@@ -396,7 +410,10 @@ func runGrammar(_ i: Int) {
         var got = "<no result>"
         if case .success(let v) = result { got = (v as? String) ?? "<no result>" }
         if case .failure(let e) = result { got = "EVALERR: " + String(describing: e) }
-        check("grammar: " + s.desc, got == s.expect, got == s.expect ? "" : "got “\(got)” want “\(s.expect)”")
+        // expect "*" means REPORT, do not gate — used for the live web, which an install
+        // should not hang on
+        if s.expect == "*" { print("  ·· " + s.desc + " — " + got) }
+        else { check("grammar: " + s.desc, got == s.expect, got == s.expect ? "" : "got “\(got)” want “\(s.expect)”") }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { runGrammar(i + 1) }
     }
 }

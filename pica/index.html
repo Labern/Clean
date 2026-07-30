@@ -5766,6 +5766,7 @@ const SCRIPT_INDEXES = [
   'https://www.dailyscript.com/movie_n-z.html',
   'https://www.moviescriptsandscreenplays.com/',
   'https://www.awesomefilm.com/',
+  'https://tarantinoesque.github.io/',        // a small, clean, all-PDF shelf
 ];
 const SCRIPT_HOSTS = [
   'dailyscript.com', 'moviescriptsandscreenplays.com', 'awesomefilm.com',
@@ -5773,6 +5774,7 @@ const SCRIPT_HOSTS = [
   // studios and trades post the real thing during awards season, and the archive keeps it
   'deadline.com', 'archive.org', 'indiegroundfilms.files.wordpress.com',
   'thesuccessfulscreenwriter.com', 'raindance.org', 'nofilmschool.com',
+  'tarantinoesque.github.io',
 ];
 const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 const slugify = q => q.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
@@ -6026,6 +6028,7 @@ window.PICA_API = {
     // the search feature: stub the network, then drive Accept / Try again / Cancel
     stubNet(s){ NET_STUB = s; },
     find(q){ return findScreenplay(q); },
+    search(q){ return gatherCandidates(q); },
     trialId(){ return S.trial ? S.trial.id : null; },
     // per-character emphasis as the model holds it: '.' plain, else b/i/u letters
     marks(i){
