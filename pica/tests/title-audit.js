@@ -8,154 +8,245 @@
 //
 // It is NOT centred on the cues' optical centre. That was the bug: it put the
 // title's left edge ~95px left of the column and its right edge past the cues'
-// ragged ends, so nothing shared an edge and the alignment read as broken even
-// though the centres agreed to 1.7px.
+// ragged ends, so nothing shared an edge even though the centres agreed to 1.7px.
 //
-// WHY THIS FILE EXISTS, AND WHY IT MEASURES THE WAY IT DOES
 // The check this replaced compared the title against the same formula that
 // positioned it, so it could only ever agree with itself — a visibly misaligned
-// title passed the suite for days. This one measures the title against a cue as
-// actually DRAWN on the page. Never test a placement against its own arithmetic.
-//
-// It also refuses to pass if the placement has gone back to being achieved by
-// centring, because a CSS change alone could silently undo all of it.
+// title passed the suite for days. This one measures against a cue as actually
+// DRAWN. Never test a placement against its own arithmetic.
 //
 // RUN IT
 //   every install:  ./mac/build.sh --install   (the smoketest injects this file;
 //                                               a red result refuses the install)
 //   by hand:        node tests/chrome-run.mjs title-audit.js __titleAudit
 //
-// Returns the string 'aligned', or 'OFF <reading> <reading> …' naming every
-// condition that failed and by how much.
+// Returns 'aligned', or 'OFF <reading> …' naming every condition that failed.
+//
+// The comments below explain the JavaScript itself, line by line.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Hung off `window` so the harnesses can find it after injecting this file: the
-// smoketest calls it inside the built PICA.app, chrome-run.mjs in headless Chromium.
-// `async` because each condition needs the app to finish re-rendering before it is measured.
+// `window` is the global object in a browser: anything attached to it is reachable from
+// anywhere on the page. Assigning a function to `window.__titleAudit` is how the two test
+// harnesses reach this code after injecting the file — there are no imports/exports here.
+// `async function` means the function always returns a Promise, and inside it we may use
+// `await` to pause until something finishes. We need that because the app redraws between
+// our measurements. `function () {}` is an anonymous function — it needs no name because
+// the name it is stored under (`__titleAudit`) is how it is called.
 window.__titleAudit = async function () {
-  const T = window.PICA_API.test;      // the app's test surface: reset/caret/type/enter/tab/esc
-  const API = window.PICA_API;         // the app's public surface: the same calls the menus make
-  // Pause and let the app re-render. setTimeout, not requestAnimationFrame: rAF never
-  // fires in a windowless WKWebView, so an rAF-based wait would hang the smoketest forever.
+  // `const` declares a name that cannot be reassigned (unlike `let`, which can be, or the
+  // old `var`, which you should never use). This just keeps a shorter alias to the app's
+  // test surface, so the lines below read `T.type(...)` rather than the full path.
+  const T = window.PICA_API.test;
+  // The same again for the app's public surface — the very calls its own menus make.
+  const API = window.PICA_API;
+  // An arrow function: `ms => ...` is shorthand for `function (ms) { return ...; }`.
+  // A `Promise` represents work that finishes later; the function passed to `new Promise`
+  // receives a `resolve` callback (here named `r`) which we hand to `setTimeout`, so the
+  // promise settles after `ms` milliseconds. `await wait(40)` then pauses this function
+  // for 40ms. Deliberately setTimeout and NOT requestAnimationFrame: rAF never fires in a
+  // windowless WKWebView, so an rAF wait would hang the smoketest forever instead of failing.
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  const TOLERANCE = 1.5;               // px allowed; enough for sub-pixel rounding, nothing more
+  // A plain number constant. SCREAMING_CASE is only a convention meaning "fixed setting".
+  const TOLERANCE = 1.5;
 
   // ── the measurement ──────────────────────────────────────────────────────────
-  // Returns how far the title's first character is from where a character cue is
-  // actually drawn — or a string naming why it could not be measured, which never passes.
+
+  // A function stored in a `const`. It closes over nothing but the page itself, and returns
+  // EITHER a number (the distance we care about) OR a string explaining why it could not
+  // measure. JavaScript is dynamically typed, so one function may return either — the
+  // verdict code at the bottom checks which came back.
   const gap = () => {
-    const tEl = document.getElementById('docTitle');           // the title element in the header
-    if (!tEl) return 'no-title';                               // no title on screen: cannot pass
-    // The element has horizontal padding, and the glyph starts inside it — so the box's
-    // left edge is NOT where the T of the title begins. Add padding-left to get there.
+    // `document` is the page. `getElementById` finds one element by its id attribute.
+    // Returns the element, or `null` if there is no such element.
+    const tEl = document.getElementById('docTitle');
+    // `!tEl` is truthiness: `null` is "falsy", so this reads "if there is no title element".
+    // `return` exits `gap` immediately with that string.
+    if (!tEl) return 'no-title';
+    // `getComputedStyle(el)` gives the styles actually in force after all CSS is applied
+    // (not just inline styles). `.paddingLeft` comes back as a string like "11.2px", so
+    // `parseFloat` pulls the leading number out of it. `|| 0` is the default-value idiom:
+    // if the left side is falsy (NaN or empty), use 0 instead. We need the padding because
+    // the glyph starts INSIDE the box, so the box edge is not where the T begins.
     const padL = parseFloat(getComputedStyle(tEl).paddingLeft) || 0;
-    const textLeft = tEl.getBoundingClientRect().left + padL;  // viewport x of the first character
-    const els = window.__pica.doc.elements;                    // the model, to identify each line
-    // Walk the drawn lines on the page. Each line div carries data-el = the id of the
-    // element it belongs to, which is how a rendered line is traced back to the model.
+    // `getBoundingClientRect()` returns the element's real position and size on screen right
+    // now, in CSS pixels relative to the viewport. `.left` plus the padding = the x of the
+    // first character. This is a measurement of the live page, not a calculation.
+    const textLeft = tEl.getBoundingClientRect().left + padL;
+    // Reach into the app's state (exposed for debugging) for the document model — the array
+    // of elements the script is made of. We need it to know what each drawn line IS.
+    const els = window.__pica.doc.elements;
+    // `querySelectorAll` finds every element matching a CSS selector; `div[data-el]` means
+    // "any div that has a data-el attribute" — that is how the app marks a drawn script line.
+    // `for...of` loops over the values in that collection (as opposed to `for...in`, which
+    // loops over keys and is the wrong tool here).
     for (const d of document.querySelectorAll('#pages div[data-el]')) {
-      const el = els.find(e => e.id === d.dataset.el);          // the model element for this line
-      // Only a plain character cue defines the column. Dual-dialogue cues sit in their own
-      // two-column geometry, so they would give a false reading.
+      // `d.dataset.el` reads the `data-el` attribute (dataset converts data-foo-bar to
+      // fooBar). `.find(fn)` walks the array and returns the FIRST element for which the
+      // callback returns true, or `undefined` if none does. So this maps a drawn line back
+      // to the model element it came from.
+      const el = els.find(e => e.id === d.dataset.el);
+      // `||` chains conditions: skip this line if we could not identify it, or it is not a
+      // character cue, or it is a dual-dialogue cue (those sit in their own two-column
+      // geometry and would give a false reading). `continue` jumps to the next loop iteration.
       if (!el || el.type !== 'character' || el.dual) continue;
-      const r = d.getBoundingClientRect();                     // where this cue is really drawn
-      // Every cue starts at the same x, so the first one on screen gives the column.
-      // This is the whole point: a measured edge, not a recomputed formula.
-      if (r.width) return Math.abs(textLeft - r.left);          // the distance we are testing
+      // Measure where this cue is ACTUALLY drawn.
+      const r = d.getBoundingClientRect();
+      // A width of 0 means it is not really laid out, so ignore it. Otherwise: every cue
+      // starts at the same x, so the first real one gives us the column. `Math.abs` makes
+      // the distance positive regardless of which side the title fell on. Returning here
+      // ends the loop and the function — one good reading is all we need.
+      if (r.width) return Math.abs(textLeft - r.left);
     }
-    return 'no-cue';                   // no cue on screen: nothing to align to, so not a pass
+    // Reached only if the loop found no cue at all. Returning a string, not a number, so the
+    // verdict code treats it as a failure: a measurement that never happened is not a pass.
+    return 'no-cue';
   };
 
-  const readings = [];                 // one 'condition=distance' string per measurement
-  // Take a reading and label it, so a failure names the condition that broke rather
-  // than just saying no.
+  // An array literal. `const` stops the NAME being reassigned; the array's contents can
+  // still change (`push` below), which is the usual JavaScript gotcha with const.
+  const readings = [];
+  // Takes a reading and labels it, so a failure can name the condition that broke.
   const note = why => {
-    const g = gap();                                                   // measure now
-    readings.push(why + '=' + (typeof g === 'number' ? g.toFixed(1) : g));  // number → 1dp, else the reason
+    // Call the measurement defined above.
+    const g = gap();
+    // `typeof g === 'number'` asks what kind of value came back — a distance or a reason.
+    // `toFixed(1)` formats a number to one decimal place (and returns a string).
+    // `? :` is the ternary conditional: condition ? valueIfTrue : valueIfFalse.
+    // `+` concatenates strings. `push` appends to the end of the array.
+    readings.push(why + '=' + (typeof g === 'number' ? g.toFixed(1) : g));
   };
 
   // ── build a script that has cues in it ───────────────────────────────────────
-  // Two names of very different lengths: under the old centring bug the axis moved with
-  // the average cue length, so a mix is what exposes it.
-  await T.reset();                     // a fresh empty document, so no earlier state leaks in
-  T.caret(0, 0);                       // put the caret at the start of the first element
-  T.type('INT. ROOM - DAY');           // typing "int." promotes the element to a Scene Heading
-  T.esc();                             // dismiss the autocomplete popup the slug opens
-  T.enter();                           // Enter off a slug gives an Action element
-  T.type('A door.');                   // some action, so the page is not just headings
+  // Two names of very different lengths: under the old centring bug the axis moved with the
+  // average cue length, so a mix of long and short is what exposes it.
+
+  // `await` pauses here until the promise `reset()` returns has settled. Without `await` the
+  // next line would run while the document was still being replaced.
+  await T.reset();
+  // Put the caret in element 0 at offset 0 — the top of the empty script.
+  T.caret(0, 0);
+  // Type characters through the app's real input path. Typing "int." promotes the element
+  // to a Scene Heading, which is the app's own grammar doing its job.
+  T.type('INT. ROOM - DAY');
+  // Dismiss the autocomplete popup a slugline opens, so it cannot swallow the next keys.
   T.esc();
-  T.enter();                           // Enter off Action gives another Action…
-  T.tab(false);                        // …and Tab in a blank Action turns it into a Character cue
-  T.type('SAM');                       // the short cue
+  // Press Enter. Off a slug, the app's grammar gives you an Action element.
+  T.enter();
+  // Some action text, so the page is not made only of headings.
+  T.type('A door.');
   T.esc();
-  T.enter();                           // Enter off a cue gives Dialogue
+  // Enter again: off Action you get another Action…
+  T.enter();
+  // …and Tab in a BLANK Action converts it to a Character cue. `false` means "not Shift+Tab".
+  T.tab(false);
+  // The short cue — 3 characters.
+  T.type('SAM');
+  T.esc();
+  // Enter off a cue gives Dialogue.
+  T.enter();
   T.type('One.');
   T.esc();
-  T.enter();                           // Enter off Dialogue gives Action
-  T.tab(false);                        // Tab again for a second cue
-  T.type('ALEXANDRA-JANE');            // the long cue — 14 characters against SAM's 3
+  // Enter off Dialogue gives Action, then Tab makes it a cue again.
+  T.enter();
+  T.tab(false);
+  // The long cue — 14 characters against SAM's 3.
+  T.type('ALEXANDRA-JANE');
   T.esc();
   T.enter();
   T.type('Two.');
   T.esc();
-  await wait(40);                      // let the pages repaginate and redraw
-  note('typed');                       // reading 1: at rest, freshly typed
+  // Give the app 40ms to repaginate and redraw before we measure anything.
+  await wait(40);
+  // Reading 1: at rest, freshly typed.
+  note('typed');
 
   // ── everything that moves the page under the title ──────────────────────────
-  // The title is in the header; the cues are on the page. Anything that shifts or
-  // rescales the page has to move the title with it, or they part company.
+  // The title lives in the header; the cues live on the page. Anything that shifts or
+  // rescales the page has to move the title with it, or the two part company.
 
-  // The sidebar takes horizontal space, so hiding it slides the whole page sideways.
+  // Several statements on one line, separated by semicolons — done here because they are one
+  // thought: perform the change, wait for the redraw, measure. The sidebar occupies
+  // horizontal space, so hiding it slides the whole page sideways.
   API.toggleRail(); await wait(40); note('rail-hidden');
-  API.toggleRail(); await wait(40); note('rail-shown');   // and back, which must restore it
+  // And back again, which must restore the alignment rather than merely not break it.
+  API.toggleRail(); await wait(40); note('rail-shown');
 
-  // The axis is stored in page points and multiplied by the zoom factor, so a wrong
-  // multiplication only shows up once the zoom is not 1.
+  // The axis is held in page points and multiplied by the zoom factor, so a wrong
+  // multiplication is invisible until the zoom is something other than 1.
   API.zoom(0.12);  await wait(30); note('zoomed-in');
-  API.zoom(-0.24); await wait(30); note('zoomed-out');    // net -0.12: smaller than we started
-  API.zoomFit();   await wait(30); note('zoom-fit');      // back to fit-to-width
+  // Negative delta: net -0.12, i.e. smaller than we started, exercising both directions.
+  API.zoom(-0.24); await wait(30); note('zoomed-out');
+  // Back to fit-to-width, the app's default scale.
+  API.zoomFit();   await wait(30); note('zoom-fit');
 
-  // Showing the title page inserts a page before the script, shifting every page index —
-  // and the code finds the page it measures against by index.
+  // Showing the title page inserts a page BEFORE the script, shifting every page index —
+  // and the positioning code finds the page it measures against by index.
   API.toggleTitlePage(); await wait(40); note('titlepage-on');
   API.toggleTitlePage(); await wait(40); note('titlepage-off');
 
-  // Scrolling changes which page is on screen, so the title must not be pinned to the
-  // first page's geometry.
-  const canvas = document.getElementById('canvas');       // the scrolling container of pages
+  // The scrolling container that holds the pages.
+  const canvas = document.getElementById('canvas');
+  // Setting `scrollTop` scrolls it programmatically, exactly as a wheel would. This proves
+  // the title is not pinned to the first page's geometry.
   canvas.scrollTop = 140; await wait(40); note('scrolled');
-  canvas.scrollTop = 0;   await wait(30);                 // put it back for the next condition
+  // Put the scroll back where it was, so the next condition starts clean.
+  canvas.scrollTop = 0;   await wait(30);
 
   // ── a long title must still BEGIN on the column ─────────────────────────────
-  // This is the condition that fails hardest under centring: a centred box grows in both
-  // directions, so its left edge walks further left the longer the title gets (167px here).
-  const was = window.__pica.doc.title;                    // remember the real title to restore
-  window.__pica.doc.title = 'A VERY LONG TITLE INDEED THAT KEEPS GOING';   // 41 characters
-  document.getElementById('docTitle').textContent = window.__pica.doc.title;  // and show it
-  API.zoomFit();                       // forces a re-render, which is what repositions the title
+  // The condition centring fails hardest: a centred box grows in BOTH directions, so its
+  // left edge walks further left the longer the title gets — 167px here against 53px above.
+
+  // Keep the real title so we can put it back; this test must not leave the document changed.
+  const was = window.__pica.doc.title;
+  // Change the model…
+  window.__pica.doc.title = 'A VERY LONG TITLE INDEED THAT KEEPS GOING';
+  // …and the visible element. `textContent` sets an element's text (unlike `innerHTML`,
+  // which would parse the string as HTML — never use innerHTML for plain text).
+  document.getElementById('docTitle').textContent = window.__pica.doc.title;
+  // Force a full re-render, which is what repositions the title.
+  API.zoomFit();
   await wait(40);
   note('long-title');
-  window.__pica.doc.title = was;       // put the document back exactly as it was
+  // Restore the document exactly as it was found.
+  window.__pica.doc.title = was;
   document.getElementById('docTitle').textContent = was;
   API.zoomFit(); await wait(30);
 
   // ── and it must not be achieved by centring ─────────────────────────────────
-  // A structural check, not a measurement. Even if every reading above passed, a CSS
-  // change back to a centred box would mean the alignment is coincidence, not contract —
-  // and would break the moment the title text changed.
+  // A structural check rather than a measurement: even if every reading above passed, a CSS
+  // change back to a centred box would mean the alignment is coincidence, not contract, and
+  // would break the moment the title text changed.
+
+  // The styles actually in force on the title right now.
   const cs = getComputedStyle(document.getElementById('docTitle'));
-  const centred = !(cs.textAlign === 'left'                       // text must be left-aligned…
-    && (cs.transform === 'none'                                   // …and the box not shifted
-      || cs.transform === 'matrix(1, 0, 0, 1, 0, 0)'));           // (the identity matrix is 'none')
+  // Read this inside-out. The bracketed part is what CORRECT looks like: text aligned left
+  // AND no transform shifting the box. `&&` is logical AND, and it short-circuits — if the
+  // first test fails the second is never evaluated. The leading `!` inverts the whole thing,
+  // so `centred` is true when the layout is WRONG. Two spellings of "no transform" are
+  // accepted because some browsers report the identity matrix instead of the keyword.
+  const centred = !(cs.textAlign === 'left'
+    && (cs.transform === 'none'
+      || cs.transform === 'matrix(1, 0, 0, 1, 0, 0)'));
 
   // ── the verdict ─────────────────────────────────────────────────────────────
+
+  // `.filter(fn)` returns a NEW array of the items for which the callback is true — it does
+  // not modify `readings`. So `failed` ends up holding only the bad readings.
   const failed = readings.filter(r => {
-    const v = r.slice(r.indexOf('=') + 1);          // the value side of 'condition=value'
-    // A non-numeric value ('no-cue', 'no-title') is a failure, not a skip: it means the
-    // measurement never happened, and silence must never read as success.
+    // `indexOf('=')` finds the position of the first '='; `slice` takes everything after it.
+    // So 'zoomed-in=62.0' becomes '62.0'.
+    const v = r.slice(r.indexOf('=') + 1);
+    // A regular expression: `^` start, `[\d.]+` one or more digits or dots, `$` end — so
+    // `.test(v)` asks "is this purely numeric?". If it is NOT, the value is 'no-cue' or
+    // 'no-title', which counts as a FAILURE, not a skip: a measurement that never happened
+    // must never read as success. Otherwise convert it to a number and compare to tolerance.
     return !/^[\d.]+$/.test(v) || parseFloat(v) >= TOLERANCE;
   });
-  if (!failed.length && !centred) return 'aligned';   // every condition within tolerance
-  // Otherwise hand back every reading, so the failure says which condition and by how much.
+  // `failed.length` is 0 when the array is empty, and 0 is falsy — so `!failed.length` reads
+  // "nothing failed". Combined with "and it is not centred", that is a pass.
+  if (!failed.length && !centred) return 'aligned';
+  // Otherwise hand back every reading so the failure says which condition broke and by how
+  // much. `.join(' ')` glues the array into one space-separated string. The trailing ternary
+  // appends the CSS note only when that is what went wrong.
   return 'OFF ' + readings.join(' ') + (centred ? ' · placed by centring, not by edge' : '');
 };
