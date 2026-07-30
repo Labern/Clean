@@ -2442,12 +2442,16 @@ const store = {
   // a snapshot or the pagehide mirror could do the same a second later. So the id is
   // remembered as gone, and every write checks.
   gone: new Set(),
+  // every copy fetched by search, until he accepts one: reading several to pick the
+  // cleanest means more than one is alive at a time, so the guard cannot be "the current
+  // trial" — it is the set of them
+  trials: new Set(),
   save(id, doc){
     if (store.gone.has(id)) return;
     // A script found by search is on TRIAL until he accepts it: it opens, it paginates,
     // it can be read — but nothing about it reaches the library. Guarding here rather
     // than at the call sites catches the debounced save and the page-count refresh too.
-    if (S.trial && S.trial.id === id) { store.cache.set(id, doc); return; }
+    if (store.trials.has(id)) { store.cache.set(id, doc); return; }
     store.cache.set(id, doc);
     // the index is small and synchronous — write it NOW so the sidebar shows the script
     // immediately; only the document body travels through IndexedDB
@@ -4830,7 +4834,7 @@ async function importPdfBuffer(buf, name, opts){
     }
     if (badPages) doc.importNote = (doc.importNote ? doc.importNote + ' · ' : '') + badPages + ' unreadable page(s) skipped';
     const id = E.uid();
-    if (opts.trial) S.trial = { id, prev: S.docId };   // guards every write until accepted
+    if (opts.trial) { store.trials.add(id); S.trial = { id, prev: S.docId }; }
     store.save(id, doc);
     if (opts.trial) store.cache.set(id, doc);          // openDoc reads it from here
     closeOverlay();
@@ -5909,8 +5913,40 @@ async function gatherCandidates(query){
     .slice(0, 8);
 }
 
+// ---------- is this copy any good? ----------
+// The web has several copies of most scripts and they are not equally good: one is a clean
+// export, the next a photocopy read by a machine. The same structure the importer relies on
+// says which is which — a screenplay is scene headings, cues, and speech under the cues —
+// so PICA reads each copy it fetches and keeps looking if it can do better.
+function scoreImport(doc){
+  const els = doc.elements || [];
+  const n = els.length || 1;
+  const t = {};
+  for (const e of els) t[e.type] = (t[e.type] || 0) + 1;
+  const cues = t.character || 0, dlg = t.dialogue || 0, scenes = t.scene || 0;
+  let cueNoSpeech = 0, speechNoCue = 0;
+  els.forEach((e, i) => {
+    const nx = els[i + 1], pv = els[i - 1];
+    if (e.type === 'character' && (!nx || (nx.type !== 'dialogue' && nx.type !== 'paren'))) cueNoSpeech++;
+    if (e.type === 'dialogue' && (!pv || (pv.type !== 'character' && pv.type !== 'paren' && pv.type !== 'dialogue'))) speechNoCue++;
+  });
+  const unread = (t.general || 0) / n;
+  const notes = [];
+  let score = 100;
+  // lines the importer could not place at all — the clearest sign of a bad copy
+  if (unread > 0.01) { score -= Math.min(50, Math.round(unread * 300)); notes.push(Math.round(unread * 100) + '% unplaced'); }
+  // a cue with nothing under it, or speech with nobody saying it
+  const loose = (cueNoSpeech + speechNoCue) / Math.max(1, cues);
+  if (loose > 0.02) { score -= Math.min(30, Math.round(loose * 150)); notes.push(Math.round(loose * 100) + '% loose speech'); }
+  // and the things a screenplay simply has
+  if (!scenes) { score -= 40; notes.push('no scene headings'); }
+  if (!cues || !dlg) { score -= 40; notes.push('no dialogue'); }
+  if (n < 400) { score -= 25; notes.push('only ' + n + ' elements'); }
+  return { score: Math.max(0, score), notes, unread, cues, dlg, scenes };
+}
+
 /* ---------- the trial ---------- */
-const TRIAL = { query: '', list: [], at: -1, running: false, prev: null };
+const TRIAL = { query: '', list: [], at: -1, running: false, prev: null, best: null, showing: null, rejected: false };
 
 const trialBar = () => document.getElementById('trialBar');
 function trialShow(state, info){
@@ -5926,7 +5962,9 @@ function trialShow(state, info){
   } else if (state === 'trial') {
     set('tbTitle', info.title);
     set('tbMeta', info.pages + ' pages · ' + info.elements + ' elements');
-    set('tbFrom', 'from ' + info.host);
+    set('tbFrom', 'from ' + info.host
+      + (info.quality ? (info.quality.score >= CLEAN_ENOUGH ? ' · clean'
+        : ' · ' + info.quality.notes.join(', ')) : ''));
     set('tbCount', 'candidate ' + (TRIAL.at + 1) + ' of ' + TRIAL.list.length);
     btn('tbAccept', true); btn('tbAgain', true); btn('tbCancel', true);
   } else if (state === 'empty') {
@@ -5956,33 +5994,66 @@ async function trialDiscard(){
   S.trial = null;
 }
 
+// Walk the candidates, reading each one. A copy that scores clean is shown at once; a
+// poor one is remembered and the next is tried, and if none is clean the best of them is
+// what he sees — with what is wrong with it written on the bar. Trying again from there
+// steps past the best to whatever else was found.
+const CLEAN_ENOUGH = 88;
+
+async function presentTrial(entry){
+  TRIAL.showing = entry;
+  S.trial = { id: entry.id, prev: TRIAL.prev };
+  store.cache.set(entry.id, entry.doc);
+  await openDoc(entry.id);
+  trialShow('trial', {
+    title: entry.doc.title || TRIAL.query,
+    pages: S.res.count,
+    elements: entry.doc.elements.length,
+    host: entry.cand.host,
+    quality: entry.quality,
+  });
+}
+
 async function trialNext(){
   if (TRIAL.running) return;
   TRIAL.running = true;
   const form = document.getElementById('getForm');
   if (form) form.classList.add('busy');
   try {
+    let best = TRIAL.rejected ? null : TRIAL.best;   // "try again" steps past the best
     while (TRIAL.at + 1 < TRIAL.list.length) {
       TRIAL.at++;
       const c = TRIAL.list[TRIAL.at];
-      trialShow('empty', { title: 'Fetching from ' + c.host + '…', detail: c.url.slice(0, 90), canRetry: false });
+      trialShow('empty', { title: 'Reading a copy from ' + c.host + '…',
+        detail: 'candidate ' + (TRIAL.at + 1) + ' of ' + TRIAL.list.length, canRetry: false });
       try {
         const buf = await WEB.bytes(c.url);
-        await trialDiscard();                       // clear the previous trial first
+        await trialDiscard();
         const r = await importPdfBuffer(buf, TRIAL.query + '.pdf', { trial: true, quiet: true });
         if (!r) throw new Error('nothing readable came out of it');
-        trialShow('trial', { title: r.doc.title || TRIAL.query, pages: r.pages,
-                             elements: r.doc.elements.length, host: c.host });
-        return;
+        const q = scoreImport(r.doc);
+        const entry = { id: r.id, doc: r.doc, cand: c, quality: q };
+        // hold on to it: openDoc's own copy is discarded when the next one is read
+        S.trial = null;
+        if (q.score >= CLEAN_ENOUGH) { TRIAL.best = entry; TRIAL.rejected = false; await presentTrial(entry); return; }
+        if (!best || q.score > best.quality.score) best = entry;
+        trialShow('empty', {
+          title: 'That copy is rough — looking for a better one',
+          detail: c.host + ' · ' + q.notes.join(', '), canRetry: false });
+        await new Promise(r2 => setTimeout(r2, 350));
       } catch (e) {
-        // a dead link, a login wall, a scan with no text layer: move along
         trialShow('empty', { title: 'That one was no good', detail: c.host + ' — ' + (e.message || e), canRetry: false });
-        await new Promise(r2 => setTimeout(r2, 450));
+        await new Promise(r2 => setTimeout(r2, 350));
       }
     }
+    if (best) {                       // nothing clean: the best of what there was
+      TRIAL.best = best; TRIAL.rejected = false;
+      await presentTrial(best);
+      return;
+    }
     trialShow('empty', {
-      title: 'Nothing else for “' + TRIAL.query + '”',
-      detail: TRIAL.list.length ? 'tried ' + TRIAL.list.length + ' candidates' :
+      title: 'Nothing usable for “' + TRIAL.query + '”',
+      detail: TRIAL.list.length ? 'tried ' + TRIAL.list.length + ' copies' :
         (WEB.proxied() ? 'no results' : 'the browser build cannot reach most script archives — use PICA.app'),
       canRetry: false });
   } finally {
@@ -5996,6 +6067,8 @@ async function findScreenplay(query){
   if (!query) return;
   if (S.trial) await trialDiscard();
   TRIAL.query = query; TRIAL.list = []; TRIAL.at = -1;
+  TRIAL.best = null; TRIAL.showing = null; TRIAL.rejected = false;
+  TRIAL.prev = S.docId;
   trialShow('searching');
   const form = document.getElementById('getForm');
   if (form) form.classList.add('busy');
@@ -6023,7 +6096,8 @@ async function findScreenplay(query){
   on('tbAccept', async () => {
     const t = S.trial; if (!t) { trialHide(); return; }
     const doc = S.doc;
-    S.trial = null;                                  // the guard lifts, and it saves
+    S.trial = null;
+    store.trials.delete(t.id);                       // the guard lifts, and it saves
     store.gone.delete(t.id);                         // it was never rejected
     store.save(t.id, doc);
     rail();
@@ -6031,7 +6105,7 @@ async function findScreenplay(query){
     if (input) input.value = '';
     toast('saved · ' + (doc.title || 'UNTITLED') + ' · ' + S.res.count + ' pages');
   });
-  on('tbAgain', () => { trialNext(); });
+  on('tbAgain', () => { TRIAL.rejected = true; TRIAL.best = null; trialNext(); });
   on('tbCancel', async () => { trialHide(); await trialDiscard(); TRIAL.list = []; TRIAL.at = -1; });
 })();
 
