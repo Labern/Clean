@@ -217,3 +217,23 @@ window.__xProbe = async function (url, fromP, toP) {
     .map(([x, n]) => 'x=' + x + ' ×' + n + '  ' + JSON.stringify(sample[x]));
   return JSON.stringify({ pages: [a, b], distinctX: Object.keys(hist).length, top }, null, 1);
 };
+
+// Show the TITLE page (hidden by default), so it can be looked at.
+window.__titleShot = async function (url, name) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, name || 'x.pdf');
+  for (let i = 0; i < 900; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  if (!window.PICA_API.titleShown()) window.PICA_API.toggleTitlePage();
+  await sleep(500);
+  window.PICA_API.preparePrint();
+  await sleep(1200);
+  const pe = document.querySelectorAll('.pageWrap')[0];
+  if (!pe) return JSON.stringify({ error: 'no page' });
+  pe.scrollIntoView(); await sleep(350);
+  const b = pe.getBoundingClientRect();
+  return JSON.stringify({ clip: { x: b.left + scrollX, y: b.top + scrollY, width: b.width, height: b.height } });
+};

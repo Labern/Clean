@@ -82,3 +82,20 @@ window.__aroundProbe = async function (url, name, idxs) {
   }
   return JSON.stringify(out, null, 1);
 };
+
+// Every scene heading, to eyeball spacing.
+window.__scenesProbe = async function (url, name) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, name);
+  for (let i = 0; i < 1200; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  const sc = window.__pica.doc.elements.filter(e => e.type === 'scene');
+  return JSON.stringify({
+    count: sc.length,
+    doubleSpaced: sc.filter(e => /\s{2,}/.test(e.text)).length,
+    sample: sc.slice(0, 8).map(e => JSON.stringify(e.text)),
+  }, null, 1);
+};

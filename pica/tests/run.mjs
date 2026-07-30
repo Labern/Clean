@@ -451,6 +451,21 @@ if (fs.existsSync(whipPath)) {
   check('some: signage is not mistaken for a cue', typeOf('OMITTED') !== 'character', typeOf('OMITTED'));
   check('some: nothing is left unclassified',
     d.elements.filter(e => e.type === 'general').length === 0);
+  // a slug arrives from a typewriter with two spaces after the stop; FD sets one
+  check('some: slugs are single-spaced',
+    d.elements.filter(e => e.type === 'scene').every(e => !/\s{2,}/.test(e.text)),
+    JSON.stringify(d.elements.filter(e => e.type === 'scene').map(e => e.text)));
+  // a two-column title line becomes two entries, and the right-hand one must END inside
+  // the right margin rather than run off the sheet ("November 12, 195")
+  const tpE = d.titlePage || [];
+  const right = tpE.find(t2 => /November/.test(t2.text));
+  check('some: the two-column title line is split in two',
+    !!right && tpE.some(t2 => /A TITLE IN QUOTES/.test(t2.text)));
+  check('some: the right-hand title column ends inside the margin',
+    !!right && right.x + right.text.length * 7.2 <= 612 - 72 + 0.5,
+    right ? (right.x + right.text.length * 7.2).toFixed(1) : 'missing');
+  check('some: blank lines inside the title block survive',
+    new Set(tpE.map(t2 => t2.row)).size >= 4);
 
   // (e) dual dialogue must survive CONFORMING: its two columns ARE its xOverride, and
   //     dropping them stacks both speeches on one x so they print through each other.
