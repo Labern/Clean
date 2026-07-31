@@ -568,7 +568,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
                 let op = self.web.printOperation(with: info)
                 op.showsPrintPanel = true
                 op.showsProgressPanel = true
-                op.view?.frame = NSRect(x: 0, y: 0, width: w, height: h)
+                // The page box the web app lays out is CSS PIXELS (96 to the inch); the sheet
+                // is points (72 to the inch). Sizing the view in points gave it three
+                // quarters of the width it had to hold, so the script printed squashed into
+                // the left of the sheet. .fit then scales the full box onto the paper.
+                let cssScale = 96.0 / 72.0
+                op.view?.frame = NSRect(x: 0, y: 0, width: w * cssScale, height: h * cssScale)
                 op.runModal(for: self.window, delegate: self,
                             didRun: #selector(self.printDidRun(_:success:info:)), contextInfo: nil)
             }

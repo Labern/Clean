@@ -53,7 +53,10 @@ window.__humanSession = async function () {
   async function wordBack(n) {
     for (let i = 0; i < (n || 1); i++) { kd('Backspace', { altKey: true }); bi('deleteWordBackward'); await sleep(0); }
   }
-  async function enter() { kd('Enter'); await sleep(0); await raf(); }
+  // Enter reaches the editor as beforeinput/insertParagraph, not as a keydown — the
+  // keydown handler only sees Enter when a menu is open. Sending the key alone does
+  // nothing at all, which made an earlier run of this look like the app was eating input.
+  async function enter() { kd('Enter'); bi('insertParagraph'); await sleep(0); await raf(); }
   async function tab(shift) { kd('Tab', { shiftKey: !!shift }); await sleep(0); await raf(); }
   async function cmd(letter) { kd(letter, { metaKey: true }); await sleep(0); }
 
