@@ -626,5 +626,75 @@ if (fs.existsSync(whipPath)) {
     (t2.transition || 0) === 6 && (t2.character || 0) === 6, JSON.stringify(t2));
 }
 
+// -- 19. a numbered list is structure, not a paragraph that happened to wrap. Kill Bill
+//        opens on its table of contents, and flowing it turned the chapters into prose.
+{
+  const rowH = 12, y0 = 76.5, charW = 7.2;
+  const line = (x, row, str) => ({ x, y: y0 + row * rowH, w: str.length * charW, str });
+  const pages = [];
+  for (let p = 0; p < 4; p++) {
+    const items = []; let r = 0;
+    items.push(line(108, r++, 'INT. ROOM ' + p + ' - DAY'));
+    r++;
+    items.push(line(108, r++, '1. The Bride'));
+    items.push(line(108, r++, '2. The Comatose Bride'));
+    items.push(line(108, r++, '3. The Man From Okinawa'));
+    r++;
+    items.push(line(108, r++, 'She waits by the window for a very long time indeed.'));
+    r++;
+    items.push(line(252, r++, 'SAM'));
+    items.push(line(180, r++, 'Nothing at all today?'));
+    pages.push({ width: 612, height: 792, items });
+  }
+  const d = E.toFinalDraft(E.importPdf(pages));
+  const list = d.elements.find(e => /The Comatose Bride/.test(e.text));
+  check('list: a numbered list keeps its line breaks', !!list && list.text.split('\n').length >= 3,
+    list ? JSON.stringify(list.text) : 'not found');
+  check('list: ordinary prose still flows',
+    d.elements.some(e => /waits by the window/.test(e.text) && !e.text.includes('\n')));
+}
+
+// -- 20. Reformat: repair a copy that is nearly right, from its own shape alone, and never
+//        make one worse.
+{
+  const src2 = /function reformatDoc\(doc\)\{[\s\S]*?\n\}/.exec(html);
+  const reformatDoc = src2 ? new Function('E', src2[0] + '; return reformatDoc;')(E) : null;
+  check('reformat: the repair pass is present', !!reformatDoc);
+  if (reformatDoc) {
+    const good = E.toFinalDraft(E.importPdf(raw));
+    const tally = d => { const t = {}; for (const e of d.elements) t[e.type] = (t[e.type] || 0) + 1; return t; };
+    const wanted = tally(good);
+
+    // rough it up the way a poor copy arrives
+    const rough = JSON.parse(JSON.stringify(good));
+    let broke = 0;
+    for (let i = 1; i < rough.elements.length; i++) {
+      const e = rough.elements[i], p = rough.elements[i - 1];
+      if (e.type === 'dialogue' && p.type === 'character' && broke < 200) { e.type = 'action'; broke++; }
+      else if (e.type === 'paren' && broke < 260) { e.type = 'action'; broke++; }
+      else if (e.type === 'scene' && broke < 300) { e.type = 'general'; broke++; }
+    }
+    check('reformat: something was actually broken', broke > 100, String(broke));
+    const fixed = reformatDoc(rough);
+    const got = tally(fixed);
+    check('reformat: speech under a cue is speech again',
+      Math.abs((got.dialogue || 0) - (wanted.dialogue || 0)) <= 5,
+      (got.dialogue || 0) + ' vs ' + (wanted.dialogue || 0));
+    check('reformat: sluglines are sluglines again',
+      Math.abs((got.scene || 0) - (wanted.scene || 0)) <= 2, (got.scene || 0) + ' vs ' + (wanted.scene || 0));
+    check('reformat: nothing is left unclassified', !got.general, String(got.general || 0));
+    check('reformat: no element is lost', fixed.elements.length === good.elements.length);
+    // and it is safe to run twice
+    const twice = tally(reformatDoc(JSON.parse(JSON.stringify(fixed))));
+    check('reformat: running it again changes nothing', JSON.stringify(twice) === JSON.stringify(got));
+    // running it on a good copy must not damage it
+    const onGood = tally(reformatDoc(JSON.parse(JSON.stringify(good))));
+    check('reformat: a good copy is left alone',
+      Math.abs((onGood.dialogue || 0) - (wanted.dialogue || 0)) <= 5
+      && Math.abs((onGood.scene || 0) - (wanted.scene || 0)) <= 2,
+      JSON.stringify(onGood));
+  }
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);

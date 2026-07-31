@@ -440,3 +440,23 @@ window.__printProbe = async function (url) {
     atRule: style ? style.textContent : null,
   }, null, 1);
 };
+
+// Is the page rotated, and does the viewport transform change where the text is?
+window.__rotProbe = async function (url, pageNo) {
+  const mod = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs');
+  mod.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+  const pdf = await mod.getDocument({ url }).promise;
+  const page = await pdf.getPage(pageNo || 20);
+  const vp = page.getViewport({ scale: 1 });
+  const tc = await page.getTextContent();
+  const items = tc.items.filter(i => i.str && i.str.trim()).slice(0, 6);
+  const applied = items.map(i => {
+    const m = mod.Util ? mod.Util.transform(vp.transform, i.transform) : null;
+    return { str: i.str.slice(0, 20), rawX: +i.transform[4].toFixed(1), rawY: +i.transform[5].toFixed(1),
+             vpX: m ? +m[4].toFixed(1) : null, vpY: m ? +m[5].toFixed(1) : null };
+  });
+  return JSON.stringify({
+    rotate: page.rotate, viewport: [vp.width, vp.height], vpTransform: vp.transform,
+    mediaBox: page.view, items: applied,
+  }, null, 1);
+};
