@@ -108,6 +108,16 @@ try {
         console.log('wrote ' + process.env.SHOT);
       }
     } catch {}
+    // PRINT=<path> prints the page with its own print stylesheet, which is the only way
+    // to see what actually comes out of the printer.
+    if (process.env.PRINT) {
+      const pdf = await send('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
+        marginTop: 0, marginBottom: 0, marginLeft: 0, marginRight: 0 });
+      if (pdf.result?.data) {
+        fs.writeFileSync(process.env.PRINT, Buffer.from(pdf.result.data, 'base64'));
+        console.log('printed ' + process.env.PRINT);
+      } else console.log('printToPDF failed: ' + JSON.stringify(pdf).slice(0, 200));
+    }
     code = 0;
   }
   ws.close();

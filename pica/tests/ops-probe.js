@@ -414,3 +414,29 @@ window.__scaleProbe = async function (url, from, to) {
   }
   return JSON.stringify(out, null, 1);
 };
+
+// At print scale, is one layout point one printed point?
+window.__printProbe = async function (url) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, 'x.pdf');
+  for (let i = 0; i < 900; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  const L = window.__pica.doc.layout;
+  window.PICA_API.preparePrint();
+  await sleep(600);
+  const w = document.querySelector('#pages .pageWrap');
+  const r = w.getBoundingClientRect();
+  const style = document.getElementById('printPage');
+  // a point is 96/72 CSS pixels
+  const wantPx = L.pageW * 96 / 72, hantPx = L.pageH * 96 / 72;
+  return JSON.stringify({
+    atPageSize: [L.pageW, L.pageH], k: window.__pica.k,
+    wrapPx: [Math.round(r.width), Math.round(r.height)],
+    wantPx: [Math.round(wantPx), Math.round(hantPx)],
+    exact: Math.abs(r.width - wantPx) < 1 && Math.abs(r.height - hantPx) < 1,
+    atRule: style ? style.textContent : null,
+  }, null, 1);
+};

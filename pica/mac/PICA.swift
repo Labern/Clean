@@ -472,7 +472,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
                     let op = self.web.printOperation(with: info)
                     op.showsPrintPanel = false
                     op.showsProgressPanel = true
-                    op.view?.frame = NSRect(x: 0, y: 0, width: w, height: h)
+                    // The page box the web app lays out is CSS PIXELS (96 to the inch);
+                    // the sheet is points (72 to the inch). The view has to be big enough to
+                    // hold the whole box, and .fit then scales it onto the paper — sizing
+                    // the view in points clipped it to three quarters of its width.
+                    let cssScale = 96.0 / 72.0
+                    op.view?.frame = NSRect(x: 0, y: 0, width: w * cssScale, height: h * cssScale)
                     op.runModal(for: self.window, delegate: self,
                                 didRun: #selector(self.pdfDidExport(_:success:info:)), contextInfo: nil)
                 }
