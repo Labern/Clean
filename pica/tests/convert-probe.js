@@ -188,3 +188,16 @@ window.__clusterProbe = async function (url, cx) {
     proseShare: near.length ? +(prose.length / near.length).toFixed(2) : null,
     sample: near.slice(0, 10).map(l => l.t.slice(0, 56)) }, null, 1);
 };
+window.__junkProbe = async function (url) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, 'x.pdf');
+  for (let i = 0; i < 1200; i++) { const d = window.__pica && window.__pica.doc; if (d && d.elements.length > 1) break; await sleep(50); }
+  const els = window.__pica.doc.elements;
+  const isJunk = t => /^\(?\s*\d{0,3}\s*(CONTINUED|CONT'D|CONT’D)\s*[:.]?\s*(\(\d+\))?\s*\)?$/i.test(t)
+    || /\b(revisions?|draft)\b/i.test(t) || /^\d{1,3}\.?$/.test(t);
+  const junk = els.filter(e => isJunk(e.text.trim()));
+  const byType = {};
+  for (const e of junk) byType[e.type] = (byType[e.type] || 0) + 1;
+  return JSON.stringify({ total: els.length, junk: junk.length, byType,
+    sample: junk.slice(0, 12).map(e => e.type + ' :: ' + JSON.stringify(e.text.slice(0, 44))) }, null, 1);
+};

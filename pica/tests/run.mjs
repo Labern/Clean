@@ -730,5 +730,39 @@ if (fs.existsSync(whipPath)) {
   check('margin: the parentheticals are still parentheticals', (t.paren || 0) === 12, String(t.paren || 0));
 }
 
+// -- 22. CONTINUEDs, revision stamps and page numbers are printing apparatus, not writing —
+//        wherever on the page they land. Memento carried 183 of them into the script as
+//        scene headings, transitions and action.
+{
+  const rowH = 12, y0 = 76.5, charW = 7.2;
+  const line = (x, row, str) => ({ x, y: y0 + row * rowH, w: str.length * charW, str });
+  const pages = [];
+  for (let p = 0; p < 10; p++) {
+    const items = []; let r = 0;
+    items.push(line(110, r++, 'INT. MOTEL ROOM - DAY'));
+    items.push(line(72,  r++, (p + 1) + '    CONTINUED:'));         // numbered, mid-page
+    items.push(line(72,  r++, (p + 1) + ' CONTINUED: (2)'));        // and counted
+    items.push(line(72,  r++, 'MEMENTO Pink Revisions - 9/7/99'));  // a revision stamp
+    items.push(line(520, r++, String(40 + p) + '.'));               // a page number
+    r++;
+    items.push(line(110, r++, 'He turns the photograph over in his hands.'));
+    r++;
+    items.push(line(260, r++, 'LEONARD'));
+    items.push(line(185, r++, 'I have to remember this.'));
+    pages.push({ width: 612, height: 792, items });
+  }
+  const d = E.importPdf(pages);
+  const has = re => d.elements.filter(e => re.test(e.text)).length;
+  check('apparatus: no CONTINUED reaches the script', has(/CONTINUED/i) === 0, String(has(/CONTINUED/i)));
+  check('apparatus: no revision stamp reaches the script', has(/Revisions/i) === 0, String(has(/Revisions/i)));
+  check('apparatus: no bare page number reaches the script',
+    d.elements.filter(e => /^\d{1,3}\.?$/.test(e.text.trim())).length === 0);
+  check('apparatus: the writing itself is all there',
+    has(/turns the photograph/) === 10 && has(/remember this/) === 10 && has(/MOTEL ROOM/) === 10);
+  // and (MORE) is NOT apparatus — it is how a split speech is recognised
+  check('apparatus: (MORE) survives, because pagination needs it',
+    E.paginate(E.importPdf(raw)).pages.flatMap(p2 => p2.lines).filter(l => l.kind === 'more').length === 6);
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);
