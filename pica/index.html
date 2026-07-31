@@ -1208,7 +1208,26 @@ const PicaEngine = (() => {
     // as speech for exactly this reason. Only lines with words in them vote.
     const votes = allLines.filter(l => {
       const t = l.text.trim();
-      return t.length > 4 && /[A-Za-z]{2}/.test(t) && !FURNITURE_NUM.test(t) && !SCENE_NO.test(t);
+      if (t.length <= 4 || !/[A-Za-z]{2}/.test(t)) return false;
+      if (FURNITURE_NUM.test(t) || SCENE_NO.test(t)) return false;
+      // A slugline that opens with its scene number is anchored in the GUTTER, not on a
+      // column — Memento has 216 of them, enough to win a column slot and read every real
+      // column one across: its action came back as dialogue and its dialogue as
+      // parentheticals. It still belongs in the script; it just does not get a vote on
+      // where the columns are. (A vote filter only: nothing about the line is changed,
+      // so dual dialogue, which reads the items directly, is untouched.)
+      if (INLINE_NO.test(t)) return false;
+      // and page furniture — running heads, revision stamps — which this document already
+      // knows how to spot. Memento prints "MEMENTO Pink Revisions - 9/7/99" at the gutter
+      // on every page, and 179 of those were enough to make the gutter a column.
+      if (furniture.has(l)) return false;
+      // A revision stamp is a printing apparatus, not writing. Memento prints "MEMENTO
+      // Pink Revisions - 9/7/99" at the gutter on every page — 546 lines, more than its
+      // parenthetical column has — and the band-based furniture test misses it because
+      // both the wording and the height wander.
+      if (/\b(revisions?|draft|rev\.)\b/i.test(t) || /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(t)) return false;
+      if (l.items && l.items.length > 1 && SCENE_NO.test((l.items[0].str || '').trim())) return false;
+      return true;
     });
     for (const l of (votes.length > 40 ? votes : allLines)) {
       const k = Math.round(l.x);
@@ -1228,8 +1247,23 @@ const PicaEngine = (() => {
         if (n > c.peakN) { c.peakN = n; c.x = x; }
       } else clusters.push({ x, last: x, n, peakN: n });
     }
-    const top = clusters.filter(b => b.n >= allLines.length * 0.01).sort((a, b) => b.n - a.n).slice(0, 4)
-      .sort((a, b) => a.x - b.x);
+    const ranked = clusters.filter(b => b.n >= allLines.length * 0.01).sort((a, b) => b.n - a.n);
+    let top = ranked.slice(0, 4).sort((a, b) => a.x - b.x);
+    // A MARGIN IS NOT A COLUMN. Memento's scene numbers and CONTINUEDs sit at x=72 — 546
+    // lines, more than its parenthetical column has — so they won a slot, and being
+    // leftmost they took the ACTION column's place and every other column was read one
+    // across: action came back as dialogue, dialogue as parentheticals. The tell is that
+    // the leftmost of the four is far to the left of the next and carries a fraction of
+    // its lines; real action is the busiest column on the page, not a thin margin.
+    // …and the test is what the cluster CONTAINS. A margin holds scene numbers, CONTINUEDs
+    // and page numbers; an action column holds prose. Judging by line count alone throws
+    // away a real column on a script whose action happens to be sparse.
+    if (top.length === 4 && top[0].n < top[1].n * 0.35 && top[1].x - top[0].x >= 25
+        && top[0].n < top[2].n * 0.5) {
+      const spare = ranked.find(b => !top.includes(b));
+      if (spare) top = top.slice(1).concat([spare]).sort((a, b) => a.x - b.x);
+      else top = top.slice(1);
+    }
     // Not every script separates speech into three columns. Some Like It Hot (1958) sets
     // the cue, the parenthetical AND the dialogue all flush at 1.78" — the only indent on
     // the page besides action. Measured across 30 pages: 1051 lines at x=128 against 390 at

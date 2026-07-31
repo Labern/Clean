@@ -170,3 +170,21 @@ window.__unplacedProbe = async function (url) {
     cues: u.filter(r => /^[A-Z][A-Z' .]{2,20}$/.test(r.t)).slice(0, 8),
   }, null, 1);
 };
+window.__colsProbe = async function (url) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, 'x.pdf');
+  for (let i = 0; i < 1200; i++) { const d = window.__pica && window.__pica.doc; if (d && d.elements.length > 1) break; await sleep(50); }
+  return JSON.stringify(window.__cols || {}, null, 1);
+};
+window.__clusterProbe = async function (url, cx) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  window.__lineDump = [];
+  await window.PICA_API.importUrl(url, 'x.pdf');
+  for (let i = 0; i < 1200; i++) { const d = window.__pica && window.__pica.doc; if (d && d.elements.length > 1) break; await sleep(50); }
+  const d = window.__lineDump || [];
+  const near = d.filter(l => Math.abs(l.x - cx) <= 3);
+  const prose = near.filter(l => l.t.length > 12 && /[a-z]{3}/.test(l.t));
+  return JSON.stringify({ cols: window.__cols && window.__cols.cols, atX: near.length,
+    proseShare: near.length ? +(prose.length / near.length).toFixed(2) : null,
+    sample: near.slice(0, 10).map(l => l.t.slice(0, 56)) }, null, 1);
+};

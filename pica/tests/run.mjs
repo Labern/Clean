@@ -696,5 +696,39 @@ if (fs.existsSync(whipPath)) {
   }
 }
 
+// -- 21. a MARGIN is not a column. Memento prints its scene numbers, CONTINUEDs and a
+//        revision stamp at x=72 — more lines than its parenthetical column has — so the
+//        gutter won a column slot, and being leftmost it took ACTION's place: every column
+//        was read one across and the whole script's action came back as dialogue.
+{
+  const rowH = 12, y0 = 76.5, charW = 7.2;
+  const line = (x, row, str) => ({ x, y: y0 + row * rowH, w: str.length * charW, str });
+  const pages = [];
+  for (let p = 0; p < 12; p++) {
+    const items = []; let r = 0;
+    // a gutter: scene number and a revision stamp, well left of the action margin
+    items.push(line(72, r, String(p + 1)));
+    items.push(line(110, r++, 'INT. DERELICT HOUSE - DAY'));
+    items.push(line(72, r++, 'MEMENTO Pink Revisions - 9/7/99'));
+    r++;
+    items.push(line(110, r++, 'A polaroid photograph, clasped between finger and thumb.'));
+    items.push(line(110, r++, 'The image in the photo starts to fade as we super titles.'));
+    r++;
+    items.push(line(260, r++, 'LEONARD'));
+    items.push(line(215, r++, '(quietly)'));
+    items.push(line(185, r++, 'I have to remember this one thing.'));
+    r++;
+    items.push(line(72, r++, 'CONTINUED:'));
+    pages.push({ width: 612, height: 792, items });
+  }
+  const d = E.importPdf(pages);
+  const t = {};
+  for (const e of d.elements) t[e.type] = (t[e.type] || 0) + 1;
+  check('margin: action is action, not dialogue', (t.action || 0) >= 12, JSON.stringify(t));
+  check('margin: dialogue is dialogue, not a parenthetical', (t.dialogue || 0) >= 12, String(t.dialogue || 0));
+  check('margin: the cues are still cues', (t.character || 0) === 12, String(t.character || 0));
+  check('margin: the parentheticals are still parentheticals', (t.paren || 0) === 12, String(t.paren || 0));
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);
