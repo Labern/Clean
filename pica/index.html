@@ -6081,6 +6081,7 @@ async function presentTrial(entry){
     host: entry.cand.host,
     quality: entry.quality,
   });
+  focusScript();
 }
 
 async function trialNext(){
@@ -6161,7 +6162,25 @@ async function findScreenplay(query){
   const form = document.getElementById('getForm');
   const input = document.getElementById('getIn');
   if (form) form.addEventListener('submit', ev => { ev.preventDefault(); input.blur(); findScreenplay(input.value); });
-  const on = (id, fn) => { const n = document.getElementById(id); if (n) n.addEventListener('click', fn); };
+  // Put the caret back where he writes. Clicking a control must never leave the next
+  // thing he types with nowhere to go.
+  const focusScript = () => {
+    const p2 = document.getElementById('pages');
+    if (p2) { try { p2.focus(); } catch {} }
+    try { restoreCaret(); } catch {}
+  };
+  // Every other control in this app acts on MOUSEDOWN and preventDefaults, which is why
+  // the caret never leaves the page when you press one. These were on 'click', so after
+  // Accept the focus sat on the button and everything typed afterwards went nowhere —
+  // the app "eating inputs". The click path stays for synthetic events in the tests.
+  const on = (id, fn) => {
+    const n = document.getElementById(id);
+    if (!n) return;
+    let acted = 0;
+    const run = () => { acted = Date.now(); fn(); };
+    n.addEventListener('mousedown', ev => { ev.preventDefault(); run(); });
+    n.addEventListener('click', () => { if (Date.now() - acted > 400) run(); });
+  };
   on('tbAccept', async () => {
     const t = S.trial; if (!t) { trialHide(); return; }
     const doc = S.doc;
@@ -6172,10 +6191,11 @@ async function findScreenplay(query){
     rail();
     trialHide();
     if (input) input.value = '';
+    focusScript();
     toast('saved · ' + (doc.title || 'UNTITLED') + ' · ' + S.res.count + ' pages');
   });
   on('tbAgain', () => { TRIAL.rejected = true; TRIAL.best = null; trialNext(); });
-  on('tbCancel', async () => { trialHide(); await trialDiscard(); TRIAL.list = []; TRIAL.at = -1; });
+  on('tbCancel', async () => { trialHide(); await trialDiscard(); TRIAL.list = []; TRIAL.at = -1; focusScript(); });
 })();
 
 window.PICA_API = {
