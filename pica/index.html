@@ -4979,7 +4979,11 @@ function printPageCSS(){
 }
 function printAll(){
   const zoomWas = S.zoom;
-  S.zoom = 0.75; // k = 1 → true pt size
+  // The layout is in POINTS and the sheet is declared in points (@page 612pt x 792pt), but
+  // the page box is written in CSS PIXELS: pageW * k. True size therefore needs k = 96/72
+  // = 4/3, which is zoom 1 — not zoom 0.75, which gives k = 1 and a box 612 PIXELS wide on
+  // a 612 POINT sheet. That is 75% of the width, anchored left: the lopsided print.
+  S.zoom = 1;                    // k = 4/3 → 1 layout point = 1 printed point
   computeK();
   for (let i = 0; i < S.pageEls.length; i++) { S.pageEls[i].sig = null; renderPage(i); }
   requestAnimationFrame(() => { window.print(); S.zoom = zoomWas; rerenderAll(); });
@@ -6294,7 +6298,7 @@ window.PICA_API = {
   zoomFit(){ S.zoom = null; rerenderAll(); },
   // print at true page size, and report the paper the script actually uses
   preparePrint(){
-    S.printZoom = S.zoom; S.zoom = 0.75; computeK();
+    S.printZoom = S.zoom; S.zoom = 1; computeK();   // k = 4/3 → true point size
     for (let i = 0; i < S.pageEls.length; i++) { S.pageEls[i].sig = null; renderPage(i); }
     return { w: S.doc.layout.pageW, h: S.doc.layout.pageH };
   },
