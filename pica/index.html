@@ -540,6 +540,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
         <span class="tb-what"><b id="tbTitle">—</b><span id="tbMeta"></span></span>
         <span class="grow"></span>
         <button class="tb-btn tb-yes" id="tbAccept">Accept</button>
+        <button class="tb-btn" id="tbFix" title="Read it again and repair what is nearly right">Reformat</button>
         <button class="tb-btn" id="tbAgain">Try again</button>
         <button class="tb-btn tb-quiet" id="tbCancel">Cancel</button>
       </div>
@@ -2287,7 +2288,11 @@ const PicaEngine = (() => {
       for (let i = 1; i < lines.length; i++) {
         const prev = lines[i - 1];
         const heading = foldedHeading && CAPS(prev) && prev.length < (srcW || 60) * 0.8;
-        const keep = lines[i] === '' || prev === '' || heading;
+        // A numbered list is structure, not a paragraph that happened to wrap: Kill Bill
+        // opens on its table of contents, and flowing it turned the chapter titles into
+        // one run of prose. A line that STARTS a numbered item keeps the break above it.
+        const listItem = /^\s*\d{1,3}[.)]\s/.test(lines[i]);
+        const keep = lines[i] === '' || prev === '' || heading || listItem;
         out += (keep ? '\n' : ' ') + lines[i];
       }
       el.text = out;
@@ -4739,6 +4744,12 @@ async function importPdfBuffer(buf, name, opts){
     let badPages = 0;
     // font style by name (Bold/Italic faces), cached per font id
     const styleCache = new Map();
+    // pdf.js exposes Util.transform; multiply by hand if this build does not.
+    const xform = (a, b) => (mod.Util && mod.Util.transform) ? mod.Util.transform(a, b) : [
+      a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1],
+      a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3],
+      a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5],
+    ];
     const styleOf = (page, fn) => {
       if (styleCache.has(fn)) return styleCache.get(fn);
       let v = 0;
@@ -4814,12 +4825,12 @@ async function importPdfBuffer(buf, name, opts){
     const INK = new Set([OPS.fill, OPS.eoFill, OPS.stroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeStroke, OPS.closeFillStroke, OPS.closeEOFillStroke].filter(x => x != null));
     const underlinesFrom = (ol, vp) => {
       const out = [];
-      let ctm = [1, 0, 0, 1, 0, 0]; const stack = [];
+      let ctm = vp.transform.slice(); const stack = [];   // page space, rotation and all
       const mul = (m, n) => [m[0]*n[0]+m[2]*n[1], m[1]*n[0]+m[3]*n[1], m[0]*n[2]+m[2]*n[3], m[1]*n[2]+m[3]*n[3], m[0]*n[4]+m[2]*n[5]+m[4], m[1]*n[4]+m[3]*n[5]+m[5]];
       for (let i = 0; i < ol.fnArray.length; i++) {
         const fn = ol.fnArray[i];
         if (fn === OPS.save) stack.push(ctm.slice());
-        else if (fn === OPS.restore) ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+        else if (fn === OPS.restore) ctm = stack.pop() || vp.transform.slice();
         else if (fn === OPS.transform) ctm = mul(ctm, ol.argsArray[i]);
         else if (fn === OPS.constructPath && INK.has(ol.fnArray[i + 1])) {
           const [ops, co] = ol.argsArray[i];
@@ -4828,7 +4839,7 @@ async function importPdfBuffer(buf, name, opts){
             const tx1 = ctm[0]*x1 + ctm[2]*y1 + ctm[4], ty1 = ctm[1]*x1 + ctm[3]*y1 + ctm[5];
             const tx2 = ctm[0]*x2 + ctm[2]*y2 + ctm[4], ty2 = ctm[1]*x2 + ctm[3]*y2 + ctm[5];
             if (Math.abs(ty2 - ty1) < 2.6 && Math.abs(tx2 - tx1) > 4 && Math.abs(tx2 - tx1) < vp.width * 0.85)
-              out.push({ x1: Math.min(tx1, tx2), x2: Math.max(tx1, tx2), y: vp.height - Math.max(ty1, ty2) });
+              out.push({ x1: Math.min(tx1, tx2), x2: Math.max(tx1, tx2), y: Math.min(ty1, ty2) });
           };
           for (const op of ops) {
             if (op === OPS.moveTo) { cur = [co[ci], co[ci + 1]]; ci += 2; }
@@ -4858,10 +4869,17 @@ async function importPdfBuffer(buf, name, opts){
         const tc = await page.getTextContent();
         raw.push({
           width: vp.width, height: vp.height, ul,
-          items: tc.items.filter(i => i.str && i.str.length).map(i => ({
-            x: i.transform[4], y: vp.height - i.transform[5], w: i.width, str: i.str, font: i.fontName,
-            fs: styleOf(page, i.fontName),
-          })),
+          // Text arrives in the PDF's own space. Putting it through the VIEWPORT transform
+          // is what turns it into where the ink is on the page — it carries the page's
+          // rotation and any mediaBox offset. Reading transform[4]/[5] raw is only right
+          // for an unrotated page: LA Confidential and Lost in Translation are both
+          // scanned at /Rotate 180, so their x came out mirrored (a slugline at 76pt read
+          // as 536pt) and their y upside down. Nothing classified.
+          items: tc.items.filter(i => i.str && i.str.length).map(i => {
+            const m = xform(vp.transform, i.transform);
+            return { x: m[4], y: m[5], w: i.width, str: i.str, font: i.fontName,
+                     fs: styleOf(page, i.fontName) };
+          }),
         });
       } catch (pageErr) {
         badPages++;
@@ -6014,6 +6032,45 @@ function scoreImport(doc){
   return { score: Math.max(0, score), notes, unread, cues, dlg, scenes };
 }
 
+// ---------- reformat ----------
+// A copy can be nearly right: the words are all there and the shape is mostly correct, but
+// a run of speech came back as action, a slug lost its type, a bracket is sitting in the
+// wrong element. Reformat reads the script again and repairs what its own shape gives away
+// — the same judgements the importer makes, but from the text alone, since the positions on
+// the original page are long gone by then.
+function reformatDoc(doc){
+  E.toFinalDraft(doc);                       // geometry, spacing, reflow, base faces
+  const els = doc.elements;
+  const CAPS = t => t === t.toUpperCase() && /[A-Z]/.test(t);
+  const txt = e => e.text.trim();
+
+  for (const e of els) {
+    const t = txt(e);
+    if (!t) continue;
+    // a shouted line ending in a colon is a transition, wherever it ended up
+    if (t.length <= 34 && CAPS(t) && /[:;~]$/.test(t) && !E.SCENE_RE.test(t)) { e.type = 'transition'; continue; }
+    // a slugline is a slugline
+    if (E.SCENE_RE.test(t) && !t.includes('\n')) { e.type = 'scene'; continue; }
+    // wholly bracketed is a parenthetical
+    if (t !== '(MORE)' && /^\(.*\)$/.test(t) && t.length <= 60) { e.type = 'paren'; continue; }
+  }
+  // a short shout that introduces speech is the name of whoever says it
+  for (let i = 0; i < els.length - 1; i++) {
+    const e = els[i], n = els[i + 1], t = txt(e);
+    if (e.type !== 'action' && e.type !== 'general') continue;
+    if ((n.type === 'dialogue' || n.type === 'paren')
+        && t.length <= 35 && !t.includes('\n') && CAPS(t) && !/[.!?]$/.test(t)) e.type = 'character';
+  }
+  // and what follows a cue is what was said
+  for (let i = 1; i < els.length; i++) {
+    const prev = els[i - 1].type;
+    if (els[i].type === 'action' && (prev === 'character' || prev === 'paren')) els[i].type = 'dialogue';
+  }
+  // nothing is left unclassified: 'general' is not an element of a screenplay
+  for (const e of els) if (e.type === 'general') e.type = 'action';
+  return doc;
+}
+
 /* ---------- the trial ---------- */
 const TRIAL = { query: '', list: [], at: -1, running: false, prev: null, best: null, showing: null, rejected: false };
 
@@ -6193,6 +6250,22 @@ async function findScreenplay(query){
     if (input) input.value = '';
     focusScript();
     toast('saved · ' + (doc.title || 'UNTITLED') + ' · ' + S.res.count + ' pages');
+  });
+  on('tbFix', async () => {
+    if (!S.doc) return;
+    const was = scoreImport(S.doc);
+    reformatDoc(S.doc);
+    repaginate(); buildPages(); renderAllVisible(); status();
+    const now = scoreImport(S.doc);
+    const showing = TRIAL.showing;
+    if (showing) {
+      showing.quality = now;
+      trialShow('trial', { title: S.doc.title || TRIAL.query, pages: S.res.count,
+        elements: S.doc.elements.length, host: showing.cand.host, quality: now });
+    }
+    focusScript();
+    toast(now.score > was.score ? 'reformatted · ' + was.score + ' → ' + now.score
+      : 'reformatted · already as good as it reads');
   });
   on('tbAgain', () => { TRIAL.rejected = true; TRIAL.best = null; trialNext(); });
   on('tbCancel', async () => { trialHide(); await trialDiscard(); TRIAL.list = []; TRIAL.at = -1; focusScript(); });
