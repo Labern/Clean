@@ -1130,7 +1130,11 @@ const PicaEngine = (() => {
     // all share: the same line sits at the same height on page after page, and it is
     // numeric (or a known marker). Anything genuinely written never repeats like that.
     const FURNITURE_NUM = /^[A-Za-z]?\d+[A-Za-z]?[.:]?$/;
-    const FURNITURE_WORD = /^\(?\s*(CONTINUED|CONT'D|MORE)\s*\)?[.:]?$/i;
+    // "CONTINUED:" arrives with the scene number in front of it and a count after it —
+    // Memento prints "4    CONTINUED: (2)" — and none of that is writing.
+    const FURNITURE_WORD = /^\(?\s*(?:[A-Z]{0,2}\d{1,3}[A-Z]{0,2}[.)]?\s+)?(CONTINUED|CONT'D|CONT’D|MORE)\s*\)?\s*[.:]?\s*(\(\s*\d+\s*\))?\s*$/i;
+    // the same, without MORE: a CONTINUED is apparatus wherever it sits, a (MORE) is not
+    const FURNITURE_CONT = /^\(?\s*(?:[A-Z]{0,2}\d{1,3}[A-Z]{0,2}[.)]?\s+)?(CONTINUED|CONT'D|CONT’D)\s*\)?\s*[.:]?\s*(\(\s*\d+\s*\))?\s*$/i;
     // revision headers: "10/11/03 MM revs. (goldenrod)  5." — a date or the word revs,
     // usually trailing the page number. Printing apparatus, never writing.
     const FURNITURE_HEADER = /\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|\brevs?[.\s]|\brevisions?\b|\bshooting script\b|\bdraft\b.*\d{1,2}\/\d{1,2}/i;
@@ -1347,10 +1351,17 @@ const PicaEngine = (() => {
     // whose y drifted past the row-bucket, a stray number — is furniture too.
     for (const p of body) for (const l of p.lines) {
       if (furniture.has(l)) continue;
-      if (l.y < y0f - rowH * 0.6) {
-        const t = l.text.trim();
-        if (FURNITURE_HEADER.test(t) || FURNITURE_NUM.test(t) || FURNITURE_WORD.test(t) || PROVENANCE.test(t)) furniture.add(l);
-      }
+      const t = l.text.trim();
+      // A line that is ONLY a CONTINUED, a revision stamp or a provenance note is
+      // apparatus wherever it sits. Testing only above the body missed every one of
+      // Memento's: 183 of them came through as scene headings, transitions and action.
+      // (MORE) is NOT apparatus to be thrown away — it is how a speech that breaks across
+      // a page is recognised, so it stays band-restricted with the numbers.
+      if (FURNITURE_CONT.test(t) || FURNITURE_HEADER.test(t) || PROVENANCE.test(t)) { furniture.add(l); continue; }
+      // A line that is nothing but a page number is apparatus wherever it landed — a scan
+      // puts them anywhere. (Kept separate from the tests above so a numbered list item,
+      // which always has words after the number, is untouched.)
+      if (FURNITURE_NUM.test(t) && t.length <= 5) furniture.add(l);
     }
 
     // ---------- classification ----------
