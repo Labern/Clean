@@ -152,3 +152,21 @@ window.__transProbe = async function (url, name) {
   return JSON.stringify({ total: tr.length,
     distinct: Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([k,n])=>n+'× '+JSON.stringify(k)) }, null, 1);
 };
+window.__unplacedProbe = async function (url) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  window.__unplaced = [];
+  await window.PICA_API.importUrl(url, 'x.pdf');
+  for (let i = 0; i < 1200; i++) {
+    const d = window.__pica && window.__pica.doc;
+    if (d && d.elements.length > 1) break;
+    await sleep(50);
+  }
+  const u = window.__unplaced;
+  const byOff = {};
+  for (const r of u) { const k = Math.round(r.off / 5) * 5; byOff[k] = (byOff[k] || 0) + 1; }
+  return JSON.stringify({
+    unplacedLines: u.length,
+    offsetHistogram: Object.entries(byOff).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([k, n]) => k + 'pt ×' + n),
+    cues: u.filter(r => /^[A-Z][A-Z' .]{2,20}$/.test(r.t)).slice(0, 8),
+  }, null, 1);
+};

@@ -1321,12 +1321,30 @@ const PicaEngine = (() => {
     const colTol = speechCollapsed
       ? halfGap
       : Math.max(3, Math.min(halfGap, Math.max(9, Math.ceil(p85) + 1)));
+    // A script assembled from pages typed at different times has more than one tab stop for
+    // the same thing. There Will Be Blood's cues sit at 3.5" for most of the film and about
+    // 4.05" for a stretch of it — 40pt out, which accounted for 100 of the 124 lines it
+    // could not place, whole conversations of them. So a busy cluster that is not one of the
+    // four columns stands in for whichever column it is nearest, provided it is near enough
+    // that no other column could plausibly be meant.
+    const alternates = [];
+    for (const b of clusters) {
+      if (b.n < allLines.length * 0.008) continue;
+      let role = null, bd = Infinity, second = Infinity;
+      for (const [k, c] of colList) {
+        const d = Math.abs(b.x - c);
+        if (d < bd) { second = bd; bd = d; role = k; } else if (d < second) second = d;
+      }
+      if (role && bd > colTol && bd <= 55 && second - bd >= 25) alternates.push([role, b.x]);
+    }
     const nearestCol = (x) => {
       let best = null, bd = Infinity;
       for (const [k, c] of colList) { const d = Math.abs(x - c); if (d < bd) { bd = d; best = k; } }
       // With two columns there is no third answer: a line is on one side or the other, and
       // refusing to choose leaves it unclassified ('general'), which is never right.
-      return (speechCollapsed || bd <= colTol) ? best : null;
+      if (speechCollapsed || bd <= colTol) return best;
+      for (const [k, c] of alternates) if (Math.abs(x - c) <= colTol) return k;
+      return null;
     };
     // The cue and parenthetical columns are close together — 3.0" and 3.5" on FD's grid —
     // and a source only has to drift a few points for a line to be assigned to the wrong
@@ -1340,31 +1358,64 @@ const PicaEngine = (() => {
     // columns are cross-checked — shouted dialogue and capitalised action sit elsewhere.
     const whollyBracketed = t => /^\(.*\)$/.test(t);
     const cueShaped = t => t.length <= 45 && /[A-Z]/.test(t) && t === t.toUpperCase() && !whollyBracketed(t);
-    // A SCAN DOES NOT SIT STILL. There Will Be Blood's columns are at 94/174/252 on its
-    // early pages and have drifted to 102/184/263 by page 70, then wander back — the sheet
-    // moved under the glass, the writing did not. No fixed tolerance can cover that
-    // without merging columns 0.5" apart, and 664 lines (whole speeches, cue and all) came
-    // back unclassified. So measure each page's own offset from the document's columns and
-    // take it out before anything is classified. A file exported by software measures 0.
-    let shifted = 0;
-    for (const p of body) {
+    // A SCAN DOES NOT SIT STILL — AND IT DOES NOT KEEP ITS SIZE EITHER.
+    //
+    // There Will Be Blood's columns are at 94/174/252 on its early pages and 102/184/263 by
+    // page 70. Correcting that as a shift gets most of it, but on pages 107–114 the error is
+    // 9.8pt at the action margin, 21pt at the dialogue column and 23pt at the cue column:
+    // the error GROWS with x, because the sheet was enlarged on the copier, not merely laid
+    // down askew. A shift fixes the middle and leaves the rightmost column — the character
+    // cues — a dozen points out, which is why whole runs of cues came back unclassified
+    // while the dialogue beside them was fine.
+    //
+    // So each page is fitted to the document's columns as x' = a·x + b: first a median
+    // shift to get roughly onto them, then a least-squares fit for the stretch. A file
+    // exported by software fits a = 1, b = 0 and is left alone.
+    const fitPage = (p) => {
       const ls = bodyLines(p);
+      const nearest = (x, win) => {
+        let c = null, bd = win;
+        for (const k of colXs) if (Math.abs(x - k) < bd) { bd = Math.abs(x - k); c = k; }
+        return c;
+      };
+      const apply = (a, b) => {
+        for (const l of p.lines) {
+          l.x = a * l.x + b;
+          if (l.xEnd != null) l.xEnd = a * l.xEnd + b;
+          for (const it of l.items || []) it.x = a * it.x + b;
+        }
+      };
+      // 1. the shift: where does this page sit?
       const ds = [];
-      for (const l of ls) {
-        let best = Infinity;
-        for (const c of colXs) { const d = l.x - c; if (Math.abs(d) < Math.abs(best)) best = d; }
-        if (Math.abs(best) <= minGap / 2) ds.push(best);
+      for (const l of ls) { const c = nearest(l.x, minGap / 2); if (c != null) ds.push(l.x - c); }
+      if (ds.length < 4) return 0;
+      ds.sort((x, y) => x - y);
+      const b0 = ds[Math.floor(ds.length / 2)];
+      if (Math.abs(b0) >= 0.75) apply(1, -b0);
+      // 2. the stretch: now that it is roughly on the columns, does the error still grow
+      //    with x? Least squares over (x → its column), needing two columns to see a slope.
+      const pts = [];
+      for (const l of bodyLines(p)) { const c = nearest(l.x, Math.max(12, colTol * 1.5)); if (c != null) pts.push([l.x, c]); }
+      const spread = new Set(pts.map(q => q[1])).size;
+      if (pts.length >= 8 && spread >= 2) {
+        const n = pts.length;
+        let sx = 0, sy = 0, sxx = 0, sxy = 0;
+        for (const [x, y] of pts) { sx += x; sy += y; sxx += x * x; sxy += x * y; }
+        const den = n * sxx - sx * sx;
+        if (den !== 0) {
+          const a = (n * sxy - sx * sy) / den;
+          const b = (sy - a * sx) / n;
+          // only a plausible photocopier: a few percent, never a reflow
+          if (a > 0.9 && a < 1.1 && (Math.abs(a - 1) > 0.0008 || Math.abs(b) > 0.5)) {
+            apply(a, b);
+            return 2;
+          }
+        }
       }
-      if (ds.length < 4) continue;
-      ds.sort((a, b) => a - b);
-      const off = ds[Math.floor(ds.length / 2)];
-      if (Math.abs(off) < 0.75) continue;
-      shifted++;
-      for (const l of p.lines) {
-        l.x -= off; if (l.xEnd != null) l.xEnd -= off;
-        for (const it of l.items || []) it.x -= off;
-      }
-    }
+      return Math.abs(b0) >= 0.75 ? 1 : 0;
+    };
+    for (const p of body) fitPage(p);
+
     const roleOf = (l) => {
       const col = nearestCol(l.x);
       const near = (c) => Math.abs(l.x - c) <= colTol;
@@ -1373,7 +1424,7 @@ const PicaEngine = (() => {
       // columns: catch them by shape first — capitals ending in a colon is never speech.
       // A shouted line ending in a colon is a transition wherever it sits — a scan's
       // columns wander enough that CUT TO: lands on none of them.
-      if (t.length <= 34 && /[A-Z]/.test(t) && t === t.toUpperCase() && /:$/.test(t)
+      if (t.length <= 34 && /[A-Z]/.test(t) && t === t.toUpperCase() && /[:;~]$/.test(t)
           && !SCENE_RE.test(t)) return 'transition';
       // a slugline is a slugline wherever it sits: with one shared speech column an
       // indented scene heading otherwise reads as somebody's dialogue
@@ -1386,7 +1437,10 @@ const PicaEngine = (() => {
       // as action, which then swallows the cue above it.
       if (t !== '(MORE)' && whollyBracketed(t) && t.length <= 60) return 'paren';
       if (speechCollapsed && t !== '(MORE)' && /^\(/.test(t)) return 'paren';
-      if (col === 'action') return (l.slugNo != null || SCENE_RE.test(l.text)) ? 'scene' : 'action';
+      // a numbered slug is a slug wherever it sits: on a drifting scan the line often lands
+      // on no column at all, and it was ending up unclassified
+      if (l.slugNo != null) return 'scene';
+      if (col === 'action') return SCENE_RE.test(l.text) ? 'scene' : 'action';
       // One column doing three jobs: nothing positional can separate them, so read the
       // line. Bracketed is a parenthetical; a short shout with no sentence ending is a cue
       // ("JOE", "NELLIE'S VOICE", "JOE (CONT'D)"); everything else is what was said —

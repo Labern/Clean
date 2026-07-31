@@ -577,5 +577,54 @@ if (fs.existsSync(whipPath)) {
   }
 }
 
+// -- 18. a script assembled from pages typed at different times has more than one tab stop
+//        for the same thing. There Will Be Blood's cues are at 3.5" for most of the film and
+//        about 4.05" for a stretch of it — whole conversations came back unclassified.
+{
+  const rowH = 12, y0 = 76.5, charW = 7.2;
+  const line = (x, row, str) => ({ x, y: y0 + row * rowH, w: str.length * charW, str });
+  const pages = [];
+  for (let p = 0; p < 14; p++) {
+    // the last third of the script was retyped with the cue tab 40pt further in
+    const cue = p >= 9 ? 292 : 252;
+    const items = []; let r = 0;
+    items.push(line(108, r++, 'INT. OFFICE ' + p + ' - DAY'));
+    r++;
+    items.push(line(108, r++, 'Someone crosses the room and answers the telephone.'));
+    r++;
+    items.push(line(cue, r++, 'HENRY'));
+    items.push(line(180, r++, 'Did you mention my name at all?'));
+    r++;
+    items.push(line(cue, r++, 'DANIEL'));
+    items.push(line(180, r++, 'I did not, and I do not intend to.'));
+    pages.push({ width: 612, height: 792, items });
+  }
+  const d = E.importPdf(pages);
+  const t = {};
+  for (const e of d.elements) t[e.type] = (t[e.type] || 0) + 1;
+  check('tab stops: a second tab stop for the cue is still the cue', (t.character || 0) === 28,
+    JSON.stringify(t));
+  check('tab stops: nothing is left unclassified by it', !(t.general > 0), String(t.general || 0));
+  // and a column that is genuinely something else is NOT swallowed
+  const far = [];
+  for (let p = 0; p < 6; p++) {
+    const items = []; let r = 0;
+    items.push(line(108, r++, 'INT. ROOM - DAY'));
+    r++;
+    items.push(line(108, r++, 'She waits by the window for a long time.'));
+    r++;
+    items.push(line(252, r++, 'SAM'));
+    items.push(line(180, r++, 'Nothing at all today?'));
+    r++;
+    items.push(line(432, r++, 'CUT TO:'));
+    far.push({ width: 612, height: 792, items });
+  }
+  const fd2 = E.importPdf(far);
+  const t2 = {};
+  for (const e of fd2.elements) t2[e.type] = (t2[e.type] || 0) + 1;
+  check('tab stops: a transition margin is not mistaken for a cue tab',
+    (t2.transition || 0) === 6 && (t2.character || 0) === 6, JSON.stringify(t2));
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);

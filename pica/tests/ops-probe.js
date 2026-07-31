@@ -345,3 +345,72 @@ window.__pageOffsetProbe = async function (url, from, to) {
   }
   return JSON.stringify(out, null, 1);
 };
+
+// Does a page's x offset depend on WHERE you are down it? (A photocopy can be rotated.)
+window.__skewProbe = async function (url, from, to) {
+  const mod = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs');
+  mod.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+  const pdf = await mod.getDocument({ url }).promise;
+  const out = [];
+  for (let p = from; p <= Math.min(to, pdf.numPages); p++) {
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    const rows = new Map();
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const y = Math.round(vp.height - it.transform[5]);
+      const x = it.transform[4];
+      if (!rows.has(y) || x < rows.get(y)) rows.set(y, x);
+    }
+    // for each line, distance to the nearest of the document's columns
+    const cols = [94, 174, 212, 252];
+    const pts = [...rows.entries()].map(([y, x]) => {
+      let d = Infinity;
+      for (const c of cols) if (Math.abs(x - c) < Math.abs(d)) d = x - c;
+      return { y, d };
+    }).filter(p2 => Math.abs(p2.d) < 40).sort((a, b) => a.y - b.y);
+    if (pts.length < 6) continue;
+    const top = pts.slice(0, Math.floor(pts.length / 3));
+    const bot = pts.slice(-Math.floor(pts.length / 3));
+    const mean = a => a.reduce((s, q) => s + q.d, 0) / a.length;
+    out.push('p' + p + ' lines=' + pts.length
+      + ' topThird=' + mean(top).toFixed(1) + ' bottomThird=' + mean(bot).toFixed(1)
+      + ' skew=' + (mean(bot) - mean(top)).toFixed(1));
+  }
+  return JSON.stringify(out, null, 1);
+};
+
+// Per page, per column: how far off is each one? If the error grows with x, the sheet was
+// scaled (a photocopy enlarged), not merely shifted — and a shift alone cannot fix it.
+window.__scaleProbe = async function (url, from, to) {
+  const mod = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs');
+  mod.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+  const pdf = await mod.getDocument({ url }).promise;
+  const cols = [94, 174, 252];
+  const out = [];
+  for (let p = from; p <= Math.min(to, pdf.numPages); p++) {
+    const page = await pdf.getPage(p);
+    const vp = page.getViewport({ scale: 1 });
+    const tc = await page.getTextContent();
+    const rows = new Map();
+    for (const it of tc.items) {
+      if (!it.str || !it.str.trim()) continue;
+      const y = Math.round(vp.height - it.transform[5]);
+      const x = it.transform[4];
+      if (!rows.has(y) || x < rows.get(y)) rows.set(y, x);
+    }
+    const per = cols.map(() => []);
+    for (const x of rows.values()) {
+      let bi = -1, bd = 25;
+      cols.forEach((c, i) => { if (Math.abs(x - c) < bd) { bd = Math.abs(x - c); bi = i; } });
+      if (bi >= 0) per[bi].push(x - cols[bi]);
+    }
+    const mean = a => a.length ? (a.reduce((s, v) => s + v, 0) / a.length) : null;
+    const m = per.map(mean);
+    if (m.filter(v => v != null).length < 3) continue;
+    out.push('p' + p + '  @94:' + m[0].toFixed(1) + '  @174:' + m[1].toFixed(1)
+      + '  @252:' + m[2].toFixed(1) + '   spread=' + (m[2] - m[0]).toFixed(1));
+  }
+  return JSON.stringify(out, null, 1);
+};
