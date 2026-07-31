@@ -324,11 +324,16 @@ footer .z{ padding:0 .25rem; color:var(--ink-2); }
    defined, so it resolved to nothing and the box was transparent.) It sits above every
    layer on the page and below only the modal overlay and the toast. */
 #trialBar{
-  position:sticky; top:0; z-index:75; margin:0 auto .55rem; max-width:min(92vw, 780px);
-  background:#fff; color:#141413; border:1px solid #d9d7d0; border-radius:4px;
-  padding:.5rem .7rem; box-shadow:0 10px 30px rgba(0,0,0,.28);
+  /* Full width, so the script passing underneath is MASKED rather than showing either
+     side of it: an 780px box over an 881px page left the text visible around the edges
+     as you scrolled. The reading measure is kept on the row inside. */
+  position:sticky; top:0; z-index:75; margin:0 0 .55rem; width:100%;
+  background:#fff; color:#141413;
+  border:none; border-bottom:1px solid #cfccc3; border-radius:0;
+  padding:.6rem 1.1rem .55rem; box-shadow:0 12px 26px rgba(0,0,0,.22);
   font-family:var(--mono); font-size:.72rem;
 }
+#trialBar .tb-row{ max-width:860px; margin-left:auto; margin-right:auto; }
 #trialBar[hidden]{ display:none; }
 #trialBar .tb-row{ display:flex; align-items:center; gap:.6rem; }
 #trialBar .grow{ flex:1; }
