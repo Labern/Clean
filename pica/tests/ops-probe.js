@@ -460,3 +460,30 @@ window.__rotProbe = async function (url, pageNo) {
     mediaBox: page.view, items: applied,
   }, null, 1);
 };
+
+// One line of a page: each word with the x we compute for it, in the order we sort them.
+window.__lineProbe = async function (url, pageNo) {
+  const mod = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.min.mjs');
+  mod.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
+  const pdf = await mod.getDocument({ url }).promise;
+  const page = await pdf.getPage(pageNo || 20);
+  const vp = page.getViewport({ scale: 1 });
+  const tc = await page.getTextContent();
+  const T = (a, b) => mod.Util.transform(a, b);
+  const items = tc.items.filter(i => i.str && i.str.trim()).map((i, n) => {
+    const m = T(vp.transform, i.transform);
+    return { n, str: i.str, x: +m[4].toFixed(1), y: +m[5].toFixed(1), w: +(i.width || 0).toFixed(1) };
+  });
+  // group into rows and show one busy row, in content order and in x order
+  const rows = new Map();
+  for (const it of items) { const k = Math.round(it.y); if (!rows.has(k)) rows.set(k, []); rows.get(k).push(it); }
+  const busiest = [...rows.entries()].sort((a, b) => b[1].length - a[1].length)[0];
+  const row = busiest ? busiest[1] : [];
+  return JSON.stringify({
+    rotate: page.rotate,
+    rowY: busiest ? busiest[0] : null,
+    inContentOrder: row.map(i => i.str).join('|').slice(0, 150),
+    sortedByX: row.slice().sort((a, b) => a.x - b.x).map(i => i.str).join('|').slice(0, 150),
+    xs: row.slice(0, 8).map(i => i.str + '@' + i.x + '(w' + i.w + ')'),
+  }, null, 1);
+};
