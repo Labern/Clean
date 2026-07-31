@@ -87,3 +87,27 @@ window.__flowShot = async function (urls) {
   await sleep(400);
   return JSON.stringify({ clip: { x: 0, y: 0, width: innerWidth, height: Math.min(innerHeight, 1000) } });
 };
+
+// Scroll the script UP under the bar: does the bar mask it, or does the page show around it?
+window.__maskShot = async function (urls) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const T = window.PICA_API.test;
+  const bufs = {};
+  for (const u of urls) bufs[u] = await (await fetch(u)).arrayBuffer();
+  T.stubNet({
+    candidates: async () => urls.map((u, i) => ({ url: u, host: 'scriptarchive.example', label: '', score: 90 - i })),
+    bytes: async u => bufs[u].slice(0),
+  });
+  await T.find('Pulp Fiction');
+  await sleep(900);
+  const c = document.getElementById('canvas');
+  c.scrollTop = 420;                       // slide the page up beneath the bar
+  await sleep(500);
+  const bar = document.getElementById('trialBar').getBoundingClientRect();
+  const page = document.querySelector('#pages .pageWrap').getBoundingClientRect();
+  return JSON.stringify({
+    clip: { x: 0, y: 0, width: innerWidth, height: Math.min(innerHeight, 700) },
+    barWidth: Math.round(bar.width), pageWidth: Math.round(page.width),
+    barCoversPage: bar.left <= page.left && bar.right >= page.right,
+  });
+};
