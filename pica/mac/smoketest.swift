@@ -372,6 +372,12 @@ let grammarSteps: [Step] = [
     Step(desc: "find: a live search (reported, not gated)",
          js: "try { const c = await window.PICA_API.test.search('Pulp Fiction'); return c.length ? ('found ' + c.length + ': ' + c.slice(0,3).map(x => x.host).join(', ')) : 'found none'; } catch (e) { return 'threw: ' + (e.message || e); }",
          expect: "*"),
+    // THE WHOLE CHAIN, LIVE: search the web, download the winner, import it, put it on
+    // screen. Reported rather than asserted — an install must not hang on the weather —
+    // but this is the one that answers "does it actually work".
+    Step(desc: "find: the whole chain, live (reported, not gated)",
+         js: "try { const T3 = window.PICA_API.test; const before = JSON.parse(localStorage.getItem('pica.index')||'[]').length; await T3.find('Pulp Fiction'); const d = window.__pica.doc; const shown = document.getElementById('trialBar').hidden === false; const from = (document.getElementById('tbFrom')||{}).textContent || ''; const held = JSON.parse(localStorage.getItem('pica.index')||'[]').length === before; const out = shown ? ('SHOWING \\\"' + d.title + '\\\" ' + window.__pica.res.count + 'pp ' + d.elements.length + ' elements · ' + from + ' · librarySafe=' + held) : ('nothing shown'); document.getElementById('tbCancel').click(); await new Promise(r=>setTimeout(r,500)); return out; } catch (e) { return 'threw: ' + (e.message || e); }",
+         expect: "*"),
     // FIND A SCREENPLAY: the promise is that nothing reaches the library unless he
     // accepts it. Cancel must put back what he was reading and leave no trace — the
     // first cut of this saved the rejected script anyway, because openDoc flushes a
