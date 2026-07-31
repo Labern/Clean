@@ -640,13 +640,20 @@ const PicaEngine = (() => {
 
   // ---------- line assembly from positioned text items ----------
   // items: [{x, y (top-origin), w, str}] for one page → lines [{x, xEnd, y, text, items}]
-  function joinItems(items, charW) {
+  // wordLevel: this page's OCR gives one item per WORD, and its boxes often touch or even
+  // overlap. Measuring the gap then welds them — "A CLUBPHOTOGRAPHERpops snap-shots". Two
+  // words are two words however tight the boxes are. Only set for pages that really are
+  // word-per-item, so a PDF whose items are whole runs (and whose splits fall mid-word)
+  // is joined exactly as before.
+  function joinItems(items, charW, wordLevel) {
     let text = '', xEnd = 0;
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (i > 0) {
         const gap = it.x - xEnd;
         if (gap > charW * 0.45 && !/\s$/.test(text)) text += ' '.repeat(Math.max(1, Math.round(gap / charW)));
+        else if (wordLevel && !/\s$/.test(text) && /[A-Za-z0-9.,;:!?'")\]]$/.test(text)
+                 && /^[A-Za-z0-9("'\[]/.test(it.str)) text += ' ';
       }
       text += it.str;
       xEnd = it.x + it.w;
@@ -654,7 +661,7 @@ const PicaEngine = (() => {
     return { text: text.replace(/\s+$/, ''), xEnd };
   }
 
-  function linesFromItems(items, charW) {
+  function linesFromItems(items, charW, wordLevel) {
     const its = items.filter(i => i.str && i.str.trim() !== '');
     its.sort((a, b) => a.y - b.y || a.x - b.x);
     const lines = [];
@@ -675,7 +682,7 @@ const PicaEngine = (() => {
         its2.push(it);
       }
       L.items = its2;
-      const j = joinItems(L.items, charW);
+      const j = joinItems(L.items, charW, wordLevel);
       return { x: L.items[0].x, xEnd: j.xEnd, y: L.y, text: j.text, items: L.items };
     }).filter(L => L.text.length > 0);
   }
@@ -1009,9 +1016,18 @@ const PicaEngine = (() => {
     else if (dec.warned) decodeNote = 'some text could not be decoded — this PDF hides its character map';
 
     const charW0 = estimateCharW(rawPages);
+    // is this document's text delivered one word at a time? (an OCR layer usually is)
+    let wordish = 0, itemsSeen = 0;
+    for (const p of rawPages) for (const it of p.items || []) {
+      if (!it.str || !it.str.trim()) continue;
+      itemsSeen++;
+      if (!/\s/.test(it.str.trim()) && it.str.trim().length <= 20) wordish++;
+      if (itemsSeen > 4000) break;
+    }
+    const wordLevel = itemsSeen > 50 && wordish / itemsSeen > 0.92;
     const pages = rawPages.map(p => ({
       width: p.width, height: p.height,
-      lines: p.lines ? p.lines : linesFromItems(p.items, charW0),
+      lines: p.lines ? p.lines : linesFromItems(p.items, charW0, wordLevel),
     }));
 
     // -- typography: underline segments (drawn as vector lines just below the
@@ -1185,7 +1201,16 @@ const PicaEngine = (() => {
 
     // -- column detection from x histogram
     const xh = new Map();
-    for (const l of allLines) {
+    // A page number or a revision mark in the margin is not a column, but it stands to the
+    // LEFT of every real one — so counted, it takes the action column's slot and every
+    // other column is read one across: action becomes dialogue, dialogue becomes a
+    // parenthetical. Memento and Lost in Translation both arrived with their action typed
+    // as speech for exactly this reason. Only lines with words in them vote.
+    const votes = allLines.filter(l => {
+      const t = l.text.trim();
+      return t.length > 4 && /[A-Za-z]{2}/.test(t) && !FURNITURE_NUM.test(t) && !SCENE_NO.test(t);
+    });
+    for (const l of (votes.length > 40 ? votes : allLines)) {
       const k = Math.round(l.x);
       xh.set(k, (xh.get(k) || 0) + 1);
     }
