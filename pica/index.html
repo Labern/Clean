@@ -318,27 +318,33 @@ footer .z{ padding:0 .25rem; color:var(--ink-2); }
 #getIn::-webkit-search-cancel-button{ -webkit-appearance:none; }
 #getForm.busy #getIn{ border-bottom-color:var(--ink); }
 /* the trial bar sits above the first page and owns the decision */
+/* The decision box. It is opaque WHITE and self-coloured on purpose: it asks a question
+   about the page underneath it, so it must never be read through — and it must look the
+   same in either theme. (It used to say background:var(--bg), a token this app has never
+   defined, so it resolved to nothing and the box was transparent.) It sits above every
+   layer on the page and below only the modal overlay and the toast. */
 #trialBar{
-  position:sticky; top:0; z-index:40; margin:0 auto .55rem; max-width:min(92vw, 780px);
-  background:var(--bg); border:1px solid var(--rule); border-radius:4px;
-  padding:.5rem .7rem; box-shadow:0 6px 22px rgba(0,0,0,.18);
+  position:sticky; top:0; z-index:75; margin:0 auto .55rem; max-width:min(92vw, 780px);
+  background:#fff; color:#141413; border:1px solid #d9d7d0; border-radius:4px;
+  padding:.5rem .7rem; box-shadow:0 10px 30px rgba(0,0,0,.28);
   font-family:var(--mono); font-size:.72rem;
 }
 #trialBar[hidden]{ display:none; }
 #trialBar .tb-row{ display:flex; align-items:center; gap:.6rem; }
 #trialBar .grow{ flex:1; }
-#trialBar .tb-q{ color:var(--ink); letter-spacing:.06em; text-transform:uppercase; font-size:.66rem; }
-#trialBar .tb-what{ color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-#trialBar .tb-what span{ color:var(--faint); margin-left:.5rem; }
-#trialBar .tb-sub{ margin-top:.28rem; color:var(--faint); font-size:.66rem; }
+#trialBar .tb-q{ color:#141413; letter-spacing:.06em; text-transform:uppercase; font-size:.66rem; }
+#trialBar .tb-what{ color:#141413; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#trialBar .tb-what span{ color:#77746c; margin-left:.5rem; }
+#trialBar .tb-sub{ margin-top:.28rem; color:#77746c; font-size:.66rem; }
 #trialBar .tb-btn{
   font-family:var(--mono); font-size:.68rem; letter-spacing:.05em; white-space:nowrap;
-  padding:.2rem .55rem; border:1px solid var(--rule); border-radius:3px; color:var(--ink-2);
+  padding:.2rem .55rem; border:1px solid #d9d7d0; border-radius:3px; color:#3f3d38;
+  background:#fff;
 }
 #trialBar .tb-q{ white-space:nowrap; }
-#trialBar .tb-btn:hover{ color:var(--ink); border-color:var(--ink-2); }
-#trialBar .tb-yes{ color:var(--ink); border-color:var(--ink-2); }
-#trialBar .tb-quiet{ border-color:transparent; color:var(--faint); }
+#trialBar .tb-btn:hover{ color:#141413; border-color:#8a877e; }
+#trialBar .tb-yes{ color:#141413; border-color:#141413; }
+#trialBar .tb-quiet{ border-color:transparent; color:#77746c; }
 @media (max-width: 880px){ #getIn{ width:6.5rem; } #getIn:focus{ width:9rem; } }
 footer .z:hover{ color:var(--ink); }
 #stSave{ font-variant-numeric:tabular-nums; }
