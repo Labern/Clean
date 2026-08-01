@@ -764,5 +764,89 @@ if (fs.existsSync(whipPath)) {
     E.paginate(E.importPdf(raw)).pages.flatMap(p2 => p2.lines).filter(l => l.kind === 'more').length === 6);
 }
 
+// -- 23. A SCRIPT NOBODY TYPED. The Hateful Eight is 168 photographs of paper: no text
+//        layer at all, so the words are read off the picture by the Mac's own recogniser
+//        and handed to the importer in the same shape a PDF's text layer arrives in.
+//        Everything about a reading by eye is looser than a typeset file, and each of
+//        these is a way that cost the script something real.
+{
+  const rowH = 12, y0 = 76.5, charW = 7.2;
+  // the wobble is per LINE, not per page: the recogniser's box starts at the ink, and a
+  // line opening on a T does not begin where one opening on an apostrophe does
+  let seed = 7;
+  const wob = () => { seed = (seed * 1103515245 + 12345) % 2147483648; return (seed % 13) - 6; };
+  const line = (x, row, str) => ({ x: x + wob(), y: y0 + row * rowH, w: str.length * charW, str });
+  const pages = [];
+  for (let p = 0; p < 12; p++) {
+    const items = []; let r = 0;
+    // a page number somebody wrote on the paper by hand, out at the right margin
+    items.push({ x: 545, y: 30, w: 14, str: (p + 2) + '.' });
+    items.push(line(108, r++, 'INT. SALOON ' + p + ' - NIGHT'));
+    r++;
+    items.push(line(108, r++, 'The room is still. Somebody sets down a glass.'));
+    r++;
+    items.push(line(252, r++, 'O.B.'));                    // a cue that ends in a period
+    items.push(line(216, r++, '(meaning the three'));      // a parenthetical over two lines
+    items.push(line(216, r++, 'men by the fire)'));
+    items.push(line(180, r++, 'Ready when you are.'));
+    r++;
+    items.push(line(252, r++, 'MAJ.WARREN'));
+    items.push(line(180, r++, "Rock 'fore it"));           // one typed line, read as two
+    items.push({ x: 274, y: y0 + (r - 1) * rowH + 1, w: 11 * charW, str: 'catches us.' });
+    r++;
+    items.push(line(430, r++, 'CUT TO'));                  // a transition whose colon was lost
+    pages.push({ width: 612, height: 792, items, ocr: true });
+  }
+  const d = E.importPdf(pages);
+  const t = {};
+  for (const e of d.elements) t[e.type] = (t[e.type] || 0) + 1;
+  check('by eye: nothing is left unclassified', (t.general || 0) === 0, JSON.stringify(t));
+  check('by eye: the cue column survives the wobble — cue, paren and speech stay apart',
+    (t.character || 0) === 24 && (t.paren || 0) === 12 && (t.dialogue || 0) === 24, JSON.stringify(t));
+  // O.B. is a cue, not something O.B. said
+  check('by eye: a cue that ends in a period is still a cue',
+    d.elements.filter(e => e.type === 'character' && e.text.trim() === 'O.B.').length === 12);
+  check('by eye: a parenthetical running onto a second line is not a cue',
+    d.elements.filter(e => e.type === 'paren' && /meaning the three/.test(e.text)).length === 12);
+  check('by eye: a transition that lost its colon is still a transition',
+    (t.transition || 0) === 12, String(t.transition || 0));
+  check('by eye: a page number written on by hand stays off the page',
+    d.elements.filter(e => /^\d{1,3}\.?$/.test(e.text.trim())).length === 0);
+  check('by eye: two halves of one typed line are one line',
+    d.elements.filter(e => /Rock 'fore it +catches us\./.test(e.text)).length === 12,
+    String(d.elements.filter(e => /Rock 'fore it +catches us\./.test(e.text)).length));
+  // and none of this may reach a file that says where its own ink is
+  const typeset = E.importPdf(pages.map(p => ({ ...p, ocr: false })));
+  check('by eye: a typeset file is read by the typeset rules',
+    typeset.elements.filter(e => e.type === 'transition').length === 0);
+}
+
+// -- 24. The same word, read four different ways. Across The Hateful Eight one cue comes
+//        back as MAJ.WARREN 85 times, MAJ-WARREN 60, MAJ. WARREN 39; another as O.B.,
+//        o.B. and 0.В. — that В Cyrillic — and the lower-case readings stop it being a
+//        cue at all. The script is its own dictionary: readings that came back in clean
+//        capitals vote, and the winner stands for all of them.
+{
+  const src = html.slice(html.indexOf('const OCR_LOOKALIKE'), html.indexOf('// Recognised lines'));
+  const repair = new Function(src + '; return repairByConsensus;')();
+  const page = { items: [
+    ...Array(9).fill(0).map(() => ({ x: 252, y: 0, w: 60, str: 'MAJ.WARREN' })),
+    ...Array(6).fill(0).map(() => ({ x: 252, y: 0, w: 60, str: 'MAJ-WARREN' })),
+    ...Array(4).fill(0).map(() => ({ x: 252, y: 0, w: 60, str: 'MAJ. WARREN' })),
+    { x: 252, y: 0, w: 24, str: 'O.B.' }, { x: 252, y: 0, w: 24, str: 'O.B.' },
+    { x: 252, y: 0, w: 24, str: 'o.B.' }, { x: 252, y: 0, w: 24, str: '0.В.' },
+    { x: 180, y: 0, w: 30, str: 'and' },      // lower case, and a word that is not shouted
+    { x: 180, y: 0, w: 90, str: 'Yes it is.' },
+  ] };
+  const fixed = repair([page]);
+  const say = str => page.items.filter(i => i.str === str).length;
+  check('consensus: one spelling wins the vote', say('MAJ.WARREN') === 19 && say('MAJ-WARREN') === 0,
+    say('MAJ.WARREN') + ' MAJ.WARREN');
+  check('consensus: a lower-case reading of a cue becomes the cue', say('O.B.') === 4, say('O.B.') + ' O.B.');
+  check('consensus: a foreign letter that looks the same is the same', !page.items.some(i => /В/.test(i.str)));
+  check('consensus: ordinary words are left alone', say('and') === 1 && say('Yes it is.') === 1);
+  check('consensus: it says how much it changed', fixed === 12, String(fixed));
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);

@@ -433,6 +433,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         if body["exportPdf"] as? Bool == true {
             exportPDF(suggestedName: body["name"] as? String ?? "script")
         }
+        // A scan with no text in it at all: the page hands over the file and asks for the
+        // words back. Reading happens off the main thread — 168 photographed pages take
+        // about half a minute — and the result is staged like any other file rather than
+        // pushed through evaluateJavaScript, because a megabyte of JSON does not belong
+        // in a string literal.
+        if let job = body["ocr"] as? [String: Any],
+           let token = (job["token"] as? String)?.filter({ $0.isLetter || $0.isNumber }),
+           let b64 = job["data"] as? String, let pdf = Data(base64Encoded: b64) {
+            let pages = (job["pages"] as? [Any])?.compactMap { ($0 as? NSNumber)?.intValue } ?? []
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                var last = 0
+                let json = OCR.json(data: pdf, pages: pages) { done, total in
+                    // one message a page would be thousands of hops across the bridge
+                    guard done == total || done - last >= 4 else { return }
+                    last = done
+                    DispatchQueue.main.async { self?.js("PICA_API.ocrProgress('\(token)',\(done),\(total))") }
+                }
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    let id = self.handler.stage(Data(json.utf8), mime: "application/json")
+                    self.js("PICA_API.ocrDone('\(token)','/__inbox/\(id)')")
+                }
+            }
+        }
         if body["browse"] as? Bool == true {
             if browser == nil { browser = BrowserPanel(host: self) }
             browser?.show()

@@ -98,7 +98,7 @@ PLIST
 
 # ---- 4. compile ----
 echo "› compiling"
-swiftc -O -parse-as-library PICA.swift WebProxy.swift -o "$APP/Contents/MacOS/$APP_NAME" \
+swiftc -O -parse-as-library PICA.swift WebProxy.swift OCR.swift -o "$APP/Contents/MacOS/$APP_NAME" \
   -framework Cocoa -framework WebKit
 
 # ---- 5. sign (auto-detects an Apple Developer ID; degrades gracefully) ----
@@ -126,7 +126,7 @@ if [ "${1:-}" = "--install" ]; then
     # place, which then passed happily without running the step that had just been added.
     # two files means top-level code needs the entry point to be called main.swift
     cp smoketest.swift "$BUILD/main.swift"
-    if ! swiftc -O "$BUILD/main.swift" WebProxy.swift -o "$BUILD/smoketest"; then
+    if ! swiftc -O "$BUILD/main.swift" WebProxy.swift OCR.swift -o "$BUILD/smoketest"; then
       echo "SMOKETEST DID NOT COMPILE — install refused"
       exit 1
     fi

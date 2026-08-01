@@ -74,6 +74,26 @@ addEventListener('unhandledrejection', e => window.__errs.push('rejection: ' + (
   console.error = (...a) => { window.__errs.push('console.error: ' + a.join(' ')); r(...a); }; })();
 """, injectionTime: .atDocumentStart, forMainFrameOnly: false)
 cfg.userContentController.addUserScript(collector)
+// The app answers the page's "read this for me" over this bridge. Standing it up here
+// too is the only way to prove the whole seam — postMessage out, recognition, the result
+// staged as a file, ocrDone back, the page fetching it — rather than each half alone.
+final class Bridge: NSObject, WKScriptMessageHandler {
+    func userContentController(_ ucc: WKUserContentController, didReceive m: WKScriptMessage) {
+        guard let body = m.body as? [String: Any], let job = body["ocr"] as? [String: Any],
+              let token = job["token"] as? String, let b64 = job["data"] as? String,
+              let pdf = Data(base64Encoded: b64) else { return }
+        let pages = (job["pages"] as? [Any])?.compactMap { ($0 as? NSNumber)?.intValue } ?? []
+        DispatchQueue.global(qos: .userInitiated).async {
+            let json = OCR.json(data: pdf, pages: pages)
+            DispatchQueue.main.async {
+                let id = handler.stage(Data(json.utf8))
+                web.evaluateJavaScript("PICA_API.ocrDone('\(token)','/__inbox/\(id)')")
+            }
+        }
+    }
+}
+let bridge = Bridge()
+cfg.userContentController.add(bridge, name: "pica")
 // an isolated store, so the smoke test never touches the real app's saved scripts
 cfg.websiteDataStore = .nonPersistent()
 let web = WKWebView(frame: .init(x: 0, y: 0, width: 1200, height: 900), configuration: cfg)
@@ -411,7 +431,7 @@ let grammarSteps: [Step] = [
 ]
 
 func runGrammar(_ i: Int) {
-    if i >= grammarSteps.count { finishAll(); return }
+    if i >= grammarSteps.count { proveByEyeImport(); return }
     let s = grammarSteps[i]
     let body = "try { const T = window.PICA_API.test; " + s.js + " } catch(e) { return 'ERR: ' + (e && e.message || e); }"
     web.callAsyncJavaScript(body, arguments: [:], in: nil, in: .page) { result in
@@ -431,10 +451,128 @@ func finish() {
     runGrammar(0)
 }
 
+// ── a picture-only script, imported the way the user imports one ───────────────────
+// The recogniser is proved above and the reading rules are proved by the gate; this is
+// the seam between them — the page handing the file over, the words coming back as a
+// staged file, and a script arriving in the editor with its sluglines, cues and speech
+// in the right places. Nothing about it is stubbed.
+func proveByEyeImport() {
+    guard !pictureOnlyPDF.isEmpty else { finishAll(); return }
+    let id = handler.stage(pictureOnlyPDF)
+    eval("PICA_API.importUrl('/__inbox/\(id)', 'A Photographed Script.pdf'); true") { _ in
+        pollByEye(0)
+    }
+}
+
+func pollByEye(_ attempts: Int) {
+    if attempts > 60 {
+        eval("JSON.stringify({errs:(window.__errs||[]).slice(0,6), overlay:(document.querySelector('#overlay .card')||{}).textContent||'', toast:(document.getElementById('toast')||{}).textContent||'', bridge: !!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.pica), els: (window.__pica&&window.__pica.doc?window.__pica.doc.elements.length:-1)})") { r in
+            print("  diagnostics: " + ((r as? String) ?? "none"))
+            check("by eye: a picture-only script imports", false, "timed out")
+            finishAll()
+        }
+        return
+    }
+    eval("""
+    (() => { const S = window.__pica; if (!S || !S.doc) return '';
+      const t = {}; for (const e of S.doc.elements) t[e.type] = (t[e.type] || 0) + 1;
+      return JSON.stringify({ title: S.doc.title, types: t,
+        byEye: !!(S.doc.__read && S.doc.__read.ocr),
+        text: S.doc.elements.map(e => e.type + '::' + e.text).join(' | ') });
+    })()
+    """) { res in
+        guard let s = res as? String, let d = s.data(using: .utf8),
+              let o = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
+              o["byEye"] as? Bool == true else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { pollByEye(attempts + 1) }; return
+        }
+        let text = o["text"] as? String ?? ""
+        let types = o["types"] as? [String: Int] ?? [:]
+        check("by eye: a script with no text in it imports anyway",
+              !text.isEmpty, (o["title"] as? String ?? "") + " · " + String(describing: types))
+        check("by eye: the slugline is a slugline", text.contains("scene::INT. HABERDASHERY"), text)
+        check("by eye: the cue is a cue", text.contains("character::MAJ.WARREN"), text)
+        check("by eye: the speech is speech", text.contains("dialogue::Shut the door."), text)
+        check("by eye: nothing came back unclassified", (types["general"] ?? 0) == 0, String(types["general"] ?? 0))
+        // and the name comes off the file, since a photograph has no title page to read
+        check("by eye: the script is named from the file",
+              (o["title"] as? String) == "A PHOTOGRAPHED SCRIPT", o["title"] as? String ?? "")
+        finishAll()
+    }
+}
+
 func finishAll() {
     print(failures == 0 ? "\nPICA.app verified — the bundle runs standalone" : "\n\(failures) FAILURE(S)")
     exit(failures == 0 ? 0 : 1)
 }
+
+// ── the recogniser, before anything else ───────────────────────────────────────────
+// The Hateful Eight is 168 photographs of paper with no text in it anywhere, and the
+// only reason PICA can open it is that the Mac reads the page itself. That is a system
+// service, and a system service can change under us — so the shipped binary proves on
+// every install that it can still take a page which is nothing but a picture and give
+// back the words, in the right places, in the right order.
+var pictureOnlyPDF = Data()
+func proveRecogniser() {
+    let W = 612.0, H = 792.0
+    // a page drawn as an IMAGE — no text object anywhere in the file
+    let scale = 2.0
+    guard let bmp = CGContext(data: nil, width: Int(W * scale), height: Int(H * scale),
+                              bitsPerComponent: 8, bytesPerRow: 0,
+                              space: CGColorSpaceCreateDeviceRGB(),
+                              bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
+        check("recogniser: could draw a test page", false); return
+    }
+    bmp.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+    bmp.fill(CGRect(x: 0, y: 0, width: W * scale, height: H * scale))
+    let ns = NSGraphicsContext(cgContext: bmp, flipped: false)
+    NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = ns
+    let font = NSFont(name: "Courier", size: 12 * scale) ?? NSFont.monospacedSystemFont(ofSize: 12 * scale, weight: .regular)
+    let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+    // laid out where a screenplay lays them out, in points times the scale
+    let rows: [(Double, Double, String)] = [
+        (108, 120, "INT. HABERDASHERY - NIGHT"),
+        (108, 156, "The door bangs open in the wind."),
+        (252, 204, "MAJ.WARREN"),
+        (180, 228, "Shut the door."),
+    ]
+    for (x, yTop, str) in rows {
+        NSAttributedString(string: str, attributes: attrs)
+            .draw(at: NSPoint(x: x * scale, y: (H - yTop) * scale))
+    }
+    NSGraphicsContext.restoreGraphicsState()
+    guard let image = bmp.makeImage() else { check("recogniser: could draw a test page", false); return }
+
+    let pdf = NSMutableData()
+    guard let consumer = CGDataConsumer(data: pdf as CFMutableData) else { return }
+    var box = CGRect(x: 0, y: 0, width: W, height: H)
+    guard let pctx = CGContext(consumer: consumer, mediaBox: &box, nil) else { return }
+    pctx.beginPDFPage(nil); pctx.draw(image, in: box); pctx.endPDFPage(); pctx.closePDF()
+
+    pictureOnlyPDF = pdf as Data
+    let pages = OCR.recognise(data: pdf as Data, pages: [1])
+    let items = (pages.first?["items"] as? [[String: Any]]) ?? []
+    let said = items.compactMap { $0["str"] as? String }
+    check("recogniser: a page that is only a picture gives back its words",
+          said.count >= 4, said.joined(separator: " | "))
+    check("recogniser: it reads the slugline",
+          said.contains { $0.contains("HABERDASHERY") }, said.first ?? "")
+    check("recogniser: it reads the cue and the speech",
+          said.contains { $0.contains("WARREN") } && said.contains { $0.contains("Shut the door") })
+    // and it must say WHERE — the whole import turns on the x of each line
+    let cue = items.first { ($0["str"] as? String)?.contains("WARREN") == true }
+    let speech = items.first { ($0["str"] as? String)?.contains("Shut the door") == true }
+    let cx = (cue?["x"] as? Double) ?? -1, sx = (speech?["x"] as? Double) ?? -1
+    check("recogniser: the cue is measured at the cue indent",
+          abs(cx - 252) <= 6, String(format: "%.1f want 252", cx))
+    check("recogniser: the speech is measured at the speech indent",
+          abs(sx - 180) <= 6, String(format: "%.1f want 180", sx))
+    // reading order is down the page: a cue must arrive before what it says
+    let iCue = items.firstIndex { ($0["str"] as? String)?.contains("WARREN") == true } ?? 99
+    let iSpeech = items.firstIndex { ($0["str"] as? String)?.contains("Shut the door") == true } ?? 0
+    check("recogniser: it hands the page back in reading order", iCue < iSpeech)
+}
+proveRecogniser()
 
 web.load(URLRequest(url: URL(string: "pica://app/index.html")!))
 DispatchQueue.main.asyncAfter(deadline: .now() + 120) { print("TIMEOUT"); exit(3) }
