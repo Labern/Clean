@@ -1008,6 +1008,10 @@ const PicaEngine = (() => {
 
   function importPdf(rawPages, opts = {}) {
     if (!rawPages || !rawPages.length) return newDoc('IMPORTED');
+    // was any of this read off the picture rather than out of the file? measurements
+    // taken by eye are a few points looser than a typesetter's, and a couple of the
+    // rules below have to know that
+    const byEye = rawPages.some(p => p.ocr);
     // fonts with no usable Unicode map yield cipher text — crack them first,
     // since classification reads the words (INT., EXT., …), not just positions
     let decodeNote = null;
@@ -1024,7 +1028,11 @@ const PicaEngine = (() => {
       if (!/\s/.test(it.str.trim()) && it.str.trim().length <= 20) wordish++;
       if (itemsSeen > 4000) break;
     }
-    const wordLevel = itemsSeen > 50 && wordish / itemsSeen > 0.92;
+    // A page read by eye is never welded either, whatever the chunks are. The recogniser
+    // hands back phrases, not words, so this test does not catch it — and its boxes hug
+    // the ink, so a chunk's measured end regularly runs past where the next one starts:
+    // "I'm suppose to apologise" came back as "I'msuppose to apologise".
+    const wordLevel = byEye || (itemsSeen > 50 && wordish / itemsSeen > 0.92);
     const pages = rawPages.map(p => ({
       width: p.width, height: p.height,
       lines: p.lines ? p.lines : linesFromItems(p.items, charW0, wordLevel),
@@ -1130,6 +1138,8 @@ const PicaEngine = (() => {
     // all share: the same line sits at the same height on page after page, and it is
     // numeric (or a known marker). Anything genuinely written never repeats like that.
     const FURNITURE_NUM = /^[A-Za-z]?\d+[A-Za-z]?[.:]?$/;
+    // the handful of phrases that are a transition whether or not the colon survived
+    const TRANSITION_PHRASE = /^(?:(?:SMASH|MATCH|HARD|QUICK|JUMP|TIME|BACK)\s+)?(?:CUT|DISSOLVE|FADE|WIPE)(?:\s+(?:TO|FROM|IN|OUT|BACK|UP))*(?:\s+BLACK)?\s*[.:;]?$/;
     // "CONTINUED:" arrives with the scene number in front of it and a count after it —
     // Memento prints "4    CONTINUED: (2)" — and none of that is writing.
     const FURNITURE_WORD = /^\(?\s*(?:[A-Z]{0,2}\d{1,3}[A-Z]{0,2}[.)]?\s+)?(CONTINUED|CONT'D|CONT’D|MORE)\s*\)?\s*[.:]?\s*(\(\s*\d+\s*\))?\s*$/i;
@@ -1244,6 +1254,35 @@ const PicaEngine = (() => {
     // represented by its busiest x, which is the column's true left edge.
     const bins = [...xh.entries()].sort((a, b) => a[0] - b[0]);
     const clusters = [];
+    // A typesetter puts every line of a column on the same x. A recogniser reading a
+    // photograph puts them within a few points of it — The Hateful Eight's cues wander
+    // from 264 to 277 — and at a three-point chain that column shatters into fragments,
+    // none of them big enough to count as a column. The document was then read as though
+    // cue, parenthetical and dialogue all shared one, which is how O.B. came to say his
+    // own name out loud. Widening the chain is worse, not better: with a few lines at
+    // every intermediate x the chain runs from the dialogue column clean through to the
+    // cues and swallows both.
+    //
+    // So a reading by eye is clustered the other way about — from the peaks inward. The
+    // busiest x is a column; everything within a few points of it belongs to that column
+    // and to no other; then the busiest x still unclaimed, and again. Smear is absorbed,
+    // and a column can never grow along a trail of noise into the next one.
+    if (byEye) {
+      const left = new Map(bins);
+      while (left.size) {
+        let bx = null, bn = -1;
+        for (const [x, n] of left) if (n > bn) { bn = n; bx = x; }
+        let total = 0;
+        // Sixteen points. The smear is real and it is wide — The Hateful Eight's speech
+        // column runs from 193 to 213, because the recogniser's box starts at the ink and
+        // the first letter of a line is not always the same letter. Sixteen swallows that
+        // and still stops short of half the gap between two columns that Final Draft sets
+        // 36 points apart, so a column can never annex its neighbour.
+        for (const [x, n] of [...left]) if (Math.abs(x - bx) <= 16) { total += n; left.delete(x); }
+        clusters.push({ x: bx, last: bx, n: total, peakN: bn });
+      }
+      clusters.sort((a, b) => a.x - b.x);
+    } else
     for (const [x, n] of bins) {
       const c = clusters[clusters.length - 1];
       if (c && x - c.last <= 3) {
@@ -1251,7 +1290,13 @@ const PicaEngine = (() => {
         if (n > c.peakN) { c.peakN = n; c.x = x; }
       } else clusters.push({ x, last: x, n, peakN: n });
     }
-    const ranked = clusters.filter(b => b.n >= allLines.length * 0.01).sort((a, b) => b.n - a.n);
+    // A column is a SPIKE, not a mound. Reading by eye, the speech column's left edges
+    // spread twenty points, and the far tail of that spread — 111 lines at x=227, no one
+    // x of them carrying more than 22 — piled up into something the size of a small
+    // column and took the parenthetical slot. Nothing was typed there. A column that
+    // really exists has one x that many lines share exactly; smear never does.
+    const ranked = clusters.filter(b => b.n >= allLines.length * 0.01
+        && (!byEye || b.peakN >= allLines.length * 0.005)).sort((a, b) => b.n - a.n);
     let top = ranked.slice(0, 4).sort((a, b) => a.x - b.x);
     // A MARGIN IS NOT A COLUMN. Memento's scene numbers and CONTINUEDs sit at x=72 — 546
     // lines, more than its parenthetical column has — so they won a slot, and being
@@ -1279,14 +1324,22 @@ const PicaEngine = (() => {
     const speechCollapsed = major.length === 2;
 
     const cols = { ...LETTER.cols };
+    let parenInvented = false;   // true when no column of parentheticals was found
     if (speechCollapsed) {
       cols.action = major[0].x;
       cols.dialogue = cols.paren = cols.character = major[1].x;
     } else if (top.length >= 4) {
       cols.action = top[0].x; cols.dialogue = top[1].x; cols.paren = top[2].x; cols.character = top[3].x;
-    } else if (top.length === 3) { // no parentheticals in doc
+    } else if (top.length === 3) { // no parenthetical column of its own
       cols.action = top[0].x; cols.dialogue = top[1].x; cols.character = top[2].x;
       cols.paren = Math.round((cols.dialogue + cols.character) / 2);
+      // …but nothing is typed there. The Hateful Eight sets (beat) at the cue indent, and
+      // the invented midpoint sat in the gap stealing lines — a speech line that wandered
+      // 18pt right was nearer the column that does not exist than the one it belongs to,
+      // and 50-odd of them came back unclassified mid-sentence. A bracketed line is
+      // recognised by its brackets wherever it lands, so the position is kept only so the
+      // four remain distinct, and is not offered to lines looking for their column.
+      parenInvented = byEye;   // only a photographed page is loose enough for it to matter
     } else if (top.length > 0) {
       cols.action = top[0].x;
     }
@@ -1362,13 +1415,20 @@ const PicaEngine = (() => {
       // puts them anywhere. (Kept separate from the tests above so a numbered list item,
       // which always has words after the number, is untouched.)
       if (FURNITURE_NUM.test(t) && t.length <= 5) furniture.add(l);
+      // The Hateful Eight's pages are numbered BY HAND, in the top right corner, and a
+      // hand does not write the same figure twice: 4. and 4, and 3) and 3 . A page number
+      // is not writing either way. Out at the right margin, a couple of characters long,
+      // with a digit in it and nothing else — that is the number somebody pencilled on
+      // the paper, and it stays off the page.
+      if (byEye && l.x > pages[0].width * 0.72 && t.length <= 5
+          && /\d/.test(t) && !/[A-Za-z]{2}/.test(t)) furniture.add(l);
     }
 
     // ---------- classification ----------
     // Assign each line to its nearest column rather than demanding an exact hit, with the
     // tolerance derived from how far apart the columns actually are.
     const colList = [['action', cols.action], ['dialogue', cols.dialogue],
-                     ['paren', cols.paren], ['character', cols.character]];
+                     ...(parenInvented ? [] : [['paren', cols.paren]]), ['character', cols.character]];
     // DISTINCT column positions: when speech is collapsed, three of the four names share
     // one x, and counting that as a zero gap makes the tolerance negative — every line
     // then matches no column at all and the whole script imports as 'general'.
@@ -1394,7 +1454,13 @@ const PicaEngine = (() => {
     }
     drift.sort((a, b) => a - b);
     const p85 = drift.length ? drift[Math.floor(drift.length * 0.85)] : 0;
-    const colTol = speechCollapsed
+    // Read by eye, the wobble is not the typist's and not the page's — it is per LINE.
+    // The recogniser's box begins at the ink, and a line opening on a T does not begin
+    // where one opening on an apostrophe does; nothing measured about the page can
+    // correct for it. So a photographed script assigns every line to its nearest column
+    // and leaves none stranded: the columns are thirty-five to seventy points apart and
+    // nearest is never in doubt.
+    const colTol = speechCollapsed || byEye
       ? halfGap
       : Math.max(3, Math.min(halfGap, Math.max(9, Math.ceil(p85) + 1)));
     // A script assembled from pages typed at different times has more than one tab stop for
@@ -1502,6 +1568,13 @@ const PicaEngine = (() => {
       // columns wander enough that CUT TO: lands on none of them.
       if (t.length <= 34 && /[A-Z]/.test(t) && t === t.toUpperCase() && /[:;~]$/.test(t)
           && !SCENE_RE.test(t)) return 'transition';
+      // …and a colon is a small mark to hang a whole element type on. Read off a
+      // photograph it is lost often enough that The Hateful Eight's CUT TO came back
+      // sometimes as a character cue and sometimes as nothing at all. The phrase itself
+      // is unmistakable — no one is called CUT TO — so it stands on its own. Only for a
+      // page read by eye: in a file that says where its ink is, Tenet's closing FADE OUT.
+      // is placed by its own x, and overruling that moved it.
+      if (byEye && TRANSITION_PHRASE.test(t)) return 'transition';
       // a slugline is a slugline wherever it sits: with one shared speech column an
       // indented scene heading otherwise reads as somebody's dialogue
       if (speechCollapsed && SCENE_RE.test(t)) return 'scene';
@@ -1531,7 +1604,11 @@ const PicaEngine = (() => {
       if (col === 'paren') return cueShaped(t) ? 'character' : 'paren';
       if (col === 'character') {
         if (t === '(MORE)') return 'MORE';
-        return whollyBracketed(t) ? 'paren' : 'character';
+        // A parenthetical that runs onto a second line does not close on the first —
+        // "(meaning the three / men)". At the cue indent an opening bracket can only be
+        // a parenthetical, and reading it as a cue left the real cue above it with
+        // nothing to say and put a stage direction in a character's mouth.
+        return whollyBracketed(t) || /^\(/.test(t) ? 'paren' : 'character';
       }
       if (Math.abs(l.xEnd - transRight) < 4 && l.text === l.text.toUpperCase() && /:\s*$/.test(l.text)) return 'transition';
       // end marks without the colon — FADE OUT. / CUT TO BLACK. — are transitions too
@@ -1926,6 +2003,9 @@ const PicaEngine = (() => {
         return (!t0 || PROVENANCE.test(t0)) ? 'UNTITLED' : t0;
       })(),
       titlePage: tp,
+      // what the reading decided about this document's geometry — the first thing worth
+      // knowing when an import comes out wrong
+      __read: { cols, speechCollapsed, colTol, transRight, rowH, ocr: byEye },
       ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
       elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}), ...(e.rev ? { rev: e.rev } : {}), ...(e.dual ? { dual: e.dual } : {}), ...(e.marks ? { marks: e.marks } : {}) })),
@@ -4789,6 +4869,114 @@ function toast(msg){
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
+// ---------- reading a script nobody typed ----------
+// A scan usually carries a hidden text layer somebody else's OCR left behind, and the
+// importer reads that. Some scans carry nothing at all — The Hateful Eight is 168
+// photographs of paper and two fonts, both on the cover. There is no text to find.
+//
+// So the words are read off the picture. The Mac's own text recogniser does it, in the
+// app, offline; what comes back is shaped exactly like a PDF's own text layer — string,
+// position, width, in page points — so the importer never learns where it came from and
+// every rule about columns, cues and continueds applies unchanged.
+const OCR_JOBS = new Map();
+function ocrAvailable(){ return !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.pica) || !!S.ocrStub; }
+function b64of(bytes){
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+// Returns [{page,width,height,items:[{x,y,w,str,conf}]}] or null if nothing can read it.
+async function readByEye(bytes, pages, log){
+  if (S.ocrStub) return await S.ocrStub(pages);
+  const mh = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.pica;
+  if (!mh || !bytes) return null;
+  const token = 'ocr' + Math.random().toString(36).slice(2, 10);
+  return await new Promise(resolve => {
+    // a script this long is minutes of work at worst; give up rather than hang forever
+    const bail = setTimeout(() => { OCR_JOBS.delete(token); resolve(null); }, 12 * 60e3);
+    OCR_JOBS.set(token, {
+      progress: (d, t) => log('reading page ' + d + ' / ' + t + ' by eye…'),
+      done: async url => {
+        clearTimeout(bail); OCR_JOBS.delete(token);
+        try { resolve(await (await fetch(url)).json()); } catch { resolve(null); }
+      },
+    });
+    log('no text in this file — reading it by eye…');
+    mh.postMessage({ ocr: { token, pages, data: b64of(bytes) } });
+  });
+}
+// ── the same word, read four different ways ────────────────────────────────────────
+// A recogniser is not wrong so much as inconsistent. Across The Hateful Eight one
+// character's cue comes back as MAJ.WARREN 85 times, MAJ-WARREN 60, MAJ. WARREN 39 and
+// MAJ- WARREN 5 — the same name, the period read as a hyphen. Another is O.B., o.B. and
+// 0.В. (that В is Cyrillic), and the two lower-case readings stop it being a cue at all,
+// because a cue is capitals.
+//
+// The script itself is the dictionary. A line that repeats is a line we have several
+// readings of, and they can be made to agree: strip everything but the letters, put the
+// readings that came back in clean capitals to a vote, and let the winner stand for all
+// of them. Nothing is invented — a spelling can only ever be replaced by one the
+// recogniser itself produced elsewhere in the same document, more often, more cleanly.
+const OCR_LOOKALIKE = {
+  'А':'A','В':'B','Е':'E','К':'K','М':'M','Н':'H','О':'O','Р':'P','С':'C','Т':'T','У':'Y','Х':'X','І':'I','Ј':'J','Ѕ':'S',
+  'Α':'A','Β':'B','Ε':'E','Ζ':'Z','Η':'H','Ι':'I','Κ':'K','Μ':'M','Ν':'N','Ο':'O','Ρ':'P','Τ':'T','Υ':'Y','Χ':'X',
+};
+const ocrLatin = s => s.replace(/[^\x00-\x7F]/g, c => OCR_LOOKALIKE[c] || c);
+// what two readings of the same words have in common: the letters, and nothing else
+const ocrKey = s => ocrLatin(s).toUpperCase().replace(/[^A-Z0-9]/g, '')
+  .replace(/0/g, 'O').replace(/1/g, 'I').replace(/5/g, 'S');
+// capitals, digits and punctuation — how a cue, a slug or a transition is actually typed
+const ocrClean = s => /^[A-Z0-9 .,:;'’()\[\]#&*/-]+$/.test(ocrLatin(s)) && /[A-Z]/.test(ocrLatin(s));
+const ocrShouted = s => {
+  const letters = ocrLatin(s).replace(/[^A-Za-z]/g, '');
+  if (!letters) return false;
+  return letters.replace(/[^A-Z]/g, '').length >= letters.length * 0.5;
+};
+function repairByConsensus(pages){
+  // the letters test has to be applied to the LATIN reading of the string: "0.В." is
+  // O.B. with a Cyrillic B and a zero, and contains no [A-Za-z] at all
+  const eligible = t => t.length <= 28 && t.split(/\s+/).length <= 4
+    && /[A-Za-z]/.test(ocrLatin(t)) && ocrKey(t).length >= 2;
+  const votes = new Map();                       // letters-only key → spelling → count
+  for (const pg of pages) for (const it of pg.items || []) {
+    const t = it.str.trim();
+    if (!eligible(t) || !ocrClean(t)) continue;
+    const k = ocrKey(t);
+    if (!votes.has(k)) votes.set(k, new Map());
+    const m = votes.get(k);
+    m.set(t, (m.get(t) || 0) + 1);
+  }
+  const winner = new Map();
+  for (const [k, m] of votes) {
+    let best = null, bestN = 0;
+    for (const [t, n] of m) if (n > bestN) { best = t; bestN = n; }
+    if (best) winner.set(k, best);
+  }
+  let fixed = 0;
+  for (const pg of pages) for (const it of pg.items || []) {
+    const t = it.str.trim();
+    if (!eligible(t)) continue;
+    const w = winner.get(ocrKey(t));
+    // A muddled reading is only corrected if it was already trying to be capitals —
+    // otherwise a line of dialogue reading "and" would be shouted into an "AND"
+    // that exists somewhere else in the script.
+    if (!w || w === t || (!ocrClean(t) && !ocrShouted(t))) continue;
+    it.str = w; fixed++;
+  }
+  return fixed;
+}
+
+// Recognised lines → the same items pdf.js would have produced.
+function itemsFromOCR(page){
+  return (page.items || []).filter(i => {
+    const t = (i.str || '').trim();
+    // A speck on the paper, the edge of a staple hole, one end of a rule: the recogniser
+    // offers it as a dash or a dot, standing on its own out in the margin. It is not
+    // writing, and as an element it is a blank line in the middle of a scene.
+    return t && /[A-Za-z0-9]/.test(t);
+  }).map(i => ({ x: i.x, y: i.y, w: i.w, str: i.str, font: 'OCR', fs: 0 }));
+}
+
 // ---------- import ----------
 async function importPdfBuffer(buf, name, opts){
   opts = opts || {};
@@ -4805,13 +4993,16 @@ async function importPdfBuffer(buf, name, opts){
       workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
     }
     mod.GlobalWorkerOptions.workerSrc = workerSrc;
+    // pdf.js hands the bytes to its worker and they are gone from here; keep a copy in
+    // case the file turns out to be a picture that has to be read by eye.
+    const ocrBytes = ocrAvailable() ? new Uint8Array(buf.slice(0)) : null;
     const base = workerSrc.replace(/pdf\.worker\.min\.mjs$/, '');
     const pdf = await mod.getDocument({
       data: buf,
       standardFontDataUrl: base.startsWith('http') ? base.replace(/build\/$/, 'standard_fonts/') : undefined,
     }).promise;
     const raw = [];
-    let badPages = 0;
+    let badPages = 0, rasterOk = true;
     // font style by name (Bold/Italic faces), cached per font id
     const styleCache = new Map();
     // pdf.js exposes Util.transform; multiply by hand if this build does not.
@@ -4927,18 +5118,30 @@ async function importPdfBuffer(buf, name, opts){
       try {
         const page = await pdf.getPage(p);
         const vp = page.getViewport({ scale: 1 });
-        let ul = [];
+        let ul = [], hasImg = false;
         try {
           const ol = await page.getOperatorList();
           ul = underlinesFrom(ol, vp);
+          hasImg = ol.fnArray.some(f => f === OPS.paintImageXObject || f === OPS.paintJpegXObject);
           // a scanned page draws an image and no ink at all — read its rules off the
-          // pixels instead, or the script imports with every underline missing
-          if (!ul.length && ol.fnArray.some(f => f === OPS.paintImageXObject || f === OPS.paintJpegXObject))
-            ul = await underlinesFromRaster(page, vp);
+          // pixels instead, or the script imports with every underline missing.
+          //
+          // Time-boxed, and abandoned for the whole document the first time it overruns:
+          // drawing a page needs a page that is actually being drawn, and in a window
+          // that is not on screen the render simply never finishes. An import must not
+          // hang because the underlines could not be measured — they are the smallest
+          // thing on the page, and the script is the point.
+          if (!ul.length && hasImg && rasterOk) {
+            const got = await Promise.race([
+              underlinesFromRaster(page, vp).then(v => v || []).catch(() => []),
+              new Promise(res => setTimeout(() => res(null), 4000)),
+            ]);
+            if (got === null) rasterOk = false; else ul = got;
+          }
         } catch {}
         const tc = await page.getTextContent();
         raw.push({
-          width: vp.width, height: vp.height, ul,
+          width: vp.width, height: vp.height, ul, hasImg,
           // Text arrives in the PDF's own space. Putting it through the VIEWPORT transform
           // is what turns it into where the ink is on the page — it carries the page's
           // rotation and any mediaBox offset. Reading transform[4]/[5] raw is only right
@@ -4957,6 +5160,28 @@ async function importPdfBuffer(buf, name, opts){
       }
       if (p % 10 === 0 || p === pdf.numPages) log('reading page ' + p + ' / ' + pdf.numPages + ' …');
     }
+    // Pages that are a picture and nothing else. The Hateful Eight's cover page carries
+    // the only two fonts in the file, so "does this document have any text?" is the wrong
+    // question — it is asked one page at a time.
+    const unread = raw.map((p, i) => (p.hasImg && p.items.length < 3 ? i + 1 : 0)).filter(Boolean);
+    if (unread.length) {
+      const seen = await readByEye(ocrBytes, unread, log);
+      if (seen && seen.length) repairByConsensus(seen);
+      if (seen) for (const pg of seen) {
+        const r = raw[pg.page - 1];
+        if (!r || !pg.items || !pg.items.length) continue;
+        // the recogniser measured the page itself; trust its size over the media box,
+        // which on a rotated scan describes the paper before it was turned
+        r.width = pg.width; r.height = pg.height;
+        r.items = itemsFromOCR(pg);
+        r.ocr = true;
+      }
+      const stillBlank = unread.filter(n => !raw[n - 1].items.length).length;
+      if (stillBlank && stillBlank === unread.length)
+        throw new Error(ocrAvailable()
+          ? 'this scan could not be read'
+          : 'this PDF is a scan with no text in it — open it in PICA for Mac, which reads the page itself');
+    }
     if (!raw.some(p => p.items.length)) throw new Error('no text layer — this looks like a scanned PDF');
     log('classifying…');
     await new Promise(r => setTimeout(r, 30));
@@ -4965,6 +5190,34 @@ async function importPdfBuffer(buf, name, opts){
     doc.src = 'pdf';
     if (!doc.elements.some(e => e.text.trim() !== '')) throw new Error('nothing readable came out of this PDF');
     const fileTitle = titleFromFilename(name, 'pdf');
+    // A COVER IS NOT A TITLE PAGE. The Hateful Eight's first page is an awards mailing:
+    // FOR YOUR CONSIDERATION over the name, over BEST ORIGINAL SCREENPLAY. Read as a
+    // title page it names the script "FOR YOUR CONSIDERATION" — and the typewriter
+    // letter-spaces it, so it arrives as "F O R  Y O U R …" and survives every test for
+    // garbled text, because those are all real letters.
+    const squished = (doc.title || '').replace(/\s+/g, '').toUpperCase();
+    if (/^(FORYOURCONSIDERATION|BEST(ORIGINAL|ADAPTED)?SCREENPLAY|ACADEMYAWARD|SCREENPLAYBY|WRITTENBY)/.test(squished))
+      doc.title = '';
+    // A word on the cover that the recogniser was unsure of can be checked against the
+    // one witness that never misreads: the file's own name. HATEFUL EICHT on the page,
+    // "The Hateful Eight.pdf" on disk — one letter apart, and the disk is right.
+    if (doc.__read && doc.__read.ocr && doc.titlePage) {
+      const known = fileTitle.split(/\s+/).filter(w => w.length >= 4);
+      const near = (a, b) => {                       // same length, one letter different
+        if (a.length !== b.length) return false;
+        let d = 0;
+        for (let i = 0; i < a.length; i++) if (a[i] !== b[i] && ++d > 1) return false;
+        return d === 1;
+      };
+      for (const t of doc.titlePage) {
+        if (!t.text) continue;
+        t.text = t.text.split(/(\s+)/).map(w => {
+          const up = w.toUpperCase();
+          const hit = known.find(k => near(k, up));
+          return hit ? (w === up ? hit : hit[0] + hit.slice(1).toLowerCase()) : w;
+        }).join('');
+      }
+    }
     // a garbled or missing title (tiny unmapped title-page fonts) falls back to the filename
     const junk = (doc.title || '').replace(/[A-Za-z0-9\s.,:'!?&-]/g, '').length;
     // 'UNTITLED' counts as no title: it is the placeholder the importer falls back to when
@@ -6356,6 +6609,9 @@ window.PICA_API = {
       else importPdfBuffer(buf, name);
     }).catch(e => toast(String(e.message || e)));
   },
+  // the Mac side reading a scan by eye, reporting in and handing back
+  ocrProgress(token, done, total){ const j = OCR_JOBS.get(token); if (j) j.progress(done, total); },
+  ocrDone(token, url){ const j = OCR_JOBS.get(token); if (j) j.done(url); },
   exportMenu(){ openExportMenu(); },
   elementMenu(){ openElementMenu(); },
   showKeys(){ showKeys(); },
@@ -6387,6 +6643,9 @@ window.PICA_API = {
     state(){ return S.doc.elements.map(e => e.type + '|' + e.text); },
     // the search feature: stub the network, then drive Accept / Try again / Cancel
     stubNet(s){ NET_STUB = s; },
+    // stand in for the Mac's recogniser: a browser has none, so the gate replays a
+    // reading captured from the real one against the real file
+    stubOcr(fn){ S.ocrStub = fn; },
     find(q){ return findScreenplay(q); },
     search(q){ return gatherCandidates(q); },
     trialId(){ return S.trial ? S.trial.id : null; },
