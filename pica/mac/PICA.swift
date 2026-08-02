@@ -241,10 +241,91 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
 
     // ---- lifecycle ----
 
+    // THE APP CHECKS ITSELF, OR NOTHING IS CHECKED.
+    //
+    //   PICA.app/Contents/MacOS/PICA --verify-import <file.pdf> [--report out.json]
+    //
+    // Imports the file through THIS binary — this window, this scheme handler, this
+    // bridge — prints what came out and quits. Written because a test harness that
+    // reimplements the app's own seams proves the harness: The Hateful Eight passed
+    // two suites and a smoke test while the real app produced one page of gibberish.
+    // Never activates, so it cannot take focus from whatever is in front.
+    private var verifyPath: String? = nil
+    private var reportPath: String? = nil
+    private var beforeId = ""
+
     func applicationDidFinishLaunching(_ note: Notification) {
+        let argv = ProcessInfo.processInfo.arguments
+        if let i = argv.firstIndex(of: "--verify-import"), i + 1 < argv.count {
+            verifyPath = argv[i + 1]
+            if let r = argv.firstIndex(of: "--report"), r + 1 < argv.count { reportPath = argv[r + 1] }
+            NSApp.setActivationPolicy(.prohibited)
+        }
         buildMenu()
         buildWindow()
-        NSApp.activate(ignoringOtherApps: true)
+        if verifyPath == nil { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    private func runVerify(_ path: String) {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            FileHandle.standardError.write(Data("cannot read \(path)\n".utf8)); exit(2)
+        }
+        let name = URL(fileURLWithPath: path).lastPathComponent
+            .replacingOccurrences(of: "\\", with: "").replacingOccurrences(of: "'", with: "")
+        print("verify: \(name) — \(data.count / 1024)KB")
+        let id = handler.stage(data, mime: "application/pdf")
+        // The app reopens the script you were last on, so at the instant the import
+        // starts there is ALREADY a document in the window — and a check that just asks
+        // "is there a document?" answers yes about the wrong one. It must be THIS import:
+        // remember which document is open, and wait for it to be a different one.
+        web.evaluateJavaScript("(window.__pica && window.__pica.docId) || ''") { [weak self] r, _ in
+            guard let self = self else { return }
+            self.beforeId = (r as? String) ?? ""
+            self.js("PICA_API.importUrl('/__inbox/\(id)', '\(name)')")
+            self.pollVerify(0)
+        }
+    }
+
+    private func pollVerify(_ n: Int) {
+        // twenty minutes: a photographed feature is read a page at a time
+        if n > 2400 { report(["ok": false, "why": "timed out"]); return }
+        let probe = """
+        (() => { const S = window.__pica; if (!S || !S.doc) return JSON.stringify({stage:'no doc'});
+          const log = document.getElementById('importLog');
+          const card = document.querySelector('#overlay.show .card');
+          const t = {}; for (const e of S.doc.elements) t[e.type] = (t[e.type] || 0) + 1;
+          return JSON.stringify({
+            busy: !!card, stage: log ? log.textContent : '',
+            failed: !!(card && /failed/i.test(card.textContent || '')),
+            cardText: card ? (card.textContent || '').slice(0, 160) : '',
+            toast: (document.getElementById('toast') || {}).textContent || '',
+            title: S.doc.title, src: S.doc.src || '', byEye: !!(S.doc.__read && S.doc.__read.ocr),
+            pages: S.res ? S.res.count : 0, elements: S.doc.elements.length, types: t,
+            errs: (window.__errs || []).slice(0, 6), docId: S.docId || '',
+            head: S.doc.elements.slice(0, 8).map(e => e.type + '::' + e.text.slice(0, 60)),
+          });
+        })()
+        """
+        web.evaluateJavaScript(probe) { [weak self] res, err in
+            guard let self = self else { return }
+            var o = (res as? String).flatMap { $0.data(using: .utf8) }
+                .flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any] ?? [:]
+            if let e = err { o = ["stage": "EVALERR " + String(describing: e)] }
+            let busy = o["busy"] as? Bool ?? false
+            let els = o["elements"] as? Int ?? 0
+            if o["failed"] as? Bool == true { o["ok"] = false; self.report(o); return }
+            let isNew = (o["docId"] as? String ?? "") != self.beforeId
+            if !busy && isNew && els > 1 { o["ok"] = true; self.report(o); return }
+            if n % 20 == 0 { print("  … \(o["stage"] as? String ?? "")  [\(els) elements]") }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.pollVerify(n + 1) }
+        }
+    }
+
+    private func report(_ o: [String: Any]) {
+        let d = (try? JSONSerialization.data(withJSONObject: o, options: [.prettyPrinted, .sortedKeys])) ?? Data()
+        if let p = reportPath { try? d.write(to: URL(fileURLWithPath: p)) }
+        print(String(data: d, encoding: .utf8) ?? "{}")
+        exit(o["ok"] as? Bool == true ? 0 : 1)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -309,7 +390,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         w.minSize = NSSize(width: 820, height: 560)
         w.setFrameAutosaveName("PicaMainWindow")
         w.isReleasedWhenClosed = false
-        w.makeKeyAndOrderFront(nil)
+        // A verify run still needs a window — a page WebKit considers hidden never
+        // paints, and half the import is drawing — but it must never come to the front.
+        if verifyPath != nil { w.orderBack(nil) } else { w.makeKeyAndOrderFront(nil) }
         if w.frame.width < 800 { w.center() }
         self.window = w
 
@@ -336,6 +419,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         ready = true
         syncTitlebarInset()
+        if let p = verifyPath { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.runVerify(p) }; return }
         drainPendingOpens()
         // Open filling the screen — a zoomed window, NOT a separate full-screen Space:
         // the state you get by entering full screen and pressing Esc.

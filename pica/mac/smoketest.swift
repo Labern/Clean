@@ -457,15 +457,25 @@ func finish() {
 // staged file, and a script arriving in the editor with its sluglines, cues and speech
 // in the right places. Nothing about it is stubbed.
 func proveByEyeImport() {
-    guard !pictureOnlyPDF.isEmpty else { finishAll(); return }
-    let id = handler.stage(pictureOnlyPDF)
-    eval("PICA_API.importUrl('/__inbox/\(id)', 'A Photographed Script.pdf'); true") { _ in
+    // PICA_SCAN points this at a real photographed script instead of the drawn one —
+    // the only honest way to know whether a 168-page file actually imports.
+    var data = pictureOnlyPDF
+    var fname = "A Photographed Script.pdf"
+    if let path = ProcessInfo.processInfo.environment["PICA_SCAN"],
+       let real = try? Data(contentsOf: URL(fileURLWithPath: path)) {
+        data = real
+        fname = URL(fileURLWithPath: path).lastPathComponent
+        print("  … importing \(fname) — \(real.count / 1024)KB")
+    }
+    guard !data.isEmpty else { finishAll(); return }
+    let id = handler.stage(data)
+    eval("PICA_API.importUrl('/__inbox/\(id)', '\(fname)'); true") { _ in
         pollByEye(0)
     }
 }
 
 func pollByEye(_ attempts: Int) {
-    if attempts > 60 {
+    if attempts > (ProcessInfo.processInfo.environment["PICA_SCAN"] != nil ? 900 : 60) {
         eval("JSON.stringify({errs:(window.__errs||[]).slice(0,6), overlay:(document.querySelector('#overlay .card')||{}).textContent||'', toast:(document.getElementById('toast')||{}).textContent||'', bridge: !!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.pica), els: (window.__pica&&window.__pica.doc?window.__pica.doc.elements.length:-1)})") { r in
             print("  diagnostics: " + ((r as? String) ?? "none"))
             check("by eye: a picture-only script imports", false, "timed out")
