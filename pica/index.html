@@ -191,11 +191,21 @@ body.resizing #canvas{ pointer-events:none; }
 .doc-item:hover,.scene-item:hover{ color:var(--ink); }
 .doc-item.current,.scene-item.current{ border-left-color:var(--rule); color:var(--ink); }
 .doc-item.dragging{ opacity:.45; }
-/* the row a context menu belongs to, so an action can never land on the wrong script */
+/* The row a context menu belongs to — so a Delete can never land on the wrong script.
+   A faint wash was not enough: with the menu open over the rail you could not tell at a
+   glance WHICH script you were about to rename or delete. It is a selection, so it looks
+   like one — the whole row inverted, edge to edge, the way a chosen thing looks. */
 .doc-item.menuing,.scene-item.menuing{
-  color:var(--ink); background:var(--rule-soft, rgba(127,127,127,.13));
-  border-left-color:var(--faint);
+  background:var(--ink); color:var(--paper);
+  border-left-color:var(--ink);
+  /* bleed past the rail's own padding so the block runs the full width of the column */
+  margin-left:-.55rem; margin-right:-.55rem;
+  padding-left:1.1rem; padding-right:.9rem;
+  border-radius:2px;
 }
+.doc-item.menuing .pg,.scene-item.menuing .no{ color:var(--paper); opacity:.62; }
+.doc-item.menuing .ttl{ opacity:1 !important; }
+.doc-item.menuing:hover,.scene-item.menuing:hover{ color:var(--paper); }
 .doc-item.drop-above{ box-shadow:0 -2px 0 var(--rule); }
 .doc-item.drop-below{ box-shadow:0 2px 0 var(--rule); }
 .scene-item .no{ color:var(--faint); flex:none; width:1.7em; text-align:right; font-variant-numeric:tabular-nums; }
@@ -5122,7 +5132,16 @@ async function importPdfBuffer(buf, name, opts){
         try {
           const ol = await page.getOperatorList();
           ul = underlinesFrom(ol, vp);
-          hasImg = ol.fnArray.some(f => f === OPS.paintImageXObject || f === OPS.paintJpegXObject);
+          // Every way pdf.js says "a picture was painted here". The Hateful Eight's pages
+          // are JBIG2 — one bit per pixel — and those arrive as image MASKS, which this
+          // list did not have. The app therefore never noticed the file was a photograph
+          // and imported its cover page alone: three elements out of a hundred and sixty
+          // eight pages. The build in the browser and the build in the app disagreed
+          // about the op, which is why it passed everywhere except where it mattered.
+          hasImg = ol.fnArray.some(f => f === OPS.paintImageXObject || f === OPS.paintJpegXObject
+            || f === OPS.paintImageMaskXObject || f === OPS.paintInlineImageXObject
+            || f === OPS.paintImageXObjectRepeat || f === OPS.paintImageMaskXObjectRepeat
+            || f === OPS.paintImageMaskXObjectGroup || f === OPS.paintInlineImageXObjectGroup);
           // a scanned page draws an image and no ink at all — read its rules off the
           // pixels instead, or the script imports with every underline missing.
           //
@@ -5163,7 +5182,16 @@ async function importPdfBuffer(buf, name, opts){
     // Pages that are a picture and nothing else. The Hateful Eight's cover page carries
     // the only two fonts in the file, so "does this document have any text?" is the wrong
     // question — it is asked one page at a time.
-    const unread = raw.map((p, i) => (p.hasImg && p.items.length < 3 ? i + 1 : 0)).filter(Boolean);
+    // …AND THE REAL TEST IS SIMPLER THAN THAT: a page with no words on it has no words on
+    // it, whatever operators drew it. Naming the ways a picture can be painted is a list
+    // that can always be missing an entry — this cannot. A page is offered to the
+    // recogniser when it came back with (almost) nothing, and the document is treated as
+    // a photographed one when most of it did: an ordinary script has no blank pages, and
+    // a genuinely empty page costs a second and reads back as empty.
+    const textless = raw.map((p, i) => (p.items.length < 3 ? i + 1 : 0)).filter(Boolean);
+    const mostlyPictures = textless.length >= Math.max(3, raw.length * 0.2);
+    const unread = mostlyPictures ? textless
+      : raw.map((p, i) => (p.hasImg && p.items.length < 3 ? i + 1 : 0)).filter(Boolean);
     if (unread.length) {
       const seen = await readByEye(ocrBytes, unread, log);
       if (seen && seen.length) repairByConsensus(seen);
