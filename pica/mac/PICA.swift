@@ -336,6 +336,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
             title: S.doc.title, src: S.doc.src || '', byEye: !!(S.doc.__read && S.doc.__read.ocr),
             pages: S.res ? S.res.count : 0, elements: S.doc.elements.length, types: t,
             errs: (window.__errs || []).slice(0, 6), docId: S.docId || '',
+            // there must be exactly one studio card per launch, and in the app it is
+            // the native panel — never a second one drawn inside the page
+            cardsInPage: document.querySelectorAll('iframe[aria-hidden]').length,
             head: S.doc.elements.slice(0, 8).map(e => e.type + '::' + e.text.slice(0, 60)),
           });
         })()

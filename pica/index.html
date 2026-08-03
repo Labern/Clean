@@ -2752,6 +2752,11 @@ const store = {
 // beside this file, and loaded in a frame. One file, every product — a mark that
 // exists in two places starts drifting the moment one of them is edited.
 function studioCard(){
+  // In PICA.app the card is a real window, put up by the app before the editor exists.
+  // Drawing it again inside the page means two cards for one launch — one behind the
+  // other — which is what happened. The native host owns it there; the page owns it
+  // only in a browser.
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.pica) return;
   const f = document.createElement('iframe');
   f.setAttribute('aria-hidden', 'true');
   f.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;'
