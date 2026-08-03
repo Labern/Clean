@@ -48,6 +48,12 @@ cp ../fonts/*.ttf "$WEB/fonts/" 2>/dev/null || echo "  ! fonts missing — will 
 # imports PDFs, but only when online (it falls back to the CDN).
 # the studio card — one file, shared by every product; see ~/Desktop/★★★★★/brand
 CARD="$HOME/Desktop/★★★★★/brand/studio-card.html"
+# the app's own logo, drawn for paper: made beside the iconset by makeicon
+if [ -f "$BUILD/card-icon.png" ]; then
+  cp "$BUILD/card-icon.png" "$WEB/app-icon.png"
+  cp "$BUILD/card-icon.png" "../app-icon.png"
+fi
+
 if [ -f "$CARD" ]; then
   # into the bundle, and beside index.html so the web build ships the same file —
   # every build re-syncs from the master copy, so the two can never drift apart

@@ -3,7 +3,6 @@ window.__cardShot = async function () {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const f = document.querySelector('iframe[aria-hidden]');
   const out = { present: !!f };
-  await sleep(300);
   out.stillThere = !!document.querySelector('iframe[aria-hidden]');
   out.clip = { x: 0, y: 0, width: 900, height: 620 };
   return JSON.stringify(out);

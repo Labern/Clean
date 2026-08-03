@@ -59,10 +59,6 @@ final class Splash: NSObject, WKNavigationDelegate {
 
         let info = Bundle.main.infoDictionary ?? [:]
         let product = (info["CFBundleName"] as? String) ?? "PICA"
-        let version = (info["CFBundleShortVersionString"] as? String) ?? "1.0"
-        // The tagline lives in the bundle's own copyright field, which already says it.
-        let raw = (info["NSHumanReadableCopyright"] as? String) ?? ""
-        let tagline = raw.contains("—") ? String(raw.split(separator: "—").last!).trimmingCharacters(in: .whitespaces) : raw
         let year = Calendar.current.component(.year, from: Date())
 
         let cfg = WKWebViewConfiguration()
@@ -71,8 +67,16 @@ final class Splash: NSObject, WKNavigationDelegate {
         // self-contained — the logo is inlined as data — so it needs no origin, and a
         // file:// request carrying a query string never returns from WebKit at all.
         // The parameters go in ahead of it as a script at document start.
+        // The app's own logo travels as data: the card is loaded as a string with no
+        // origin, so a relative src would have nothing to be relative to.
+        var iconURI = ""
+        if let icon = Bundle.main.resourceURL?.appendingPathComponent("web/app-icon.png"),
+           let bytes = try? Data(contentsOf: icon) {
+            iconURI = "data:image/png;base64," + bytes.base64EncodedString()
+        }
         let params: [String: String] = [
-            "product": product, "tagline": tagline, "version": version,
+            "variant": iconURI.isEmpty ? "wordmark" : "icon",
+            "product": product, "icon": iconURI,
             "year": String(year), "mode": "panel", "ms": String(Int(lifetime * 1000)),
         ]
         if let json = try? JSONSerialization.data(withJSONObject: params),
