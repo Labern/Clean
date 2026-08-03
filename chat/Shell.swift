@@ -120,6 +120,18 @@ let kNotificationCategory = "MESSAGE"
 let kHotKeyCode = UInt32(kVK_ANSI_R)
 let kHotKeyMods = UInt32(cmdKey)
 
+// …except in these apps, which keep ⌘R for themselves. A Carbon hotkey is
+// global or nothing, so the only honest way to exempt an app is to hand the
+// combo back while that app is frontmost: we unregister ⌘R when Chrome comes
+// forward and re-register it the moment focus leaves. Reload works normally in
+// Chrome; ⌃⌥⌘W still summons this app from anywhere, Chrome included.
+let kHotKeyYieldBundleIDs: Set<String> = [
+    "com.google.Chrome",
+    "com.google.Chrome.beta",
+    "com.google.Chrome.dev",
+    "com.google.Chrome.canary",
+]
+
 // Kept as a second, conflict-free way in.
 let kHotKeyCode2 = UInt32(kVK_ANSI_W)
 let kHotKeyMods2 = UInt32(cmdKey | optionKey | controlKey)
@@ -1350,10 +1362,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate,
             return noErr
         }, 1, &spec, nil, nil)
 
-        let id = EventHotKeyID(signature: OSType(0x53484C4C /* 'SHLL' */), id: 1)
-        RegisterEventHotKey(kHotKeyCode, kHotKeyMods, id, GetApplicationEventTarget(), 0, &hotKeyRef)
         let id2 = EventHotKeyID(signature: OSType(0x53484C4C /* 'SHLL' */), id: 2)
         RegisterEventHotKey(kHotKeyCode2, kHotKeyMods2, id2, GetApplicationEventTarget(), 0, &hotKeyRef2)
+
+        // ⌘R is claimed and released as focus moves — see kHotKeyYieldBundleIDs.
+        watchFrontmostApp()
+    }
+
+    private func claimSummonHotKey() {
+        guard hotKeyRef == nil else { return }
+        let id = EventHotKeyID(signature: OSType(0x53484C4C /* 'SHLL' */), id: 1)
+        RegisterEventHotKey(kHotKeyCode, kHotKeyMods, id, GetApplicationEventTarget(), 0, &hotKeyRef)
+    }
+
+    private func yieldSummonHotKey() {
+        if let ref = hotKeyRef { UnregisterEventHotKey(ref); hotKeyRef = nil }
+    }
+
+    /// Follows the frontmost app and hands ⌘R back to the apps that need it.
+    private func watchFrontmostApp() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification,
+            object: nil, queue: .main) { [weak self] note in
+                let app = note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+                self?.applyHotKeyPolicy(frontmost: app?.bundleIdentifier)
+        }
+        applyHotKeyPolicy(frontmost: NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
+    }
+
+    private func applyHotKeyPolicy(frontmost bundleID: String?) {
+        if let bundleID, kHotKeyYieldBundleIDs.contains(bundleID) { yieldSummonHotKey() }
+        else { claimSummonHotKey() }
     }
 
     /// ⌘R, one key, three states — his spec: "CMD R moves it straight into focus

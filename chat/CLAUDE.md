@@ -137,6 +137,11 @@ What focus mode does, and why each piece is the way it is:
 - **⌘R is global** and hands focus back to the app he came from, putting the caret
   in the message box on the way in. Trade-off documented at `kHotKeyMods`: a global
   ⌘R is swallowed everywhere, so Reload/Run stop working in other apps.
+- **Chrome gets ⌘R back.** A Carbon hotkey can't be scoped to "everywhere but
+  one app", so `kHotKeyYieldBundleIDs` + `watchFrontmostApp()` unregister the
+  ⌘R hotkey when Chrome activates and re-register it the moment focus leaves.
+  Reload works normally in Chrome; ⌃⌥⌘W still summons from inside it. Add a
+  bundle ID to that set to exempt another app.
 - **Everything that is not the conversation is collapsed** — nav rail, list column,
   pinned-message strip, and the composer's `+`/emoji buttons (dead at this width).
   All found by shape or position, never by class name.
