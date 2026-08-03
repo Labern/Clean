@@ -2746,7 +2746,34 @@ const store = {
 };
 
 // ---------- boot ----------
+// ── the studio card ────────────────────────────────────────────────────────────────
+// ★★★★★ × PARADOX, for a beat, the way a film company's mark precedes a film. The
+// card is NOT written here: it is ~/Desktop/★★★★★/brand/studio-card.html, shipped
+// beside this file, and loaded in a frame. One file, every product — a mark that
+// exists in two places starts drifting the moment one of them is edited.
+const PICA_VERSION = '1.0';       // keep in step with VERSION in mac/build.sh
+function studioCard(){
+  const f = document.createElement('iframe');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;'
+    + 'background:transparent;z-index:98;';
+  f.src = 'studio-card.html?' + new URLSearchParams({
+    product: 'PICA', tagline: 'a screenwriting instrument',
+    version: PICA_VERSION, year: String(new Date().getFullYear()), mode: 'overlay',
+  });
+  let gone = false;
+  const drop = () => { if (gone) return; gone = true; window.removeEventListener('message', onMsg); f.remove(); };
+  const onMsg = ev => { if (ev.data === 'paradox-card-done') drop(); };
+  window.addEventListener('message', onMsg);
+  // it says when it has finished; the timer is only there in case it never loads at
+  // all, because a missing brand asset must never leave a sheet over the editor
+  f.addEventListener('error', drop);
+  setTimeout(drop, 4000);
+  document.body.appendChild(f);
+}
+
 async function boot(){
+  try { studioCard(); } catch {}
   const ui0 = LS.get('pica.ui', {});
   if (ui0.theme) document.documentElement.dataset.theme = ui0.theme;
   S.showTitle = !!ui0.showTitle;

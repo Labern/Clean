@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>★★★★★ × PARADOX</title>
+<!--
+  THE STUDIO CARD — ★★★★★ × PARADOX
+  ═════════════════════════════════════════════════════════════════════════════
+  The thing that appears for two seconds when one of these apps opens, the way a
+  film company's logo precedes a film: the studio signs the work, then gets out
+  of the way. The app behind it keeps its own visual language — PICA is ink on
+  paper and always will be. This is not that app; it is who made it.
+
+  ONE FILE, EVERY PRODUCT. Do not copy the markup into a host and restyle it —
+  that is how two versions of a mark start to drift apart. Load THIS file:
+
+    · a Mac app  — a borderless NSPanel with a WKWebView on it, ?mode=panel
+    · a web app  — a fixed, transparent <iframe> over everything, ?mode=overlay
+
+  PARAMETERS (query string, all optional)
+    product   the app's name          PICA
+    tagline   one line under it       a screenwriting instrument
+    version   shown in the colophon   1.0
+    year      copyright year          2026
+    holder    copyright holder        LABERN
+    mode      panel | overlay         overlay
+    theme     dark | light            dark
+    ms        total time on screen    1940
+
+  It tells its host when it is finished — postMessage 'paradox-card-done' to the
+  parent, and to webkit.messageHandlers.paradox if a native side is listening —
+  so nobody has to keep a second copy of the timing.
+
+  Palette and type are STYLE.md's, unaltered: ~/Desktop/★★★★★/STYLE.md.
+-->
+<style>
+:root{
+  /* PARADOX — the canonical set. Every colour below is a token and nothing
+     references a hex directly, so the light version is one class, not a rewrite. */
+  --bg-1:#0f0c29; --bg-2:#302b63; --bg-3:#24243e; --bg-4:#1a1a2e;
+  --border:#875fd7;
+  --ink:#cfcae6; --faint:#8787af; --dark:#5f5f87;
+  /* the accent family — the mark is monochrome, these are here for anything a host
+     product wants to tint on top of the card */
+  --teal2:#5fd7af; --teal:#87d7d7; --violet:#af87ff; --violet2:#d787ff; --pink:#ff87ff;
+  --rule:rgba(135,95,215,.28);
+  --shadow:0 30px 80px rgba(0,0,0,.55);
+  --scrim:rgba(10,8,20,.42);
+  --mono:"Menlo","SF Mono","Consolas",ui-monospace,monospace;
+  --serif:ui-serif,"New York","Iowan Old Style",Palatino,Georgia,"Times New Roman",serif;
+}
+/* The white version, later, costs exactly this much. */
+:root.light{
+  --bg-1:#faf9ff; --bg-2:#efecfb; --bg-3:#f4f2fd; --bg-4:#e9e6f7;
+  --border:#c9bdf0;
+  --ink:#221d3a; --faint:#6b6590; --dark:#a9a2c8;
+  --teal2:#0f9c78; --teal:#1f8f9c; --violet:#6d3fd4; --violet2:#9b3fd4; --pink:#c43fb0;
+  --rule:rgba(109,63,212,.22);
+  --shadow:0 24px 60px rgba(60,40,120,.20);
+  --scrim:rgba(250,249,255,.55);
+}
+
+*{ box-sizing:border-box; margin:0; padding:0; }
+html,body{ height:100%; background:transparent; }
+body{
+  font-family:var(--mono);
+  display:flex; align-items:center; justify-content:center;
+  /* the card is never a click target for the app underneath */
+  -webkit-user-select:none; user-select:none; cursor:default;
+  overflow:hidden;
+}
+/* overlay mode floats the card on a scrim; panel mode IS the card, edge to edge */
+body.overlay{ background:var(--scrim); }
+body.panel{ background:transparent; }
+
+.card{
+  position:relative; overflow:hidden;
+  width:460px; height:300px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:var(--shadow);
+  display:flex; flex-direction:column; justify-content:center;
+  padding:0 2.4rem;
+  opacity:0;
+  transition:opacity var(--in,220ms) ease;
+}
+body.panel .card{
+  /* the window already provides the frame and the shadow's job is done by the
+     window server, so the card simply fills it */
+  width:100%; height:100%; box-shadow:none;
+}
+.card.in{ opacity:1; }
+.card.out{ opacity:0; transition:opacity var(--out,320ms) ease; }
+
+/* the drifting four-stop ground — STYLE.md §2 */
+.card::before{
+  content:""; position:absolute; inset:-40%;
+  background:linear-gradient(125deg,var(--bg-1),var(--bg-2),var(--bg-3),var(--bg-4));
+  background-size:260% 260%;
+  animation:drift 26s ease-in-out infinite;
+}
+@keyframes drift{
+  0%,100%{ background-position:0% 50%; }
+  50%    { background-position:100% 50%; }
+}
+.inner{ position:relative; text-align:center; }
+
+/* ── the mark ─────────────────────────────────────────────────────────────── */
+/* The lockup itself — brackets, five stars, the ×, PARADOX in its serif — is the
+   artwork at ~/Desktop/★★★★★/img/logo-white.png, inlined here as data so the card
+   stays one file with no requests. It is white on transparent, so it sits on any
+   dark ground and inverts to the light theme by being darkened, not by swapping to
+   a second file that could fall out of step with this one. */
+.mark{
+  width:232px; height:auto; display:block; margin:0 auto;
+  opacity:0; animation:strike 620ms cubic-bezier(.2,.7,.3,1) 140ms forwards;
+}
+:root.light .mark{ filter:invert(1) brightness(.18); }
+@keyframes strike{
+  from{ opacity:0; transform:translateY(-3px) scale(1.035); }
+  to  { opacity:1; transform:none; }
+}
+
+/* ── the product ──────────────────────────────────────────────────────────── */
+.product{
+  /* MONOGRAPH's thesis, borrowed: the serif is the writer, the mono is the engineer.
+     The mark is set in a serif, so the product's name answers it in one — and every
+     label, count and date on the card stays mono. */
+  margin-top:2.1rem;
+  font-family:var(--serif);
+  font-size:30px; letter-spacing:.2em; color:var(--ink);
+  text-transform:uppercase; white-space:nowrap;
+}
+.tagline{ margin-top:.85rem; font-size:11.5px; letter-spacing:.06em; color:var(--faint); }
+
+/* ── the colophon ─────────────────────────────────────────────────────────── */
+.rule{ height:1px; background:var(--rule); margin:2.2rem 0 .95rem; }
+.colophon{
+  font-size:9.5px; letter-spacing:.2em; color:var(--faint);
+  text-transform:uppercase; white-space:nowrap;
+}
+
+/* Anyone who has asked the system to stop moving things gets a still card. */
+@media (prefers-reduced-motion:reduce){
+  .card::before{ animation:none; }
+  .mark{ animation:none; opacity:1; }
+}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="inner">
+    <img class="mark" alt="★★★★★ × PARADOX" src="data:image/png;base64,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">
+    <div class="product" id="product"></div>
+    <div class="tagline" id="tagline"></div>
+    <div class="rule"></div>
+    <div class="colophon" id="colophon"></div>
+  </div>
+</div>
+<script>
+(() => {
+  // Two ways in, because not every host has a URL to hang a query on: a native app
+  // that loads this file as a STRING (the card is self-contained, logo included, so it
+  // needs no origin at all) sets window.PARADOX_PARAMS before the document runs.
+  const q = new URLSearchParams(location.search);
+  const injected = window.PARADOX_PARAMS || {};
+  const get = (k, dflt) => {
+    if (injected[k] != null && injected[k] !== '') return String(injected[k]);
+    const v = q.get(k);
+    return (v == null || v === '') ? dflt : v;
+  };
+
+  const product = get('product', 'PICA');
+  const tagline = get('tagline', 'a screenwriting instrument');
+  const version = get('version', '1.0');
+  const year    = get('year', String(new Date().getFullYear()));
+  const holder  = get('holder', 'LABERN');
+  const total   = Math.max(600, parseInt(get('ms', '1940'), 10) || 1940);
+
+  if (get('theme', 'dark') === 'light') document.documentElement.classList.add('light');
+  document.body.className = get('mode', 'overlay') === 'panel' ? 'panel' : 'overlay';
+
+  // Tracking out is done with letter-spacing, not by typing spaces between letters:
+  // spaced-out characters are what made a title page read "F O R  Y O U R" once, and
+  // anything that copies text out of here should get the word, not the spelling of it.
+  document.getElementById('product').textContent = product;
+  document.getElementById('tagline').textContent = tagline;
+  document.getElementById('colophon').textContent =
+    'Version ' + version + ' · © ' + year + ' ' + holder;
+
+  const card = document.getElementById('card');
+  const IN = 220, OUT = 320;
+  card.style.setProperty('--in', IN + 'ms');
+  card.style.setProperty('--out', OUT + 'ms');
+
+  let done = false;
+  const finish = () => {
+    if (done) return;
+    done = true;
+    card.classList.add('out');
+    setTimeout(() => {
+      try { parent.postMessage('paradox-card-done', '*'); } catch {}
+      try { webkit.messageHandlers.paradox.postMessage('done'); } catch {}
+    }, OUT);
+  };
+
+  requestAnimationFrame(() => card.classList.add('in'));
+  const timer = setTimeout(finish, total - OUT);
+  // it is a signature, not a dialogue — any click or key sends it away early
+  const early = () => { clearTimeout(timer); finish(); };
+  addEventListener('mousedown', early);
+  addEventListener('keydown', early);
+})();
+</script>
+</body>
+</html>
