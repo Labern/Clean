@@ -46,6 +46,18 @@ cp ../fonts/*.ttf "$WEB/fonts/" 2>/dev/null || echo "  ! fonts missing — will 
 
 # pdf.js is fetched at build time rather than committed; without it the app still
 # imports PDFs, but only when online (it falls back to the CDN).
+# the studio card — one file, shared by every product; see ~/Desktop/★★★★★/brand
+CARD="$HOME/Desktop/★★★★★/brand/studio-card.html"
+if [ -f "$CARD" ]; then
+  # into the bundle, and beside index.html so the web build ships the same file —
+  # every build re-syncs from the master copy, so the two can never drift apart
+  cp "$CARD" "$WEB/studio-card.html"
+  cp "$CARD" "../studio-card.html"      # build.sh runs from mac/; the web copy lives beside index.html
+  echo "  › studio card bundled"
+else
+  echo "  › no studio card found at $CARD — the app will simply open without one"
+fi
+
 if [ ! -f "vendor-cache/pdf.min.mjs" ]; then
   echo "› fetching pdf.js $PDFJS"
   mkdir -p vendor-cache
@@ -98,7 +110,7 @@ PLIST
 
 # ---- 4. compile ----
 echo "› compiling"
-swiftc -O -parse-as-library PICA.swift WebProxy.swift OCR.swift -o "$APP/Contents/MacOS/$APP_NAME" \
+swiftc -O -parse-as-library PICA.swift WebProxy.swift OCR.swift Splash.swift -o "$APP/Contents/MacOS/$APP_NAME" \
   -framework Cocoa -framework WebKit
 
 # ---- 5. sign (auto-detects an Apple Developer ID; degrades gracefully) ----

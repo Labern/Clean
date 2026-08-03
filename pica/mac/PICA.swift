@@ -253,6 +253,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     private var verifyPath: String? = nil
     private var reportPath: String? = nil
     private var beforeId = ""
+    private var splash: Splash?
+    private var shotPath: String? = nil
 
     func applicationDidFinishLaunching(_ note: Notification) {
         let argv = ProcessInfo.processInfo.arguments
@@ -261,9 +263,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
             if let r = argv.firstIndex(of: "--report"), r + 1 < argv.count { reportPath = argv[r + 1] }
             NSApp.setActivationPolicy(.prohibited)
         }
+        // --splash-only [--shot out.png]: put the card up, photograph it, quit. The card
+        // is the one part of this app with no other way to be checked — you have to look
+        // at it — and looking at it must not mean launching the app over and over.
+        if argv.contains("--splash-only") {
+            if let r = argv.firstIndex(of: "--shot"), r + 1 < argv.count { shotPath = argv[r + 1] }
+            // .accessory, not .prohibited: a prohibited app is defined as one that
+            // presents no interface, and ordering the panel front under it never
+            // returns. .accessory shows the card with no Dock tile and no activation,
+            // which is exactly the behaviour being checked anyway.
+            NSApp.setActivationPolicy(.accessory)
+            splash = Splash(); splash?.show()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { self.shootSplash() }
+            return
+        }
         buildMenu()
+        // The card goes up BEFORE the editor is built, which is the whole effect: the
+        // studio signs the work while the work is still opening.
+        if verifyPath == nil && ProcessInfo.processInfo.environment["PICA_NO_SPLASH"] == nil {
+            splash = Splash(); splash?.show()
+        }
         buildWindow()
         if verifyPath == nil { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    private func shootSplash() {
+        guard let p = splash?.panelWindow, let v = p.contentView else {
+            FileHandle.standardError.write(Data("splash: no panel\n".utf8)); exit(1)
+        }
+        guard let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { exit(1) }
+        v.cacheDisplay(in: v.bounds, to: rep)
+        if let png = rep.representation(using: .png, properties: [:]), let path = shotPath {
+            try? png.write(to: URL(fileURLWithPath: path))
+            print("wrote \(path) — \(Int(v.bounds.width))×\(Int(v.bounds.height))")
+        }
+        exit(0)
     }
 
     private func runVerify(_ path: String) {

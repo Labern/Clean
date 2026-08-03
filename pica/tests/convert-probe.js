@@ -201,3 +201,30 @@ window.__junkProbe = async function (url) {
   return JSON.stringify({ total: els.length, junk: junk.length, byType,
     sample: junk.slice(0, 12).map(e => e.type + ' :: ' + JSON.stringify(e.text.slice(0, 44))) }, null, 1);
 };
+// Where does a script stop being read correctly? Types per page.
+window.__driftProbe = async function (url, name) {
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  await window.PICA_API.importUrl(url, name);
+  for (let i = 0; i < 2000; i++) { const d = window.__pica && window.__pica.doc; if (d && d.elements.length > 20) break; await sleep(50); }
+  const S = window.__pica, els = S.doc.elements;
+  const byId = new Map(els.map(e => [e.id, e]));
+  const rows = [];
+  S.res.pages.forEach((pg, i) => {
+    const t = {};
+    const xs = {};
+    for (const l of pg.lines) {
+      const el = byId.get(l.el); if (!el) continue;
+      t[el.type] = (t[el.type] || 0) + 1;
+    }
+    rows.push({ p: i + 1, a: t.action || 0, d: t.dialogue || 0, c: t.character || 0, g: t.general || 0 });
+  });
+  // collapse to blocks of 10 pages
+  const blocks = [];
+  for (let i = 0; i < rows.length; i += 10) {
+    const b = rows.slice(i, i + 10);
+    blocks.push((i + 1) + '-' + (i + b.length) + ' a=' + b.reduce((s, r) => s + r.a, 0)
+      + ' d=' + b.reduce((s, r) => s + r.d, 0) + ' c=' + b.reduce((s, r) => s + r.c, 0)
+      + ' g=' + b.reduce((s, r) => s + r.g, 0));
+  }
+  return JSON.stringify({ read: S.doc.__read, blocks }, null, 1);
+};
