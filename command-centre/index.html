@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>★★★★★ × PARADOX — Command Centre</title>
+<meta name="theme-color" content="#0f0c29">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   ★★★★★ × PARADOX — Command Centre
+   Every colour is a token. Re-theme the whole room by overriding tokens on
+   a single ancestor (see .theme-* below). Never hard-code a hex in a rule.
+   ───────────────────────────────────────────────────────────────────────── */
+:root{
+  /* gradient */
+  --bg-1:#0f0c29; --bg-2:#302b63; --bg-3:#24243e; --bg-4:#1a1a2e;
+  /* chrome */
+  --term:#0e0b1a; --titlebar:#171331; --edge:#2a2350;
+  /* text */
+  --ink:#cfcae6; --faint:#8787af; --dim:#6c6c8a;
+  /* accents */
+  --teal:#87d7d7; --teal2:#5fd7af;
+  --violet:#af87ff; --violet2:#d787ff;
+  --pink:#ff87ff; --gold:#ffd75f;
+  --dark:#5f5f87; --rule:#875fd7;
+  /* metrics */
+  --rail:13.5rem;
+  --pad:clamp(10px,1.6vw,22px);
+}
+/* alternate token set — one class re-themes the entire room */
+.theme-ember{
+  --bg-1:#1a0d0c; --bg-2:#4a1f16; --bg-3:#2a1512; --bg-4:#170f10;
+  --term:#140b09; --titlebar:#241310; --edge:#3a201a;
+  --teal:#f0b27a; --teal2:#e8a13f; --violet:#ff8a5f; --violet2:#ffb07a;
+  --pink:#ff6f91; --gold:#ffd75f; --dark:#7a4a3a; --rule:#c1663f;
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:linear-gradient(-45deg,var(--bg-1),var(--bg-2),var(--bg-3),var(--bg-4));
+  background-size:400% 400%; animation:drift 26s ease infinite;
+  color:var(--ink);
+  font:400 clamp(11px,1.05vw,14px)/1.62 "Menlo","SF Mono","Consolas",monospace;
+  letter-spacing:.2px;
+  overflow:hidden;
+}
+@keyframes drift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@media (prefers-reduced-motion:reduce){body{animation:none}}
+
+/* faint star field */
+.stars{position:fixed;inset:0;pointer-events:none;opacity:.20;z-index:0;
+  background:
+   radial-gradient(1px 1px at 12% 22%,#fff,transparent),
+   radial-gradient(1px 1px at 78% 14%,#fff,transparent),
+   radial-gradient(1px 1px at 33% 71%,#fff,transparent),
+   radial-gradient(1px 1px at 61% 46%,#fff,transparent),
+   radial-gradient(1px 1px at 88% 63%,#fff,transparent),
+   radial-gradient(1px 1px at 22% 88%,#fff,transparent),
+   radial-gradient(1px 1px at 47% 8%,#fff,transparent),
+   radial-gradient(1px 1px at 92% 34%,#fff,transparent);}
+
+/* ── the window ───────────────────────────────────────────────────────── */
+#room{
+  position:fixed; inset:clamp(6px,1.2vh,18px); z-index:1;
+  display:grid; grid-template-rows:auto auto 1fr;
+  background:var(--term); border:1px solid var(--edge); border-radius:14px;
+  box-shadow:0 30px 80px rgba(0,0,0,.55); overflow:hidden;
+}
+.titlebar{
+  display:flex; align-items:center; gap:8px; padding:7px 12px;
+  background:var(--titlebar); border-bottom:1px solid var(--edge);
+  font-size:.82em; color:var(--dim); flex:0 0 auto;
+}
+.dot{width:11px;height:11px;border-radius:50%}
+.dot.r{background:#ff5f57}.dot.y{background:#febc2e}.dot.g{background:#28c840}
+.titlebar .who{margin-left:auto;margin-right:auto;padding-right:52px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ── top bar (the company's own line) ─────────────────────────────────── */
+.topbar{display:grid;grid-template-columns:var(--rail) 1fr;align-items:center;
+  border-bottom:1px solid var(--edge);background:rgba(255,255,255,.012)}
+.mark{padding:10px var(--pad);white-space:nowrap;font-size:.94em}
+.mark .s1,.mark .s2,.mark .s3,.mark .s4,.mark .s5{font-size:1.25em;letter-spacing:.1em}
+.mark .s1{color:var(--teal2)}.mark .s2{color:var(--teal)}.mark .s3{color:var(--violet)}
+.mark .s4{color:var(--violet2)}.mark .s5{color:var(--pink)}
+.mark .x{color:var(--dim);margin:0 .45em}
+.mark .wm{color:var(--violet);font-weight:700;letter-spacing:.16em}
+/* slick touch: the campaign line is centred over the SECTION PANE — the
+   surface it describes — not over the window. It tracks the rail's width. */
+.bar-right{display:flex;align-items:center;gap:var(--pad);padding:0 var(--pad);min-width:0}
+.campaign{flex:1;text-align:center;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:var(--gold);letter-spacing:.14em;text-transform:uppercase;font-size:.86em}
+.campaign .lbl{color:var(--dim);letter-spacing:.2em;margin-right:.8em;text-transform:none}
+.clock{color:var(--faint);font-size:.8em;white-space:nowrap;display:flex;align-items:center;gap:.55em}
+.live{width:7px;height:7px;border-radius:50%;background:var(--pink);animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+/* ── body: rail + pane ────────────────────────────────────────────────── */
+.body{display:grid;grid-template-columns:var(--rail) 1fr;min-height:0}
+.rail{border-right:1px solid var(--edge);padding:var(--pad) 0;display:flex;flex-direction:column;gap:2px;overflow:auto}
+.rail button{
+  all:unset;cursor:pointer;display:flex;gap:.7em;align-items:baseline;
+  padding:.5em var(--pad);color:var(--faint);font:inherit;font-size:.9em;
+  border-left:2px solid transparent;white-space:nowrap;
+}
+.rail button:hover{color:var(--ink);background:rgba(255,255,255,.03)}
+.rail button .n{color:var(--dark);font-size:.9em}
+.rail button[aria-current="true"]{color:var(--gold);border-left-color:var(--gold);background:rgba(255,215,95,.05)}
+.rail button[aria-current="true"] .n{color:var(--gold)}
+.rail .spacer{flex:1}
+.rail .meta{padding:.35em var(--pad);color:var(--dim);font-size:.76em;white-space:nowrap}
+.rail .leave{color:var(--dim);font-size:.8em}
+
+.pane{min-width:0;min-height:0;overflow:auto;padding:var(--pad);position:relative}
+.pane.fill{display:flex;flex-direction:column;overflow:hidden}
+.pane.fill .hd{flex:0 0 auto}
+.pane::-webkit-scrollbar,.rail::-webkit-scrollbar,.boxbody::-webkit-scrollbar{width:9px;height:9px}
+.pane::-webkit-scrollbar-thumb,.rail::-webkit-scrollbar-thumb,.boxbody::-webkit-scrollbar-thumb{background:var(--edge);border-radius:9px}
+
+.hd{display:flex;align-items:baseline;gap:1em;margin-bottom:calc(var(--pad)*.9);flex-wrap:wrap}
+.hd h1{font:inherit;font-size:1.05em;font-weight:700;color:var(--violet);letter-spacing:.22em}
+.hd .n{color:var(--dark)}
+.hd .sub{color:var(--dim);font-size:.84em;letter-spacing:.04em}
+
+/* ── the box (CLI card grammar) ───────────────────────────────────────── */
+.box{display:flex;flex-direction:column;min-height:0}
+.boxtop,.boxbot{display:flex;align-items:center;color:var(--rule);font-size:.9em;user-select:none;gap:.4em}
+.boxtop .t{color:var(--gold);font-weight:700;letter-spacing:.18em;white-space:nowrap}
+.boxtop .c,.boxbot .c{opacity:.85}
+.boxtop .k{color:var(--faint);font-size:.86em;letter-spacing:.06em;white-space:nowrap}
+.ln{flex:1;height:0;border-top:1px solid var(--rule);opacity:.55;min-width:.8em}
+.boxbody{border-left:1px solid var(--rule);margin-left:.32em;padding:.55em 0 .55em 1.05em;min-height:0;overflow:auto}
+.cap{color:var(--faint);font-size:.8em;padding:.15em 0 0 1.4em}
+
+/* ── lists ────────────────────────────────────────────────────────────── */
+.item{display:flex;gap:.6em;align-items:flex-start;padding:.2em 0;position:relative}
+.item .g{color:var(--dark);flex:0 0 auto;user-select:none}
+.item .tx{flex:1;min-width:0;outline:none;word-break:break-word}
+.item .tx:focus{background:rgba(175,135,255,.10);box-shadow:0 0 0 1px var(--rule)}
+.item .tx[data-empty="1"]::before{content:attr(data-ph);color:var(--dim)}
+.item .kill{all:unset;cursor:pointer;color:var(--dark);opacity:0;padding:0 .3em;flex:0 0 auto}
+.item:hover .kill{opacity:1}.item .kill:hover{color:var(--pink)}
+.item.done .tx{color:var(--dim);text-decoration:line-through}
+.add{all:unset;display:block;width:100%;cursor:text;color:var(--dim);padding:.25em 0;font:inherit;font-size:.92em}
+.add:focus{color:var(--ink);outline:none}
+.add::placeholder{color:var(--dark)}
+
+.tag{color:var(--teal);font-size:.78em;letter-spacing:.1em;border:1px solid var(--edge);
+  padding:0 .45em;border-radius:3px;flex:0 0 auto;background:rgba(135,215,215,.06);cursor:pointer}
+.tag.v{color:var(--violet)}.tag.p{color:var(--pink)}.tag.gd{color:var(--gold)}
+
+/* ── COMMAND grid ─────────────────────────────────────────────────────── */
+.command{display:grid;gap:calc(var(--pad)*1.1);grid-template-columns:repeat(3,minmax(0,1fr));
+  grid-template-areas:"camp camp camp" "now next canon" "pow pow pow"}
+.command .a-camp{grid-area:camp}.command .a-now{grid-area:now}
+.command .a-next{grid-area:next}.command .a-canon{grid-area:canon}.command .a-pow{grid-area:pow}
+@media(max-width:900px){.command{grid-template-columns:1fr;grid-template-areas:"camp" "now" "next" "canon" "pow"}}
+.campstate{font-size:clamp(15px,2.1vw,28px);line-height:1.32;color:var(--ink);letter-spacing:.01em;
+  outline:none;padding:.15em 0}
+.campstate:focus{background:rgba(175,135,255,.10);box-shadow:0 0 0 1px var(--rule)}
+.campstate[data-empty="1"]::before{content:attr(data-ph);color:var(--dim)}
+.campmeta{display:flex;gap:1.6em;flex-wrap:wrap;color:var(--faint);font-size:.84em;margin-top:.7em}
+.campmeta b{color:var(--teal);font-weight:400;outline:none}
+.campmeta b[data-empty="1"]::before{content:attr(data-ph);color:var(--dim)}
+
+/* power ladder */
+.power{display:grid;gap:.15em .9em;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))}
+.pw{display:flex;gap:.7em;align-items:center;padding:.12em 0}
+.pw .k{width:8.2em;color:var(--faint);font-size:.86em;letter-spacing:.08em;flex:0 0 auto}
+.pw .meter{letter-spacing:.06em;cursor:pointer;user-select:none;white-space:nowrap}
+.pw .meter .on{color:var(--teal)}.pw .meter .off{color:var(--dark)}
+.pw .note{flex:1;min-width:0;color:var(--dim);font-size:.84em;outline:none;word-break:break-word}
+.pw .note:focus{color:var(--ink);background:rgba(135,215,215,.08)}
+.pw .note[data-empty="1"]::before{content:attr(data-ph);color:var(--dark)}
+
+/* ── DESK ─────────────────────────────────────────────────────────────── */
+.desk{display:grid;gap:calc(var(--pad)*1.1);grid-template-columns:minmax(0,1.6fr) minmax(0,1fr)}
+@media(max-width:900px){.desk{grid-template-columns:1fr}}
+.focus{font-size:clamp(15px,2vw,26px);line-height:1.35;outline:none;color:var(--ink);min-height:1.3em}
+.focus:focus{background:rgba(135,215,215,.09);box-shadow:0 0 0 1px var(--rule)}
+.focus[data-empty="1"]::before{content:attr(data-ph);color:var(--dim)}
+.sess{display:flex;align-items:center;gap:1.1em;flex-wrap:wrap;margin-top:.9em}
+.btn{all:unset;cursor:pointer;font:inherit;font-size:.86em;letter-spacing:.14em;
+  border:1px solid var(--rule);color:var(--teal);padding:.35em 1.1em;border-radius:4px;white-space:nowrap}
+.btn:hover{background:rgba(135,215,215,.1);color:var(--ink)}
+.btn.hot{border-color:var(--pink);color:var(--pink)}
+.btn.gold{border-color:var(--gold);color:var(--gold)}
+.btn.gold:hover{background:rgba(255,215,95,.1)}
+.big{font-size:clamp(20px,3.4vw,42px);color:var(--teal);letter-spacing:.06em;font-variant-numeric:tabular-nums}
+.big.running{color:var(--pink)}
+.rules{color:var(--faint);font-size:.86em}
+.rules li{list-style:none;padding:.1em 0}
+.rules li::before{content:"×  ";color:var(--dark)}
+.rules li.y::before{content:"✓  ";color:var(--teal2)}
+.log{font-size:.84em;color:var(--faint)}
+.log .r{display:flex;gap:1em}
+.log .r .d{color:var(--dim)}
+.log .r .m{color:var(--teal)}
+
+/* ── TABLE ────────────────────────────────────────────────────────────── */
+.tablewrap{flex:1;min-height:18rem}
+.surface{position:relative;height:100%;border:1px dashed var(--edge);border-radius:6px;
+  background-image:radial-gradient(circle at 1px 1px,rgba(135,95,215,.16) 1px,transparent 0);
+  background-size:26px 26px;overflow:hidden}
+.card{position:absolute;width:15.5rem;background:rgba(23,19,49,.96);border:1px solid var(--edge);
+  border-left:2px solid var(--teal);border-radius:5px;padding:.5em .7em;cursor:grab;
+  box-shadow:0 8px 22px rgba(0,0,0,.45);touch-action:none}
+.card.drag{cursor:grabbing;box-shadow:0 16px 40px rgba(0,0,0,.6);z-index:50}
+.card .top{display:flex;gap:.5em;align-items:center;margin-bottom:.25em}
+.card .kind{font-size:.74em;letter-spacing:.14em;color:var(--gold);cursor:pointer;user-select:none}
+.card .kill{all:unset;cursor:pointer;color:var(--dark);margin-left:auto}
+.card .kill:hover{color:var(--pink)}
+.card .tx{outline:none;font-size:.9em;color:var(--ink);word-break:break-word;cursor:text;min-height:1.3em}
+.card .tx:focus{background:rgba(135,215,215,.08)}
+.card .tx[data-empty="1"]::before{content:attr(data-ph);color:var(--dim)}
+.card[data-kind="SCRIPT"]{border-left-color:var(--gold)}
+.card[data-kind="IMAGE"]{border-left-color:var(--pink)}
+.card[data-kind="OBJECT"]{border-left-color:var(--violet)}
+.card[data-kind="PLAN"]{border-left-color:var(--teal2)}
+.card[data-kind="NOTE"]{border-left-color:var(--teal)}
+.emptytable{position:absolute;inset:0;display:grid;place-items:center;color:var(--dim);
+  text-align:center;pointer-events:none;padding:2em;line-height:2}
+
+/* ── ARSENAL ──────────────────────────────────────────────────────────── */
+.arsenal{display:grid;gap:calc(var(--pad)*1.1);grid-template-columns:minmax(0,1fr) minmax(0,1.25fr)}
+@media(max-width:900px){.arsenal{grid-template-columns:1fr}}
+
+/* ── REVIEW WALL ──────────────────────────────────────────────────────── */
+.wall{display:grid;gap:calc(var(--pad)*.95);grid-template-columns:repeat(auto-fill,minmax(min(100%,19rem),1fr));align-content:start}
+.pin{border:1px solid var(--edge);border-radius:5px;padding:.7em .85em;background:rgba(255,255,255,.02);
+  display:flex;flex-direction:column;gap:.45em}
+.pin .t{color:var(--ink);outline:none;word-break:break-word;min-height:1.3em}
+.pin .t:focus{background:rgba(175,135,255,.1)}
+.pin .t[data-empty="1"]::before{content:attr(data-ph);color:var(--dim)}
+.pin .row{display:flex;gap:.5em;align-items:center;flex-wrap:wrap}
+.pin .verdict{font-size:.78em;letter-spacing:.12em}
+.pin .verdict.hold{color:var(--faint)}
+.pin .verdict.rework{color:var(--pink)}
+.pin .verdict.notyet{color:var(--gold)}
+.pin .jbtn{all:unset;cursor:pointer;font-size:.75em;letter-spacing:.1em;color:var(--dim);
+  border:1px solid var(--edge);padding:.15em .55em;border-radius:3px}
+.pin .jbtn:hover{color:var(--ink);border-color:var(--rule)}
+.pin .jbtn.on{color:var(--ink);border-color:var(--rule);background:rgba(175,135,255,.14)}
+.pin .jbtn.canon{color:var(--gold);border-color:rgba(255,215,95,.35)}
+.pin .jbtn.canon:hover{background:rgba(255,215,95,.12)}
+.judgement{color:var(--faint);font-size:.84em;margin-bottom:.9em}
+.wall .empty{grid-column:1/-1;color:var(--dim);line-height:2}
+.judgement b{color:var(--violet);font-weight:400}
+
+/* ── threshold ────────────────────────────────────────────────────────── */
+#threshold{position:fixed;inset:0;z-index:100;display:grid;place-items:center;
+  background:radial-gradient(120% 90% at 50% 40%,rgba(48,43,99,.55),rgba(8,6,18,.97) 70%);
+  backdrop-filter:blur(3px);cursor:pointer;text-align:center;padding:2rem}
+#threshold.gone{opacity:0;pointer-events:none;transition:opacity .55s ease}
+.plate{border:1px solid var(--rule);border-radius:8px;padding:clamp(1.4rem,4vw,3.2rem) clamp(1.6rem,7vw,5rem);
+  background:rgba(14,11,26,.72);box-shadow:0 30px 90px rgba(0,0,0,.6)}
+.plate .stars5{font-size:clamp(18px,3.6vw,40px);letter-spacing:.32em}
+.plate .wm2{font-size:clamp(13px,2.1vw,22px);letter-spacing:.42em;color:var(--violet);font-weight:700;margin-top:.5em}
+.plate .cond{color:var(--faint);font-size:.86em;margin-top:1.6rem;line-height:1.9;letter-spacing:.04em}
+.plate .cond b{color:var(--ink);font-weight:400}
+.plate .enter{margin-top:1.7rem;color:var(--teal);letter-spacing:.28em;font-size:.9em}
+.cursor{display:inline-block;width:.62em;height:1.05em;background:var(--teal);vertical-align:-.18em;
+  animation:blink 1.1s steps(1) infinite;margin-left:.35em}
+@keyframes blink{50%{opacity:0}}
+.plate .hist{color:var(--dim);font-size:.76em;margin-top:1.3rem}
+
+.hidden{display:none!important}
+.pane[data-anim="1"]{animation:fadein .34s ease}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+.toast{position:fixed;bottom:1.6rem;left:50%;transform:translateX(-50%);z-index:120;
+  background:var(--titlebar);border:1px solid var(--rule);border-radius:5px;padding:.5em 1.2em;
+  color:var(--gold);font-size:.86em;letter-spacing:.1em;opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="stars"></div>
+
+<!-- ── THE THRESHOLD ──────────────────────────────────────────────────── -->
+<div id="threshold">
+  <div class="plate">
+    <div class="stars5">
+      <span style="color:var(--teal2)">★</span><span style="color:var(--teal)">★</span><span style="color:var(--violet)">★</span><span style="color:var(--violet2)">★</span><span style="color:var(--pink)">★</span>
+    </div>
+    <div class="wm2">P A R A D O X</div>
+    <div class="cond">
+      Beyond this point you are not at home.<br>
+      You are inside <b>★★★★★ × PARADOX</b>.<br>
+      Phones do not run the room · chores do not enter ·<br>
+      nobody drifts through. If you are here, <b>you are in the work</b>.
+    </div>
+    <div class="enter">CROSS THE THRESHOLD<span class="cursor"></span></div>
+    <div class="hist" id="thHist"></div>
+  </div>
+</div>
+
+<!-- ── THE ROOM ───────────────────────────────────────────────────────── -->
+<div id="room" class="hidden">
+  <div class="titlebar">
+    <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+    <span class="who">paradox — zsh — ★★★★★ × PARADOX Command Centre</span>
+  </div>
+
+  <div class="topbar">
+    <div class="mark">
+      <span class="s1">★</span><span class="s2">★</span><span class="s3">★</span><span class="s4">★</span><span class="s5">★</span>
+      <span class="x">×</span><span class="wm">PARADOX</span>
+    </div>
+    <div class="bar-right">
+      <div class="campaign"><span class="lbl">CAMPAIGN</span><span id="barCampaign">—</span></div>
+      <div class="clock"><span class="live"></span><span id="inRoom">IN THE ROOM 00:00:00</span></div>
+    </div>
+  </div>
+
+  <div class="body">
+    <nav class="rail" id="rail"></nav>
+    <main class="pane" id="pane"></main>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════════════
+   STATE — additive schema, hydrate-over-defaults. Never wipe, never lose.
+   Everything lives in localStorage on this device; nothing is uploaded.
+   ══════════════════════════════════════════════════════════════════════ */
+const KEY = "paradox.commandcentre.v1";
+
+const DEFAULTS = {
+  v: 1,
+  campaign: {
+    title: "MAKE ★★★★★ × PARADOX A REAL PLACE",
+    statement: "Build the room the company acts from — command wall, making desk, table, arsenal, review wall — then put real work through it.",
+    horizon: "", stake: ""
+  },
+  now:   [{id:"n1", text:"★★★★★ × PARADOX Command Centre — v1", done:false}],
+  next:  [{id:"x1", text:"Fill the command wall with live information", done:false}],
+  canon: [],
+  power: [
+    {k:"MONEY",         v:0, note:""},
+    {k:"IP",            v:0, note:""},
+    {k:"AUDIENCE",      v:0, note:""},
+    {k:"TECHNOLOGY",    v:3, note:"Claude Code · the whole toolchain"},
+    {k:"EQUIPMENT",     v:1, note:""},
+    {k:"RELATIONSHIPS", v:0, note:""},
+    {k:"DISTRIBUTION",  v:1, note:"labern.github.io"}
+  ],
+  desk: { focus:"", sessions:[], running:null,
+          tools:[{id:"t1",text:"Mac + displays",on:true},{id:"t2",text:"Programming environment",on:true},
+                 {id:"t3",text:"Audio",on:false},{id:"t4",text:"Camera",on:false},
+                 {id:"t5",text:"Drawing / writing materials",on:false}] },
+  table: [],
+  library: { active:[], arsenal:[] },
+  review: [],
+  threshold: { crossings:0, last:null }
+};
+
+const clone = o => JSON.parse(JSON.stringify(o));
+function merge(def, got){                      // hydrate over defaults — additive only
+  if (Array.isArray(def)) return Array.isArray(got) ? got : clone(def);
+  if (def && typeof def === "object"){
+    const out = {}; const src = (got && typeof got === "object") ? got : {};
+    for (const k of new Set([...Object.keys(def), ...Object.keys(src)]))
+      out[k] = (k in def) ? merge(def[k], src[k]) : src[k];
+    return out;
+  }
+  return got === undefined ? def : got;
+}
+let S;
+try { S = merge(DEFAULTS, JSON.parse(localStorage.getItem(KEY) || "{}")); }
+catch(e){ S = clone(DEFAULTS); }
+
+let saveT;
+function save(){ clearTimeout(saveT); saveT = setTimeout(()=>{
+  try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){}
+}, 120); }
+
+const uid = () => Math.random().toString(36).slice(2,9);
+const esc = s => String(s==null?"":s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad2 = n => String(n).padStart(2,"0");
+function hms(ms){ const t=Math.max(0,Math.floor(ms/1000));
+  return pad2(Math.floor(t/3600))+":"+pad2(Math.floor(t/60)%60)+":"+pad2(t%60); }
+function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg;
+  t.classList.add("show"); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove("show"),2100); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   BUILDING BLOCKS — the CLI card grammar
+   ══════════════════════════════════════════════════════════════════════ */
+function box(title, key, bodyHTML, caption){
+  return `<section class="box">
+    <div class="boxtop"><span class="c">╭─</span><span class="t">${esc(title)}</span>
+      ${key?`<span class="k">${esc(key)}</span>`:""}<span class="ln"></span><span class="c">╮</span></div>
+    <div class="boxbody">${bodyHTML}</div>
+    <div class="boxbot"><span class="c">╰</span><span class="ln"></span><span class="c">╯</span></div>
+    ${caption?`<div class="cap">${esc(caption)}</div>`:""}
+  </section>`;
+}
+function itemRow(it, listName, opts){
+  opts = opts || {};
+  const g = opts.glyph || "·";
+  return `<div class="item${it.done?" done":""}" data-list="${listName}" data-id="${it.id}">
+    <span class="g" ${opts.toggle?'data-act="toggle" style="cursor:pointer"':""}>${it.done?"✓":g}</span>
+    <div class="tx" contenteditable="plaintext-only" data-act="edit" data-ph="${esc(opts.ph||"…")}"
+         data-empty="${it.text?"0":"1"}">${esc(it.text)}</div>
+    <button class="kill" data-act="kill" title="remove">×</button>
+  </div>`;
+}
+function adder(listName, ph){
+  return `<input class="add" data-add="${listName}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false">`;
+}
+const meter = (v,max) => { max = max || 5;
+  return `<span class="meter" data-act="meter">${
+    Array.from({length:max},(_,i)=> i<v ? `<span class="on">▰</span>` : `<span class="off">▱</span>`).join("")}</span>`; };
+
+/* ══════════════════════════════════════════════════════════════════════
+   SECTIONS
+   ══════════════════════════════════════════════════════════════════════ */
+const SECTIONS = [
+  {id:"command", n:"01", label:"COMMAND",     render:renderCommand},
+  {id:"desk",    n:"02", label:"MAKING DESK", render:renderDesk},
+  {id:"table",   n:"03", label:"THE TABLE",   render:renderTable},
+  {id:"arsenal", n:"04", label:"ARSENAL",     render:renderArsenal},
+  {id:"review",  n:"05", label:"REVIEW WALL", render:renderReview}
+];
+let current = "command";
+
+/* ── 01 COMMAND ─────────────────────────────────────────────────────── */
+function renderCommand(){
+  const c = S.campaign;
+  const list = (arr, name, ph, opts) =>
+    (arr.length ? arr.map(it=>itemRow(it,name,opts)).join("") : "") + adder(name, ph);
+
+  return `<div class="hd"><span class="n">01 ·</span><h1>COMMAND</h1>
+    <span class="sub">stand a stranger here for five minutes and they understand the company</span></div>
+  <div class="command">
+    <div class="a-camp">${box("CURRENT CAMPAIGN","what are we actually trying to accomplish", `
+      <div class="campstate" contenteditable="plaintext-only" id="campTitle"
+           data-ph="Name the campaign…" data-empty="${c.title?"0":"1"}">${esc(c.title)}</div>
+      <div class="campmeta">
+        <span>→ <b contenteditable="plaintext-only" id="campStatement"
+             data-ph="What does winning it mean?" data-empty="${c.statement?"0":"1"}">${esc(c.statement)}</b></span>
+      </div>
+      <div class="campmeta">
+        <span>HORIZON <b contenteditable="plaintext-only" id="campHorizon"
+             data-ph="by when" data-empty="${c.horizon?"0":"1"}">${esc(c.horizon)}</b></span>
+        <span>STAKE <b contenteditable="plaintext-only" id="campStake"
+             data-ph="what it costs · what it wins" data-empty="${c.stake?"0":"1"}">${esc(c.stake)}</b></span>
+      </div>`)}</div>
+
+    <div class="a-now">${box("NOW","in production",
+      list(S.now,"now","+ what is in production…",{glyph:"▸",toggle:true,ph:"in production"}),
+      `${S.now.filter(i=>!i.done).length} live`)}</div>
+
+    <div class="a-next">${box("NEXT","what moves next",
+      list(S.next,"next","+ what moves next…",{glyph:"→",toggle:true,ph:"next"}),
+      `${S.next.length} queued`)}</div>
+
+    <div class="a-canon">${box("CANON","finished works",
+      (S.canon.length ? S.canon.map(it=>`<div class="item" data-list="canon" data-id="${it.id}">
+          <span class="g" style="color:var(--gold)">★</span>
+          <div class="tx" contenteditable="plaintext-only" data-act="edit" data-ph="…"
+               data-empty="${it.text?"0":"1"}">${esc(it.text)}</div>
+          <button class="kill" data-act="kill">×</button></div>`).join("")
+        : `<div style="color:var(--dim)">Nothing yet. CANON fills from the REVIEW WALL.</div>`)
+       + adder("canon","+ a finished work…"),
+      `${S.canon.length} in canon · the room's accumulated history`)}</div>
+
+    <div class="a-pow">${box("POWER","what the company presently commands", `
+      <div class="power">${S.power.map((p,i)=>`
+        <div class="pw" data-pw="${i}">
+          <span class="k">${esc(p.k)}</span>
+          ${meter(p.v)}
+          <span class="note" contenteditable="plaintext-only" data-act="pwnote"
+                data-ph="what exactly?" data-empty="${p.note?"0":"1"}">${esc(p.note)}</span>
+        </div>`).join("")}</div>`,
+      "click a meter to set the level · 0 = we do not have it yet")}</div>
+  </div>`;
+}
+
+/* ── 02 MAKING DESK ─────────────────────────────────────────────────── */
+function renderDesk(){
+  const d = S.desk;
+  const running = d.running;
+  const total = d.sessions.reduce((a,s)=>a+s.ms,0);
+  const today = new Date().toISOString().slice(0,10);
+  const todayMs = d.sessions.filter(s=>s.day===today).reduce((a,s)=>a+s.ms,0);
+  return `<div class="hd"><span class="n">02 ·</span><h1>THE MAKING DESK</h1>
+    <span class="sub">a production surface, not a general-life desk</span></div>
+  <div class="desk">
+    <div>
+      ${box("IN PRODUCTION RIGHT NOW","the one thing", `
+        <div class="focus" contenteditable="plaintext-only" id="deskFocus"
+             data-ph="What are you making, right now?" data-empty="${d.focus?"0":"1"}">${esc(d.focus)}</div>
+        <div class="sess">
+          <span class="big ${running?"running":""}" id="sessClock">00:00:00</span>
+          <button class="btn ${running?"hot":""}" id="sessBtn">${running?"◼ CLOCK OUT":"▶ CLOCK IN"}</button>
+          <span style="color:var(--faint);font-size:.84em">TODAY ${hms(todayMs)} · ALL TIME ${hms(total)}</span>
+        </div>`, "the clock runs on the company's time")}
+      <div style="height:var(--pad)"></div>
+      ${box("SESSION LOG","what this desk has produced",
+        (d.sessions.length ? `<div class="log">${d.sessions.slice(-9).reverse().map(s=>
+          `<div class="r"><span class="d">${esc(s.day)}</span><span class="m">${hms(s.ms)}</span>
+           <span style="color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(s.focus||"—")}</span></div>`
+        ).join("")}</div>` : `<div style="color:var(--dim)">No sessions yet. Clock in.</div>`),
+        `${d.sessions.length} sessions logged`)}
+    </div>
+    <div>
+      ${box("THE MACHINES","what this project requires",
+        d.tools.map(t=>`<div class="item" data-list="tools" data-id="${t.id}">
+          <span class="g" data-act="tool" style="cursor:pointer;color:${t.on?"var(--teal2)":"var(--dark)"}">${t.on?"✓":"·"}</span>
+          <div class="tx" contenteditable="plaintext-only" data-act="edit" data-ph="…"
+               data-empty="${t.text?"0":"1"}">${esc(t.text)}</div>
+          <button class="kill" data-act="kill">×</button></div>`).join("")
+        + adder("tools","+ a machine or material…"),
+        "whatever the active project requires — and nothing it doesn't")}
+      <div style="height:var(--pad)"></div>
+      ${box("THE RULE OF THE SURFACE","", `
+        <ul class="rules">
+          <li>No bills</li><li>No random mail</li><li>No personal clutter</li>
+          <li>No unrelated browsing detritus</li>
+          <li class="y">You sit here to make ★★★★★ × PARADOX work</li>
+        </ul>`)}
+    </div>
+  </div>`;
+}
+
+/* ── 03 THE TABLE ───────────────────────────────────────────────────── */
+const KINDS = ["NOTE","SCRIPT","IMAGE","OBJECT","PLAN"];
+function renderTable(){
+  return `<div class="hd"><span class="n">03 ·</span><h1>THE TABLE</h1>
+    <span class="sub">a screen compresses everything into one glowing rectangle — the table lets you see twenty things at once</span>
+    <button class="btn gold" id="tableAdd" style="margin-left:auto">+ LAY SOMETHING DOWN</button></div>
+  <div class="tablewrap"><div class="surface" id="surface">
+    ${S.table.map(c=>`
+      <div class="card" data-id="${c.id}" data-kind="${esc(c.kind)}" style="left:${c.x}px;top:${c.y}px">
+        <div class="top"><span class="kind" data-act="kind" title="change what this is">${esc(c.kind)}</span>
+          <button class="kill" data-act="kill">×</button></div>
+        <div class="tx" contenteditable="plaintext-only" data-act="edit" data-ph="…"
+             data-empty="${c.text?"0":"1"}">${esc(c.text)}</div>
+      </div>`).join("")}
+    ${S.table.length?"":`<div class="emptytable">Nothing on the table.<br>
+      Screenplays · storyboards · printouts · photographs · maps · scene structures · prototypes.<br>
+      Lay them down, then drag them anywhere.</div>`}
+  </div></div>`;
+}
+
+/* ── 04 ARSENAL ─────────────────────────────────────────────────────── */
+function renderArsenal(){
+  const L = S.library;
+  const row = (it, which) => `<div class="item" data-list="lib:${which}" data-id="${it.id}">
+    <span class="g" data-act="move" style="cursor:pointer;color:${which==="active"?"var(--teal)":"var(--dark)"}"
+          title="${which==="active"?"return it to the arsenal":"bring it into current study"}">${which==="active"?"◆":"◇"}</span>
+    <div class="tx" contenteditable="plaintext-only" data-act="edit" data-ph="…"
+         data-empty="${it.text?"0":"1"}">${esc(it.text)}</div>
+    <button class="kill" data-act="kill">×</button></div>`;
+  return `<div class="hd"><span class="n">04 ·</span><h1>THE ARSENAL</h1>
+    <span class="sub">everything here answers one question: what can ★★★★★ × PARADOX use?</span></div>
+  <div class="arsenal">
+    <div>${box("CURRENT STUDY","in use now",
+      (L.active.length ? L.active.map(i=>row(i,"active")).join("")
+        : `<div style="color:var(--dim)">The visible shelf is empty. Click ◇ on anything in the arsenal to bring it here.</div>`)
+      + adder("lib:active","+ what you are studying now…"),
+      "abundance without a visible shelf turns into diffusion")}</div>
+    <div>${box("THE ARSENAL","reference · everything the company holds",
+      (L.arsenal.length ? L.arsenal.map(i=>row(i,"arsenal")).join("")
+        : `<div style="color:var(--dim)">Film books · screenplays · literature · art books · game material · technical manuals · business material · physical media · past company work.</div>`)
+      + adder("lib:arsenal","+ add to the arsenal…"),
+      `${L.arsenal.length} held · ${L.active.length} in study · REFERENCE ≠ CURRENT STUDY`)}</div>
+  </div>`;
+}
+
+/* ── 05 REVIEW WALL ─────────────────────────────────────────────────── */
+const VERDICTS = {hold:"AWAITING JUDGEMENT", rework:"REWORK", notyet:"NOT FOR RELEASE YET"};
+const REVIEW_KINDS = ["WORK","FRAME","UI","PAGE","DESIGN","PLAN"];
+function renderReview(){
+  return `<div class="hd"><span class="n">05 ·</span><h1>THE REVIEW WALL</h1>
+    <span class="sub">stand back — you are not the person who made this</span>
+    <button class="btn gold" id="wallAdd" style="margin-left:auto">+ PIN UP WORK</button></div>
+  <div class="judgement">The question is not <b>“do I like this”</b>. It is <b>“is this good enough to leave the building with ★★★★★ × PARADOX on it?”</b></div>
+  <div class="wall" id="wall">
+    ${S.review.length ? S.review.map(p=>`
+      <div class="pin" data-id="${p.id}">
+        <div class="row"><span class="tag ${p.kind==="FRAME"?"p":p.kind==="UI"?"":"v"}" data-act="kind" title="change what this is">${esc(p.kind)}</span>
+          <span class="verdict ${p.verdict}">${VERDICTS[p.verdict]||VERDICTS.hold}</span>
+          <button class="kill" data-act="kill" style="all:unset;cursor:pointer;color:var(--dark);margin-left:auto">×</button></div>
+        <div class="t" contenteditable="plaintext-only" data-act="edit" data-ph="what is pinned up here?"
+             data-empty="${p.text?"0":"1"}">${esc(p.text)}</div>
+        <div class="row">
+          <button class="jbtn${p.verdict==="hold"?" on":""}" data-act="v" data-v="hold">HOLD</button>
+          <button class="jbtn${p.verdict==="rework"?" on":""}" data-act="v" data-v="rework">REWORK</button>
+          <button class="jbtn${p.verdict==="notyet"?" on":""}" data-act="v" data-v="notyet">NOT YET</button>
+          <button class="jbtn canon" data-act="canon">→ CANON</button>
+        </div>
+      </div>`).join("")
+    : `<div class="empty">Nothing pinned up. Frames · character designs · UI screens · sequences · story beats · book pages · concept art · financial diagrams · launch materials.</div>`}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   RENDER + NAV
+   ══════════════════════════════════════════════════════════════════════ */
+function renderRail(){
+  const r = document.getElementById("rail");
+  r.innerHTML = SECTIONS.map(s=>
+    `<button data-go="${s.id}" aria-current="${s.id===current}"><span class="n">${s.n}</span><span>${s.label}</span></button>`
+  ).join("")
+  + `<div class="spacer"></div>
+     <div class="meta">CANON <span style="color:var(--gold)">${S.canon.length}</span> · NOW <span style="color:var(--teal)">${S.now.filter(i=>!i.done).length}</span> · WALL <span style="color:var(--pink)">${S.review.length}</span></div>
+     <div class="meta leave" id="leaveBtn" style="cursor:pointer">⌫  leave the room</div>`;
+}
+function render(){
+  const sec = SECTIONS.find(s=>s.id===current) || SECTIONS[0];
+  const pane = document.getElementById("pane");
+  pane.className = "pane" + (sec.id === "table" ? " fill" : "");   // the table fills the room
+  pane.innerHTML = sec.render();
+  pane.setAttribute("data-anim","1");
+  pane.scrollTop = 0;
+  renderRail();
+  document.getElementById("barCampaign").textContent = S.campaign.title || "—";
+  if (current==="desk") tickDesk();
+  if (current==="table") wireTable();
+}
+function go(id){ current = id; render(); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   LIST PLUMBING
+   ══════════════════════════════════════════════════════════════════════ */
+function listOf(name){
+  if (name === "now") return S.now;
+  if (name === "next") return S.next;
+  if (name === "canon") return S.canon;
+  if (name === "tools") return S.desk.tools;
+  if (name === "lib:active") return S.library.active;
+  if (name === "lib:arsenal") return S.library.arsenal;
+  return null;
+}
+
+document.addEventListener("click", e => {
+  const goBtn = e.target.closest("[data-go]");
+  if (goBtn) return go(goBtn.dataset.go);
+
+  if (e.target.closest("#leaveBtn")) return leaveRoom();
+  if (e.target.closest("#sessBtn"))  return toggleSession();
+  if (e.target.closest("#tableAdd")) return addCard();
+  if (e.target.closest("#wallAdd"))  return addPin();
+
+  const act = e.target.closest("[data-act]");
+  if (!act) return;
+  const a = act.dataset.act;
+
+  /* generic list rows */
+  const row = act.closest("[data-list]");
+  if (row){
+    const arr = listOf(row.dataset.list);
+    if (arr){
+      const i = arr.findIndex(x=>x.id===row.dataset.id);
+      if (i >= 0){
+        if (a === "kill"){ arr.splice(i,1); save(); render(); return; }
+        if (a === "toggle"){ arr[i].done = !arr[i].done; save(); render(); return; }
+        if (a === "tool"){ arr[i].on = !arr[i].on; save(); render(); return; }
+        if (a === "move"){
+          const fromActive = row.dataset.list === "lib:active";
+          const from = fromActive ? S.library.active : S.library.arsenal;
+          const to   = fromActive ? S.library.arsenal : S.library.active;
+          to.push(from.splice(i,1)[0]); save(); render(); return;
+        }
+      }
+    }
+  }
+
+  /* power meters */
+  const pw = act.closest("[data-pw]");
+  if (pw && a === "meter"){
+    const p = S.power[+pw.dataset.pw];
+    const cell = e.target.closest("span.on,span.off");
+    const idx = cell ? [...act.children].indexOf(cell) : -1;
+    if (idx >= 0) p.v = (p.v === idx+1) ? idx : idx+1;
+    save(); render(); return;
+  }
+
+  /* table cards */
+  const card = act.closest(".card");
+  if (card){
+    const c = S.table.find(x=>x.id===card.dataset.id);
+    if (c){
+      if (a === "kill"){ S.table = S.table.filter(x=>x.id!==c.id); save(); render(); return; }
+      if (a === "kind"){ c.kind = KINDS[(KINDS.indexOf(c.kind)+1)%KINDS.length]; save(); render(); return; }
+    }
+  }
+
+  /* review pins */
+  const pin = act.closest(".pin");
+  if (pin){
+    const i = S.review.findIndex(x=>x.id===pin.dataset.id);
+    if (i >= 0){
+      const p = S.review[i];
+      if (a === "kill"){ S.review.splice(i,1); save(); render(); return; }
+      if (a === "kind"){ p.kind = REVIEW_KINDS[(REVIEW_KINDS.indexOf(p.kind)+1)%REVIEW_KINDS.length]; save(); render(); return; }
+      if (a === "v"){
+        p.verdict = act.dataset.v; save(); render();
+        if (act.dataset.v === "notyet") toast("★★★★★ × PARADOX SHOULD NOT RELEASE THIS YET");
+        return;
+      }
+      if (a === "canon"){
+        S.canon.push({id:uid(), text:p.text || "(untitled work)"});
+        S.review.splice(i,1); save(); render();
+        toast("THIS BELONGS IN CANON"); return;
+      }
+    }
+  }
+});
+
+/* inline editing — every field on every wall is live */
+document.addEventListener("input", e => {
+  const el = e.target;
+  if (!el.isContentEditable) return;
+  const txt = el.textContent;
+  el.dataset.empty = txt.trim() ? "0" : "1";
+
+  if (el.id === "campTitle"){ S.campaign.title = txt; document.getElementById("barCampaign").textContent = txt || "—"; save(); return; }
+  if (el.id === "campStatement"){ S.campaign.statement = txt; save(); return; }
+  if (el.id === "campHorizon"){ S.campaign.horizon = txt; save(); return; }
+  if (el.id === "campStake"){ S.campaign.stake = txt; save(); return; }
+  if (el.id === "deskFocus"){ S.desk.focus = txt; save(); return; }
+
+  const pw = el.closest("[data-pw]");
+  if (pw && el.dataset.act === "pwnote"){ S.power[+pw.dataset.pw].note = txt; save(); return; }
+
+  const row = el.closest("[data-list]");
+  if (row){
+    const arr = listOf(row.dataset.list);
+    const it = arr && arr.find(x=>x.id===row.dataset.id);
+    if (it){ it.text = txt; save(); }
+    return;
+  }
+  const card = el.closest(".card");
+  if (card){ const c = S.table.find(x=>x.id===card.dataset.id); if (c){ c.text = txt; save(); } return; }
+
+  const pin = el.closest(".pin");
+  if (pin){ const p = S.review.find(x=>x.id===pin.dataset.id); if (p){ p.text = txt; save(); } return; }
+});
+
+/* adders + keyboard */
+document.addEventListener("keydown", e => {
+  const add = e.target.closest("[data-add]");
+  if (add && e.key === "Enter"){
+    e.preventDefault();
+    const v = add.value.trim(); if (!v) return;
+    const arr = listOf(add.dataset.add); if (!arr) return;
+    arr.push(add.dataset.add === "tools" ? {id:uid(), text:v, on:false} : {id:uid(), text:v, done:false});
+    add.value = ""; save();
+    const keep = add.dataset.add;
+    const scroll = document.getElementById("pane").scrollTop;
+    render();
+    document.getElementById("pane").scrollTop = scroll;
+    const again = document.querySelector(`[data-add="${keep}"]`);
+    if (again) again.focus();
+    return;
+  }
+  if (e.target.isContentEditable && e.key === "Enter" && !e.shiftKey){ e.preventDefault(); e.target.blur(); return; }
+
+  /* nav — only when not typing */
+  if (e.target.isContentEditable || e.target.tagName === "INPUT") return;
+  if (document.getElementById("room").classList.contains("hidden")) return;
+  const i = "12345".indexOf(e.key);
+  if (i >= 0 && SECTIONS[i]) go(SECTIONS[i].id);
+  if (e.key === "Escape") leaveRoom();
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   DESK — the session clock
+   ══════════════════════════════════════════════════════════════════════ */
+function toggleSession(){
+  const d = S.desk;
+  if (d.running){
+    const ms = Date.now() - d.running.at;
+    if (ms > 4000) d.sessions.push({day:new Date(d.running.at).toISOString().slice(0,10), ms, focus:d.focus});
+    d.running = null; save(); render(); toast("CLOCKED OUT · " + hms(ms));
+  } else {
+    d.running = {at: Date.now()}; save(); render(); toast("THE DESK IS OPEN");
+  }
+}
+function tickDesk(){
+  const el = document.getElementById("sessClock"); if (!el) return;
+  el.textContent = S.desk.running ? hms(Date.now() - S.desk.running.at) : "00:00:00";
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   TABLE — laying things down, and moving them
+   ══════════════════════════════════════════════════════════════════════ */
+function addCard(){
+  const surf = document.getElementById("surface");
+  const w = surf ? surf.clientWidth : 800, h = surf ? surf.clientHeight : 500;
+  const n = S.table.length;
+  S.table.push({id:uid(), kind:"NOTE", text:"",
+    x: Math.max(16, Math.min(26 + (n%5)*70, w-270)),
+    y: Math.max(16, Math.min(24 + (n%7)*46, h-130))});
+  const id = S.table[S.table.length-1].id;
+  save(); render();
+  const last = document.querySelector(`.card[data-id="${id}"] .tx`);
+  if (last) last.focus();
+}
+function wireTable(){
+  const surf = document.getElementById("surface"); if (!surf) return;
+  surf.querySelectorAll(".card").forEach(card => {
+    card.addEventListener("pointerdown", ev => {
+      if (ev.target.closest("[contenteditable]") || ev.target.closest("button") || ev.target.closest(".kind")) return;
+      const c = S.table.find(x=>x.id===card.dataset.id); if (!c) return;
+      const r = surf.getBoundingClientRect();
+      const ox = ev.clientX - (r.left + c.x), oy = ev.clientY - (r.top + c.y);
+      card.classList.add("drag");
+      try { card.setPointerCapture(ev.pointerId); } catch(err){}
+      const move = e2 => {
+        c.x = Math.max(0, Math.min(e2.clientX - r.left - ox, surf.clientWidth  - card.offsetWidth));
+        c.y = Math.max(0, Math.min(e2.clientY - r.top  - oy, surf.clientHeight - card.offsetHeight));
+        card.style.left = c.x + "px"; card.style.top = c.y + "px";
+      };
+      const up = () => {
+        card.classList.remove("drag"); save();
+        card.removeEventListener("pointermove", move);
+        card.removeEventListener("pointerup", up);
+        card.removeEventListener("pointercancel", up);
+      };
+      card.addEventListener("pointermove", move);
+      card.addEventListener("pointerup", up);
+      card.addEventListener("pointercancel", up);
+    });
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   REVIEW WALL
+   ══════════════════════════════════════════════════════════════════════ */
+function addPin(){
+  S.review.unshift({id:uid(), kind:"WORK", text:"", verdict:"hold"});
+  save(); render();
+  const first = document.querySelector(".pin .t"); if (first) first.focus();
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   THE THRESHOLD — crossing it is an act, and the room remembers it
+   ══════════════════════════════════════════════════════════════════════ */
+let enteredAt = null;
+function paintThresholdHistory(){
+  const t = S.threshold;
+  document.getElementById("thHist").textContent =
+    t.crossings ? `${t.crossings} crossing${t.crossings===1?"":"s"} · last ${new Date(t.last).toLocaleString()}`
+                : "first crossing";
+}
+function enterRoom(){
+  const th = document.getElementById("threshold");
+  if (th.dataset.open === "0") return;
+  th.dataset.open = "0";
+  th.classList.add("gone");
+  setTimeout(()=>{ th.style.display = "none"; }, 600);
+  document.getElementById("room").classList.remove("hidden");
+  S.threshold.crossings++; S.threshold.last = Date.now(); save();
+  enteredAt = Date.now();
+  render();
+}
+function leaveRoom(){
+  if (S.desk.running) toggleSession();
+  const th = document.getElementById("threshold");
+  th.style.display = ""; th.classList.remove("gone"); th.dataset.open = "1";
+  document.getElementById("room").classList.add("hidden");
+  enteredAt = null;
+  document.getElementById("inRoom").textContent = "IN THE ROOM 00:00:00";
+  paintThresholdHistory();
+}
+document.getElementById("threshold").dataset.open = "1";
+document.getElementById("threshold").addEventListener("click", enterRoom);
+document.addEventListener("keydown", e => {
+  const th = document.getElementById("threshold");
+  if (th.dataset.open === "1" && (e.key === "Enter" || e.key === " ")){ e.preventDefault(); enterRoom(); }
+});
+
+/* the room's own clock */
+setInterval(()=>{
+  if (enteredAt) document.getElementById("inRoom").textContent = "IN THE ROOM " + hms(Date.now()-enteredAt);
+  tickDesk();
+}, 1000);
+
+paintThresholdHistory();
+renderRail();
+</script>
+</body>
+</html>
