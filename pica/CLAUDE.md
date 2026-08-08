@@ -46,6 +46,49 @@ and re-extracts (needs `npm i pdfjs-dist` inside tests/).
   out; Enter on empty → menu; ⌘1–8 direct; int./ext. auto-detects; SmartType feeds
   from the script itself.
 
+## An import is CONFORMED to Final Draft, never typeset like its source
+His words, twice, after There Will Be Blood and Jackie Brown came in wrong:
+*"If a screenplay is imported, always convert it to the Final Draft style."*
+
+Two stages, and the distinction is the whole design:
+- **Extract exactly.** `E.importPdf` still measures the source and reproduces it —
+  that is what proves the read was right, and it is what run.mjs's 100% gate tests.
+  Do not change this to "fix" an import.
+- **Then conform.** `E.toFinalDraft(doc)` is applied by BOTH import paths
+  (`importPdfUrl` and `importFdxText`) before the doc is saved or opened. It replaces
+  the layout with LETTER (612×792, 12pt Courier charW 7.2, rowH 12, FD columns and
+  widths, transRight 511.2, parenHang 1), rescales the positioned title page onto the
+  new grid, drops every `xOverride` and `spaceBefore` (source x and measured blank-row
+  gaps belong to the old grid; FD's own spacing rule takes over), and moves `revX` to
+  FD's right margin. Content — text, types, order, `marks`, `align`, `dual`, `rev` — is
+  untouched. The doc is stamped `src:'pdf'|'fdx'`.
+
+**Paragraphs reflow.** Inside an element, a line break belongs to the page it was set
+on, not to the writing: an FD export breaks where its margin fell, and a typed
+transcription (There Will Be Blood) breaks wherever the typist hit return, at no
+consistent width. `toFinalDraft` joins them all so FD's margin can break them again.
+Two exceptions only: a blank line is structure, and a short ALL-CAPS line at the head
+of an action/shot/scene element is a slug the importer folded in — never swallow the
+paragraph beneath it into it. (Joining swaps `\n` for a space — same length — so
+emphasis offsets need no remapping.)
+
+**`rowH` is the LINE pitch, not the paragraph gap.** `rowPitch()` replaced a plain
+`mode(gaps)`, which elected 25 on There Will Be Blood — a script of mostly one-line
+paragraphs makes the *paragraph* gap the commonest gap in the document, so the whole
+script read as double-spaced (26 rows to the page, 173 pages). Rounding also splits a
+12.7pt pitch across 12 and 13, so candidates are counted with their neighbours, and
+the answer is the smallest frequent gap that the dominant gap is a multiple of.
+
+**The typed-doc upgrade must never touch an import.** `store.upgradeTypedLayout` now
+bails on `doc.src`, an import note, a star margin, a positioned title page, or any
+per-element geometry. It rewrites column widths, and doing that to an import moves
+every wrap point in the script.
+
+Gated by run.mjs §11 (pitch, conformance, nothing lost, speeches flowed) and by
+smoketest steps against the built bundle (Tenet must arrive at 612/7.2/12/60, stamped
+`pdf`, with zero line breaks left inside dialogue). **Tenet conformed paginates at 156
+script pages, not the source's 147** — that number is in both gates.
+
 ## Typed-doc geometry is FD12's own template, to the point
 LETTER (new docs) mirrors Screenplay.fdxt exactly: action/scene 1.5"–7.5" (60),
 dialogue 2.5"–6.0" (35), parenthetical 3.0"–5.5" (25, hanging -0.10" first
@@ -155,6 +198,57 @@ the fidelity gate compares text+geometry only, so it is style-agnostic.
   owns the row's star).
 - estimateCharW guards zero/NaN widths (else joinItems hits ' '.repeat(Infinity));
   importPdf([]) returns an empty doc instead of throwing.
+
+## THE TITLE BEGINS WHERE THE CHARACTER NAMES BEGIN — and it is guarded
+His instruction, after reporting it three times: *"Do not. EVER. Fuck this up again.
+Write a test for this. After every change run this test."*
+
+The contract: the screenplay title's **first character** sits on the character-cue
+column — the same x every cue starts at (3.5" on FD's grid; the measured spread across
+cues is 0.0px). That hard vertical edge is the line the eye follows. It is NOT centred
+on the cues' optical centre: that put the title's left edge ~95px left of the column and
+its right edge past their ragged ends, so nothing shared an edge and it read as broken
+however close the centres were (they were 1.7px apart, and he still called it out).
+
+`positionTitle()` therefore sets `transform:none`, `text-align:left`, and places the
+box's **content** edge (left minus padding-left) at `pageLeft + cols.character * k`.
+
+**The guard: `PICA_API.test.titleAudit()`**, run by the smoketest on every
+`build.sh --install`, so it gates the install door. It walks everything that moves the
+page under the title — sidebar hidden/shown, zoom in/out/fit, title page on/off, a very
+long title, scrolling — and after each one measures the title's first character against
+a cue **as actually DRAWN**, requiring < 1.5px. It also fails if the placement is being
+done by centring again (`text-align`/`transform` check).
+
+**Why measuring against the drawn cue matters:** the old `titleDelta()` compared the
+title with *the same formula that positioned it*, so it could only ever agree with
+itself — a misaligned title passed the suite for days. Never test a placement against
+its own arithmetic. The audit has been proven to fail: reintroducing centring reports
+`OFF typed=53.4 … long-title=167.4 · placed by centring, not by edge`.
+
+Quick check outside the bundle: `node tests/chrome-run.mjs title-probe.js __titleAudit`.
+
+## Headless verification: WebKit cannot render, Chromium can
+A windowless `WKWebView` is treated as a **hidden page**: `requestAnimationFrame` never
+fires and timers are throttled to ~460ms. DOM layout and `getBoundingClientRect` work
+fine (which is why the smoketest can measure geometry), but anything needing canvas
+rasterisation or real timing hangs there — `page.render()` never completes, and a
+390-second import that "lost every mark" was the harness, not the app.
+
+- `tests/chrome-run.mjs <probe.js> <fn> [args-json]` runs a probe against the app in
+  **headless Chromium over CDP**, on a throwaway profile, opening no window. Serves
+  `pica/` plus `~/Downloads` under `/dl/`. `SHOT=<path>` screenshots a returned `clip`.
+  Pass `--window-size` is already set to 1440×1000 — below 880px the app takes its
+  mobile branch and title positioning is deliberately skipped.
+- Use it for anything visual. **Look at the rendered page** before believing a number.
+
+## The index marks what a menu is acting on, and settles when it changes
+Right-clicking a row adds `.menuing` to it (set *after* `docMenu()`, because opening a
+popup calls `closePops()` which clears the mark), so a Delete can never look like it
+landed on the wrong script. `rail()` records each row's top before the rebuild and
+animates any row that moved from its old position to its new one (Web Animations, not a
+transition — nothing is left on the element and it needs no rAF, which the headless
+harness does not have). New rows fade in; `prefers-reduced-motion` skips it all.
 
 ## The title sits on the DOC'S OWN cue axis — computed, not assumed
 The header title's "centred over the page" was a proxy that only coincided with

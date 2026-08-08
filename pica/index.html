@@ -191,6 +191,21 @@ body.resizing #canvas{ pointer-events:none; }
 .doc-item:hover,.scene-item:hover{ color:var(--ink); }
 .doc-item.current,.scene-item.current{ border-left-color:var(--rule); color:var(--ink); }
 .doc-item.dragging{ opacity:.45; }
+/* The row a context menu belongs to — so a Delete can never land on the wrong script.
+   A faint wash was not enough: with the menu open over the rail you could not tell at a
+   glance WHICH script you were about to rename or delete. It is a selection, so it looks
+   like one — the whole row inverted, edge to edge, the way a chosen thing looks. */
+.doc-item.menuing,.scene-item.menuing{
+  background:var(--ink); color:var(--paper);
+  border-left-color:var(--ink);
+  /* bleed past the rail's own padding so the block runs the full width of the column */
+  margin-left:-.55rem; margin-right:-.55rem;
+  padding-left:1.1rem; padding-right:.9rem;
+  border-radius:2px;
+}
+.doc-item.menuing .pg,.scene-item.menuing .no{ color:var(--paper); opacity:.62; }
+.doc-item.menuing .ttl{ opacity:1 !important; }
+.doc-item.menuing:hover,.scene-item.menuing:hover{ color:var(--paper); }
 .doc-item.drop-above{ box-shadow:0 -2px 0 var(--rule); }
 .doc-item.drop-below{ box-shadow:0 2px 0 var(--rule); }
 .scene-item .no{ color:var(--faint); flex:none; width:1.7em; text-align:right; font-variant-numeric:tabular-nums; }
@@ -301,6 +316,51 @@ footer{
 #stType:hover{ border-bottom-color:var(--rule); }
 footer .grow{ flex:1; }
 footer .z{ padding:0 .25rem; color:var(--ink-2); }
+/* ---------- find-a-screenplay ---------- */
+#getForm{ display:flex; align-items:center; }
+#getIn{
+  font-family:var(--mono); font-size:.7rem; letter-spacing:.04em; color:var(--ink);
+  background:transparent; border:none; border-bottom:1px solid var(--rule);
+  padding:.12rem .3rem; width:9.5rem; outline:none; transition:width .18s, border-color .18s;
+}
+#getIn::placeholder{ color:var(--faint); }
+#getIn:focus{ width:15rem; border-bottom-color:var(--ink-2); }
+#getIn::-webkit-search-cancel-button{ -webkit-appearance:none; }
+#getForm.busy #getIn{ border-bottom-color:var(--ink); }
+/* the trial bar sits above the first page and owns the decision */
+/* The decision box. It is opaque WHITE and self-coloured on purpose: it asks a question
+   about the page underneath it, so it must never be read through — and it must look the
+   same in either theme. (It used to say background:var(--bg), a token this app has never
+   defined, so it resolved to nothing and the box was transparent.) It sits above every
+   layer on the page and below only the modal overlay and the toast. */
+#trialBar{
+  /* Full width, so the script passing underneath is MASKED rather than showing either
+     side of it: an 780px box over an 881px page left the text visible around the edges
+     as you scrolled. The reading measure is kept on the row inside. */
+  position:sticky; top:0; z-index:75; margin:0 0 .55rem; width:100%;
+  background:#fff; color:#141413;
+  border:none; border-bottom:1px solid #cfccc3; border-radius:0;
+  padding:.6rem 1.1rem .55rem; box-shadow:0 12px 26px rgba(0,0,0,.22);
+  font-family:var(--mono); font-size:.72rem;
+}
+#trialBar .tb-row{ max-width:860px; margin-left:auto; margin-right:auto; }
+#trialBar[hidden]{ display:none; }
+#trialBar .tb-row{ display:flex; align-items:center; gap:.6rem; }
+#trialBar .grow{ flex:1; }
+#trialBar .tb-q{ color:#141413; letter-spacing:.06em; text-transform:uppercase; font-size:.66rem; }
+#trialBar .tb-what{ color:#141413; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+#trialBar .tb-what span{ color:#77746c; margin-left:.5rem; }
+#trialBar .tb-sub{ margin-top:.28rem; color:#77746c; font-size:.66rem; }
+#trialBar .tb-btn{
+  font-family:var(--mono); font-size:.68rem; letter-spacing:.05em; white-space:nowrap;
+  padding:.2rem .55rem; border:1px solid #d9d7d0; border-radius:3px; color:#3f3d38;
+  background:#fff;
+}
+#trialBar .tb-q{ white-space:nowrap; }
+#trialBar .tb-btn:hover{ color:#141413; border-color:#8a877e; }
+#trialBar .tb-yes{ color:#141413; border-color:#141413; }
+#trialBar .tb-quiet{ border-color:transparent; color:#77746c; }
+@media (max-width: 880px){ #getIn{ width:6.5rem; } #getIn:focus{ width:9rem; } }
 footer .z:hover{ color:var(--ink); }
 #stSave{ font-variant-numeric:tabular-nums; }
 #stPage{ font-variant-numeric:tabular-nums; color:var(--ink-2); }
@@ -483,6 +543,19 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
   </nav>
   <div id="railGrip" title="Drag to resize"></div>
   <main id="canvas">
+    <!-- Shown while a found script is on TRIAL: nothing is saved until he says so. -->
+    <div id="trialBar" hidden>
+      <div class="tb-row">
+        <span class="tb-q">Is this the one?</span>
+        <span class="tb-what"><b id="tbTitle">—</b><span id="tbMeta"></span></span>
+        <span class="grow"></span>
+        <button class="tb-btn tb-yes" id="tbAccept">Accept</button>
+        <button class="tb-btn" id="tbFix" title="Read it again and repair what is nearly right">Reformat</button>
+        <button class="tb-btn" id="tbAgain">Try again</button>
+        <button class="tb-btn tb-quiet" id="tbCancel">Cancel</button>
+      </div>
+      <div class="tb-row tb-sub"><span id="tbFrom"></span><span class="grow"></span><span id="tbCount"></span></div>
+    </div>
     <div id="pages" contenteditable="true" spellcheck="false" autocorrect="off" autocapitalize="off"></div>
   </main>
   <main id="canvasB" hidden>
@@ -525,10 +598,15 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
         <circle cx="7" cy="7" r="5.8"/><ellipse cx="7" cy="7" rx="2.5" ry="5.8"/><path d="M1.2 7 h11.6"/>
       </svg>
     </button>
+    <form id="getForm" autocomplete="off"><input id="getIn" type="search" spellcheck="false"
+      placeholder="Find a screenplay…" title="Type a film's name — PICA finds a script for it, shows it to you, and saves it only if you say so"></form>
     <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click to fit · double-click for 100%">100%</button><button class="z" id="zIn">+</button>
   </div>
 </footer>
 <div id="sbZoom"><img alt=""></div>
+
+
+</div>
 
 <div id="findBar" hidden>
   <input id="findIn" placeholder="Find" spellcheck="false">
@@ -565,17 +643,27 @@ const PicaEngine = (() => {
   };
 
   const SCENE_RE = /^(INT\.?\s*\/\s*EXT|EXT\.?\s*\/\s*INT|INT|EXT|I\/E|EST)[\s.]/i;
+  // a numbered slug's opening token, and the words that mark a page as title matter
+  const INLINE_NO_HEAD = /^\s*[A-Z]{0,2}\d{1,3}[A-Z]{0,2}[.)]\s/;
+  const TITLE_HEAD_RE = /screenplay by|written by|story by|directed by|produced by|copyright|\bdraft\b|\d{1,2}\/\d{1,2}\/\d{2,4}|[A-Z][a-z]+ \d{1,2},\s*\d{4}/i;
   const uid = () => 'e' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
   // ---------- line assembly from positioned text items ----------
   // items: [{x, y (top-origin), w, str}] for one page → lines [{x, xEnd, y, text, items}]
-  function joinItems(items, charW) {
+  // wordLevel: this page's OCR gives one item per WORD, and its boxes often touch or even
+  // overlap. Measuring the gap then welds them — "A CLUBPHOTOGRAPHERpops snap-shots". Two
+  // words are two words however tight the boxes are. Only set for pages that really are
+  // word-per-item, so a PDF whose items are whole runs (and whose splits fall mid-word)
+  // is joined exactly as before.
+  function joinItems(items, charW, wordLevel) {
     let text = '', xEnd = 0;
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       if (i > 0) {
         const gap = it.x - xEnd;
         if (gap > charW * 0.45 && !/\s$/.test(text)) text += ' '.repeat(Math.max(1, Math.round(gap / charW)));
+        else if (wordLevel && !/\s$/.test(text) && /[A-Za-z0-9.,;:!?'")\]]$/.test(text)
+                 && /^[A-Za-z0-9("'\[]/.test(it.str)) text += ' ';
       }
       text += it.str;
       xEnd = it.x + it.w;
@@ -583,7 +671,7 @@ const PicaEngine = (() => {
     return { text: text.replace(/\s+$/, ''), xEnd };
   }
 
-  function linesFromItems(items, charW) {
+  function linesFromItems(items, charW, wordLevel) {
     const its = items.filter(i => i.str && i.str.trim() !== '');
     its.sort((a, b) => a.y - b.y || a.x - b.x);
     const lines = [];
@@ -604,7 +692,7 @@ const PicaEngine = (() => {
         its2.push(it);
       }
       L.items = its2;
-      const j = joinItems(L.items, charW);
+      const j = joinItems(L.items, charW, wordLevel);
       return { x: L.items[0].x, xEnd: j.xEnd, y: L.y, text: j.text, items: L.items };
     }).filter(L => L.text.length > 0);
   }
@@ -905,8 +993,35 @@ const PicaEngine = (() => {
     return best;
   };
 
+  // The distance between two baselines is the row pitch — but a plain mode gets it
+  // wrong on scripts made mostly of one-line paragraphs, where the *paragraph* gap
+  // (two pitches) is the commonest gap of all. There Will Be Blood elects 25 that
+  // way and reads as double-spaced, 26 rows to the page. Rounding splits a 12.7pt
+  // pitch across 12 and 13 too, so each candidate is counted with its neighbours,
+  // and the answer is the smallest frequent gap that the dominant gap is a
+  // multiple of — because paragraph gaps are always multiples of the pitch.
+  function rowPitch(gaps) {
+    if (!gaps.length) return 12;
+    const h = new Map();
+    for (const g of gaps) h.set(g, (h.get(g) || 0) + 1);
+    const win = g => (h.get(g - 1) || 0) + (h.get(g) || 0) + (h.get(g + 1) || 0);
+    let top = 0, topG = 12;
+    for (const g of h.keys()) { const c = win(g); if (c > top) { top = c; topG = g; } }
+    for (const g of [...h.keys()].sort((a, b) => a - b)) {
+      if (g < 7 || g >= topG) break;                  // below screenplay leading, or not smaller
+      if (win(g) < top * 0.35) continue;              // not frequent enough to be the grid
+      const mult = topG / g;
+      if (Math.abs(mult - Math.round(mult)) <= 0.12) return g;   // topG is a multiple of it
+    }
+    return topG;
+  }
+
   function importPdf(rawPages, opts = {}) {
     if (!rawPages || !rawPages.length) return newDoc('IMPORTED');
+    // was any of this read off the picture rather than out of the file? measurements
+    // taken by eye are a few points looser than a typesetter's, and a couple of the
+    // rules below have to know that
+    const byEye = rawPages.some(p => p.ocr);
     // fonts with no usable Unicode map yield cipher text — crack them first,
     // since classification reads the words (INT., EXT., …), not just positions
     let decodeNote = null;
@@ -915,9 +1030,22 @@ const PicaEngine = (() => {
     else if (dec.warned) decodeNote = 'some text could not be decoded — this PDF hides its character map';
 
     const charW0 = estimateCharW(rawPages);
+    // is this document's text delivered one word at a time? (an OCR layer usually is)
+    let wordish = 0, itemsSeen = 0;
+    for (const p of rawPages) for (const it of p.items || []) {
+      if (!it.str || !it.str.trim()) continue;
+      itemsSeen++;
+      if (!/\s/.test(it.str.trim()) && it.str.trim().length <= 20) wordish++;
+      if (itemsSeen > 4000) break;
+    }
+    // A page read by eye is never welded either, whatever the chunks are. The recogniser
+    // hands back phrases, not words, so this test does not catch it — and its boxes hug
+    // the ink, so a chunk's measured end regularly runs past where the next one starts:
+    // "I'm suppose to apologise" came back as "I'msuppose to apologise".
+    const wordLevel = byEye || (itemsSeen > 50 && wordish / itemsSeen > 0.92);
     const pages = rawPages.map(p => ({
       width: p.width, height: p.height,
-      lines: p.lines ? p.lines : linesFromItems(p.items, charW0),
+      lines: p.lines ? p.lines : linesFromItems(p.items, charW0, wordLevel),
     }));
 
     // -- typography: underline segments (drawn as vector lines just below the
@@ -936,11 +1064,42 @@ const PicaEngine = (() => {
       }
     }
 
+    // Some drafts number scenes inline at the action margin — "8.  INT. OFFICE - DAY.  8."
+    // Some Like It Hot does. No gutter forms there, because the number shares its x with
+    // every action line in the script, so stripSceneNumbers cannot see it: the slug then
+    // begins "8." rather than INT/EXT and never reads as a scene at all. That script
+    // imported with ZERO scene headings. Lift the number off the text; the mirrored one at
+    // the right goes with it, but only when it is the same number.
+    const INLINE_NO = /^\s*([A-Z]{0,2}\d{1,3}[A-Z]{0,2})[.)]?\s+/;
+    const TRAIL_NO = /\s+([A-Z]{0,2}\d{1,3}[A-Z]{0,2})[.)]?\s*$/;
+    // A line that OPENS and CLOSES with the same number is a numbered slug whatever it
+    // says between them — this script's first scene is "1.  CITY AT NIGHT.  1.", with no
+    // INT/EXT at all, so requiring one left the number in the text and wrapped the
+    // mirrored copy onto a line of its own. The mirrored pair is signature enough.
+    for (const p of pages) for (const l of p.lines) {
+      const m = INLINE_NO.exec(l.text);
+      if (!m) continue;
+      const rest = l.text.slice(m[0].length);
+      const tm = TRAIL_NO.exec(rest);
+      const mirrored = tm && tm[1] === m[1];
+      // A production draft may number only the left margin. "60    INT. ELI'S CHURCH. DAY"
+      // and "54    THE IMAGE." are both scene headings; the wide gap after the number and
+      // the shout that follows say so even when there is no INT/EXT and no twin.
+      const numberedShout = /^\s{2,}/.test(l.text.slice(m[0].length - 1))
+        || (/^[A-Z0-9]/.test(rest) && rest === rest.toUpperCase() && rest.length <= 60);
+      if (!mirrored && !SCENE_RE.test(rest) && !numberedShout) continue;
+      if (numberedShout && !mirrored) l.slugNo = m[1];
+      l.text = (mirrored ? rest.slice(0, tm.index) : rest).trim();
+      if (mirrored) l.slugNo = m[1];                  // numbered: it is a scene heading
+    }
+
     // -- title page detection: first page, few lines, no sluglines, mostly centered-ish
     let titlePage = null, bodyStart = 0;
     if (pages.length > 1) {
       const p0 = pages[0];
-      const slug = p0.lines.some(l => SCENE_RE.test(l.text));
+      // a numbered slug counts as a slugline even with no INT/EXT — otherwise a script
+      // that opens on "1. CITY AT NIGHT." has its whole first page taken for a title page
+      const slug = p0.lines.some(l => SCENE_RE.test(l.text) || l.slugNo != null);
       // a title page has no slugline and reads as title matter — byline, draft stamps,
       // dates, contact blocks, revision-colour tables — not as flowing script
       const TITLE_MATTER = /written by|screenplay|story by|revised|revs?[.\s]|revision|draft|\d{1,2}\/\d{1,2}\/\d{2,4}|copyright|all rights|educational|contact|final|shooting script|table of contents/i;
@@ -950,6 +1109,30 @@ const PicaEngine = (() => {
         titlePage = p0; bodyStart = 1;
       }
     }
+    // A script may carry its title matter at the TOP of its first page rather than on a
+    // page of its own. Some Like It Hot does: the title, the credits, the company's
+    // address with the date beside it, then FADE IN: and scene 1. Left in the script those
+    // lines are body text — and the address and the date, sharing a row, read as two
+    // columns and print through each other. Converting to Final Draft means they belong on
+    // the title page. Take the head of page one up to the first slug or FADE IN.
+    let titleHead = null;
+    if (!titlePage && pages.length) {
+      const ls0 = pages[0].lines;
+      let cut = -1;
+      for (let i2 = 0; i2 < Math.min(ls0.length, 20); i2++) {
+        const t = ls0[i2].text.trim();
+        if (SCENE_RE.test(t) || /^(FADE|DISSOLVE)\b/i.test(t) || INLINE_NO_HEAD.test(t)
+            || ls0[i2].slugNo != null) { cut = i2; break; }
+      }
+      const head = cut > 1 ? ls0.slice(0, cut) : [];
+      // it has to READ as title matter, or an ordinary script loses its first paragraph
+      if (head.length >= 2 && head.length <= 14 && head.some(l => TITLE_HEAD_RE.test(l.text))) {
+        titleHead = head;
+        const skip = new Set(head);
+        pages[0].lines = ls0.filter(l => !skip.has(l));
+      }
+    }
+
     const body = pages.slice(bodyStart);
     // stars first: a trailing star otherwise shields a right-gutter scene number
     // from the gutter stripper (the number is no longer the last detached item)
@@ -965,12 +1148,21 @@ const PicaEngine = (() => {
     // all share: the same line sits at the same height on page after page, and it is
     // numeric (or a known marker). Anything genuinely written never repeats like that.
     const FURNITURE_NUM = /^[A-Za-z]?\d+[A-Za-z]?[.:]?$/;
-    const FURNITURE_WORD = /^\(?\s*(CONTINUED|CONT'D|MORE)\s*\)?[.:]?$/i;
+    // the handful of phrases that are a transition whether or not the colon survived
+    const TRANSITION_PHRASE = /^(?:(?:SMASH|MATCH|HARD|QUICK|JUMP|TIME|BACK)\s+)?(?:CUT|DISSOLVE|FADE|WIPE)(?:\s+(?:TO|FROM|IN|OUT|BACK|UP))*(?:\s+BLACK)?\s*[.:;]?$/;
+    // "CONTINUED:" arrives with the scene number in front of it and a count after it —
+    // Memento prints "4    CONTINUED: (2)" — and none of that is writing.
+    const FURNITURE_WORD = /^\(?\s*(?:[A-Z]{0,2}\d{1,3}[A-Z]{0,2}[.)]?\s+)?(CONTINUED|CONT'D|CONT’D|MORE)\s*\)?\s*[.:]?\s*(\(\s*\d+\s*\))?\s*$/i;
+    // the same, without MORE: a CONTINUED is apparatus wherever it sits, a (MORE) is not
+    const FURNITURE_CONT = /^\(?\s*(?:[A-Z]{0,2}\d{1,3}[A-Z]{0,2}[.)]?\s+)?(CONTINUED|CONT'D|CONT’D)\s*\)?\s*[.:]?\s*(\(\s*\d+\s*\))?\s*$/i;
     // revision headers: "10/11/03 MM revs. (goldenrod)  5." — a date or the word revs,
     // usually trailing the page number. Printing apparatus, never writing.
     const FURNITURE_HEADER = /\d{1,2}\/\d{1,2}\/\d{2,4}|\d{4}-\d{1,2}-\d{1,2}|\brevs?[.\s]|\brevisions?\b|\bshooting script\b|\bdraft\b.*\d{1,2}\/\d{1,2}/i;
     // provenance stamps ("Downloaded from …", site names, urls) are not writing either
-    const PROVENANCE = /\b(downloaded|imported|provided|courtesy)\s+(from|of|by)\b|scriptslug|script\s*savant|simplyscripts|imsdb|dailyscript|awesomefilm|8flix|screenplays?\s*online|for educational purposes|www\.[a-z0-9-]+\.[a-z]{2,}|https?:\/\//i;
+    // Sites stamp the scripts they host. A bare domain on its own line is one of those
+    // stamps wherever it sits — The Social Network's copy carries "DEADLINE.com" on every
+    // page, which became 165 stray elements and, worse, the script's title.
+    const PROVENANCE = /\b(downloaded|imported|provided|courtesy)\s+(from|of|by)\b|scriptslug|script\s*savant|simplyscripts|imsdb|dailyscript|awesomefilm|8flix|screenplays?\s*online|for educational purposes|for your consideration|www\.[a-z0-9-]+\.[a-z]{2,}|https?:\/\/|^[a-z0-9-]{2,}\.(com|net|org|co\.uk|io|ru)$/i;
     const furniture = new Set();
     {
       const byY = new Map();
@@ -1023,7 +1215,7 @@ const PicaEngine = (() => {
         if (g > 4 && g < 30) gaps.push(g);
       }
     }
-    const rowH = mode(gaps) || 12;
+    const rowH = rowPitch(gaps);
     const firstYs = body.slice(1).map(p => {
       const ls = bodyLines(p);
       return ls.length ? Math.round(ls[0].y * 2) / 2 : null;
@@ -1033,7 +1225,35 @@ const PicaEngine = (() => {
 
     // -- column detection from x histogram
     const xh = new Map();
-    for (const l of allLines) {
+    // A page number or a revision mark in the margin is not a column, but it stands to the
+    // LEFT of every real one — so counted, it takes the action column's slot and every
+    // other column is read one across: action becomes dialogue, dialogue becomes a
+    // parenthetical. Memento and Lost in Translation both arrived with their action typed
+    // as speech for exactly this reason. Only lines with words in them vote.
+    const votes = allLines.filter(l => {
+      const t = l.text.trim();
+      if (t.length <= 4 || !/[A-Za-z]{2}/.test(t)) return false;
+      if (FURNITURE_NUM.test(t) || SCENE_NO.test(t)) return false;
+      // A slugline that opens with its scene number is anchored in the GUTTER, not on a
+      // column — Memento has 216 of them, enough to win a column slot and read every real
+      // column one across: its action came back as dialogue and its dialogue as
+      // parentheticals. It still belongs in the script; it just does not get a vote on
+      // where the columns are. (A vote filter only: nothing about the line is changed,
+      // so dual dialogue, which reads the items directly, is untouched.)
+      if (INLINE_NO.test(t)) return false;
+      // and page furniture — running heads, revision stamps — which this document already
+      // knows how to spot. Memento prints "MEMENTO Pink Revisions - 9/7/99" at the gutter
+      // on every page, and 179 of those were enough to make the gutter a column.
+      if (furniture.has(l)) return false;
+      // A revision stamp is a printing apparatus, not writing. Memento prints "MEMENTO
+      // Pink Revisions - 9/7/99" at the gutter on every page — 546 lines, more than its
+      // parenthetical column has — and the band-based furniture test misses it because
+      // both the wording and the height wander.
+      if (/\b(revisions?|draft|rev\.)\b/i.test(t) || /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(t)) return false;
+      if (l.items && l.items.length > 1 && SCENE_NO.test((l.items[0].str || '').trim())) return false;
+      return true;
+    });
+    for (const l of (votes.length > 40 ? votes : allLines)) {
       const k = Math.round(l.x);
       xh.set(k, (xh.get(k) || 0) + 1);
     }
@@ -1044,6 +1264,35 @@ const PicaEngine = (() => {
     // represented by its busiest x, which is the column's true left edge.
     const bins = [...xh.entries()].sort((a, b) => a[0] - b[0]);
     const clusters = [];
+    // A typesetter puts every line of a column on the same x. A recogniser reading a
+    // photograph puts them within a few points of it — The Hateful Eight's cues wander
+    // from 264 to 277 — and at a three-point chain that column shatters into fragments,
+    // none of them big enough to count as a column. The document was then read as though
+    // cue, parenthetical and dialogue all shared one, which is how O.B. came to say his
+    // own name out loud. Widening the chain is worse, not better: with a few lines at
+    // every intermediate x the chain runs from the dialogue column clean through to the
+    // cues and swallows both.
+    //
+    // So a reading by eye is clustered the other way about — from the peaks inward. The
+    // busiest x is a column; everything within a few points of it belongs to that column
+    // and to no other; then the busiest x still unclaimed, and again. Smear is absorbed,
+    // and a column can never grow along a trail of noise into the next one.
+    if (byEye) {
+      const left = new Map(bins);
+      while (left.size) {
+        let bx = null, bn = -1;
+        for (const [x, n] of left) if (n > bn) { bn = n; bx = x; }
+        let total = 0;
+        // Sixteen points. The smear is real and it is wide — The Hateful Eight's speech
+        // column runs from 193 to 213, because the recogniser's box starts at the ink and
+        // the first letter of a line is not always the same letter. Sixteen swallows that
+        // and still stops short of half the gap between two columns that Final Draft sets
+        // 36 points apart, so a column can never annex its neighbour.
+        for (const [x, n] of [...left]) if (Math.abs(x - bx) <= 16) { total += n; left.delete(x); }
+        clusters.push({ x: bx, last: bx, n: total, peakN: bn });
+      }
+      clusters.sort((a, b) => a.x - b.x);
+    } else
     for (const [x, n] of bins) {
       const c = clusters[clusters.length - 1];
       if (c && x - c.last <= 3) {
@@ -1051,14 +1300,56 @@ const PicaEngine = (() => {
         if (n > c.peakN) { c.peakN = n; c.x = x; }
       } else clusters.push({ x, last: x, n, peakN: n });
     }
-    const top = clusters.filter(b => b.n >= allLines.length * 0.01).sort((a, b) => b.n - a.n).slice(0, 4)
-      .sort((a, b) => a.x - b.x);
+    // A column is a SPIKE, not a mound. Reading by eye, the speech column's left edges
+    // spread twenty points, and the far tail of that spread — 111 lines at x=227, no one
+    // x of them carrying more than 22 — piled up into something the size of a small
+    // column and took the parenthetical slot. Nothing was typed there. A column that
+    // really exists has one x that many lines share exactly; smear never does.
+    const ranked = clusters.filter(b => b.n >= allLines.length * 0.01
+        && (!byEye || b.peakN >= allLines.length * 0.005)).sort((a, b) => b.n - a.n);
+    let top = ranked.slice(0, 4).sort((a, b) => a.x - b.x);
+    // A MARGIN IS NOT A COLUMN. Memento's scene numbers and CONTINUEDs sit at x=72 — 546
+    // lines, more than its parenthetical column has — so they won a slot, and being
+    // leftmost they took the ACTION column's place and every other column was read one
+    // across: action came back as dialogue, dialogue as parentheticals. The tell is that
+    // the leftmost of the four is far to the left of the next and carries a fraction of
+    // its lines; real action is the busiest column on the page, not a thin margin.
+    // …and the test is what the cluster CONTAINS. A margin holds scene numbers, CONTINUEDs
+    // and page numbers; an action column holds prose. Judging by line count alone throws
+    // away a real column on a script whose action happens to be sparse.
+    if (top.length === 4 && top[0].n < top[1].n * 0.35 && top[1].x - top[0].x >= 25
+        && top[0].n < top[2].n * 0.5) {
+      const spare = ranked.find(b => !top.includes(b));
+      if (spare) top = top.slice(1).concat([spare]).sort((a, b) => a.x - b.x);
+      else top = top.slice(1);
+    }
+    // Not every script separates speech into three columns. Some Like It Hot (1958) sets
+    // the cue, the parenthetical AND the dialogue all flush at 1.78" — the only indent on
+    // the page besides action. Measured across 30 pages: 1051 lines at x=128 against 390 at
+    // x=32, and nothing else above noise. Reading such a page by column assigns every one
+    // of those 1051 lines to a single element type, which is how 3,754 of 4,781 elements
+    // came back as character cues. When only two columns carry the page, the speech column
+    // is one column doing three jobs, and shape has to settle which — see roleOf.
+    const major = clusters.filter(b => b.n >= allLines.length * 0.12).sort((a, b) => a.x - b.x);
+    const speechCollapsed = major.length === 2;
+
     const cols = { ...LETTER.cols };
-    if (top.length >= 4) {
+    let parenInvented = false;   // true when no column of parentheticals was found
+    if (speechCollapsed) {
+      cols.action = major[0].x;
+      cols.dialogue = cols.paren = cols.character = major[1].x;
+    } else if (top.length >= 4) {
       cols.action = top[0].x; cols.dialogue = top[1].x; cols.paren = top[2].x; cols.character = top[3].x;
-    } else if (top.length === 3) { // no parentheticals in doc
+    } else if (top.length === 3) { // no parenthetical column of its own
       cols.action = top[0].x; cols.dialogue = top[1].x; cols.character = top[2].x;
       cols.paren = Math.round((cols.dialogue + cols.character) / 2);
+      // …but nothing is typed there. The Hateful Eight sets (beat) at the cue indent, and
+      // the invented midpoint sat in the gap stealing lines — a speech line that wandered
+      // 18pt right was nearer the column that does not exist than the one it belongs to,
+      // and 50-odd of them came back unclassified mid-sentence. A bracketed line is
+      // recognised by its brackets wherever it lands, so the position is kept only so the
+      // four remain distinct, and is not offered to lines looking for their column.
+      parenInvented = byEye;   // only a photographed page is loose enough for it to matter
     } else if (top.length > 0) {
       cols.action = top[0].x;
     }
@@ -1123,35 +1414,211 @@ const PicaEngine = (() => {
     // whose y drifted past the row-bucket, a stray number — is furniture too.
     for (const p of body) for (const l of p.lines) {
       if (furniture.has(l)) continue;
-      if (l.y < y0f - rowH * 0.6) {
-        const t = l.text.trim();
-        if (FURNITURE_HEADER.test(t) || FURNITURE_NUM.test(t) || FURNITURE_WORD.test(t) || PROVENANCE.test(t)) furniture.add(l);
-      }
+      const t = l.text.trim();
+      // A line that is ONLY a CONTINUED, a revision stamp or a provenance note is
+      // apparatus wherever it sits. Testing only above the body missed every one of
+      // Memento's: 183 of them came through as scene headings, transitions and action.
+      // (MORE) is NOT apparatus to be thrown away — it is how a speech that breaks across
+      // a page is recognised, so it stays band-restricted with the numbers.
+      if (FURNITURE_CONT.test(t) || FURNITURE_HEADER.test(t) || PROVENANCE.test(t)) { furniture.add(l); continue; }
+      // A line that is nothing but a page number is apparatus wherever it landed — a scan
+      // puts them anywhere. (Kept separate from the tests above so a numbered list item,
+      // which always has words after the number, is untouched.)
+      if (FURNITURE_NUM.test(t) && t.length <= 5) furniture.add(l);
+      // The Hateful Eight's pages are numbered BY HAND, in the top right corner, and a
+      // hand does not write the same figure twice: 4. and 4, and 3) and 3 . A page number
+      // is not writing either way. Out at the right margin, a couple of characters long,
+      // with a digit in it and nothing else — that is the number somebody pencilled on
+      // the paper, and it stays off the page.
+      if (byEye && l.x > pages[0].width * 0.72 && t.length <= 5
+          && /\d/.test(t) && !/[A-Za-z]{2}/.test(t)) furniture.add(l);
     }
 
     // ---------- classification ----------
     // Assign each line to its nearest column rather than demanding an exact hit, with the
     // tolerance derived from how far apart the columns actually are.
     const colList = [['action', cols.action], ['dialogue', cols.dialogue],
-                     ['paren', cols.paren], ['character', cols.character]];
-    const colXs = colList.map(c => c[1]).sort((a, b) => a - b);
+                     ...(parenInvented ? [] : [['paren', cols.paren]]), ['character', cols.character]];
+    // DISTINCT column positions: when speech is collapsed, three of the four names share
+    // one x, and counting that as a zero gap makes the tolerance negative — every line
+    // then matches no column at all and the whole script imports as 'general'.
+    const colXs = [...new Set(colList.map(c => c[1]))].sort((a, b) => a - b);
     let minGap = Infinity;
     for (let i = 1; i < colXs.length; i++) minGap = Math.min(minGap, colXs[i] - colXs[i - 1]);
-    const colTol = Math.max(3, Math.min(9, Math.floor(minGap / 2) - 1));
+    if (!Number.isFinite(minGap)) minGap = 36;
+    // With four columns 36pt apart a tight tolerance keeps them distinct. With only two,
+    // 96pt apart, that same tolerance strands every line typed a few spaces in — an
+    // indented action beat, a scene number — as 'general'. Widen it to the actual gap.
+    // How far does THIS document's typing actually wander off its columns? A file exported
+    // by software sits on them to the point, and a tight tolerance keeps the columns
+    // distinct. A scan read by OCR does not: There Will Be Blood's baselines drift several
+    // points, and at a fixed 9pt tolerance 664 lines — whole speeches, cue and all — matched
+    // no column and came back as 'general'. Measure the drift and allow for it, never more
+    // than half the gap between columns.
+    const halfGap = Math.floor(minGap / 2) - 1;
+    const drift = [];
+    for (const l of allLines) {
+      let d = Infinity;
+      for (const c of colXs) d = Math.min(d, Math.abs(l.x - c));
+      if (d <= halfGap) drift.push(d);
+    }
+    drift.sort((a, b) => a - b);
+    const p85 = drift.length ? drift[Math.floor(drift.length * 0.85)] : 0;
+    // Read by eye, the wobble is not the typist's and not the page's — it is per LINE.
+    // The recogniser's box begins at the ink, and a line opening on a T does not begin
+    // where one opening on an apostrophe does; nothing measured about the page can
+    // correct for it. So a photographed script assigns every line to its nearest column
+    // and leaves none stranded: the columns are thirty-five to seventy points apart and
+    // nearest is never in doubt.
+    const colTol = speechCollapsed || byEye
+      ? halfGap
+      : Math.max(3, Math.min(halfGap, Math.max(9, Math.ceil(p85) + 1)));
+    // A script assembled from pages typed at different times has more than one tab stop for
+    // the same thing. There Will Be Blood's cues sit at 3.5" for most of the film and about
+    // 4.05" for a stretch of it — 40pt out, which accounted for 100 of the 124 lines it
+    // could not place, whole conversations of them. So a busy cluster that is not one of the
+    // four columns stands in for whichever column it is nearest, provided it is near enough
+    // that no other column could plausibly be meant.
+    const alternates = [];
+    for (const b of clusters) {
+      if (b.n < allLines.length * 0.008) continue;
+      let role = null, bd = Infinity, second = Infinity;
+      for (const [k, c] of colList) {
+        const d = Math.abs(b.x - c);
+        if (d < bd) { second = bd; bd = d; role = k; } else if (d < second) second = d;
+      }
+      if (role && bd > colTol && bd <= 55 && second - bd >= 25) alternates.push([role, b.x]);
+    }
     const nearestCol = (x) => {
       let best = null, bd = Infinity;
       for (const [k, c] of colList) { const d = Math.abs(x - c); if (d < bd) { bd = d; best = k; } }
-      return bd <= colTol ? best : null;
+      // With two columns there is no third answer: a line is on one side or the other, and
+      // refusing to choose leaves it unclassified ('general'), which is never right.
+      if (speechCollapsed || bd <= colTol) return best;
+      for (const [k, c] of alternates) if (Math.abs(x - c) <= colTol) return k;
+      return null;
     };
+    // The cue and parenthetical columns are close together — 3.0" and 3.5" on FD's grid —
+    // and a source only has to drift a few points for a line to be assigned to the wrong
+    // one. Jackie Brown's "ORDELL (CONT'D)" landed on the parenthetical column, which made
+    // it a parenthetical: drawn at the wrong indent, and invisible to the paginator's
+    // speech rules, so it sat alone at the foot of a page with its speech overleaf. There
+    // Will Be Blood made the opposite mistake and typed "(beat)" as a character.
+    //
+    // The text's own shape settles it, and outranks a few points of x drift. Wholly
+    // bracketed is a parenthetical; SHOUTED and not bracketed is a cue. Only these two
+    // columns are cross-checked — shouted dialogue and capitalised action sit elsewhere.
+    const whollyBracketed = t => /^\(.*\)$/.test(t);
+    const cueShaped = t => t.length <= 45 && /[A-Z]/.test(t) && t === t.toUpperCase() && !whollyBracketed(t);
+    // A SCAN DOES NOT SIT STILL — AND IT DOES NOT KEEP ITS SIZE EITHER.
+    //
+    // There Will Be Blood's columns are at 94/174/252 on its early pages and 102/184/263 by
+    // page 70. Correcting that as a shift gets most of it, but on pages 107–114 the error is
+    // 9.8pt at the action margin, 21pt at the dialogue column and 23pt at the cue column:
+    // the error GROWS with x, because the sheet was enlarged on the copier, not merely laid
+    // down askew. A shift fixes the middle and leaves the rightmost column — the character
+    // cues — a dozen points out, which is why whole runs of cues came back unclassified
+    // while the dialogue beside them was fine.
+    //
+    // So each page is fitted to the document's columns as x' = a·x + b: first a median
+    // shift to get roughly onto them, then a least-squares fit for the stretch. A file
+    // exported by software fits a = 1, b = 0 and is left alone.
+    const fitPage = (p) => {
+      const ls = bodyLines(p);
+      const nearest = (x, win) => {
+        let c = null, bd = win;
+        for (const k of colXs) if (Math.abs(x - k) < bd) { bd = Math.abs(x - k); c = k; }
+        return c;
+      };
+      const apply = (a, b) => {
+        for (const l of p.lines) {
+          l.x = a * l.x + b;
+          if (l.xEnd != null) l.xEnd = a * l.xEnd + b;
+          for (const it of l.items || []) it.x = a * it.x + b;
+        }
+      };
+      // 1. the shift: where does this page sit?
+      const ds = [];
+      for (const l of ls) { const c = nearest(l.x, minGap / 2); if (c != null) ds.push(l.x - c); }
+      if (ds.length < 4) return 0;
+      ds.sort((x, y) => x - y);
+      const b0 = ds[Math.floor(ds.length / 2)];
+      if (Math.abs(b0) >= 0.75) apply(1, -b0);
+      // 2. the stretch: now that it is roughly on the columns, does the error still grow
+      //    with x? Least squares over (x → its column), needing two columns to see a slope.
+      const pts = [];
+      for (const l of bodyLines(p)) { const c = nearest(l.x, Math.max(12, colTol * 1.5)); if (c != null) pts.push([l.x, c]); }
+      const spread = new Set(pts.map(q => q[1])).size;
+      if (pts.length >= 8 && spread >= 2) {
+        const n = pts.length;
+        let sx = 0, sy = 0, sxx = 0, sxy = 0;
+        for (const [x, y] of pts) { sx += x; sy += y; sxx += x * x; sxy += x * y; }
+        const den = n * sxx - sx * sx;
+        if (den !== 0) {
+          const a = (n * sxy - sx * sy) / den;
+          const b = (sy - a * sx) / n;
+          // only a plausible photocopier: a few percent, never a reflow
+          if (a > 0.9 && a < 1.1 && (Math.abs(a - 1) > 0.0008 || Math.abs(b) > 0.5)) {
+            apply(a, b);
+            return 2;
+          }
+        }
+      }
+      return Math.abs(b0) >= 0.75 ? 1 : 0;
+    };
+    for (const p of body) fitPage(p);
+
     const roleOf = (l) => {
       const col = nearestCol(l.x);
       const near = (c) => Math.abs(l.x - c) <= colTol;
+      const t = l.text.trim();
+      // A wider tolerance also swallows the transitions, which sit between the two
+      // columns: catch them by shape first — capitals ending in a colon is never speech.
+      // A shouted line ending in a colon is a transition wherever it sits — a scan's
+      // columns wander enough that CUT TO: lands on none of them.
+      if (t.length <= 34 && /[A-Z]/.test(t) && t === t.toUpperCase() && /[:;~]$/.test(t)
+          && !SCENE_RE.test(t)) return 'transition';
+      // …and a colon is a small mark to hang a whole element type on. Read off a
+      // photograph it is lost often enough that The Hateful Eight's CUT TO came back
+      // sometimes as a character cue and sometimes as nothing at all. The phrase itself
+      // is unmistakable — no one is called CUT TO — so it stands on its own. Only for a
+      // page read by eye: in a file that says where its ink is, Tenet's closing FADE OUT.
+      // is placed by its own x, and overruling that moved it.
+      if (byEye && TRANSITION_PHRASE.test(t)) return 'transition';
+      // a slugline is a slugline wherever it sits: with one shared speech column an
+      // indented scene heading otherwise reads as somebody's dialogue
+      if (speechCollapsed && SCENE_RE.test(t)) return 'scene';
+      // Likewise a bracket and a cue are unmistakable wherever they sit. A speech line
+      // typed a few spaces off lands nearer the action margin than the speech one, and
+      // then a cue merges with the parenthetical under it into a lump of action.
+      // A parenthetical may run onto a second line, so the first one closes no bracket:
+      // testing for a WHOLLY bracketed line leaves "(points to the cord running across"
+      // as action, which then swallows the cue above it.
+      if (t !== '(MORE)' && whollyBracketed(t) && t.length <= 60) return 'paren';
+      if (speechCollapsed && t !== '(MORE)' && /^\(/.test(t)) return 'paren';
+      // a numbered slug is a slug wherever it sits: on a drifting scan the line often lands
+      // on no column at all, and it was ending up unclassified
+      if (l.slugNo != null) return 'scene';
       if (col === 'action') return SCENE_RE.test(l.text) ? 'scene' : 'action';
+      // One column doing three jobs: nothing positional can separate them, so read the
+      // line. Bracketed is a parenthetical; a short shout with no sentence ending is a cue
+      // ("JOE", "NELLIE'S VOICE", "JOE (CONT'D)"); everything else is what was said —
+      // including a shouted line, because that ends in . ! or ?
+      if (speechCollapsed && (col === 'dialogue' || col === 'paren' || col === 'character')) {
+        if (t === '(MORE)') return 'MORE';
+        if (whollyBracketed(t)) return 'paren';
+        if (cueShaped(t) && t.length <= 35 && !/[.!?]$/.test(t)) return 'character';
+        return 'dialogue';
+      }
       if (col === 'dialogue') return 'dialogue';
-      if (col === 'paren') return 'paren';
+      if (col === 'paren') return cueShaped(t) ? 'character' : 'paren';
       if (col === 'character') {
-        if (l.text.trim() === '(MORE)') return 'MORE';
-        return 'character';
+        if (t === '(MORE)') return 'MORE';
+        // A parenthetical that runs onto a second line does not close on the first —
+        // "(meaning the three / men)". At the cue indent an opening bracket can only be
+        // a parenthetical, and reading it as a cue left the real cue above it with
+        // nothing to say and put a stage direction in a character's mouth.
+        return whollyBracketed(t) || /^\(/.test(t) ? 'paren' : 'character';
       }
       if (Math.abs(l.xEnd - transRight) < 4 && l.text === l.text.toUpperCase() && /:\s*$/.test(l.text)) return 'transition';
       // end marks without the colon — FADE OUT. / CUT TO BLACK. — are transitions too
@@ -1255,7 +1722,12 @@ const PicaEngine = (() => {
           }
         }
         const group = [...L, ...R];
-        if (group.length >= 2 && rows.length >= 2) {   // one lonely split row is noise, not a dual
+        // Dual dialogue is two people SPEAKING at once, so at least one column has to be
+        // headed by a character cue. Without that test any two blocks of text sharing a
+        // row band qualify — Some Like It Hot's title page paired the production
+        // company's address with the date, and the two then printed through each other.
+        const hasCue = group.some(e => e.type === 'character');
+        if (hasCue && group.length >= 2 && rows.length >= 2) {   // one lonely split row is noise, not a dual
           const anchor = cueLine || rows[0].l;   // region starts at the cue: spacing above it survives
           anchor.dualRegion = { els: group, lastY: rows[rows.length - 1].l.y };
           for (const r of rows) if (r.l !== anchor) r.l.dualSkip = true;
@@ -1272,7 +1744,7 @@ const PicaEngine = (() => {
     for (let pi = 0; pi < body.length; pi++) {
       const p = body[pi];
       const ls = bodyLines(p);
-      let prevLine = null, pageStart = true;
+      let prevLine = null, pageStart = true, openParen = false;
       // a (MORE) promises a continuation at the TOP of the next page and nowhere
       // else — carried further it swallows some later, unrelated (CONT'D) cue
       if (pendingSpeech && pendingAt !== pi - 1) pendingSpeech = null;
@@ -1292,7 +1764,15 @@ const PicaEngine = (() => {
           && pendingSpeech;
         if (contCue) { pageStart = false; prevLine = null; continue; } // swallow generated cue
 
-        const role = roleOf(l);
+        let role = roleOf(l);
+        // A parenthetical may take two lines, and the second closes the bracket without
+        // opening one — on a collapsed column it would otherwise read as dialogue and
+        // orphan the speech beneath it. Keep the parenthetical open until it closes.
+        if (speechCollapsed) {
+          if (openParen) role = 'paren';
+          const o = (l.text.match(/\(/g) || []).length, c = (l.text.match(/\)/g) || []).length;
+          openParen = role === 'paren' && o > c;
+        }
         if (role === 'MORE') { pendingSpeech = open || pendingSpeech || true; pendingAt = pi; flush(); prevLine = null; pageStart = false; continue; }
 
         const gap = prevLine ? Math.round(l.y - prevLine.y) : null;
@@ -1355,6 +1835,30 @@ const PicaEngine = (() => {
           && e.srcLines[0].text.length < 70 && PROVENANCE.test(e.srcLines[0].text)
           && /^(downloaded|imported|provided|courtesy)\b|www\.|https?:|scriptslug|script\s*savant|imsdb|for educational/i.test(e.srcLines[0].text.trim())) {
         els.splice(i, 1);
+      }
+    }
+
+    // A character cue is always followed by what was said. When one shared column carries
+    // every kind of speech, a line typed a little off falls to the action margin and comes
+    // back as action — leaving the cue above it with nothing to say. Give it its speech.
+    if (speechCollapsed) {
+      // A cue is only a cue if something is SAID after it. Judged on the line alone, every
+      // piece of signage in the script qualifies — OMITTED, WELCOME DELEGATES, FADE OUT —
+      // so the test is the element that follows.
+      const cueText = t => t.length <= 35 && !t.includes('\n') && /[A-Z]/.test(t)
+        && t === t.toUpperCase() && !/[.!?]$/.test(t) && !/^\(.*\)$/.test(t);
+      // element text is not assigned until finalisation — read the source lines
+      const txtOf = e => (e.srcLines || []).map(sl => sl.text).join('\n').trim();
+      for (let i = 0; i < els.length - 1; i++) {
+        const e = els[i], nxt = els[i + 1];
+        if (e.type === 'action' && (nxt.type === 'paren' || nxt.type === 'dialogue')
+            && cueText(txtOf(e))) e.type = 'character';
+      }
+      // …and once it is a cue, what follows it is what was said, not action.
+      for (let i = 1; i < els.length; i++) {
+        if (els[i].type !== 'action') continue;
+        const prev = els[i - 1].type;
+        if (prev === 'character' || prev === 'paren') els[i].type = 'dialogue';
       }
     }
 
@@ -1438,6 +1942,10 @@ const PicaEngine = (() => {
       const wrapped = wrapText(el.joined, w);
       el.text = (wrapped.length === src.length && wrapped.every((t, i) => t === src[i]))
         ? el.joined : src.join('\n');
+      // A typewriter puts two spaces after a full stop, so slugs arrive as
+      // "EXT.  PIER - NIGHT." Final Draft sets one. Scene headings only — the same
+      // double space inside action is the writer's own rhythm and is left alone.
+      if (el.type === 'scene') el.text = el.text.replace(/[ \t]{2,}/g, ' ').trim();
       // some shooting scripts carry a typed (CONT'D) inside the character name AND
       // FD's own appended one — "GROVES (CONT'D) (CONT’D)". One is apparatus stutter.
       if (el.type === 'character')
@@ -1457,12 +1965,57 @@ const PicaEngine = (() => {
         row: Math.round((l.y - y0f) / rowH),   // the paginator draws at y0f; same base or the title drifts
         x: Math.round(l.x * 100) / 100,
       }));
+    } else if (titleHead) {
+      // The header lifted off page one becomes the title page, dropped down the sheet the
+      // way Final Draft sets one rather than clinging to the top margin.
+      // Rows come from the block's OWN line spacing, not the document's measured pitch:
+      // one is measured over the whole script and rounds the title block's blank lines
+      // away, welding "SOME LIKE IT HOT" onto the address above it. The median gap
+      // between these lines IS one row here, by construction.
+      const gaps = [];
+      for (let g = 1; g < titleHead.length; g++) gaps.push(titleHead[g].y - titleHead[g - 1].y);
+      const sorted = gaps.slice().sort((a, b) => a - b);
+      const unit = sorted.length ? sorted[Math.floor(sorted.length / 2)] : rowH;
+      const rowAt = new Map();
+      let cursor = 14;
+      rowAt.set(titleHead[0], cursor);
+      for (let g = 1; g < titleHead.length; g++) {
+        cursor += Math.max(1, Math.round((titleHead[g].y - titleHead[g - 1].y) / (unit || rowH)));
+        rowAt.set(titleHead[g], cursor);
+      }
+      const rx = x => Math.round(x * 100) / 100;
+      for (const l of titleHead) {
+        if (PROVENANCE.test(l.text)) continue;
+        const row = rowAt.get(l);
+        // A title line often carries TWO columns — the company on the left, the date on
+        // the right — held apart by a run of spaces. Kept as one padded string it is far
+        // wider than the page once set in FD's character, and the right-hand half runs
+        // off the edge ("November 12, 195"). Two columns, two entries.
+        const m = /^(.*?\S)(\s{6,})(\S.*)$/.exec(l.text);
+        if (m) {
+          tp.push({ text: m[1].trim(), row, x: rx(l.x) });
+          tp.push({ text: m[3].trim(), row, x: rx(l.x + (m[1].length + m[2].length) * charW0) });
+        } else {
+          tp.push({ text: l.text.trim(), row, x: rx(l.x) });
+        }
+      }
     }
 
     return {
       v: 1,
-      title: (tp[0] && tp[0].text) || (els.find(e => e.type === 'scene')?.text ?? 'UNTITLED').slice(0, 40),
+      // A slugline is never a title. With no title page, say so and let the caller decide —
+      // it knows the filename and can read the script's own opening line.
+      // a title page usually prints the name in quotes — they are not part of the title
+      // a title page usually prints the name in quotes, and a typewriter spaces it out —
+      // neither belongs in the title, and a site's stamp is not a title at all
+      title: (() => {
+        const t0 = ((tp[0] && tp[0].text) || '').replace(/^["“”']+|["“”']+$/g, '').replace(/\s+/g, ' ').trim();
+        return (!t0 || PROVENANCE.test(t0)) ? 'UNTITLED' : t0;
+      })(),
       titlePage: tp,
+      // what the reading decided about this document's geometry — the first thing worth
+      // knowing when an import comes out wrong
+      __read: { cols, speechCollapsed, colTol, transRight, rowH, ocr: byEye },
       ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
       elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}), ...(e.rev ? { rev: e.rev } : {}), ...(e.dual ? { dual: e.dual } : {}), ...(e.marks ? { marks: e.marks } : {}) })),
@@ -1655,7 +2208,11 @@ const PicaEngine = (() => {
         const sub = block.parts[si];
         for (const lo of wrapWithOffsets(sub)) flat.push({ el: sub, lo, si });
       }
-      const totalNeed = blanks + cueLines.length + flat.length;
+      // A cue with nothing under it must still not be the last thing on a page: a name
+      // alone at the foot of a sheet, its speech overleaf, is the fault he reported. Ask
+      // for one row more than it needs so it moves over instead.
+      const lonely = flat.length === 0 ? 1 : 0;
+      const totalNeed = blanks + cueLines.length + flat.length + lonely;
 
       if (row + totalNeed <= L.rows) { // fits whole
         let r = row === 0 ? 0 : row + blanks;
@@ -1835,6 +2392,138 @@ const PicaEngine = (() => {
     return out.join('\n').replace(/^\n+/, '') + '\n';
   }
 
+  // ---------- conforming an import to Final Draft ----------
+  // A PDF carries whatever geometry its author happened to use. There Will Be
+  // Blood is set ~11.2pt on 25pt leading — double spaced, 69 characters to the
+  // action line; Jackie Brown is its own shape again. Reproducing that faithfully
+  // gives you the source's typesetting, not a screenplay: text splits onto lines
+  // Final Draft would never break, and anything typed afterwards wraps somewhere
+  // else entirely. So the extractor measures the source exactly (that is what
+  // proves the read was right) and everything that reaches the editor is then
+  // conformed to FD12's grid. The words are the source's; the typesetting is FD's.
+  function toFinalDraft(doc) {
+    const L = doc.layout || LETTER;
+    const fd = { ...JSON.parse(JSON.stringify(LETTER)), parenHang: 1 };
+    const srcMidX = (L.pageW || fd.pageW) / 2;
+    const xScale = fd.charW / (L.charW || fd.charW);
+    const rowScale = (L.rowH || fd.rowH) / fd.rowH;
+    // Map x from the LEFT TEXT MARGIN, not the page centre. Some Like It Hot sets its
+    // block at x=32 with a 6.0pt character, and scaling that about the centre threw every
+    // title-page line to x=-22.8 — off the sheet. Anchoring on the margin keeps a narrow
+    // source on the page, and for a source already on FD's grid it is a pure translation.
+    const srcLeft = (L.cols && L.cols.action != null) ? L.cols.action : fd.cols.action;
+    const toFdX = x => Math.max(0, Math.min(fd.pageW - 12,
+      Math.round((fd.cols.action + (x - srcLeft) * xScale) * 100) / 100));
+
+    // A source line break is either a decision or an accident. The importer keeps
+    // the source's breaks verbatim whenever greedy wrap can't reproduce them, which
+    // is right for reproduction and wrong for conformance: a break the source made
+    // because it ran out of room at 69 characters becomes a permanent hard break on
+    // FD's 60-character grid — text splitting onto lines for no reason. So ask of
+    // every break: would the next word have fitted? If it would have, the writer
+    // meant it and it stays; if it wouldn't, the source simply ran out of room and
+    // the text flows again. (Joining swaps "\n" for " " — one character for one —
+    // so emphasis offsets are untouched.)
+    // Greedy wrap at width W produces exactly these lines when every line fits
+    // (W ≥ longest line) and every break was forced (W < line + 1 + the next
+    // line's first word). That pins W to an interval; if the interval is
+    // non-empty, some width explains all of it and the breaks are the source's
+    // margin talking, not the writer. A blank line, or a break with room to
+    // spare, empties the interval — and those breaks are kept.
+    for (const el of doc.elements) {
+      if (el.dual) continue;                       // columns keep their exact lines
+      if (el.text.indexOf('\n') < 0) continue;
+      const lines = el.text.split('\n');
+      const srcW = (L.widths && L.widths[el.type]) || 0;
+      // Inside a paragraph, a line break belongs to the page it was set on, not to
+      // the writing: a Final Draft export breaks where its margin fell, and a typed
+      // transcription — There Will Be Blood is one — breaks wherever the typist hit
+      // return, at no consistent width at all. Neither survives a change of measure,
+      // so the paragraph flows and FD's margin breaks it again. Two exceptions: a
+      // blank line is structure, and a short line in capitals is a shot or slug the
+      // importer folded into the paragraph below, which must not be swallowed by it.
+      const CAPS = s => s === s.toUpperCase() && /[A-Z]/.test(s);
+      const foldedHeading = /^(action|shot|general|scene)$/.test(el.type);
+      let out = lines[0];
+      for (let i = 1; i < lines.length; i++) {
+        const prev = lines[i - 1];
+        const heading = foldedHeading && CAPS(prev) && prev.length < (srcW || 60) * 0.8;
+        // A numbered list is structure, not a paragraph that happened to wrap: Kill Bill
+        // opens on its table of contents, and flowing it turned the chapter titles into
+        // one run of prose. A line that STARTS a numbered item keeps the break above it.
+        const listItem = /^\s*\d{1,3}[.)]\s/.test(lines[i]);
+        const keep = lines[i] === '' || prev === '' || heading || listItem;
+        out += (keep ? '\n' : ' ') + lines[i];
+      }
+      el.text = out;
+    }
+
+    // the title page is positioned rather than flowed, so it moves with the grid
+    if (doc.titlePage) doc.titlePage = doc.titlePage.map(t => {
+      const o = { ...t };
+      if (o.row != null) o.row = Math.max(0, Math.round(o.row * rowScale));
+      if (o.x != null) {
+        // Clamping the START of the line keeps its first character on the page and lets
+        // the rest run off the edge: a date set against the right margin came back as
+        // "November 12, 195". Place it so the line ENDS inside the margin.
+        const w = ((o.text || '').length) * fd.charW;
+        const rightMost = Math.max(0, fd.pageW - 72 - w);
+        o.x = Math.max(0, Math.min(toFdX(o.x), rightMost));
+      }
+      return o;
+    });
+    for (const el of doc.elements) {
+      // measured blank-row gaps encode the source's rhythm (double spacing lives
+      // here); dropping them hands spacing back to FD's own rule
+      delete el.spaceBefore;
+      // A hard x from the source fights FD's columns, so it goes — EXCEPT for dual
+      // dialogue, whose two side-by-side columns ARE its xOverride. Dropping it there
+      // stacks both speeches on the same x and they print through each other.
+      if (el.dual) { if (el.xOverride != null) el.xOverride = toFdX(el.xOverride); }
+      else delete el.xOverride;
+    }
+    // Emphasis is what DIFFERS from the base face. Jackie Brown's PDF sets every
+    // speech in a bold Courier and every action line in an oblique one — import that
+    // literally and the whole script arrives bold and italic. So per element type:
+    // if a style covers almost all of that type's text it is the source's typeface,
+    // not the writer emphasising anything, and it goes. A few italic words inside
+    // ordinary action are nowhere near the threshold and stay.
+    {
+      const total = {}, byKind = {};
+      for (const el of doc.elements) {
+        if (!el.text) continue;
+        total[el.type] = (total[el.type] || 0) + el.text.length;
+        for (const [s, e, k] of el.marks || []) {
+          byKind[el.type] = byKind[el.type] || {};
+          byKind[el.type][k] = (byKind[el.type][k] || 0) + Math.max(0, Math.min(e, el.text.length) - Math.max(0, s));
+        }
+      }
+      const base = {};
+      for (const t of Object.keys(byKind)) {
+        if ((total[t] || 0) < 200) continue;       // too little text to judge a face
+        for (const k of Object.keys(byKind[t])) {
+          // Only bold and italic can be a typeface: they are read off the font's NAME,
+          // so a PDF set in a bold Courier reports every speech as bold. An underline
+          // is ink somebody drew — on a scan, pixels somebody typed over — and is
+          // always deliberate, however much of the script carries it. There Will Be
+          // Blood underlines every slug, and that is the script, not its typesetting.
+          if (k === 'u') continue;
+          if (byKind[t][k] / total[t] >= 0.8) (base[t] = base[t] || new Set()).add(k);
+        }
+      }
+      if (Object.keys(base).length) for (const el of doc.elements) {
+        const drop = base[el.type];
+        if (!drop || !el.marks) continue;
+        el.marks = el.marks.filter(m => !drop.has(m[2]));
+        if (!el.marks.length) delete el.marks;
+      }
+    }
+
+    if (L.revX != null) fd.revX = fd.pageW - 54;   // revision stars at FD's right margin
+    doc.layout = fd;
+    return doc;
+  }
+
   function newDoc(title) {
     return {
       v: 1, title: title || 'UNTITLED',
@@ -1848,7 +2537,7 @@ const PicaEngine = (() => {
     };
   }
 
-  return { TYPES, LETTER, uid, linesFromItems, estimateCharW, wrapText, wrapElement, importPdf, importFdx, toFdx, paginate, toFountain, newDoc, SCENE_RE };
+  return { TYPES, LETTER, uid, linesFromItems, estimateCharW, wrapText, wrapElement, importPdf, importFdx, toFdx, toFinalDraft, paginate, toFountain, newDoc, SCENE_RE };
 })();
 /*PICA-ENGINE-END*/
 </script>
@@ -1937,8 +2626,24 @@ const store = {
       doc = LS.get('pica.doc.' + id, null);            // legacy localStorage copy
       if (doc) idb.put('doc.' + id, doc).catch(() => {});
     }
-    if (doc) { store.upgradeTypedLayout(doc); store.cache.set(id, doc); }
+    if (doc) { store.conformImport(doc, id); store.upgradeTypedLayout(doc); store.cache.set(id, doc); }
     return doc;
+  },
+  // Scripts imported before conforming existed still carry their source's
+  // typesetting — There Will Be Blood double-spaced at 69 characters to the line.
+  // Their layout still holds the measured widths, so the same conversion works on
+  // open, and nothing has to be imported twice.
+  conformImport(doc, id){
+    const L = doc && doc.layout;
+    if (!L || !L.widths) return;
+    if (L.charW === 7.2 && L.rowH === 12 && L.widths.action === 60 && L.pageW === 612) return;
+    const measured = doc.src || doc.importNote || L.revX != null
+      || (doc.titlePage || []).some(t => t.x != null)
+      || (doc.elements || []).some(e => e.xOverride != null || e.spaceBefore != null || e.rev || e.dual);
+    if (!measured) return;                       // a typed doc — upgradeTypedLayout's job
+    E.toFinalDraft(doc);
+    doc.src = doc.src || 'pdf';
+    if (id) store.save(id, doc);
   },
   // Layouts freeze into each doc at creation — so geometry fixes only ever reached
   // NEW docs, and a script typed last week keeps wrapping at the old widths
@@ -1948,7 +2653,12 @@ const store = {
   // numbers; imported docs are never touched — they reproduce their sources.
   upgradeTypedLayout(doc){
     const L = doc && doc.layout;
-    if (!L || doc.importNote || L.revX != null) return;
+    // never an import: those carry provenance now, and older ones are recognised
+    // by the traces only a measured document has (import note, star margin,
+    // positioned title page, per-element geometry)
+    if (!L || doc.src || doc.importNote || L.revX != null) return;
+    if ((doc.titlePage || []).some(t => t.x != null)) return;
+    if ((doc.elements || []).some(e => e.xOverride != null || e.align || e.spaceBefore != null || e.rev || e.dual)) return;
     const typed = L.pageW === 612 && L.cols && L.cols.action === 108 && L.cols.dialogue === 180
       && L.cols.paren === 216 && (L.cols.character === 266 || L.cols.character === 252)
       && (L.widths.action === 57 || L.widths.action === 60);
@@ -1956,7 +2666,22 @@ const store = {
     const fresh = JSON.parse(JSON.stringify(E.LETTER));
     doc.layout = { ...L, cols: fresh.cols, widths: fresh.widths, transRight: fresh.transRight, parenHang: 1 };
   },
+  // A deleted script must never be written back. Deleting the one that is OPEN used to
+  // do nothing at all: the delete filtered the index, then openDoc() flushed a save of
+  // the outgoing document, and that save put the row straight back. A debounced save,
+  // a snapshot or the pagehide mirror could do the same a second later. So the id is
+  // remembered as gone, and every write checks.
+  gone: new Set(),
+  // every copy fetched by search, until he accepts one: reading several to pick the
+  // cleanest means more than one is alive at a time, so the guard cannot be "the current
+  // trial" — it is the set of them
+  trials: new Set(),
   save(id, doc){
+    if (store.gone.has(id)) return;
+    // A script found by search is on TRIAL until he accepts it: it opens, it paginates,
+    // it can be read — but nothing about it reaches the library. Guarding here rather
+    // than at the call sites catches the debounced save and the page-count refresh too.
+    if (store.trials.has(id)) { store.cache.set(id, doc); return; }
     store.cache.set(id, doc);
     // the index is small and synchronous — write it NOW so the sidebar shows the script
     // immediately; only the document body travels through IndexedDB
@@ -1976,6 +2701,7 @@ const store = {
     });
   },
   async snapshot(id, doc){
+    if (store.gone.has(id)) return;
     let snaps = null;
     try { snaps = await idb.get('snap.' + id); } catch {}
     if (!snaps) snaps = LS.get('pica.snap.' + id, []);
@@ -2020,7 +2746,38 @@ const store = {
 };
 
 // ---------- boot ----------
+// ── the studio card ────────────────────────────────────────────────────────────────
+// ★★★★★ × PARADOX, for a beat, the way a film company's mark precedes a film. The
+// card is NOT written here: it is ~/Desktop/★★★★★/brand/studio-card.html, shipped
+// beside this file, and loaded in a frame. One file, every product — a mark that
+// exists in two places starts drifting the moment one of them is edited.
+function studioCard(){
+  // In PICA.app the card is a real window, put up by the app before the editor exists.
+  // Drawing it again inside the page means two cards for one launch — one behind the
+  // other — which is what happened. The native host owns it there; the page owns it
+  // only in a browser.
+  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.pica) return;
+  const f = document.createElement('iframe');
+  f.setAttribute('aria-hidden', 'true');
+  f.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;'
+    + 'background:transparent;z-index:98;';
+  f.src = 'studio-card.html?' + new URLSearchParams({
+    variant: 'icon', product: 'PICA', icon: 'app-icon.png',
+    year: String(new Date().getFullYear()), mode: 'overlay',
+  });
+  let gone = false;
+  const drop = () => { if (gone) return; gone = true; window.removeEventListener('message', onMsg); f.remove(); };
+  const onMsg = ev => { if (ev.data === 'paradox-card-done') drop(); };
+  window.addEventListener('message', onMsg);
+  // it says when it has finished; the timer is only there in case it never loads at
+  // all, because a missing brand asset must never leave a sheet over the editor
+  f.addEventListener('error', drop);
+  setTimeout(drop, 4000);
+  document.body.appendChild(f);
+}
+
 async function boot(){
+  try { studioCard(); } catch {}
   const ui0 = LS.get('pica.ui', {});
   if (ui0.theme) document.documentElement.dataset.theme = ui0.theme;
   S.showTitle = !!ui0.showTitle;
@@ -2080,7 +2837,7 @@ async function openDoc(id, _tried){
   S.caret = doc.elements[0] ? { el: doc.elements[0].id, off: 0 } : null;
   const ui = LS.get('pica.ui', {}); ui.lastDoc = id; LS.set('pica.ui', ui);
   S.fontPt = doc.layout.charW / 0.6;
-  repaginate(); buildPages(); renderAllVisible(); rail(); status();
+  repaginate(); buildPages(); renderAllVisible(); status();
   $('#docTitle').textContent = doc.title;
   $('#docGenre').textContent = doc.genre || '';
   const saved = LS.get('pica.scroll', {})[id];
@@ -2090,7 +2847,12 @@ async function openDoc(id, _tried){
     setTimeout(() => { canvasEl.scrollTop = saved; renderAllVisible(); status(); }, 90);
   });
   printPageCSS();
-  store.save(id, doc); // refresh index metadata (page count) now that we have S.res
+  // the index row is written from S.res, so it has to be saved AND drawn after
+  // pagination — drawing it first is what left every freshly imported script
+  // reading "1p" in the sidebar until something else happened to redraw it
+  store.save(id, doc);
+  rail();
+  positionTitle();     // the cue axis only exists once the pages are laid out
   draftChip();
 }
 
@@ -2179,26 +2941,31 @@ function renderAllVisible(){
   positionTitle();
 }
 
-// The title sits on the same vertical axis the character cues sit on — the DOC'S
-// OWN axis, not the page centre. They coincide on FD-standard geometry (Tenet),
-// but an import keeps its source's cue column (Oppenheimer: 252pt, short names),
-// so the axis is computed per document and tracked through zoom, rail moves and
-// doc switches. Page centre is the proxy when a script is too young to have cues.
+// The title begins where the character names begin.
+//
+// Every cue starts at the same x — 3.5" on FD's grid — so that edge is a hard vertical
+// line running the length of the script, and it is the line the eye follows. Centring
+// the title on the cues' optical CENTRE instead (which this did for a while) puts its
+// left edge ~95px to the left of that line and its right edge past their ragged ends,
+// so nothing shares an edge and the alignment reads as broken. Left edge to left edge.
+function titleAxisX(){                    // in page points
+  return (S.doc && S.doc.layout.cols.character) || 252;
+}
 function positionTitle(){
   const el = document.getElementById('docTitle'); if (!el) return;
-  if (matchMedia('(max-width: 880px)').matches) { el.style.left = ''; return; }
+  const clear = () => { el.style.left = ''; el.style.transform = ''; el.style.textAlign = ''; };
+  if (matchMedia('(max-width: 880px)').matches) return clear();
   const pe = S.pageEls.find(p => p.wrap);
-  if (!pe || !S.doc) { el.style.left = ''; return; }
+  if (!pe || !S.doc) return clear();
   const r = pe.wrap.getBoundingClientRect();
-  if (!r.width) { el.style.left = ''; return; }
-  const L = S.doc.layout;
-  const cues = S.doc.elements.filter(e => e.type === 'character' && !e.dual).slice(0, 400);
-  // ANY cue defines the axis — a two-cue script deserves the alignment as much as
-  // a finished one (page centre only until the first cue exists)
-  const axis = cues.length
-    ? cues.reduce((a, e) => a + L.cols.character + (e.text.length * L.charW) / 2, 0) / cues.length
-    : L.pageW / 2;
-  el.style.left = (r.left + axis * S.k) + 'px';
+  if (!r.width) return clear();
+  // the box is centred by default (transform + text-align); to place its FIRST
+  // CHARACTER we position the box's content edge instead
+  const cs = getComputedStyle(el);
+  const padL = parseFloat(cs.paddingLeft) || 0;
+  el.style.transform = 'none';
+  el.style.textAlign = 'left';
+  el.style.left = (r.left + titleAxisX() * S.k - padL) + 'px';
 }
 
 function renderPage(i){
@@ -2636,14 +3403,22 @@ function applyEmphasis(kind){
   const ia = elIndex(a.el), ib = elIndex(b.el);
   if (ia < 0 || ib < 0) return;
   if (ia === ib && a.off === b.off) {
-    // FD: toggling emphasis at a collapsed caret styles what you type NEXT
+    // FD: toggling emphasis at a collapsed caret sets the style of what you type
+    // NEXT — as an ABSOLUTE state. Typing at the end of an italic run inherits
+    // italic (the mark extends), so ⌘I there must mean OFF, and the typed text
+    // is carved out of the inherited style.
     if (a.el.startsWith('title:')) return;
-    if (!S.pend || S.pend.el !== a.el || S.pend.off !== a.off) S.pend = { el: a.el, off: a.off, kinds: [] };
+    if (!S.pend || S.pend.el !== a.el || S.pend.off !== a.off) {
+      const el0 = elById(a.el);
+      const inherited = [];
+      for (const [s0, e0, k] of (el0 && el0.marks) || [])
+        if (a.off > s0 && a.off <= e0 && !inherited.includes(k)) inherited.push(k);
+      S.pend = { el: a.el, off: a.off, kinds: inherited };
+    }
     const i2 = S.pend.kinds.indexOf(kind);
     if (i2 >= 0) S.pend.kinds.splice(i2, 1); else S.pend.kinds.push(kind);
     const names = { b: 'bold', i: 'italic', u: 'underline' };
-    toast(S.pend.kinds.length ? S.pend.kinds.map(k => names[k]).join(' + ') + ' — as you type' : 'plain');
-    if (!S.pend.kinds.length) S.pend = null;
+    toast(S.pend.kinds.length ? S.pend.kinds.map(k => names[k]).join(' + ') + ' — as you type' : 'plain — as you type');
     return;
   }
 
@@ -3323,9 +4098,10 @@ function handleInsertText(data){
     el.type = 'scene'; text = text.toUpperCase();
   }
   opText(el.id, text, { el: el.id, off: caretOff });
-  // a pending ⌘B/I/U (armed at a collapsed caret) styles what lands here
+  // a pending ⌘B/I/U (armed at a collapsed caret) sets the ABSOLUTE style of
+  // what lands here — including switching an inherited style OFF
   if (S.pend && S.pend.el === el.id && S.pend.off === cc.off && ins) {
-    for (const k of S.pend.kinds) setMark(el, cc.off, cc.off + ins.length, k, true);
+    for (const k of ['b', 'i', 'u']) setMark(el, cc.off, cc.off + ins.length, k, S.pend.kinds.includes(k));
     S.pend.off = cc.off + ins.length;
   }
   // FD: "(" in a Character cue raises the Character Extension list
@@ -3417,7 +4193,11 @@ function handleDelete(){
 }
 
 // ---------- popups: element menu, smarttype, extensions, export ----------
-function closePops(){ document.querySelectorAll('.pop').forEach(p => p.remove()); S.menu = null; }
+function closePops(){
+  document.querySelectorAll('.pop').forEach(p => p.remove());
+  document.querySelectorAll('.doc-item.menuing, .scene-item.menuing').forEach(n => n.classList.remove('menuing'));
+  S.menu = null;
+}
 
 function caretRect(){
   const sel = getSelection();
@@ -3812,6 +4592,13 @@ function draftsMenu(ev){
 // ---------- rail / status ----------
 function rail(){
   const dl = $('#docList');
+  // Where every row sits BEFORE the rebuild. After it, any row that has moved is
+  // animated from its old place to its new one, so a delete, a drag or a pin visibly
+  // settles instead of the list snapping to a different shape. Web Animations rather
+  // than a transition: nothing is left behind on the element, and it needs no rAF.
+  const wasAt = new Map();
+  for (const n of dl.querySelectorAll('.doc-item[data-doc]'))
+    wasAt.set(n.dataset.doc, n.getBoundingClientRect().top);
   dl.innerHTML = '';
   const pinned = new Set(LS.get('pica.ui', {}).pinned || []);
   const archived = new Set(LS.get('pica.ui', {}).archived || []);
@@ -3847,7 +4634,12 @@ function rail(){
     b.firstChild.style.opacity = inShelf ? '.55' : '';
     b.lastChild.textContent = d.pages ? d.pages + 'p' : '';
     b.addEventListener('mousedown', ev => { if (ev.button !== 0) return; if (d.id !== S.docId) openDoc(d.id); });
-    b.addEventListener('contextmenu', ev => { ev.preventDefault(); docMenu(d, ev); });
+    // the row the menu belongs to says so, so a Delete can never land on the wrong script
+    b.addEventListener('contextmenu', ev => {
+      ev.preventDefault();
+      docMenu(d, ev);            // opens the popup, which clears any previous mark…
+      b.classList.add('menuing');  // …so this row marks itself afterwards
+    });
     // drag to reorder — the index array IS the manual order
     b.draggable = true;
     b.addEventListener('dragstart', ev => {
@@ -3879,7 +4671,22 @@ function rail(){
       store.saveIndex(ix);
       rail();
     });
+    b.dataset.doc = d.id;
     host.appendChild(b);
+  }
+  // the list settles into its new shape rather than jumping to it
+  if (wasAt.size && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    for (const n of dl.querySelectorAll('.doc-item[data-doc]')) {
+      const before = wasAt.get(n.dataset.doc);
+      if (before == null) {                        // a row that wasn't there: fade it in
+        if (n.animate) n.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' });
+        continue;
+      }
+      const dy = before - n.getBoundingClientRect().top;
+      if (Math.abs(dy) > 0.5 && n.animate)
+        n.animate([{ transform: 'translateY(' + dy + 'px)' }, { transform: 'none' }],
+          { duration: 220, easing: 'cubic-bezier(.22,.61,.36,1)' });
+    }
   }
   // characters: base name + cue count; click jumps to their next cue
   const cl = $('#charList');
@@ -4030,9 +4837,11 @@ function docMenu(d, ev){
     } else if (it.act === 'del') {
       // a script is never removed without saying so, and never silently
       if (!confirm('Delete “' + (d.title || 'UNTITLED') + '”?\n\nThis removes it from PICA on this device. Export it first if you want to keep a copy.')) return;
+      store.gone.add(d.id);            // no pending or later write may resurrect it
       const ix = store.index().filter(x => x.id !== d.id);
       store.saveIndex(ix);
       store.cache.delete(d.id);
+      if (d.id === S.docId) { clearTimeout(S.saveTimer); S.saveTimer = null; }
       idb.del('doc.' + d.id); idb.del('snap.' + d.id);
       try { localStorage.removeItem('pica.doc.' + d.id); localStorage.removeItem('pica.snap.' + d.id); } catch {}
       pinned.delete(d.id); savePinned();
@@ -4101,9 +4910,118 @@ function toast(msg){
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600);
 }
 
+// ---------- reading a script nobody typed ----------
+// A scan usually carries a hidden text layer somebody else's OCR left behind, and the
+// importer reads that. Some scans carry nothing at all — The Hateful Eight is 168
+// photographs of paper and two fonts, both on the cover. There is no text to find.
+//
+// So the words are read off the picture. The Mac's own text recogniser does it, in the
+// app, offline; what comes back is shaped exactly like a PDF's own text layer — string,
+// position, width, in page points — so the importer never learns where it came from and
+// every rule about columns, cues and continueds applies unchanged.
+const OCR_JOBS = new Map();
+function ocrAvailable(){ return !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.pica) || !!S.ocrStub; }
+function b64of(bytes){
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+// Returns [{page,width,height,items:[{x,y,w,str,conf}]}] or null if nothing can read it.
+async function readByEye(bytes, pages, log){
+  if (S.ocrStub) return await S.ocrStub(pages);
+  const mh = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.pica;
+  if (!mh || !bytes) return null;
+  const token = 'ocr' + Math.random().toString(36).slice(2, 10);
+  return await new Promise(resolve => {
+    // a script this long is minutes of work at worst; give up rather than hang forever
+    const bail = setTimeout(() => { OCR_JOBS.delete(token); resolve(null); }, 12 * 60e3);
+    OCR_JOBS.set(token, {
+      progress: (d, t) => log('reading page ' + d + ' / ' + t + ' by eye…'),
+      done: async url => {
+        clearTimeout(bail); OCR_JOBS.delete(token);
+        try { resolve(await (await fetch(url)).json()); } catch { resolve(null); }
+      },
+    });
+    log('no text in this file — reading it by eye…');
+    mh.postMessage({ ocr: { token, pages, data: b64of(bytes) } });
+  });
+}
+// ── the same word, read four different ways ────────────────────────────────────────
+// A recogniser is not wrong so much as inconsistent. Across The Hateful Eight one
+// character's cue comes back as MAJ.WARREN 85 times, MAJ-WARREN 60, MAJ. WARREN 39 and
+// MAJ- WARREN 5 — the same name, the period read as a hyphen. Another is O.B., o.B. and
+// 0.В. (that В is Cyrillic), and the two lower-case readings stop it being a cue at all,
+// because a cue is capitals.
+//
+// The script itself is the dictionary. A line that repeats is a line we have several
+// readings of, and they can be made to agree: strip everything but the letters, put the
+// readings that came back in clean capitals to a vote, and let the winner stand for all
+// of them. Nothing is invented — a spelling can only ever be replaced by one the
+// recogniser itself produced elsewhere in the same document, more often, more cleanly.
+const OCR_LOOKALIKE = {
+  'А':'A','В':'B','Е':'E','К':'K','М':'M','Н':'H','О':'O','Р':'P','С':'C','Т':'T','У':'Y','Х':'X','І':'I','Ј':'J','Ѕ':'S',
+  'Α':'A','Β':'B','Ε':'E','Ζ':'Z','Η':'H','Ι':'I','Κ':'K','Μ':'M','Ν':'N','Ο':'O','Ρ':'P','Τ':'T','Υ':'Y','Χ':'X',
+};
+const ocrLatin = s => s.replace(/[^\x00-\x7F]/g, c => OCR_LOOKALIKE[c] || c);
+// what two readings of the same words have in common: the letters, and nothing else
+const ocrKey = s => ocrLatin(s).toUpperCase().replace(/[^A-Z0-9]/g, '')
+  .replace(/0/g, 'O').replace(/1/g, 'I').replace(/5/g, 'S');
+// capitals, digits and punctuation — how a cue, a slug or a transition is actually typed
+const ocrClean = s => /^[A-Z0-9 .,:;'’()\[\]#&*/-]+$/.test(ocrLatin(s)) && /[A-Z]/.test(ocrLatin(s));
+const ocrShouted = s => {
+  const letters = ocrLatin(s).replace(/[^A-Za-z]/g, '');
+  if (!letters) return false;
+  return letters.replace(/[^A-Z]/g, '').length >= letters.length * 0.5;
+};
+function repairByConsensus(pages){
+  // the letters test has to be applied to the LATIN reading of the string: "0.В." is
+  // O.B. with a Cyrillic B and a zero, and contains no [A-Za-z] at all
+  const eligible = t => t.length <= 28 && t.split(/\s+/).length <= 4
+    && /[A-Za-z]/.test(ocrLatin(t)) && ocrKey(t).length >= 2;
+  const votes = new Map();                       // letters-only key → spelling → count
+  for (const pg of pages) for (const it of pg.items || []) {
+    const t = it.str.trim();
+    if (!eligible(t) || !ocrClean(t)) continue;
+    const k = ocrKey(t);
+    if (!votes.has(k)) votes.set(k, new Map());
+    const m = votes.get(k);
+    m.set(t, (m.get(t) || 0) + 1);
+  }
+  const winner = new Map();
+  for (const [k, m] of votes) {
+    let best = null, bestN = 0;
+    for (const [t, n] of m) if (n > bestN) { best = t; bestN = n; }
+    if (best) winner.set(k, best);
+  }
+  let fixed = 0;
+  for (const pg of pages) for (const it of pg.items || []) {
+    const t = it.str.trim();
+    if (!eligible(t)) continue;
+    const w = winner.get(ocrKey(t));
+    // A muddled reading is only corrected if it was already trying to be capitals —
+    // otherwise a line of dialogue reading "and" would be shouted into an "AND"
+    // that exists somewhere else in the script.
+    if (!w || w === t || (!ocrClean(t) && !ocrShouted(t))) continue;
+    it.str = w; fixed++;
+  }
+  return fixed;
+}
+
+// Recognised lines → the same items pdf.js would have produced.
+function itemsFromOCR(page){
+  return (page.items || []).filter(i => {
+    const t = (i.str || '').trim();
+    // A speck on the paper, the edge of a staple hole, one end of a rule: the recogniser
+    // offers it as a dash or a dot, standing on its own out in the margin. It is not
+    // writing, and as an element it is a blank line in the middle of a scene.
+    return t && /[A-Za-z0-9]/.test(t);
+  }).map(i => ({ x: i.x, y: i.y, w: i.w, str: i.str, font: 'OCR', fs: 0 }));
+}
+
 // ---------- import ----------
-async function importPdfBuffer(buf, name){
-  overlayCard(`<h2>Importing</h2><div class="sub">${(name || 'pdf').replace(/</g,'&lt;')}</div><div id="importLog">reading…</div>`);
+async function importPdfBuffer(buf, name, opts){
+  opts = opts || {};
+  if (!opts.quiet) overlayCard(`<h2>Importing</h2><div class="sub">${(name || 'pdf').replace(/</g,'&lt;')}</div><div id="importLog">reading…</div>`);
   const log = m => { const n = $('#importLog'); if (n) n.textContent = m; };
   try {
     // PICA.app bundles pdf.js so import works with no network; the web build uses the CDN.
@@ -4116,15 +5034,24 @@ async function importPdfBuffer(buf, name){
       workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/legacy/build/pdf.worker.min.mjs';
     }
     mod.GlobalWorkerOptions.workerSrc = workerSrc;
+    // pdf.js hands the bytes to its worker and they are gone from here; keep a copy in
+    // case the file turns out to be a picture that has to be read by eye.
+    const ocrBytes = ocrAvailable() ? new Uint8Array(buf.slice(0)) : null;
     const base = workerSrc.replace(/pdf\.worker\.min\.mjs$/, '');
     const pdf = await mod.getDocument({
       data: buf,
       standardFontDataUrl: base.startsWith('http') ? base.replace(/build\/$/, 'standard_fonts/') : undefined,
     }).promise;
     const raw = [];
-    let badPages = 0;
+    let badPages = 0, rasterOk = true;
     // font style by name (Bold/Italic faces), cached per font id
     const styleCache = new Map();
+    // pdf.js exposes Util.transform; multiply by hand if this build does not.
+    const xform = (a, b) => (mod.Util && mod.Util.transform) ? mod.Util.transform(a, b) : [
+      a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1],
+      a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3],
+      a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5],
+    ];
     const styleOf = (page, fn) => {
       if (styleCache.has(fn)) return styleCache.get(fn);
       let v = 0;
@@ -4137,18 +5064,75 @@ async function importPdfBuffer(buf, name){
       styleCache.set(fn, v);
       return v;
     };
+    // Some scripts are not typeset files at all: There Will Be Blood is a SCAN — a
+    // page image with a hidden OCR text layer (font "HiddenHorzOCR") and not one
+    // vector path on the page. Its underlines are pixels, so no amount of walking the
+    // operator list will ever find them. For those pages, render the image and read
+    // the rules straight off it: an underline is a run of dark pixels that is long
+    // and thin, which is exactly what a row of text is not.
+    const rasterCanvas = document.createElement('canvas');
+    const RS = 2;                                   // render scale: a 1pt rule → 2px
+    const underlinesFromRaster = async (page, vp) => {
+      const w = Math.ceil(vp.width * RS), h = Math.ceil(vp.height * RS);
+      rasterCanvas.width = w; rasterCanvas.height = h;
+      const ctx = rasterCanvas.getContext('2d', { willReadFrequently: true });
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h);
+      await page.render({ canvasContext: ctx, viewport: page.getViewport({ scale: RS }) }).promise;
+      const px = ctx.getImageData(0, 0, w, h).data;
+      const minLen = Math.round(10 * RS), maxLen = Math.round(vp.width * 0.85 * RS);
+      // horizontal runs of dark pixels, row by row
+      const runs = [];
+      for (let y = 0; y < h; y++) {
+        let start = -1;
+        const row = y * w;
+        for (let x = 0; x <= w; x++) {
+          const i = (row + x) * 4;
+          const dark = x < w && (px[i] + px[i + 1] + px[i + 2]) < 450;
+          if (dark) { if (start < 0) start = x; }
+          else if (start >= 0) {
+            const len = x - start;
+            if (len >= minLen && len <= maxLen) runs.push({ y, x1: start, x2: x });
+            start = -1;
+          }
+        }
+      }
+      // stack overlapping runs from consecutive rows: a rule stays thin, a line of
+      // text grows into a band as tall as its type and is thrown away
+      const bands = [];
+      for (const r of runs) {
+        let into = null;
+        for (let i = bands.length - 1; i >= 0; i--) {
+          const b = bands[i];
+          if (b.y2 < r.y - 1 || r.x1 >= b.x2 + 1 || r.x2 <= b.x1 - 1) continue;
+          if (into) {                              // this run bridges two bands: fuse them
+            into.y1 = Math.min(into.y1, b.y1); into.y2 = Math.max(into.y2, b.y2);
+            into.x1 = Math.min(into.x1, b.x1); into.x2 = Math.max(into.x2, b.x2);
+            bands.splice(i, 1);
+          } else {
+            b.y1 = Math.min(b.y1, r.y); b.y2 = Math.max(b.y2, r.y);
+            b.x1 = Math.min(b.x1, r.x1); b.x2 = Math.max(b.x2, r.x2);
+            into = b;
+          }
+        }
+        if (!into) bands.push({ y1: r.y, y2: r.y, x1: r.x1, x2: r.x2 });
+      }
+      const maxThick = Math.round(3 * RS);
+      return bands.filter(b => b.y2 - b.y1 <= maxThick)
+        .map(b => ({ x1: b.x1 / RS, x2: b.x2 / RS, y: b.y1 / RS }));
+    };
+
     // underlines are DRAWN, not encoded: walk the operator list for thin horizontal
     // ink (fill/stroke, never clip) with the transform tracked, in page space
     const OPS = mod.OPS;
     const INK = new Set([OPS.fill, OPS.eoFill, OPS.stroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeStroke, OPS.closeFillStroke, OPS.closeEOFillStroke].filter(x => x != null));
     const underlinesFrom = (ol, vp) => {
       const out = [];
-      let ctm = [1, 0, 0, 1, 0, 0]; const stack = [];
+      let ctm = vp.transform.slice(); const stack = [];   // page space, rotation and all
       const mul = (m, n) => [m[0]*n[0]+m[2]*n[1], m[1]*n[0]+m[3]*n[1], m[0]*n[2]+m[2]*n[3], m[1]*n[2]+m[3]*n[3], m[0]*n[4]+m[2]*n[5]+m[4], m[1]*n[4]+m[3]*n[5]+m[5]];
       for (let i = 0; i < ol.fnArray.length; i++) {
         const fn = ol.fnArray[i];
         if (fn === OPS.save) stack.push(ctm.slice());
-        else if (fn === OPS.restore) ctm = stack.pop() || [1, 0, 0, 1, 0, 0];
+        else if (fn === OPS.restore) ctm = stack.pop() || vp.transform.slice();
         else if (fn === OPS.transform) ctm = mul(ctm, ol.argsArray[i]);
         else if (fn === OPS.constructPath && INK.has(ol.fnArray[i + 1])) {
           const [ops, co] = ol.argsArray[i];
@@ -4157,7 +5141,7 @@ async function importPdfBuffer(buf, name){
             const tx1 = ctm[0]*x1 + ctm[2]*y1 + ctm[4], ty1 = ctm[1]*x1 + ctm[3]*y1 + ctm[5];
             const tx2 = ctm[0]*x2 + ctm[2]*y2 + ctm[4], ty2 = ctm[1]*x2 + ctm[3]*y2 + ctm[5];
             if (Math.abs(ty2 - ty1) < 2.6 && Math.abs(tx2 - tx1) > 4 && Math.abs(tx2 - tx1) < vp.width * 0.85)
-              out.push({ x1: Math.min(tx1, tx2), x2: Math.max(tx1, tx2), y: vp.height - Math.max(ty1, ty2) });
+              out.push({ x1: Math.min(tx1, tx2), x2: Math.max(tx1, tx2), y: Math.min(ty1, ty2) });
           };
           for (const op of ops) {
             if (op === OPS.moveTo) { cur = [co[ci], co[ci + 1]]; ci += 2; }
@@ -4175,15 +5159,50 @@ async function importPdfBuffer(buf, name){
       try {
         const page = await pdf.getPage(p);
         const vp = page.getViewport({ scale: 1 });
-        let ul = [];
-        try { ul = underlinesFrom(await page.getOperatorList(), vp); } catch {}
+        let ul = [], hasImg = false;
+        try {
+          const ol = await page.getOperatorList();
+          ul = underlinesFrom(ol, vp);
+          // Every way pdf.js says "a picture was painted here". The Hateful Eight's pages
+          // are JBIG2 — one bit per pixel — and those arrive as image MASKS, which this
+          // list did not have. The app therefore never noticed the file was a photograph
+          // and imported its cover page alone: three elements out of a hundred and sixty
+          // eight pages. The build in the browser and the build in the app disagreed
+          // about the op, which is why it passed everywhere except where it mattered.
+          hasImg = ol.fnArray.some(f => f === OPS.paintImageXObject || f === OPS.paintJpegXObject
+            || f === OPS.paintImageMaskXObject || f === OPS.paintInlineImageXObject
+            || f === OPS.paintImageXObjectRepeat || f === OPS.paintImageMaskXObjectRepeat
+            || f === OPS.paintImageMaskXObjectGroup || f === OPS.paintInlineImageXObjectGroup);
+          // a scanned page draws an image and no ink at all — read its rules off the
+          // pixels instead, or the script imports with every underline missing.
+          //
+          // Time-boxed, and abandoned for the whole document the first time it overruns:
+          // drawing a page needs a page that is actually being drawn, and in a window
+          // that is not on screen the render simply never finishes. An import must not
+          // hang because the underlines could not be measured — they are the smallest
+          // thing on the page, and the script is the point.
+          if (!ul.length && hasImg && rasterOk) {
+            const got = await Promise.race([
+              underlinesFromRaster(page, vp).then(v => v || []).catch(() => []),
+              new Promise(res => setTimeout(() => res(null), 4000)),
+            ]);
+            if (got === null) rasterOk = false; else ul = got;
+          }
+        } catch {}
         const tc = await page.getTextContent();
         raw.push({
-          width: vp.width, height: vp.height, ul,
-          items: tc.items.filter(i => i.str && i.str.length).map(i => ({
-            x: i.transform[4], y: vp.height - i.transform[5], w: i.width, str: i.str, font: i.fontName,
-            fs: styleOf(page, i.fontName),
-          })),
+          width: vp.width, height: vp.height, ul, hasImg,
+          // Text arrives in the PDF's own space. Putting it through the VIEWPORT transform
+          // is what turns it into where the ink is on the page — it carries the page's
+          // rotation and any mediaBox offset. Reading transform[4]/[5] raw is only right
+          // for an unrotated page: LA Confidential and Lost in Translation are both
+          // scanned at /Rotate 180, so their x came out mirrored (a slugline at 76pt read
+          // as 536pt) and their y upside down. Nothing classified.
+          items: tc.items.filter(i => i.str && i.str.length).map(i => {
+            const m = xform(vp.transform, i.transform);
+            return { x: m[4], y: m[5], w: i.width, str: i.str, font: i.fontName,
+                     fs: styleOf(page, i.fontName) };
+          }),
         });
       } catch (pageErr) {
         badPages++;
@@ -4191,34 +5210,132 @@ async function importPdfBuffer(buf, name){
       }
       if (p % 10 === 0 || p === pdf.numPages) log('reading page ' + p + ' / ' + pdf.numPages + ' …');
     }
+    // Pages that are a picture and nothing else. The Hateful Eight's cover page carries
+    // the only two fonts in the file, so "does this document have any text?" is the wrong
+    // question — it is asked one page at a time.
+    // …AND THE REAL TEST IS SIMPLER THAN THAT: a page with no words on it has no words on
+    // it, whatever operators drew it. Naming the ways a picture can be painted is a list
+    // that can always be missing an entry — this cannot. A page is offered to the
+    // recogniser when it came back with (almost) nothing, and the document is treated as
+    // a photographed one when most of it did: an ordinary script has no blank pages, and
+    // a genuinely empty page costs a second and reads back as empty.
+    const textless = raw.map((p, i) => (p.items.length < 3 ? i + 1 : 0)).filter(Boolean);
+    const mostlyPictures = textless.length >= Math.max(3, raw.length * 0.2);
+    const unread = mostlyPictures ? textless
+      : raw.map((p, i) => (p.hasImg && p.items.length < 3 ? i + 1 : 0)).filter(Boolean);
+    if (unread.length) {
+      const seen = await readByEye(ocrBytes, unread, log);
+      if (seen && seen.length) repairByConsensus(seen);
+      if (seen) for (const pg of seen) {
+        const r = raw[pg.page - 1];
+        if (!r || !pg.items || !pg.items.length) continue;
+        // the recogniser measured the page itself; trust its size over the media box,
+        // which on a rotated scan describes the paper before it was turned
+        r.width = pg.width; r.height = pg.height;
+        r.items = itemsFromOCR(pg);
+        r.ocr = true;
+      }
+      const stillBlank = unread.filter(n => !raw[n - 1].items.length).length;
+      if (stillBlank && stillBlank === unread.length)
+        throw new Error(ocrAvailable()
+          ? 'this scan could not be read'
+          : 'this PDF is a scan with no text in it — open it in PICA for Mac, which reads the page itself');
+    }
     if (!raw.some(p => p.items.length)) throw new Error('no text layer — this looks like a scanned PDF');
     log('classifying…');
     await new Promise(r => setTimeout(r, 30));
-    const doc = E.importPdf(raw);
+    // measured exactly, then conformed — an import is Final Draft typeset, always
+    const doc = E.toFinalDraft(E.importPdf(raw));
+    doc.src = 'pdf';
     if (!doc.elements.some(e => e.text.trim() !== '')) throw new Error('nothing readable came out of this PDF');
-    const fileTitle = (name || 'IMPORTED').replace(/\.pdf$/i, '').replace(/[_-]+/g, ' ').trim().toUpperCase();
+    const fileTitle = titleFromFilename(name, 'pdf');
+    // A COVER IS NOT A TITLE PAGE. The Hateful Eight's first page is an awards mailing:
+    // FOR YOUR CONSIDERATION over the name, over BEST ORIGINAL SCREENPLAY. Read as a
+    // title page it names the script "FOR YOUR CONSIDERATION" — and the typewriter
+    // letter-spaces it, so it arrives as "F O R  Y O U R …" and survives every test for
+    // garbled text, because those are all real letters.
+    const squished = (doc.title || '').replace(/\s+/g, '').toUpperCase();
+    if (/^(FORYOURCONSIDERATION|BEST(ORIGINAL|ADAPTED)?SCREENPLAY|ACADEMYAWARD|SCREENPLAYBY|WRITTENBY)/.test(squished))
+      doc.title = '';
+    // A word on the cover that the recogniser was unsure of can be checked against the
+    // one witness that never misreads: the file's own name. HATEFUL EICHT on the page,
+    // "The Hateful Eight.pdf" on disk — one letter apart, and the disk is right.
+    if (doc.__read && doc.__read.ocr && doc.titlePage) {
+      const known = fileTitle.split(/\s+/).filter(w => w.length >= 4);
+      const near = (a, b) => {                       // same length, one letter different
+        if (a.length !== b.length) return false;
+        let d = 0;
+        for (let i = 0; i < a.length; i++) if (a[i] !== b[i] && ++d > 1) return false;
+        return d === 1;
+      };
+      for (const t of doc.titlePage) {
+        if (!t.text) continue;
+        t.text = t.text.split(/(\s+)/).map(w => {
+          const up = w.toUpperCase();
+          const hit = known.find(k => near(k, up));
+          return hit ? (w === up ? hit : hit[0] + hit.slice(1).toLowerCase()) : w;
+        }).join('');
+      }
+    }
     // a garbled or missing title (tiny unmapped title-page fonts) falls back to the filename
     const junk = (doc.title || '').replace(/[A-Za-z0-9\s.,:'!?&-]/g, '').length;
-    if (!doc.title || junk > (doc.title.length * 0.3)) doc.title = fileTitle;
+    // 'UNTITLED' counts as no title: it is the placeholder the importer falls back to when
+    // it finds no title page, and leaving it there means a script called UNTITLED forever.
+    // A title-page-less script usually opens on its own name in capitals — Some Like It
+    // Hot does — so prefer that, then the filename.
+    if (!doc.title || doc.title === 'UNTITLED' || junk > (doc.title.length * 0.3)) {
+      const head = (doc.elements[0] || {}).text || '';
+      const shouted = head.trim();
+      // a title page often prints the name in quotes — they are not part of the title
+      const bare = shouted.replace(/^["“”'']+|["“”'']+$/g, '').replace(/\s+/g, ' ').trim();
+      // The opening line is only the title if it READS like one. The Social Network's copy
+      // opens "FROM THE BLACK WE HEAR--", which is a stage direction, not a name: a title
+      // does not trail off, end in punctuation, or describe a shot.
+      const titleish = bare && bare.length <= 45 && !bare.includes('\n')
+        && /[A-Z]/.test(bare) && bare === bare.toUpperCase()
+        && /[A-Z0-9)]$/.test(bare) && !/--|\.\.\./.test(bare)
+        && !E.SCENE_RE.test(bare) && !/\b(WE |CAMERA|ANGLE|FADE|CUT|DISSOLVE|INT|EXT)\b/.test(bare);
+      doc.title = titleish ? bare : fileTitle;
+    }
     if (badPages) doc.importNote = (doc.importNote ? doc.importNote + ' · ' : '') + badPages + ' unreadable page(s) skipped';
     const id = E.uid();
+    if (opts.trial) { store.trials.add(id); S.trial = { id, prev: S.docId }; }
     store.save(id, doc);
+    if (opts.trial) store.cache.set(id, doc);          // openDoc reads it from here
     closeOverlay();
-    openDoc(id);
+    // wait for it to open: the toast reads S.res, and unawaited it reported the
+    // page count of the script that was on screen BEFORE the import
+    await openDoc(id);
+    if (opts.trial) return { id, doc, pages: S.res.count };
     toast(doc.importNote
       ? 'imported · ' + S.res.count + ' pages · ' + doc.importNote
       : 'imported · ' + S.res.count + ' pages · ' + doc.elements.length + ' elements');
   } catch (err) {
+    if (opts.trial) { S.trial = null; throw err; }     // the caller tries the next one
     overlayCard(`<h2>Import failed</h2><div class="sub">pdf</div><p>${String(err.message || err).replace(/</g,'&lt;')}</p>
       <p>PICA needs a text-layer PDF (one exported from screenwriting software — not a scan). It also needs the network once, to fetch the PDF reader.</p>
       <div class="foot"><button class="hbtn" onclick="document.getElementById('overlay').classList.remove('show')">close</button></div>`);
   }
 }
 
+// "ThereWillBeBlood.pdf" is a title, not a word: separators become spaces and runs of
+// CamelCase come apart at their capitals, so it reads THERE WILL BE BLOOD. Filenames
+// that are already spaced or already shouting are left exactly as they are.
+function titleFromFilename(name, ext){
+  let s = (name || 'IMPORTED').replace(new RegExp('\\.' + ext + '$', 'i'), '');
+  s = s.replace(/[_\-.]+/g, ' ').trim();
+  if (!/\s/.test(s) && /[a-z]/.test(s) && /[A-Z]/.test(s)) {
+    s = s.replace(/([a-z0-9])([A-Z])/g, '$1 $2')      // thereWill → there Will
+         .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');  // ABCWord   → ABC Word
+  }
+  return s.replace(/\s+/g, ' ').trim().toUpperCase() || 'IMPORTED';
+}
+
 function importFdxText(text, name){
   try {
-    const doc = E.importFdx(text);
-    if (!doc.title || doc.title === 'UNTITLED') doc.title = (name || 'SCRIPT').replace(/\.fdx$/i, '').replace(/[_-]+/g, ' ').toUpperCase();
+    const doc = E.toFinalDraft(E.importFdx(text));
+    doc.src = 'fdx';
+    if (!doc.title || doc.title === 'UNTITLED') doc.title = titleFromFilename(name || 'SCRIPT', 'fdx');
     const id = E.uid();
     store.save(id, doc);
     openDoc(id);
@@ -4262,7 +5379,11 @@ function printPageCSS(){
 }
 function printAll(){
   const zoomWas = S.zoom;
-  S.zoom = 0.75; // k = 1 → true pt size
+  // The layout is in POINTS and the sheet is declared in points (@page 612pt x 792pt), but
+  // the page box is written in CSS PIXELS: pageW * k. True size therefore needs k = 96/72
+  // = 4/3, which is zoom 1 — not zoom 0.75, which gives k = 1 and a box 612 PIXELS wide on
+  // a 612 POINT sheet. That is 75% of the width, anchored left: the lopsided print.
+  S.zoom = 1;                    // k = 4/3 → 1 layout point = 1 printed point
   computeK();
   for (let i = 0; i < S.pageEls.length; i++) { S.pageEls[i].sig = null; renderPage(i); }
   requestAnimationFrame(() => { window.print(); S.zoom = zoomWas; rerenderAll(); });
@@ -5132,6 +6253,406 @@ addEventListener('beforeprint', () => {});
 // ---------- native bridge ----------
 // PICA.app drives the page through this. Harmless in a browser; the app's menu bar,
 // Dock drops and Print command all land here rather than duplicating any editor logic.
+/* ══════════════════════════════════════════════════════════════════════════════
+   FIND A SCREENPLAY — type a film's name, read what comes back, keep it or don't.
+   Nothing is saved unless he says Accept. Try again moves to the next candidate;
+   Cancel puts back whatever he was reading.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+// One GET. The native app proxies through its own scheme handler (a WKWebView on a
+// custom scheme is subject to CORS like anything else); the web build goes direct and
+// gets what CORS allows.
+// A seam for the tests: they stub the network so the DECISION can be exercised —
+// nothing reaches the library unless he accepts — without depending on the internet.
+let NET_STUB = null;
+const WEB = {
+  proxied: () => location.protocol === 'pica:',
+  url: u => WEB.proxied() ? 'pica://app/__web/' + encodeURIComponent(u) : u,
+  async text(u){
+    const r = await fetch(WEB.url(u), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.text();
+  },
+  async bytes(u){
+    if (NET_STUB && NET_STUB.bytes) return NET_STUB.bytes(u);
+    const r = await fetch(WEB.url(u), { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const b = await r.arrayBuffer();
+    if (b.byteLength < 6000) throw new Error('too small to be a screenplay');
+    const head = new TextDecoder('latin1').decode(new Uint8Array(b.slice(0, 5)));
+    if (head !== '%PDF-') throw new Error('not a PDF');
+    return b;
+  },
+};
+
+// The archives worth reading, and the index page each one publishes. Searching these is
+// better than searching the web: they are curated, the links are stable, and what comes
+// back is a screenplay rather than a review of one. Fetched once per session.
+const SCRIPT_INDEXES = [
+  'https://www.dailyscript.com/movie.html',
+  'https://www.dailyscript.com/movie_n-z.html',
+  'https://www.moviescriptsandscreenplays.com/',
+  'https://www.awesomefilm.com/',
+  'https://tarantinoesque.github.io/',        // a small, clean, all-PDF shelf
+];
+const SCRIPT_HOSTS = [
+  'dailyscript.com', 'moviescriptsandscreenplays.com', 'awesomefilm.com',
+  'thescriptsavant.com', 'scriptslug.com', 'imsdb.com', 'sfy.ru', 'screenplays.io',
+  // studios and trades post the real thing during awards season, and the archive keeps it
+  'deadline.com', 'archive.org', 'indiegroundfilms.files.wordpress.com',
+  'thesuccessfulscreenwriter.com', 'raindance.org', 'nofilmschool.com',
+  'tarantinoesque.github.io',
+];
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
+const slugify = q => q.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const norm = t => t.toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+const indexCache = new Map();
+async function readIndex(url){
+  if (indexCache.has(url)) return indexCache.get(url);
+  let links = [];
+  try {
+    const html = await WEB.text(url);
+    const base = new URL(url);
+    for (const m of html.matchAll(/href="([^"]+)"[^>]*>([^<]{2,120})</gi)) {
+      let href = m[1];
+      if (!/\.pdf(\?|$)/i.test(href)) continue;           // PICA imports PDFs
+      try { href = new URL(href, base).href; } catch { continue; }
+      links.push({ url: href, text: m[2].replace(/&amp;/g, '&').trim() });
+    }
+  } catch {}
+  indexCache.set(url, links);
+  return links;
+}
+
+// DuckDuckGo needs no key and is the fallback when the archives have nothing.
+async function searchWeb(query){
+  const html = await WEB.text('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query));
+  const out = [];
+  for (const m of html.matchAll(/href="(\/\/duckduckgo\.com\/l\/\?uddg=[^"]+|https?:\/\/[^"]+)"/g)) {
+    let href = m[1];
+    if (href.startsWith('//')) href = 'https:' + href;
+    const wrapped = /[?&]uddg=([^&"]+)/.exec(href);
+    if (wrapped) { try { href = decodeURIComponent(wrapped[1]); } catch { continue; } }
+    if (!/^https?:\/\//.test(href) || /duckduckgo\.com/.test(href)) continue;
+    if (!out.includes(href)) out.push(href);
+  }
+  return out;
+}
+
+// How well does a link answer the question? Every significant word of the title has to be
+// there, in the link's own text or its URL; an archive scores above the open web.
+function scoreLink(link, query){
+  const words = norm(query).split(' ').filter(w => w.length > 2);
+  const hay = norm((link.text || '') + ' ' + decodeURIComponent(link.url));
+  if (!words.length) return 0;
+  const hits = words.filter(w => hay.includes(w)).length;
+  if (hits < words.length) return 0;                      // partial matches are noise
+  let score = 40 + Math.round(20 * (hits / words.length));
+  if (SCRIPT_HOSTS.includes(hostOf(link.url))) score += 30;
+  if (norm(link.text || '') === norm(query)) score += 25;  // the archive names it exactly
+  if (/trailer|poster|review|wikipedia|imdb|reddit|youtube|amazon|ebay/.test(link.url.toLowerCase())) score -= 80;
+  return score;
+}
+
+// The hunt: the archives first, the open web after, best first, no duplicates.
+async function gatherCandidates(query){
+  if (NET_STUB && NET_STUB.candidates) return NET_STUB.candidates(query);
+  const found = [];
+  const lists = await Promise.all(SCRIPT_INDEXES.map(readIndex));
+  for (const list of lists) for (const l of list) {
+    const score = scoreLink(l, query);
+    if (score > 0) found.push({ url: l.url, host: hostOf(l.url), label: l.text, score });
+  }
+  if (found.length < 3) {
+    for (const q of ['"' + query + '" screenplay pdf', query + ' screenplay script pdf']) {
+      try {
+        for (const u of await searchWeb(q)) {
+          if (!/\.pdf(\?|$)/i.test(u)) continue;
+          const score = scoreLink({ url: u, text: '' }, query);
+          if (score > 0) found.push({ url: u, host: hostOf(u), label: '', score: score - 5 });
+        }
+      } catch {}
+      if (found.length >= 3) break;
+    }
+  }
+  const seen = new Set();
+  return found.sort((a, b) => b.score - a.score)
+    .filter(c => { const k = c.url.replace(/[?#].*$/, '').toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 8);
+}
+
+// ---------- is this copy any good? ----------
+// The web has several copies of most scripts and they are not equally good: one is a clean
+// export, the next a photocopy read by a machine. The same structure the importer relies on
+// says which is which — a screenplay is scene headings, cues, and speech under the cues —
+// so PICA reads each copy it fetches and keeps looking if it can do better.
+function scoreImport(doc){
+  const els = doc.elements || [];
+  const n = els.length || 1;
+  const t = {};
+  for (const e of els) t[e.type] = (t[e.type] || 0) + 1;
+  const cues = t.character || 0, dlg = t.dialogue || 0, scenes = t.scene || 0;
+  let cueNoSpeech = 0, speechNoCue = 0;
+  els.forEach((e, i) => {
+    const nx = els[i + 1], pv = els[i - 1];
+    if (e.type === 'character' && (!nx || (nx.type !== 'dialogue' && nx.type !== 'paren'))) cueNoSpeech++;
+    if (e.type === 'dialogue' && (!pv || (pv.type !== 'character' && pv.type !== 'paren' && pv.type !== 'dialogue'))) speechNoCue++;
+  });
+  const unread = (t.general || 0) / n;
+  const notes = [];
+  let score = 100;
+  // lines the importer could not place at all — the clearest sign of a bad copy
+  if (unread > 0.01) { score -= Math.min(50, Math.round(unread * 300)); notes.push(Math.round(unread * 100) + '% unplaced'); }
+  // a cue with nothing under it, or speech with nobody saying it
+  const loose = (cueNoSpeech + speechNoCue) / Math.max(1, cues);
+  if (loose > 0.02) { score -= Math.min(30, Math.round(loose * 150)); notes.push(Math.round(loose * 100) + '% loose speech'); }
+  // and the things a screenplay simply has
+  if (!scenes) { score -= 40; notes.push('no scene headings'); }
+  if (!cues || !dlg) { score -= 40; notes.push('no dialogue'); }
+  if (n < 400) { score -= 25; notes.push('only ' + n + ' elements'); }
+  return { score: Math.max(0, score), notes, unread, cues, dlg, scenes };
+}
+
+// ---------- reformat ----------
+// A copy can be nearly right: the words are all there and the shape is mostly correct, but
+// a run of speech came back as action, a slug lost its type, a bracket is sitting in the
+// wrong element. Reformat reads the script again and repairs what its own shape gives away
+// — the same judgements the importer makes, but from the text alone, since the positions on
+// the original page are long gone by then.
+function reformatDoc(doc){
+  E.toFinalDraft(doc);                       // geometry, spacing, reflow, base faces
+  const els = doc.elements;
+  const CAPS = t => t === t.toUpperCase() && /[A-Z]/.test(t);
+  const txt = e => e.text.trim();
+
+  for (const e of els) {
+    const t = txt(e);
+    if (!t) continue;
+    // a shouted line ending in a colon is a transition, wherever it ended up
+    if (t.length <= 34 && CAPS(t) && /[:;~]$/.test(t) && !E.SCENE_RE.test(t)) { e.type = 'transition'; continue; }
+    // a slugline is a slugline
+    if (E.SCENE_RE.test(t) && !t.includes('\n')) { e.type = 'scene'; continue; }
+    // wholly bracketed is a parenthetical
+    if (t !== '(MORE)' && /^\(.*\)$/.test(t) && t.length <= 60) { e.type = 'paren'; continue; }
+  }
+  // a short shout that introduces speech is the name of whoever says it
+  for (let i = 0; i < els.length - 1; i++) {
+    const e = els[i], n = els[i + 1], t = txt(e);
+    if (e.type !== 'action' && e.type !== 'general') continue;
+    if ((n.type === 'dialogue' || n.type === 'paren')
+        && t.length <= 35 && !t.includes('\n') && CAPS(t) && !/[.!?]$/.test(t)) e.type = 'character';
+  }
+  // and what follows a cue is what was said
+  for (let i = 1; i < els.length; i++) {
+    const prev = els[i - 1].type;
+    if (els[i].type === 'action' && (prev === 'character' || prev === 'paren')) els[i].type = 'dialogue';
+  }
+  // nothing is left unclassified: 'general' is not an element of a screenplay
+  for (const e of els) if (e.type === 'general') e.type = 'action';
+  return doc;
+}
+
+/* ---------- the trial ---------- */
+const TRIAL = { query: '', list: [], at: -1, running: false, prev: null, best: null, showing: null, rejected: false };
+
+const trialBar = () => document.getElementById('trialBar');
+function trialShow(state, info){
+  const bar = trialBar(); if (!bar) return;
+  bar.hidden = false;
+  const set = (id, t) => { const n = document.getElementById(id); if (n) n.textContent = t; };
+  const btn = (id, on) => { const n = document.getElementById(id); if (n) n.style.display = on ? '' : 'none'; };
+  if (state === 'searching') {
+    set('tbTitle', 'Looking for “' + TRIAL.query + '”…');
+    set('tbMeta', ''); set('tbFrom', WEB.proxied() ? 'searching the web' : 'searching the web (browser build — some sites will refuse)');
+    set('tbCount', '');
+    btn('tbAccept', false); btn('tbAgain', false); btn('tbCancel', true);
+  } else if (state === 'trial') {
+    set('tbTitle', info.title);
+    set('tbMeta', info.pages + ' pages · ' + info.elements + ' elements');
+    set('tbFrom', 'from ' + info.host
+      + (info.quality ? (info.quality.score >= CLEAN_ENOUGH ? ' · clean'
+        : ' · ' + info.quality.notes.join(', ')) : ''));
+    set('tbCount', 'candidate ' + (TRIAL.at + 1) + ' of ' + TRIAL.list.length);
+    btn('tbAccept', true); btn('tbAgain', true); btn('tbCancel', true);
+  } else if (state === 'empty') {
+    set('tbTitle', info.title);
+    set('tbMeta', ''); set('tbFrom', info.detail || ''); set('tbCount', '');
+    btn('tbAccept', false); btn('tbAgain', !!info.canRetry); btn('tbCancel', true);
+  }
+}
+function trialHide(){ const b = trialBar(); if (b) b.hidden = true; }
+
+// Put back whatever he was reading, and leave nothing of the trial behind.
+async function trialDiscard(){
+  const t = S.trial;
+  if (!t) return;
+  // The guard must OUTLIVE the switch. openDoc begins by flushing a save of the document
+  // it is leaving — which is the trial — so clearing S.trial first is exactly how a
+  // rejected script ended up in the library anyway. Tombstone it as well, so no pending
+  // write can bring it back a second later.
+  store.gone.add(t.id);
+  store.cache.delete(t.id);
+  try { await idb.del('doc.' + t.id); } catch {}
+  const ix = store.index();
+  const back = (t.prev && t.prev !== t.id && ix.some(d => d.id === t.prev)) ? t.prev
+    : (ix[0] ? ix[0].id : null);
+  if (back) await openDoc(back);
+  else { S.trial = null; const id = E.uid(); store.save(id, E.newDoc('UNTITLED')); await openDoc(id); }
+  S.trial = null;
+}
+
+// Walk the candidates, reading each one. A copy that scores clean is shown at once; a
+// poor one is remembered and the next is tried, and if none is clean the best of them is
+// what he sees — with what is wrong with it written on the bar. Trying again from there
+// steps past the best to whatever else was found.
+const CLEAN_ENOUGH = 88;
+
+async function presentTrial(entry){
+  TRIAL.showing = entry;
+  S.trial = { id: entry.id, prev: TRIAL.prev };
+  store.cache.set(entry.id, entry.doc);
+  await openDoc(entry.id);
+  trialShow('trial', {
+    title: entry.doc.title || TRIAL.query,
+    pages: S.res.count,
+    elements: entry.doc.elements.length,
+    host: entry.cand.host,
+    quality: entry.quality,
+  });
+  focusScript();
+}
+
+async function trialNext(){
+  if (TRIAL.running) return;
+  TRIAL.running = true;
+  const form = document.getElementById('getForm');
+  if (form) form.classList.add('busy');
+  try {
+    let best = TRIAL.rejected ? null : TRIAL.best;   // "try again" steps past the best
+    while (TRIAL.at + 1 < TRIAL.list.length) {
+      TRIAL.at++;
+      const c = TRIAL.list[TRIAL.at];
+      trialShow('empty', { title: 'Reading a copy from ' + c.host + '…',
+        detail: 'candidate ' + (TRIAL.at + 1) + ' of ' + TRIAL.list.length, canRetry: false });
+      try {
+        const buf = await WEB.bytes(c.url);
+        await trialDiscard();
+        const r = await importPdfBuffer(buf, TRIAL.query + '.pdf', { trial: true, quiet: true });
+        if (!r) throw new Error('nothing readable came out of it');
+        const q = scoreImport(r.doc);
+        const entry = { id: r.id, doc: r.doc, cand: c, quality: q };
+        // hold on to it: openDoc's own copy is discarded when the next one is read
+        S.trial = null;
+        if (q.score >= CLEAN_ENOUGH) { TRIAL.best = entry; TRIAL.rejected = false; await presentTrial(entry); return; }
+        if (!best || q.score > best.quality.score) best = entry;
+        trialShow('empty', {
+          title: 'That copy is rough — looking for a better one',
+          detail: c.host + ' · ' + q.notes.join(', '), canRetry: false });
+        await new Promise(r2 => setTimeout(r2, 350));
+      } catch (e) {
+        trialShow('empty', { title: 'That one was no good', detail: c.host + ' — ' + (e.message || e), canRetry: false });
+        await new Promise(r2 => setTimeout(r2, 350));
+      }
+    }
+    if (best) {                       // nothing clean: the best of what there was
+      TRIAL.best = best; TRIAL.rejected = false;
+      await presentTrial(best);
+      return;
+    }
+    trialShow('empty', {
+      title: 'Nothing usable for “' + TRIAL.query + '”',
+      detail: TRIAL.list.length ? 'tried ' + TRIAL.list.length + ' copies' :
+        (WEB.proxied() ? 'no results' : 'the browser build cannot reach most script archives — use PICA.app'),
+      canRetry: false });
+  } finally {
+    TRIAL.running = false;
+    if (form) form.classList.remove('busy');
+  }
+}
+
+async function findScreenplay(query){
+  query = (query || '').trim();
+  if (!query) return;
+  if (S.trial) await trialDiscard();
+  TRIAL.query = query; TRIAL.list = []; TRIAL.at = -1;
+  TRIAL.best = null; TRIAL.showing = null; TRIAL.rejected = false;
+  TRIAL.prev = S.docId;
+  trialShow('searching');
+  const form = document.getElementById('getForm');
+  if (form) form.classList.add('busy');
+  try {
+    TRIAL.list = await gatherCandidates(query);
+  } catch (e) {
+    trialShow('empty', { title: 'Could not search', detail: String(e.message || e) });
+    if (form) form.classList.remove('busy');
+    return;
+  }
+  if (form) form.classList.remove('busy');
+  if (!TRIAL.list.length) {
+    trialShow('empty', { title: 'Found nothing for “' + query + '”',
+      detail: WEB.proxied() ? 'try the film\'s full title' : 'the browser build cannot reach most script archives — use PICA.app' });
+    return;
+  }
+  await trialNext();
+}
+
+(() => {
+  const form = document.getElementById('getForm');
+  const input = document.getElementById('getIn');
+  if (form) form.addEventListener('submit', ev => { ev.preventDefault(); input.blur(); findScreenplay(input.value); });
+  // Put the caret back where he writes. Clicking a control must never leave the next
+  // thing he types with nowhere to go.
+  const focusScript = () => {
+    const p2 = document.getElementById('pages');
+    if (p2) { try { p2.focus(); } catch {} }
+    try { restoreCaret(); } catch {}
+  };
+  // Every other control in this app acts on MOUSEDOWN and preventDefaults, which is why
+  // the caret never leaves the page when you press one. These were on 'click', so after
+  // Accept the focus sat on the button and everything typed afterwards went nowhere —
+  // the app "eating inputs". The click path stays for synthetic events in the tests.
+  const on = (id, fn) => {
+    const n = document.getElementById(id);
+    if (!n) return;
+    let acted = 0;
+    const run = () => { acted = Date.now(); fn(); };
+    n.addEventListener('mousedown', ev => { ev.preventDefault(); run(); });
+    n.addEventListener('click', () => { if (Date.now() - acted > 400) run(); });
+  };
+  on('tbAccept', async () => {
+    const t = S.trial; if (!t) { trialHide(); return; }
+    const doc = S.doc;
+    S.trial = null;
+    store.trials.delete(t.id);                       // the guard lifts, and it saves
+    store.gone.delete(t.id);                         // it was never rejected
+    store.save(t.id, doc);
+    rail();
+    trialHide();
+    if (input) input.value = '';
+    focusScript();
+    toast('saved · ' + (doc.title || 'UNTITLED') + ' · ' + S.res.count + ' pages');
+  });
+  on('tbFix', async () => {
+    if (!S.doc) return;
+    const was = scoreImport(S.doc);
+    reformatDoc(S.doc);
+    repaginate(); buildPages(); renderAllVisible(); status();
+    const now = scoreImport(S.doc);
+    const showing = TRIAL.showing;
+    if (showing) {
+      showing.quality = now;
+      trialShow('trial', { title: S.doc.title || TRIAL.query, pages: S.res.count,
+        elements: S.doc.elements.length, host: showing.cand.host, quality: now });
+    }
+    focusScript();
+    toast(now.score > was.score ? 'reformatted · ' + was.score + ' → ' + now.score
+      : 'reformatted · already as good as it reads');
+  });
+  on('tbAgain', () => { TRIAL.rejected = true; TRIAL.best = null; trialNext(); });
+  on('tbCancel', async () => { trialHide(); await trialDiscard(); TRIAL.list = []; TRIAL.at = -1; focusScript(); });
+})();
+
 window.PICA_API = {
   newDoc(){ const id = E.uid(); store.save(id, E.newDoc('UNTITLED')); openDoc(id); toast('new script'); },
   importPdf(){ $('#fileIn').click(); },
@@ -5147,6 +6668,9 @@ window.PICA_API = {
       else importPdfBuffer(buf, name);
     }).catch(e => toast(String(e.message || e)));
   },
+  // the Mac side reading a scan by eye, reporting in and handing back
+  ocrProgress(token, done, total){ const j = OCR_JOBS.get(token); if (j) j.progress(done, total); },
+  ocrDone(token, url){ const j = OCR_JOBS.get(token); if (j) j.done(url); },
   exportMenu(){ openExportMenu(); },
   elementMenu(){ openElementMenu(); },
   showKeys(){ showKeys(); },
@@ -5176,6 +6700,25 @@ window.PICA_API = {
     tab(shift){ handleTab(!!shift); return true; },
     esc(){ closePops(); return true; },
     state(){ return S.doc.elements.map(e => e.type + '|' + e.text); },
+    // the search feature: stub the network, then drive Accept / Try again / Cancel
+    stubNet(s){ NET_STUB = s; },
+    // stand in for the Mac's recogniser: a browser has none, so the gate replays a
+    // reading captured from the real one against the real file
+    stubOcr(fn){ S.ocrStub = fn; },
+    find(q){ return findScreenplay(q); },
+    search(q){ return gatherCandidates(q); },
+    trialId(){ return S.trial ? S.trial.id : null; },
+    // per-character emphasis as the model holds it: '.' plain, else b/i/u letters
+    marks(i){
+      const el = S.doc.elements[i]; if (!el) return '';
+      const bits = markBitsFor(el, 0, el.text.length);
+      let out = '';
+      for (let k = 0; k < el.text.length; k++) {
+        const b = (bits && bits[k]) || 0;
+        out += b ? ((b & 1 ? 'b' : '') + (b & 2 ? 'i' : '') + (b & 4 ? 'u' : '')) : '.';
+      }
+      return out;
+    },
     caretAt(){ const c = S.caret; return c ? (elIndex(c.el) + ':' + c.off) : 'none'; },
     note(i, off, len, text){
       const el = S.doc.elements[i]; if (!el) return false;
@@ -5187,14 +6730,24 @@ window.PICA_API = {
     notes(i){ const el = S.doc.elements[i]; return JSON.stringify((el && el.notes) || []); },
     delNote(i, id){ deleteNote(null, id); return true; },
     openId(id){ return openDoc(id); },
+    // Measured against where the cues are actually DRAWN whenever any is on screen —
+    // comparing the title with the same formula that places it can only ever agree
+    // with itself, which is how a misaligned title passed this check for days.
     titleDelta(){
       const tEl = document.getElementById('docTitle'); const page = document.querySelector('.page');
       if (!tEl || !page) return 'no-dom';
-      const t = tEl.getBoundingClientRect(); const p = page.getBoundingClientRect();
-      const L = S.doc.layout;
-      const cues = S.doc.elements.filter(e => e.type === 'character' && !e.dual).slice(0, 400);
-      const axis = cues.length ? cues.reduce((a, e) => a + L.cols.character + (e.text.length * L.charW) / 2, 0) / cues.length : L.pageW / 2;
-      return Math.abs((t.left + t.width / 2) - (p.left + axis * S.k)) < 1.5;
+      const t = tEl.getBoundingClientRect(), p = page.getBoundingClientRect();
+      const cs = getComputedStyle(tEl);
+      const textLeft = t.left + (parseFloat(cs.paddingLeft) || 0);
+      let want = null;
+      for (const d of document.querySelectorAll('#pages div[data-el]')) {
+        const el = elById(d.dataset.el);
+        if (!el || el.type !== 'character' || el.dual) continue;
+        const r = d.getBoundingClientRect();
+        if (r.width) { want = r.left; break; }          // every cue shares this edge
+      }
+      if (want == null) want = p.left + titleAxisX() * S.k;
+      return Math.abs(textLeft - want) < 1.5;
     },
     noteMulti(i1, o1, i2, o2){
       const targets = [];
@@ -5226,7 +6779,7 @@ window.PICA_API = {
   zoomFit(){ S.zoom = null; rerenderAll(); },
   // print at true page size, and report the paper the script actually uses
   preparePrint(){
-    S.printZoom = S.zoom; S.zoom = 0.75; computeK();
+    S.printZoom = S.zoom; S.zoom = 1; computeK();   // k = 4/3 → true point size
     for (let i = 0; i < S.pageEls.length; i++) { S.pageEls[i].sig = null; renderPage(i); }
     return { w: S.doc.layout.pageW, h: S.doc.layout.pageH };
   },
