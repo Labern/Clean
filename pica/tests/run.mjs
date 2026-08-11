@@ -848,5 +848,127 @@ if (fs.existsSync(whipPath)) {
   check('consensus: it says how much it changed', fixed === 12, String(fixed));
 }
 
+
+// -- 25. A SCRIPT SOMEBODY TYPED WRONG. Shawshank's PDF is clean, well-columned and full
+//        of mistakes its typist made: a stage direction run into the middle of a speech, a
+//        line of action broken across the cue and dialogue columns, an ordinal read as a
+//        scene number. Reproduction ends at importPdf; conformance is where these are put
+//        right, and every one of them is a bug he reported off page 3.
+{
+  const rowH = 12, y0 = 76.5, cw = 7.2;
+  // FD's own grid: action 1.5", dialogue 2.5", parenthetical ~2.9", cue 3.5"
+  const mk = (x, row, str) => ({ x, y: y0 + row * rowH, w: str.length * cw, str });
+  const pages = [];
+  for (let p = 0; p < 12; p++) {
+    const it = []; let r = 0;
+    it.push({ x: 545, y: 30, w: 14, str: (p + 2) + '.' });
+    it.push(mk(108, r++, 'INT -- COURTROOM -- DAY (1946)')); r++;
+    it.push(mk(108, r++, 'THE JURY listens like a gallery of mannequins on display,'));
+    it.push(mk(108, r++, 'pale-faced and stupefied.')); r++;
+    it.push(mk(252, r++, 'RED (O.S.)'));
+    it.push(mk(180, r++, 'Mr. Dufresne, describe the'));
+    it.push(mk(180, r++, 'confrontation you had with your'));
+    it.push(mk(180, r++, 'wife the night she was murdered.')); r++;
+    // action the typist set as though it were a speech — a slip, on two pages of twelve
+    if (p < 2) {
+      it.push(mk(252, r++, 'ANDY DUFRESNE'));
+      it.push(mk(180, r++, 'is on the witness stand, hands'));
+      it.push(mk(180, r++, 'folded, suit and tie pressed, hair'));
+      it.push(mk(180, r++, 'meticulously combed. He speaks in'));
+      it.push(mk(180, r++, 'soft, measured tones:')); r++;
+    }
+    it.push(mk(252, r++, 'RED'));
+    it.push(mk(180, r++, 'Same as it ever was.')); r++;
+    it.push(mk(252, r++, 'ANDY'));
+    it.push(mk(209, r++, '(softly)'));
+    it.push(mk(180, r++, 'It was very bitter. She said she'));
+    it.push(mk(180, r++, 'wanted a divorce in Reno.')); r++;
+    // a cue of four characters — the whole reason the columns were misread
+    it.push(mk(252, r++, 'D.A.'));
+    it.push(mk(180, r++, 'What was your response?')); r++;
+    it.push(mk(252, r++, 'D.A.'));
+    // a stage direction run inline into the speech, and an aside that is NOT one
+    it.push(mk(180, r++, "(refers to his notes) I'll see you"));
+    it.push(mk(180, r++, 'in Hell before I see you in Reno.'));
+    it.push(mk(180, r++, 'I told him (as you know) to leave.')); r++;
+    it.push(mk(252, r++, 'ANDY (CONT.) (CONT’D)'));
+    it.push(mk(209, r++, '(beat)'));
+    it.push(mk(180, r++, 'If they say so.')); r++;
+    it.push(mk(252, r++, 'ANDY'));
+    it.push(mk(180, r++, '–')); r++;          // a lone dash IS writing — Tenet sets these
+    it.push(mk(108, r++, '•')); r++;          // a speck the scanner left is NOT
+    // a scene heading whose bracketed tail finishes on the next row
+    it.push(mk(108, r++, 'INT/EXT -- SHAWSHANK PRISON -- VARIOUS LOCATIONS -- DAY'));
+    it.push(mk(108, r++, '(1955)')); r++;
+    it.push(mk(108, r++, 'Cons all over the prison stop whatever they are doing.')); r++;
+    if (p < 2) {                                   // transitions are rare, as they are in life
+      it.push(mk(411, r++, 'FADE TO BLACK:'));
+      it.push(mk(425, r++, '2ND TITLE UP'));
+    }
+    pages.push({ width: 612, height: 792, items: it });
+  }
+  const d = E.toFinalDraft(E.importPdf(pages));
+  const read = d.__read || {};
+  const txt = (type, re) => d.elements.filter(e => e.type === type && re.test(e.text));
+
+  check('mis-set: a four-letter cue still makes a column of its own',
+    read.cols && read.cols.character === 252 && read.speechCollapsed === false,
+    JSON.stringify(read.cols) + ' collapsed=' + read.speechCollapsed);
+  check('mis-set: a short cue is a cue, not the first words of the speech',
+    txt('character', /^D\.A\.$/).length === 24 && txt('dialogue', /^D\.A\. /).length === 0,
+    txt('character', /^D\.A\.$/).length + ' cues');
+  check('mis-set: action broken across the cue column is action again',
+    txt('action', /^ANDY DUFRESNE is on the witness stand/).length === 2
+    && txt('character', /^ANDY DUFRESNE$/).length === 0,
+    txt('action', /^ANDY DUFRESNE is on/).length + ' merged');
+  check('mis-set: a parenthetical set inline gets its own line',
+    txt('paren', /^\(refers to his notes\)$/).length === 12
+    && txt('dialogue', /^I'll see you in Hell/).length === 12,
+    txt('paren', /^\(refers to his notes\)$/).length + ' lifted');
+  check('mis-set: an aside inside a sentence is left where the writer put it',
+    txt('dialogue', /I told him \(as you know\) to leave\./).length === 12
+    && txt('paren', /as you know/).length === 0);
+  check('mis-set: an ordinal is not a scene number',
+    txt('transition', /^2ND TITLE UP$/).length === 2 && txt('scene', /TITLE UP/).length === 0,
+    JSON.stringify(txt('transition', /TITLE UP/).map(e => e.text)));
+  check('mis-set: a bracketed tail belongs to its scene heading',
+    txt('scene', /VARIOUS LOCATIONS -- DAY \(1955\)/).length === 12
+    && txt('paren', /1955/).length === 0,
+    txt('scene', /\(1955\)/).length + ' headings');
+  check('mis-set: a cue does not say (CONT’D) twice',
+    txt('character', /^ANDY \(CONT’D\)$/).length === 12
+    && d.elements.filter(e => /CONT.*CONT/i.test(e.text)).length === 0);
+  check('mis-set: a speck the scanner left never reaches the page',
+    d.elements.filter(e => /•/.test(e.text)).length === 0);
+  check('mis-set: a lone dash is writing and stays',
+    d.elements.filter(e => e.text.trim() === '–').length === 12,
+    String(d.elements.filter(e => e.text.trim() === '–').length));
+  check('mis-set: nothing is left unclassified',
+    d.elements.filter(e => e.type === 'general').length === 0,
+    JSON.stringify(d.elements.filter(e => e.type === 'general').slice(0, 4).map(e => e.text)));
+
+  // …and the repair is only for a slip. A script that opens its speeches in lower case as
+  // a matter of course — There Will Be Blood does it 199 times — is not damaged, and
+  // reading it as damage turned a quarter of that film's dialogue into action.
+  const house = [];
+  for (let p = 0; p < 12; p++) {
+    const it = []; let r = 0;
+    it.push(mk(108, r++, 'INT -- DERRICK -- DAY')); r++;
+    it.push(mk(108, r++, 'Daniel watches the pipe come up out of the ground.')); r++;
+    for (let k = 0; k < 8; k++) {
+      it.push(mk(252, r++, k % 2 ? 'DANIEL' : 'PAUL SUNDAY'));
+      it.push(mk(180, r++, k % 2 ? 'that depends on the ground.' : 'what church do you belong to.'));
+      r++;
+    }
+    house.push({ width: 612, height: 792, items: it });
+  }
+  const h = E.toFinalDraft(E.importPdf(house));
+  check('mis-set: a script that always writes speech in lower case is not damaged',
+    h.elements.filter(e => e.type === 'character').length === 96
+    && h.elements.filter(e => e.type === 'dialogue').length === 96,
+    h.elements.filter(e => e.type === 'character').length + ' cues, '
+    + h.elements.filter(e => e.type === 'dialogue').length + ' speeches');
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);
