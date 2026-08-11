@@ -1087,6 +1087,13 @@ const PicaEngine = (() => {
       // the shout that follows say so even when there is no INT/EXT and no twin.
       const numberedShout = /^\s{2,}/.test(l.text.slice(m[0].length - 1))
         || (/^[A-Z0-9]/.test(rest) && rest === rest.toUpperCase() && rest.length <= 60);
+      // AN ORDINAL IS NOT A SCENE NUMBER. Scene numbers are suffixed with A, B, AA — never
+      // with ST, ND, RD or TH, which is English counting. Shawshank cuts to "1ST TITLE UP",
+      // "2ND TITLE UP": each was read as scene 1 followed by a heading called TITLE UP, so
+      // the ordinal vanished off the page and a title card became a scene. The same misread
+      // waits in "3RD FLOOR HALLWAY" and "1ST ASSISTANT". A number printed at BOTH margins
+      // is still unmistakably a scene number, so only the one-sided reading is refused.
+      if (!mirrored && /^\d{1,3}(ST|ND|RD|TH)$/.test(m[1])) continue;
       if (!mirrored && !SCENE_RE.test(rest) && !numberedShout) continue;
       if (numberedShout && !mirrored) l.slugNo = m[1];
       l.text = (mirrored ? rest.slice(0, tm.index) : rest).trim();
@@ -1202,6 +1209,25 @@ const PicaEngine = (() => {
         }
       }
     }
+    // A SPECK IS NOT WRITING. A photocopied draft carries the scanner's own marks — hole
+    // punches, dust, the shadow of a staple — and the text layer dutifully reads them as
+    // characters: "•", "()", "CJ", "8-", "____________". LA Confidential's page yields 238
+    // of them and Lost in Translation 190, each becoming an element of its own and drawn
+    // back at the left margin in the middle of a scene. Nothing a writer types is a line
+    // with fewer than two letters or figures on it, so this can never take a word off the
+    // page — while a genuinely short line of speech ("No.", "Yes.") keeps its two and stays.
+    // Counting letters alone is not enough to tell a speck from a mark a writer made:
+    // Tenet sets a line that is nothing but "–", twice on its second page, to bracket a
+    // line spoken in Ukrainian. That is writing, and dropping it cost 253 lines of the
+    // fidelity gate. So the test names what is never writing — a bullet, a rule, a stray
+    // bracket, a single loose character — and leaves every dash, quote and ellipsis alone.
+    const SPECK = /[•·◦○●▪|\\^~_{}[\]<>]/;
+    for (const p of pages) for (const l of p.lines) {
+      if (furniture.has(l)) continue;
+      const t = l.text.trim();
+      if (!t || (t.match(/[A-Za-z0-9]/g) || []).length >= 2) continue;
+      if (SPECK.test(t) || /^[A-Za-z0-9][.,)]?$/.test(t) || /^\(\s*\)$/.test(t)) furniture.add(l);
+    }
     const bodyLines = p => p.lines.filter(l => !furniture.has(l));
 
     // -- collect body lines / metrics
@@ -1232,7 +1258,16 @@ const PicaEngine = (() => {
     // as speech for exactly this reason. Only lines with words in them vote.
     const votes = allLines.filter(l => {
       const t = l.text.trim();
-      if (t.length <= 4 || !/[A-Za-z]{2}/.test(t)) return false;
+      if (!/[A-Za-z]{2}/.test(t)) return false;
+      // A line of two or three characters is usually a mark rather than writing — but a
+      // CHARACTER CUE is short by nature, and the cues are a whole column. Shawshank is
+      // spoken by ANDY, RED and the D.A.: at a flat "longer than four characters" the
+      // entire cue column was disenfranchised, the histogram saw only action and speech,
+      // and the script imported as though it set cue, parenthetical and dialogue all on
+      // one indent — 824 cues swallowed into the speech beneath them. So the test is
+      // whether the line reads as a WORD or as a mark: letters, with the stops and
+      // apostrophes a name may carry, and nothing else.
+      if (t.length <= 4 && !/^[A-Za-z][A-Za-z.'’-]*$/.test(t)) return false;
       if (FURNITURE_NUM.test(t) || SCENE_NO.test(t)) return false;
       // A slugline that opens with its scene number is anchored in the GUTTER, not on a
       // column — Memento has 216 of them, enough to win a column slot and read every real
@@ -1323,6 +1358,25 @@ const PicaEngine = (() => {
       if (spare) top = top.slice(1).concat([spare]).sort((a, b) => a.x - b.x);
       else top = top.slice(1);
     }
+    // …AND A GUTTER IS NOT A COLUMN EITHER. The same mistake waits at the other edge:
+    // Lost in Translation's right-hand margin — scene numbers and a scanner's marks —
+    // won the fourth slot at x=464, and being rightmost it took the CHARACTER column's
+    // place, so the cue column was read as parentheticals and 188 lines were left with
+    // nowhere to sit. The tell is the same one, mirrored: the last of the four stands far
+    // outside the others (the gap to it is more than twice the gaps between real columns)
+    // and carries a fraction of their lines. Real columns are evenly spaced across the
+    // width of a page; a margin is off on its own.
+    if (top.length === 4) {
+      const gapTo = [top[1].x - top[0].x, top[2].x - top[1].x, top[3].x - top[2].x];
+      const inner = Math.min(gapTo[0], gapTo[1]);
+      if (gapTo[2] >= inner * 2 && gapTo[2] >= 90 && top[3].n < top[2].n * 0.6) {
+        // …and the stand-in must not be another margin. The next busiest cluster on a page
+        // like this is usually the OTHER right-hand furniture, so it is only taken when it
+        // sits among the real columns; otherwise the page simply has three.
+        const spare = ranked.find(b => !top.includes(b) && b.x < top[2].x + inner * 1.5);
+        top = spare ? top.slice(0, 3).concat([spare]).sort((a, b) => a.x - b.x) : top.slice(0, 3);
+      }
+    }
     // Not every script separates speech into three columns. Some Like It Hot (1958) sets
     // the cue, the parenthetical AND the dialogue all flush at 1.78" — the only indent on
     // the page besides action. Measured across 30 pages: 1051 lines at x=128 against 390 at
@@ -1331,7 +1385,35 @@ const PicaEngine = (() => {
     // came back as character cues. When only two columns carry the page, the speech column
     // is one column doing three jobs, and shape has to settle which — see roleOf.
     const major = clusters.filter(b => b.n >= allLines.length * 0.12).sort((a, b) => a.x - b.x);
-    const speechCollapsed = major.length === 2;
+    let speechCollapsed = major.length === 2;
+    // …and a reading has to DESCRIBE the document before it is believed. Finding four
+    // clusters is not the same as the page having four columns: LA Confidential is a
+    // photocopied production draft whose text layer is speckled with the scanner's own
+    // marks, and forced onto four columns 238 of its lines matched none and were drawn
+    // back at the left margin in the middle of scenes. The test is the document's own
+    // answer — lay the reading over every line and see how many find somewhere to sit.
+    //
+    // "Somewhere" has to mean what nearestCol will actually accept, which is the four
+    // columns AND the busy clusters that stand in for one (the alternates rule below:
+    // a script assembled from pages typed at different times has more than one tab stop
+    // for the same thing). Counting only the four condemned Memento, whose second tab
+    // stop is a real column that alternates picks up perfectly well.
+    let placedFrac = 1;
+    if (!speechCollapsed && major.length >= 2 && top.length >= 4) {
+      const xs = top.map(t => t.x).sort((a, b) => a - b);
+      let g = Infinity;
+      for (let i = 1; i < xs.length; i++) g = Math.min(g, xs[i] - xs[i - 1]);
+      const half = Math.max(3, Math.floor(g / 2) - 1);
+      const homes = [...new Set([...xs, ...clusters.filter(b => b.n >= allLines.length * 0.008).map(b => b.x)])];
+      let placed = 0;
+      for (const l of allLines) for (const c of homes) if (Math.abs(l.x - c) <= half) { placed++; break; }
+      placedFrac = allLines.length ? placed / allLines.length : 1;
+      // Where to draw the line is measured, not guessed — a threshold picked by feel is
+      // what put Shawshank's cue column just under a cut and broke that film. The two
+      // readings separate with an empty valley between them across the corpus, and this
+      // sits in the middle of it rather than on the edge of anything.
+      if (placedFrac < 0.95) speechCollapsed = true;
+    }
 
     const cols = { ...LETTER.cols };
     let parenInvented = false;   // true when no column of parentheticals was found
@@ -1470,9 +1552,25 @@ const PicaEngine = (() => {
     // correct for it. So a photographed script assigns every line to its nearest column
     // and leaves none stranded: the columns are thirty-five to seventy points apart and
     // nearest is never in doubt.
-    const colTol = speechCollapsed || byEye
+    let colTol = speechCollapsed || byEye
       ? halfGap
       : Math.max(3, Math.min(halfGap, Math.max(9, Math.ceil(p85) + 1)));
+    // …and p85 can only see the lines that already fit: a line further out than half the
+    // gap is not in the sample at all, so a document whose typing smears measures a tight
+    // drift and then strands its own tail. Good Will Hunting left 165 speeches standing
+    // with no cue for exactly this reason. The tolerance is not a statistic about the
+    // lines that fit; it is whatever it takes to PLACE them all. So widen until nearly
+    // every line has a column, and never past half the gap — beyond that a column would
+    // be annexing its neighbour, which is the worse failure.
+    if (!speechCollapsed && !byEye && colTol < halfGap) {
+      const placedAt = (w) => {
+        let n = 0;
+        for (const l of allLines) for (const c of colXs) if (Math.abs(l.x - c) <= w) { n++; break; }
+        return n;
+      };
+      const want = allLines.length * 0.98;
+      while (colTol < halfGap && placedAt(colTol) < want) colTol++;
+    }
     // A script assembled from pages typed at different times has more than one tab stop for
     // the same thing. There Will Be Blood's cues sit at 3.5" for most of the film and about
     // 4.05" for a stretch of it — 40pt out, which accounted for 100 of the 124 lines it
@@ -1594,7 +1692,12 @@ const PicaEngine = (() => {
       // A parenthetical may run onto a second line, so the first one closes no bracket:
       // testing for a WHOLLY bracketed line leaves "(points to the cord running across"
       // as action, which then swallows the cue above it.
-      if (t !== '(MORE)' && whollyBracketed(t) && t.length <= 60) return 'paren';
+      // …but NEVER out at the action margin. A parenthetical belongs to a speech and is
+      // indented past the dialogue; nothing bracketed at the left margin is one. Shawshank
+      // wraps a long scene heading onto a second line — "INT/EXT -- SHAWSHANK PRISON --
+      // VARIOUS LOCATIONS -- DAY" / "(1955)" — and the year, read as a parenthetical, was
+      // lifted out of its own heading and left standing in the middle of the scene.
+      if (t !== '(MORE)' && whollyBracketed(t) && t.length <= 60 && !near(cols.action)) return 'paren';
       if (speechCollapsed && t !== '(MORE)' && /^\(/.test(t)) return 'paren';
       // a numbered slug is a slug wherever it sits: on a drifting scan the line often lands
       // on no column at all, and it was ending up unclassified
@@ -1620,7 +1723,13 @@ const PicaEngine = (() => {
         // nothing to say and put a stage direction in a character's mouth.
         return whollyBracketed(t) || /^\(/.test(t) ? 'paren' : 'character';
       }
-      if (Math.abs(l.xEnd - transRight) < 4 && l.text === l.text.toUpperCase() && /:\s*$/.test(l.text)) return 'transition';
+      // Out at the transition margin — right of every column on the page — a shouted line
+      // is a transition whether or not it ends in a colon. Shawshank's title cards ride
+      // there under the fade ("FADE TO BLACK:" / "2ND TITLE UP"); with a colon demanded,
+      // the card fell through to 'general' and was drawn back at the left margin, breaking
+      // the pair apart. Nothing but transition matter is set this far right.
+      if (Math.abs(l.xEnd - transRight) < 4 && /[A-Z]/.test(l.text) && l.text === l.text.toUpperCase()
+          && !SCENE_RE.test(l.text)) return 'transition';
       // end marks without the colon — FADE OUT. / CUT TO BLACK. — are transitions too
       if (l.text === l.text.toUpperCase() && /^(FADE OUT|FADE TO BLACK|CUT TO BLACK)\.?\s*$/.test(l.text.trim())) return 'transition';
       return 'general';
@@ -1779,7 +1888,15 @@ const PicaEngine = (() => {
         const contSameEl = open && gap !== null && gap <= rowH + 2 && open.type === role
           && (role === 'action' || role === 'dialogue' || role === 'paren');
 
-        if (contSameEl) {
+        // A scene heading too long for the measure finishes on the next row, and what is
+        // left over is usually the bracketed tail — the year, (CONTINUOUS), (LATER). It is
+        // the heading's own words, so it goes back into the heading rather than standing
+        // as a line of action beneath it.
+        const sceneTail = open && open.type === 'scene' && role !== 'scene'
+          && gap !== null && gap <= rowH + 2
+          && whollyBracketed(l.text.trim()) && l.text.trim().length <= 24;
+
+        if (contSameEl || sceneTail) {
           open.srcLines.push(l);
         } else if (pendingSpeech && !pageStart && prevLine === null && (role === 'dialogue' || role === 'paren')) {
           // continuation after (MORE): resume the split speech
@@ -1948,8 +2065,10 @@ const PicaEngine = (() => {
       if (el.type === 'scene') el.text = el.text.replace(/[ \t]{2,}/g, ' ').trim();
       // some shooting scripts carry a typed (CONT'D) inside the character name AND
       // FD's own appended one — "GROVES (CONT'D) (CONT’D)". One is apparatus stutter.
+      // The typed one is not always spelled FD's way: Shawshank writes "(CONT.)", so
+      // "ANDY (CONT.) (CONT’D)" went through as a cue saying it twice.
       if (el.type === 'character')
-        el.text = el.text.replace(/\(CONT['’]D\)\s*(?:\(CONT['’]D\)\s*)+$/, "(CONT’D)");
+        el.text = el.text.replace(/\((?:CONT['’]D|CONT\.|CONTINUED)\)\s*(?:\((?:CONT['’]D|CONT\.|CONTINUED)\)\s*)+$/i, "(CONT’D)");
       attachMarks(el, src);
       const rl = [];
       el.srcLines.forEach((s, i) => { if (s.rev) rl.push(i); });
@@ -2015,7 +2134,7 @@ const PicaEngine = (() => {
       titlePage: tp,
       // what the reading decided about this document's geometry — the first thing worth
       // knowing when an import comes out wrong
-      __read: { cols, speechCollapsed, colTol, transRight, rowH, ocr: byEye },
+      __read: { cols, speechCollapsed, colTol, transRight, rowH, ocr: byEye, placedFrac: Math.round(placedFrac * 1000) / 1000 },
       ...(decodeNote ? { importNote: decodeNote } : {}),
       layout,
       elements: els.map(e => ({ id: e.id, type: e.type, text: e.text, ...(e.xOverride != null ? { xOverride: e.xOverride } : {}), ...(e.align ? { align: e.align } : {}), ...(e.spaceBefore != null ? { spaceBefore: e.spaceBefore } : {}), ...(e.rev ? { rev: e.rev } : {}), ...(e.dual ? { dual: e.dual } : {}), ...(e.marks ? { marks: e.marks } : {}) })),
@@ -2456,6 +2575,124 @@ const PicaEngine = (() => {
         out += (keep ? '\n' : ' ') + lines[i];
       }
       el.text = out;
+    }
+
+    // ---------- speech the source mis-set, conformed ----------------------------------
+    // Reproduction ends at importPdf. What arrives here is the source's own arrangement,
+    // and plenty of scripts in the wild were typed by somebody who put things in the
+    // wrong place — Shawshank's PDF is one. Conformance is where that is put right; the
+    // reader is promised a clean Final Draft page, and none of this touches extraction.
+    {
+      // Offsets ride along: everything hung on an element's text — emphasis, margin
+      // notes, storyboard anchors — is remapped when the text is cut or joined, or the
+      // marks end up over the wrong words.
+      const slice = (el, s, e) => {
+        const o = {};
+        if (el.marks) {
+          const m = el.marks.map(([a, b, k]) => [Math.max(a, s) - s, Math.min(b, e) - s, k])
+            .filter(([a, b]) => b > a);
+          if (m.length) o.marks = m;
+        }
+        for (const key of ['notes', 'panels']) {
+          if (!el[key]) continue;
+          const n = el[key].filter(x => x.off >= s && x.off < e).map(x => ({ ...x, off: x.off - s }));
+          if (n.length) o[key] = n;
+        }
+        return o;
+      };
+      const shift = (el, by) => {
+        const o = {};
+        if (el.marks) o.marks = el.marks.map(([a, b, k]) => [a + by, b + by, k]);
+        for (const key of ['notes', 'panels'])
+          if (el[key]) o[key] = el[key].map(x => ({ ...x, off: x.off + by }));
+        return o;
+      };
+
+      // 1. A CUE WHOSE SPEECH IS NOT SPEECH. "ANDY DUFRESNE" over "is on the witness
+      //    stand, hands folded…" is one sentence of action that the typist broke across
+      //    the cue and dialogue columns — the name is capitalised because action
+      //    capitalises a character's entrance, and that is all that made it look like a
+      //    cue. Nobody's dialogue begins with a lower-case word: read together they are
+      //    the action they always were. A cue carrying an extension — (O.S.), (CONT'D) —
+      //    is unmistakably a cue and is never touched.
+      //    AND ONLY WHERE IT IS AN ACCIDENT. Not every script capitalises the first word
+      //    of a speech: There Will Be Blood is a typed transcription that opens 199 of its
+      //    speeches in lower case — "PAUL SUNDAY / what church do you belong to?" is
+      //    dialogue, all of it, and reading the pattern as damage would have turned a
+      //    quarter of that film's speeches into action. So the document is asked how it
+      //    writes before anything is touched: a handful of these against hundreds of cues
+      //    is a typist's slip, a fifth of them is the house style and nothing is wrong.
+      //    A speech that ASKS something is never narration either, whatever it opens with.
+      const els = doc.elements;
+      const isSlip = (a, b) => a && b && a.type === 'character' && b.type === 'dialogue'
+        && !a.dual && !b.dual && !/\(/.test(a.text) && /^[a-z]/.test(b.text) && !/[?!]\s*$/.test(b.text);
+      let cues = 0, slips = 0;
+      for (let i = 0; i < els.length; i++) {
+        if (els[i].type === 'character') cues++;
+        if (isSlip(els[i], els[i + 1])) slips++;
+      }
+      const repairSlips = slips > 0 && slips <= Math.max(3, cues * 0.01);
+      for (let i = 0; repairSlips && i < els.length - 1; i++) {
+        const cue = els[i], said = els[i + 1];
+        if (!isSlip(cue, said)) continue;
+        const at = cue.text.length + 1;
+        const marks = [...(cue.marks || []), ...(shift(said, at).marks || [])];
+        const notes = [...(cue.notes || []), ...(shift(said, at).notes || [])];
+        const panels = [...(cue.panels || []), ...(shift(said, at).panels || [])];
+        cue.type = 'action';
+        cue.text = cue.text + ' ' + said.text;
+        if (marks.length) cue.marks = marks; else delete cue.marks;
+        if (notes.length) cue.notes = notes; else delete cue.notes;
+        if (panels.length) cue.panels = panels; else delete cue.panels;
+        els.splice(i + 1, 1);
+      }
+
+      // 2. A PARENTHETICAL SET INLINE. Final Draft gives a stage direction its own line at
+      //    its own indent; this source runs it into the speech — "(refers to his notes)
+      //    I'll see you in Hell…" — so it printed as part of what the man said. Lift it out.
+      //    The discrimination that matters: a parenthetical INTERRUPTS between sentences,
+      //    while an aside sits INSIDE one ("I told him (as you know) to leave"), and only
+      //    the first is a direction. So a bracket is lifted at the start of a speech or
+      //    after a full stop, and left alone anywhere else.
+      const EXTENSION = /^(O\.?S\.?|V\.?O\.?|CONT['’]D|MORE|O\.?C\.?|SUBTITLE|PRELAP|PRE-LAP|BEAT\.)$/i;
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i];
+        if (el.type !== 'dialogue' || el.dual || el.text.indexOf('(') < 0) continue;
+        const cuts = [];
+        const re = /\(([^()\n]{1,60})\)/g;
+        let m;
+        while ((m = re.exec(el.text))) {
+          const inner = m[1].trim();
+          if (!/[A-Za-z]/.test(inner) || EXTENSION.test(inner)) continue;
+          const before = el.text.slice(0, m.index);
+          const after = el.text.slice(m.index + m[0].length);
+          if (before && !/[.!?…][")'’”]?\s+$/.test(before)) continue;   // an aside, not a direction
+          if (after && !/^\s/.test(after)) continue;
+          cuts.push([m.index, m.index + m[0].length]);
+        }
+        if (!cuts.length) continue;
+        // walk the element into alternating speech and direction, keeping every offset
+        const pieces = [];
+        let at = 0;
+        for (const [s, e] of cuts) {
+          if (s > at) pieces.push(['dialogue', at, s]);
+          pieces.push(['paren', s, e]);
+          at = e;
+        }
+        if (at < el.text.length) pieces.push(['dialogue', at, el.text.length]);
+        const made = pieces.map(([type, s, e]) => {
+          const text = el.text.slice(s, e).trim();
+          if (!text) return null;
+          // trimming moved the start; move what hangs off the text with it
+          const lead = el.text.slice(s, e).length - el.text.slice(s, e).replace(/^\s+/, '').length;
+          const o = slice(el, s + lead, s + lead + text.length);
+          return { id: uid(), type, text, ...o };
+        }).filter(Boolean);
+        if (!made.length) continue;
+        made[0].id = el.id;                         // the first piece keeps the element's identity
+        els.splice(i, 1, ...made);
+        i += made.length - 1;
+      }
     }
 
     // the title page is positioned rather than flowed, so it moves with the grid
