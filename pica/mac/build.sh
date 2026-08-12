@@ -23,7 +23,14 @@ fi
 # The SHOWN name (⌘-Tab, Dock, Get Info) is the mark itself, INT./EXT.; the SPOKEN name
 # (menu bar, About, Quit) is InText. The bundle id NEVER changes: localStorage and
 # IndexedDB are keyed to it, and renaming it would lose every saved script.
-APP_NAME="InText"
+# The switcher REFUSES a display name that differs from the on-disk name (the
+# anti-spoofing rule) — which is why three plist attempts showed "InText". The way
+# through is the filename itself: POSIX ":" displays as "/", so a bundle named
+# INT.:EXT..app on disk reads INT./EXT. everywhere the user sees it. The executable
+# stays InText (a process name should not carry punctuation), and the bundle id
+# still never changes.
+APP_NAME="InText"                 # executable + CFBundleName (menu bar, Quit)
+APP_FILE="INT.:EXT."              # bundle name on disk — displays as INT./EXT.
 DISPLAY_NAME="INT./EXT."
 BUNDLE_ID="com.labern.pica"
 VERSION="1.0"
@@ -31,7 +38,7 @@ IDENTITY="pica-local"                 # fallback stable local identity
 # build outside the repo: Desktop is iCloud-synced, and its xattr re-tagging lands
 # between the xattr-clean and codesign, failing the signature ("detritus")
 BUILD="${PICA_BUILD_DIR:-/tmp/pica-build}"
-APP="$BUILD/$APP_NAME.app"
+APP="$BUILD/$APP_FILE.app"
 RES="$APP/Contents/Resources"
 WEB="$RES/web"
 PDFJS="4.10.38"
@@ -172,12 +179,12 @@ if [ "${1:-}" = "--install" ]; then
     fi
     tail -1 /tmp/pica-smoke.log
   fi
-  rm -rf "/Applications/$APP_NAME.app"
-  cp -R "$APP" "/Applications/$APP_NAME.app"
+  rm -rf "/Applications/$APP_FILE.app" "/Applications/$APP_NAME.app"
+  cp -R "$APP" "/Applications/$APP_FILE.app"
   # the app this one supersedes must not linger in the Dock's memory
   if [ -d "/Applications/PICA.app" ]; then
     rm -rf "/Applications/PICA.app"
     echo "› evicted /Applications/PICA.app — superseded by $APP_NAME"
   fi
-  echo "› installed to /Applications/$APP_NAME.app"
+  echo "› installed to /Applications/$APP_FILE.app (displays as INT./EXT.)"
 fi
