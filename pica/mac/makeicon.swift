@@ -82,7 +82,10 @@ func render(size S: Int) -> CGImage {
             let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ink]
             let tl = CTLineCreateWithAttributedString(NSAttributedString(string: "INT./EXT.", attributes: attrs))
             let y = box.maxY - Double(i) * rowH - barH - rowH * 0.10
-            ctx.textPosition = CGPoint(x: box.minX, y: y + barH * 0.5 - fs * 0.32)
+            // top CENTRED — the name floats over the page's first line; every bar
+            // beneath keeps exactly its original seat
+            let tw = CTLineGetTypographicBounds(tl, nil, nil, nil)
+            ctx.textPosition = CGPoint(x: s / 2 - tw / 2, y: y + barH * 0.5 - fs * 0.32)
             CTLineDraw(tl, ctx)
             continue
         }
