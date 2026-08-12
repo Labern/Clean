@@ -64,17 +64,7 @@ func render(size S: Int) -> CGImage {
 
     let ink = CGColor(red: 0.078, green: 0.078, blue: 0.075, alpha: 1)
     let inset = S <= 40 ? 0.165 : 0.175
-    // the mark takes the top of the measure; the scrap keeps the rest. Below 64px nine
-    // characters are mud, so the scrap stands alone as it always did.
-    let full = CGRect(x: s * inset, y: s * inset, width: s * (1 - inset * 2), height: s * (1 - inset * 2))
-    var box = full
-    if S >= 64 {
-        let fs = full.width / 9.0 * 1.5          // "INT./EXT." — nine cells, comfortably full
-        let font = courier(fs)
-        drawLine(ctx, "INT./EXT.", font: font, ink: ink,
-                 centreX: s / 2, baselineY: full.maxY - fs * 0.62)
-        box = CGRect(x: full.minX, y: full.minY, width: full.width, height: full.height - fs * 1.15)
-    }
+    let box = CGRect(x: s * inset, y: s * inset, width: s * (1 - inset * 2), height: s * (1 - inset * 2))
     let rowH = box.height / Double(script.count)
     let adv = box.width / Double(cols)          // one character cell
 
@@ -84,6 +74,18 @@ func render(size S: Int) -> CGImage {
     let barH = max(1, (rowH * 0.46).rounded())
     ctx.setFillColor(ink)
     for (i, line) in script.enumerated() where !line.1.isEmpty {
+        // the slug line is TYPED: the page carries the app's name where a slug goes,
+        // at the redaction's own scale and indent — the old logo with the name inside
+        if i == 0 && S >= 64 {
+            let fs = rowH * 0.86
+            let font = courier(fs)
+            let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ink]
+            let tl = CTLineCreateWithAttributedString(NSAttributedString(string: "INT./EXT.", attributes: attrs))
+            let y = box.maxY - Double(i) * rowH - barH - rowH * 0.10
+            ctx.textPosition = CGPoint(x: box.minX, y: y + barH * 0.5 - fs * 0.32)
+            CTLineDraw(tl, ctx)
+            continue
+        }
         let x = box.minX + Double(line.0) * adv
         let w = Double(line.1.count) * adv
         let y = box.maxY - Double(i) * rowH - barH - rowH * 0.10

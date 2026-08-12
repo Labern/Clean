@@ -24,7 +24,7 @@ fi
 # (menu bar, About, Quit) is InText. The bundle id NEVER changes: localStorage and
 # IndexedDB are keyed to it, and renaming it would lose every saved script.
 APP_NAME="InText"
-DISPLAY_NAME="INT. / EXT."
+DISPLAY_NAME="INT./EXT."
 BUNDLE_ID="com.labern.pica"
 VERSION="1.0"
 IDENTITY="pica-local"                 # fallback stable local identity
@@ -43,6 +43,11 @@ echo "› rendering icon"
 swiftc -O makeicon.swift -o "$BUILD/makeicon" 2>/dev/null
 "$BUILD/makeicon" "$BUILD/$APP_NAME.iconset" >/dev/null
 iconutil -c icns "$BUILD/$APP_NAME.iconset" -o "$RES/$APP_NAME.icns"
+
+# ⌘-Tab and the Dock read the LOCALIZED display name; without this file they fall
+# back to CFBundleName and the switcher says "InText" whatever the plist claims.
+mkdir -p "$RES/en.lproj"
+printf 'CFBundleDisplayName = "%s";\n' "$DISPLAY_NAME" > "$RES/en.lproj/InfoPlist.strings"
 
 # ---- 2. the app itself: index.html verbatim, plus offline assets ----
 echo "› staging web app"
@@ -98,6 +103,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>$DISPLAY_NAME</string>
   <key>CFBundleExecutable</key><string>$APP_NAME</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
+  <key>LSHasLocalizedDisplayName</key><true/>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>
