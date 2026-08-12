@@ -22,12 +22,18 @@ final class Splash: NSObject, WKNavigationDelegate {
     /// for the --splash-only check, which has to photograph the card's own view
     var panelWindow: NSPanel? { panel }
 
-    /// Total time on screen, matched by the card's own animation.
-    private let lifetime: TimeInterval = 1.94
+    /// Total time on screen, matched by the card's own animation: the reveal runs
+    /// 4.40s, the window assembles by ~5.45s, and it holds for a beat. A click or a
+    /// keystroke still dismisses it instantly — nobody is made to sit through it.
+    private let lifetime: TimeInterval = 6.6
     private let fade: TimeInterval = 0.32
 
     static func cardURL() -> URL? {
-        Bundle.main.resourceURL?.appendingPathComponent("web/studio-card.html")
+        // INT./EXT. opens on its own reveal — FILM IN TEXT resolving into the window.
+        // The generic studio card stays bundled as the fallback of record.
+        let reveal = Bundle.main.resourceURL?.appendingPathComponent("web/reveal-card.html")
+        if let r = reveal, FileManager.default.fileExists(atPath: r.path) { return r }
+        return Bundle.main.resourceURL?.appendingPathComponent("web/studio-card.html")
     }
 
     /// Nothing to show if the card was not bundled — a missing brand asset is never a

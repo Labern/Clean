@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>PICA — a screenwriting instrument</title>
+<title>INT./EXT. — the film, in text</title>
 <meta name="description" content="A screenplay editor that reads and writes the printed page. Import any Final Draft PDF and edit it — identically.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%A6%3C/text%3E%3C/svg%3E">
@@ -131,7 +131,7 @@ header{
 .hzone{ display:flex; align-items:center; gap:1.35rem; min-width:0; }
 .hzone.left{ grid-column:1; }
 .hzone.right{ grid-column:3; justify-content:flex-end; }
-.wordmark{ font-family:var(--serif); font-size:1.28rem; font-weight:560; letter-spacing:.045em; }
+.wordmark{ font-family:var(--courier); font-size:1.12rem; letter-spacing:.045em; white-space:nowrap; }
 #docTitle{
   font-family:var(--mono); font-size:.76rem; letter-spacing:.2em; text-transform:uppercase;
   color:var(--ink); outline:none; padding:.22rem .7rem; border-bottom:1px dashed transparent;
@@ -505,7 +505,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 
 <header>
   <div class="hzone left">
-    <div class="wordmark">PICA</div>
+    <div class="wordmark">[INT./EXT.]</div>
   </div>
   <span id="docTitle" contenteditable="true" spellcheck="false"></span>
   <div class="hzone right">
@@ -604,7 +604,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
       </svg>
     </button>
     <form id="getForm" autocomplete="off"><input id="getIn" type="search" spellcheck="false"
-      placeholder="Find a screenplay…" title="Type a film's name — PICA finds a script for it, shows it to you, and saves it only if you say so"></form>
+      placeholder="Find a screenplay…" title="Type a film's name — InText finds a script for it, shows it to you, and saves it only if you say so"></form>
     <button class="z" id="zOut">−</button><button class="z" id="zPct" title="Click to fit · double-click for 100%">100%</button><button class="z" id="zIn">+</button>
   </div>
 </footer>
@@ -3009,8 +3009,9 @@ function studioCard(){
   f.setAttribute('aria-hidden', 'true');
   f.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;border:0;'
     + 'background:transparent;z-index:98;';
-  f.src = 'studio-card.html?' + new URLSearchParams({
-    variant: 'icon', product: 'PICA', icon: 'app-icon.png',
+  // INT./EXT. opens on its own beat — the reveal resolving into the window
+  // (reveal-card.html, an app asset; the master card stays generic).
+  f.src = 'reveal-card.html?' + new URLSearchParams({
     year: String(new Date().getFullYear()), mode: 'overlay',
   });
   let gone = false;
@@ -3020,7 +3021,7 @@ function studioCard(){
   // it says when it has finished; the timer is only there in case it never loads at
   // all, because a missing brand asset must never leave a sheet over the editor
   f.addEventListener('error', drop);
-  setTimeout(drop, 4000);
+  setTimeout(drop, 8000);
   document.body.appendChild(f);
 }
 
@@ -4568,7 +4569,7 @@ function openExportMenu(){
     { label: 'PDF — print / save as pdf', key: '⌘P', act: 'pdf' },
     { label: 'Final Draft (.fdx)', act: 'fdx' },
     { label: 'Fountain (.fountain)', act: 'fountain' },
-    { label: 'PICA JSON (.json)', act: 'json' },
+    { label: 'InText JSON (.json)', act: 'json' },
   ], { cap: 'export', kind: 'export', onPick: it => doExport(it.act) });
 }
 
@@ -5174,7 +5175,7 @@ function docMenu(d, ev){
       })();
     } else if (it.act === 'del') {
       // a script is never removed without saying so, and never silently
-      if (!confirm('Delete “' + (d.title || 'UNTITLED') + '”?\n\nThis removes it from PICA on this device. Export it first if you want to keep a copy.')) return;
+      if (!confirm('Delete “' + (d.title || 'UNTITLED') + '”?\n\nThis removes it from InText on this device. Export it first if you want to keep a copy.')) return;
       store.gone.add(d.id);            // no pending or later write may resurrect it
       const ix = store.index().filter(x => x.id !== d.id);
       store.saveIndex(ix);
@@ -5577,7 +5578,7 @@ async function importPdfBuffer(buf, name, opts){
       if (stillBlank && stillBlank === unread.length)
         throw new Error(ocrAvailable()
           ? 'this scan could not be read'
-          : 'this PDF is a scan with no text in it — open it in PICA for Mac, which reads the page itself');
+          : 'this PDF is a scan with no text in it — open it in InText for Mac, which reads the page itself');
     }
     if (!raw.some(p => p.items.length)) throw new Error('no text layer — this looks like a scanned PDF');
     log('classifying…');
@@ -5651,7 +5652,7 @@ async function importPdfBuffer(buf, name, opts){
   } catch (err) {
     if (opts.trial) { S.trial = null; throw err; }     // the caller tries the next one
     overlayCard(`<h2>Import failed</h2><div class="sub">pdf</div><p>${String(err.message || err).replace(/</g,'&lt;')}</p>
-      <p>PICA needs a text-layer PDF (one exported from screenwriting software — not a scan). It also needs the network once, to fetch the PDF reader.</p>
+      <p>InText needs a text-layer PDF (one exported from screenwriting software — not a scan). It also needs the network once, to fetch the PDF reader.</p>
       <div class="foot"><button class="hbtn" onclick="document.getElementById('overlay').classList.remove('show')">close</button></div>`);
   }
 }
@@ -5684,7 +5685,7 @@ function importFdxText(text, name){
 function importJson(text, name){
   try {
     const doc = JSON.parse(text);
-    if (!doc || !Array.isArray(doc.elements) || !doc.layout) throw new Error('not a PICA document');
+    if (!doc || !Array.isArray(doc.elements) || !doc.layout) throw new Error('not an InText document');
     const id = E.uid();
     store.save(id, doc);
     openDoc(id);

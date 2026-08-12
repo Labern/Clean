@@ -19,7 +19,12 @@ if [ "${1:-}" = "--install" ] && [ -z "${PICA_SKIP_TESTS:-}" ]; then
   tail -1 /tmp/pica-gate.log
 fi
 
-APP_NAME="PICA"
+# The file on disk and the executable are InText — a filename cannot hold the slash.
+# The SHOWN name (⌘-Tab, Dock, Get Info) is the mark itself, INT./EXT.; the SPOKEN name
+# (menu bar, About, Quit) is InText. The bundle id NEVER changes: localStorage and
+# IndexedDB are keyed to it, and renaming it would lose every saved script.
+APP_NAME="InText"
+DISPLAY_NAME="INT./EXT."
 BUNDLE_ID="com.labern.pica"
 VERSION="1.0"
 IDENTITY="pica-local"                 # fallback stable local identity
@@ -64,6 +69,12 @@ else
   echo "  › no studio card found at $CARD — the app will simply open without one"
 fi
 
+# the INT./EXT. reveal card — this app's own opening beat, an app asset in pica/
+if [ -f "../reveal-card.html" ]; then
+  cp "../reveal-card.html" "$WEB/reveal-card.html"
+  echo "  › reveal card bundled"
+fi
+
 if [ ! -f "vendor-cache/pdf.min.mjs" ]; then
   echo "› fetching pdf.js $PDFJS"
   mkdir -p vendor-cache
@@ -84,7 +95,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>CFBundleName</key><string>$APP_NAME</string>
-  <key>CFBundleDisplayName</key><string>$APP_NAME</string>
+  <key>CFBundleDisplayName</key><string>$DISPLAY_NAME</string>
   <key>CFBundleExecutable</key><string>$APP_NAME</string>
   <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -96,7 +107,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>NSSupportsAutomaticTermination</key><false/>
   <key>NSSupportsSuddenTermination</key><false/>
   <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
-  <key>NSHumanReadableCopyright</key><string>PICA — a screenwriting instrument</string>
+  <key>NSHumanReadableCopyright</key><string>INT./EXT. — the film, in text · © 2026 PARADOXICA Ltd.</string>
   <key>CFBundleDocumentTypes</key><array>
     <dict>
       <key>CFBundleTypeName</key><string>Screenplay PDF</string>
@@ -105,7 +116,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
       <key>LSItemContentTypes</key><array><string>com.adobe.pdf</string></array>
     </dict>
     <dict>
-      <key>CFBundleTypeName</key><string>PICA Script</string>
+      <key>CFBundleTypeName</key><string>InText Script</string>
       <key>CFBundleTypeRole</key><string>Editor</string>
       <key>LSHandlerRank</key><string>Alternate</string>
       <key>LSItemContentTypes</key><array><string>public.json</string></array>
@@ -157,5 +168,10 @@ if [ "${1:-}" = "--install" ]; then
   fi
   rm -rf "/Applications/$APP_NAME.app"
   cp -R "$APP" "/Applications/$APP_NAME.app"
+  # the app this one supersedes must not linger in the Dock's memory
+  if [ -d "/Applications/PICA.app" ]; then
+    rm -rf "/Applications/PICA.app"
+    echo "› evicted /Applications/PICA.app — superseded by $APP_NAME"
+  fi
   echo "› installed to /Applications/$APP_NAME.app"
 fi

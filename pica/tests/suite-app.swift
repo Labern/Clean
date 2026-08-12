@@ -46,12 +46,12 @@ let app = NSApplication.shared
 app.setActivationPolicy(.prohibited)
 
 let cwd = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-let webRoot = cwd.appendingPathComponent("build/PICA.app/Contents/Resources/web").path.hasPrefix("/")
-    ? cwd.appendingPathComponent("build/PICA.app/Contents/Resources/web")
+let webRoot = cwd.appendingPathComponent("build/InText.app/Contents/Resources/web").path.hasPrefix("/")
+    ? cwd.appendingPathComponent("build/InText.app/Contents/Resources/web")
     : cwd
 let bundleWeb = FileManager.default.fileExists(atPath: webRoot.appendingPathComponent("index.html").path)
     ? webRoot
-    : URL(fileURLWithPath: "/tmp/pica-build/PICA.app/Contents/Resources/web")
+    : URL(fileURLWithPath: "/tmp/pica-build/InText.app/Contents/Resources/web")
 guard FileManager.default.fileExists(atPath: bundleWeb.appendingPathComponent("index.html").path) else {
     print("FAIL: built bundle not found — run ./build.sh first"); exit(1)
 }

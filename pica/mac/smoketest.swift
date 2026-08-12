@@ -1,4 +1,4 @@
-// Headless verification of the BUILT PICA.app bundle — loads the packaged web app through
+// Headless verification of the BUILT InText.app bundle — loads the packaged web app through
 // the same pica:// scheme the real app uses, then exercises it. Runs with activation policy
 // .prohibited: no window, no Dock tile, never steals focus.
 //
@@ -44,11 +44,11 @@ let here = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 // the bundle build.sh actually produced: PICA_BUILD_DIR, else /tmp/pica-build (the
 // default since builds moved out of the iCloud-synced tree), else the old mac/build
 let buildDir = ProcessInfo.processInfo.environment["PICA_BUILD_DIR"].map { URL(fileURLWithPath: $0) }
-    ?? (FileManager.default.fileExists(atPath: "/tmp/pica-build/PICA.app/Contents/Resources/web/index.html")
+    ?? (FileManager.default.fileExists(atPath: "/tmp/pica-build/InText.app/Contents/Resources/web/index.html")
         ? URL(fileURLWithPath: "/tmp/pica-build") : here.appendingPathComponent("build"))
-let webRoot = buildDir.appendingPathComponent("PICA.app/Contents/Resources/web")
+let webRoot = buildDir.appendingPathComponent("InText.app/Contents/Resources/web")
 guard FileManager.default.fileExists(atPath: webRoot.appendingPathComponent("index.html").path) else {
-    print("FAIL: build/PICA.app not found — run ./build.sh first"); exit(1)
+    print("FAIL: build/InText.app not found — run ./build.sh first"); exit(1)
 }
 let pdfPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "../tests/fixtures/Tenet.pdf"
 var trialInbox = ""
@@ -522,7 +522,7 @@ func pollByEye(_ attempts: Int) {
 }
 
 func finishAll() {
-    print(failures == 0 ? "\nPICA.app verified — the bundle runs standalone" : "\n\(failures) FAILURE(S)")
+    print(failures == 0 ? "\nInText.app verified — the bundle runs standalone" : "\n\(failures) FAILURE(S)")
     exit(failures == 0 ? 0 : 1)
 }
 
