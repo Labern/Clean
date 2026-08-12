@@ -733,6 +733,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     @objc func markBold(_ s: Any?)      { js("PICA_API.mark('b')") }
     @objc func markItalic(_ s: Any?)    { js("PICA_API.mark('i')") }
     @objc func markUnderline(_ s: Any?) { js("PICA_API.mark('u')") }
+    @objc func centerElement(_ s: Any?)  { js("PICA_API.centerElement()") }
 
     @objc func openDocument(_ s: Any?) {
         let panel = NSOpenPanel()
@@ -851,6 +852,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         fmtMenu.addItem(item("Bold", #selector(markBold(_:)), "b"))
         fmtMenu.addItem(item("Italic", #selector(markItalic(_:)), "i"))
         fmtMenu.addItem(item("Underline", #selector(markUnderline(_:)), "u"))
+        fmtMenu.addItem(.separator())
+        // FD calls it Format ▸ Alignment ▸ Centered — how a title card is set
+        fmtMenu.addItem(item("Centered", #selector(centerElement(_:)), "e", [.command, .shift]))
         fmtMenu.addItem(.separator())
         fmtMenu.addItem(item("Settings & Shortcuts", #selector(showGrammar(_:)), ","))
         let fmtItem = NSMenuItem(); fmtItem.submenu = fmtMenu; main.addItem(fmtItem)
