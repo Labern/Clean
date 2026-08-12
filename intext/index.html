@@ -132,7 +132,10 @@ header{
 .hzone.left{ grid-column:1; }
 .hzone.right{ grid-column:3; justify-content:flex-end; }
 .wordmark{ font-family:var(--courier); font-size:.94rem; letter-spacing:.045em; white-space:nowrap;
-  opacity:.55; margin-left:1.1rem; }   /* quieter than the script, seated between the lights and the page */
+  opacity:.8; position:absolute; left:calc(var(--railw, 16.5rem) / 2); transform:translateX(-50%); }
+  /* centred over the SIDEBAR, not the window — the same optical trick as the doc title:
+     the mark belongs to the index column, and it tracks the rail's width live as it is
+     dragged. When the rail hides, it keeps the seat the rail would have. */
 #docTitle{
   font-family:var(--mono); font-size:.76rem; letter-spacing:.2em; text-transform:uppercase;
   color:var(--ink); outline:none; padding:.22rem .7rem; border-bottom:1px dashed transparent;
