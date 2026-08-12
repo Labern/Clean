@@ -1,14 +1,25 @@
-// INT./EXT. icon — black on white: the mark itself, set in the screenplay's own face.
-// At 64px and up it is the spaced wordmark on one line — INT. / EXT. — his chosen form
-// for the icon. Below that eleven characters turn to mud, so it falls back to the same
-// mark wrapped where the slash breaks it: INT./ over EXT., bold, still the name.
+// PICA icon — black on white: an actual scrap of screenplay.
+// At 128px and up it sets real Courier text at true screenplay indents — slug, action,
+// character cue, dialogue. Below that the type would turn to mud, so it falls back to the
+// same excerpt drawn as bars, keeping the silhouette identical at every size.
 import AppKit
 import CoreText
 import Foundation
 
-func courier(_ size: Double, bold: Bool = false) -> CTFont {
-    let file = bold ? "CourierPrime-Bold.ttf" : "CourierPrime-Regular.ttf"
-    let candidates = ["../fonts/" + file, "fonts/" + file]
+// the excerpt, as (indent in characters, text). Indents mirror real page margins.
+let script: [(Int, String)] = [
+    (0,  "INT. STAGE - NIGHT"),
+    (0,  ""),
+    (0,  "Lights up on an"),
+    (0,  "empty room."),
+    (0,  ""),
+    (9,  "WRITER"),
+    (5,  "Begin."),
+]
+let cols = 19          // characters across the measure
+
+func courier(_ size: Double) -> CTFont {
+    let candidates = ["../fonts/CourierPrime-Regular.ttf", "fonts/CourierPrime-Regular.ttf"]
     for p in candidates where FileManager.default.fileExists(atPath: p) {
         let url = URL(fileURLWithPath: p) as CFURL
         if let descs = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
@@ -17,16 +28,6 @@ func courier(_ size: Double, bold: Bool = false) -> CTFont {
         }
     }
     return CTFontCreateWithName("Menlo" as CFString, size, nil)
-}
-
-func drawLine(_ ctx: CGContext, _ text: String, font: CTFont, ink: CGColor, centreX: Double, baselineY: Double) {
-    let attrs: [NSAttributedString.Key: Any] = [
-        .font: font, .foregroundColor: ink,
-    ]
-    let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attrs))
-    let width = CTLineGetTypographicBounds(line, nil, nil, nil)
-    ctx.textPosition = CGPoint(x: centreX - width / 2, y: baselineY)
-    CTLineDraw(line, ctx)
 }
 
 func render(size S: Int) -> CGImage {
@@ -53,19 +54,28 @@ func render(size S: Int) -> CGImage {
     }
 
     let ink = CGColor(red: 0.078, green: 0.078, blue: 0.075, alpha: 1)
-    let cx = s / 2, cy = s / 2
+    let inset = S <= 40 ? 0.165 : 0.175
+    let box = CGRect(x: s * inset, y: s * inset, width: s * (1 - inset * 2), height: s * (1 - inset * 2))
+    let rowH = box.height / Double(script.count)
+    let adv = box.width / Double(cols)          // one character cell
 
-    if S >= 64 {
-        // the mark, one line — eleven characters across the tile's measure
-        let fs = rect.width / 11.0 * 1.55        // Courier advance ≈ 0.6em → fills ~84%
-        let font = courier(fs, bold: true)
-        drawLine(ctx, "INT. / EXT.", font: font, ink: ink, centreX: cx, baselineY: cy - fs * 0.29)
-    } else {
-        // small sizes: the mark wrapped at its own slash — INT./ over EXT.
-        let fs = rect.width / 5.0 * 1.32
-        let font = courier(fs, bold: true)
-        drawLine(ctx, "INT./", font: font, ink: ink, centreX: cx, baselineY: cy + fs * 0.18)
-        drawLine(ctx, "EXT.",  font: font, ink: ink, centreX: cx, baselineY: cy - fs * 0.82)
+    // Redacted: the excerpt drawn as solid bars, each the true length and indent of the
+    // line it stands for — slug, action, character cue, dialogue. Reads as a screenplay
+    // at 1024px and still holds its shape at 16.
+    let barH = max(1, (rowH * 0.46).rounded())
+    ctx.setFillColor(ink)
+    for (i, line) in script.enumerated() where !line.1.isEmpty {
+        let x = box.minX + Double(line.0) * adv
+        let w = Double(line.1.count) * adv
+        let y = box.maxY - Double(i) * rowH - barH - rowH * 0.10
+        let r = CGRect(x: x.rounded(), y: y.rounded(), width: max(2, w.rounded()), height: barH)
+        if S >= 128 {
+            let rad = min(barH / 2, s * 0.005)
+            ctx.addPath(CGPath(roundedRect: r, cornerWidth: rad, cornerHeight: rad, transform: nil))
+            ctx.fillPath()
+        } else {
+            ctx.fill(r)
+        }
     }
     return ctx.makeImage()!
 }

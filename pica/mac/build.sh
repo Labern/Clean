@@ -24,7 +24,7 @@ fi
 # (menu bar, About, Quit) is InText. The bundle id NEVER changes: localStorage and
 # IndexedDB are keyed to it, and renaming it would lose every saved script.
 APP_NAME="InText"
-DISPLAY_NAME="INT./EXT."
+DISPLAY_NAME="INT. / EXT."
 BUNDLE_ID="com.labern.pica"
 VERSION="1.0"
 IDENTITY="pica-local"                 # fallback stable local identity
