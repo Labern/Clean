@@ -232,6 +232,11 @@ body.uifont-screenplay .doc-item, body.uifont-screenplay .scene-item{ font-famil
 /* ---------- canvas ---------- */
 #canvas{ flex:1; overflow:auto; background:var(--paper-2); min-width:0; position:relative; }
 #pages{ outline:none; padding:2.6rem 1rem 6rem; caret-color:var(--page-ink); }
+/* ⌘A — the whole script is selected: a quiet ink wash over every page. The selection
+   lives in the MODEL (S.allSel), not the DOM: pages are virtualised, so a DOM range
+   could only ever hold the rendered few and a copy would be silently incomplete. */
+#pages.allsel .page::after{ content:''; position:absolute; inset:0;
+  background:var(--page-ink); opacity:.13; pointer-events:none; }
 .pageWrap{ margin:0 auto var(--pagegap, 7rem); position:relative; }
 .page{
   position:relative; background:var(--page); color:var(--page-ink);
@@ -4548,6 +4553,63 @@ function guessTypes(el){
   return order;
 }
 
+// ---- ⌘A: whole-script selection ----------------------------------------------------
+// The flag lives on S; the wash is a class; the copy is built from the MODEL, so it is
+// complete whatever the virtual window happens to be showing.
+function scriptPlainText(){
+  const out = [];
+  let prev = null;
+  for (const el of S.doc.elements) {
+    const speechCont = (el.type === 'dialogue' || el.type === 'paren')
+      && prev && (prev.type === 'character' || prev.type === 'dialogue' || prev.type === 'paren');
+    if (out.length && !speechCont) out.push('');
+    out.push(el.text || '');
+    prev = el;
+  }
+  return out.join('\n');
+}
+function selectAllScript(){
+  S.allSel = true;
+  pagesEl.classList.add('allsel');
+  try { getSelection().removeAllRanges(); } catch {}
+  toast('entire script selected — ⌘C copies, ⌫ deletes');
+}
+function clearAllSel(){
+  if (!S.allSel) return;
+  S.allSel = false;
+  pagesEl.classList.remove('allsel');
+}
+function copyWholeScript(){
+  const text = scriptPlainText();
+  // a hidden textarea + execCommand works in every host PICA has — WKWebView included,
+  // where navigator.clipboard is not reliably there on a custom scheme
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch {}
+  ta.remove();
+  pagesEl.focus();
+  if (!ok && navigator.clipboard) { navigator.clipboard.writeText(text).catch(() => {}); ok = true; }
+  toast(ok ? 'script copied' : 'copy failed');
+}
+function deleteWholeScript(){
+  if (inReader()) return;
+  clearAllSel();
+  const ne = { id: E.uid(), type: 'scene', text: '' };
+  opSplice(0, S.doc.elements.length, [ne], { el: ne.id, off: 0 });
+  toast('script deleted — ⌘Z brings it back');
+}
+// the menu's Copy and the system's copy event both honour the model selection
+document.addEventListener('copy', ev => {
+  if (!S.allSel) return;
+  ev.preventDefault();
+  ev.clipboardData.setData('text/plain', scriptPlainText());
+  toast('script copied');
+});
+
 function selectionElements(){
   const r = domRange();
   if (!r) return null;
@@ -5762,6 +5824,7 @@ function showSettings(){
   <tr><td>⌘, </td><td>these settings</td></tr>
   <tr><td>⇧⌘A</td><td>annotate — select a passage and a note box appears in the right margin, joined by a hairline; every selection you finish gets one while the mode is on. An emptied note removes itself. Hidden unless the mode is on; never prints.</td></tr>
   <tr><td>⇧⌘S</td><td>storyboard — e-conte: drop photos of your hand-drawn boards onto the page and each becomes a panel in the left margin, anchored where its shot begins. Drag a panel to re-anchor it, click to see it full size, × removes it. Hidden unless the mode is on; never prints.</td></tr>
+  <tr><td>⌘A</td><td>select the entire script — ⌘C copies it as text, ⌫ deletes it (one undo step), Esc or a click puts the caret back</td></tr>
   <tr><td>⌘Z / ⇧⌘Z</td><td>undo / redo</td></tr>
   <tr><td>⌘P</td><td>print · save as PDF, identical to the imported page</td></tr>
   <tr><td>⇧Enter</td><td>hard line break inside an element</td></tr>
@@ -5851,6 +5914,7 @@ function showKeys(){
   <tr><td>type ahead</td><td>SmartType completes character names, locations, times, transitions and extensions — → accepts. In a two-hander it offers the other speaker first.</td></tr>
   <tr><td>⇧⌘A</td><td>annotate — a note box in the right margin for the selected passage</td></tr>
   <tr><td>⇧⌘S</td><td>storyboard — drop photos, panels anchor in the left margin where the shot begins</td></tr>
+  <tr><td>⌘A</td><td>select the entire script — ⌘C copies it as text, ⌫ deletes it (one undo step), Esc or a click puts the caret back</td></tr>
   <tr><td>⌘Z / ⇧⌘Z</td><td>undo / redo</td></tr>
   <tr><td>⌘P</td><td>print · save as PDF — identical to the imported page</td></tr>
   <tr><td>⇧Enter</td><td>hard line break inside an element</td></tr>
@@ -5866,6 +5930,25 @@ pagesEl.addEventListener('beforeinput', ev => {
   if (t === 'insertText' && ev.data != null) handleInsertText(ev.data);
   else if (t === 'insertParagraph') handleEnter();
   else if (t === 'insertLineBreak') { const c = S.caret; if (c && !c.el.startsWith('title:')) { const el = elById(c.el); if (el) opText(el.id, el.text.slice(0, c.off) + '\n' + el.text.slice(c.off), { el: el.id, off: c.off + 1 }); } }
+  else if (t === 'deleteByCut') {
+    // beforeinput cancels EVERYTHING (the model is the truth), and there was no cut
+    // branch — so ⌘X copied nothing and deleted nothing. Cut is a copy plus the same
+    // deletion Backspace over the selection already does through the model.
+    const sel = getSelection();
+    const text = sel && !sel.isCollapsed ? sel.toString() : '';
+    if (text) {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0;';
+      document.body.appendChild(ta);
+      const save = [];
+      for (let i = 0; i < sel.rangeCount; i++) save.push(sel.getRangeAt(i).cloneRange());
+      ta.focus(); ta.select();
+      try { document.execCommand('copy'); } catch {}
+      ta.remove(); pagesEl.focus();
+      sel.removeAllRanges(); for (const r of save) sel.addRange(r);
+      handleBackspace();
+    }
+  }
   else if (t === 'deleteContentBackward') handleBackspace();
   else if (t === 'deleteContentForward') handleDelete();
   else if (t === 'deleteWordBackward' || t === 'deleteWordForward' || t === 'deleteSoftLineBackward') handleBigDelete(t);
@@ -5930,6 +6013,7 @@ function handleBigDelete(kind){
   }
 }
 
+pagesEl.addEventListener('mousedown', () => clearAllSel());
 pagesEl.addEventListener('keydown', ev => {
   if (ev.target.closest?.('.noteLayer')) return;   // note boxes edit themselves
   if (inReader()) {
@@ -5981,8 +6065,25 @@ pagesEl.addEventListener('keydown', ev => {
     if (ids) { ev.preventDefault(); openRetypeMenu(ids, null); return; }
   }
   if (ev.key === 'Tab') { ev.preventDefault(); handleTab(ev.shiftKey); return; }
-  if (ev.key === 'Escape') { closePops(); return; }
+  if (ev.key === 'Escape') { closePops(); clearAllSel(); return; }
   const mod = ev.metaKey || ev.ctrlKey;
+  // ⌘A — select the entire script, model-deep. The DOM only holds the pages that are
+  // rendered, so the browser's own select-all silently stopped at the edge of the
+  // virtual window and a copy carried a fraction of the script plus its furniture.
+  if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'a') {
+    ev.preventDefault(); selectAllScript(); return;
+  }
+  if (S.allSel) {
+    if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'c') { ev.preventDefault(); copyWholeScript(); return; }
+    if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'x') {
+      ev.preventDefault(); copyWholeScript(); deleteWholeScript(); return;
+    }
+    if (ev.key === 'Backspace' || ev.key === 'Delete') { ev.preventDefault(); deleteWholeScript(); return; }
+    if (ev.key === 'Escape') { clearAllSel(); return; }
+    // any other editing intent falls back to the caret — deliberately NOT replace-all:
+    // one stray keystroke must never be able to take the script with it
+    if (!mod && ev.key.length === 1) clearAllSel();
+  }
   if (mod && !ev.shiftKey && !ev.altKey && SHORTCUT[ev.key]) {
     ev.preventDefault();
     const c = S.caret; if (!c || c.el.startsWith('title:')) return;
@@ -6005,7 +6106,15 @@ pagesEl.addEventListener('keydown', ev => {
   if (mod && ev.shiftKey && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(true); return; }
   if (mod && !ev.shiftKey && ev.key.toLowerCase() === 'y') { ev.preventDefault(); undo(true); return; }
   if (mod && ev.key.toLowerCase() === 's') { ev.preventDefault(); flushSave(); toast('saved'); return; }
-  if (mod && ev.key.toLowerCase() === 'p') { ev.preventDefault(); printAll(); return; }
+  if (mod && ev.key.toLowerCase() === 'p') {
+    ev.preventDefault();
+    // Inside PICA.app window.print() silently does nothing — WKWebView has no print UI —
+    // so the page intercepting ⌘P made the key dead in the app while the menu worked.
+    // The key now asks the shell to run the same native print the menu runs.
+    const mh = window.webkit?.messageHandlers?.pica;
+    if (mh) mh.postMessage({ print: true }); else printAll();
+    return;
+  }
 });
 
 document.addEventListener('selectionchange', () => {
@@ -6911,6 +7020,12 @@ window.PICA_API = {
   exportMenu(){ openExportMenu(); },
   elementMenu(){ openElementMenu(); },
   showKeys(){ showKeys(); },
+  selectAll(){ selectAllScript(); },
+  cutSel(){
+    if (S.allSel) { copyWholeScript(); deleteWholeScript(); }
+    else document.execCommand('cut');
+  },
+  copySel(){ if (S.allSel) copyWholeScript(); else document.execCommand('copy'); },
   undo(){ undo(false); },
   redo(){ undo(true); },
   save(){ flushSave(); },

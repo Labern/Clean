@@ -319,6 +319,11 @@ let grammarSteps: [Step] = [
     Step(desc: "typing int. in Action promotes it to a Scene Heading",
          js: "T.type('int. barn'); T.esc(); return T.state().slice(4).join('§')",
          expect: "scene|INT. BARN"),
+    // ⌘A selects the entire SCRIPT (model-deep, not the rendered DOM), the copy event
+    // carries all of it as text, ⌫ deletes it in one undo step, and ⌘Z brings it back.
+    Step(desc: "select-all is model-deep: copy carries the whole script, delete is one undo",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. DINER - NIGHT'); T.esc(); T.enter(); T.type('A quiet room.'); T.esc(); T.tab(false); T.type('JOE'); T.esc(); T.enter(); T.type('Hello there.'); T.esc(); PICA_API.selectAll(); const S = window.__pica; let clip = null; const fake = new Event('copy', { bubbles: true, cancelable: true }); fake.clipboardData = { setData: (k, v) => { clip = v; } }; document.dispatchEvent(fake); const good = clip === 'INT. DINER - NIGHT\\n\\nA quiet room.\\n\\nJOE\\nHello there.'; const n0 = S.doc.elements.length; document.querySelector('#pages').dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true })); await new Promise(r => setTimeout(r, 120)); const gone = S.doc.elements.length === 1; PICA_API.undo(); await new Promise(r => setTimeout(r, 120)); const back = S.doc.elements.length === n0 && S.doc.elements.some(e => e.text === 'Hello there.'); return [good, gone, back].join('/')",
+         expect: "true/true/true"),
     // Transition + Enter → Scene Heading
     Step(desc: "Transition + Enter gives a Scene Heading",
          js: "await T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.tab(false); T.esc(); T.type('CUT TO:'); T.esc(); T.enter(); return T.state().slice(1).join('§')",

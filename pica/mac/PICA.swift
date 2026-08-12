@@ -236,6 +236,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     var browser: BrowserPanel?
     private var handler: ResourceSchemeHandler!
     private var pendingOpen: [URL] = []
+    // ⇧⌘N — further editor windows. Each is a full instance of the page on the same
+    // origin, so they share the index and the saved scripts; the last writer of a doc
+    // wins, exactly as two browser tabs would.
+    private var extraWindows: [NSWindow] = []
+    private var extraWebs: [WKWebView] = []
     private var ready = false
     private var didAutoFullScreen = false
 
@@ -386,6 +391,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
 
     // ---- window & web view ----
 
+    @objc func newWindow(_ s: Any?) {
+        let cfg = WKWebViewConfiguration()
+        let webRoot = Bundle.main.resourceURL!.appendingPathComponent("web")
+        cfg.setURLSchemeHandler(ResourceSchemeHandler(root: webRoot), forURLScheme: "pica")
+        cfg.websiteDataStore = .default()          // same origin: same scripts, same index
+        cfg.userContentController.add(self, name: "pica")
+        let v = WKWebView(frame: NSRect(x: 0, y: 0, width: 1060, height: 800), configuration: cfg)
+        v.navigationDelegate = self
+        v.uiDelegate = self
+        v.allowsMagnification = false
+        v.setValue(false, forKey: "drawsBackground")
+        v.pageZoom = UserDefaults.standard.object(forKey: "uiZoom") as? Double ?? 1.0
+        let w = NSWindow(contentRect: v.frame,
+                         styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                         backing: .buffered, defer: false)
+        w.title = "PICA"
+        w.titlebarAppearsTransparent = true
+        w.titleVisibility = .hidden
+        w.isMovableByWindowBackground = true
+        w.contentView = v
+        w.minSize = NSSize(width: 820, height: 560)
+        w.isReleasedWhenClosed = false
+        if let main = window { w.setFrame(main.frame.offsetBy(dx: 34, dy: -34), display: false) }
+        w.makeKeyAndOrderFront(nil)
+        extraWindows.append(w)
+        extraWebs.append(v)
+        v.load(URLRequest(url: URL(string: "pica://app/index.html")!))
+    }
+
     private func buildWindow() {
         let cfg = WKWebViewConfiguration()
         let webRoot = Bundle.main.resourceURL!.appendingPathComponent("web")
@@ -454,6 +488,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        if webView !== web {                      // a ⇧⌘N window: inset and done
+            let inset = 82.0 / webView.pageZoom
+            webView.evaluateJavaScript(
+                "document.documentElement.style.setProperty('--titlebar-inset', '\(inset)px')",
+                completionHandler: nil)
+            return
+        }
         ready = true
         syncTitlebarInset()
         if let p = verifyPath { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.runVerify(p) }; return }
@@ -531,8 +572,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
 
     @discardableResult
     private func js(_ code: String) -> Bool {
-        web?.evaluateJavaScript("window.PICA_API && (\(code))", completionHandler: nil)
+        keyWeb?.evaluateJavaScript("window.PICA_API && (\(code))", completionHandler: nil)
         return true
+    }
+
+    /// The webview of the window he is actually working in. Every menu action goes
+    /// through here: with more than one window, "Save" must mean THIS script.
+    private var keyWeb: WKWebView? {
+        if let v = NSApp.keyWindow?.contentView as? WKWebView { return v }
+        return web
     }
 
     private func present(error: String) {
@@ -553,6 +601,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         }
         if body["exportPdf"] as? Bool == true {
             exportPDF(suggestedName: body["name"] as? String ?? "script")
+        }
+        // ⌘P from inside the page: window.print() is a no-op in a WKWebView, so the
+        // key was dead in the app while File ▸ Print worked. The page asks instead.
+        if body["print"] as? Bool == true {
+            DispatchQueue.main.async { [weak self] in self?.printDocument(nil) }
         }
         // A scan with no text in it at all: the page hands over the file and asks for the
         // words back. Reading happens off the main thread — 168 photographed pages take
@@ -660,6 +713,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         }
     }
     @objc func saveNow(_ s: Any?)       { js("PICA_API.save()") }
+    @objc func selectAllScript(_ s: Any?) { js("PICA_API.selectAll()") }
+    @objc func copySel(_ s: Any?)       { js("PICA_API.copySel()") }
+    @objc func cutSel(_ s: Any?)        { js("PICA_API.cutSel()") }
     @objc func picaUndo(_ s: Any?)      { js("PICA_API.undo()") }
     @objc func picaRedo(_ s: Any?)      { js("PICA_API.redo()") }
     @objc func toggleSidebar(_ s: Any?) { js("PICA_API.toggleRail()") }
@@ -758,6 +814,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         // File
         let fileMenu = NSMenu(title: "File")
         fileMenu.addItem(item("New Script", #selector(newScript(_:)), "n"))
+        fileMenu.addItem(item("New Window", #selector(newWindow(_:)), "n", [.command, .shift]))
         fileMenu.addItem(item("Open…", #selector(openDocument(_:)), "o"))
         fileMenu.addItem(item("Import PDF…", #selector(importScript(_:)), "i"))
         fileMenu.addItem(.separator())
@@ -778,10 +835,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         redoY.isHidden = true                  // ⌘Y, the second spelling
         editMenu.addItem(redoY)
         editMenu.addItem(.separator())
-        editMenu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
-        editMenu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        // Cut, Copy and Select All go through the MODEL — the DOM only holds the pages
+        // that are rendered, so WebKit's own versions were partial or dead. Paste stays
+        // native: it lands as a beforeinput the model already handles.
+        editMenu.addItem(item("Cut", #selector(cutSel(_:)), "x"))
+        editMenu.addItem(item("Copy", #selector(copySel(_:)), "c"))
         editMenu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
-        editMenu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editMenu.addItem(item("Select All", #selector(selectAllScript(_:)), "a"))
         let editItem = NSMenuItem(); editItem.submenu = editMenu; main.addItem(editItem)
 
         // Format
