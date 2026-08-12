@@ -34,6 +34,8 @@ html,body{ margin:0; height:100%; background:transparent; }
 #anim{ position:relative; font-size:26px; height:1.3em; width:13ch;
   transform:translateY(0); transition:transform 800ms cubic-bezier(.5,.05,.2,1); }
 #anim span{ position:absolute; top:0; left:0; color:var(--ink);
+  -webkit-text-stroke:.35px currentColor;   /* a half-weight: slightly bolder than the face —
+                                               remove this line to return to the original */
   transition:transform 900ms cubic-bezier(.6,.05,.2,1), opacity 850ms ease; will-change:transform,opacity; }
 /* the window that assembles beneath the resolved mark */
 .rule{ width:236px; height:1px; background:var(--line); margin:26px 0 24px;
