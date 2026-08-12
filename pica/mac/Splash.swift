@@ -22,10 +22,10 @@ final class Splash: NSObject, WKNavigationDelegate {
     /// for the --splash-only check, which has to photograph the card's own view
     var panelWindow: NSPanel? { panel }
 
-    /// Total time on screen, matched by the card's own animation: the reveal runs
-    /// 4.40s, the window assembles by ~5.45s, and it holds for a beat. A click or a
+    /// Total time on screen, matched by the card's own animation: the whole window
+    /// arrives with the third beat and has landed by 3.90s; it holds for a beat. A click or a
     /// keystroke still dismisses it instantly — nobody is made to sit through it.
-    private let lifetime: TimeInterval = 6.6
+    private let lifetime: TimeInterval = 5.4
     private let fade: TimeInterval = 0.32
 
     static func cardURL() -> URL? {

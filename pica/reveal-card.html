@@ -109,12 +109,13 @@ html,body{ margin:0; height:100%; background:transparent; }
       if (!L.punct) spans[i].style.transform = 'translateX(' + xAt(L.to, 11, w) + 'px)'; });
   });
   at(BEAT + STROKE + BEAT + FINAL * 0.4, () => { [10,11,12].forEach(i => spans[i].style.opacity = '1'); });
-  // the arrival becomes the window: the mark takes its seat, the studio countersigns
-  const SETTLE = BEAT + STROKE + BEAT + FINAL;    // 4.40s — the reveal has resolved
-  at(SETTLE + 250, () => {
+  // the WINDOW arrives ON the third beat: as the letters take their INT. / EXT. cells,
+  // the rule, the studio mark and the copyright rise with them — one arrival, whole.
+  at(BEAT + STROKE + BEAT, () => {
     host.style.transform = 'translateY(-8px)';
     card.classList.add('on');
   });
-  at(SETTLE + 250 + 800 + 1200, done);           // hold the finished card for a beat
+  const SETTLE = BEAT + STROKE + BEAT + FINAL;   // 3.90s — everything has landed
+  at(SETTLE + 1300, done);                       // hold the finished card for a beat
 })();
 </script>

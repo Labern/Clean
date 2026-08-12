@@ -131,8 +131,9 @@ header{
 .hzone{ display:flex; align-items:center; gap:1.35rem; min-width:0; }
 .hzone.left{ grid-column:1; }
 .hzone.right{ grid-column:3; justify-content:flex-end; }
-.wordmark{ font-family:var(--courier); font-size:.76rem; font-weight:700; letter-spacing:.045em;
-  /* .76rem = the doc title's size — the two labels in the masthead speak at one volume */
+.wordmark{ font-family:var(--mono); font-size:.76rem; font-weight:700; letter-spacing:.2em;
+  /* the doc title's own voice — face, size and tracking — so the masthead's two labels
+     are one instrument; the brackets alone say which is the app */
   white-space:nowrap; opacity:.7; position:absolute;
   left:calc(var(--railw, 16.5rem) / 2 - .55rem); transform:translateX(-50%); }
   /* centred over the SIDEBAR, not the window — the same optical trick as the doc title:
