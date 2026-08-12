@@ -324,6 +324,11 @@ let grammarSteps: [Step] = [
     Step(desc: "select-all is model-deep: copy carries the whole script, delete is one undo",
          js: "await T.reset(); T.caret(0,0); T.type('INT. DINER - NIGHT'); T.esc(); T.enter(); T.type('A quiet room.'); T.esc(); T.tab(false); T.type('JOE'); T.esc(); T.enter(); T.type('Hello there.'); T.esc(); PICA_API.selectAll(); const S = window.__pica; let clip = null; const fake = new Event('copy', { bubbles: true, cancelable: true }); fake.clipboardData = { setData: (k, v) => { clip = v; } }; document.dispatchEvent(fake); const good = clip === 'INT. DINER - NIGHT\\n\\nA quiet room.\\n\\nJOE\\nHello there.'; const n0 = S.doc.elements.length; document.querySelector('#pages').dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true })); await new Promise(r => setTimeout(r, 120)); const gone = S.doc.elements.length === 1; PICA_API.undo(); await new Promise(r => setTimeout(r, 120)); const back = S.doc.elements.length === n0 && S.doc.elements.some(e => e.text === 'Hello there.'); return [good, gone, back].join('/')",
          expect: "true/true/true"),
+    // Tab MID-speech splits at the caret: the parenthetical stands in the gap and the
+    // words ahead of the caret move DOWN past it — they must never stay above it.
+    Step(desc: "Tab mid-speech stands the paren in the split, text ahead moves below",
+         js: "await T.reset(); T.caret(0,0); T.type('INT. D - DAY'); T.esc(); T.enter(); T.tab(false); T.type('JOE'); T.esc(); T.enter(); T.type('It was bitter. She wanted Reno.'); T.esc(); const S = window.__pica; const d = S.doc.elements.find(e => e.type === 'dialogue'); T.caret(S.doc.elements.indexOf(d), 15); T.tab(false); await new Promise(r => setTimeout(r, 100)); return T.state().slice(1).join('§')",
+         expect: "character|JOE§dialogue|It was bitter.§paren|()§dialogue|She wanted Reno."),
     // Transition + Enter → Scene Heading
     Step(desc: "Transition + Enter gives a Scene Heading",
          js: "await T.reset(); T.caret(0,0); T.type('INT. X - DAY'); T.esc(); T.enter(); T.tab(false); T.tab(false); T.esc(); T.type('CUT TO:'); T.esc(); T.enter(); return T.state().slice(1).join('§')",
