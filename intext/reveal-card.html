@@ -112,7 +112,8 @@ html,body{ margin:0; height:100%; background:transparent; }
   // the WINDOW arrives ON the third beat: as the letters take their INT. / EXT. cells,
   // the rule, the studio mark and the copyright rise with them — one arrival, whole.
   at(BEAT + STROKE + BEAT, () => {
-    host.style.transform = 'translateY(-8px)';
+    // the name splits left and right and ONLY left and right — IN goes to its INT.,
+    // EXT goes to its EXT., and nothing about the line moves upward
     card.classList.add('on');
   });
   const SETTLE = BEAT + STROKE + BEAT + FINAL;   // 3.90s — everything has landed
