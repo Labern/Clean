@@ -7070,6 +7070,8 @@ window.PICA_API = {
   elementMenu(){ openElementMenu(); },
   showKeys(){ showKeys(); },
   selectAll(){ selectAllScript(); },
+  centerElement(){ const c = S.caret; if (!c || c.el.startsWith('title:')) return;
+    const el = elById(c.el); if (el) opAlign(el.id, el.align === 'center' ? null : 'center'); },
   cutSel(){
     if (S.allSel) { copyWholeScript(); deleteWholeScript(); }
     else document.execCommand('cut');
