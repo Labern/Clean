@@ -4113,6 +4113,60 @@ function atElementEnd(el, off){
   return false;
 }
 
+// Split an element at a caret, optionally standing new elements between the halves —
+// Enter uses it bare; Tab mid-paragraph stands the next element in the gap, so the text
+// ahead of the caret moves DOWN past it, as FD does. Emphasis, margin notes and panels
+// are carried onto whichever side their words went; the whole thing is ONE undo step.
+function splitElementAt(el, off, mids, caretSpec){
+  const i = elIndex(el.id);
+  const raw = el.text;
+  const head = raw.slice(0, off).replace(/\s+$/, '');
+  const tailRaw = raw.slice(off);
+  const lead = tailRaw.length - tailRaw.replace(/^\s+/, '').length;
+  const tail = tailRaw.slice(lead);
+  const tailOff = off + lead;               // original index of the tail's first char
+  const ne = newEl(el.type, tail);
+  const removedSnap = JSON.parse(JSON.stringify({ ...el }));
+  if (el.marks) {
+    const hm = [], tm = [];
+    for (const [s0, e0, k] of el.marks) {
+      if (s0 < head.length && e0 > 0) hm.push([Math.max(0, s0), Math.min(e0, head.length), k]);
+      if (e0 > tailOff) tm.push([Math.max(0, s0 - tailOff), Math.min(tail.length, e0 - tailOff), k]);
+    }
+    const hv = hm.filter(([a, b]) => b > a), tv = tm.filter(([a, b]) => b > a);
+    if (hv.length) el.marks = hv; else delete el.marks;
+    if (tv.length) ne.marks = tv;
+  }
+  if (el.notes) {
+    const hn = [], tn = [];
+    for (const n of el.notes) {
+      if (n.off >= tailOff) tn.push({ ...n, off: n.off - tailOff, len: Math.max(0, Math.min(n.len, tail.length - (n.off - tailOff))) });
+      else hn.push({ ...n, off: Math.min(n.off, head.length), len: Math.max(0, Math.min(n.off + n.len, head.length) - Math.min(n.off, head.length)) });
+    }
+    if (hn.length) el.notes = hn; else delete el.notes;
+    if (tn.length) ne.notes = tn;
+  }
+  if (el.panels) {
+    const hp = [], tp2 = [];
+    for (const pn of el.panels) {
+      if (pn.off >= tailOff) tp2.push({ ...pn, off: pn.off - tailOff });
+      else hp.push({ ...pn, off: Math.min(pn.off, head.length) });
+    }
+    if (hp.length) el.panels = hp; else delete el.panels;
+    if (tp2.length) ne.panels = tp2;
+  }
+  el.text = head;
+  const stand = [...(mids || []), ne];
+  const ca = caretSpec || { el: ne.id, off: 0 };
+  pushUndo({ k: 'splice', i, removed: [removedSnap],
+    inserted: [JSON.parse(JSON.stringify({ ...el })), ...stand.map(x => JSON.parse(JSON.stringify({ ...x })))],
+    cb: S.caret, ca, ts: Date.now() });
+  S.doc.elements.splice(i + 1, 0, ...stand);
+  S.caret = ca;
+  repaginate(); renderAfterEdit();
+  return ne;
+}
+
 function handleEnter(){
   closePops();
   const c = syncCaret(); if (!c) return;
@@ -4173,51 +4227,10 @@ function handleEnter(){
     const ne = newEl(el.type === 'dialogue' ? 'character' : el.type, '');
     opSplice(i, 0, [ne], { el: el.id, off: 0 });
   } else { // split element — FD keeps emphasis (and PICA's margin data) on BOTH sides
-    const raw = el.text;
-    const head = raw.slice(0, c.off).replace(/\s+$/, '');
-    const tailRaw = raw.slice(c.off);
-    const lead = tailRaw.length - tailRaw.replace(/^\s+/, '').length;
-    const tail = tailRaw.slice(lead);
-    const tailOff = c.off + lead;             // original index of the tail's first char
-    const ne = newEl(el.type, tail);
-    const removedSnap = JSON.parse(JSON.stringify({ ...el }));
-    if (el.marks) {
-      const hm = [], tm = [];
-      for (const [s0, e0, k] of el.marks) {
-        if (s0 < head.length && e0 > 0) hm.push([Math.max(0, s0), Math.min(e0, head.length), k]);
-        if (e0 > tailOff) tm.push([Math.max(0, s0 - tailOff), Math.min(tail.length, e0 - tailOff), k]);
-      }
-      const hv = hm.filter(([a, b]) => b > a), tv = tm.filter(([a, b]) => b > a);
-      if (hv.length) el.marks = hv; else delete el.marks;
-      if (tv.length) ne.marks = tv;
-    }
-    if (el.notes) {
-      const hn = [], tn = [];
-      for (const n of el.notes) {
-        if (n.off >= tailOff) tn.push({ ...n, off: n.off - tailOff, len: Math.max(0, Math.min(n.len, tail.length - (n.off - tailOff))) });
-        else hn.push({ ...n, off: Math.min(n.off, head.length), len: Math.max(0, Math.min(n.off + n.len, head.length) - Math.min(n.off, head.length)) });
-      }
-      if (hn.length) el.notes = hn; else delete el.notes;
-      if (tn.length) ne.notes = tn;
-    }
-    if (el.panels) {
-      const hp = [], tp2 = [];
-      for (const pn of el.panels) {
-        if (pn.off >= tailOff) tp2.push({ ...pn, off: pn.off - tailOff });
-        else hp.push({ ...pn, off: Math.min(pn.off, head.length) });
-      }
-      if (hp.length) el.panels = hp; else delete el.panels;
-      if (tp2.length) ne.panels = tp2;
-    }
-    el.text = head;
-    pushUndo({ k: 'splice', i, removed: [removedSnap], inserted: [JSON.parse(JSON.stringify({ ...el })), JSON.parse(JSON.stringify({ ...ne }))], cb: S.caret, ca: { el: ne.id, off: 0 }, ts: Date.now() });
-    S.doc.elements.splice(i + 1, 0, ne);
-    S.caret = { el: ne.id, off: 0 };
-    repaginate(); renderAfterEdit();
+    splitElementAt(el, c.off, [], null);
   }
 }
 
-// The separator this script actually uses between location and time (" - " vs " – ").
 function sceneSep(){
   const hits = new Map();
   for (const e of S.doc.elements) if (e.type === 'scene') {
@@ -4297,7 +4310,14 @@ function handleTab(shift){
 
   const nt = TAB_TO[el.type] || 'character';
   const ne = newEl(nt, nt === 'paren' ? '()' : '');
-  opSplice(elIndex(el.id) + 1, 0, [ne], { el: ne.id, off: nt === 'paren' ? 1 : 0 });
+  if (!atElementEnd(el, c.off)) {
+    // FD: Tab mid-paragraph does not append past the text — it splits at the caret and
+    // stands the new element in the gap, so the words ahead of the caret move DOWN past
+    // it. A parenthetical dropped mid-speech pushes the rest of the speech below itself.
+    splitElementAt(el, c.off, [ne], { el: ne.id, off: nt === 'paren' ? 1 : 0 });
+  } else {
+    opSplice(elIndex(el.id) + 1, 0, [ne], { el: ne.id, off: nt === 'paren' ? 1 : 0 });
+  }
   if (nt === 'character') guessCharacter(ne.id);
 }
 
