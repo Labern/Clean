@@ -1,4 +1,5 @@
-// PICA icon — black on white: an actual scrap of screenplay.
+// INT./EXT. icon — black on white: the mark across the top, and beneath it the same
+// scrap of screenplay the app has always worn — slug, action, cue, dialogue as bars.
 // At 128px and up it sets real Courier text at true screenplay indents — slug, action,
 // character cue, dialogue. Below that the type would turn to mud, so it falls back to the
 // same excerpt drawn as bars, keeping the silhouette identical at every size.
@@ -18,8 +19,16 @@ let script: [(Int, String)] = [
 ]
 let cols = 19          // characters across the measure
 
+func drawLine(_ ctx: CGContext, _ text: String, font: CTFont, ink: CGColor, centreX: Double, baselineY: Double) {
+    let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: ink]
+    let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attrs))
+    let width = CTLineGetTypographicBounds(line, nil, nil, nil)
+    ctx.textPosition = CGPoint(x: centreX - width / 2, y: baselineY)
+    CTLineDraw(line, ctx)
+}
+
 func courier(_ size: Double) -> CTFont {
-    let candidates = ["../fonts/CourierPrime-Regular.ttf", "fonts/CourierPrime-Regular.ttf"]
+    let candidates = ["../fonts/CourierPrime-Bold.ttf", "fonts/CourierPrime-Bold.ttf"]
     for p in candidates where FileManager.default.fileExists(atPath: p) {
         let url = URL(fileURLWithPath: p) as CFURL
         if let descs = CTFontManagerCreateFontDescriptorsFromURL(url) as? [CTFontDescriptor],
@@ -55,7 +64,17 @@ func render(size S: Int) -> CGImage {
 
     let ink = CGColor(red: 0.078, green: 0.078, blue: 0.075, alpha: 1)
     let inset = S <= 40 ? 0.165 : 0.175
-    let box = CGRect(x: s * inset, y: s * inset, width: s * (1 - inset * 2), height: s * (1 - inset * 2))
+    // the mark takes the top of the measure; the scrap keeps the rest. Below 64px nine
+    // characters are mud, so the scrap stands alone as it always did.
+    let full = CGRect(x: s * inset, y: s * inset, width: s * (1 - inset * 2), height: s * (1 - inset * 2))
+    var box = full
+    if S >= 64 {
+        let fs = full.width / 9.0 * 1.5          // "INT./EXT." — nine cells, comfortably full
+        let font = courier(fs)
+        drawLine(ctx, "INT./EXT.", font: font, ink: ink,
+                 centreX: s / 2, baselineY: full.maxY - fs * 0.62)
+        box = CGRect(x: full.minX, y: full.minY, width: full.width, height: full.height - fs * 1.15)
+    }
     let rowH = box.height / Double(script.count)
     let adv = box.width / Double(cols)          // one character cell
 
