@@ -970,5 +970,33 @@ if (fs.existsSync(whipPath)) {
     + h.elements.filter(e => e.type === 'dialogue').length + ' speeches');
 }
 
+
+// -- 26. A CENTRED TITLE CARD. FD sets one with Alignment: Centered; PICA holds it as
+//        el.align = 'center'. It must be DRAWN on the page's axis, and it must survive
+//        the trip out to FDX and back — alignment that exports as a column is lost work.
+{
+  const doc = E.newDoc('CARDS');
+  doc.elements = [
+    { id: E.uid(), type: 'scene', text: 'INT. VOID - DAY' },
+    { id: E.uid(), type: 'general', text: 'A TEMPORAL PINCER MOVEMENT', align: 'center' },
+    { id: E.uid(), type: 'action', text: 'The card fades.' },
+  ];
+  const ln = E.paginate(doc).pages.flatMap(g => g.lines).find(l => /TEMPORAL/.test(l.text));
+  const L = doc.layout;
+  const want = (L.pageW - ln.text.length * L.charW) / 2;
+  check('centred: the card is drawn on the page axis', Math.abs(ln.x - want) < 0.5,
+    ln.x + ' vs ' + want);
+  const xml = E.toFdx(doc);
+  check('centred: FDX carries Alignment="Center"', /Alignment="Center"[^>]*>|Alignment="Center"/.test(
+    (xml.match(/<Paragraph[^>]*General[^>]*>/) || [''])[0]), (xml.match(/<Paragraph[^>]*General[^>]*>/) || [''])[0]);
+  const back = E.importFdx(xml);
+  const card = back.elements.find(e => /TEMPORAL/.test(e.text));
+  check('centred: the trip back keeps it centred', card && card.align === 'center',
+    JSON.stringify(card && { type: card.type, align: card.align }));
+  const ln2 = E.paginate(back).pages.flatMap(g => g.lines).find(l => /TEMPORAL/.test(l.text));
+  const want2 = (back.layout.pageW - ln2.text.length * back.layout.charW) / 2;
+  check('centred: and draws it centred again', Math.abs(ln2.x - want2) < 0.5, ln2.x + ' vs ' + want2);
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall green — the page is the truth');
 process.exit(failures ? 1 : 0);

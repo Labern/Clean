@@ -2151,6 +2151,9 @@ const PicaEngine = (() => {
 
   function xFor(el, line, layout, idx) {
     if (el.xOverride != null) return el.xOverride;
+    // A centred element — a title card — sits on the page's own axis, each wrapped
+    // line centred on its own length, exactly as FD's Alignment: Centered lays it.
+    if (el.align === 'center') return Math.max(0, (layout.pageW - line.length * layout.charW) / 2);
     const c = layout.cols;
     switch (el.type) {
       case 'scene': case 'action': case 'shot': return c.action;
@@ -2425,7 +2428,8 @@ const PicaEngine = (() => {
         if (/Italic/i.test(style)) marks.push([s0, text.length, 'i']);
         if (/Underline/i.test(style)) marks.push([s0, text.length, 'u']);
       }
-      out.push({ type, text, marks });
+      const align = (attrs.match(/Alignment="([^"]*)"/) || [])[1] || '';
+      out.push({ type, text, marks, ...(align === 'Center' ? { align: 'center' } : {}) });
     }
     return out;
   }
@@ -2439,6 +2443,7 @@ const PicaEngine = (() => {
       const type = FDX_TYPES[p.type];
       if (!type) continue;                       // outline/act furniture stays behind
       const el = { id: uid(), type, text: p.text };
+      if (p.align === 'center') el.align = 'center';   // FD's centred title cards survive the trip
       if (p.marks.length) el.marks = p.marks;
       els.push(el);
     }
@@ -2480,7 +2485,8 @@ const PicaEngine = (() => {
     const para = el => {
       const runs = markRunsOf(el).map(r =>
         '<Text' + (r.style ? ' Style="' + r.style + '"' : '') + '>' + toxml(r.text.replace(/\n/g, ' ')) + '</Text>').join('');
-      return '    <Paragraph Type="' + FDX_REV[el.type] + '">' + (runs || '<Text></Text>') + '</Paragraph>';
+      return '    <Paragraph Type="' + FDX_REV[el.type] + '"'
+        + (el.align === 'center' ? ' Alignment="Center"' : '') + '>' + (runs || '<Text></Text>') + '</Paragraph>';
     };
     const tp = (doc.titlePage || []).filter(t => t.text != null).map(t =>
       '      <Paragraph Type="General" Alignment="Center"><Text>' + toxml(t.text) + '</Text></Paragraph>').join('\n');
@@ -3434,6 +3440,15 @@ function opTexts(changes, caretAfter){
   repaginate(); renderAfterEdit();
 }
 
+// centre / uncentre an element — FD's Format ▸ Alignment ▸ Centered, on ⌘E
+function opAlign(id, align){
+  if (inReader()) return;
+  const el = elById(id); if (!el) return;
+  pushUndo({ k: 'align', id, before: el.align || null, after: align || null, cb: S.caret, ca: S.caret, ts: Date.now() });
+  if (align) el.align = align; else delete el.align;
+  repaginate(); renderAfterEdit();
+}
+
 function opConvert(id, type){
   if (inReader()) return;
   const el = elById(id); if (!el) return;
@@ -3469,6 +3484,10 @@ function undo(redo){
   else if (rec.k === 'splice') {
     if (redo) S.doc.elements.splice(rec.i, rec.removed.length, ...rec.inserted.map(e => ({ ...e })));
     else S.doc.elements.splice(rec.i, rec.inserted.length, ...rec.removed.map(e => ({ ...e })));
+  }
+  else if (rec.k === 'align') {
+    const el = elById(rec.id);
+    if (el) { const v = redo ? rec.after : rec.before; if (v) el.align = v; else delete el.align; }
   }
   else if (rec.k === 'texts') {
     for (const c of rec.list) { const el = elById(c.id); if (el) el.text = redo ? c.after : c.before; }
@@ -5844,6 +5863,7 @@ function showSettings(){
   <tr><td>⌘, </td><td>these settings</td></tr>
   <tr><td>⇧⌘A</td><td>annotate — select a passage and a note box appears in the right margin, joined by a hairline; every selection you finish gets one while the mode is on. An emptied note removes itself. Hidden unless the mode is on; never prints.</td></tr>
   <tr><td>⇧⌘S</td><td>storyboard — e-conte: drop photos of your hand-drawn boards onto the page and each becomes a panel in the left margin, anchored where its shot begins. Drag a panel to re-anchor it, click to see it full size, × removes it. Hidden unless the mode is on; never prints.</td></tr>
+  <tr><td>⇧⌘E</td><td>centre the element — a title card, set on the page's own axis (FD: Format ▸ Alignment ▸ Centered); again to return it to its column</td></tr>
   <tr><td>⌘A</td><td>select the entire script — ⌘C copies it as text, ⌫ deletes it (one undo step), Esc or a click puts the caret back</td></tr>
   <tr><td>⌘Z / ⇧⌘Z</td><td>undo / redo</td></tr>
   <tr><td>⌘P</td><td>print · save as PDF, identical to the imported page</td></tr>
@@ -6117,6 +6137,15 @@ pagesEl.addEventListener('keydown', ev => {
   if (mod && !ev.altKey && ev.key.toLowerCase() === 'u') { ev.preventDefault(); applyEmphasis('u'); return; }
   if (mod && ev.altKey && ev.key.toLowerCase() === 's') { ev.preventDefault(); toggleRail(); return; }
   if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 't') { ev.preventDefault(); toggleRail(); return; }
+  if (mod && ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'e') {
+    // ⇧⌘E — centre the element: how a title card is set. FD calls it
+    // Format ▸ Alignment ▸ Centered; toggling back returns the type's own column.
+    ev.preventDefault();
+    const c = S.caret; if (!c || c.el.startsWith('title:')) return;
+    const el = elById(c.el); if (!el) return;
+    opAlign(el.id, el.align === 'center' ? null : 'center');
+    return;
+  }
   if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'e') { ev.preventDefault(); openExportMenu(); return; }
   if (mod && !ev.shiftKey && !ev.altKey && ev.key.toLowerCase() === 'r') { ev.preventDefault(); inReader() ? readerOff() : readerOn(); return; }
   if (mod && ev.shiftKey && ev.key.toLowerCase() === 't') { ev.preventDefault(); toggleTitlePage(); return; }
