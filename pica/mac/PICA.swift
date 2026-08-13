@@ -58,6 +58,8 @@ final class ResourceSchemeHandler: NSObject, WKURLSchemeHandler {
         var path = url.path
         if path.isEmpty || path == "/" { path = "/index.html" }
 
+        if serveWebProxy(task: task, url: url, path: path) { return }
+
         if path.hasPrefix("/__inbox/") {
             let id = String(path.dropFirst("/__inbox/".count))
             if let item = take(id) {
@@ -239,10 +241,128 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
 
     // ---- lifecycle ----
 
+    // THE APP CHECKS ITSELF, OR NOTHING IS CHECKED.
+    //
+    //   PICA.app/Contents/MacOS/PICA --verify-import <file.pdf> [--report out.json]
+    //
+    // Imports the file through THIS binary — this window, this scheme handler, this
+    // bridge — prints what came out and quits. Written because a test harness that
+    // reimplements the app's own seams proves the harness: The Hateful Eight passed
+    // two suites and a smoke test while the real app produced one page of gibberish.
+    // Never activates, so it cannot take focus from whatever is in front.
+    private var verifyPath: String? = nil
+    private var reportPath: String? = nil
+    private var beforeId = ""
+    private var splash: Splash?
+    private var shotPath: String? = nil
+
     func applicationDidFinishLaunching(_ note: Notification) {
+        let argv = ProcessInfo.processInfo.arguments
+        if let i = argv.firstIndex(of: "--verify-import"), i + 1 < argv.count {
+            verifyPath = argv[i + 1]
+            if let r = argv.firstIndex(of: "--report"), r + 1 < argv.count { reportPath = argv[r + 1] }
+            NSApp.setActivationPolicy(.prohibited)
+        }
+        // --splash-only [--shot out.png]: put the card up, photograph it, quit. The card
+        // is the one part of this app with no other way to be checked — you have to look
+        // at it — and looking at it must not mean launching the app over and over.
+        if argv.contains("--splash-only") {
+            if let r = argv.firstIndex(of: "--shot"), r + 1 < argv.count { shotPath = argv[r + 1] }
+            // .accessory, not .prohibited: a prohibited app is defined as one that
+            // presents no interface, and ordering the panel front under it never
+            // returns. .accessory shows the card with no Dock tile and no activation,
+            // which is exactly the behaviour being checked anyway.
+            NSApp.setActivationPolicy(.accessory)
+            splash = Splash(); splash?.show()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) { self.shootSplash() }
+            return
+        }
         buildMenu()
+        // The card goes up BEFORE the editor is built, which is the whole effect: the
+        // studio signs the work while the work is still opening.
+        if verifyPath == nil && ProcessInfo.processInfo.environment["PICA_NO_SPLASH"] == nil {
+            splash = Splash(); splash?.show()
+        }
         buildWindow()
-        NSApp.activate(ignoringOtherApps: true)
+        if verifyPath == nil { NSApp.activate(ignoringOtherApps: true) }
+    }
+
+    private func shootSplash() {
+        guard let p = splash?.panelWindow, let v = p.contentView else {
+            FileHandle.standardError.write(Data("splash: no panel\n".utf8)); exit(1)
+        }
+        guard let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) else { exit(1) }
+        v.cacheDisplay(in: v.bounds, to: rep)
+        if let png = rep.representation(using: .png, properties: [:]), let path = shotPath {
+            try? png.write(to: URL(fileURLWithPath: path))
+            print("wrote \(path) — \(Int(v.bounds.width))×\(Int(v.bounds.height))")
+        }
+        exit(0)
+    }
+
+    private func runVerify(_ path: String) {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            FileHandle.standardError.write(Data("cannot read \(path)\n".utf8)); exit(2)
+        }
+        let name = URL(fileURLWithPath: path).lastPathComponent
+            .replacingOccurrences(of: "\\", with: "").replacingOccurrences(of: "'", with: "")
+        print("verify: \(name) — \(data.count / 1024)KB")
+        let id = handler.stage(data, mime: "application/pdf")
+        // The app reopens the script you were last on, so at the instant the import
+        // starts there is ALREADY a document in the window — and a check that just asks
+        // "is there a document?" answers yes about the wrong one. It must be THIS import:
+        // remember which document is open, and wait for it to be a different one.
+        web.evaluateJavaScript("(window.__pica && window.__pica.docId) || ''") { [weak self] r, _ in
+            guard let self = self else { return }
+            self.beforeId = (r as? String) ?? ""
+            self.js("PICA_API.importUrl('/__inbox/\(id)', '\(name)')")
+            self.pollVerify(0)
+        }
+    }
+
+    private func pollVerify(_ n: Int) {
+        // twenty minutes: a photographed feature is read a page at a time
+        if n > 2400 { report(["ok": false, "why": "timed out"]); return }
+        let probe = """
+        (() => { const S = window.__pica; if (!S || !S.doc) return JSON.stringify({stage:'no doc'});
+          const log = document.getElementById('importLog');
+          const card = document.querySelector('#overlay.show .card');
+          const t = {}; for (const e of S.doc.elements) t[e.type] = (t[e.type] || 0) + 1;
+          return JSON.stringify({
+            busy: !!card, stage: log ? log.textContent : '',
+            failed: !!(card && /failed/i.test(card.textContent || '')),
+            cardText: card ? (card.textContent || '').slice(0, 160) : '',
+            toast: (document.getElementById('toast') || {}).textContent || '',
+            title: S.doc.title, src: S.doc.src || '', byEye: !!(S.doc.__read && S.doc.__read.ocr),
+            pages: S.res ? S.res.count : 0, elements: S.doc.elements.length, types: t,
+            errs: (window.__errs || []).slice(0, 6), docId: S.docId || '',
+            // there must be exactly one studio card per launch, and in the app it is
+            // the native panel — never a second one drawn inside the page
+            cardsInPage: document.querySelectorAll('iframe[aria-hidden]').length,
+            head: S.doc.elements.slice(0, 8).map(e => e.type + '::' + e.text.slice(0, 60)),
+          });
+        })()
+        """
+        web.evaluateJavaScript(probe) { [weak self] res, err in
+            guard let self = self else { return }
+            var o = (res as? String).flatMap { $0.data(using: .utf8) }
+                .flatMap { try? JSONSerialization.jsonObject(with: $0) } as? [String: Any] ?? [:]
+            if let e = err { o = ["stage": "EVALERR " + String(describing: e)] }
+            let busy = o["busy"] as? Bool ?? false
+            let els = o["elements"] as? Int ?? 0
+            if o["failed"] as? Bool == true { o["ok"] = false; self.report(o); return }
+            let isNew = (o["docId"] as? String ?? "") != self.beforeId
+            if !busy && isNew && els > 1 { o["ok"] = true; self.report(o); return }
+            if n % 20 == 0 { print("  … \(o["stage"] as? String ?? "")  [\(els) elements]") }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { self.pollVerify(n + 1) }
+        }
+    }
+
+    private func report(_ o: [String: Any]) {
+        let d = (try? JSONSerialization.data(withJSONObject: o, options: [.prettyPrinted, .sortedKeys])) ?? Data()
+        if let p = reportPath { try? d.write(to: URL(fileURLWithPath: p)) }
+        print(String(data: d, encoding: .utf8) ?? "{}")
+        exit(o["ok"] as? Bool == true ? 0 : 1)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -307,7 +427,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         w.minSize = NSSize(width: 820, height: 560)
         w.setFrameAutosaveName("PicaMainWindow")
         w.isReleasedWhenClosed = false
-        w.makeKeyAndOrderFront(nil)
+        // A verify run still needs a window — a page WebKit considers hidden never
+        // paints, and half the import is drawing — but it must never come to the front.
+        if verifyPath != nil { w.orderBack(nil) } else { w.makeKeyAndOrderFront(nil) }
         if w.frame.width < 800 { w.center() }
         self.window = w
 
@@ -334,6 +456,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         ready = true
         syncTitlebarInset()
+        if let p = verifyPath { DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { self.runVerify(p) }; return }
         drainPendingOpens()
         // Open filling the screen — a zoomed window, NOT a separate full-screen Space:
         // the state you get by entering full screen and pressing Esc.
@@ -431,6 +554,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
         if body["exportPdf"] as? Bool == true {
             exportPDF(suggestedName: body["name"] as? String ?? "script")
         }
+        // A scan with no text in it at all: the page hands over the file and asks for the
+        // words back. Reading happens off the main thread — 168 photographed pages take
+        // about half a minute — and the result is staged like any other file rather than
+        // pushed through evaluateJavaScript, because a megabyte of JSON does not belong
+        // in a string literal.
+        if let job = body["ocr"] as? [String: Any],
+           let token = (job["token"] as? String)?.filter({ $0.isLetter || $0.isNumber }),
+           let b64 = job["data"] as? String, let pdf = Data(base64Encoded: b64) {
+            let pages = (job["pages"] as? [Any])?.compactMap { ($0 as? NSNumber)?.intValue } ?? []
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                var last = 0
+                let json = OCR.json(data: pdf, pages: pages) { done, total in
+                    // one message a page would be thousands of hops across the bridge
+                    guard done == total || done - last >= 4 else { return }
+                    last = done
+                    DispatchQueue.main.async { self?.js("PICA_API.ocrProgress('\(token)',\(done),\(total))") }
+                }
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    let id = self.handler.stage(Data(json.utf8), mime: "application/json")
+                    self.js("PICA_API.ocrDone('\(token)','/__inbox/\(id)')")
+                }
+            }
+        }
         if body["browse"] as? Bool == true {
             if browser == nil { browser = BrowserPanel(host: self) }
             browser?.show()
@@ -470,7 +617,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
                     let op = self.web.printOperation(with: info)
                     op.showsPrintPanel = false
                     op.showsProgressPanel = true
-                    op.view?.frame = NSRect(x: 0, y: 0, width: w, height: h)
+                    // The page box the web app lays out is CSS PIXELS (96 to the inch);
+                    // the sheet is points (72 to the inch). The view has to be big enough to
+                    // hold the whole box, and .fit then scales it onto the paper — sizing
+                    // the view in points clipped it to three quarters of its width.
+                    let cssScale = 96.0 / 72.0
+                    op.view?.frame = NSRect(x: 0, y: 0, width: w * cssScale, height: h * cssScale)
                     op.runModal(for: self.window, delegate: self,
                                 didRun: #selector(self.pdfDidExport(_:success:info:)), contextInfo: nil)
                 }
@@ -561,7 +713,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate,
                 let op = self.web.printOperation(with: info)
                 op.showsPrintPanel = true
                 op.showsProgressPanel = true
-                op.view?.frame = NSRect(x: 0, y: 0, width: w, height: h)
+                // The page box the web app lays out is CSS PIXELS (96 to the inch); the sheet
+                // is points (72 to the inch). Sizing the view in points gave it three
+                // quarters of the width it had to hold, so the script printed squashed into
+                // the left of the sheet. .fit then scales the full box onto the paper.
+                let cssScale = 96.0 / 72.0
+                op.view?.frame = NSRect(x: 0, y: 0, width: w * cssScale, height: h * cssScale)
                 op.runModal(for: self.window, delegate: self,
                             didRun: #selector(self.printDidRun(_:success:info:)), contextInfo: nil)
             }

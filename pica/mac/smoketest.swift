@@ -14,6 +14,9 @@ final class Handler: NSObject, WKURLSchemeHandler {
     func webView(_ webView: WKWebView, start task: WKURLSchemeTask) {
         guard let url = task.request.url else { task.didFailWithError(URLError(.badURL)); return }
         var p = url.path; if p.isEmpty || p == "/" { p = "/index.html" }
+        // the very proxy the app ships, so the step below proves the app's network path
+        if serveWebProxy(task: task, url: url, path: p) { return }
+
         if p.hasPrefix("/__inbox/"), let d = inbox.removeValue(forKey: String(p.dropFirst(9))) {
             let r = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
                 headerFields: ["Content-Type": "application/pdf", "Content-Length": "\(d.count)"])!
@@ -48,8 +51,17 @@ guard FileManager.default.fileExists(atPath: webRoot.appendingPathComponent("ind
     print("FAIL: build/PICA.app not found — run ./build.sh first"); exit(1)
 }
 let pdfPath = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "../tests/fixtures/Tenet.pdf"
+var trialInbox = ""
+// The title-alignment audit lives in its own file — tests/title-audit.js — rather than
+// inside the app, so the app ships no test code and the check is readable on its own.
+// Injected into the page before the steps run; the step then calls window.__titleAudit().
+let auditJS: String = (try? String(contentsOf: here.appendingPathComponent("../tests/title-audit.js")
+    .standardizedFileURL, encoding: .utf8)) ?? ""
 
 let handler = Handler(root: webRoot)
+// A second copy of the PDF, staged now, for the find-a-screenplay step: that step stubs
+// the network so the DECISION is what gets tested, not the internet.
+if let trialPdf = try? Data(contentsOf: URL(fileURLWithPath: pdfPath)) { trialInbox = handler.stage(trialPdf) }
 let cfg = WKWebViewConfiguration()
 cfg.setURLSchemeHandler(handler, forURLScheme: "pica")
 // capture anything the page throws, so a failure names its own cause
@@ -62,6 +74,26 @@ addEventListener('unhandledrejection', e => window.__errs.push('rejection: ' + (
   console.error = (...a) => { window.__errs.push('console.error: ' + a.join(' ')); r(...a); }; })();
 """, injectionTime: .atDocumentStart, forMainFrameOnly: false)
 cfg.userContentController.addUserScript(collector)
+// The app answers the page's "read this for me" over this bridge. Standing it up here
+// too is the only way to prove the whole seam — postMessage out, recognition, the result
+// staged as a file, ocrDone back, the page fetching it — rather than each half alone.
+final class Bridge: NSObject, WKScriptMessageHandler {
+    func userContentController(_ ucc: WKUserContentController, didReceive m: WKScriptMessage) {
+        guard let body = m.body as? [String: Any], let job = body["ocr"] as? [String: Any],
+              let token = job["token"] as? String, let b64 = job["data"] as? String,
+              let pdf = Data(base64Encoded: b64) else { return }
+        let pages = (job["pages"] as? [Any])?.compactMap { ($0 as? NSNumber)?.intValue } ?? []
+        DispatchQueue.global(qos: .userInitiated).async {
+            let json = OCR.json(data: pdf, pages: pages)
+            DispatchQueue.main.async {
+                let id = handler.stage(Data(json.utf8))
+                web.evaluateJavaScript("PICA_API.ocrDone('\(token)','/__inbox/\(id)')")
+            }
+        }
+    }
+}
+let bridge = Bridge()
+cfg.userContentController.add(bridge, name: "pica")
 // an isolated store, so the smoke test never touches the real app's saved scripts
 cfg.websiteDataStore = .nonPersistent()
 let web = WKWebView(frame: .init(x: 0, y: 0, width: 1200, height: 900), configuration: cfg)
@@ -203,9 +235,17 @@ func poll(attempts: Int) {
     (() => { const S = window.__pica;
       const failed = !!document.querySelector('#overlay.show .card h2') &&
                      document.querySelector('#overlay.show .card h2').textContent.includes('failed');
+      const L = S && S.doc ? S.doc.layout : null;
       return JSON.stringify({ done: !!(S && S.res && S.res.count > 1), failed,
         pages: S && S.res ? S.res.count : 0, els: S && S.doc ? S.doc.elements.length : 0,
-        title: S && S.doc ? S.doc.title : '' });
+        title: S && S.doc ? S.doc.title : '',
+        // an import must arrive in Final Draft's typesetting, never the source's
+        fd: !!(L && L.pageW === 612 && L.charW === 7.2 && L.rowH === 12
+               && L.widths && L.widths.action === 60 && L.widths.dialogue === 35
+               && L.cols && L.cols.character === 252),
+        geom: L ? [L.pageW, L.charW, L.rowH, L.widths && L.widths.action].join('/') : '',
+        src: S && S.doc ? (S.doc.src || '') : '',
+        flowed: S && S.doc ? S.doc.elements.filter(e => e.type === 'dialogue' && !e.dual && e.text.indexOf(String.fromCharCode(10)) >= 0).length : -1 });
     })()
     """) { res in
         guard let s = res as? String, let d = s.data(using: .utf8),
@@ -216,15 +256,22 @@ func poll(attempts: Int) {
             check("PDF import completed offline", false, "importer reported failure")
             finish(); return
         }
-        // res.count is script pages (147); the rendered array adds the title page (148)
-        if (o["pages"] as? Int ?? 0) >= 147 {
+        // Tenet conformed to FD Letter paginates at 156 script pages (the rendered
+        // array adds the title page); at the source's own geometry it was 147
+        if (o["pages"] as? Int ?? 0) >= 150 {
             let pages = o["pages"] as? Int ?? 0
             let els = o["els"] as? Int ?? 0
             let title = o["title"] as? String ?? ""
             check("PDF imported offline with bundled pdf.js", true,
                   "\(pages) script pages · \(els) elements · “\(title)”")
-            check("import produced the expected document", pages == 147 && els > 3500 && title == "TENET",
-                  "expected 147 pages / >3500 elements / TENET")
+            check("import produced the expected document", pages == 156 && els > 3500 && title == "TENET",
+                  "expected 156 pages / >3500 elements / TENET")
+            check("import lands in Final Draft's typesetting, not the source's",
+                  o["fd"] as? Bool == true, o["geom"] as? String ?? "")
+            check("import is stamped as imported (never re-geometried as a typed doc)",
+                  (o["src"] as? String) == "pdf", o["src"] as? String ?? "")
+            check("speeches flow — no source line breaks left inside dialogue",
+                  (o["flowed"] as? Int ?? -1) == 0, String(o["flowed"] as? Int ?? -1))
             finish(); return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { poll(attempts: attempts + 1) }
@@ -329,6 +376,53 @@ let grammarSteps: [Step] = [
     Step(desc: "annotation: multi-element note — two washes, one box, delete clears all",
          js: "await T.reset(); T.caret(0,0); T.type('INT. TWO - DAY'); T.esc(); T.enter(); T.tab(false); T.type('SAM'); T.esc(); T.enter(); T.type('We were never here.'); T.esc(); window.PICA_API.toggleAnnotate(); const nid = T.noteMulti(1, 0, 2, 8); const b1 = T.noteBoxes(); T.delNote(0, nid); const b2 = T.noteBoxes(); window.PICA_API.undo(); const b3 = T.noteBoxes(); const back = JSON.parse(T.notes(1)).length + JSON.parse(T.notes(2)).length; window.PICA_API.redo(); const b4 = T.noteBoxes(); window.PICA_API.toggleAnnotate(); return b1 + '/' + b2 + '/' + b3 + '/' + back + '/' + b4",
          expect: "1:2/0:0/1:2/2/0:0"),
+    // The row a context menu belongs to marks itself (so Delete can never look like it
+    // landed on the wrong script), and the list animates into its new shape afterwards.
+    Step(desc: "index: the right-clicked row marks itself; the list animates after a delete",
+         js: "window.confirm = () => true; const rows = () => [...document.querySelectorAll('#docList .doc-item')]; for (const n of ['ONE','TWO','THREE']) { await T.reset(); T.caret(0,0); T.type('INT. ' + n + ' - DAY'); } await new Promise(r => setTimeout(r, 60)); const ids = rows().every(x => !!x.dataset.doc); const r2 = rows()[1]; r2.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, cancelable:true, clientX:60, clientY:140})); await new Promise(r => setTimeout(r, 40)); const marked = document.querySelectorAll('#docList .doc-item.menuing').length + '/' + r2.classList.contains('menuing'); const del = [...document.querySelectorAll('.pop *')].find(n => /^delete/i.test(n.textContent.trim())); if (!del) return 'no-delete-item'; del.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); del.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); await new Promise(r => setTimeout(r, 30)); const moving = rows().filter(x => x.getAnimations && x.getAnimations().length).length > 0; await new Promise(r => setTimeout(r, 400)); const cleared = document.querySelectorAll('#docList .doc-item.menuing').length === 0; return ids + '/' + marked + '/' + moving + '/' + cleared",
+         expect: "true/1/true/true/true"),
+    // THE APP'S WINDOW ON THE WEB. A WKWebView on a custom scheme is subject to CORS, so
+    // without this proxy the search cannot reach an archive at all. This goes online for
+    // real: it asks an archive's index page for its links and counts the PDFs.
+    Step(desc: "find: the app can reach the web and read an archive's index",
+         js: "try { const r = await fetch('pica://app/__web/' + encodeURIComponent('https://www.dailyscript.com/movie.html')); if (!r.ok) return 'HTTP ' + r.status; const t = await r.text(); const pdfs = (t.match(/href=\"[^\"]+\\.pdf\"/gi) || []).length; return pdfs > 100 ? 'reached' : 'only ' + pdfs + ' pdfs'; } catch (e) { return 'threw: ' + (e.message || e); }",
+         expect: "reached"),
+    // A REAL search, over the real web, inside the app: what does it find for a film?
+    // Reported, not asserted — the network is not something an install should hang on.
+    Step(desc: "find: a live search (reported, not gated)",
+         js: "const race = (p, ms) => Promise.race([p, new Promise(r => setTimeout(() => r('timed out after ' + ms + 'ms'), ms))]); try { const c = await race(window.PICA_API.test.search('Pulp Fiction'), 25000); if (typeof c === 'string') return c; return c.length ? ('found ' + c.length + ': ' + c.slice(0,3).map(x => x.host).join(', ')) : 'found none'; } catch (e) { return 'threw: ' + (e.message || e); }",
+         expect: "*"),
+    // FIND A SCREENPLAY: the promise is that nothing reaches the library unless he
+    // accepts it. Cancel must put back what he was reading and leave no trace — the
+    // first cut of this saved the rejected script anyway, because openDoc flushes a
+    // save of the document it is leaving and the guard had already been lifted.
+    Step(desc: "find: a trial stays out of the library; cancel restores; accept keeps",
+         js: "const T2 = window.PICA_API.test; const idx = () => JSON.parse(localStorage.getItem('pica.index') || '[]'); if (T2.trialId()) { document.getElementById('tbCancel').click(); await new Promise(r => setTimeout(r, 800)); } const buf = await (await fetch('pica://app/__inbox/\(trialInbox)')).arrayBuffer(); T2.stubNet({ candidates: async () => ([{url:'stub://one', host:'stub.test', label:'', score:99}]), bytes: async () => buf.slice(0) }); const before = idx().length; const openBefore = window.__pica.docId; await T2.find('A Script'); await new Promise(r => setTimeout(r, 300)); const during = idx().length; const tid = T2.trialId(); const shown = document.getElementById('trialBar').hidden === false; document.getElementById('tbCancel').click(); await new Promise(r => setTimeout(r, 500)); const afterCancel = idx().length; const backTo = window.__pica.docId === openBefore; await T2.find('A Script'); await new Promise(r => setTimeout(r, 300)); const tid2 = T2.trialId(); const br = document.getElementById('trialBar').getBoundingClientRect(); const pr = document.querySelector('#pages .pageWrap').getBoundingClientRect(); const masks = br.width > 0 && pr.width > 0 && br.left <= pr.left && br.right >= pr.right; document.getElementById('tbAccept').click(); await new Promise(r => setTimeout(r, 400)); const kept = idx().some(d => d.id === tid2); await new Promise(r => setTimeout(r, 200)); const focused = document.activeElement === document.getElementById('pages'); T2.stubNet(null); return ['shown=' + shown, 'idxHeld=' + (during === before), 'trial=' + !!tid, 'cancelClean=' + (afterCancel === before), 'restored=' + backTo, 'accepted=' + kept, 'masks=' + masks, 'focus=' + focused].join(' ')",
+         expect: "shown=true idxHeld=true trial=true cancelClean=true restored=true accepted=true masks=true focus=true"),
+    // AT PRINT SCALE, ONE LAYOUT POINT IS ONE PRINTED POINT. The layout is in points and
+    // the sheet is declared in points, but the page box is written in CSS PIXELS — so
+    // true size needs k = 96/72, not k = 1. At k = 1 the box was 612 PIXELS wide on a
+    // 612 POINT sheet: three quarters of the width, anchored left, which is what came
+    // out of the printer and out of the PDF export.
+    Step(desc: "print: one layout point is one printed point",
+         js: "const L = window.__pica.doc.layout; window.PICA_API.preparePrint(); await new Promise(r => setTimeout(r, 300)); const w = document.querySelector('#pages .pageWrap').getBoundingClientRect(); const wantW = L.pageW * 96 / 72, wantH = L.pageH * 96 / 72; const rule = (document.getElementById('printPage') || {}).textContent || ''; window.PICA_API.endPrint(); await new Promise(r => setTimeout(r, 200)); const ok = Math.abs(w.width - wantW) < 1 && Math.abs(w.height - wantH) < 1; return ok && rule.indexOf(L.pageW + 'pt') > 0 ? 'true-size' : ('box=' + Math.round(w.width) + 'x' + Math.round(w.height) + ' want=' + Math.round(wantW) + 'x' + Math.round(wantH) + ' rule=' + rule)",
+         expect: "true-size"),
+    // THE TITLE SITS ON THE CHARACTER COLUMN. Reported three times; never again.
+    // titleAudit() walks everything that moves the page under the title — the sidebar,
+    // zoom, the title page, a long title, scrolling — and measures the title's FIRST
+    // CHARACTER against a cue as actually DRAWN, not against the formula that places it
+    // (which is exactly how a misaligned title passed this suite for days). It also
+    // fails if the placement is being done by centring again.
+    Step(desc: "title: first character sits on the cue column, through rail/zoom/titlepage/scroll",
+         js: auditJS.isEmpty ? "return 'MISSING tests/title-audit.js'" : (auditJS + "\n; return await window.__titleAudit()"),
+         expect: "aligned"),
+    // Deleting the script that is OPEN used to do nothing at all: the delete filtered
+    // the index, then openDoc() flushed a save of the outgoing document and put the row
+    // straight back. The index must lose the row, and keep having lost it after the
+    // save debounce has had its chance.
+    Step(desc: "delete: the open script leaves the index and stays gone",
+         js: "window.confirm = () => true; const ix0 = () => JSON.parse(localStorage.getItem('pica.index') || '[]'); await T.reset(); T.caret(0,0); T.type('INT. ONE - DAY'); await T.reset(); T.caret(0,0); T.type('INT. TWO - DAY'); await new Promise(r => setTimeout(r, 60)); const before = ix0().length; const openId = window.__pica.docId; const rows = [...document.querySelectorAll('#docList .doc-item')]; const at = ix0().findIndex(d => d.id === openId); const row = rows[at] || rows[0]; row.dispatchEvent(new MouseEvent('contextmenu', {bubbles:true, cancelable:true, clientX:60, clientY:140})); await new Promise(r => setTimeout(r, 40)); const del = [...document.querySelectorAll('.pop *')].find(n => /^delete/i.test(n.textContent.trim())); if (!del) return 'no-delete-item'; del.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true})); del.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true})); await new Promise(r => setTimeout(r, 80)); const mid = ix0(); const goneNow = !mid.some(d => d.id === openId); await new Promise(r => setTimeout(r, 900)); const stillGone = !ix0().some(d => d.id === openId); return (before >= 2) + '/' + goneNow + '/' + stillGone",
+         expect: "true/true/true"),
     // Storyboard: same gating; a panel anchors at a position, shifts with typing,
     // hides when the mode turns off, returns when it turns on, deletes clean.
     Step(desc: "storyboard: mode-gated, panel anchors, shifts, survives toggling, deletes",
@@ -337,14 +431,17 @@ let grammarSteps: [Step] = [
 ]
 
 func runGrammar(_ i: Int) {
-    if i >= grammarSteps.count { finishAll(); return }
+    if i >= grammarSteps.count { proveByEyeImport(); return }
     let s = grammarSteps[i]
     let body = "try { const T = window.PICA_API.test; " + s.js + " } catch(e) { return 'ERR: ' + (e && e.message || e); }"
     web.callAsyncJavaScript(body, arguments: [:], in: nil, in: .page) { result in
         var got = "<no result>"
         if case .success(let v) = result { got = (v as? String) ?? "<no result>" }
         if case .failure(let e) = result { got = "EVALERR: " + String(describing: e) }
-        check("grammar: " + s.desc, got == s.expect, got == s.expect ? "" : "got “\(got)” want “\(s.expect)”")
+        // expect "*" means REPORT, do not gate — used for the live web, which an install
+        // should not hang on
+        if s.expect == "*" { print("  ·· " + s.desc + " — " + got) }
+        else { check("grammar: " + s.desc, got == s.expect, got == s.expect ? "" : "got “\(got)” want “\(s.expect)”") }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { runGrammar(i + 1) }
     }
 }
@@ -354,10 +451,138 @@ func finish() {
     runGrammar(0)
 }
 
+// ── a picture-only script, imported the way the user imports one ───────────────────
+// The recogniser is proved above and the reading rules are proved by the gate; this is
+// the seam between them — the page handing the file over, the words coming back as a
+// staged file, and a script arriving in the editor with its sluglines, cues and speech
+// in the right places. Nothing about it is stubbed.
+func proveByEyeImport() {
+    // PICA_SCAN points this at a real photographed script instead of the drawn one —
+    // the only honest way to know whether a 168-page file actually imports.
+    var data = pictureOnlyPDF
+    var fname = "A Photographed Script.pdf"
+    if let path = ProcessInfo.processInfo.environment["PICA_SCAN"],
+       let real = try? Data(contentsOf: URL(fileURLWithPath: path)) {
+        data = real
+        fname = URL(fileURLWithPath: path).lastPathComponent
+        print("  … importing \(fname) — \(real.count / 1024)KB")
+    }
+    guard !data.isEmpty else { finishAll(); return }
+    let id = handler.stage(data)
+    eval("PICA_API.importUrl('/__inbox/\(id)', '\(fname)'); true") { _ in
+        pollByEye(0)
+    }
+}
+
+func pollByEye(_ attempts: Int) {
+    if attempts > (ProcessInfo.processInfo.environment["PICA_SCAN"] != nil ? 900 : 60) {
+        eval("JSON.stringify({errs:(window.__errs||[]).slice(0,6), overlay:(document.querySelector('#overlay .card')||{}).textContent||'', toast:(document.getElementById('toast')||{}).textContent||'', bridge: !!(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.pica), els: (window.__pica&&window.__pica.doc?window.__pica.doc.elements.length:-1)})") { r in
+            print("  diagnostics: " + ((r as? String) ?? "none"))
+            check("by eye: a picture-only script imports", false, "timed out")
+            finishAll()
+        }
+        return
+    }
+    eval("""
+    (() => { const S = window.__pica; if (!S || !S.doc) return '';
+      const t = {}; for (const e of S.doc.elements) t[e.type] = (t[e.type] || 0) + 1;
+      return JSON.stringify({ title: S.doc.title, types: t,
+        byEye: !!(S.doc.__read && S.doc.__read.ocr),
+        text: S.doc.elements.map(e => e.type + '::' + e.text).join(' | ') });
+    })()
+    """) { res in
+        guard let s = res as? String, let d = s.data(using: .utf8),
+              let o = (try? JSONSerialization.jsonObject(with: d)) as? [String: Any],
+              o["byEye"] as? Bool == true else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { pollByEye(attempts + 1) }; return
+        }
+        let text = o["text"] as? String ?? ""
+        let types = o["types"] as? [String: Int] ?? [:]
+        check("by eye: a script with no text in it imports anyway",
+              !text.isEmpty, (o["title"] as? String ?? "") + " · " + String(describing: types))
+        check("by eye: the slugline is a slugline", text.contains("scene::INT. HABERDASHERY"), text)
+        check("by eye: the cue is a cue", text.contains("character::MAJ.WARREN"), text)
+        check("by eye: the speech is speech", text.contains("dialogue::Shut the door."), text)
+        check("by eye: nothing came back unclassified", (types["general"] ?? 0) == 0, String(types["general"] ?? 0))
+        // and the name comes off the file, since a photograph has no title page to read
+        check("by eye: the script is named from the file",
+              (o["title"] as? String) == "A PHOTOGRAPHED SCRIPT", o["title"] as? String ?? "")
+        finishAll()
+    }
+}
+
 func finishAll() {
     print(failures == 0 ? "\nPICA.app verified — the bundle runs standalone" : "\n\(failures) FAILURE(S)")
     exit(failures == 0 ? 0 : 1)
 }
+
+// ── the recogniser, before anything else ───────────────────────────────────────────
+// The Hateful Eight is 168 photographs of paper with no text in it anywhere, and the
+// only reason PICA can open it is that the Mac reads the page itself. That is a system
+// service, and a system service can change under us — so the shipped binary proves on
+// every install that it can still take a page which is nothing but a picture and give
+// back the words, in the right places, in the right order.
+var pictureOnlyPDF = Data()
+func proveRecogniser() {
+    let W = 612.0, H = 792.0
+    // a page drawn as an IMAGE — no text object anywhere in the file
+    let scale = 2.0
+    guard let bmp = CGContext(data: nil, width: Int(W * scale), height: Int(H * scale),
+                              bitsPerComponent: 8, bytesPerRow: 0,
+                              space: CGColorSpaceCreateDeviceRGB(),
+                              bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else {
+        check("recogniser: could draw a test page", false); return
+    }
+    bmp.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+    bmp.fill(CGRect(x: 0, y: 0, width: W * scale, height: H * scale))
+    let ns = NSGraphicsContext(cgContext: bmp, flipped: false)
+    NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = ns
+    let font = NSFont(name: "Courier", size: 12 * scale) ?? NSFont.monospacedSystemFont(ofSize: 12 * scale, weight: .regular)
+    let attrs: [NSAttributedString.Key: Any] = [.font: font, .foregroundColor: NSColor.black]
+    // laid out where a screenplay lays them out, in points times the scale
+    let rows: [(Double, Double, String)] = [
+        (108, 120, "INT. HABERDASHERY - NIGHT"),
+        (108, 156, "The door bangs open in the wind."),
+        (252, 204, "MAJ.WARREN"),
+        (180, 228, "Shut the door."),
+    ]
+    for (x, yTop, str) in rows {
+        NSAttributedString(string: str, attributes: attrs)
+            .draw(at: NSPoint(x: x * scale, y: (H - yTop) * scale))
+    }
+    NSGraphicsContext.restoreGraphicsState()
+    guard let image = bmp.makeImage() else { check("recogniser: could draw a test page", false); return }
+
+    let pdf = NSMutableData()
+    guard let consumer = CGDataConsumer(data: pdf as CFMutableData) else { return }
+    var box = CGRect(x: 0, y: 0, width: W, height: H)
+    guard let pctx = CGContext(consumer: consumer, mediaBox: &box, nil) else { return }
+    pctx.beginPDFPage(nil); pctx.draw(image, in: box); pctx.endPDFPage(); pctx.closePDF()
+
+    pictureOnlyPDF = pdf as Data
+    let pages = OCR.recognise(data: pdf as Data, pages: [1])
+    let items = (pages.first?["items"] as? [[String: Any]]) ?? []
+    let said = items.compactMap { $0["str"] as? String }
+    check("recogniser: a page that is only a picture gives back its words",
+          said.count >= 4, said.joined(separator: " | "))
+    check("recogniser: it reads the slugline",
+          said.contains { $0.contains("HABERDASHERY") }, said.first ?? "")
+    check("recogniser: it reads the cue and the speech",
+          said.contains { $0.contains("WARREN") } && said.contains { $0.contains("Shut the door") })
+    // and it must say WHERE — the whole import turns on the x of each line
+    let cue = items.first { ($0["str"] as? String)?.contains("WARREN") == true }
+    let speech = items.first { ($0["str"] as? String)?.contains("Shut the door") == true }
+    let cx = (cue?["x"] as? Double) ?? -1, sx = (speech?["x"] as? Double) ?? -1
+    check("recogniser: the cue is measured at the cue indent",
+          abs(cx - 252) <= 6, String(format: "%.1f want 252", cx))
+    check("recogniser: the speech is measured at the speech indent",
+          abs(sx - 180) <= 6, String(format: "%.1f want 180", sx))
+    // reading order is down the page: a cue must arrive before what it says
+    let iCue = items.firstIndex { ($0["str"] as? String)?.contains("WARREN") == true } ?? 99
+    let iSpeech = items.firstIndex { ($0["str"] as? String)?.contains("Shut the door") == true } ?? 0
+    check("recogniser: it hands the page back in reading order", iCue < iSpeech)
+}
+proveRecogniser()
 
 web.load(URLRequest(url: URL(string: "pica://app/index.html")!))
 DispatchQueue.main.asyncAfter(deadline: .now() + 120) { print("TIMEOUT"); exit(3) }

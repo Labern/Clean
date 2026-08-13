@@ -94,4 +94,25 @@ for (name, size) in variants {
     rep.size = NSSize(width: size, height: size)
     try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: "\(out)/\(name).png"))
 }
+// …and one more, for the studio card: the same drawing with the Dock's clear padding
+// cropped away and flattened onto white. On a card the padding is invisible and the
+// tile's own hairline is too fine to read, so the card draws the border itself — but it
+// can only do that if the tile goes all the way to the edge of the image.
+let big = render(size: 512)
+let pad = Int((512.0 * 0.055).rounded())
+if let tile = big.cropping(to: CGRect(x: pad, y: pad, width: 512 - pad * 2, height: 512 - pad * 2)) {
+    let W = tile.width, H = tile.height
+    if let ctx = CGContext(data: nil, width: W, height: H, bitsPerComponent: 8, bytesPerRow: 0,
+                           space: CGColorSpaceCreateDeviceRGB(),
+                           bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) {
+        ctx.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: W, height: H))
+        ctx.draw(tile, in: CGRect(x: 0, y: 0, width: W, height: H))
+        if let flat = ctx.makeImage() {
+            let rep = NSBitmapImageRep(cgImage: flat)
+            try? rep.representation(using: .png, properties: [:])?
+                .write(to: URL(fileURLWithPath: "\(out)/../card-icon.png"))
+        }
+    }
+}
 print("wrote \(variants.count) sizes to \(out)")
