@@ -288,6 +288,35 @@ body.reader #btnKeys, body.reader #stPage, body.reader [data-foot], body.reader 
   opacity:0 !important; visibility:hidden !important; pointer-events:none !important;
 }
 
+/* ---------- the scrollbar: seen while scrolling, gone the rest of the time ----------
+   Drawn as an overlay SIBLING of the canvas, never a native scrollbar. A native
+   one reserves layout width, and every point of this app is that the paper sits
+   where it sits — the title is pinned to the character-cue column to under 1.5px,
+   so a bar that steals 15px of canvas would move the page under it. This takes
+   no width at all. The native bars are suppressed on both axes. */
+#split{ position:relative; }
+#canvas::-webkit-scrollbar, #canvasB::-webkit-scrollbar{ width:0; height:0; }
+#canvas, #canvasB{ scrollbar-width:none; }
+
+.sbar{
+  position:absolute; z-index:7; opacity:0; pointer-events:none;
+  transition:opacity .34s ease .28s;      /* lingers a moment, then goes */
+}
+.sbar.on{ opacity:1; transition:opacity .12s ease 0s; }
+.sbar .sthumb{
+  position:absolute; pointer-events:auto; background:var(--ink);
+  opacity:.30; border-radius:99px;
+  transition:opacity .15s ease, width .14s ease, height .14s ease;
+}
+.sbar.v{ width:14px; }
+.sbar.v .sthumb{ right:4px; width:5px; }
+.sbar.h{ height:14px; }
+.sbar.h .sthumb{ bottom:4px; height:5px; }
+.sbar.hot .sthumb, .sbar.drag .sthumb{ opacity:.58; }
+.sbar.v.hot .sthumb, .sbar.v.drag .sthumb{ width:8px; }
+.sbar.h.hot .sthumb, .sbar.h.drag .sthumb{ height:8px; }
+@media (prefers-reduced-motion: reduce){ .sbar, .sbar .sthumb{ transition:none; } }
+
 /* ---------- side by side ---------- */
 #canvasB{ flex:1; min-width:0; overflow:auto; background:var(--paper-2); border-left:1px solid var(--line); position:relative; }
 body.split #canvas{ flex:1; min-width:0; }
@@ -498,7 +527,7 @@ footer .z{ font-size:.8rem; letter-spacing:0; }
 /* ---------- print: the page is the artifact ---------- */
 @media print{
   html,body{ overflow:visible; background:#fff; height:auto;}
-  header,#rail,footer,.pop,#overlay,#toast{ display:none !important; }
+  header,#rail,footer,.pop,#overlay,#toast,.sbar{ display:none !important; }
   .noteLayer,.sbLayer{ display:none !important; }   /* notes and boards are his, not the script's — PDF stays pristine */
   #split,#canvas{ display:block; overflow:visible; }
   #canvas{ background:#fff; }
@@ -6285,6 +6314,113 @@ canvasEl.addEventListener('scroll', () => {
     if (S.docId) { const p = LS.get('pica.scroll', {}); p[S.docId] = canvasEl.scrollTop; LS.set('pica.scroll', p); }
   }, 200);
 });
+
+// ---------- the scrollbar ----------
+// It appears while he scrolls and fades out shortly after he stops. It is an
+// overlay sibling of the canvas, not a native scrollbar, for one reason: a
+// native bar reserves layout width, and the title is pinned to the character-cue
+// column to under 1.5px (titleAudit gates the install on it). A bar that took
+// 15px off the canvas would shift the paper every time it showed. This one
+// takes none, so nothing under it ever moves.
+function attachScrollbar(sc){
+  const host = $('#split');
+  const bars = {};
+  for (const axis of ['v', 'h']){
+    const bar = document.createElement('div');
+    bar.className = 'sbar ' + axis;
+    bar.setAttribute('aria-hidden', 'true');     // the canvas is already keyboard-scrollable
+    const thumb = document.createElement('div');
+    thumb.className = 'sthumb';
+    bar.appendChild(thumb);
+    host.appendChild(bar);
+    bars[axis] = { bar, thumb };
+  }
+  let hideT = 0, hot = 0, dragging = false;
+
+  const layout = () => {
+    const x = sc.offsetLeft, y = sc.offsetTop;
+    const w = sc.clientWidth, h = sc.clientHeight;
+    const vNeed = !sc.hidden && sc.scrollHeight > h + 2;
+    const hNeed = !sc.hidden && sc.scrollWidth  > w + 2;
+    bars.v.bar.hidden = !vNeed;
+    bars.h.bar.hidden = !hNeed;
+    if (vNeed){
+      const b = bars.v;
+      b.bar.style.cssText += ';left:' + (x + w - 14) + 'px;top:' + y + 'px;height:' + h + 'px;';
+      const len = Math.max(30, h * h / sc.scrollHeight);
+      const at  = (sc.scrollTop / (sc.scrollHeight - h)) * (h - len);
+      b.thumb.style.height = len + 'px';
+      b.thumb.style.top = (at > 0 ? at : 0) + 'px';
+    }
+    if (hNeed){
+      const b = bars.h;
+      b.bar.style.cssText += ';left:' + x + 'px;top:' + (y + h - 14) + 'px;width:' + w + 'px;';
+      const len = Math.max(30, w * w / sc.scrollWidth);
+      const at  = (sc.scrollLeft / (sc.scrollWidth - w)) * (w - len);
+      b.thumb.style.width = len + 'px';
+      b.thumb.style.left = (at > 0 ? at : 0) + 'px';
+    }
+  };
+  const hideSoon = () => {
+    clearTimeout(hideT);
+    hideT = setTimeout(() => {
+      if (hot || dragging) return;
+      bars.v.bar.classList.remove('on');
+      bars.h.bar.classList.remove('on');
+    }, 700);
+  };
+  const show = () => {
+    layout();
+    bars.v.bar.classList.add('on');
+    bars.h.bar.classList.add('on');
+    hideSoon();
+  };
+
+  sc.addEventListener('scroll', show, { passive: true });
+  // the paper's height changes with zoom, pagination and doc switches
+  if (window.ResizeObserver){
+    const ro = new ResizeObserver(() => { if (bars.v.bar.classList.contains('on')) layout(); });
+    ro.observe(sc);
+    if (sc.firstElementChild) ro.observe(sc.firstElementChild);
+  }
+
+  for (const axis of ['v', 'h']){
+    const b = bars[axis], vert = axis === 'v';
+    b.thumb.addEventListener('pointerenter', () => { hot++; b.bar.classList.add('hot'); show(); });
+    b.thumb.addEventListener('pointerleave', () => { hot = Math.max(0, hot - 1); b.bar.classList.remove('hot'); hideSoon(); });
+    b.thumb.addEventListener('pointerdown', ev => {
+      if (ev.button) return;
+      // never let a grab of the bar disturb the caret or a live selection
+      ev.preventDefault();
+      ev.stopPropagation();
+      dragging = true;
+      b.bar.classList.add('drag');
+      const from = vert ? ev.clientY : ev.clientX;
+      const was  = vert ? sc.scrollTop : sc.scrollLeft;
+      const track = (vert ? sc.clientHeight : sc.clientWidth) - (vert ? b.thumb.offsetHeight : b.thumb.offsetWidth);
+      const span  = vert ? sc.scrollHeight - sc.clientHeight : sc.scrollWidth - sc.clientWidth;
+      const k = span / Math.max(1, track);
+      const move = e2 => {
+        const d = ((vert ? e2.clientY : e2.clientX) - from) * k;
+        if (vert) sc.scrollTop = was + d; else sc.scrollLeft = was + d;
+        show();
+      };
+      const up = () => {
+        dragging = false;
+        b.bar.classList.remove('drag');
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+        hideSoon();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+  }
+  return { layout, show };
+}
+
+const scrollbars = [attachScrollbar(canvasEl), attachScrollbar($('#canvasB'))];
+window.addEventListener('resize', () => scrollbars.forEach(s => s.layout()));
 
 // Pinch to zoom the page. macOS delivers a pinch as a wheel event with ctrlKey set;
 // WKWebView also emits the gesture events, so both are handled.
