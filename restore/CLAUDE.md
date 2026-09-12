@@ -201,3 +201,28 @@ has to come from a learned prior.
 - **Cost:** ~34s for two faces including the model download, single-threaded.
 - **Honesty:** the detail is reconstructed from a prior. It is a likeness, not
   a record, and the UI says so.
+
+## Batch
+Drop in one photograph or a hundred. More than one switches to a queue view:
+each file is processed **one at a time**, with the live stage name, which file
+is in hand, and a per-row download link as each finishes.
+
+- **One at a time is deliberate.** A hundred 12-megapixel photographs cannot be
+  held decoded in memory at once, so each result is encoded to a PNG blob the
+  moment it is done and its pixel buffers are dropped — blobs are backed by
+  disk, typed arrays are not. Holding decoded images is what makes a batch tool
+  die around image forty. Processing in parallel would also make the progress
+  meaningless and lock up the tab.
+- **ZIP is written by hand**, stored (uncompressed), because PNG is already
+  deflated and re-compressing would burn minutes to save nothing. It is built
+  from Blob parts reading one file at a time, so the whole batch never sits in
+  memory together. Verified with Python's `zipfile` at 6 and 40 entries.
+- Face restoration and colourisation are opt-in checkboxes on the drop screen
+  and apply to the whole batch; the models load once and are reused across
+  every photograph. They also apply to a single photograph if ticked.
+- Measured: 40 files in 83s (restore only); 6 larger files in 59s.
+
+### Gotcha
+`[hidden]` needs `!important` in this stylesheet. `.btn` sets `display:flex`,
+which has identical specificity and comes later, so hiding a button silently
+did nothing — the batch "Stop" button stayed visible after completion.
