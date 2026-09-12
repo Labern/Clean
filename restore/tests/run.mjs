@@ -321,7 +321,24 @@ head('colour');
   const C = new Function(
     html.match(/\/\*REVIVE-COLOUR-START\*\/[\s\S]*\/\*REVIVE-COLOUR-END\*\//)[0]
     + '; return ReviveColour;')();
-  ok('colour block is extractable from index.html', !!C && C.SIZE === 256);
+  ok('colour block is extractable from index.html', !!C && C.SIZE === 512);
+
+  /* The network is fed Lab(L,0,0) rendered to sRGB, not the L plane raw.
+     Getting this wrong does not crash — it silently feeds the model a wrongly
+     encoded image and the colours come back subtly off, so it is asserted. */
+  {
+    const S = 8, Ls = new Float32Array(S * S);
+    for (let i = 0; i < S * S; i++) Ls[i] = i / (S * S) * 100;
+    const x = C.greyInput(Ls, S, I.linearToByte);
+    ok('model input is three identical channels in 0..1',
+       x.length === 3 * S * S && x.every(v => v >= 0 && v <= 1)
+       && x[5] === x[S * S + 5] && x[5] === x[2 * S * S + 5]);
+    let mono = true;
+    for (let i = 1; i < S * S; i++) if (x[i] < x[i - 1] - 1e-6) mono = false;
+    ok('...and rises monotonically with lightness', mono);
+    ok('L=0 is black, L=100 is white', x[0] < 0.01 && x[S * S - 1] > 0.98,
+       x[0].toFixed(3) + ' .. ' + x[S * S - 1].toFixed(3));
+  }
 
   /* Lab must round-trip: the colourisation stage rebuilds every pixel through
      it, so an error here would tint the whole photograph even before the

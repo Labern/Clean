@@ -22,7 +22,7 @@ no build step, no dependencies.
   See `restore/CLAUDE.md` — its suite (`node restore/tests/run.mjs`) must stay
   green on every engine change, and the calibrated constants listed there
   encode real bugs; don't "tidy" them. Optional colourisation runs a quantised
-  ONNX model (`restore/colorize.onnx`, 43MB) in the browser on demand — it
+  ONNX model (`restore/colorize.onnx`, 78MB — DDColor) in the browser on demand — it
   predicts chroma only, so it can never disturb the restored detail.
 - `pica/` — PICA: screenplay editor that imports Final Draft PDFs and reproduces
   them identically, with the full Tab/Enter typing grammar. Single-file web app,

@@ -196,7 +196,7 @@ footer a{color:var(--soft)}
   <div class="actions">
     <button class="btn" id="download">↓  Download restored photo</button>
     <button class="btn colour" id="colourBtn">◐  Colourise</button>
-    <div id="colourNote" class="hint">One-time 43 MB download, then it runs on your device like everything else.</div>
+    <div id="colourNote" class="hint">One-time 78 MB download, then it runs on your device like everything else.</div>
     <div class="row">
       <button class="btn ghost" id="zoomBtn" aria-pressed="false">Zoom 1:1</button>
       <button class="btn ghost" id="again">Restore another</button>
@@ -272,8 +272,8 @@ footer a{color:var(--soft)}
 <footer>
   Runs in this tab, on your device. Your photograph is never uploaded.<br>
   Repair, tone and resolution are classical image restoration, written from scratch.<br>
-  Colour is predicted by <a href="https://github.com/richzhang/colorization" rel="noopener">Zhang, Isola &amp; Efros (SIGGRAPH 2017)</a>,
-  BSD-2-Clause, run locally — a plausible reading, not a record.
+  Colour is predicted by <a href="https://github.com/piddnad/DDColor" rel="noopener">DDColor (Du et al., ICCV 2023)</a>,
+  Apache-2.0, run locally — a plausible reading, not a record.
 </footer>
 </div>
 
@@ -1612,17 +1612,23 @@ if (typeof module !== 'undefined' && module.exports) module.exports = ReviveEngi
 /* ============================================================================
    Colour — CIELAB conversion for the colourisation stage.
 
-   The network is Zhang, Isola & Efros, "Real-Time User-Guided Image
-   Colorization with Learned Deep Priors" (SIGGRAPH 2017), BSD-2-Clause,
-   exported to ONNX and dynamically quantised to int8 (137MB -> 43MB, visually
-   indistinguishable on test images).
+   The network is DDColor (Du et al., ICCV 2023), the 'tiny' ConvNeXt-T
+   variant, Apache-2.0, exported to ONNX from the published weights and
+   dynamically quantised to int8 (223MB -> 78MB, visually indistinguishable on
+   test images). It replaced Zhang/Isola/Efros SIGGRAPH-2017, which worked but
+   rendered everything in a muted wash; DDColor finds warm wood, skin and
+   fabric where the older model saw only sepia.
 
-   It predicts only the two CHROMA channels, at 256x256, from lightness alone.
+   It predicts only the two CHROMA channels, at 512x512, from lightness alone.
    That fits this pipeline exactly: every restoration stage already works on
    luminance and carries chroma smoothly, so the predicted a/b are simply
    upsampled and married to the full-resolution restored L. Nothing the
    network does can touch the detail — it cannot smear a face, because it
    never sees or writes luminance.
+
+   Its input is not the L plane directly: DDColor expects the image RENDERED
+   as neutral grey in sRGB (what Lab(L,0,0) looks like), three identical
+   channels, 0..1. Its output a/b are already in Lab units.
    ========================================================================== */
 const ReviveColour = (() => {
 'use strict';
@@ -1661,7 +1667,18 @@ function scaleChroma(a, b, k, n) {
   if (k === 1) return;
   for (let i = 0; i < n; i++) { a[i] *= k; b[i] *= k; }
 }
-return { lightness, toRgb, scaleChroma, SIZE: 256, MODEL: 'colorize.onnx' };
+/* Build the network's input: Lab(L,0,0) rendered to sRGB, three identical
+   channels, NCHW. a=b=0 means the colour IS the white point, so the linear
+   value is simply Y and all three channels agree. */
+function greyInput(Ls, size, linearToByte) {
+  const n = size * size, x = new Float32Array(3 * n);
+  for (let i = 0; i < n; i++) {
+    const v = linearToByte(inv((Ls[i] + 16) / 116)) / 255;
+    x[i] = v; x[n + i] = v; x[2 * n + i] = v;
+  }
+  return x;
+}
+return { lightness, greyInput, toRgb, scaleChroma, SIZE: 512, MODEL: 'colorize.onnx' };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports.ReviveColour = ReviveColour;
 /*REVIVE-COLOUR-END*/
@@ -1813,7 +1830,7 @@ function present() {
   $('colourBtn').disabled = false;
   $('colourBtn').textContent = '◐  Colourise';
   $('colourBtn').onclick = colourise;
-  $('colourNote').textContent = 'One-time 43 MB download, then it runs on your device like everything else.';
+  $('colourNote').textContent = 'One-time 78 MB download, then it runs on your device like everything else.';
   $('download').textContent = '↓  Download restored photo';
   maskOn = false; $('showMask').setAttribute('aria-pressed', 'false');
   $('showMask').textContent = 'Show what it repaired';
@@ -1915,7 +1932,7 @@ function loadRuntime() {
 async function fetchModel(onProgress) {
   const res = await fetch(ReviveColour.MODEL);
   if (!res.ok) throw new Error('could not fetch the colour model (' + res.status + ')');
-  const total = parseInt(res.headers.get('content-length') || '43664615', 10);
+  const total = parseInt(res.headers.get('content-length') || '78014375', 10);
   if (!res.body) return new Uint8Array(await res.arrayBuffer());
   const reader = res.body.getReader(), chunks = [];
   let got = 0;
@@ -1954,8 +1971,9 @@ async function colourise() {
     /* The network only ever sees lightness, at 256x256. It predicts chroma;
        it cannot touch a single pixel of the restored detail. */
     const small = I.resample(L, w, h, S, S, 3);
+    const x = ReviveColour.greyInput(small, S, I.linearToByte);
     const out = await session.run({ [session.inputNames[0]]:
-      new ort.Tensor('float32', small, [1, 1, S, S]) });
+      new ort.Tensor('float32', x, [1, 3, S, S]) });
     const ab = out[session.outputNames[0]].data;
     const aS = new Float32Array(S * S), bS = new Float32Array(S * S);
     aS.set(ab.subarray(0, S * S)); bS.set(ab.subarray(S * S, 2 * S * S));

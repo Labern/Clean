@@ -119,16 +119,28 @@ browser screenshots.
 ## Colourisation
 Optional, opt-in, and the only part of the app that is not classical DSP.
 
-- **Model:** Zhang, Isola & Efros, *Real-Time User-Guided Image Colorization
-  with Learned Deep Priors* (SIGGRAPH 2017), BSD-2-Clause. Exported to ONNX
-  from the published weights and dynamically quantised to int8 — 137 MB to
-  43 MB, visually indistinguishable on test images. Ships as
-  `restore/colorize.onnx`.
+- **Model:** DDColor (Du et al., ICCV 2023), the `tiny` ConvNeXt-T variant,
+  Apache-2.0. Exported with the repo's own `scripts/export_onnx.py` at
+  512×512, then dynamically quantised to int8 — 223 MB to 78 MB, visually
+  indistinguishable on test images. Ships as `restore/colorize.onnx`.
+  - It replaced Zhang/Isola/Efros SIGGRAPH-2017 (BSD-2), which worked but
+    rendered everything in a muted wash. DDColor finds warm wood, skin and
+    fabric where the older model saw only sepia. The older 43 MB blob is
+    still in git history; nothing references it.
+  - **Quantising needs `quant_pre_process` first.** The final conv uses
+    spectral norm, so its weight is *computed* in the graph rather than stored,
+    and `quantize_dynamic` fails with "Expected div_15 to be an initializer".
+    Constant folding turns it into one.
+  - **Its input is not the L plane.** DDColor expects the image rendered as
+    neutral grey in sRGB — what `Lab(L,0,0)` looks like — as three identical
+    channels in 0..1. Feeding it raw L does not crash, it just silently
+    returns subtly wrong colour, so there is a test for it. Output a/b are
+    already in Lab units.
 - **Runtime:** onnxruntime-web 1.19.2 from cdnjs, loaded *on demand* — the
   page costs nothing until the button is pressed. `numThreads = 1` is
   mandatory: threads need cross-origin isolation (COOP/COEP) and GitHub Pages
   cannot send those headers. SIMD works without isolation and carries it.
-  ~9s for a 4.4MP photograph.
+  ~18s for a 4.4MP photograph.
 - **Why it composes cleanly:** the network predicts only the two CHROMA
   channels, at 256×256, from lightness alone. That is exactly how the rest of
   the pipeline is built — detail on luminance, chroma carried smoothly — so
