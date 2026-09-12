@@ -15,6 +15,13 @@ no build step, no dependencies.
 - `fullres/` — FullRes: send photos/videos via WhatsApp at original quality
   (share-as-document trick, zero compression). Single-file web app, live at
   `labern.github.io/Clean/fullres/`. See `fullres/CLAUDE.md`.
+- `restore/` — REVIVE: drop in a scanned photograph, get it back with dust,
+  scratches and creases removed, fading and colour cast corrected, and the
+  resolution raised up to 4×. Single-file web app, live at
+  `labern.github.io/Clean/restore/`. Classical DSP, no ML, nothing uploaded.
+  See `restore/CLAUDE.md` — its suite (`node restore/tests/run.mjs`) must stay
+  green on every engine change, and the calibrated constants listed there
+  encode real bugs; don't "tidy" them.
 - `pica/` — PICA: screenplay editor that imports Final Draft PDFs and reproduces
   them identically, with the full Tab/Enter typing grammar. Single-file web app,
   live at `labern.github.io/Clean/pica/`. See `pica/CLAUDE.md` — its fidelity

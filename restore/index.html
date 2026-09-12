@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0a14">
+<meta name="description" content="Restore old scanned photos in your browser: removes dust, scratches and creases, recovers faded colour, and enlarges up to 4x. Nothing uploads anywhere.">
+<meta property="og:title" content="REVIVE — repair and enlarge old photos">
+<meta property="og:description" content="Drop in a scan. Blemishes removed, fading corrected, resolution increased. Entirely on your device.">
+<title>REVIVE — old photos, made new</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0a14'/%3E%3Crect x='12' y='16' width='40' height='32' rx='4' fill='none' stroke='%23fbbf24' stroke-width='4'/%3E%3Ccircle cx='24' cy='28' r='4' fill='%23fbbf24'/%3E%3Cpath d='M14 44l13-13 9 9 6-5 8 8' fill='none' stroke='%23fbbf24' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+/* ── Theme tokens. Dark by default, .theme-light on <html> flips it. ── */
+:root{
+  --bg1:#0b0a14; --bg2:#1a1530; --bg3:#0f0d1f;
+  --panel:rgba(255,255,255,.035); --panel-2:rgba(255,255,255,.065);
+  --line:rgba(255,255,255,.11); --line-soft:rgba(255,255,255,.06);
+  --text:#e8e6f4; --soft:#9a95b8; --faint:#6c6787;
+  --accent:#fbbf24; --accent-hi:#fcd34d; --accent-ink:#241a02;
+  --ok:#5eead4; --violet:#a78bfa; --pink:#f472b6; --danger:#ff8fa3;
+  --shadow:0 18px 50px rgba(0,0,0,.45);
+}
+.theme-light{
+  --bg1:#f7f6fb; --bg2:#edeaf6; --bg3:#f3f1fa;
+  --panel:rgba(20,16,50,.04); --panel-2:rgba(20,16,50,.075);
+  --line:rgba(20,16,50,.16); --line-soft:rgba(20,16,50,.08);
+  --text:#221e3a; --soft:#5b5678; --faint:#8a86a5;
+  --accent:#b97e05; --accent-hi:#a06d02; --accent-ink:#fffdf6;
+  --ok:#0d9488; --violet:#7c5ce0; --pink:#d6488f; --danger:#d43f5e;
+  --shadow:0 18px 50px rgba(40,30,90,.13);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:"Menlo","SF Mono","Consolas",monospace;
+  color:var(--text);
+  background:linear-gradient(165deg,var(--bg1),var(--bg2) 55%,var(--bg3));
+  background-attachment:fixed;
+  min-height:100svh; line-height:1.6;
+  font-size:clamp(14px,2.7vw,16px);
+}
+.wrap{max-width:46rem;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 18px calc(40px + env(safe-area-inset-bottom))}
+
+header{display:flex;align-items:baseline;gap:10px;margin:4px 0 2px}
+.mark{font-weight:700;font-size:1.35em;letter-spacing:.3em}
+.mark .fx{color:var(--accent)}
+#themeToggle{margin-left:auto;background:none;border:1px solid var(--line);color:var(--soft);
+  border-radius:8px;width:34px;height:34px;font-size:15px;cursor:pointer;line-height:1}
+#themeToggle:hover{color:var(--text);border-color:var(--accent)}
+.tagline{color:var(--soft);margin-bottom:20px;font-size:.95em}
+.tagline b{color:var(--text)}
+
+section{display:none}
+body[data-state="idle"] #s-idle,
+body[data-state="working"] #s-working,
+body[data-state="done"] #s-done,
+body[data-state="error"] #s-error{display:block}
+
+/* ── Drop zone ── */
+.drop{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  min-height:44vh;border:2px dashed var(--line);border-radius:20px;
+  background:var(--panel);cursor:pointer;text-align:center;padding:34px 20px;
+  transition:border-color .15s,background .15s,transform .15s;
+}
+.drop:hover,.drop.drag{border-color:var(--accent);background:var(--panel-2)}
+.drop.drag{transform:scale(1.01)}
+.drop .glyph{font-size:40px;line-height:1}
+.drop .cta{font-weight:700;font-size:1.1em}
+.drop .sub{color:var(--faint);font-size:.86em;max-width:26rem}
+.legal{color:var(--faint);font-size:.8em;text-align:center;margin-top:16px}
+.legal b{color:var(--ok);font-weight:700}
+
+.does{list-style:none;margin:22px auto 0;display:grid;gap:8px;max-width:30rem}
+.does li{display:flex;gap:10px;align-items:flex-start;color:var(--soft);font-size:.88em}
+.does li::before{content:"→";color:var(--accent);font-weight:700;flex:none}
+
+/* ── Working ── */
+.working{border:1px solid var(--line);border-radius:18px;background:var(--panel);padding:26px 22px;text-align:center}
+.bar{height:8px;border-radius:99px;background:var(--panel-2);overflow:hidden;margin:18px 0 10px}
+.bar i{display:block;height:100%;width:0;border-radius:99px;
+  background:linear-gradient(90deg,var(--accent),var(--pink),var(--violet));transition:width .25s ease}
+.stage{color:var(--soft);font-size:.9em}
+.working h2{font-size:1em;font-weight:700}
+.thumb{max-width:150px;max-height:110px;border-radius:10px;border:1px solid var(--line);display:block;margin:0 auto 4px}
+
+/* ── Result: original ON TOP, restored BELOW ── */
+.panel{border:1px solid var(--line);border-radius:16px;background:var(--panel);overflow:hidden;margin-bottom:14px}
+.panel.after{border-color:var(--accent)}
+.phead{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
+.tag{font-weight:700;letter-spacing:.16em;font-size:.78em}
+.panel.before .tag{color:var(--soft)}
+.panel.after .tag{color:var(--accent)}
+.dims{color:var(--faint);font-size:.78em;margin-left:auto;font-variant-numeric:tabular-nums}
+.stage-view{background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;overflow:auto}
+.theme-light .stage-view{background:rgba(20,16,50,.07)}
+.stage-view canvas{display:block;max-width:100%;height:auto;image-rendering:auto}
+body.zoom1 .stage-view{max-height:60vh}
+body.zoom1 .stage-view canvas{max-width:none}
+
+.summary{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px}
+.chip{border:1px solid var(--line);border-radius:99px;padding:3px 11px;font-size:.76em;color:var(--soft);background:var(--panel)}
+.chip b{color:var(--text);font-weight:700}
+.chip.hi{border-color:var(--ok);color:var(--ok)}
+
+.actions{display:flex;flex-direction:column;gap:10px;margin-top:4px}
+.btn{width:100%;min-height:54px;border:none;border-radius:14px;cursor:pointer;
+  font-family:inherit;font-size:1.03em;font-weight:700;letter-spacing:.02em;
+  background:var(--accent);color:var(--accent-ink);
+  display:flex;align-items:center;justify-content:center;gap:10px}
+.btn:hover{background:var(--accent-hi)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.ghost{background:none;border:1px solid var(--line);color:var(--text);min-height:46px;font-size:.92em}
+.btn.ghost:hover{border-color:var(--accent);background:var(--panel)}
+.row{display:flex;gap:10px}
+.row .btn{flex:1}
+
+details.adv{margin-top:20px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+details.adv summary{cursor:pointer;padding:13px 16px;font-size:.88em;color:var(--soft);list-style:none;display:flex;align-items:center;gap:8px}
+details.adv summary::-webkit-details-marker{display:none}
+details.adv summary::before{content:"▸";color:var(--accent);transition:transform .15s;display:inline-block}
+details.adv[open] summary::before{transform:rotate(90deg)}
+details.adv summary:hover{color:var(--text)}
+.advbody{padding:4px 16px 16px;border-top:1px solid var(--line-soft)}
+.ctl{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;margin:13px 0}
+.ctl label{font-size:.85em;color:var(--soft)}
+.ctl .val{font-size:.78em;color:var(--accent);font-variant-numeric:tabular-nums}
+.ctl .note{grid-column:1/-1;font-size:.74em;color:var(--faint);margin-top:-2px}
+.ctl input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent);margin-top:4px}
+.seg{grid-column:1/-1;display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
+.seg button{flex:1;min-width:56px;padding:7px 4px;border-radius:9px;border:1px solid var(--line);
+  background:none;color:var(--soft);font-family:inherit;font-size:.82em;cursor:pointer}
+.seg button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);background:var(--panel-2);font-weight:700}
+
+.err{border:1px solid var(--danger);border-radius:16px;background:var(--panel);padding:22px;text-align:center}
+.err h2{color:var(--danger);font-size:1em;margin-bottom:6px}
+.err p{color:var(--soft);font-size:.9em;word-break:break-word}
+footer{margin-top:26px;color:var(--faint);font-size:.78em;text-align:center;line-height:1.8}
+footer a{color:var(--soft)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body data-state="idle">
+<div class="wrap">
+
+<header>
+  <div class="mark">REV<span class="fx">IVE</span></div>
+  <button id="themeToggle" title="Light / dark">◐</button>
+</header>
+<p class="tagline">Old photographs, <b>repaired and enlarged</b> — dust, scratches, fading and softness, fixed in your browser.</p>
+
+<!-- ── IDLE ── -->
+<section id="s-idle">
+  <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a photo to restore">
+    <div class="glyph">🖼</div>
+    <div class="cta">Drop a scanned photo here</div>
+    <div class="sub">or tap to choose one. JPEG, PNG, HEIC, WebP — whatever your scanner or phone produced.</div>
+  </div>
+  <input type="file" id="file" accept="image/*" hidden>
+  <ul class="does">
+    <li>Finds and fills dust, specks, scratches and creases</li>
+    <li>Rebuilds faded contrast and strips the yellow cast of aged paper</li>
+    <li>Enlarges up to 4× and puts the crispness back into a soft scan</li>
+  </ul>
+  <p class="legal">Everything runs on this device. <b>Your photo is never uploaded.</b></p>
+</section>
+
+<!-- ── WORKING ── -->
+<section id="s-working">
+  <div class="working">
+    <canvas id="workThumb" class="thumb"></canvas>
+    <h2>Restoring your photograph</h2>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="stage" id="stageText">Reading pixels…</div>
+  </div>
+</section>
+
+<!-- ── DONE: original on top, restored below ── -->
+<section id="s-done">
+  <div class="summary" id="summary"></div>
+
+  <div class="panel before">
+    <div class="phead"><span class="tag">ORIGINAL</span><span class="dims" id="dimsBefore"></span></div>
+    <div class="stage-view" id="viewBefore"><canvas id="canvasBefore"></canvas></div>
+  </div>
+
+  <div class="panel after">
+    <div class="phead"><span class="tag">RESTORED</span><span class="dims" id="dimsAfter"></span></div>
+    <div class="stage-view" id="viewAfter"><canvas id="canvasAfter"></canvas></div>
+  </div>
+
+  <div class="actions">
+    <button class="btn" id="download">↓  Download restored photo</button>
+    <div class="row">
+      <button class="btn ghost" id="zoomBtn" aria-pressed="false">Zoom 1:1</button>
+      <button class="btn ghost" id="again">Restore another</button>
+    </div>
+  </div>
+
+  <details class="adv">
+    <summary>Adjust the restoration</summary>
+    <div class="advbody">
+      <div class="ctl">
+        <label for="cRepair">Blemish removal</label><span class="val" id="vRepair"></span>
+        <input type="range" id="cRepair" min="0" max="1" step="0.05">
+        <div class="note">Higher finds fainter marks — too high and it starts filling real detail.</div>
+      </div>
+      <div class="ctl">
+        <label for="cScale">Blemish size</label><span class="val" id="vScale"></span>
+        <div class="seg" id="segScale">
+          <button data-v="0">Fine</button><button data-v="1">Normal</button>
+          <button data-v="2">Coarse</button><button data-v="3">Heavy</button>
+        </div>
+        <div class="note">How wide a scratch or speck can be and still be treated as damage.</div>
+      </div>
+      <div class="ctl">
+        <label for="cFade">Fade &amp; cast recovery</label><span class="val" id="vFade"></span>
+        <input type="range" id="cFade" min="0" max="1" step="0.05">
+      </div>
+      <div class="ctl">
+        <label>Colour</label><span class="val" id="vTone"></span>
+        <div class="seg" id="segTone">
+          <button data-v="neutral">Neutralise</button>
+          <button data-v="keep">Keep tone</button>
+          <button data-v="mono">Black &amp; white</button>
+        </div>
+        <div class="note">“Keep tone” preserves sepia; “Neutralise” removes the yellowing.</div>
+      </div>
+      <div class="ctl">
+        <label for="cDenoise">Grain reduction</label><span class="val" id="vDenoise"></span>
+        <input type="range" id="cDenoise" min="0" max="1" step="0.05">
+      </div>
+      <div class="ctl">
+        <label for="cSharpen">Crispness</label><span class="val" id="vSharpen"></span>
+        <input type="range" id="cSharpen" min="0" max="1" step="0.05">
+      </div>
+      <div class="ctl">
+        <label>Enlarge</label><span class="val" id="vSize"></span>
+        <div class="seg" id="segSize">
+          <button data-v="1">1×</button><button data-v="2">2×</button>
+          <button data-v="3">3×</button><button data-v="4">4×</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn ghost" id="showMask" aria-pressed="false">Show what it repaired</button>
+        <button class="btn ghost" id="redo">Apply</button>
+      </div>
+    </div>
+  </details>
+</section>
+
+<!-- ── ERROR ── -->
+<section id="s-error">
+  <div class="err">
+    <h2>That didn’t work</h2>
+    <p id="errText"></p>
+    <div class="actions" style="margin-top:16px"><button class="btn ghost" id="errBack">Try another photo</button></div>
+  </div>
+</section>
+
+<footer>
+  Runs entirely offline, in this tab. Nothing is uploaded, stored or sent anywhere.<br>
+  No AI model — classical image restoration, written from scratch.
+</footer>
+</div>
+
+<script>
+/*REVIVE-ENGINE-START*/
+/* ============================================================================
+   REVIVE ENGINE — photo restoration, classical DSP, zero dependencies.
+   Pure JS over typed arrays: no DOM, no network, no model weights. The whole
+   thing runs in node (see tests/run.mjs) and in the browser off the same source.
+
+   Pipeline, in the only order that makes sense:
+     decode -> linear light -> fade/cast recovery -> defect detect -> inpaint
+     -> denoise (chroma hard, luma soft) -> upscale (Lanczos) -> back-projection
+     -> shock sharpen -> local contrast -> grain -> sRGB out
+
+   Everything that carries detail happens on luminance. Chroma is smoothed and
+   carried cheaply — that is how human vision is built and it keeps 4x upscales
+   inside a browser's memory budget.
+   ========================================================================== */
+const ReviveEngine = (() => {
+'use strict';
+
+const VERSION = '1.0';
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+
+/* ── colour: sRGB <-> linear ──────────────────────────────────────────────
+   All filtering happens in linear light. Blurring, resizing and averaging
+   gamma-encoded values darkens edges; this is the cheap fix and it is exact
+   on the way in (256-entry LUT) and near-exact on the way out (4096-entry
+   table indexed on sqrt, which spends its resolution where sRGB curves). */
+const S2L = new Float32Array(256);
+for (let i = 0; i < 256; i++) {
+  const c = i / 255;
+  S2L[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+const L2S_N = 4096, L2S = new Float32Array(L2S_N + 1);
+for (let i = 0; i <= L2S_N; i++) {
+  const t = i / L2S_N, c = t * t;                       // sqrt-spaced domain
+  L2S[i] = (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055) * 255;
+}
+function linearToByte(v) {
+  if (!(v > 0)) return 0;
+  if (v >= 1) return 255;
+  const f = Math.sqrt(v) * L2S_N, i = f | 0, t = f - i;
+  return L2S[i] + (L2S[i + 1] - L2S[i]) * t;
+}
+
+/* Luma/chroma split in linear light. Y is Rec.709 luminance; chroma is stored
+   as plain differences so the round trip is exact and costs two adds. */
+const KR = 0.2126, KG = 0.7152, KB = 0.0722;
+function rgbToYcc(r, g, b, Y, Cb, Cr, n) {
+  for (let i = 0; i < n; i++) {
+    const y = KR * r[i] + KG * g[i] + KB * b[i];
+    Y[i] = y; Cb[i] = b[i] - y; Cr[i] = r[i] - y;
+  }
+}
+function yccToRgb(Y, Cb, Cr, r, g, b, n) {
+  for (let i = 0; i < n; i++) {
+    const y = Y[i], R = y + Cr[i], B = y + Cb[i];
+    r[i] = R; b[i] = B; g[i] = (y - KR * R - KB * B) / KG;
+  }
+}
+
+/* ── box blur: sliding sum, O(1) per pixel, edges replicated ─────────────── */
+function boxBlur(src, dst, w, h, r, tmp) {
+  if (r < 1) { dst.set(src); return dst; }
+  tmp = tmp || new Float32Array(w * h);
+  const inv = 1 / (2 * r + 1);
+  for (let y = 0; y < h; y++) {                          // horizontal
+    const row = y * w;
+    let sum = src[row] * (r + 1);
+    for (let i = 1; i <= r; i++) sum += src[row + (i < w ? i : w - 1)];
+    for (let x = 0; x < w; x++) {
+      tmp[row + x] = sum * inv;
+      const add = x + r + 1, sub = x - r;
+      sum += src[row + (add < w ? add : w - 1)] - src[row + (sub > 0 ? sub : 0)];
+    }
+  }
+  for (let x = 0; x < w; x++) {                          // vertical
+    let sum = tmp[x] * (r + 1);
+    for (let i = 1; i <= r; i++) sum += tmp[(i < h ? i : h - 1) * w + x];
+    for (let y = 0; y < h; y++) {
+      dst[y * w + x] = sum * inv;
+      const add = y + r + 1, sub = y - r;
+      sum += tmp[(add < h ? add : h - 1) * w + x] - tmp[(sub > 0 ? sub : 0) * w + x];
+    }
+  }
+  return dst;
+}
+/* True separable Gaussian for the small radii this pipeline actually uses —
+   the three-box approximation is faster but its effective sigma drifts, and
+   back-projection needs the blur it asked for or the iteration diverges. */
+const GK = new Map();
+function gaussKernel(sigma) {
+  const key = sigma.toFixed(3);
+  let k = GK.get(key);
+  if (k) return k;
+  const rad = Math.max(1, Math.ceil(sigma * 3));
+  k = new Float32Array(rad * 2 + 1);
+  let sum = 0;
+  for (let i = -rad; i <= rad; i++) { const v = Math.exp(-(i * i) / (2 * sigma * sigma)); k[i + rad] = v; sum += v; }
+  for (let i = 0; i < k.length; i++) k[i] /= sum;
+  k.rad = rad;
+  GK.set(key, k);
+  return k;
+}
+function gauss(src, dst, w, h, sigma, tmp) {
+  if (sigma <= 0.05) { if (dst !== src) dst.set(src); return dst; }
+  if (sigma > 4) {                       // large blurs: boxes are fine and faster
+    const r = Math.max(1, Math.round(Math.sqrt(12 * sigma * sigma / 3 + 1) - 1) >> 1);
+    tmp = tmp || new Float32Array(w * h);
+    const a = new Float32Array(w * h);
+    boxBlur(src, a, w, h, r, tmp); boxBlur(a, dst, w, h, r, tmp); boxBlur(dst, a, w, h, r, tmp);
+    dst.set(a); return dst;
+  }
+  const k = gaussKernel(sigma), rad = k.rad;
+  tmp = tmp && tmp.length >= w * h ? tmp : new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const row = y * w;
+    for (let x = 0; x < w; x++) {
+      let acc = 0;
+      for (let t = -rad; t <= rad; t++) {
+        let s = x + t; s = s < 0 ? 0 : s >= w ? w - 1 : s;
+        acc += src[row + s] * k[t + rad];
+      }
+      tmp[row + x] = acc;
+    }
+  }
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) {
+      let acc = 0;
+      for (let t = -rad; t <= rad; t++) {
+        let s = y + t; s = s < 0 ? 0 : s >= h ? h - 1 : s;
+        acc += tmp[s * w + x] * k[t + rad];
+      }
+      dst[y * w + x] = acc;
+    }
+  }
+  return dst;
+}
+/* ── 1-D sliding-window min/max (monotonic deque, O(1) amortised) ────────── */
+function win1d(a, n, out, rad, isMax) {
+  const dq = win1d._dq && win1d._dq.length >= n ? win1d._dq : (win1d._dq = new Int32Array(n + 8));
+  let head = 0, tail = 0;
+  for (let i = 0; i < n + rad; i++) {
+    if (i < n) {
+      const v = a[i];
+      while (tail > head && (isMax ? a[dq[tail - 1]] <= v : a[dq[tail - 1]] >= v)) tail--;
+      dq[tail++] = i;
+    }
+    const o = i - rad;
+    if (o >= 0) { while (dq[head] < o - rad) head++; out[o] = a[dq[head]]; }
+  }
+  return out;
+}
+
+/* Morphology along an arbitrary line direction. Each discrete line through the
+   image is gathered, run through win1d, and scattered back — so an oriented
+   erosion costs the same as a horizontal one regardless of angle. */
+function lineMorph(src, dst, w, h, dx, dy, len, isMax) {
+  const rad = (len - 1) >> 1;
+  const cap = Math.max(w, h) + 2;
+  const buf = new Float32Array(cap), res = new Float32Array(cap), idx = new Int32Array(cap);
+  const starts = [];
+  const push = (x, y) => { const px = x - dx, py = y - dy;
+    if (px < 0 || px >= w || py < 0 || py >= h) starts.push(x, y); };
+  for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
+  for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y); }
+  const done = new Uint8Array(w * h);
+  for (let s = 0; s < starts.length; s += 2) {
+    let x = starts[s], y = starts[s + 1];
+    if (done[y * w + x]) continue;
+    let n = 0;
+    while (x >= 0 && x < w && y >= 0 && y < h) {
+      const p = y * w + x; done[p] = 1; idx[n] = p; buf[n] = src[p]; n++; x += dx; y += dy;
+    }
+    win1d(buf, n, res, rad, isMax);
+    for (let i = 0; i < n; i++) dst[idx[i]] = res[i];
+  }
+  return dst;
+}
+/* Separable square structuring element — the isotropic counterpart used to
+   subtract "everything that is not thin and elongated". */
+function sqMorph(src, dst, w, h, len, isMax) {
+  const rad = (len - 1) >> 1;
+  const cap = Math.max(w, h) + 2, buf = new Float32Array(cap), res = new Float32Array(cap);
+  const tmp = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) buf[x] = src[y * w + x];
+    win1d(buf, w, res, rad, isMax);
+    for (let x = 0; x < w; x++) tmp[y * w + x] = res[x];
+  }
+  for (let x = 0; x < w; x++) {
+    for (let y = 0; y < h; y++) buf[y] = tmp[y * w + x];
+    win1d(buf, h, res, rad, isMax);
+    for (let y = 0; y < h; y++) dst[y * w + x] = res[y];
+  }
+  return dst;
+}
+
+/* ── Lanczos-3 resample, separable, precomputed weights ──────────────────── */
+function lanczosWeights(srcN, dstN, a) {
+  const scale = dstN / srcN, sup = scale < 1 ? a / scale : a, taps = Math.ceil(sup * 2) + 1;
+  const idx = new Int32Array(dstN * taps), wts = new Float32Array(dstN * taps);
+  for (let o = 0; o < dstN; o++) {
+    const centre = (o + 0.5) / scale - 0.5;
+    const first = Math.ceil(centre - sup);
+    let sum = 0;
+    for (let t = 0; t < taps; t++) {
+      const s = first + t;
+      let x = (s - centre) * (scale < 1 ? scale : 1);
+      let wv;
+      if (x === 0) wv = 1;
+      else if (x <= -a || x >= a) wv = 0;
+      else { const px = Math.PI * x; wv = a * Math.sin(px) * Math.sin(px / a) / (px * px); }
+      idx[o * taps + t] = s < 0 ? 0 : s >= srcN ? srcN - 1 : s;
+      wts[o * taps + t] = wv; sum += wv;
+    }
+    if (sum !== 0) for (let t = 0; t < taps; t++) wts[o * taps + t] /= sum;
+  }
+  return { idx, wts, taps };
+}
+function resample(src, sw, sh, dw, dh, a) {
+  a = a || 3;
+  if (sw === dw && sh === dh) return Float32Array.from(src);
+  const hx = lanczosWeights(sw, dw, a), hy = lanczosWeights(sh, dh, a);
+  const mid = new Float32Array(dw * sh);
+  for (let y = 0; y < sh; y++) {
+    const row = y * sw, orow = y * dw;
+    for (let x = 0; x < dw; x++) {
+      let acc = 0, base = x * hx.taps;
+      for (let t = 0; t < hx.taps; t++) acc += src[row + hx.idx[base + t]] * hx.wts[base + t];
+      mid[orow + x] = acc;
+    }
+  }
+  const out = new Float32Array(dw * dh);
+  for (let y = 0; y < dh; y++) {
+    let base = y * hy.taps, orow = y * dw;
+    for (let x = 0; x < dw; x++) {
+      let acc = 0;
+      for (let t = 0; t < hy.taps; t++) acc += mid[hy.idx[base + t] * dw + x] * hy.wts[base + t];
+      out[orow + x] = acc;
+    }
+  }
+  return out;
+}
+/* Cheap forward/backward model for back-projection: blur+decimate down,
+   bilinear up. Deliberately not Lanczos — this pair is what the iteration
+   converges against, and it has to be fast because it runs many times. */
+function decimate(src, sw, sh, dw, dh) {
+  const out = new Float32Array(dw * dh);
+  const fx = sw / dw, fy = sh / dh;
+  for (let y = 0; y < dh; y++) {
+    const y0 = Math.floor(y * fy), y1 = Math.min(sh, Math.ceil((y + 1) * fy));
+    for (let x = 0; x < dw; x++) {
+      const x0 = Math.floor(x * fx), x1 = Math.min(sw, Math.ceil((x + 1) * fx));
+      let acc = 0, n = 0;
+      for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) { acc += src[yy * sw + xx]; n++; }
+      out[y * dw + x] = n ? acc / n : 0;
+    }
+  }
+  return out;
+}
+function upBilinear(src, sw, sh, dw, dh) {
+  const out = new Float32Array(dw * dh);
+  const fx = sw / dw, fy = sh / dh;
+  for (let y = 0; y < dh; y++) {
+    let sy = (y + 0.5) * fy - 0.5; if (sy < 0) sy = 0; if (sy > sh - 1) sy = sh - 1;
+    const y0 = sy | 0, y1 = Math.min(sh - 1, y0 + 1), ty = sy - y0;
+    for (let x = 0; x < dw; x++) {
+      let sx = (x + 0.5) * fx - 0.5; if (sx < 0) sx = 0; if (sx > sw - 1) sx = sw - 1;
+      const x0 = sx | 0, x1 = Math.min(sw - 1, x0 + 1), tx = sx - x0;
+      const a = src[y0 * sw + x0], b = src[y0 * sw + x1], c = src[y1 * sw + x0], d = src[y1 * sw + x1];
+      out[y * dw + x] = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+    }
+  }
+  return out;
+}
+
+/* Nearest-neighbour upsample = the exact transpose of decimate. Using the
+   true adjoint for the back-projection step turns the iteration into plain
+   Richardson descent, which degrades gracefully when the assumed blur is
+   wrong instead of ringing itself apart. */
+function upBox(src, sw, sh, dw, dh, out) {
+  out = out || new Float32Array(dw * dh);
+  const fx = sw / dw, fy = sh / dh;
+  for (let y = 0; y < dh; y++) {
+    const sy = Math.min(sh - 1, (y * fy) | 0), srow = sy * sw, orow = y * dw;
+    for (let x = 0; x < dw; x++) out[orow + x] = src[srow + Math.min(sw - 1, (x * fx) | 0)];
+  }
+  return out;
+}
+
+/* ── guided filter (He et al.) — edge-preserving smoothing in O(n) ────────
+   Used two ways: self-guided on luma (gentle, keeps grain), and Y-guided on
+   chroma (aggressive — colour blotches in aged film carry no real detail). */
+function guidedFilter(I, p, w, h, r, eps) {
+  const n = w * h, tmp = new Float32Array(n);
+  const mI = boxBlur(I, new Float32Array(n), w, h, r, tmp);
+  const mP = I === p ? mI : boxBlur(p, new Float32Array(n), w, h, r, tmp);
+  const II = new Float32Array(n), IP = new Float32Array(n);
+  for (let i = 0; i < n; i++) { II[i] = I[i] * I[i]; IP[i] = I[i] * p[i]; }
+  const mII = boxBlur(II, II, w, h, r, tmp), mIP = I === p ? mII : boxBlur(IP, IP, w, h, r, tmp);
+  const A = new Float32Array(n), B = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const varI = mII[i] - mI[i] * mI[i];
+    const cov = I === p ? varI : mIP[i] - mI[i] * mP[i];
+    const a = cov / (varI + eps);
+    A[i] = a; B[i] = mP[i] - a * mI[i];
+  }
+  boxBlur(A, A, w, h, r, tmp); boxBlur(B, B, w, h, r, tmp);
+  const q = new Float32Array(n);
+  for (let i = 0; i < n; i++) q[i] = A[i] * I[i] + B[i];
+  return q;
+}
+
+/* ── noise estimate: MAD of the Laplacian residual ───────────────────────
+   Robust to real image content in a way a plain variance is not — a photo of
+   a brick wall is not noisy, it is detailed, and the median knows that. */
+function estimateNoise(Y, w, h) {
+  const samples = [];
+  const step = Math.max(1, Math.floor(Math.sqrt(w * h / 20000)));
+  for (let y = 1; y < h - 1; y += step) for (let x = 1; x < w - 1; x += step) {
+    const i = y * w + x;
+    samples.push(Math.abs(4 * Y[i] - Y[i - 1] - Y[i + 1] - Y[i - w] - Y[i + w]));
+  }
+  if (!samples.length) return 0.002;
+  samples.sort((a, b) => a - b);
+  /* Read the noise off the FLATTEST quarter of the image, not the median: a
+     photograph of a brick wall is detailed, not noisy, and the median of a
+     uniformly textured frame measures its texture. The 4-neighbour Laplacian
+     has variance 20*sigma^2, and the 25th percentile of a half-normal sits at
+     0.3186 sigma — hence the 1.425 divisor. */
+  const q = samples[Math.floor(samples.length * 0.25)];
+  return Math.max(1e-5, q / 1.425);
+}
+
+/* ── softness estimate ───────────────────────────────────────────────────
+   Blur a copy and ask how much high-frequency ENERGY was left to lose. Summed
+   |grad| is the wrong statistic — it is conserved across a blurred step edge,
+   so it reports a mush and a knife-edge alike. Squared gradient energy is not:
+   spreading an edge over more pixels strictly lowers it. The ratio is also
+   scale-free, so a faded low-contrast print is not mistaken for a soft one. */
+function estimateSoftness(Y, w, h) {
+  const n = w * h, tmp = new Float32Array(n);
+  const b = gauss(Y, new Float32Array(n), w, h, 1.0, tmp);
+  let e0 = 0, e1 = 0;
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x;
+    let dx = Y[i + 1] - Y[i - 1], dy = Y[i + w] - Y[i - w];
+    e0 += dx * dx + dy * dy;
+    dx = b[i + 1] - b[i - 1]; dy = b[i + w] - b[i - w];
+    e1 += dx * dx + dy * dy;
+  }
+  if (e0 < 1e-12) return 0.5;
+  const ratio = e1 / e0;                    // ~0.15 crisp ... ~0.95 already soft
+  return Math.max(0, Math.min(1, (ratio - 0.22) / 0.5));
+}
+
+/* ── defect detection ────────────────────────────────────────────────────
+   Two morphological families, which between them describe what actually goes
+   wrong with a print:
+     specks  = small blobs of any shape      -> L minus the supremum of
+               oriented openings (an elongated mark survives one orientation,
+               a dust speck survives none)
+     scratch = thin, long, any angle         -> supremum of oriented openings
+               minus a square opening (which erases lines but keeps blobs)
+   Both run in mirror image for dark damage (cracks, emulsion loss) and bright
+   damage (dust, silvering, tears showing paper).                            */
+const DIRS = [[1, 0], [0, 1], [1, 1], [1, -1]];
+function detectDefects(Y, w, h, opt) {
+  const n = w * h;
+  const tmp = new Float32Array(n);
+  const base = gauss(Y, new Float32Array(n), w, h, 0.7, tmp);
+  const len = opt.len, sqlen = opt.len;
+  const a = new Float32Array(n), sup = new Float32Array(n), inf = new Float32Array(n);
+  sup.fill(-1e9); inf.fill(1e9);
+  for (const [dx, dy] of DIRS) {
+    lineMorph(base, a, w, h, dx, dy, len, false);          // erode
+    lineMorph(a, tmp, w, h, dx, dy, len, true);            // dilate -> opening
+    for (let i = 0; i < n; i++) if (tmp[i] > sup[i]) sup[i] = tmp[i];
+    lineMorph(base, a, w, h, dx, dy, len, true);           // dilate
+    lineMorph(a, tmp, w, h, dx, dy, len, false);           // erode -> closing
+    for (let i = 0; i < n; i++) if (tmp[i] < inf[i]) inf[i] = tmp[i];
+  }
+  const sqOpen = new Float32Array(n), sqClose = new Float32Array(n);
+  sqMorph(base, a, w, h, sqlen, false); sqMorph(a, sqOpen, w, h, sqlen, true);
+  sqMorph(base, a, w, h, sqlen, true);  sqMorph(a, sqClose, w, h, sqlen, false);
+
+  const resp = new Float32Array(n);
+  const ws = opt.speck, wl = opt.scratch;
+  for (let i = 0; i < n; i++) {
+    const speck = Math.max(base[i] - sup[i], inf[i] - base[i]);
+    const line  = Math.max(sup[i] - sqOpen[i], sqClose[i] - inf[i]);
+    resp[i] = Math.max(ws * speck, wl * line);
+  }
+  /* Two thresholds, and the stricter one wins.
+
+     The first is the honest one: a response only counts as damage if it stands
+     k noise-sigmas above the grain. The second is a hard area cap, because the
+     first fails badly when the noise estimate is wrong — a perfectly flat scan
+     can measure near-zero noise, and then every fibre of the paper clears the
+     bar and the "repair" eats the photograph. Rather than nudging the
+     threshold upward and hoping, read the response value at the (1 - maxFrac)
+     quantile straight off a histogram: whatever the image, no more than
+     maxFrac of it can clear that, by construction and in one pass. */
+  const sigma = opt.sigma;
+  let peak = 0;
+  for (let i = 0; i < n; i++) if (resp[i] > peak) peak = resp[i];
+  let capLo = 0;
+  if (peak > 0) {
+    const BINS = 512, hist = new Int32Array(BINS), scale = (BINS - 1) / peak;
+    for (let i = 0; i < n; i++) hist[(resp[i] * scale) | 0]++;
+    let budget = Math.max(1, Math.floor(n * opt.maxFrac)), b = BINS - 1, acc = 0;
+    for (; b > 0; b--) { acc += hist[b]; if (acc >= budget) break; }
+    capLo = b / scale;
+  }
+  const lo = Math.max(opt.k * sigma, capLo), hi = lo * 2.6;
+  const mask = new Float32Array(n);
+  let cnt = 0;
+  for (let i = 0; i < n; i++) {
+    const v = resp[i] <= lo ? 0 : resp[i] >= hi ? 1 : (resp[i] - lo) / (hi - lo);
+    mask[i] = v * v * (3 - 2 * v);
+    if (v > 0.5) cnt++;
+  }
+  const frac = cnt / n;
+  /* Grow slightly: a scratch has a soft shoulder, and inpainting up to the
+     exact edge of a defect leaves a visible rim of the damage behind.
+     Take the MAX of the dilated mask and its blur, never the blur alone —
+     blurring a speck lowers its peak, so a 2px dust mote would come out with
+     a mask of ~0.5 and get only half repaired. The dilation holds the core at
+     full strength; the blur only adds the feathered shoulder around it. */
+  const grown = new Float32Array(n);
+  sqMorph(mask, grown, w, h, 3, true);
+  gauss(grown, a, w, h, 0.55, tmp);   // a tight shoulder, not a halo
+  for (let i = 0; i < n; i++) {
+    const v = grown[i] > a[i] ? grown[i] : a[i];
+    mask[i] = v > 1 ? 1 : v;
+  }
+  return { mask, fraction: frac };
+}
+
+/* ── inpainting ──────────────────────────────────────────────────────────
+   Two stages. Push-pull (Gortler's pyramid fill) gets a smooth, seamless,
+   O(n) guess into every hole regardless of size. That alone looks like a
+   smear across a scratch, so a structure-guided pass then re-fills each hole
+   by averaging ALONG the dominant local direction — which is what makes a
+   crease crossing a doorframe come back as a doorframe rather than a blur. */
+function pushPull(plane, conf, w, h) {
+  const levels = [{ w, h, c: null, v: null }];
+  let cw = w, ch = h;
+  const v0 = new Float32Array(w * h), c0 = new Float32Array(w * h);
+  for (let i = 0; i < w * h; i++) { c0[i] = conf[i]; v0[i] = plane[i] * conf[i]; }
+  levels[0].v = v0; levels[0].c = c0;
+  while (cw > 2 && ch > 2) {                                    // pull
+    const nw = Math.max(1, cw >> 1), nh = Math.max(1, ch >> 1);
+    const pv = levels[levels.length - 1].v, pc = levels[levels.length - 1].c;
+    const nv = new Float32Array(nw * nh), nc = new Float32Array(nw * nh);
+    for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) {
+      let sv = 0, sc = 0;
+      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+        const sy = Math.min(ch - 1, y * 2 + dy), sx = Math.min(cw - 1, x * 2 + dx);
+        sv += pv[sy * cw + sx]; sc += pc[sy * cw + sx];
+      }
+      nv[y * nw + x] = sv / 4; nc[y * nw + x] = sc / 4;
+    }
+    levels.push({ w: nw, h: nh, v: nv, c: nc });
+    cw = nw; ch = nh;
+  }
+  let top = levels[levels.length - 1];
+  let acc = new Float32Array(top.w * top.h);
+  for (let i = 0; i < acc.length; i++) acc[i] = top.c[i] > 1e-6 ? top.v[i] / top.c[i] : 0;
+  for (let l = levels.length - 2; l >= 0; l--) {                // push
+    const L = levels[l], up = upBilinear(acc, levels[l + 1].w, levels[l + 1].h, L.w, L.h);
+    const out = new Float32Array(L.w * L.h);
+    for (let i = 0; i < out.length; i++) {
+      const c = Math.min(1, L.c[i]);
+      const own = c > 1e-6 ? L.v[i] / L.c[i] : 0;
+      out[i] = c * own + (1 - c) * up[i];
+    }
+    acc = out;
+  }
+  return acc;
+}
+/* Structure tensor -> dominant orientation, smoothed. */
+function orientation(Y, w, h, sigma) {
+  const n = w * h, tmp = new Float32Array(n);
+  const s = gauss(Y, new Float32Array(n), w, h, 1.0, tmp);
+  const Jxx = new Float32Array(n), Jyy = new Float32Array(n), Jxy = new Float32Array(n);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const i = y * w + x;
+    const xm = x > 0 ? i - 1 : i, xp = x < w - 1 ? i + 1 : i;
+    const ym = y > 0 ? i - w : i, yp = y < h - 1 ? i + w : i;
+    const gx = (s[xp] - s[xm]) * 0.5, gy = (s[yp] - s[ym]) * 0.5;
+    Jxx[i] = gx * gx; Jyy[i] = gy * gy; Jxy[i] = gx * gy;
+  }
+  gauss(Jxx, Jxx, w, h, sigma, tmp); gauss(Jyy, Jyy, w, h, sigma, tmp); gauss(Jxy, Jxy, w, h, sigma, tmp);
+  const dirx = new Float32Array(n), diry = new Float32Array(n), coh = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = Jxx[i], b = Jxy[i], c = Jyy[i];
+    const d = Math.sqrt(Math.max(0, (a - c) * (a - c) + 4 * b * b));
+    const l1 = (a + c + d) * 0.5, l2 = (a + c - d) * 0.5;
+    // eigenvector of the SMALLER eigenvalue = along the edge
+    let ex = b, ey = l1 - a;
+    if (Math.abs(ex) + Math.abs(ey) < 1e-12) { ex = 1; ey = 0; }
+    const len = Math.sqrt(ex * ex + ey * ey);
+    dirx[i] = -ey / len; diry[i] = ex / len;
+    coh[i] = (l1 + l2) > 1e-12 ? (l1 - l2) / (l1 + l2) : 0;
+  }
+  return { dirx, diry, coh };
+}
+function sampleBilinear(src, w, h, x, y) {
+  if (x < 0) x = 0; else if (x > w - 1) x = w - 1;
+  if (y < 0) y = 0; else if (y > h - 1) y = h - 1;
+  const x0 = x | 0, y0 = y | 0, x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
+  const tx = x - x0, ty = y - y0;
+  const a = src[y0 * w + x0], b = src[y0 * w + x1], c = src[y1 * w + x0], d = src[y1 * w + x1];
+  return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
+}
+/* ── exemplar fill (PatchMatch) ──────────────────────────────────────────
+   Diffusion can only interpolate, and interpolation cannot reconstruct
+   texture: a scratch across brickwork, a patterned dress or a window grid
+   fills with the average of both sides and reads as a pale smear. The fix is
+   to stop inventing pixels and start copying them — find, for each hole
+   patch, the most similar intact patch nearby and take its centre.
+
+   This is Barnes' PatchMatch: a random guess per hole pixel, then alternate
+   PROPAGATION (my neighbour's source, shifted by one, is probably good for me
+   too — coherent regions converge almost immediately) with RANDOM SEARCH over
+   an exponentially shrinking radius (which lets a pixel escape a bad local
+   match). A handful of sweeps beats an exhaustive search by orders of
+   magnitude and lands in practically the same place.
+
+   Deliberately bounded: it only runs where the surroundings are actually
+   textured — over sky or skin, diffusion is already the better answer and
+   this would only add noise — and it gives up gracefully on very large holes
+   so a big scan cannot wedge the browser. */
+function exemplarFill(plane, mask, w, h, sigma) {
+  const n = w * h, R = 3, SPAN = 2 * R + 1;
+  const holes = [], slot = new Int32Array(n).fill(-1);
+  for (let i = 0; i < n; i++) if (mask[i] > 0.06) { slot[i] = holes.length; holes.push(i); }
+  const hn = holes.length;
+  if (!hn || hn > 400000) return plane;          // nothing to do, or too big
+
+  /* A source patch must be entirely intact, and a target only worth copying
+     into if its surroundings carry texture worth reproducing. */
+  const tmp = new Float32Array(n);
+  const mSm = boxBlur(mask, new Float32Array(n), w, h, R + 1, tmp);
+  const mean = boxBlur(plane, new Float32Array(n), w, h, 4, tmp);
+  const sq = new Float32Array(n);
+  for (let i = 0; i < n; i++) sq[i] = plane[i] * plane[i];
+  boxBlur(sq, sq, w, h, 4, tmp);
+  const texThresh = Math.max(sigma * 3.5, 0.006);
+  const usable = new Uint8Array(n), textured = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    usable[i] = mSm[i] < 0.01 ? 1 : 0;      // patch is genuinely intact
+    const v = sq[i] - mean[i] * mean[i];
+    textured[i] = v > texThresh * texThresh ? 1 : 0;
+  }
+  let active = 0;
+  const live = new Uint8Array(hn);
+  for (let k = 0; k < hn; k++) {
+    const i = holes[k], x = i % w, y = (i / w) | 0;
+    if (x < R || y < R || x >= w - R || y >= h - R) continue;
+    /* textured *around* the hole, since inside it is our own smooth guess */
+    let t = 0;
+    for (let dy = -8; dy <= 8; dy += 4) for (let dx = -8; dx <= 8; dx += 4) {
+      const sx = x + dx, sy = y + dy;
+      if (sx < 0 || sy < 0 || sx >= w || sy >= h) continue;
+      const j = sy * w + sx;
+      if (mask[j] <= 0.06 && textured[j]) t++;
+    }
+    if (t >= 3) { live[k] = 1; active++; }
+  }
+  if (!active) return plane;
+
+  const SEARCH = 40;
+  const srcX = new Int32Array(hn), srcY = new Int32Array(hn), srcC = new Float32Array(hn);
+  let seed = 0x9e3779b9;
+  const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
+
+  const cost = (tx, ty, sx, sy, best) => {
+    if (sx < R || sy < R || sx >= w - R || sy >= h - R) return Infinity;
+    if (!usable[sy * w + sx]) return Infinity;
+    let acc = 0;
+    for (let dy = -R; dy <= R; dy++) {
+      let ti = (ty + dy) * w + tx - R, si = (sy + dy) * w + sx - R;
+      for (let dx = 0; dx < SPAN; dx++, ti++, si++) {
+        /* Known neighbours anchor the match; the hole's own current estimate
+           still votes, but weakly, so the fill is led by real evidence. */
+        const wgt = mask[ti] > 0.06 ? 0.15 : 1;
+        const d = plane[ti] - plane[si];
+        acc += wgt * d * d;
+      }
+      if (acc >= best) return acc;
+    }
+    return acc;
+  };
+
+  for (let k = 0; k < hn; k++) {
+    if (!live[k]) continue;
+    const i = holes[k], x = i % w, y = (i / w) | 0;
+    let bx = x, by = y, bc = Infinity;
+    for (let a = 0; a < 8; a++) {
+      const cx = x + ((rnd() * 2 - 1) * SEARCH) | 0, cy = y + ((rnd() * 2 - 1) * SEARCH) | 0;
+      const c = cost(x, y, cx, cy, bc);
+      if (c < bc) { bc = c; bx = cx; by = cy; }
+    }
+    srcX[k] = bx; srcY[k] = by; srcC[k] = bc;
+  }
+
+  for (let it = 0; it < 4; it++) {
+    const fwd = (it & 1) === 0;
+    for (let q = 0; q < hn; q++) {
+      const k = fwd ? q : hn - 1 - q;
+      if (!live[k]) continue;
+      const i = holes[k], x = i % w, y = (i / w) | 0;
+      let bx = srcX[k], by = srcY[k], bc = cost(x, y, bx, by, Infinity);
+      const step = fwd ? -1 : 1;
+      for (const [dx, dy] of [[step, 0], [0, step]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+        const s = slot[ny * w + nx];
+        if (s < 0 || !live[s]) continue;
+        const cx = srcX[s] - dx, cy = srcY[s] - dy;
+        const c = cost(x, y, cx, cy, bc);
+        if (c < bc) { bc = c; bx = cx; by = cy; }
+      }
+      for (let rad = SEARCH; rad >= 1; rad >>= 1) {
+        const cx = bx + ((rnd() * 2 - 1) * rad) | 0, cy = by + ((rnd() * 2 - 1) * rad) | 0;
+        const c = cost(x, y, cx, cy, bc);
+        if (c < bc) { bc = c; bx = cx; by = cy; }
+      }
+      srcX[k] = bx; srcY[k] = by; srcC[k] = bc;
+    }
+  }
+
+  /* Vote — but only as far as each match has earned.
+
+     A copied patch is a claim that this hole looks like somewhere else in the
+     photograph. Over fabric, foliage or grain that claim is usually true. Over
+     a rigid repeating structure it can be confidently wrong, and the failure
+     is ugly in a way a blur never is: half a window, a displaced brick, an eye
+     borrowed from the wrong face. So each match is scored against the local
+     variance it is trying to reproduce, and a patch that could not find a
+     genuine likeness simply abstains and leaves the smooth fill in place.
+     Graceful degradation beats peak performance in a tool people point at
+     photographs of their grandparents. */
+  const acc = new Float32Array(n), wgt = new Float32Array(n), cov = new Float32Array(n);
+  const taps = SPAN * SPAN;
+  for (let k = 0; k < hn; k++) {
+    if (!live[k]) continue;
+    const i = holes[k], x = i % w, y = (i / w) | 0, sx = srcX[k], sy = srcY[k];
+    if (!(srcC[k] < Infinity)) continue;
+    const varLocal = Math.max(1e-6, sq[i] - mean[i] * mean[i]);
+    const mse = srcC[k] / taps;
+    let trust = 1 - mse / (0.35 * varLocal);
+    if (trust <= 0.02) continue;
+    if (trust > 1) trust = 1;
+    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
+      const ti = (y + dy) * w + (x + dx);
+      if (mask[ti] <= 0.06) continue;
+      acc[ti] += plane[(sy + dy) * w + (sx + dx)] * trust;
+      wgt[ti] += trust;
+      cov[ti] += 1;
+    }
+  }
+  const out = Float32Array.from(plane);
+  for (let k = 0; k < hn; k++) {
+    const i = holes[k];
+    if (wgt[i] <= 0 || cov[i] <= 0) continue;
+    const v = acc[i] / wgt[i];              // trust-weighted exemplar opinion
+    const t = Math.min(1, wgt[i] / cov[i]); // ...and how sure it collectively is
+    out[i] = plane[i] + (v - plane[i]) * t;
+  }
+  return out;
+}
+
+function inpaint(plane, mask, w, h, guide, iters) {
+  const n = w * h;
+  /* Below this the mask is only a feathered fringe: the blend would write
+     back a few percent of a fill nobody can see, so those pixels are treated
+     as intact. Keeping the threshold off the floor matters — at 0.02 the
+     fringe alone accounted for a quarter of the frame, which starved the
+     exemplar stage of the intact neighbours it needs to copy from. */
+  const HOLE = 0.06;
+  /* Two different masks, and conflating them was a bug worth naming.
+
+     CONFIDENCE (hard) decides what the fill is allowed to read. It must be
+     binary: a pixel is either trustworthy or it is damage. Using 1-mask here
+     lets a half-flagged scratch shoulder contribute a third of its own broken
+     value, the pyramid carries that up to the coarse levels, and the scratch
+     comes back as a soft bright smear several times its original width.
+
+     BLEND (soft) decides where the fill is written back, and only there does
+     feathering belong — it hides the seam at the outer edge of the mask. */
+  const conf = new Float32Array(n);
+  for (let i = 0; i < n; i++) conf[i] = mask[i] <= HOLE ? 1 : 0;
+  let out = pushPull(plane, conf, w, h);
+  for (let i = 0; i < n; i++) if (conf[i]) out[i] = plane[i];
+
+  if (iters) {
+    const ref = guide || out;
+    const { dirx, diry, coh } = orientation(ref, w, h, 2.0);
+    const cur = out;
+    const next = new Float32Array(n);
+    for (let it = 0; it < iters; it++) {
+      next.set(cur);
+      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+        const i = y * w + x;
+        if (mask[i] <= HOLE) continue;
+        const dx = dirx[i], dy = diry[i];
+        let acc = 0, wsum = 0;
+        for (let t = -3; t <= 3; t++) {
+          if (!t) continue;
+          const wt = 1 / Math.abs(t);
+          acc += sampleBilinear(cur, w, h, x + dx * t, y + dy * t) * wt; wsum += wt;
+        }
+        const k = 0.65 * (0.35 + 0.65 * coh[i]);
+        next[i] = cur[i] * (1 - k) + (acc / wsum) * k;
+      }
+      cur.set(next);
+    }
+    out = cur;
+  }
+
+  /* Copy real texture in where the surroundings have any, on top of the
+     smooth structural fill above. */
+  if (iters) out = exemplarFill(out, mask, w, h, 0.004);
+
+  /* Write the fill back. The boost means anything the detector was reasonably
+     sure about is replaced outright; only the faint outer fringe is mixed, so
+     there is no visible rim of surviving damage. */
+  const res = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const b = Math.min(1, mask[i] * 1.8);
+    res[i] = plane[i] + (out[i] - plane[i]) * b;
+  }
+  return res;
+}
+
+/* ── iterative back-projection ───────────────────────────────────────────
+   The upscaled image must, when pushed back through the camera's downscale,
+   reproduce the pixels we actually measured. Where it doesn't, the error is
+   fed back. This is the classical super-resolution workhorse and it recovers
+   real acutance that interpolation alone can only fake. */
+function backProject(hr, hw, hh, lr, lw, lh, iters, lambda, sigma) {
+  const n = hw * hh, tmp = new Float32Array(n), blur = new Float32Array(n);
+  const corr = new Float32Array(n), err = new Float32Array(lw * lh);
+  for (let it = 0; it < iters; it++) {
+    let s = hr;
+    if (sigma > 0.05) { gauss(hr, blur, hw, hh, sigma, tmp); s = blur; }
+    const sim = decimate(s, hw, hh, lw, lh);
+    let mag = 0;
+    for (let i = 0; i < err.length; i++) { err[i] = lr[i] - sim[i]; mag += Math.abs(err[i]); }
+    if (mag / err.length < 1e-5) break;
+    upBox(err, lw, lh, hw, hh, corr);
+    if (sigma > 0.05) gauss(corr, corr, hw, hh, sigma, tmp);   // the adjoint blur
+    for (let i = 0; i < n; i++) {
+      let c = lambda * corr[i];
+      if (c > 0.06) c = 0.06; else if (c < -0.06) c = -0.06;
+      hr[i] += c;
+    }
+  }
+  return hr;
+}
+
+/* ── stabilised shock filter (Alvarez–Mazorra) ───────────────────────────
+   u_t = -sign(u_nn) * |grad u|, with the sign read off a Gaussian-smoothed
+   copy so noise can't drive it. Turns the soft edges of a scan back into
+   edges. Gated on gradient magnitude so flat skin and sky stay untouched. */
+function shock(u, w, h, iters, dt, sigma, gate) {
+  const n = w * h, tmp = new Float32Array(n), s = new Float32Array(n);
+  for (let it = 0; it < iters; it++) {
+    gauss(u, s, w, h, sigma, tmp);
+    const next = Float32Array.from(u);
+    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+      const i = y * w + x;
+      const ux = (s[i + 1] - s[i - 1]) * 0.5, uy = (s[i + w] - s[i - w]) * 0.5;
+      const g2 = ux * ux + uy * uy;
+      if (g2 < gate * gate) continue;
+      const uxx = s[i + 1] - 2 * s[i] + s[i - 1];
+      const uyy = s[i + w] - 2 * s[i] + s[i - w];
+      const uxy = (s[i + w + 1] - s[i + w - 1] - s[i - w + 1] + s[i - w - 1]) * 0.25;
+      const unn = (ux * ux * uxx + 2 * ux * uy * uxy + uy * uy * uyy) / (g2 + 1e-12);
+      const rx = (u[i + 1] - u[i - 1]) * 0.5, ry = (u[i + w] - u[i - w]) * 0.5;
+      const grad = Math.sqrt(rx * rx + ry * ry);
+      next[i] = u[i] - dt * Math.tanh(unn * 900) * grad;
+    }
+    u.set(next);
+  }
+  return u;
+}
+
+/* ── halo-clamped unsharp mask ───────────────────────────────────────────
+   Plain unsharp on an old photo produces the white outline that screams
+   "over-processed". Clamping the result to the local min/max plus a small
+   slack keeps the acutance and drops the halo. */
+function unsharp(u, w, h, amount, sigma) {
+  if (amount <= 0) return u;
+  const n = w * h, tmp = new Float32Array(n);
+  const lo = new Float32Array(n), hi = new Float32Array(n), b = new Float32Array(n);
+  gauss(u, b, w, h, sigma, tmp);
+  sqMorph(u, lo, w, h, 3, false); sqMorph(u, hi, w, h, 3, true);
+  for (let i = 0; i < n; i++) {
+    const v = u[i] + amount * (u[i] - b[i]);
+    const slack = 0.12 * (hi[i] - lo[i]) + 0.004;
+    const mn = lo[i] - slack, mx = hi[i] + slack;
+    u[i] = v < mn ? mn : v > mx ? mx : v;
+  }
+  return u;
+}
+
+/* ── CLAHE on luminance — contrast-limited, tile-interpolated ─────────── */
+function clahe(u, w, h, strength, tiles, clip) {
+  if (strength <= 0) return u;
+  const tx = Math.max(1, Math.min(tiles, Math.floor(w / 32))) || 1;
+  const ty = Math.max(1, Math.min(tiles, Math.floor(h / 32))) || 1;
+  const BINS = 64, maps = new Float32Array(tx * ty * BINS);
+  const hist = new Float32Array(BINS);
+  for (let j = 0; j < ty; j++) for (let i = 0; i < tx; i++) {
+    const x0 = Math.floor(i * w / tx), x1 = Math.floor((i + 1) * w / tx);
+    const y0 = Math.floor(j * h / ty), y1 = Math.floor((j + 1) * h / ty);
+    hist.fill(0);
+    let cnt = 0;
+    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+      let v = u[y * w + x]; v = v < 0 ? 0 : v > 1 ? 1 : v;
+      hist[Math.min(BINS - 1, (Math.sqrt(v) * BINS) | 0)]++; cnt++;
+    }
+    if (!cnt) continue;
+    const limit = Math.max(1, clip * cnt / BINS);
+    let excess = 0;
+    for (let b = 0; b < BINS; b++) if (hist[b] > limit) { excess += hist[b] - limit; hist[b] = limit; }
+    const share = excess / BINS;
+    let acc = 0;
+    const base = (j * tx + i) * BINS;
+    for (let b = 0; b < BINS; b++) { acc += hist[b] + share; maps[base + b] = acc / cnt; }
+  }
+  const out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const fy = Math.min(ty - 1, Math.max(0, y * ty / h - 0.5));
+    const j0 = fy | 0, j1 = Math.min(ty - 1, j0 + 1), wy = fy - j0;
+    for (let x = 0; x < w; x++) {
+      const fx = Math.min(tx - 1, Math.max(0, x * tx / w - 0.5));
+      const i0 = fx | 0, i1 = Math.min(tx - 1, i0 + 1), wx = fx - i0;
+      let v = u[y * w + x]; v = v < 0 ? 0 : v > 1 ? 1 : v;
+      const sv = Math.sqrt(v), fb = sv * (BINS - 1), b0 = fb | 0, b1 = Math.min(BINS - 1, b0 + 1), wb = fb - b0;
+      const at = (ti, tj) => {
+        const base = (tj * tx + ti) * BINS;
+        return maps[base + b0] + (maps[base + b1] - maps[base + b0]) * wb;
+      };
+      const m = (at(i0, j0) * (1 - wx) + at(i1, j0) * wx) * (1 - wy)
+              + (at(i0, j1) * (1 - wx) + at(i1, j1) * wx) * wy;
+      const eq = m * m;                                   // undo the sqrt domain
+      out[y * w + x] = v + (eq - v) * strength;
+    }
+  }
+  u.set(out); return u;
+}
+
+/* ── tone: fade and cast recovery ────────────────────────────────────────
+   An old print loses contrast two ways: the dyes fade (the white point comes
+   down) and decades of veiling flare lift the blacks. Both are affine in
+   LINEAR light, which is why the black-point subtraction belongs here and not
+   in gamma space. Per-channel endpoints also remove the colour cast for free
+   — the yellowing IS the blue channel's white point having collapsed.       */
+function channelEndpoints(hist, total, pLo, pHi) {
+  let cum = 0, lo = 0, hi = 255;
+  const nLo = total * pLo, nHi = total * pHi;   // tails, counted from each end
+  for (let i = 0; i < 256; i++) { cum += hist[i]; if (cum >= nLo) { lo = i; break; } }
+  cum = 0;
+  for (let i = 255; i >= 0; i--) { cum += hist[i]; if (cum >= nHi) { hi = i; break; } }
+  if (hi <= lo) { lo = 0; hi = 255; }
+  return [lo, hi];
+}
+function analyze(img) {
+  const { width: w, height: h, data } = img, n = w * h;
+  const Y = new Float32Array(n);
+  for (let i = 0, p = 0; i < n; i++, p += 4)
+    Y[i] = KR * S2L[data[p]] + KG * S2L[data[p + 1]] + KB * S2L[data[p + 2]];
+  const sigma = estimateNoise(Y, w, h);
+
+  /* Dust must not vote on the tone curve. A 400-speck print has ~2.5% of its
+     pixels pinned at pure black or pure white, which is enough to convince a
+     naive percentile that the image already uses its full range — so the fade
+     goes uncorrected. Open-then-close removes specks of either polarity; every
+     pixel that survives unchanged is a pixel we trust to describe the tone. */
+  const a = new Float32Array(n), d = new Float32Array(n);
+  sqMorph(Y, a, w, h, 3, false); sqMorph(a, d, w, h, 3, true);      // opening
+  sqMorph(d, a, w, h, 3, true);  sqMorph(a, d, w, h, 3, false);     // closing
+  const tol = Math.max(0.012, sigma * 8);
+  /* Read sharpness off a harder-despeckled plane: a speck is a perfect step
+     edge, and a few hundred of them make the softest scan look razor sharp.
+     A 3-wide element leaves 3x3 blobs standing, so this one is 5 wide. */
+  const ds = new Float32Array(n);
+  sqMorph(Y, a, w, h, 5, false); sqMorph(a, ds, w, h, 5, true);
+  sqMorph(ds, a, w, h, 5, true); sqMorph(a, ds, w, h, 5, false);
+  const softness = estimateSoftness(ds, w, h);
+
+  const hr = new Float32Array(256), hg = new Float32Array(256), hb = new Float32Array(256);
+  const hl = new Float32Array(256);
+  let chroma = 0, cbm = 0, crm = 0, trusted = 0;
+  for (let i = 0, p = 0; i < n; i++, p += 4) {
+    const R = data[p], G = data[p + 1], B = data[p + 2];
+    const L = (KR * R + KG * G + KB * B) | 0;
+    const cb = B - L, cr = R - L;
+    chroma += Math.abs(cb) + Math.abs(cr); cbm += cb; crm += cr;
+    if (Math.abs(Y[i] - d[i]) > tol) continue;                       // a speck
+    hr[R]++; hg[G]++; hb[B]++;
+    hl[L < 0 ? 0 : L > 255 ? 255 : L]++;
+    trusted++;
+  }
+  chroma /= n; cbm /= n; crm /= n;
+  if (trusted < n * 0.2) {          // pathological: trust everything instead
+    hr.fill(0); hg.fill(0); hb.fill(0); hl.fill(0); trusted = n;
+    for (let i = 0, p = 0; i < n; i++, p += 4) {
+      const R = data[p], G = data[p + 1], B = data[p + 2];
+      hr[R]++; hg[G]++; hb[B]++;
+      const L = (KR * R + KG * G + KB * B) | 0;
+      hl[L < 0 ? 0 : L > 255 ? 255 : L]++;
+    }
+  }
+  const [llo, lhi] = channelEndpoints(hl, trusted, 0.004, 0.004);
+  const range = (lhi - llo) / 255;
+  let ge = 0;
+  for (let y = 1; y < h - 1; y += 2) for (let x = 1; x < w - 1; x += 2) {
+    const i = y * w + x;
+    const gx = Y[i + 1] - Y[i - 1], gy = Y[i + w] - Y[i - w];
+    ge += Math.sqrt(gx * gx + gy * gy);
+  }
+  ge /= Math.max(1, ((h - 2) >> 1) * ((w - 2) >> 1));
+  return {
+    width: w, height: h, pixels: n, noise: sigma, softness, range, gradient: ge,
+    chroma, castCb: cbm, castCr: crm, trustedFraction: trusted / n,
+    monochrome: chroma < 12,
+    toned: chroma < 12 && (Math.abs(cbm) > 3 || Math.abs(crm) > 3),
+    endpoints: {
+      l: [llo, lhi],
+      r: channelEndpoints(hr, trusted, 0.004, 0.004),
+      g: channelEndpoints(hg, trusted, 0.004, 0.004),
+      b: channelEndpoints(hb, trusted, 0.004, 0.004),
+    },
+  };
+}
+/* ── auto settings ───────────────────────────────────────────────────────
+   The whole point of the app is that the user drops a photo and gets it back
+   fixed. Every number below is derived from what was actually measured in the
+   scan, so the defaults are not defaults at all — they are a reading of this
+   particular photograph. Thresholds are calibrated against the estimators in
+   this file (clean scan ~0.0003 noise, a rough one ~0.02; softness 0 crisp,
+   1 mush), not guessed.                                                     */
+function autoSettings(st) {
+  const mp = st.pixels / 1e6;
+  const noiseAmt = Math.max(0, Math.min(1, (st.noise - 0.0006) / 0.012));
+  const faded = Math.max(0, Math.min(1, (0.88 - st.range) / 0.45));
+  return {
+    /* Deliberately short of the maximum. Auto-levels stretches the measured
+       endpoints to pure black and pure white, which is only correct if the
+       photograph originally used the whole range — many never did. Landing at
+       three-quarters recovers the fade convincingly and leaves the highlights
+       somewhere to go; the slider still reaches 100% by hand. */
+    fade: 0.3 + 0.45 * faded,
+    tone: st.toned ? 'keep' : 'neutral',
+    repair: 0.55,
+    damageScale: 1,
+    denoise: 0.18 + 0.72 * noiseAmt,
+    /* Small scans have the most to gain and cost the least to enlarge; a big
+       modern scan is already past the point where upscaling adds anything. */
+    scale: mp < 0.8 ? 4 : mp < 2.5 ? 3 : mp < 6 ? 2 : 1,
+    sharpen: 0.3 + 0.55 * st.softness,
+    /* Local contrast compounds with the fade stretch above, so it stays
+       modest — CLAHE on an already-restretched image is what makes a
+       restoration look processed rather than restored. */
+    contrast: 0.12 + 0.18 * faded,
+    grain: 0.1,
+  };
+}
+
+const DEFAULTS = {
+  fade: 0.6, tone: 'neutral', repair: 0.55, damageScale: 1, denoise: 0.35,
+  scale: 2, sharpen: 0.6, contrast: 0.25, grain: 0.1,
+  maxPixels: 30e6, backProject: 6,
+};
+
+/* Deterministic PRNG — reproducible grain keeps the test suite meaningful. */
+function rng(seed) {
+  let s = seed >>> 0 || 1;
+  return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+}
+
+/* ── the pipeline ────────────────────────────────────────────────────────
+   A generator: it yields {stage, p} between steps so the browser can paint a
+   progress bar and stay responsive, while node drains it in a tight loop.   */
+function* restore(img, options, stats) {
+  const o = Object.assign({}, DEFAULTS, options || {});
+  const w = img.width, h = img.height, n = w * h, data = img.data;
+  const st = stats || analyze(img);
+
+  yield { stage: 'Reading pixels', p: 0.02 };
+  const r = new Float32Array(n), g = new Float32Array(n), b = new Float32Array(n);
+  let alpha = null;
+  for (let i = 0, p = 0; i < n; i++, p += 4) {
+    r[i] = S2L[data[p]]; g[i] = S2L[data[p + 1]]; b[i] = S2L[data[p + 2]];
+    if (data[p + 3] !== 255) { if (!alpha) { alpha = new Uint8ClampedArray(n).fill(255); }
+      alpha[i] = data[p + 3]; }
+  }
+
+  /* 1. fade + cast */
+  if (o.fade > 0) {
+    yield { stage: 'Recovering faded tone', p: 0.08 };
+    const ep = st.endpoints;
+    const pick = o.tone === 'keep' ? [ep.l, ep.l, ep.l] : [ep.r, ep.g, ep.b];
+    const planes = [r, g, b];
+    /* Fading damages a print in two separable ways, and they want different
+       treatment.
+
+       The BLACK POINT rises because decades of veiling flare add light to the
+       shadows. That is purely additive, it is per-channel, and it is the real
+       source of the yellow cast — so it is removed in full.
+
+       The GAIN falls because the dyes fade. Stretching each channel back to a
+       full 0-255 on its own assumes the photograph originally used the entire
+       range, and most do not: a misty morning, a grey wall, a low-contrast
+       portrait. When blue happens to be the most compressed channel, an
+       unbounded per-channel gain multiplies its contrast half again more than
+       red's and manufactures a lurid blue sky out of a grey one. So the gain
+       is anchored to luminance and each channel may deviate only so far —
+       enough to lift a sepia cast, not enough to invent colour. */
+    const loLum = S2L[ep.l[0]], hiLum = S2L[ep.l[1]];
+    const gLum = hiLum - loLum > 1e-4 ? 1 / (hiLum - loLum) : 1;
+    const LIM = 1.22;
+    for (let c = 0; c < 3; c++) {
+      const loL = S2L[pick[c][0]], hiL = S2L[pick[c][1]];
+      const d = hiL - loL;
+      if (d < 1e-4) continue;
+      let ratio = (1 / d) / gLum;
+      if (ratio > LIM) ratio = LIM; else if (ratio < 1 / LIM) ratio = 1 / LIM;
+      const pl = planes[c], k = gLum * ratio, f = o.fade;
+      for (let i = 0; i < n; i++) {
+        const v = (pl[i] - loL) * k;
+        pl[i] = pl[i] + ((v < 0 ? 0 : v > 1 ? 1 : v) - pl[i]) * f;
+      }
+    }
+  }
+  if (o.tone === 'mono') for (let i = 0; i < n; i++) r[i] = g[i] = b[i] = KR * r[i] + KG * g[i] + KB * b[i];
+
+  const Y = new Float32Array(n), Cb = new Float32Array(n), Cr = new Float32Array(n);
+  rgbToYcc(r, g, b, Y, Cb, Cr, n);
+
+  /* 2. damage */
+  let mask = null, fraction = 0;
+  if (o.repair > 0) {
+    yield { stage: 'Finding damage', p: 0.16 };
+    const sigma = Math.max(st.noise, 8e-4);
+    const det = detectDefects(Y, w, h, {
+      len: [5, 7, 9, 13][Math.max(0, Math.min(3, o.damageScale))],
+      speck: 1, scratch: 0.85,
+      k: 7.5 - 4.5 * o.repair,                 // stronger repair = lower bar
+      /* Headroom before the area brake engages. Calibrated by sweep: real
+         edges consume budget alongside blemishes, and a cap that binds at the
+         default setting silently drops the faintest specks. Recall is worth
+         more than precision here — a speck left behind is glaring, a lightly
+         softened patch is not. */
+      maxFrac: 0.03 + 0.13 * o.repair,
+      sigma,
+    });
+    mask = det.mask; fraction = det.fraction;
+    if (o.repair < 1) for (let i = 0; i < n; i++) mask[i] *= o.repair < 0.5 ? o.repair * 2 : 1;
+    yield { stage: 'Repairing damage', p: 0.26 };
+    const Yf = inpaint(Y, mask, w, h, null, 4);
+    Y.set(Yf);
+    if (!st.monochrome) {
+      Cb.set(inpaint(Cb, mask, w, h, Y, 0));
+      Cr.set(inpaint(Cr, mask, w, h, Y, 0));
+    }
+    /* put the film's own grain back into the repaired area, or the patch
+       reads as a plastic smear next to real emulsion */
+    const rand = rng(1234567);
+    const amp = Math.max(st.noise, 6e-4) * 2.2;
+    for (let i = 0; i < n; i++) if (mask[i] > 0.05) Y[i] += (rand() - 0.5) * amp * mask[i];
+  }
+
+  /* 3. denoise — chroma hard, luma soft */
+  if (o.denoise > 0) {
+    yield { stage: 'Cleaning grain', p: 0.36 };
+    const epsY = Math.pow(Math.max(st.noise, 5e-4) * (1 + 3 * o.denoise), 2) * 12;
+    const Yd = guidedFilter(Y, Y, w, h, 2, epsY);
+    for (let i = 0; i < n; i++) Y[i] += (Yd[i] - Y[i]) * (0.35 + 0.5 * o.denoise);
+    if (!st.monochrome) {
+      const rc = Math.max(2, Math.round(3 + 4 * o.denoise));
+      const epsC = 1e-3;
+      const cb = guidedFilter(Y, Cb, w, h, rc, epsC), cr = guidedFilter(Y, Cr, w, h, rc, epsC);
+      Cb.set(cb); Cr.set(cr);
+    }
+  }
+
+  /* 4. resolution */
+  let ow = w, oh = h, scale = o.scale;
+  if (scale > 1) {
+    const want = n * scale * scale;
+    if (want > o.maxPixels) scale = Math.max(1, Math.sqrt(o.maxPixels / n));
+    ow = Math.max(1, Math.round(w * scale)); oh = Math.max(1, Math.round(h * scale));
+  }
+  let Yo = Y, Cbo = Cb, Cro = Cr;
+  if (ow !== w || oh !== h) {
+    yield { stage: 'Upscaling to ' + ow + '×' + oh, p: 0.46 };
+    Yo = resample(Y, w, h, ow, oh, 3);
+    Cbo = resample(Cb, w, h, ow, oh, 2);
+    Cro = resample(Cr, w, h, ow, oh, 2);
+    if (o.backProject > 0) {
+      yield { stage: 'Back-projecting detail', p: 0.60 };
+      /* The assumed blur must track the real one: too small and the iteration
+         does nothing, too large and it deconvolves detail that was never lost.
+         Softness is measured, then nudged by the user's detail slider. */
+      /* Calibrated against the sweep in tests/run.mjs: a plain box-downscale
+         measures ~0.5 softness and wants sigma 0.4; a genuinely soft scan
+         measures ~1.0 and wants 0.9. Overshooting here is what makes a
+         back-projected image ring, so the mapping is deliberately timid. */
+      const sig = Math.max(0.15, st.softness - 0.1) * (0.85 + 0.3 * o.sharpen);
+      backProject(Yo, ow, oh, Y, w, h, o.backProject, 0.8, Math.min(1.1, sig));
+    }
+  }
+
+  /* 5. acutance */
+  if (o.sharpen > 0) {
+    yield { stage: 'Restoring edges', p: 0.74 };
+    const iters = Math.max(1, Math.round(o.sharpen * 3));
+    shock(Yo, ow, oh, iters, 0.14 * o.sharpen + 0.06, scale > 1 ? 1.1 : 0.8,
+          Math.max(0.004, st.noise * 3));
+    unsharp(Yo, ow, oh, o.sharpen * 0.55, scale > 1 ? 1.3 : 0.9);
+  }
+  if (o.contrast > 0) {
+    yield { stage: 'Local contrast', p: 0.84 };
+    clahe(Yo, ow, oh, o.contrast * 0.8, 8, 2.2);
+  }
+  if (o.grain > 0) {
+    const rand = rng(987654321), amp = o.grain * 0.012;
+    for (let i = 0; i < Yo.length; i++) {
+      const y = Yo[i], shape = 1 - Math.abs(2 * clamp01(y) - 1) * 0.75;
+      Yo[i] = y + (rand() - 0.5) * amp * shape;
+    }
+  }
+
+  /* 6. back to bytes */
+  yield { stage: 'Writing image', p: 0.92 };
+  const on = ow * oh;
+  const ro = new Float32Array(on), go = new Float32Array(on), bo = new Float32Array(on);
+  yccToRgb(Yo, Cbo, Cro, ro, go, bo, on);
+  const out = new Uint8ClampedArray(on * 4);
+  for (let i = 0, p = 0; i < on; i++, p += 4) {
+    out[p] = linearToByte(ro[i]); out[p + 1] = linearToByte(go[i]); out[p + 2] = linearToByte(bo[i]);
+    out[p + 3] = 255;
+  }
+  if (alpha) {
+    const au = ow === w ? alpha : null;
+    for (let i = 0, p = 3; i < on; i++, p += 4) {
+      if (au) out[p] = au[i];
+      else {
+        const x = Math.min(w - 1, Math.floor((i % ow) * w / ow));
+        const y = Math.min(h - 1, Math.floor(Math.floor(i / ow) * h / oh));
+        out[p] = alpha[y * w + x];
+      }
+    }
+  }
+  yield { stage: 'Done', p: 1 };
+  return {
+    width: ow, height: oh, data: out, mask, maskWidth: w, maskHeight: h,
+    damageFraction: fraction, scale: ow / w, stats: st,
+  };
+}
+/* Drive the generator to completion (node, or a browser that does not care
+   about staying responsive). */
+function restoreSync(img, options, stats) {
+  const it = restore(img, options, stats);
+  let r = it.next();
+  while (!r.done) r = it.next();
+  return r.value;
+}
+
+function psnr(a, b) {
+  let se = 0, n = Math.min(a.length, b.length), cnt = 0;
+  for (let i = 0; i < n; i++) { if ((i & 3) === 3) continue; const d = a[i] - b[i]; se += d * d; cnt++; }
+  const mse = se / cnt;
+  return mse === 0 ? Infinity : 10 * Math.log10(255 * 255 / mse);
+}
+
+return {
+  VERSION, analyze, autoSettings, restore, restoreSync, psnr, DEFAULTS,
+  _internal: {
+    boxBlur, gauss, gaussKernel, win1d, lineMorph, sqMorph, resample, decimate, upBilinear,
+    guidedFilter, estimateNoise, estimateSoftness, upBox, detectDefects, exemplarFill, pushPull, inpaint, orientation,
+    backProject, shock, unsharp, clahe, S2L, linearToByte, rgbToYcc, yccToRgb, rng,
+  },
+};
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports = ReviveEngine;
+/*REVIVE-ENGINE-END*/
+
+/* ============================================================================
+   THE APP — drop a photo, it decides everything itself, original on top and
+   restored underneath, one button to download. The controls exist, but the
+   default path asks the user for nothing.
+   ========================================================================== */
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const body = document.body;
+
+/* ── theme ── */
+const root = document.documentElement;
+try { if (localStorage.getItem('revive-theme') === 'light') root.classList.add('theme-light'); } catch (e) {}
+$('themeToggle').onclick = () => {
+  root.classList.toggle('theme-light');
+  try { localStorage.setItem('revive-theme', root.classList.contains('theme-light') ? 'light' : 'dark'); } catch (e) {}
+};
+
+/* ── state ── */
+let srcImage = null;      // ImageData of the original
+let srcName = 'photo';
+let stats = null;         // ReviveEngine.analyze result
+let opts = null;          // current settings
+let result = null;        // ReviveEngine.restore result
+let busy = false;
+
+const setState = s => { body.dataset.state = s; };
+const fmt = n => n.toLocaleString('en-US');
+
+/* ── input: click, drag, paste ── */
+const drop = $('drop'), fileInput = $('file');
+drop.onclick = () => fileInput.click();
+drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } };
+fileInput.onchange = () => { if (fileInput.files[0]) load(fileInput.files[0]); };
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => {
+  e.preventDefault(); drop.classList.add('drag');
+}));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => {
+  e.preventDefault(); drop.classList.remove('drag');
+}));
+drop.addEventListener('drop', e => {
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) load(f);
+});
+window.addEventListener('dragover', e => e.preventDefault());
+window.addEventListener('drop', e => e.preventDefault());
+window.addEventListener('paste', e => {
+  if (busy) return;
+  const items = e.clipboardData && e.clipboardData.items;
+  if (!items) return;
+  for (const it of items) if (it.type.startsWith('image/')) { load(it.getAsFile()); break; }
+});
+
+function fail(msg) { $('errText').textContent = msg; setState('error'); busy = false; }
+$('errBack').onclick = () => setState('idle');
+$('again').onclick = () => { srcImage = null; result = null; setState('idle'); };
+
+/* ── decode ── */
+async function load(file) {
+  if (busy) return;
+  if (!file.type.startsWith('image/') && !/\.(jpe?g|png|webp|heic|heif|avif|bmp|gif)$/i.test(file.name || ''))
+    return fail('That file does not look like an image.');
+  srcName = (file.name || 'photo').replace(/\.[^.]+$/, '');
+  try {
+    /* imageOrientation:'from-image' honours the EXIF rotation a scanner or
+       phone wrote, so a portrait scan does not come back on its side. */
+    let bmp;
+    try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
+    catch (e) { bmp = await createImageBitmap(file); }
+    const c = document.createElement('canvas');
+    c.width = bmp.width; c.height = bmp.height;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bmp, 0, 0);
+    bmp.close && bmp.close();
+    srcImage = ctx.getImageData(0, 0, c.width, c.height);
+  } catch (e) {
+    return fail('Could not read that image. ' + (e && e.message ? e.message : ''));
+  }
+  if (!srcImage.width || !srcImage.height) return fail('That image is empty.');
+  stats = ReviveEngine.analyze(srcImage);
+  opts = ReviveEngine.autoSettings(stats);
+  syncControls();
+  run();
+}
+
+/* ── run the pipeline, yielding to the browser between stages ── */
+async function run() {
+  busy = true;
+  setState('working');
+  // a small preview so there is something to look at while it works
+  const t = $('workThumb'), tw = 150, th = Math.max(1, Math.round(srcImage.height * tw / srcImage.width));
+  t.width = tw; t.height = th;
+  const tmp = document.createElement('canvas');
+  tmp.width = srcImage.width; tmp.height = srcImage.height;
+  tmp.getContext('2d').putImageData(srcImage, 0, 0);
+  t.getContext('2d').drawImage(tmp, 0, 0, tw, th);
+
+  $('barFill').style.width = '0%';
+  $('stageText').textContent = 'Looking at the photograph…';
+  const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+  await frame();
+
+  try {
+    const it = ReviveEngine.restore(srcImage, opts, stats);
+    let step = it.next();
+    while (!step.done) {
+      const v = step.value;
+      $('barFill').style.width = Math.round(v.p * 100) + '%';
+      $('stageText').textContent = v.stage + '…';
+      await frame();                       // let the browser paint before the
+      step = it.next();                    // next (blocking) stage runs
+    }
+    result = step.value;
+  } catch (e) {
+    return fail('Restoration failed: ' + (e && e.message ? e.message : e));
+  }
+  present();
+  busy = false;
+}
+
+/* ── show it: original on top, restored below ── */
+function paint(canvas, img) {
+  canvas.width = img.width; canvas.height = img.height;
+  canvas.getContext('2d').putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
+}
+function present() {
+  paint($('canvasBefore'), srcImage);
+  paint($('canvasAfter'), result);
+  $('dimsBefore').textContent = fmt(srcImage.width) + ' × ' + fmt(srcImage.height);
+  $('dimsAfter').textContent = fmt(result.width) + ' × ' + fmt(result.height)
+    + (result.scale > 1.01 ? '   (' + (Math.round(result.scale * 10) / 10) + '×)' : '');
+
+  const chips = [];
+  const pct = result.damageFraction * 100;
+  if (opts.repair > 0) chips.push(['hi', 'Blemishes repaired', pct < 0.05 ? 'almost none found' : pct.toFixed(1) + '% of the frame']);
+  if (result.scale > 1.01) chips.push(['hi', 'Resolution', (Math.round(result.scale * 10) / 10) + '× — ' + (result.width * result.height / 1e6).toFixed(1) + ' MP']);
+  if (opts.fade > 0.02) chips.push(['', 'Fade recovered', Math.round(opts.fade * 100) + '%']);
+  if (stats.toned) chips.push(['', 'Toned print', opts.tone === 'keep' ? 'tone kept' : 'neutralised']);
+  chips.push(['', 'Scan quality', stats.softness > 0.65 ? 'soft' : stats.softness > 0.35 ? 'normal' : 'crisp']);
+  $('summary').innerHTML = chips.map(([cls, k, v]) =>
+    '<span class="chip ' + cls + '">' + k + ' <b>' + v + '</b></span>').join('');
+
+  maskOn = false; $('showMask').setAttribute('aria-pressed', 'false');
+  $('showMask').textContent = 'Show what it repaired';
+  setState('done');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── 1:1 zoom, scroll-synced so the same place is under both panels ── */
+let zoom = false;
+const vB = $('viewBefore'), vA = $('viewAfter');
+$('zoomBtn').onclick = () => {
+  zoom = !zoom;
+  body.classList.toggle('zoom1', zoom);
+  $('zoomBtn').setAttribute('aria-pressed', String(zoom));
+  $('zoomBtn').textContent = zoom ? 'Fit to width' : 'Zoom 1:1';
+};
+let syncing = false;
+const link = (from, to) => from.addEventListener('scroll', () => {
+  if (!zoom || syncing) return;
+  syncing = true;
+  const fx = from.scrollWidth - from.clientWidth, tx = to.scrollWidth - to.clientWidth;
+  const fy = from.scrollHeight - from.clientHeight, ty = to.scrollHeight - to.clientHeight;
+  if (fx > 0) to.scrollLeft = from.scrollLeft / fx * tx;
+  if (fy > 0) to.scrollTop = from.scrollTop / fy * ty;
+  requestAnimationFrame(() => { syncing = false; });
+});
+link(vB, vA); link(vA, vB);
+
+/* ── damage mask overlay: show the user exactly what was touched ── */
+let maskOn = false;
+$('showMask').onclick = () => {
+  if (!result || !result.mask) return;
+  maskOn = !maskOn;
+  $('showMask').setAttribute('aria-pressed', String(maskOn));
+  $('showMask').textContent = maskOn ? 'Hide repairs' : 'Show what it repaired';
+  if (!maskOn) { paint($('canvasBefore'), srcImage); return; }
+  /* Painted over the ORIGINAL, because that is where the damage is. */
+  const c = $('canvasBefore'), ctx = c.getContext('2d');
+  const im = ctx.getImageData(0, 0, c.width, c.height), d = im.data;
+  const mw = result.maskWidth, mh = result.maskHeight, m = result.mask;
+  for (let y = 0; y < c.height; y++) {
+    const my = Math.min(mh - 1, Math.floor(y * mh / c.height));
+    for (let x = 0; x < c.width; x++) {
+      const v = m[my * mw + Math.min(mw - 1, Math.floor(x * mw / c.width))];
+      if (v <= 0.02) continue;
+      const p = (y * c.width + x) * 4, a = Math.min(1, v) * 0.75;
+      d[p] = d[p] * (1 - a) + 244 * a;
+      d[p + 1] = d[p + 1] * (1 - a) + 114 * a;
+      d[p + 2] = d[p + 2] * (1 - a) + 182 * a;
+    }
+  }
+  ctx.putImageData(im, 0, 0);
+};
+
+/* ── download ── */
+$('download').onclick = () => {
+  if (!result) return;
+  const c = document.createElement('canvas');
+  c.width = result.width; c.height = result.height;
+  c.getContext('2d').putImageData(new ImageData(result.data, result.width, result.height), 0, 0);
+  c.toBlob(b => {
+    if (!b) return fail('Could not encode the image for download.');
+    const url = URL.createObjectURL(b);
+    const a = document.createElement('a');
+    a.href = url; a.download = srcName + '-restored.png';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+  }, 'image/png');
+};
+
+/* ── advanced controls ── */
+const SLIDERS = [['cRepair', 'vRepair', 'repair'], ['cFade', 'vFade', 'fade'],
+                 ['cDenoise', 'vDenoise', 'denoise'], ['cSharpen', 'vSharpen', 'sharpen']];
+const SEGS = [['segScale', 'vScale', 'damageScale', ['Fine', 'Normal', 'Coarse', 'Heavy'], true],
+              ['segTone', 'vTone', 'tone', { neutral: 'Neutralise', keep: 'Keep tone', mono: 'Black & white' }, false],
+              ['segSize', 'vSize', 'scale', null, true]];
+function syncControls() {
+  for (const [c, v, key] of SLIDERS) {
+    $(c).value = opts[key];
+    $(v).textContent = Math.round(opts[key] * 100) + '%';
+  }
+  for (const [seg, v, key, labels, num] of SEGS) {
+    const cur = String(opts[key]);
+    for (const b of $(seg).children) b.setAttribute('aria-pressed', String(b.dataset.v === cur));
+    $(v).textContent = labels ? (num ? labels[opts[key]] : labels[opts[key]]) : opts[key] + '×';
+  }
+}
+for (const [c, v, key] of SLIDERS) $(c).addEventListener('input', () => {
+  opts[key] = parseFloat($(c).value);
+  $(v).textContent = Math.round(opts[key] * 100) + '%';
+});
+for (const [seg, v, key, labels, num] of SEGS) $(seg).addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  opts[key] = num ? parseInt(b.dataset.v, 10) : b.dataset.v;
+  syncControls();
+});
+$('redo').onclick = () => { if (!busy && srcImage) run(); };
+
+/* Restore the demo state if the page is reloaded mid-flow. */
+setState('idle');
+})();
+</script>
+</body>
+</html>
