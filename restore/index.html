@@ -132,6 +132,10 @@ details.adv summary:hover{color:var(--text)}
   background:none;color:var(--soft);font-family:inherit;font-size:.82em;cursor:pointer}
 .seg button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);background:var(--panel-2);font-weight:700}
 
+.btn.colour{background:linear-gradient(90deg,var(--violet),var(--pink));color:#fff}
+.btn.colour:hover{filter:brightness(1.08)}
+.btn.colour:disabled{filter:none}
+.hint{color:var(--faint);font-size:.78em;text-align:center;margin-top:-2px}
 .err{border:1px solid var(--danger);border-radius:16px;background:var(--panel);padding:22px;text-align:center}
 .err h2{color:var(--danger);font-size:1em;margin-bottom:6px}
 .err p{color:var(--soft);font-size:.9em;word-break:break-word}
@@ -191,6 +195,8 @@ footer a{color:var(--soft)}
 
   <div class="actions">
     <button class="btn" id="download">↓  Download restored photo</button>
+    <button class="btn colour" id="colourBtn">◐  Colourise</button>
+    <div id="colourNote" class="hint">One-time 43 MB download, then it runs on your device like everything else.</div>
     <div class="row">
       <button class="btn ghost" id="zoomBtn" aria-pressed="false">Zoom 1:1</button>
       <button class="btn ghost" id="again">Restore another</button>
@@ -241,6 +247,11 @@ footer a{color:var(--soft)}
           <button data-v="3">3×</button><button data-v="4">4×</button>
         </div>
       </div>
+      <div class="ctl" id="satCtl" hidden>
+        <label for="cSat">Colour strength</label><span class="val" id="vSat"></span>
+        <input type="range" id="cSat" min="0" max="1.6" step="0.05" value="1">
+        <div class="note">Scales chroma only — the restored detail underneath never changes.</div>
+      </div>
       <div class="row" style="margin-top:16px">
         <button class="btn ghost" id="showMask" aria-pressed="false">Show what it repaired</button>
         <button class="btn ghost" id="redo">Apply</button>
@@ -259,8 +270,10 @@ footer a{color:var(--soft)}
 </section>
 
 <footer>
-  Runs entirely offline, in this tab. Nothing is uploaded, stored or sent anywhere.<br>
-  No AI model — classical image restoration, written from scratch.
+  Runs in this tab, on your device. Your photograph is never uploaded.<br>
+  Repair, tone and resolution are classical image restoration, written from scratch.<br>
+  Colour is predicted by <a href="https://github.com/richzhang/colorization" rel="noopener">Zhang, Isola &amp; Efros (SIGGRAPH 2017)</a>,
+  BSD-2-Clause, run locally — a plausible reading, not a record.
 </footer>
 </div>
 
@@ -1595,6 +1608,64 @@ return {
 if (typeof module !== 'undefined' && module.exports) module.exports = ReviveEngine;
 /*REVIVE-ENGINE-END*/
 
+/*REVIVE-COLOUR-START*/
+/* ============================================================================
+   Colour — CIELAB conversion for the colourisation stage.
+
+   The network is Zhang, Isola & Efros, "Real-Time User-Guided Image
+   Colorization with Learned Deep Priors" (SIGGRAPH 2017), BSD-2-Clause,
+   exported to ONNX and dynamically quantised to int8 (137MB -> 43MB, visually
+   indistinguishable on test images).
+
+   It predicts only the two CHROMA channels, at 256x256, from lightness alone.
+   That fits this pipeline exactly: every restoration stage already works on
+   luminance and carries chroma smoothly, so the predicted a/b are simply
+   upsampled and married to the full-resolution restored L. Nothing the
+   network does can touch the detail — it cannot smear a face, because it
+   never sees or writes luminance.
+   ========================================================================== */
+const ReviveColour = (() => {
+'use strict';
+const D = 6 / 29, D3 = D * D * D, D2_3 = 3 * D * D;
+const WX = 0.95047, WY = 1, WZ = 1.08883;
+const fwd = t => t > D3 ? Math.cbrt(t) : t / D2_3 + 4 / 29;
+const inv = t => t > D ? t * t * t : D2_3 * (t - 4 / 29);
+
+/* Lightness plane (0..100) from packed sRGB bytes. */
+function lightness(data, n, S2L) {
+  const L = new Float32Array(n);
+  for (let i = 0, p = 0; i < n; i++, p += 4) {
+    const r = S2L[data[p]], g = S2L[data[p + 1]], b = S2L[data[p + 2]];
+    const Y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
+    L[i] = 116 * fwd(Y / WY) - 16;
+  }
+  return L;
+}
+/* Full-resolution L with predicted a/b, back to sRGB bytes. */
+function toRgb(L, a, b, n, alphaSrc, linearToByte) {
+  const out = new Uint8ClampedArray(n * 4);
+  for (let i = 0, p = 0; i < n; i++, p += 4) {
+    const fy = (L[i] + 16) / 116, fx = fy + a[i] / 500, fz = fy - b[i] / 200;
+    const X = inv(fx) * WX, Y = inv(fy) * WY, Z = inv(fz) * WZ;
+    out[p]     = linearToByte( 3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z);
+    out[p + 1] = linearToByte(-0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z);
+    out[p + 2] = linearToByte( 0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z);
+    out[p + 3] = alphaSrc ? alphaSrc[p + 3] : 255;
+  }
+  return out;
+}
+/* Saturation trim in Lab: scaling a/b changes chroma without touching
+   lightness, so the restoration underneath is untouched whatever the user
+   picks on the slider. */
+function scaleChroma(a, b, k, n) {
+  if (k === 1) return;
+  for (let i = 0; i < n; i++) { a[i] *= k; b[i] *= k; }
+}
+return { lightness, toRgb, scaleChroma, SIZE: 256, MODEL: 'colorize.onnx' };
+})();
+if (typeof module !== 'undefined' && module.exports) module.exports.ReviveColour = ReviveColour;
+/*REVIVE-COLOUR-END*/
+
 /* ============================================================================
    THE APP — drop a photo, it decides everything itself, original on top and
    restored underneath, one button to download. The controls exist, but the
@@ -1737,6 +1808,13 @@ function present() {
   $('summary').innerHTML = chips.map(([cls, k, v]) =>
     '<span class="chip ' + cls + '">' + k + ' <b>' + v + '</b></span>').join('');
 
+  colourOn = false; abFull = null;
+  $('satCtl').hidden = true;
+  $('colourBtn').disabled = false;
+  $('colourBtn').textContent = '◐  Colourise';
+  $('colourBtn').onclick = colourise;
+  $('colourNote').textContent = 'One-time 43 MB download, then it runs on your device like everything else.';
+  $('download').textContent = '↓  Download restored photo';
   maskOn = false; $('showMask').setAttribute('aria-pressed', 'false');
   $('showMask').textContent = 'Show what it repaired';
   setState('done');
@@ -1795,7 +1873,8 @@ $('download').onclick = () => {
   if (!result) return;
   const c = document.createElement('canvas');
   c.width = result.width; c.height = result.height;
-  c.getContext('2d').putImageData(new ImageData(result.data, result.width, result.height), 0, 0);
+  const pixels = colourOn && result.colour ? result.colour : result.data;
+  c.getContext('2d').putImageData(new ImageData(pixels, result.width, result.height), 0, 0);
   c.toBlob(b => {
     if (!b) return fail('Could not encode the image for download.');
     const url = URL.createObjectURL(b);
@@ -1805,6 +1884,127 @@ $('download').onclick = () => {
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }, 'image/png');
 };
+
+/* ── colourisation ────────────────────────────────────────────────────────
+   Everything here is on demand. The page costs nothing until the button is
+   pressed; only then does the runtime and the 43 MB of weights come down, and
+   they are cached by the browser afterwards. The photograph still never
+   leaves the device — the model travels to it, not the other way round.     */
+const ORT_VER = '1.19.2';
+const ORT_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/' + ORT_VER + '/';
+let ortLoading = null, session = null, colourOn = false, abFull = null;
+
+function loadRuntime() {
+  if (ortLoading) return ortLoading;
+  ortLoading = new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = ORT_BASE + 'ort.min.js';
+    s.onload = () => {
+      /* Threads need cross-origin isolation, which GitHub Pages cannot send,
+         so stay single-threaded. SIMD works without it and carries the load. */
+      ort.env.wasm.wasmPaths = ORT_BASE;
+      ort.env.wasm.numThreads = 1;
+      resolve();
+    };
+    s.onerror = () => { ortLoading = null; reject(new Error('could not load the colour runtime')); };
+    document.head.appendChild(s);
+  });
+  return ortLoading;
+}
+
+async function fetchModel(onProgress) {
+  const res = await fetch(ReviveColour.MODEL);
+  if (!res.ok) throw new Error('could not fetch the colour model (' + res.status + ')');
+  const total = parseInt(res.headers.get('content-length') || '43664615', 10);
+  if (!res.body) return new Uint8Array(await res.arrayBuffer());
+  const reader = res.body.getReader(), chunks = [];
+  let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    onProgress(Math.min(1, got / total));
+  }
+  const buf = new Uint8Array(got);
+  let o = 0;
+  for (const c of chunks) { buf.set(c, o); o += c.length; }
+  return buf;
+}
+
+async function colourise() {
+  const btn = $('colourBtn');
+  btn.disabled = true;
+  const say = t => { btn.textContent = t; };
+  try {
+    say('Loading colour engine…');
+    await loadRuntime();
+    if (!session) {
+      const bytes = await fetchModel(p => say('Downloading colour model… ' + Math.round(p * 100) + '%'));
+      say('Starting colour engine…');
+      await new Promise(r => setTimeout(r, 30));
+      session = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
+    }
+    say('Colourising…');
+    await new Promise(r => setTimeout(r, 30));
+
+    const I = ReviveEngine._internal;
+    const w = result.width, h = result.height, n = w * h;
+    const L = ReviveColour.lightness(result.data, n, I.S2L);
+    const S = ReviveColour.SIZE;
+    /* The network only ever sees lightness, at 256x256. It predicts chroma;
+       it cannot touch a single pixel of the restored detail. */
+    const small = I.resample(L, w, h, S, S, 3);
+    const out = await session.run({ [session.inputNames[0]]:
+      new ort.Tensor('float32', small, [1, 1, S, S]) });
+    const ab = out[session.outputNames[0]].data;
+    const aS = new Float32Array(S * S), bS = new Float32Array(S * S);
+    aS.set(ab.subarray(0, S * S)); bS.set(ab.subarray(S * S, 2 * S * S));
+    abFull = {
+      L,
+      a: I.resample(aS, S, S, w, h, 3),
+      b: I.resample(bS, S, S, w, h, 3),
+    };
+    colourOn = true;
+    applyColour();
+    $('satCtl').hidden = false;
+    $('vSat').textContent = Math.round(parseFloat($('cSat').value) * 100) + '%';
+    $('colourNote').textContent = 'Colour is predicted, not recovered — a plausible reading, not a record.';
+  } catch (e) {
+    $('colourNote').textContent = 'Colourising failed: ' + (e && e.message ? e.message : e);
+    btn.disabled = false;
+    say('◐  Colourise');
+    return;
+  }
+  btn.disabled = false;
+  btn.textContent = '◐  Back to black & white';
+  btn.onclick = toggleColour;
+}
+
+function applyColour() {
+  const I = ReviveEngine._internal;
+  const n = result.width * result.height;
+  const k = parseFloat($('cSat').value);
+  const a = Float32Array.from(abFull.a), b = Float32Array.from(abFull.b);
+  ReviveColour.scaleChroma(a, b, k, n);
+  result.colour = ReviveColour.toRgb(abFull.L, a, b, n, result.data, I.linearToByte);
+  paint($('canvasAfter'), { width: result.width, height: result.height, data: result.colour });
+  $('download').textContent = '↓  Download colourised photo';
+}
+function toggleColour() {
+  colourOn = !colourOn;
+  const btn = $('colourBtn');
+  if (colourOn) { applyColour(); btn.textContent = '◐  Back to black & white'; }
+  else {
+    paint($('canvasAfter'), result);
+    btn.textContent = '◐  Show colour';
+    $('download').textContent = '↓  Download restored photo';
+  }
+}
+$('colourBtn').onclick = colourise;
+$('cSat').addEventListener('input', () => {
+  $('vSat').textContent = Math.round(parseFloat($('cSat').value) * 100) + '%';
+  if (colourOn && abFull) applyColour();
+});
 
 /* ── advanced controls ── */
 const SLIDERS = [['cRepair', 'vRepair', 'repair'], ['cFade', 'vFade', 'fade'],

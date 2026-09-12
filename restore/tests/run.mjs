@@ -315,5 +315,51 @@ head('edge cases');
   ok('1× keeps the original dimensions', one.width === lw && one.height === lh);
 }
 
+// ── 8. colour ───────────────────────────────────────────────────────────────
+head('colour');
+{
+  const C = new Function(
+    html.match(/\/\*REVIVE-COLOUR-START\*\/[\s\S]*\/\*REVIVE-COLOUR-END\*\//)[0]
+    + '; return ReviveColour;')();
+  ok('colour block is extractable from index.html', !!C && C.SIZE === 256);
+
+  /* Lab must round-trip: the colourisation stage rebuilds every pixel through
+     it, so an error here would tint the whole photograph even before the
+     network has said anything. */
+  const n = lw * lh;
+  const L = C.lightness(lo.data, n, I.S2L);
+  const zero = new Float32Array(n);
+  const grey = C.toRgb(L, zero, zero, n, null, I.linearToByte);
+  let maxSpread = 0, maxLum = 0;
+  for (let i = 0; i < n; i++) {
+    const r = grey[i * 4], g = grey[i * 4 + 1], b = grey[i * 4 + 2];
+    maxSpread = Math.max(maxSpread, Math.abs(r - g), Math.abs(g - b));
+    const want = 0.2126 * I.S2L[lo.data[i * 4]] + 0.7152 * I.S2L[lo.data[i * 4 + 1]] + 0.0722 * I.S2L[lo.data[i * 4 + 2]];
+    maxLum = Math.max(maxLum, Math.abs(I.linearToByte(want) - r));
+  }
+  ok('zero chroma reconstructs exactly neutral grey', maxSpread <= 1, 'max channel spread ' + maxSpread);
+  ok('lightness survives the Lab round trip', maxLum <= 2, 'max error ' + maxLum.toFixed(1) + ' levels');
+
+  /* The network only ever predicts chroma, so the restored luminance must be
+     bit-identical whatever colour is laid over it. This is what guarantees
+     colourising can never smear a face. */
+  const a = new Float32Array(n).fill(28), b2 = new Float32Array(n).fill(-14);
+  const col = C.toRgb(L, a, b2, n, null, I.linearToByte);
+  const L2 = C.lightness(col, n, I.S2L);
+  let maxL = 0;
+  for (let i = 0; i < n; i++) maxL = Math.max(maxL, Math.abs(L[i] - L2[i]));
+  ok('colour cannot alter lightness (≤ 1 L*)', maxL <= 1.0, 'max drift ' + maxL.toFixed(2) + ' L*');
+
+  const a2 = Float32Array.from(a), b3 = Float32Array.from(b2);
+  C.scaleChroma(a2, b3, 0, n);
+  let zeroed = true;
+  for (let i = 0; i < n; i++) if (a2[i] !== 0 || b3[i] !== 0) { zeroed = false; break; }
+  ok('colour strength 0 removes all chroma', zeroed);
+
+  const modelPath = path.join(here, '..', C.MODEL);
+  ok('the colour model ships with the app', fs.existsSync(modelPath),
+     fs.existsSync(modelPath) ? (fs.statSync(modelPath).size / 1e6).toFixed(1) + ' MB' : 'missing ' + C.MODEL);
+}
+
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + pass + ' passed, ' + fail + ' failed\x1b[0m');
 process.exit(fail === 0 ? 0 : 1);

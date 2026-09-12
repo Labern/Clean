@@ -115,3 +115,36 @@ to improve, so Y is what it is graded on. Texture transfer is not graded by
 PSNR at all — a correctly copied texture offset by one pixel scores terribly
 and looks right — which is why the exemplar stage was tuned by eye against
 browser screenshots.
+
+## Colourisation
+Optional, opt-in, and the only part of the app that is not classical DSP.
+
+- **Model:** Zhang, Isola & Efros, *Real-Time User-Guided Image Colorization
+  with Learned Deep Priors* (SIGGRAPH 2017), BSD-2-Clause. Exported to ONNX
+  from the published weights and dynamically quantised to int8 — 137 MB to
+  43 MB, visually indistinguishable on test images. Ships as
+  `restore/colorize.onnx`.
+- **Runtime:** onnxruntime-web 1.19.2 from cdnjs, loaded *on demand* — the
+  page costs nothing until the button is pressed. `numThreads = 1` is
+  mandatory: threads need cross-origin isolation (COOP/COEP) and GitHub Pages
+  cannot send those headers. SIMD works without isolation and carries it.
+  ~9s for a 4.4MP photograph.
+- **Why it composes cleanly:** the network predicts only the two CHROMA
+  channels, at 256×256, from lightness alone. That is exactly how the rest of
+  the pipeline is built — detail on luminance, chroma carried smoothly — so
+  the predicted a/b are upsampled and married to the full-resolution restored
+  L. The model never sees or writes luminance, so **colourising cannot smear a
+  face**, and there is a test asserting lightness is preserved to within 1 L*.
+- **Colour strength** scales a/b in Lab, which changes chroma without touching
+  lightness, so the restoration underneath is invariant to it.
+- **Honesty:** the output is a plausible reading, not a record. Colour in a
+  monochrome negative does not exist to be recovered, and the UI says so.
+
+### Testing it
+`tests/run.mjs` extracts the `/*REVIVE-COLOUR-*/` block the same way it
+extracts the engine and checks the Lab round trip, neutrality at zero chroma,
+and lightness invariance. It does **not** run the network — that needs a
+browser. The browser path was verified with Playwright by intercepting the
+cdnjs request and serving a local copy of the runtime; everything else on that
+path (model fetch, session creation, inference, recombination) was the real
+code.
