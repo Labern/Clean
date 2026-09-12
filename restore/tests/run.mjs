@@ -442,5 +442,66 @@ head('colour');
      fs.existsSync(modelPath) ? (fs.statSync(modelPath).size / 1e6).toFixed(1) + ' MB' : 'missing ' + C.MODEL);
 }
 
+// ── 9. faces ────────────────────────────────────────────────────────────────
+head('faces');
+{
+  const FB = html.match(/\/\*REVIVE-FACE-START\*\/[\s\S]*\/\*REVIVE-FACE-END\*\//);
+  ok('face block is extractable from index.html', !!FB);
+  const FC = new Function(FB[0] + '; return ReviveFace;')();
+
+  /* The geometry is the part that can silently ruin a face: a wrong transform
+     pastes a restored crop back rotated, mirrored or offset. All of it is
+     closed-form, so all of it is checkable exactly. */
+  const src = [[100, 100], [200, 110], [150, 170], [110, 220], [195, 228]];
+  const M = FC.similarity(src, FC.TPL);
+  ok('similarity transform solves', !!M);
+  let worst = 0;
+  for (let i = 0; i < src.length; i++) {
+    const [x, y] = FC.apply(M, src[i][0], src[i][1]);
+    worst = Math.max(worst, Math.hypot(x - FC.TPL[i][0], y - FC.TPL[i][1]));
+  }
+  ok('...and lands the landmarks on the template', worst < 22, 'worst residual ' + worst.toFixed(1) + 'px');
+
+  const inv = FC.invert(M);
+  let rt = 0;
+  for (const [x, y] of src) {
+    const f = FC.apply(M, x, y), b = FC.apply(inv, f[0], f[1]);
+    rt = Math.max(rt, Math.hypot(b[0] - x, b[1] - y));
+  }
+  ok('forward and inverse transforms round-trip', rt < 1e-6, rt.toExponential(1) + 'px');
+
+  /* A reflection here would paste every face back mirrored. */
+  const det = M[0] * M[4] - M[1] * M[3];
+  ok('the transform never reflects', det > 0, 'det ' + det.toFixed(4));
+
+  /* A pure translation must come back as exactly that — no scale, no rotation. */
+  const shifted = src.map(p => [p[0] + 40, p[1] - 25]);
+  const M2 = FC.similarity(src, shifted);
+  ok('a pure shift solves to a pure shift',
+     Math.abs(M2[0] - 1) < 1e-9 && Math.abs(M2[3]) < 1e-9
+     && Math.abs(M2[2] - 40) < 1e-6 && Math.abs(M2[5] + 25) < 1e-6);
+
+  const mask = FC.faceMask(512);
+  ok('the blend mask is solid at the centre and zero at the corners',
+     mask[256 * 512 + 256] > 0.99 && mask[0] === 0 && mask[511 * 512 + 511] === 0);
+  let mono = true;
+  for (let y = 276; y < 500; y++) if (mask[y * 512 + 256] > mask[(y - 1) * 512 + 256] + 1e-9) mono = false;
+  ok('...and falls off smoothly, never abruptly', mono);
+
+  ok('the detector ships with the app', fs.existsSync(path.join(here, '..', 'models', 'facedet.onnx')));
+  let parts = 0, bytes = 0;
+  for (let i = 0; i < 8; i++) {
+    const p = path.join(here, '..', 'models', 'face.onnx.part' + i);
+    if (!fs.existsSync(p)) break;
+    parts++; bytes += fs.statSync(p).size;
+  }
+  ok('the face model ships, split under the 100MB file limit', parts >= 1 && bytes > 1e8,
+     parts + ' parts, ' + (bytes / 1e6).toFixed(1) + ' MB');
+  let tooBig = 0;
+  for (let i = 0; i < parts; i++)
+    if (fs.statSync(path.join(here, '..', 'models', 'face.onnx.part' + i)).size > 99e6) tooBig++;
+  ok('...with every part under 99MB', tooBig === 0);
+}
+
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + pass + ' passed, ' + fail + ' failed\x1b[0m');
 process.exit(fail === 0 ? 0 : 1);

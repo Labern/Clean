@@ -167,3 +167,37 @@ and lightness invariance. It does **not** run the network — that needs a
 browser. The browser path was verified with Playwright against the real
 page with no network interception of any kind — model fetch, session creation,
 inference and recombination all ran as shipped.
+
+## Face restoration
+Optional, opt-in, and the only thing here that can put a face back IN FOCUS.
+Nothing classical can: the detail was never in the negative to recover, so it
+has to come from a learned prior.
+
+- **Models:** GFPGAN v1.4 (Wang et al., CVPR 2021, Apache-2.0) — a StyleGAN2
+  face prior, which is why it works on prints that are genuinely degraded
+  rather than merely soft — plus YuNet (OpenCV Zoo, Apache-2.0, 233KB) for
+  detection and landmarks. GFPGAN is int8-quantised (340MB → 158MB) and
+  **split across `models/face.onnx.partN`**, because 158MB exceeds GitHub's
+  100MB per-file limit; the parts are concatenated back in memory.
+- **Pipeline:** detect → align → restore → paste.
+  - GFPGAN accepts nothing but a 512×512 face aligned to the FFHQ five-point
+    template, so the real work is geometry. The similarity transform is
+    closed-form (the 2-D least-squares case has an exact solution, no SVD) and
+    excludes reflection by construction — a reflected solve would paste every
+    face back mirrored. There are tests for the residual, the round trip and
+    the determinant.
+  - Paste-back is blended through a feathered oval, never stamped: a hard edge
+    at the jawline looks worse than a soft face. Blend strength also scales
+    with detection confidence, so a doubtful detection barely moves anything.
+  - **Luminance only on near-neutral scans.** The model was trained on colour
+    faces and will shift skin tone; on a black-and-white print any colour it
+    invents is simply wrong.
+- **Detection coverage.** One 640 pass over a 2500px group photo shrinks a head
+  to ~35px and finds two faces out of five, so the image is tiled at close to
+  native scale with a third overlap and merged with NMS. YuNet is still a
+  frontal-ish detector: **profiles and turned-away heads are not found**, which
+  is a model limit, not a bug — on the test classroom photograph most of the
+  heads are in profile and 2 of 5 is the honest answer.
+- **Cost:** ~34s for two faces including the model download, single-threaded.
+- **Honesty:** the detail is reconstructed from a prior. It is a likeness, not
+  a record, and the UI says so.
