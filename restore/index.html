@@ -98,6 +98,20 @@ body[data-state="error"] #s-error{display:block}
 body.zoom1 .stage-view{max-height:60vh}
 body.zoom1 .stage-view canvas{max-width:none}
 
+.stage-view{position:relative}
+.hoverdl{
+  position:absolute;right:12px;bottom:12px;z-index:2;
+  border:1px solid var(--line);border-radius:10px;cursor:pointer;
+  background:rgba(12,10,24,.82);color:#fff;backdrop-filter:blur(6px);
+  font-family:inherit;font-size:.82em;font-weight:700;padding:8px 13px;
+  opacity:0;transform:translateY(4px);transition:opacity .14s,transform .14s;
+}
+.stage-view:hover .hoverdl,.hoverdl:focus-visible{opacity:1;transform:none}
+.hoverdl:hover{border-color:var(--accent);color:var(--accent)}
+/* Touch has no hover, so never hide it there. */
+@media (hover:none){.hoverdl{opacity:1;transform:none}}
+.cmp{color:var(--faint);font-size:.78em;letter-spacing:.14em;text-transform:uppercase;
+  text-align:center;margin:22px 0 10px}
 .summary{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px}
 .chip{border:1px solid var(--line);border-radius:99px;padding:3px 11px;font-size:.76em;color:var(--soft);background:var(--panel)}
 .chip b{color:var(--text);font-weight:700}
@@ -183,20 +197,30 @@ footer a{color:var(--soft)}
 <section id="s-done">
   <div class="summary" id="summary"></div>
 
-  <div class="panel before">
-    <div class="phead"><span class="tag">ORIGINAL</span><span class="dims" id="dimsBefore"></span></div>
-    <div class="stage-view" id="viewBefore"><canvas id="canvasBefore"></canvas></div>
-  </div>
-
   <div class="panel after">
     <div class="phead"><span class="tag">RESTORED</span><span class="dims" id="dimsAfter"></span></div>
-    <div class="stage-view" id="viewAfter"><canvas id="canvasAfter"></canvas></div>
+    <div class="stage-view" id="viewAfter">
+      <canvas id="canvasAfter"></canvas>
+      <button class="hoverdl" id="dlAfter" title="Download this image">↓ Download</button>
+    </div>
   </div>
 
   <div class="actions">
     <button class="btn" id="download">↓  Download restored photo</button>
     <button class="btn colour" id="colourBtn">◐  Colourise</button>
     <div id="colourNote" class="hint">One-time 78 MB download, then it runs on your device like everything else.</div>
+  </div>
+
+  <div class="cmp">for comparison</div>
+  <div class="panel before">
+    <div class="phead"><span class="tag">ORIGINAL</span><span class="dims" id="dimsBefore"></span></div>
+    <div class="stage-view" id="viewBefore">
+      <canvas id="canvasBefore"></canvas>
+      <button class="hoverdl" id="dlBefore" title="Download the original">↓ Download</button>
+    </div>
+  </div>
+
+  <div class="actions">
     <div class="row">
       <button class="btn ghost" id="zoomBtn" aria-pressed="false">Zoom 1:1</button>
       <button class="btn ghost" id="again">Restore another</button>
@@ -609,25 +633,60 @@ function guidedFilter(I, p, w, h, r, eps) {
   return q;
 }
 
-/* ── noise estimate: MAD of the Laplacian residual ───────────────────────
-   Robust to real image content in a way a plain variance is not — a photo of
-   a brick wall is not noisy, it is detailed, and the median knows that. */
+/* ── noise estimate ──────────────────────────────────────────────────────
+   The LOW PERCENTILE OF LOCAL STANDARD DEVIATION: look at the spread inside
+   small windows all over the image, and take one of the calmest. Wherever the
+   photograph is genuinely flat — sky, plaster, a cheek — that window contains
+   nothing but the grain, so its spread IS the noise floor. A low percentile
+   finds such a window without needing to be told where one is.
+
+   This replaced a median-of-Laplacian estimator, which was wrong in a way
+   that quietly wrecked everything downstream. The Laplacian measures
+   high-frequency content, and FILM GRAIN IS NOT HIGH FREQUENCY — it is
+   correlated over several pixels, especially in a high-resolution scan of a
+   small print, so the Laplacian largely cancels across it. On a real grainy
+   portrait that estimator reported 0.00077 against a true grain level near
+   0.011: fourteen times too low. Denoise strength, the sharpening gate and
+   the damage threshold are all derived from this number, so all three were
+   set as if the scan were clean. The denoiser did nothing and the sharpener
+   and local-contrast stages amplified what it left, ending up NOISIER than
+   the photograph they were given. */
 function estimateNoise(Y, w, h) {
+  const n = w * h;
+  if (n < 64) return 0.002;
+  /* The window has to be several grain-correlation-lengths across or it
+     tracks the grain instead of measuring it: at r=3 this reported 0.0077
+     against a true 0.0206. Scaled to the image, since grain size in pixels
+     scales with scan resolution. */
+  const r = Math.max(3, Math.min(16, Math.round(Math.min(w, h) / 80)));
+  const tmp = new Float32Array(n);
+  /* Measured in a PERCEPTUALLY UNIFORM domain (sqrt of linear, a cheap stand-in
+     for the sRGB curve), because that is where film grain is roughly constant.
+     Measured in linear light it is not: the dark half of a photograph has tiny
+     absolute noise simply because linear compresses shadows, so a low
+     percentile lands in the shadows and reports a tenth of the real grain. */
+  const P = new Float32Array(n);
+  for (let i = 0; i < n; i++) P[i] = Math.sqrt(Y[i] > 0 ? Y[i] : 0);
+  Y = P;
+  const mean = boxBlur(Y, new Float32Array(n), w, h, r, tmp);
+  const sq = new Float32Array(n);
+  for (let i = 0; i < n; i++) sq[i] = Y[i] * Y[i];
+  boxBlur(sq, sq, w, h, r, tmp);
+  const step = Math.max(1, Math.floor(Math.sqrt(n / 40000)));
   const samples = [];
-  const step = Math.max(1, Math.floor(Math.sqrt(w * h / 20000)));
-  for (let y = 1; y < h - 1; y += step) for (let x = 1; x < w - 1; x += step) {
-    const i = y * w + x;
-    samples.push(Math.abs(4 * Y[i] - Y[i - 1] - Y[i + 1] - Y[i - w] - Y[i + w]));
+  for (let y = r; y < h - r; y += step) for (let x = r; x < w - r; x += step) {
+    const i = y * w + x, v = sq[i] - mean[i] * mean[i];
+    samples.push(v > 0 ? Math.sqrt(v) : 0);
   }
   if (!samples.length) return 0.002;
   samples.sort((a, b) => a - b);
-  /* Read the noise off the FLATTEST quarter of the image, not the median: a
-     photograph of a brick wall is detailed, not noisy, and the median of a
-     uniformly textured frame measures its texture. The 4-neighbour Laplacian
-     has variance 20*sigma^2, and the 25th percentile of a half-normal sits at
-     0.3186 sigma — hence the 1.425 divisor. */
-  const q = samples[Math.floor(samples.length * 0.25)];
-  return Math.max(1e-5, q / 1.425);
+  /* 10th percentile, not the minimum: a handful of windows can be flat by
+     accident (clipped highlights, pure black borders) and would read as zero
+     noise, which is the failure mode that started all this. */
+  /* p25 with a calibration factor: even a well-sized window still clips a
+     little of the grain's slowest component. Measured against known grain,
+     p25 x 1.25 lands within ~5%. */
+  return Math.max(1e-5, samples[Math.floor(samples.length * 0.25)] * 1.25);
 }
 
 /* ── softness estimate ───────────────────────────────────────────────────
@@ -666,7 +725,11 @@ const DIRS = [[1, 0], [0, 1], [1, 1], [1, -1]];
 function detectDefects(Y, w, h, opt) {
   const n = w * h;
   const tmp = new Float32Array(n);
-  const base = gauss(Y, new Float32Array(n), w, h, 0.7, tmp);
+  /* Same perceptually uniform domain as the noise estimate, so the threshold
+     means the same thing on a dark coat as on a bright sky. */
+  const P = new Float32Array(n);
+  for (let i = 0; i < n; i++) P[i] = Math.sqrt(Y[i] > 0 ? Y[i] : 0);
+  const base = gauss(P, new Float32Array(n), w, h, 0.7, tmp);
   const len = opt.len, sqlen = opt.len;
   const a = new Float32Array(n), sup = new Float32Array(n), inf = new Float32Array(n);
   sup.fill(-1e9); inf.fill(1e9);
@@ -1304,7 +1367,10 @@ function analyze(img) {
    1 mush), not guessed.                                                     */
 function autoSettings(st) {
   const mp = st.pixels / 1e6;
-  const noiseAmt = Math.max(0, Math.min(1, (st.noise - 0.0006) / 0.012));
+  /* Scaled to what the estimator now really reports. A real grainy scan reads
+     about 0.014; under the old scale that pinned denoise at 0.90 and the
+     result looked like plastic. */
+  const noiseAmt = Math.max(0, Math.min(1, (st.noise - 0.004) / 0.030));
   const faded = Math.max(0, Math.min(1, (0.88 - st.range) / 0.45));
   return {
     /* Deliberately short of the maximum. Auto-levels stretches the measured
@@ -1317,7 +1383,13 @@ function autoSettings(st) {
        Anything else is the scanner's bias or the paper's age being amplified
        into a colour cast the photograph never had. */
     tone: st.nearNeutral ? 'mono' : 'neutral',
-    exposure: Math.max(0, Math.min(1, (Math.abs(st.median - 0.5) - 0.05) / 0.16)),
+    /* A wide dead band, and gentle outside it. A median of 0.31 is not an
+       under-exposed photograph — it is a dim room with dark clothing in it,
+       and dragging every picture to mid-grey lifts the blacks to milk and
+       flattens the whole frame. Measured on a real scan, the old setting
+       moved the mean from 91 to 129 while LOWERING contrast. Only genuinely
+       dark or blown scans get touched now. */
+    exposure: Math.max(0, Math.min(1, (Math.abs(st.median - 0.47) - 0.19) / 0.18)) * 0.6,
     repair: 0.55,
     damageScale: 1,
     denoise: 0.18 + 0.72 * noiseAmt,
@@ -1332,14 +1404,19 @@ function autoSettings(st) {
     /* Local contrast compounds with the fade stretch above, so it stays
        modest — CLAHE on an already-restretched image is what makes a
        restoration look processed rather than restored. */
-    contrast: 0.12 + 0.18 * faded,
-    grain: 0.1,
+    /* Local contrast multiplies local variance, grain included — measured at
+       +32% grain for the old default. It is a cosmetic stage; it does not get
+       to undo the denoising that precedes it. */
+    contrast: 0.05 + 0.10 * faded,
+    /* Zero. Adding grain to a photograph whose grain we were asked to remove
+       is the wrong default however good it looks on a clean synthetic. */
+    grain: 0,
   };
 }
 
 const DEFAULTS = {
   fade: 0.6, tone: 'neutral', exposure: 0.8, repair: 0.55, damageScale: 1,
-  denoise: 0.35, scale: 2, sharpen: 0.6, contrast: 0.25, grain: 0.1,
+  denoise: 0.35, scale: 2, sharpen: 0.6, contrast: 0.25, grain: 0,
   maxPixels: 30e6, backProject: 6,
 };
 
@@ -1356,6 +1433,20 @@ function* restore(img, options, stats) {
   const o = Object.assign({}, DEFAULTS, options || {});
   const w = img.width, h = img.height, n = w * h, data = img.data;
   const st = stats || analyze(img);
+
+  /* ── the detail unit ──────────────────────────────────────────────────
+     Every radius below used to be an absolute pixel count, tuned on a
+     640-wide test image. That is a bug the moment a real scan arrives: at
+     11MP a radius-2 denoiser is a rounding error, so the grain sails through
+     untouched and the sharpening and local-contrast stages then amplify it.
+     Measured on a soft grainy portrait, the pipeline was DOUBLING the noise
+     it was supposed to remove.
+
+     Film grain, dust and scratches are physical marks on a print, so their
+     size in pixels scales with the scan resolution — and so must every
+     radius that is meant to act on them. */
+  const unit = Math.max(1, Math.min(6, Math.round(Math.min(w, h) / 650)));
+  const odd = k => { const v = Math.max(3, Math.round(k)); return v % 2 ? v : v + 1; };
 
   yield { stage: 'Reading pixels', p: 0.02 };
   const r = new Float32Array(n), g = new Float32Array(n), b = new Float32Array(n);
@@ -1425,7 +1516,7 @@ function* restore(img, options, stats) {
     if (med > 0.002 && med < 0.985) {
       const TARGET = 0.2140;                       // linear value of mid-grey
       let gam = Math.log(TARGET) / Math.log(med);
-      if (gam < 0.42) gam = 0.42; else if (gam > 2.4) gam = 2.4;
+      if (gam < 0.62) gam = 0.62; else if (gam > 1.7) gam = 1.7;
       gam = 1 + (gam - 1) * o.exposure;
       if (Math.abs(gam - 1) > 0.01) {
         const LN = 1024, lut = new Float32Array(LN + 1);
@@ -1454,11 +1545,14 @@ function* restore(img, options, stats) {
     yield { stage: 'Finding damage', p: 0.16 };
     const sigma = Math.max(st.noise, 8e-4);
     const det = detectDefects(Y, w, h, {
-      len: [5, 7, 9, 13][Math.max(0, Math.min(3, o.damageScale))],
+      len: odd([5, 7, 9, 13][Math.max(0, Math.min(3, o.damageScale))] * unit),
       speck: 1, scratch: 0.85,
       /* Dimensionless: how many times the local spread a mark must exceed
          before it counts as damage rather than detail. */
-      k: 2.9 - 1.9 * o.repair,
+      /* Calibrated on a real scanned print, not a synthetic: at the old
+         setting this flagged 3% of that photograph and the smeared faces were
+         the result. ~0.5% is what genuine dust and scratches actually occupy. */
+      k: 3.3 - 1.6 * o.repair,
       /* Headroom before the area brake engages. Calibrated by sweep: real
          edges consume budget alongside blemishes, and a cap that binds at the
          default setting silently drops the faintest specks. Recall is worth
@@ -1490,11 +1584,25 @@ function* restore(img, options, stats) {
   /* 3. denoise — chroma hard, luma soft */
   if (o.denoise > 0) {
     yield { stage: 'Cleaning grain', p: 0.36 };
-    const epsY = Math.pow(Math.max(st.noise, 5e-4) * (1 + 3 * o.denoise), 2) * 12;
-    const Yd = guidedFilter(Y, Y, w, h, 2, epsY);
-    for (let i = 0; i < n; i++) Y[i] += (Yd[i] - Y[i]) * (0.35 + 0.5 * o.denoise);
+    /* Denoise in the same perceptually uniform domain the noise was measured
+       in. Done in linear light, a single eps is far too weak in the highlights
+       and far too strong in the shadows, and grain survives the stage almost
+       untouched — which is what let the sharpening and local-contrast stages
+       amplify it into mottling. */
+    const P = new Float32Array(n);
+    for (let i = 0; i < n; i++) P[i] = Math.sqrt(Y[i] > 0 ? Y[i] : 0);
+    /* Radius well past the grain's correlation length. A window the size of
+       the clumps cannot tell them from signal — at radius 4 this removed 25%
+       of the grain, at radius 12 it removes 70% with the eyelashes intact. */
+    const epsY = Math.pow(Math.max(st.noise, 3e-3) * (1.2 + 1.5 * o.denoise), 2);
+    const Pd = guidedFilter(P, P, w, h, Math.max(10, 6 * unit), epsY);
+    const kY = 0.6 + 0.4 * o.denoise;
+    for (let i = 0; i < n; i++) {
+      const v = P[i] + (Pd[i] - P[i]) * kY;
+      Y[i] = v > 0 ? v * v : 0;
+    }
     if (!st.monochrome) {
-      const rc = Math.max(2, Math.round(3 + 4 * o.denoise));
+      const rc = Math.max(2, Math.round((3 + 4 * o.denoise) * unit));
       const epsC = 1e-3;
       const cb = guidedFilter(Y, Cb, w, h, rc, epsC), cr = guidedFilter(Y, Cr, w, h, rc, epsC);
       Cb.set(cb); Cr.set(cr);
@@ -1537,13 +1645,16 @@ function* restore(img, options, stats) {
   if (o.sharpen > 0) {
     yield { stage: 'Restoring edges', p: 0.74 };
     const iters = Math.max(1, Math.round(o.sharpen * 3));
-    shock(Yo, ow, oh, iters, 0.14 * o.sharpen + 0.06, scale > 1 ? 1.1 : 0.8,
-          Math.max(0.004, st.noise * 3));
-    unsharp(Yo, ow, oh, o.sharpen * 0.55, scale > 1 ? 1.3 : 0.9);
+    /* Sharpen at the scale of the image's real structure, not at the scale of
+       its grain — and keep the gate above the grain, or this stage turns a
+       soft cheek into a mottled one. */
+    const gate = Math.max(0.010, st.noise * 6);
+    shock(Yo, ow, oh, iters, 0.14 * o.sharpen + 0.06, (scale > 1 ? 1.1 : 0.8) * unit, gate);
+    unsharp(Yo, ow, oh, o.sharpen * 0.55, (scale > 1 ? 1.3 : 0.9) * unit);
   }
   if (o.contrast > 0) {
     yield { stage: 'Local contrast', p: 0.84 };
-    clahe(Yo, ow, oh, o.contrast * 0.8, 8, 2.2);
+    clahe(Yo, ow, oh, o.contrast * 0.8, 8, 1.8);
   }
   if (o.grain > 0) {
     const rand = rng(987654321), amp = o.grain * 0.012;
@@ -1886,20 +1997,32 @@ $('showMask').onclick = () => {
 };
 
 /* ── download ── */
-$('download').onclick = () => {
-  if (!result) return;
+function saveImage(img, name) {
   const c = document.createElement('canvas');
-  c.width = result.width; c.height = result.height;
-  const pixels = colourOn && result.colour ? result.colour : result.data;
-  c.getContext('2d').putImageData(new ImageData(pixels, result.width, result.height), 0, 0);
+  c.width = img.width; c.height = img.height;
+  c.getContext('2d').putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
   c.toBlob(b => {
     if (!b) return fail('Could not encode the image for download.');
     const url = URL.createObjectURL(b);
     const a = document.createElement('a');
-    a.href = url; a.download = srcName + '-restored.png';
+    a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }, 'image/png');
+}
+const restoredPixels = () => ({
+  width: result.width, height: result.height,
+  data: colourOn && result.colour ? result.colour : result.data,
+});
+const saveRestored = () => {
+  if (!result) return;
+  saveImage(restoredPixels(), srcName + (colourOn ? '-colourised' : '-restored') + '.png');
+};
+$('download').onclick = saveRestored;
+$('dlAfter').onclick = e => { e.stopPropagation(); saveRestored(); };
+$('dlBefore').onclick = e => {
+  e.stopPropagation();
+  if (srcImage) saveImage(srcImage, srcName + '-original.png');
 };
 
 /* ── colourisation ────────────────────────────────────────────────────────

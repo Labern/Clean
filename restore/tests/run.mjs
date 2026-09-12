@@ -113,7 +113,11 @@ head('estimators — what the app reads off the scan');
   const vals = [0, 2, 5, 10, 20].map(a => E.analyze(addNoise(lo, a)).noise);
   let mono = true; for (let i = 1; i < vals.length; i++) if (vals[i] <= vals[i - 1]) mono = false;
   ok('noise estimate rises monotonically with added noise', mono, vals.map(v => v.toFixed(4)).join(' '));
-  ok('a clean scan reads as low noise', vals[0] < 0.002, vals[0].toFixed(5));
+  /* The threshold moved when the estimator did. It now measures local standard
+     deviation in a perceptually uniform domain — real, calibrated units — where
+     the old median-of-Laplacian reported numbers roughly an order of magnitude
+     too small because film grain is correlated, not white. */
+  ok('a clean scan reads as low noise', vals[0] < 0.005, vals[0].toFixed(5));
 }
 {
   const blurBy = (img, s) => {
@@ -150,10 +154,18 @@ head('estimators — what the app reads off the scan');
 // ── 3. blemish detection ────────────────────────────────────────────────────
 head('blemish detection');
 {
+  /* These run at repair 0.9, not the 0.55 default, and that is the point.
+     This fixture carries 500 specks and 9 scratches — 2.5% of the frame, far
+     beyond any real scan, where genuine dust occupies nearer 0.5%. The
+     default is deliberately calibrated against a real scanned print, because
+     a detector tuned to catch everything here flagged 3% of that photograph
+     and smeared the faces in it. The slider is what covers a photograph that
+     really is this badly damaged. */
+  const HEAVY = 0.9;
   const st = E.analyze(dmg);
   const det = I.detectDefects(toY(dmg), lw, lh, {
-    len: 7, speck: 1, scratch: 0.85, k: 2.9 - 1.9 * 0.55,
-    maxFrac: 0.04 + 0.16 * 0.55, sigma: Math.max(st.noise, 8e-4),
+    len: 7, speck: 1, scratch: 0.85, k: 3.3 - 1.6 * HEAVY,
+    maxFrac: 0.04 + 0.16 * HEAVY, sigma: Math.max(st.noise, 8e-4),
   });
   let tp = 0, fn = 0, area = 0, coreSum = 0, coreN = 0;
   for (let i = 0; i < lw * lh; i++) {
@@ -200,7 +212,7 @@ head('blemish detection');
      fixtures all had damage to find. */
   const st = E.analyze(lo);
   const det = I.detectDefects(toY(lo), lw, lh, {
-    len: 7, speck: 1, scratch: 0.85, k: 2.9 - 1.9 * 0.55,
+    len: 7, speck: 1, scratch: 0.85, k: 3.3 - 1.6 * 0.55,
     maxFrac: 0.04 + 0.16 * 0.55, sigma: Math.max(st.noise, 8e-4),
   });
   let area = 0;
@@ -224,7 +236,7 @@ head('repair');
 {
   const Yc = toY(lo), Yd = toY(dmg);
   const before = yPsnrAt(Yd, Yc, truth);
-  const r = E.restoreSync(dmg, { repair: 0.55, denoise: 0.2, fade: 0, sharpen: 0, contrast: 0, grain: 0, scale: 1 });
+  const r = E.restoreSync(dmg, { repair: 1, denoise: 0.2, fade: 0, sharpen: 0, contrast: 0, grain: 0, scale: 1 });
   const after = yPsnrAt(toY(r), Yc, truth);
   ok('damaged pixels come back (≥ +10 dB where the blemishes were)', after - before >= 10,
      before.toFixed(1) + ' dB → ' + after.toFixed(1) + ' dB');
@@ -235,6 +247,57 @@ head('repair');
   const tm = new Float32Array(lw * lh); for (let i = 0; i < truth.length; i++) tm[i] = truth[i];
   const ideal = yPsnrAt(I.inpaint(Yd, tm, lw, lh, null, 4), Yc, truth);
   ok('inpainting ceiling with a perfect mask ≥ 28 dB', ideal >= 28, ideal.toFixed(1) + ' dB');
+}
+
+// ── 4b. the floor: never hand back something worse ──────────────────────────
+head('do no harm');
+{
+  /* THE gate this project most needed. A soft, grainy portrait — an
+     out-of-focus cheek filling the frame, no damage at all — must not come
+     back noisier than it went in.
+
+     Every other metric in this suite is about how much the pipeline IMPROVES
+     a degraded fixture, and all of them stayed green while the pipeline was
+     quietly doubling the grain on real photographs: the denoiser was inert
+     because the noise estimator was blind to correlated film grain, and the
+     sharpening and local-contrast stages then amplified what it left behind.
+     Measured std went 4.88 -> 8.68 and the output looked mottled. */
+  const w = 900, h = 600, n = w * h;
+  let s = 5;
+  const rnd = () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+  const base = new Float32Array(n), g = new Float32Array(n);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const u = x / w, v = y / h, dx = (u - 0.55) / 0.42, dy = (v - 0.5) / 0.46;
+    const r = Math.sqrt(dx * dx + dy * dy);
+    base[y * w + x] = r < 1 ? 185 - 38 * r * r : 42 + 9 * Math.sin(u * 3);
+  }
+  for (let i = 0; i < n; i++) g[i] = rnd() + rnd() + rnd() - 1.5;
+  I.gauss(g, g, w, h, 2.0, new Float32Array(n));     // clumped, like film grain
+  let ss = 0; for (let i = 0; i < n; i++) ss += g[i] * g[i];
+  const norm = 5 / Math.sqrt(ss / n);
+  const d = new Uint8ClampedArray(n * 4);
+  for (let i = 0; i < n; i++) { const L = base[i] + g[i] * norm, p = i * 4; d[p] = d[p + 1] = d[p + 2] = L; d[p + 3] = 255; }
+  const soft = { width: w, height: h, data: d };
+  const flatStd = img => {
+    const cx = (w * 0.55) | 0, cy = (h * 0.5) | 0, r = (Math.min(w, h) * 0.06) | 0;
+    let a = 0, b = 0, c = 0;
+    for (let y = cy - r; y < cy + r; y++) for (let x = cx - r; x < cx + r; x++) {
+      const v = img.data[(y * img.width + x) * 4]; a += v; b += v * v; c++;
+    }
+    return Math.sqrt(b / c - (a / c) ** 2);
+  };
+  const st = E.analyze(soft);
+  const before = flatStd(soft);
+  const out = E.restoreSync(soft, Object.assign({}, E.autoSettings(st), { scale: 1 }));
+  const after = flatStd(out);
+  ok('a soft grainy portrait does not come back noisier', after <= before,
+     'flat-region std ' + before.toFixed(2) + ' → ' + after.toFixed(2));
+  ok('...and the grain is actually reduced', after <= before * 0.92,
+     (100 - after / before * 100).toFixed(0) + '% less grain');
+  ok('the noise estimate tracks real grain', st.noise > 0.008 && st.noise < 0.040,
+     st.noise.toFixed(4) + ' (true ≈ 0.021 in the perceptual domain)');
+  let nan = 0; for (const v of out.data) if (!Number.isFinite(v)) nan++;
+  ok('no non-finite pixels on a clean soft image', nan === 0);
 }
 
 // ── 5. resolution ───────────────────────────────────────────────────────────
@@ -264,7 +327,8 @@ head('the whole pipeline, on a scan that is faded, dusty, scratched and noisy');
   const degraded = addNoise(fade(dmg), 5);
   const st = E.analyze(degraded);
   const auto = E.autoSettings(st);
-  const out = E.restoreSync(degraded, Object.assign({}, auto, { scale: 2 }));
+  // heavily damaged fixture -> the repair slider turned up, as a user would
+  const out = E.restoreSync(degraded, Object.assign({}, auto, { scale: 2, repair: 0.9 }));
   // a true do-nothing baseline: every stage off, including exposure
   const naive = E.restoreSync(degraded, { repair: 0, denoise: 0, fade: 0, exposure: 0, sharpen: 0, contrast: 0, grain: 0, scale: 2, backProject: 0 });
   const gain = psnr(out.data, clean.data) - psnr(naive.data, clean.data);
@@ -273,7 +337,7 @@ head('the whole pipeline, on a scan that is faded, dusty, scratched and noisy');
   ok('output is the size it promised', out.width === W && out.height === H, out.width + '×' + out.height);
   let bad = 0; for (const v of out.data) if (!Number.isFinite(v)) bad++;
   ok('no non-finite pixels', bad === 0, bad + ' bad');
-  const again = E.restoreSync(degraded, Object.assign({}, auto, { scale: 2 }));
+  const again = E.restoreSync(degraded, Object.assign({}, auto, { scale: 2, repair: 0.9 }));
   let diff = 0; for (let i = 0; i < out.data.length; i++) if (out.data[i] !== again.data[i]) diff++;
   ok('deterministic — same photo, same settings, identical bytes', diff === 0, diff + ' bytes differ');
   ok('auto settings react to the damage', auto.fade > 0.4 && auto.repair > 0,
