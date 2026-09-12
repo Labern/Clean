@@ -376,6 +376,25 @@ function gauss(src, dst, w, h, sigma, tmp) {
     boxBlur(src, a, w, h, r, tmp); boxBlur(a, dst, w, h, r, tmp); boxBlur(dst, a, w, h, r, tmp);
     dst.set(a); return dst;
   }
+  if (sigma <= 0.7) {
+    /* A 3-tap [a, 1-2a, a] with a = sigma^2/2 has exactly the right second
+       moment, so it IS this sigma, not an approximation of it. Valid while
+       a <= 1/4 (sigma <= 0.707). Back-projection runs this blur twice per
+       iteration at full output resolution, so 3 taps instead of 7 is the
+       difference between a restoration you wait for and one you abandon. */
+    const a = sigma * sigma / 2, c = 1 - 2 * a;
+    tmp = tmp && tmp.length >= w * h ? tmp : new Float32Array(w * h);
+    for (let y = 0; y < h; y++) {
+      const row = y * w;
+      for (let x = 0; x < w; x++)
+        tmp[row + x] = a * src[row + (x > 0 ? x - 1 : 0)] + c * src[row + x] + a * src[row + (x < w - 1 ? x + 1 : w - 1)];
+    }
+    for (let y = 0; y < h; y++) {
+      const row = y * w, up = (y > 0 ? y - 1 : 0) * w, dn = (y < h - 1 ? y + 1 : h - 1) * w;
+      for (let x = 0; x < w; x++) dst[row + x] = a * tmp[up + x] + c * tmp[row + x] + a * tmp[dn + x];
+    }
+    return dst;
+  }
   const k = gaussKernel(sigma), rad = k.rad;
   tmp = tmp && tmp.length >= w * h ? tmp : new Float32Array(w * h);
   for (let y = 0; y < h; y++) {
@@ -657,6 +676,39 @@ function detectDefects(Y, w, h, opt) {
     const line  = Math.max(sup[i] - sqOpen[i], sqClose[i] - inf[i]);
     resp[i] = Math.max(ws * speck, wl * line);
   }
+
+  /* ── normalise by LOCAL contrast, which is the whole game ────────────────
+     Judged against a single global noise figure, this response fires on every
+     hard edge in the photograph — a blackboard rim, a window frame, the line
+     of a shoulder — and, fatally, on faces, where eyes, spectacles, nostrils
+     and the highlights in hair are exactly the small high-contrast features
+     the speck and line filters are built to find. The tool then inpaints
+     people's faces away, which is the single worst thing it could do.
+
+     A dust speck and an eyelash have similar absolute contrast. What tells
+     them apart is the company they keep: damage is a LOCAL OUTLIER, sitting
+     on plaster or sky that is otherwise smooth, while real detail lives in
+     neighbourhoods that are already full of structure. So the response is
+     divided by the local spread of a damage-free version of the image (the
+     square opening and closing between them erase both specks and lines,
+     leaving legitimate content). Near an edge or across a face the
+     denominator is large and the score collapses; on a speck sitting alone
+     on a smooth wall it stays small and the speck stands out.
+
+     The score is now dimensionless, so opt.k is a plain ratio rather than a
+     multiple of an absolute noise level that no longer means much. */
+  const ref = new Float32Array(n);
+  for (let i = 0; i < n; i++) ref[i] = (sqOpen[i] + sqClose[i]) * 0.5;
+  const rMean = boxBlur(ref, new Float32Array(n), w, h, 4, tmp);
+  const rSq = new Float32Array(n);
+  for (let i = 0; i < n; i++) rSq[i] = ref[i] * ref[i];
+  boxBlur(rSq, rSq, w, h, 4, tmp);
+  const sigma = opt.sigma;
+  for (let i = 0; i < n; i++) {
+    const v = rSq[i] - rMean[i] * rMean[i];
+    const sd = v > 0 ? Math.sqrt(v) : 0;
+    resp[i] = resp[i] / (2.5 * sigma + 0.9 * sd + 1e-4);
+  }
   /* Two thresholds, and the stricter one wins.
 
      The first is the honest one: a response only counts as damage if it stands
@@ -667,18 +719,31 @@ function detectDefects(Y, w, h, opt) {
      threshold upward and hoping, read the response value at the (1 - maxFrac)
      quantile straight off a histogram: whatever the image, no more than
      maxFrac of it can clear that, by construction and in one pass. */
-  const sigma = opt.sigma;
-  let peak = 0;
-  for (let i = 0; i < n; i++) if (resp[i] > peak) peak = resp[i];
-  let capLo = 0;
-  if (peak > 0) {
-    const BINS = 512, hist = new Int32Array(BINS), scale = (BINS - 1) / peak;
-    for (let i = 0; i < n; i++) hist[(resp[i] * scale) | 0]++;
-    let budget = Math.max(1, Math.floor(n * opt.maxFrac)), b = BINS - 1, acc = 0;
-    for (; b > 0; b--) { acc += hist[b]; if (acc >= budget) break; }
-    capLo = b / scale;
+  let lo = opt.k;
+
+  /* The area cap is a BRAKE, and it must only engage when the honest
+     threshold has already failed. Taking max(noiseThreshold, quantile)
+     unconditionally — which is what this did — means the quantile wins
+     whenever the scan is clean, and the detector then flags exactly maxFrac
+     of EVERY photograph no matter how little is wrong with it. On a lightly
+     damaged print the top 10% of response is not damage, it is eyes,
+     spectacles, nostrils and the highlights on hair: the tool quietly
+     inpainted people's faces away. So: count first, and only reach for the
+     quantile if the honest threshold really is flagging too much. */
+  let over = 0;
+  for (let i = 0; i < n; i++) if (resp[i] > lo) over++;
+  if (over / n > opt.maxFrac) {
+    let peak = 0;
+    for (let i = 0; i < n; i++) if (resp[i] > peak) peak = resp[i];
+    if (peak > 0) {
+      const BINS = 512, hist = new Int32Array(BINS), scale = (BINS - 1) / peak;
+      for (let i = 0; i < n; i++) hist[(resp[i] * scale) | 0]++;
+      let budget = Math.max(1, Math.floor(n * opt.maxFrac)), b = BINS - 1, acc = 0;
+      for (; b > 0; b--) { acc += hist[b]; if (acc >= budget) break; }
+      lo = Math.max(lo, b / scale);
+    }
   }
-  const lo = Math.max(opt.k * sigma, capLo), hi = lo * 2.6;
+  const hi = lo * 2.2;
   const mask = new Float32Array(n);
   let cnt = 0;
   for (let i = 0; i < n; i++) {
@@ -1185,6 +1250,12 @@ function analyze(img) {
   }
   const [llo, lhi] = channelEndpoints(hl, trusted, 0.004, 0.004);
   const range = (lhi - llo) / 255;
+  /* Median display luminance. Endpoints alone cannot tell you a photograph is
+     dark: one bright window and one black corner give a scan the full 0-255
+     range while every face in it sits at 20%. That is a midtone problem, and
+     it needs a curve, not a stretch. */
+  let cum = 0, median = 128;
+  for (let i = 0; i < 256; i++) { cum += hl[i]; if (cum >= trusted * 0.5) { median = i; break; } }
   let ge = 0;
   for (let y = 1; y < h - 1; y += 2) for (let x = 1; x < w - 1; x += 2) {
     const i = y * w + x;
@@ -1195,8 +1266,14 @@ function analyze(img) {
   return {
     width: w, height: h, pixels: n, noise: sigma, softness, range, gradient: ge,
     chroma, castCb: cbm, castCr: crm, trustedFraction: trusted / n,
+    median: median / 255,
     monochrome: chroma < 12,
-    toned: chroma < 12 && (Math.abs(cbm) > 3 || Math.abs(crm) > 3),
+    /* A scanned black-and-white print is never perfectly neutral — paper
+       tone, the scanner's own bias and age all push it off grey. Treating it
+       as a colour photograph and stretching each channel separately is what
+       turns a grey classroom blue. This threshold is deliberately loose. */
+    nearNeutral: chroma < 26,
+    toned: chroma < 26 && (Math.abs(cbm) > 3 || Math.abs(crm) > 3),
     endpoints: {
       l: [llo, lhi],
       r: channelEndpoints(hr, trusted, 0.004, 0.004),
@@ -1223,13 +1300,21 @@ function autoSettings(st) {
        three-quarters recovers the fade convincingly and leaves the highlights
        somewhere to go; the slider still reaches 100% by hand. */
     fade: 0.3 + 0.45 * faded,
-    tone: st.toned ? 'keep' : 'neutral',
+    /* A scan of a black-and-white print should come back black and white.
+       Anything else is the scanner's bias or the paper's age being amplified
+       into a colour cast the photograph never had. */
+    tone: st.nearNeutral ? 'mono' : 'neutral',
+    exposure: Math.max(0, Math.min(1, (Math.abs(st.median - 0.5) - 0.05) / 0.16)),
     repair: 0.55,
     damageScale: 1,
     denoise: 0.18 + 0.72 * noiseAmt,
     /* Small scans have the most to gain and cost the least to enlarge; a big
        modern scan is already past the point where upscaling adds anything. */
-    scale: mp < 0.8 ? 4 : mp < 2.5 ? 3 : mp < 6 ? 2 : 1,
+    /* Only enlarge what benefits. A 2500px-wide scan is already past what
+       any print or screen needs, and doubling it costs the user half a minute
+       to gain nothing — the work that photograph needs is cleaning, not
+       resolution. Small scans are where an upscale genuinely earns its time. */
+    scale: mp < 1 ? 4 : mp < 2 ? 3 : mp < 4 ? 2 : 1,
     sharpen: 0.3 + 0.55 * st.softness,
     /* Local contrast compounds with the fade stretch above, so it stays
        modest — CLAHE on an already-restretched image is what makes a
@@ -1240,8 +1325,8 @@ function autoSettings(st) {
 }
 
 const DEFAULTS = {
-  fade: 0.6, tone: 'neutral', repair: 0.55, damageScale: 1, denoise: 0.35,
-  scale: 2, sharpen: 0.6, contrast: 0.25, grain: 0.1,
+  fade: 0.6, tone: 'neutral', exposure: 0.8, repair: 0.55, damageScale: 1,
+  denoise: 0.35, scale: 2, sharpen: 0.6, contrast: 0.25, grain: 0.1,
   maxPixels: 30e6, backProject: 6,
 };
 
@@ -1307,6 +1392,46 @@ function* restore(img, options, stats) {
   }
   if (o.tone === 'mono') for (let i = 0; i < n; i++) r[i] = g[i] = b[i] = KR * r[i] + KG * g[i] + KB * b[i];
 
+  /* ── exposure ──────────────────────────────────────────────────────────
+     Stretching the endpoints cannot fix a dark photograph, only a flat one.
+     A room with a bright window and a dark corner already spans the full
+     range while every face in it sits down at 20%, and no amount of
+     black/white-point work will lift them. What is wrong is the midtone, so
+     what it needs is a curve: find the median and bend the transfer function
+     until it lands where a well-exposed print would sit. Done in linear light
+     and applied identically to all three channels, so hue is untouched. */
+  if (o.exposure > 0) {
+    const step = Math.max(1, Math.floor(Math.sqrt(n / 30000)));
+    const samples = [];
+    for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
+      const i = y * w + x;
+      samples.push(KR * r[i] + KG * g[i] + KB * b[i]);
+    }
+    samples.sort((p, q) => p - q);
+    const med = samples[samples.length >> 1];
+    if (med > 0.002 && med < 0.985) {
+      const TARGET = 0.2140;                       // linear value of mid-grey
+      let gam = Math.log(TARGET) / Math.log(med);
+      if (gam < 0.42) gam = 0.42; else if (gam > 2.4) gam = 2.4;
+      gam = 1 + (gam - 1) * o.exposure;
+      if (Math.abs(gam - 1) > 0.01) {
+        const LN = 1024, lut = new Float32Array(LN + 1);
+        for (let i = 0; i <= LN; i++) lut[i] = Math.pow(i / LN, gam);
+        const planes = [r, g, b];
+        for (let c = 0; c < 3; c++) {
+          const pl = planes[c];
+          for (let i = 0; i < n; i++) {
+            let v = pl[i];
+            if (v <= 0) { pl[i] = 0; continue; }
+            if (v >= 1) { pl[i] = lut[LN]; continue; }
+            const f = v * LN, j = f | 0;
+            pl[i] = lut[j] + (lut[j + 1] - lut[j]) * (f - j);
+          }
+        }
+      }
+    }
+  }
+
   const Y = new Float32Array(n), Cb = new Float32Array(n), Cr = new Float32Array(n);
   rgbToYcc(r, g, b, Y, Cb, Cr, n);
 
@@ -1318,13 +1443,19 @@ function* restore(img, options, stats) {
     const det = detectDefects(Y, w, h, {
       len: [5, 7, 9, 13][Math.max(0, Math.min(3, o.damageScale))],
       speck: 1, scratch: 0.85,
-      k: 7.5 - 4.5 * o.repair,                 // stronger repair = lower bar
+      /* Dimensionless: how many times the local spread a mark must exceed
+         before it counts as damage rather than detail. */
+      k: 2.9 - 1.9 * o.repair,
       /* Headroom before the area brake engages. Calibrated by sweep: real
          edges consume budget alongside blemishes, and a cap that binds at the
          default setting silently drops the faintest specks. Recall is worth
          more than precision here — a speck left behind is glaring, a lightly
          softened patch is not. */
-      maxFrac: 0.03 + 0.13 * o.repair,
+      /* Loose on purpose. Now that the score is normalised by local contrast
+         it does the real discriminating, and this is only the emergency stop
+         for a pathological reading. Set tight, it binds on genuinely damaged
+         photographs and silently caps how much can ever be repaired. */
+      maxFrac: 0.04 + 0.16 * o.repair,
       sigma,
     });
     mask = det.mask; fraction = det.fraction;
@@ -1380,7 +1511,12 @@ function* restore(img, options, stats) {
          measures ~1.0 and wants 0.9. Overshooting here is what makes a
          back-projected image ring, so the mapping is deliberately timid. */
       const sig = Math.max(0.15, st.softness - 0.1) * (0.85 + 0.3 * o.sharpen);
-      backProject(Yo, ow, oh, Y, w, h, o.backProject, 0.8, Math.min(1.1, sig));
+      /* Each iteration blurs the full-size output twice, so the cost scales
+         with the enlargement. Past a few megapixels the later iterations are
+         buying a fraction of a decibel for whole seconds of someone's time. */
+      const iters = Math.max(2, Math.min(o.backProject,
+        Math.round(o.backProject * 6e6 / Math.max(1, ow * oh))));
+      backProject(Yo, ow, oh, Y, w, h, iters, 0.8, Math.min(1.1, sig));
     }
   }
 
