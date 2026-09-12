@@ -1907,8 +1907,13 @@ $('download').onclick = () => {
    pressed; only then does the runtime and the 43 MB of weights come down, and
    they are cached by the browser afterwards. The photograph still never
    leaves the device — the model travels to it, not the other way round.     */
-const ORT_VER = '1.19.2';
-const ORT_BASE = 'https://cdnjs.cloudflare.com/ajax/libs/onnxruntime-web/' + ORT_VER + '/';
+/* Self-hosted, not a CDN. A CDN is one more thing that can be blocked, go
+   down, or change what it serves under a version number — and the promise
+   this page makes is that the link works. onnxruntime-web 1.19.2, MIT,
+   vendored in ort/. */
+/* Absolute, because the runtime dynamically imports its own .mjs and a bare
+   relative path is not a valid module specifier. */
+const ORT_BASE = new URL('ort/', location.href).href;
 let ortLoading = null, session = null, colourOn = false, abFull = null;
 
 function loadRuntime() {

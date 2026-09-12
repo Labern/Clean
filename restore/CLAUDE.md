@@ -136,8 +136,16 @@ Optional, opt-in, and the only part of the app that is not classical DSP.
     channels in 0..1. Feeding it raw L does not crash, it just silently
     returns subtly wrong colour, so there is a test for it. Output a/b are
     already in Lab units.
-- **Runtime:** onnxruntime-web 1.19.2 from cdnjs, loaded *on demand* — the
-  page costs nothing until the button is pressed. `numThreads = 1` is
+- **Runtime:** onnxruntime-web 1.19.2, MIT, **vendored in `restore/ort/`** and
+  loaded *on demand* — the page costs nothing until the button is pressed. It
+  is deliberately not on a CDN: a CDN is one more thing that can be blocked,
+  go down, or change what it serves under a version number, and the promise
+  this page makes is that the link works.
+  - `wasmPaths` must be an ABSOLUTE url (`new URL('ort/', location.href).href`).
+    The runtime dynamically imports its own `.mjs`, and a bare relative path
+    like `ort/` is not a valid module specifier — it fails at run time with
+    "no available backend found", not at load.
+  - `numThreads = 1` is
   mandatory: threads need cross-origin isolation (COOP/COEP) and GitHub Pages
   cannot send those headers. SIMD works without isolation and carries it.
   ~18s for a 4.4MP photograph.
@@ -156,7 +164,6 @@ Optional, opt-in, and the only part of the app that is not classical DSP.
 `tests/run.mjs` extracts the `/*REVIVE-COLOUR-*/` block the same way it
 extracts the engine and checks the Lab round trip, neutrality at zero chroma,
 and lightness invariance. It does **not** run the network — that needs a
-browser. The browser path was verified with Playwright by intercepting the
-cdnjs request and serving a local copy of the runtime; everything else on that
-path (model fetch, session creation, inference, recombination) was the real
-code.
+browser. The browser path was verified with Playwright against the real
+page with no network interception of any kind — model fetch, session creation,
+inference and recombination all ran as shipped.
