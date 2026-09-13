@@ -252,3 +252,30 @@ and neither showed up in any image-quality metric.
 2. **The frozen tab.** Everything ran on the main thread, so nothing repainted
    during a long restore. Fixed by the worker above; the working screen also
    shows a running elapsed clock, which doubles as proof of life.
+
+
+## Orientation — the bug that made the whole app look dead
+Scans are sideways constantly: a baby lying down, a print fed in the short
+way, a phone photo of an album page. Both models care, and neither says so.
+
+- **YuNet only finds UPRIGHT faces.** Measured on the test photograph: twelve
+  detections upright, **zero** at 90, 180 and 270 degrees. A sideways scan
+  therefore found no faces at all, face restoration silently had nothing to
+  work on, and the user was left with the classical pass alone — which on an
+  out-of-focus photograph is close to a no-op. The app looked like it did
+  nothing, because for that photograph it very nearly did.
+- **DDColor reads a SCENE.** Fed a sideways frame it cannot tell a wall from a
+  floor and returns a blue-grey wash with magenta patches — on the very same
+  photograph that colourises convincingly when upright.
+
+Both now run through an orientation check: four cheap detector passes over the
+whole frame, keep whichever angle the detector believes most. Faces are found
+and pasted back through that rotation; the colour model is fed an upright
+image and its predicted chroma is rotated back. The orientation is worked out
+once per photograph and reused, and the colour path will run the check on its
+own if face restoration was turned off.
+
+**Both models are on by default now.** They are the only things that can fix
+focus or add colour; hiding them behind opt-in checkboxes meant the default
+experience was the classical pass alone, which is not what anyone wants from a
+restoration tool.

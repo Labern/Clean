@@ -3,55 +3,43 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b0a14">
-<meta name="description" content="Restore old scanned photos in your browser: removes dust, scratches and creases, recovers faded colour, and enlarges up to 4x. Nothing uploads anywhere.">
-<meta property="og:title" content="REVIVE — repair and enlarge old photos">
-<meta property="og:description" content="Drop in a scan. Blemishes removed, fading corrected, resolution increased. Entirely on your device.">
-<title>REVIVE — old photos, made new</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0a14'/%3E%3Crect x='12' y='16' width='40' height='32' rx='4' fill='none' stroke='%23fbbf24' stroke-width='4'/%3E%3Ccircle cx='24' cy='28' r='4' fill='%23fbbf24'/%3E%3Cpath d='M14 44l13-13 9 9 6-5 8 8' fill='none' stroke='%23fbbf24' stroke-width='4' stroke-linejoin='round'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#0f1115">
+<meta name="description" content="Restore old photographs in your browser. Nothing uploads.">
+<title>Revive</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230f1115'/%3E%3Ccircle cx='32' cy='26' r='9' fill='none' stroke='%23fff' stroke-width='4'/%3E%3Cpath d='M12 52c4-11 11-16 20-16s16 5 20 16' fill='none' stroke='%23fff' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
-/* ── Theme tokens. Dark by default, .theme-light on <html> flips it. ── */
 :root{
-  --bg1:#0b0a14; --bg2:#1a1530; --bg3:#0f0d1f;
-  --panel:rgba(255,255,255,.035); --panel-2:rgba(255,255,255,.065);
-  --line:rgba(255,255,255,.11); --line-soft:rgba(255,255,255,.06);
-  --text:#e8e6f4; --soft:#9a95b8; --faint:#6c6787;
-  --accent:#fbbf24; --accent-hi:#fcd34d; --accent-ink:#241a02;
-  --ok:#5eead4; --violet:#a78bfa; --pink:#f472b6; --danger:#ff8fa3;
-  --shadow:0 18px 50px rgba(0,0,0,.45);
+  --bg:#0f1115; --card:#161a21; --line:#252a33; --line-2:#323844;
+  --text:#f2f4f8; --dim:#98a1b0; --faint:#5f6875;
+  --accent:#f2f4f8; --accent-ink:#0f1115;
+  --ok:#4ade80; --bad:#f87171;
+  --r:14px;
 }
 .theme-light{
-  --bg1:#f7f6fb; --bg2:#edeaf6; --bg3:#f3f1fa;
-  --panel:rgba(20,16,50,.04); --panel-2:rgba(20,16,50,.075);
-  --line:rgba(20,16,50,.16); --line-soft:rgba(20,16,50,.08);
-  --text:#221e3a; --soft:#5b5678; --faint:#8a86a5;
-  --accent:#b97e05; --accent-hi:#a06d02; --accent-ink:#fffdf6;
-  --ok:#0d9488; --violet:#7c5ce0; --pink:#d6488f; --danger:#d43f5e;
-  --shadow:0 18px 50px rgba(40,30,90,.13);
+  --bg:#f6f7f9; --card:#ffffff; --line:#e3e6ea; --line-2:#d2d7de;
+  --text:#12151a; --dim:#5c6573; --faint:#8b93a1;
+  --accent:#12151a; --accent-ink:#ffffff;
+  --ok:#16a34a; --bad:#dc2626;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-/* .btn sets display:flex, which has the same specificity as [hidden] and comes
-   later — so without !important, hiding a button silently does nothing. */
 [hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%}
 body{
-  font-family:"Menlo","SF Mono","Consolas",monospace;
-  color:var(--text);
-  background:linear-gradient(165deg,var(--bg1),var(--bg2) 55%,var(--bg3));
-  background-attachment:fixed;
-  min-height:100svh; line-height:1.6;
-  font-size:clamp(14px,2.7vw,16px);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+  background:var(--bg); color:var(--text);
+  min-height:100svh; line-height:1.5;
+  font-size:15px; -webkit-font-smoothing:antialiased;
 }
-.wrap{max-width:46rem;margin:0 auto;padding:max(20px,env(safe-area-inset-top)) 18px calc(40px + env(safe-area-inset-bottom))}
+.wrap{max-width:920px;margin:0 auto;padding:22px 18px 64px}
 
-header{display:flex;align-items:baseline;gap:10px;margin:4px 0 2px}
-.mark{font-weight:700;font-size:1.35em;letter-spacing:.3em}
-.mark .fx{color:var(--accent)}
-#themeToggle{margin-left:auto;background:none;border:1px solid var(--line);color:var(--soft);
-  border-radius:8px;width:34px;height:34px;font-size:15px;cursor:pointer;line-height:1}
-#themeToggle:hover{color:var(--text);border-color:var(--accent)}
-.tagline{color:var(--soft);margin-bottom:20px;font-size:.95em}
-.tagline b{color:var(--text)}
+header{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+.mark{font-weight:650;font-size:17px;letter-spacing:-.01em}
+.spacer{flex:1}
+.icon{
+  width:34px;height:34px;border-radius:10px;border:1px solid var(--line);
+  background:none;color:var(--dim);cursor:pointer;font-size:14px;line-height:1;
+}
+.icon:hover{color:var(--text);border-color:var(--line-2)}
 
 section{display:none}
 body[data-state="idle"] #s-idle,
@@ -60,127 +48,101 @@ body[data-state="done"] #s-done,
 body[data-state="batch"] #s-batch,
 body[data-state="error"] #s-error{display:block}
 
-/* ── Drop zone ── */
+/* drop */
 .drop{
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
-  min-height:44vh;border:2px dashed var(--line);border-radius:20px;
-  background:var(--panel);cursor:pointer;text-align:center;padding:34px 20px;
-  transition:border-color .15s,background .15s,transform .15s;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  min-height:56vh;border:1px dashed var(--line-2);border-radius:20px;
+  background:var(--card);cursor:pointer;text-align:center;padding:40px 24px;
+  transition:border-color .12s,background .12s;
 }
-.drop:hover,.drop.drag{border-color:var(--accent);background:var(--panel-2)}
-.drop.drag{transform:scale(1.01)}
-.drop .glyph{font-size:40px;line-height:1}
-.drop .cta{font-weight:700;font-size:1.1em}
-.drop .sub{color:var(--faint);font-size:.86em;max-width:26rem}
-.legal{color:var(--faint);font-size:.8em;text-align:center;margin-top:16px}
-.legal b{color:var(--ok);font-weight:700}
+.drop:hover,.drop.drag{border-color:var(--text)}
+.drop .big{font-size:20px;font-weight:600;letter-spacing:-.01em}
+.drop .sm{color:var(--faint);font-size:13px}
+.opts{display:flex;gap:18px;justify-content:center;margin-top:26px;flex-wrap:wrap}
+.opts label{display:flex;align-items:center;gap:7px;color:var(--dim);font-size:13px;cursor:pointer}
+.opts input{accent-color:var(--text);width:15px;height:15px;cursor:pointer}
 
-.does{list-style:none;margin:22px auto 0;display:grid;gap:8px;max-width:30rem}
-.does li{display:flex;gap:10px;align-items:flex-start;color:var(--soft);font-size:.88em}
-.does li::before{content:"→";color:var(--accent);font-weight:700;flex:none}
+/* working */
+.panelbox{border:1px solid var(--line);border-radius:var(--r);background:var(--card);padding:22px}
+.bar{height:3px;border-radius:99px;background:var(--line);overflow:hidden;margin:16px 0 10px}
+.bar i{display:block;height:100%;width:0;background:var(--text);transition:width .25s ease}
+.stage{color:var(--dim);font-size:13px}
+.stage.small{color:var(--faint);font-size:12px;margin-top:3px}
+.thumb{max-width:120px;max-height:90px;border-radius:8px;display:block;margin:0 auto 14px;opacity:.5}
 
-/* ── Working ── */
-.working{border:1px solid var(--line);border-radius:18px;background:var(--panel);padding:26px 22px;text-align:center}
-.bar{height:8px;border-radius:99px;background:var(--panel-2);overflow:hidden;margin:18px 0 10px}
-.bar i{display:block;height:100%;width:0;border-radius:99px;
-  background:linear-gradient(90deg,var(--accent),var(--pink),var(--violet));transition:width .25s ease}
-.stage{color:var(--soft);font-size:.9em}
-.working h2{font-size:1em;font-weight:700}
-.elapsed{color:var(--faint);font-size:.82em;margin-top:4px}
-.thumb{max-width:150px;max-height:110px;border-radius:10px;border:1px solid var(--line);display:block;margin:0 auto 4px}
-
-/* ── Result: original ON TOP, restored BELOW ── */
-.panel{border:1px solid var(--line);border-radius:16px;background:var(--panel);overflow:hidden;margin-bottom:14px}
-.panel.after{border-color:var(--accent)}
-.phead{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
-.tag{font-weight:700;letter-spacing:.16em;font-size:.78em}
-.panel.before .tag{color:var(--soft)}
-.panel.after .tag{color:var(--accent)}
-.dims{color:var(--faint);font-size:.78em;margin-left:auto;font-variant-numeric:tabular-nums}
-.stage-view{background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;overflow:auto}
-.theme-light .stage-view{background:rgba(20,16,50,.07)}
-.stage-view canvas{display:block;max-width:100%;height:auto;image-rendering:auto}
-body.zoom1 .stage-view{max-height:60vh}
-body.zoom1 .stage-view canvas{max-width:none}
-
-.stage-view{position:relative}
+/* result */
+.shot{border:1px solid var(--line);border-radius:var(--r);background:var(--card);overflow:hidden;position:relative}
+.shot + .shot{margin-top:12px}
+.view{display:flex;align-items:center;justify-content:center;background:#000;overflow:auto}
+.theme-light .view{background:#eceef1}
+.view canvas{display:block;max-width:100%;height:auto}
+body.zoom1 .view{max-height:64vh}
+body.zoom1 .view canvas{max-width:none}
+.tag{
+  position:absolute;top:10px;left:10px;z-index:2;
+  background:rgba(15,17,21,.72);color:#fff;backdrop-filter:blur(8px);
+  font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 9px;border-radius:7px;
+}
+.dims{
+  position:absolute;top:10px;right:10px;z-index:2;
+  background:rgba(15,17,21,.72);color:#c9d1dc;backdrop-filter:blur(8px);
+  font-size:11px;padding:4px 9px;border-radius:7px;font-variant-numeric:tabular-nums;
+}
 .hoverdl{
-  position:absolute;right:12px;bottom:12px;z-index:2;
-  border:1px solid var(--line);border-radius:10px;cursor:pointer;
-  background:rgba(12,10,24,.82);color:#fff;backdrop-filter:blur(6px);
-  font-family:inherit;font-size:.82em;font-weight:700;padding:8px 13px;
-  opacity:0;transform:translateY(4px);transition:opacity .14s,transform .14s;
+  position:absolute;right:10px;bottom:10px;z-index:2;
+  border:none;border-radius:8px;cursor:pointer;
+  background:rgba(15,17,21,.78);color:#fff;backdrop-filter:blur(8px);
+  font-family:inherit;font-size:12px;font-weight:600;padding:7px 12px;
+  opacity:0;transition:opacity .12s;
 }
-.stage-view:hover .hoverdl,.hoverdl:focus-visible{opacity:1;transform:none}
-.hoverdl:hover{border-color:var(--accent);color:var(--accent)}
-/* Touch has no hover, so never hide it there. */
-@media (hover:none){.hoverdl{opacity:1;transform:none}}
-.cmp{color:var(--faint);font-size:.78em;letter-spacing:.14em;text-transform:uppercase;
-  text-align:center;margin:22px 0 10px}
-.summary{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 16px}
-.chip{border:1px solid var(--line);border-radius:99px;padding:3px 11px;font-size:.76em;color:var(--soft);background:var(--panel)}
-.chip b{color:var(--text);font-weight:700}
-.chip.hi{border-color:var(--ok);color:var(--ok)}
+.shot:hover .hoverdl,.hoverdl:focus-visible{opacity:1}
+@media (hover:none){.hoverdl{opacity:1}}
+.small-shot .view{max-height:30vh}
+.small-shot .view canvas{max-height:30vh;width:auto}
 
-.actions{display:flex;flex-direction:column;gap:10px;margin-top:4px}
-.btn{width:100%;min-height:54px;border:none;border-radius:14px;cursor:pointer;
-  font-family:inherit;font-size:1.03em;font-weight:700;letter-spacing:.02em;
+.actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.btn{
+  flex:1;min-width:150px;min-height:46px;border:none;border-radius:11px;cursor:pointer;
+  font-family:inherit;font-size:14px;font-weight:600;
   background:var(--accent);color:var(--accent-ink);
-  display:flex;align-items:center;justify-content:center;gap:10px}
-.btn:hover{background:var(--accent-hi)}
-.btn:disabled{opacity:.5;cursor:default}
-.btn.ghost{background:none;border:1px solid var(--line);color:var(--text);min-height:46px;font-size:.92em}
-.btn.ghost:hover{border-color:var(--accent);background:var(--panel)}
-.row{display:flex;gap:10px}
-.row .btn{flex:1}
+  display:flex;align-items:center;justify-content:center;gap:8px;
+}
+.btn:hover{opacity:.88}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.ghost{background:none;border:1px solid var(--line-2);color:var(--dim);font-weight:500}
+.btn.ghost:hover{color:var(--text);opacity:1}
+.note{color:var(--faint);font-size:12px;margin-top:10px;text-align:center}
 
-details.adv{margin-top:20px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
-details.adv summary{cursor:pointer;padding:13px 16px;font-size:.88em;color:var(--soft);list-style:none;display:flex;align-items:center;gap:8px}
-details.adv summary::-webkit-details-marker{display:none}
-details.adv summary::before{content:"▸";color:var(--accent);transition:transform .15s;display:inline-block}
-details.adv[open] summary::before{transform:rotate(90deg)}
-details.adv summary:hover{color:var(--text)}
-.advbody{padding:4px 16px 16px;border-top:1px solid var(--line-soft)}
-.ctl{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;margin:13px 0}
-.ctl label{font-size:.85em;color:var(--soft)}
-.ctl .val{font-size:.78em;color:var(--accent);font-variant-numeric:tabular-nums}
-.ctl .note{grid-column:1/-1;font-size:.74em;color:var(--faint);margin-top:-2px}
-.ctl input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent);margin-top:4px}
-.seg{grid-column:1/-1;display:flex;gap:6px;margin-top:5px;flex-wrap:wrap}
-.seg button{flex:1;min-width:56px;padding:7px 4px;border-radius:9px;border:1px solid var(--line);
-  background:none;color:var(--soft);font-family:inherit;font-size:.82em;cursor:pointer}
-.seg button[aria-pressed=true]{border-color:var(--accent);color:var(--accent);background:var(--panel-2);font-weight:700}
-
-.btn.colour{background:linear-gradient(90deg,var(--violet),var(--pink));color:#fff}
-.btn.face{background:linear-gradient(90deg,var(--ok),var(--violet));color:#08131a}
-.btn.face:hover{filter:brightness(1.08)}
-.btn.colour:hover{filter:brightness(1.08)}
-.btn.colour:disabled{filter:none}
-.hint{color:var(--faint);font-size:.78em;text-align:center;margin-top:-2px}
-
-.opts{display:flex;flex-direction:column;gap:8px;margin:18px auto 0;width:fit-content}
-.opts label{display:flex;align-items:center;gap:9px;color:var(--soft);font-size:.88em;cursor:pointer}
-.opts input{accent-color:var(--accent);width:16px;height:16px;cursor:pointer}
-.opts span{color:var(--faint);font-size:.86em}
-.queue{list-style:none;margin:18px 0 0;display:flex;flex-direction:column;gap:6px;
-  max-height:46vh;overflow:auto;border:1px solid var(--line-soft);border-radius:12px;padding:10px}
-.queue li{display:flex;align-items:center;gap:10px;font-size:.84em;color:var(--soft);
-  padding:5px 6px;border-radius:8px}
-.queue li.now{background:var(--panel-2);color:var(--text)}
-.queue .dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--line)}
-.queue li.now .dot{background:var(--accent);animation:pulse 1.1s ease-in-out infinite}
+/* batch */
+.queue{list-style:none;margin:14px 0 0;display:flex;flex-direction:column;gap:1px;
+  max-height:50vh;overflow:auto;border:1px solid var(--line);border-radius:var(--r)}
+.queue li{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--dim);
+  padding:9px 12px;background:var(--card)}
+.queue li.now{color:var(--text)}
+.queue .dot{flex:none;width:7px;height:7px;border-radius:50%;background:var(--line-2)}
+.queue li.now .dot{background:var(--text);animation:pulse 1.1s ease-in-out infinite}
 .queue li.ok .dot{background:var(--ok)}
-.queue li.bad .dot{background:var(--danger)}
+.queue li.bad .dot{background:var(--bad)}
 .queue .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.queue .st{flex:none;font-size:.88em;color:var(--faint)}
-.queue a{color:var(--accent);text-decoration:none;font-weight:700}
-.queue a:hover{text-decoration:underline}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-.err{border:1px solid var(--danger);border-radius:16px;background:var(--panel);padding:22px;text-align:center}
-.err h2{color:var(--danger);font-size:1em;margin-bottom:6px}
-.err p{color:var(--soft);font-size:.9em;word-break:break-word}
-footer{margin-top:26px;color:var(--faint);font-size:.78em;text-align:center;line-height:1.8}
-footer a{color:var(--soft)}
+.queue .st{flex:none;font-size:12px;color:var(--faint)}
+.queue a{color:var(--text);text-decoration:none;font-weight:600}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+details{margin-top:22px;border-top:1px solid var(--line);padding-top:14px}
+summary{cursor:pointer;color:var(--faint);font-size:12px;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary:hover{color:var(--dim)}
+.ctl{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;margin:14px 0}
+.ctl label{font-size:13px;color:var(--dim)}
+.ctl .val{font-size:12px;color:var(--faint);font-variant-numeric:tabular-nums}
+.ctl input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--text);margin-top:5px}
+.seg{grid-column:1/-1;display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.seg button{flex:1;min-width:54px;padding:7px 4px;border-radius:8px;border:1px solid var(--line);
+  background:none;color:var(--faint);font-family:inherit;font-size:12px;cursor:pointer}
+.seg button[aria-pressed=true]{border-color:var(--text);color:var(--text)}
+.err{border:1px solid var(--bad);border-radius:var(--r);background:var(--card);padding:22px;text-align:center}
+.err p{color:var(--dim);font-size:13px;word-break:break-word}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -188,169 +150,135 @@ footer a{color:var(--soft)}
 <div class="wrap">
 
 <header>
-  <div class="mark">REV<span class="fx">IVE</span></div>
-  <button id="themeToggle" title="Light / dark">◐</button>
+  <div class="mark">Revive</div>
+  <div class="spacer"></div>
+  <button id="themeToggle" class="icon" title="Light / dark">◐</button>
 </header>
-<p class="tagline">Old photographs, <b>repaired and enlarged</b> — dust, scratches, fading and softness, fixed in your browser.</p>
 
-<!-- ── IDLE ── -->
 <section id="s-idle">
-  <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a photo to restore">
-    <div class="glyph">🖼</div>
-    <div class="cta">Drop a scanned photo here</div>
-    <div class="sub">or tap to choose. One photograph or a hundred — JPEG, PNG, HEIC, WebP, whatever your scanner produced.</div>
+  <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose photos">
+    <div class="big">Drop photos here</div>
+    <div class="sm">or click to choose — one or a hundred</div>
   </div>
   <input type="file" id="file" accept="image/*" multiple hidden>
-  <ul class="does">
-    <li>Finds and fills dust, specks, scratches and creases</li>
-    <li>Rebuilds faded contrast and strips the yellow cast of aged paper</li>
-    <li>Enlarges up to 4× and puts the crispness back into a soft scan</li>
-  </ul>
   <div class="opts">
-    <label><input type="checkbox" id="optFaces"> Sharpen faces <span>+158 MB, slower</span></label>
-    <label><input type="checkbox" id="optColour"> Colourise <span>+78 MB, slower</span></label>
+    <label><input type="checkbox" id="optFaces" checked> Sharpen faces</label>
+    <label><input type="checkbox" id="optColour" checked> Colourise</label>
   </div>
-  <p class="legal">Everything runs on this device. <b>Your photos are never uploaded.</b></p>
+  <p class="note">Runs on your device. Nothing is uploaded.</p>
 </section>
 
-<!-- ── WORKING ── -->
 <section id="s-working">
-  <div class="working">
+  <div class="panelbox">
     <canvas id="workThumb" class="thumb"></canvas>
-    <h2>Restoring your photograph</h2>
     <div class="bar"><i id="barFill"></i></div>
-    <div class="stage" id="stageText">Reading pixels…</div>
-    <div class="stage elapsed">Elapsed <span id="elapsed">0s</span> — a large scan can take a minute.</div>
+    <div class="stage" id="stageText">Starting</div>
+    <div class="stage small"><span id="elapsed">0s</span></div>
   </div>
 </section>
 
-<!-- ── DONE: original on top, restored below ── -->
 <section id="s-done">
-  <div class="summary" id="summary"></div>
-
-  <div class="panel after">
-    <div class="phead"><span class="tag">RESTORED</span><span class="dims" id="dimsAfter"></span></div>
-    <div class="stage-view" id="viewAfter">
-      <canvas id="canvasAfter"></canvas>
-      <button class="hoverdl" id="dlAfter" title="Download this image">↓ Download</button>
-    </div>
+  <div class="shot">
+    <span class="tag">Restored</span>
+    <span class="dims" id="dimsAfter"></span>
+    <div class="view" id="viewAfter"><canvas id="canvasAfter"></canvas></div>
+    <button class="hoverdl" id="dlAfter">Download</button>
   </div>
 
   <div class="actions">
-    <button class="btn" id="download">↓  Download restored photo</button>
-    <button class="btn face" id="faceBtn">☺  Sharpen faces</button>
-    <div id="faceNote" class="hint">One-time 158 MB download. Rebuilds facial detail that the scan lost.</div>
-    <button class="btn colour" id="colourBtn">◐  Colourise</button>
-    <div id="colourNote" class="hint">One-time 78 MB download, then it runs on your device like everything else.</div>
+    <button class="btn" id="download">Download</button>
+    <button class="btn ghost" id="zoomBtn" aria-pressed="false">Zoom 1:1</button>
+    <button class="btn ghost" id="again">New photo</button>
   </div>
 
-  <div class="cmp">for comparison</div>
-  <div class="panel before">
-    <div class="phead"><span class="tag">ORIGINAL</span><span class="dims" id="dimsBefore"></span></div>
-    <div class="stage-view" id="viewBefore">
-      <canvas id="canvasBefore"></canvas>
-      <button class="hoverdl" id="dlBefore" title="Download the original">↓ Download</button>
+  <div class="shot small-shot" style="margin-top:22px">
+    <span class="tag">Original</span>
+    <span class="dims" id="dimsBefore"></span>
+    <div class="view" id="viewBefore"><canvas id="canvasBefore"></canvas></div>
+    <button class="hoverdl" id="dlBefore">Download</button>
+  </div>
+
+  <div id="summary" hidden></div>
+  <div id="faceNote" hidden></div>
+  <div id="colourNote" hidden></div>
+
+  <details>
+    <summary>Adjust</summary>
+    <div class="actions" style="margin-top:12px">
+      <button class="btn ghost" id="faceBtn">Sharpen faces</button>
+      <button class="btn ghost" id="colourBtn">Colourise</button>
     </div>
-  </div>
-
-  <div class="actions">
-    <div class="row">
-      <button class="btn ghost" id="zoomBtn" aria-pressed="false">Zoom 1:1</button>
-      <button class="btn ghost" id="again">Restore another</button>
+    <div class="ctl" id="satCtl" hidden>
+      <label for="cSat">Colour strength</label><span class="val" id="vSat"></span>
+      <input type="range" id="cSat" min="0" max="1.6" step="0.05" value="1">
     </div>
-  </div>
-
-  <details class="adv">
-    <summary>Adjust the restoration</summary>
-    <div class="advbody">
-      <div class="ctl">
-        <label for="cRepair">Blemish removal</label><span class="val" id="vRepair"></span>
-        <input type="range" id="cRepair" min="0" max="1" step="0.05">
-        <div class="note">Higher finds fainter marks — too high and it starts filling real detail.</div>
+    <div class="ctl">
+      <label for="cRepair">Blemish removal</label><span class="val" id="vRepair"></span>
+      <input type="range" id="cRepair" min="0" max="1" step="0.05">
+    </div>
+    <div class="ctl">
+      <label>Blemish size</label><span class="val" id="vScale"></span>
+      <div class="seg" id="segScale">
+        <button data-v="0">Fine</button><button data-v="1">Normal</button>
+        <button data-v="2">Coarse</button><button data-v="3">Heavy</button>
       </div>
-      <div class="ctl">
-        <label for="cScale">Blemish size</label><span class="val" id="vScale"></span>
-        <div class="seg" id="segScale">
-          <button data-v="0">Fine</button><button data-v="1">Normal</button>
-          <button data-v="2">Coarse</button><button data-v="3">Heavy</button>
-        </div>
-        <div class="note">How wide a scratch or speck can be and still be treated as damage.</div>
+    </div>
+    <div class="ctl">
+      <label for="cFade">Fade recovery</label><span class="val" id="vFade"></span>
+      <input type="range" id="cFade" min="0" max="1" step="0.05">
+    </div>
+    <div class="ctl">
+      <label>Tone</label><span class="val" id="vTone"></span>
+      <div class="seg" id="segTone">
+        <button data-v="neutral">Neutral</button>
+        <button data-v="keep">Keep</button>
+        <button data-v="mono">Mono</button>
       </div>
-      <div class="ctl">
-        <label for="cFade">Fade &amp; cast recovery</label><span class="val" id="vFade"></span>
-        <input type="range" id="cFade" min="0" max="1" step="0.05">
+    </div>
+    <div class="ctl">
+      <label for="cDenoise">Grain</label><span class="val" id="vDenoise"></span>
+      <input type="range" id="cDenoise" min="0" max="1" step="0.05">
+    </div>
+    <div class="ctl">
+      <label for="cSharpen">Crispness</label><span class="val" id="vSharpen"></span>
+      <input type="range" id="cSharpen" min="0" max="1" step="0.05">
+    </div>
+    <div class="ctl">
+      <label>Enlarge</label><span class="val" id="vSize"></span>
+      <div class="seg" id="segSize">
+        <button data-v="1">1×</button><button data-v="2">2×</button>
+        <button data-v="3">3×</button><button data-v="4">4×</button>
       </div>
-      <div class="ctl">
-        <label>Colour</label><span class="val" id="vTone"></span>
-        <div class="seg" id="segTone">
-          <button data-v="neutral">Neutralise</button>
-          <button data-v="keep">Keep tone</button>
-          <button data-v="mono">Black &amp; white</button>
-        </div>
-        <div class="note">“Keep tone” preserves sepia; “Neutralise” removes the yellowing.</div>
-      </div>
-      <div class="ctl">
-        <label for="cDenoise">Grain reduction</label><span class="val" id="vDenoise"></span>
-        <input type="range" id="cDenoise" min="0" max="1" step="0.05">
-      </div>
-      <div class="ctl">
-        <label for="cSharpen">Crispness</label><span class="val" id="vSharpen"></span>
-        <input type="range" id="cSharpen" min="0" max="1" step="0.05">
-      </div>
-      <div class="ctl">
-        <label>Enlarge</label><span class="val" id="vSize"></span>
-        <div class="seg" id="segSize">
-          <button data-v="1">1×</button><button data-v="2">2×</button>
-          <button data-v="3">3×</button><button data-v="4">4×</button>
-        </div>
-      </div>
-      <div class="ctl" id="satCtl" hidden>
-        <label for="cSat">Colour strength</label><span class="val" id="vSat"></span>
-        <input type="range" id="cSat" min="0" max="1.6" step="0.05" value="1">
-        <div class="note">Scales chroma only — the restored detail underneath never changes.</div>
-      </div>
-      <div class="row" style="margin-top:16px">
-        <button class="btn ghost" id="showMask" aria-pressed="false">Show what it repaired</button>
-        <button class="btn ghost" id="redo">Apply</button>
-      </div>
+    </div>
+    <div class="actions" style="margin-top:14px">
+      <button class="btn ghost" id="showMask" aria-pressed="false">Show repairs</button>
+      <button class="btn ghost" id="redo">Apply</button>
     </div>
   </details>
 </section>
 
-<!-- ── BATCH ── -->
 <section id="s-batch">
-  <div class="working">
-    <h2 id="batchTitle">Restoring your photographs</h2>
+  <div class="panelbox">
     <div class="bar"><i id="batchFill"></i></div>
-    <div class="stage" id="batchStage">Starting…</div>
+    <div class="stage" id="batchStage">Starting</div>
+    <div class="stage small" id="batchTitle"></div>
   </div>
-  <div class="actions" style="margin-top:14px">
-    <button class="btn" id="batchZip" hidden>↓  Download all as a ZIP</button>
-    <div class="row">
-      <button class="btn ghost" id="batchStop">Stop</button>
-      <button class="btn ghost" id="batchAgain" hidden>Start again</button>
-    </div>
+  <div class="actions">
+    <button class="btn" id="batchZip" hidden>Download all</button>
+    <button class="btn ghost" id="batchStop">Stop</button>
+    <button class="btn ghost" id="batchAgain" hidden>New batch</button>
   </div>
   <ul class="queue" id="queue"></ul>
 </section>
 
-<!-- ── ERROR ── -->
 <section id="s-error">
   <div class="err">
-    <h2>That didn’t work</h2>
     <p id="errText"></p>
-    <div class="actions" style="margin-top:16px"><button class="btn ghost" id="errBack">Try another photo</button></div>
+    <div class="actions" style="margin-top:14px"><button class="btn ghost" id="errBack">Try again</button></div>
   </div>
 </section>
 
-<footer>
-  Runs in this tab, on your device. Your photograph is never uploaded.<br>
-  Repair, tone and resolution are classical image restoration, written from scratch.<br>
-  Colour is predicted by <a href="https://github.com/piddnad/DDColor" rel="noopener">DDColor (Du et al., ICCV 2023)</a>,
-  Apache-2.0, run locally — a plausible reading, not a record.
-</footer>
 </div>
-
 <script src="engine.js"></script>
 <script>
 /* ============================================================================
@@ -375,7 +303,8 @@ $('themeToggle').onclick = () => {
 
 /* ── model locations ── */
 const ORT_BASE = new URL('ort/', location.href).href;
-const COLOUR_MODEL = { path: 'colorize.onnx', size: 78014375 };
+const COLOUR_MODEL = { path: 'colorize.onnx', size: 78014375,
+  detPath: 'models/facedet.onnx', detSize: 232589 };   // for the orientation check
 const FACE_MODEL = {
   parts: ['models/face.onnx.part0', 'models/face.onnx.part1', 'models/face.onnx.part2'],
   totalSize: 158232137, detPath: 'models/facedet.onnx', detSize: 232589,
@@ -383,7 +312,7 @@ const FACE_MODEL = {
 
 /* ── state ── */
 let srcImage = null, srcName = 'photo', stats = null, opts = null, result = null;
-let busy = false, colourOn = false, abFull = null, batch = null;
+let busy = false, colourOn = false, abFull = null, batch = null, facesDone = false;
 let autoFaces = false, autoColour = false;
 const setState = s => { body.dataset.state = s; };
 const fmt = n => n.toLocaleString('en-US');
@@ -519,16 +448,19 @@ async function run() {
   await raf();
 
   try {
+    colourOn = false; abFull = null; facesDone = false;
     result = await restoreImage(srcImage, showStage);
   } catch (e) {
     stopTicker();
     return fail('Restoration failed: ' + (e && e.message ? e.message : e));
   }
+  /* Keep the working screen up through the model stages too, so there is one
+     continuous run rather than a result that then changes under the user. */
+  if (autoFaces) { autoFaces = false; await enhanceFaces({ onStage: showStage }); }
+  if (autoColour) { autoColour = false; await colourise({ onStage: showStage }); }
   stopTicker();
   present();
   busy = false;
-  if (autoFaces) { autoFaces = false; await enhanceFaces(); }
-  if (autoColour) { autoColour = false; await colourise(); }
 }
 
 /* Worker if we can, main thread if we must. */
@@ -566,42 +498,27 @@ function paint(canvas, img) {
 }
 function present() {
   paint($('canvasBefore'), srcImage);
-  paint($('canvasAfter'), result);
+  paint($('canvasAfter'), colourOn && result.colour
+    ? { width: result.width, height: result.height, data: result.colour } : result);
   $('dimsBefore').textContent = fmt(srcImage.width) + ' × ' + fmt(srcImage.height);
   $('dimsAfter').textContent = fmt(result.width) + ' × ' + fmt(result.height)
-    + (result.scale > 1.01 ? '   (' + (Math.round(result.scale * 10) / 10) + '×)' : '');
-  const chips = [];
-  const pct = (result.damageFraction || 0) * 100;
-  chips.push(['hi', 'Blemishes repaired', pct < 0.05 ? 'almost none found' : pct.toFixed(1) + '% of the frame']);
-  if (result.scale > 1.01) chips.push(['hi', 'Resolution', (Math.round(result.scale * 10) / 10) + '× — ' + (result.width * result.height / 1e6).toFixed(1) + ' MP']);
-  if (opts && opts.fade > 0.02) chips.push(['', 'Fade recovered', Math.round(opts.fade * 100) + '%']);
-  if (stats && stats.toned) chips.push(['', 'Toned print', opts.tone === 'keep' ? 'tone kept' : 'neutralised']);
-  if (stats) chips.push(['', 'Scan quality', stats.softness > 0.65 ? 'soft' : stats.softness > 0.35 ? 'normal' : 'crisp']);
-  $('summary').innerHTML = chips.map(([cls, k, v]) =>
-    '<span class="chip ' + cls + '">' + k + ' <b>' + v + '</b></span>').join('');
-
-  colourOn = false; abFull = null;
-  $('satCtl').hidden = true;
-  $('faceBtn').disabled = false; $('faceBtn').textContent = '☺  Sharpen faces';
-  $('faceNote').textContent = 'One-time 158 MB download. Rebuilds facial detail the scan lost.';
-  $('colourBtn').disabled = false; $('colourBtn').textContent = '◐  Colourise';
-  /* Arrow, never the bare function. Assigning `colourise` directly hands the
-     click's MouseEvent to its first parameter — `silent` — which is truthy,
-     so the model ran and then suppressed every visible sign that it had:
-     no button text, no note, no repainted canvas. Clicking did the whole job
-     and showed nothing. That is what "it does nothing" was. */
-  $('colourBtn').onclick = () => colourise();
-  $('colourNote').textContent = 'One-time 78 MB download, then it runs on your device like everything else.';
-  $('download').textContent = '↓  Download restored photo';
-  maskOn = false; $('showMask').setAttribute('aria-pressed', 'false');
-  $('showMask').textContent = 'Show what it repaired';
+    + (result.scale > 1.01 ? '  ' + (Math.round(result.scale * 10) / 10) + '×' : '');
+  $('faceBtn').disabled = false;
+  $('faceBtn').textContent = facesDone ? 'Faces sharpened' : 'Sharpen faces';
+  $('colourBtn').disabled = false;
+  $('colourBtn').textContent = colourOn ? 'Back to black & white' : 'Colourise';
+  $('colourBtn').onclick = colourOn ? toggleColour : () => colourise();
+  $('satCtl').hidden = !abFull;
+  if (abFull) $('vSat').textContent = Math.round(parseFloat($('cSat').value) * 100) + '%';
+  maskOn = false;
+  $('showMask').setAttribute('aria-pressed', 'false');
+  $('showMask').textContent = 'Show repairs';
   setState('done');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 /* ── faces ── */
 async function enhanceFaces(silent) {
-  silent = silent === true;      // never a MouseEvent
   const btn = $('faceBtn'), note = t => { if (!silent) $('faceNote').textContent = t; };
   const say = t => { if (!silent) btn.textContent = t; };
   btn.disabled = true;
@@ -615,10 +532,11 @@ async function enhanceFaces(silent) {
     const m = await res;
     if (!m.count) { note('No faces found in this photograph — nothing to sharpen.'); btn.disabled = false; say('☺  Sharpen faces'); return; }
     result.data = new Uint8ClampedArray(m.data);
-    if (!silent) paint($('canvasAfter'), result);
+    facesDone = true;
+    if (!silent && !onStage) paint($('canvasAfter'), result);
     if (abFull) {
       abFull.L = ReviveColour.lightness(result.data, result.width * result.height, ReviveEngine._internal.S2L);
-      if (colourOn) applyColour(silent);
+      if (colourOn) applyColour(silent || !!onStage);
     }
     note(m.count + (m.count === 1 ? ' face' : ' faces') + ' restored. Detail here is rebuilt from a learned prior — a likeness, not a record.');
     say('☺  Faces sharpened');
@@ -631,7 +549,6 @@ $('faceBtn').onclick = () => enhanceFaces();
 
 /* ── colour ── */
 async function colourise(silent) {
-  silent = silent === true;      // never a MouseEvent
   const btn = $('colourBtn'), note = t => { if (!silent) $('colourNote').textContent = t; };
   const say = t => { if (!silent) btn.textContent = t; };
   btn.disabled = true;
@@ -644,8 +561,8 @@ async function colourise(silent) {
     const m = await res;
     abFull = { L: new Float32Array(m.L), a: new Float32Array(m.a), b: new Float32Array(m.b) };
     colourOn = true;
-    applyColour(silent);
-    if (!silent) {
+    applyColour(silent || !!onStage);
+    if (!silent && !onStage) {
       $('satCtl').hidden = false;
       $('vSat').textContent = Math.round(parseFloat($('cSat').value) * 100) + '%';
       note('Colour is predicted, not recovered — a plausible reading, not a record.');
@@ -661,7 +578,6 @@ async function colourise(silent) {
 $('colourBtn').onclick = () => colourise();
 
 function applyColour(silent) {
-  silent = silent === true;
   const n = result.width * result.height;
   const k = parseFloat($('cSat').value);
   const a = Float32Array.from(abFull.a), b = Float32Array.from(abFull.b);
@@ -850,8 +766,8 @@ async function runBatch(files) {
       const span = (wantFaces || wantColour) ? 0.45 : 0.95;
       result = await restoreImage(srcImage, (stage, p) => { setRow(i, 'now', stage.toLowerCase() + '…'); overall(p * span, stage); });
       colourOn = false; abFull = null;
-      if (wantFaces) { setRow(i, 'now', 'faces…'); overall(0.6, 'faces'); await enhanceFaces(true); }
-      if (wantColour) { setRow(i, 'now', 'colour…'); overall(0.85, 'colour'); await colourise(true); }
+      if (wantFaces) { setRow(i, 'now', 'faces…'); overall(0.6, 'faces'); await enhanceFaces({ silent: true }); }
+      if (wantColour) { setRow(i, 'now', 'colour…'); overall(0.85, 'colour'); await colourise({ silent: true }); }
       const pixels = colourOn && result.colour ? result.colour : result.data;
       item.blob = await new Promise(res => {
         const c = document.createElement('canvas');
