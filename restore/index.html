@@ -86,6 +86,7 @@ body[data-state="error"] #s-error{display:block}
   background:linear-gradient(90deg,var(--accent),var(--pink),var(--violet));transition:width .25s ease}
 .stage{color:var(--soft);font-size:.9em}
 .working h2{font-size:1em;font-weight:700}
+.elapsed{color:var(--faint);font-size:.82em;margin-top:4px}
 .thumb{max-width:150px;max-height:110px;border-radius:10px;border:1px solid var(--line);display:block;margin:0 auto 4px}
 
 /* ── Result: original ON TOP, restored BELOW ── */
@@ -219,6 +220,7 @@ footer a{color:var(--soft)}
     <h2>Restoring your photograph</h2>
     <div class="bar"><i id="barFill"></i></div>
     <div class="stage" id="stageText">Reading pixels…</div>
+    <div class="stage elapsed">Elapsed <span id="elapsed">0s</span> — a large scan can take a minute.</div>
   </div>
 </section>
 
@@ -349,1695 +351,14 @@ footer a{color:var(--soft)}
 </footer>
 </div>
 
+<script src="engine.js"></script>
 <script>
-/*REVIVE-ENGINE-START*/
 /* ============================================================================
-   REVIVE ENGINE — photo restoration, classical DSP, zero dependencies.
-   Pure JS over typed arrays: no DOM, no network, no model weights. The whole
-   thing runs in node (see tests/run.mjs) and in the browser off the same source.
-
-   Pipeline, in the only order that makes sense:
-     decode -> linear light -> fade/cast recovery -> defect detect -> inpaint
-     -> denoise (chroma hard, luma soft) -> upscale (Lanczos) -> back-projection
-     -> shock sharpen -> local contrast -> grain -> sRGB out
-
-   Everything that carries detail happens on luminance. Chroma is smoothed and
-   carried cheaply — that is how human vision is built and it keeps 4x upscales
-   inside a browser's memory budget.
-   ========================================================================== */
-const ReviveEngine = (() => {
-'use strict';
-
-const VERSION = '1.0';
-const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
-
-/* ── colour: sRGB <-> linear ──────────────────────────────────────────────
-   All filtering happens in linear light. Blurring, resizing and averaging
-   gamma-encoded values darkens edges; this is the cheap fix and it is exact
-   on the way in (256-entry LUT) and near-exact on the way out (4096-entry
-   table indexed on sqrt, which spends its resolution where sRGB curves). */
-const S2L = new Float32Array(256);
-for (let i = 0; i < 256; i++) {
-  const c = i / 255;
-  S2L[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
-}
-const L2S_N = 4096, L2S = new Float32Array(L2S_N + 1);
-for (let i = 0; i <= L2S_N; i++) {
-  const t = i / L2S_N, c = t * t;                       // sqrt-spaced domain
-  L2S[i] = (c <= 0.0031308 ? c * 12.92 : 1.055 * Math.pow(c, 1 / 2.4) - 0.055) * 255;
-}
-function linearToByte(v) {
-  if (!(v > 0)) return 0;
-  if (v >= 1) return 255;
-  const f = Math.sqrt(v) * L2S_N, i = f | 0, t = f - i;
-  return L2S[i] + (L2S[i + 1] - L2S[i]) * t;
-}
-
-/* Luma/chroma split in linear light. Y is Rec.709 luminance; chroma is stored
-   as plain differences so the round trip is exact and costs two adds. */
-const KR = 0.2126, KG = 0.7152, KB = 0.0722;
-function rgbToYcc(r, g, b, Y, Cb, Cr, n) {
-  for (let i = 0; i < n; i++) {
-    const y = KR * r[i] + KG * g[i] + KB * b[i];
-    Y[i] = y; Cb[i] = b[i] - y; Cr[i] = r[i] - y;
-  }
-}
-function yccToRgb(Y, Cb, Cr, r, g, b, n) {
-  for (let i = 0; i < n; i++) {
-    const y = Y[i], R = y + Cr[i], B = y + Cb[i];
-    r[i] = R; b[i] = B; g[i] = (y - KR * R - KB * B) / KG;
-  }
-}
-
-/* ── box blur: sliding sum, O(1) per pixel, edges replicated ─────────────── */
-function boxBlur(src, dst, w, h, r, tmp) {
-  if (r < 1) { dst.set(src); return dst; }
-  tmp = tmp || new Float32Array(w * h);
-  const inv = 1 / (2 * r + 1);
-  for (let y = 0; y < h; y++) {                          // horizontal
-    const row = y * w;
-    let sum = src[row] * (r + 1);
-    for (let i = 1; i <= r; i++) sum += src[row + (i < w ? i : w - 1)];
-    for (let x = 0; x < w; x++) {
-      tmp[row + x] = sum * inv;
-      const add = x + r + 1, sub = x - r;
-      sum += src[row + (add < w ? add : w - 1)] - src[row + (sub > 0 ? sub : 0)];
-    }
-  }
-  for (let x = 0; x < w; x++) {                          // vertical
-    let sum = tmp[x] * (r + 1);
-    for (let i = 1; i <= r; i++) sum += tmp[(i < h ? i : h - 1) * w + x];
-    for (let y = 0; y < h; y++) {
-      dst[y * w + x] = sum * inv;
-      const add = y + r + 1, sub = y - r;
-      sum += tmp[(add < h ? add : h - 1) * w + x] - tmp[(sub > 0 ? sub : 0) * w + x];
-    }
-  }
-  return dst;
-}
-/* True separable Gaussian for the small radii this pipeline actually uses —
-   the three-box approximation is faster but its effective sigma drifts, and
-   back-projection needs the blur it asked for or the iteration diverges. */
-const GK = new Map();
-function gaussKernel(sigma) {
-  const key = sigma.toFixed(3);
-  let k = GK.get(key);
-  if (k) return k;
-  const rad = Math.max(1, Math.ceil(sigma * 3));
-  k = new Float32Array(rad * 2 + 1);
-  let sum = 0;
-  for (let i = -rad; i <= rad; i++) { const v = Math.exp(-(i * i) / (2 * sigma * sigma)); k[i + rad] = v; sum += v; }
-  for (let i = 0; i < k.length; i++) k[i] /= sum;
-  k.rad = rad;
-  GK.set(key, k);
-  return k;
-}
-function gauss(src, dst, w, h, sigma, tmp) {
-  if (sigma <= 0.05) { if (dst !== src) dst.set(src); return dst; }
-  if (sigma > 4) {                       // large blurs: boxes are fine and faster
-    const r = Math.max(1, Math.round(Math.sqrt(12 * sigma * sigma / 3 + 1) - 1) >> 1);
-    tmp = tmp || new Float32Array(w * h);
-    const a = new Float32Array(w * h);
-    boxBlur(src, a, w, h, r, tmp); boxBlur(a, dst, w, h, r, tmp); boxBlur(dst, a, w, h, r, tmp);
-    dst.set(a); return dst;
-  }
-  if (sigma <= 0.7) {
-    /* A 3-tap [a, 1-2a, a] with a = sigma^2/2 has exactly the right second
-       moment, so it IS this sigma, not an approximation of it. Valid while
-       a <= 1/4 (sigma <= 0.707). Back-projection runs this blur twice per
-       iteration at full output resolution, so 3 taps instead of 7 is the
-       difference between a restoration you wait for and one you abandon. */
-    const a = sigma * sigma / 2, c = 1 - 2 * a;
-    tmp = tmp && tmp.length >= w * h ? tmp : new Float32Array(w * h);
-    for (let y = 0; y < h; y++) {
-      const row = y * w;
-      for (let x = 0; x < w; x++)
-        tmp[row + x] = a * src[row + (x > 0 ? x - 1 : 0)] + c * src[row + x] + a * src[row + (x < w - 1 ? x + 1 : w - 1)];
-    }
-    for (let y = 0; y < h; y++) {
-      const row = y * w, up = (y > 0 ? y - 1 : 0) * w, dn = (y < h - 1 ? y + 1 : h - 1) * w;
-      for (let x = 0; x < w; x++) dst[row + x] = a * tmp[up + x] + c * tmp[row + x] + a * tmp[dn + x];
-    }
-    return dst;
-  }
-  const k = gaussKernel(sigma), rad = k.rad;
-  tmp = tmp && tmp.length >= w * h ? tmp : new Float32Array(w * h);
-  for (let y = 0; y < h; y++) {
-    const row = y * w;
-    for (let x = 0; x < w; x++) {
-      let acc = 0;
-      for (let t = -rad; t <= rad; t++) {
-        let s = x + t; s = s < 0 ? 0 : s >= w ? w - 1 : s;
-        acc += src[row + s] * k[t + rad];
-      }
-      tmp[row + x] = acc;
-    }
-  }
-  for (let x = 0; x < w; x++) {
-    for (let y = 0; y < h; y++) {
-      let acc = 0;
-      for (let t = -rad; t <= rad; t++) {
-        let s = y + t; s = s < 0 ? 0 : s >= h ? h - 1 : s;
-        acc += tmp[s * w + x] * k[t + rad];
-      }
-      dst[y * w + x] = acc;
-    }
-  }
-  return dst;
-}
-/* ── 1-D sliding-window min/max (monotonic deque, O(1) amortised) ────────── */
-function win1d(a, n, out, rad, isMax) {
-  const dq = win1d._dq && win1d._dq.length >= n ? win1d._dq : (win1d._dq = new Int32Array(n + 8));
-  let head = 0, tail = 0;
-  for (let i = 0; i < n + rad; i++) {
-    if (i < n) {
-      const v = a[i];
-      while (tail > head && (isMax ? a[dq[tail - 1]] <= v : a[dq[tail - 1]] >= v)) tail--;
-      dq[tail++] = i;
-    }
-    const o = i - rad;
-    if (o >= 0) { while (dq[head] < o - rad) head++; out[o] = a[dq[head]]; }
-  }
-  return out;
-}
-
-/* Morphology along an arbitrary line direction. Each discrete line through the
-   image is gathered, run through win1d, and scattered back — so an oriented
-   erosion costs the same as a horizontal one regardless of angle. */
-function lineMorph(src, dst, w, h, dx, dy, len, isMax) {
-  const rad = (len - 1) >> 1;
-  const cap = Math.max(w, h) + 2;
-  const buf = new Float32Array(cap), res = new Float32Array(cap), idx = new Int32Array(cap);
-  const starts = [];
-  const push = (x, y) => { const px = x - dx, py = y - dy;
-    if (px < 0 || px >= w || py < 0 || py >= h) starts.push(x, y); };
-  for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
-  for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y); }
-  const done = new Uint8Array(w * h);
-  for (let s = 0; s < starts.length; s += 2) {
-    let x = starts[s], y = starts[s + 1];
-    if (done[y * w + x]) continue;
-    let n = 0;
-    while (x >= 0 && x < w && y >= 0 && y < h) {
-      const p = y * w + x; done[p] = 1; idx[n] = p; buf[n] = src[p]; n++; x += dx; y += dy;
-    }
-    win1d(buf, n, res, rad, isMax);
-    for (let i = 0; i < n; i++) dst[idx[i]] = res[i];
-  }
-  return dst;
-}
-/* Separable square structuring element — the isotropic counterpart used to
-   subtract "everything that is not thin and elongated". */
-function sqMorph(src, dst, w, h, len, isMax) {
-  const rad = (len - 1) >> 1;
-  const cap = Math.max(w, h) + 2, buf = new Float32Array(cap), res = new Float32Array(cap);
-  const tmp = new Float32Array(w * h);
-  for (let y = 0; y < h; y++) {
-    for (let x = 0; x < w; x++) buf[x] = src[y * w + x];
-    win1d(buf, w, res, rad, isMax);
-    for (let x = 0; x < w; x++) tmp[y * w + x] = res[x];
-  }
-  for (let x = 0; x < w; x++) {
-    for (let y = 0; y < h; y++) buf[y] = tmp[y * w + x];
-    win1d(buf, h, res, rad, isMax);
-    for (let y = 0; y < h; y++) dst[y * w + x] = res[y];
-  }
-  return dst;
-}
-
-/* ── Lanczos-3 resample, separable, precomputed weights ──────────────────── */
-function lanczosWeights(srcN, dstN, a) {
-  const scale = dstN / srcN, sup = scale < 1 ? a / scale : a, taps = Math.ceil(sup * 2) + 1;
-  const idx = new Int32Array(dstN * taps), wts = new Float32Array(dstN * taps);
-  for (let o = 0; o < dstN; o++) {
-    const centre = (o + 0.5) / scale - 0.5;
-    const first = Math.ceil(centre - sup);
-    let sum = 0;
-    for (let t = 0; t < taps; t++) {
-      const s = first + t;
-      let x = (s - centre) * (scale < 1 ? scale : 1);
-      let wv;
-      if (x === 0) wv = 1;
-      else if (x <= -a || x >= a) wv = 0;
-      else { const px = Math.PI * x; wv = a * Math.sin(px) * Math.sin(px / a) / (px * px); }
-      idx[o * taps + t] = s < 0 ? 0 : s >= srcN ? srcN - 1 : s;
-      wts[o * taps + t] = wv; sum += wv;
-    }
-    if (sum !== 0) for (let t = 0; t < taps; t++) wts[o * taps + t] /= sum;
-  }
-  return { idx, wts, taps };
-}
-function resample(src, sw, sh, dw, dh, a) {
-  a = a || 3;
-  if (sw === dw && sh === dh) return Float32Array.from(src);
-  const hx = lanczosWeights(sw, dw, a), hy = lanczosWeights(sh, dh, a);
-  const mid = new Float32Array(dw * sh);
-  for (let y = 0; y < sh; y++) {
-    const row = y * sw, orow = y * dw;
-    for (let x = 0; x < dw; x++) {
-      let acc = 0, base = x * hx.taps;
-      for (let t = 0; t < hx.taps; t++) acc += src[row + hx.idx[base + t]] * hx.wts[base + t];
-      mid[orow + x] = acc;
-    }
-  }
-  const out = new Float32Array(dw * dh);
-  for (let y = 0; y < dh; y++) {
-    let base = y * hy.taps, orow = y * dw;
-    for (let x = 0; x < dw; x++) {
-      let acc = 0;
-      for (let t = 0; t < hy.taps; t++) acc += mid[hy.idx[base + t] * dw + x] * hy.wts[base + t];
-      out[orow + x] = acc;
-    }
-  }
-  return out;
-}
-/* Cheap forward/backward model for back-projection: blur+decimate down,
-   bilinear up. Deliberately not Lanczos — this pair is what the iteration
-   converges against, and it has to be fast because it runs many times. */
-function decimate(src, sw, sh, dw, dh) {
-  const out = new Float32Array(dw * dh);
-  const fx = sw / dw, fy = sh / dh;
-  for (let y = 0; y < dh; y++) {
-    const y0 = Math.floor(y * fy), y1 = Math.min(sh, Math.ceil((y + 1) * fy));
-    for (let x = 0; x < dw; x++) {
-      const x0 = Math.floor(x * fx), x1 = Math.min(sw, Math.ceil((x + 1) * fx));
-      let acc = 0, n = 0;
-      for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) { acc += src[yy * sw + xx]; n++; }
-      out[y * dw + x] = n ? acc / n : 0;
-    }
-  }
-  return out;
-}
-function upBilinear(src, sw, sh, dw, dh) {
-  const out = new Float32Array(dw * dh);
-  const fx = sw / dw, fy = sh / dh;
-  for (let y = 0; y < dh; y++) {
-    let sy = (y + 0.5) * fy - 0.5; if (sy < 0) sy = 0; if (sy > sh - 1) sy = sh - 1;
-    const y0 = sy | 0, y1 = Math.min(sh - 1, y0 + 1), ty = sy - y0;
-    for (let x = 0; x < dw; x++) {
-      let sx = (x + 0.5) * fx - 0.5; if (sx < 0) sx = 0; if (sx > sw - 1) sx = sw - 1;
-      const x0 = sx | 0, x1 = Math.min(sw - 1, x0 + 1), tx = sx - x0;
-      const a = src[y0 * sw + x0], b = src[y0 * sw + x1], c = src[y1 * sw + x0], d = src[y1 * sw + x1];
-      out[y * dw + x] = (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
-    }
-  }
-  return out;
-}
-
-/* Nearest-neighbour upsample = the exact transpose of decimate. Using the
-   true adjoint for the back-projection step turns the iteration into plain
-   Richardson descent, which degrades gracefully when the assumed blur is
-   wrong instead of ringing itself apart. */
-function upBox(src, sw, sh, dw, dh, out) {
-  out = out || new Float32Array(dw * dh);
-  const fx = sw / dw, fy = sh / dh;
-  for (let y = 0; y < dh; y++) {
-    const sy = Math.min(sh - 1, (y * fy) | 0), srow = sy * sw, orow = y * dw;
-    for (let x = 0; x < dw; x++) out[orow + x] = src[srow + Math.min(sw - 1, (x * fx) | 0)];
-  }
-  return out;
-}
-
-/* ── guided filter (He et al.) — edge-preserving smoothing in O(n) ────────
-   Used two ways: self-guided on luma (gentle, keeps grain), and Y-guided on
-   chroma (aggressive — colour blotches in aged film carry no real detail). */
-function guidedFilter(I, p, w, h, r, eps) {
-  const n = w * h, tmp = new Float32Array(n);
-  const mI = boxBlur(I, new Float32Array(n), w, h, r, tmp);
-  const mP = I === p ? mI : boxBlur(p, new Float32Array(n), w, h, r, tmp);
-  const II = new Float32Array(n), IP = new Float32Array(n);
-  for (let i = 0; i < n; i++) { II[i] = I[i] * I[i]; IP[i] = I[i] * p[i]; }
-  const mII = boxBlur(II, II, w, h, r, tmp), mIP = I === p ? mII : boxBlur(IP, IP, w, h, r, tmp);
-  const A = new Float32Array(n), B = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const varI = mII[i] - mI[i] * mI[i];
-    const cov = I === p ? varI : mIP[i] - mI[i] * mP[i];
-    const a = cov / (varI + eps);
-    A[i] = a; B[i] = mP[i] - a * mI[i];
-  }
-  boxBlur(A, A, w, h, r, tmp); boxBlur(B, B, w, h, r, tmp);
-  const q = new Float32Array(n);
-  for (let i = 0; i < n; i++) q[i] = A[i] * I[i] + B[i];
-  return q;
-}
-
-/* ── noise estimate ──────────────────────────────────────────────────────
-   The LOW PERCENTILE OF LOCAL STANDARD DEVIATION: look at the spread inside
-   small windows all over the image, and take one of the calmest. Wherever the
-   photograph is genuinely flat — sky, plaster, a cheek — that window contains
-   nothing but the grain, so its spread IS the noise floor. A low percentile
-   finds such a window without needing to be told where one is.
-
-   This replaced a median-of-Laplacian estimator, which was wrong in a way
-   that quietly wrecked everything downstream. The Laplacian measures
-   high-frequency content, and FILM GRAIN IS NOT HIGH FREQUENCY — it is
-   correlated over several pixels, especially in a high-resolution scan of a
-   small print, so the Laplacian largely cancels across it. On a real grainy
-   portrait that estimator reported 0.00077 against a true grain level near
-   0.011: fourteen times too low. Denoise strength, the sharpening gate and
-   the damage threshold are all derived from this number, so all three were
-   set as if the scan were clean. The denoiser did nothing and the sharpener
-   and local-contrast stages amplified what it left, ending up NOISIER than
-   the photograph they were given. */
-function estimateNoise(Y, w, h) {
-  const n = w * h;
-  if (n < 64) return 0.002;
-  /* The window has to be several grain-correlation-lengths across or it
-     tracks the grain instead of measuring it: at r=3 this reported 0.0077
-     against a true 0.0206. Scaled to the image, since grain size in pixels
-     scales with scan resolution. */
-  const r = Math.max(3, Math.min(16, Math.round(Math.min(w, h) / 80)));
-  const tmp = new Float32Array(n);
-  /* Measured in a PERCEPTUALLY UNIFORM domain (sqrt of linear, a cheap stand-in
-     for the sRGB curve), because that is where film grain is roughly constant.
-     Measured in linear light it is not: the dark half of a photograph has tiny
-     absolute noise simply because linear compresses shadows, so a low
-     percentile lands in the shadows and reports a tenth of the real grain. */
-  const P = new Float32Array(n);
-  for (let i = 0; i < n; i++) P[i] = Math.sqrt(Y[i] > 0 ? Y[i] : 0);
-  Y = P;
-  const mean = boxBlur(Y, new Float32Array(n), w, h, r, tmp);
-  const sq = new Float32Array(n);
-  for (let i = 0; i < n; i++) sq[i] = Y[i] * Y[i];
-  boxBlur(sq, sq, w, h, r, tmp);
-  const step = Math.max(1, Math.floor(Math.sqrt(n / 40000)));
-  const samples = [];
-  for (let y = r; y < h - r; y += step) for (let x = r; x < w - r; x += step) {
-    const i = y * w + x, v = sq[i] - mean[i] * mean[i];
-    samples.push(v > 0 ? Math.sqrt(v) : 0);
-  }
-  if (!samples.length) return 0.002;
-  samples.sort((a, b) => a - b);
-  /* 10th percentile, not the minimum: a handful of windows can be flat by
-     accident (clipped highlights, pure black borders) and would read as zero
-     noise, which is the failure mode that started all this. */
-  /* p25 with a calibration factor: even a well-sized window still clips a
-     little of the grain's slowest component. Measured against known grain,
-     p25 x 1.25 lands within ~5%. */
-  return Math.max(1e-5, samples[Math.floor(samples.length * 0.25)] * 1.25);
-}
-
-/* ── softness estimate ───────────────────────────────────────────────────
-   Blur a copy and ask how much high-frequency ENERGY was left to lose. Summed
-   |grad| is the wrong statistic — it is conserved across a blurred step edge,
-   so it reports a mush and a knife-edge alike. Squared gradient energy is not:
-   spreading an edge over more pixels strictly lowers it. The ratio is also
-   scale-free, so a faded low-contrast print is not mistaken for a soft one. */
-function estimateSoftness(Y, w, h) {
-  const n = w * h, tmp = new Float32Array(n);
-  const b = gauss(Y, new Float32Array(n), w, h, 1.0, tmp);
-  let e0 = 0, e1 = 0;
-  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-    const i = y * w + x;
-    let dx = Y[i + 1] - Y[i - 1], dy = Y[i + w] - Y[i - w];
-    e0 += dx * dx + dy * dy;
-    dx = b[i + 1] - b[i - 1]; dy = b[i + w] - b[i - w];
-    e1 += dx * dx + dy * dy;
-  }
-  if (e0 < 1e-12) return 0.5;
-  const ratio = e1 / e0;                    // ~0.15 crisp ... ~0.95 already soft
-  return Math.max(0, Math.min(1, (ratio - 0.22) / 0.5));
-}
-
-/* ── defect detection ────────────────────────────────────────────────────
-   Two morphological families, which between them describe what actually goes
-   wrong with a print:
-     specks  = small blobs of any shape      -> L minus the supremum of
-               oriented openings (an elongated mark survives one orientation,
-               a dust speck survives none)
-     scratch = thin, long, any angle         -> supremum of oriented openings
-               minus a square opening (which erases lines but keeps blobs)
-   Both run in mirror image for dark damage (cracks, emulsion loss) and bright
-   damage (dust, silvering, tears showing paper).                            */
-const DIRS = [[1, 0], [0, 1], [1, 1], [1, -1]];
-function detectDefects(Y, w, h, opt) {
-  const n = w * h;
-  const tmp = new Float32Array(n);
-  /* Same perceptually uniform domain as the noise estimate, so the threshold
-     means the same thing on a dark coat as on a bright sky. */
-  const P = new Float32Array(n);
-  for (let i = 0; i < n; i++) P[i] = Math.sqrt(Y[i] > 0 ? Y[i] : 0);
-  const base = gauss(P, new Float32Array(n), w, h, 0.7, tmp);
-  const len = opt.len, sqlen = opt.len;
-  const a = new Float32Array(n), sup = new Float32Array(n), inf = new Float32Array(n);
-  sup.fill(-1e9); inf.fill(1e9);
-  for (const [dx, dy] of DIRS) {
-    lineMorph(base, a, w, h, dx, dy, len, false);          // erode
-    lineMorph(a, tmp, w, h, dx, dy, len, true);            // dilate -> opening
-    for (let i = 0; i < n; i++) if (tmp[i] > sup[i]) sup[i] = tmp[i];
-    lineMorph(base, a, w, h, dx, dy, len, true);           // dilate
-    lineMorph(a, tmp, w, h, dx, dy, len, false);           // erode -> closing
-    for (let i = 0; i < n; i++) if (tmp[i] < inf[i]) inf[i] = tmp[i];
-  }
-  const sqOpen = new Float32Array(n), sqClose = new Float32Array(n);
-  sqMorph(base, a, w, h, sqlen, false); sqMorph(a, sqOpen, w, h, sqlen, true);
-  sqMorph(base, a, w, h, sqlen, true);  sqMorph(a, sqClose, w, h, sqlen, false);
-
-  const resp = new Float32Array(n);
-  const ws = opt.speck, wl = opt.scratch;
-  for (let i = 0; i < n; i++) {
-    const speck = Math.max(base[i] - sup[i], inf[i] - base[i]);
-    const line  = Math.max(sup[i] - sqOpen[i], sqClose[i] - inf[i]);
-    resp[i] = Math.max(ws * speck, wl * line);
-  }
-
-  /* ── normalise by LOCAL contrast, which is the whole game ────────────────
-     Judged against a single global noise figure, this response fires on every
-     hard edge in the photograph — a blackboard rim, a window frame, the line
-     of a shoulder — and, fatally, on faces, where eyes, spectacles, nostrils
-     and the highlights in hair are exactly the small high-contrast features
-     the speck and line filters are built to find. The tool then inpaints
-     people's faces away, which is the single worst thing it could do.
-
-     A dust speck and an eyelash have similar absolute contrast. What tells
-     them apart is the company they keep: damage is a LOCAL OUTLIER, sitting
-     on plaster or sky that is otherwise smooth, while real detail lives in
-     neighbourhoods that are already full of structure. So the response is
-     divided by the local spread of a damage-free version of the image (the
-     square opening and closing between them erase both specks and lines,
-     leaving legitimate content). Near an edge or across a face the
-     denominator is large and the score collapses; on a speck sitting alone
-     on a smooth wall it stays small and the speck stands out.
-
-     The score is now dimensionless, so opt.k is a plain ratio rather than a
-     multiple of an absolute noise level that no longer means much. */
-  const ref = new Float32Array(n);
-  for (let i = 0; i < n; i++) ref[i] = (sqOpen[i] + sqClose[i]) * 0.5;
-  const rMean = boxBlur(ref, new Float32Array(n), w, h, 4, tmp);
-  const rSq = new Float32Array(n);
-  for (let i = 0; i < n; i++) rSq[i] = ref[i] * ref[i];
-  boxBlur(rSq, rSq, w, h, 4, tmp);
-  const sigma = opt.sigma;
-  for (let i = 0; i < n; i++) {
-    const v = rSq[i] - rMean[i] * rMean[i];
-    const sd = v > 0 ? Math.sqrt(v) : 0;
-    resp[i] = resp[i] / (2.5 * sigma + 0.9 * sd + 1e-4);
-  }
-  /* Two thresholds, and the stricter one wins.
-
-     The first is the honest one: a response only counts as damage if it stands
-     k noise-sigmas above the grain. The second is a hard area cap, because the
-     first fails badly when the noise estimate is wrong — a perfectly flat scan
-     can measure near-zero noise, and then every fibre of the paper clears the
-     bar and the "repair" eats the photograph. Rather than nudging the
-     threshold upward and hoping, read the response value at the (1 - maxFrac)
-     quantile straight off a histogram: whatever the image, no more than
-     maxFrac of it can clear that, by construction and in one pass. */
-  let lo = opt.k;
-
-  /* The area cap is a BRAKE, and it must only engage when the honest
-     threshold has already failed. Taking max(noiseThreshold, quantile)
-     unconditionally — which is what this did — means the quantile wins
-     whenever the scan is clean, and the detector then flags exactly maxFrac
-     of EVERY photograph no matter how little is wrong with it. On a lightly
-     damaged print the top 10% of response is not damage, it is eyes,
-     spectacles, nostrils and the highlights on hair: the tool quietly
-     inpainted people's faces away. So: count first, and only reach for the
-     quantile if the honest threshold really is flagging too much. */
-  let over = 0;
-  for (let i = 0; i < n; i++) if (resp[i] > lo) over++;
-  if (over / n > opt.maxFrac) {
-    let peak = 0;
-    for (let i = 0; i < n; i++) if (resp[i] > peak) peak = resp[i];
-    if (peak > 0) {
-      const BINS = 512, hist = new Int32Array(BINS), scale = (BINS - 1) / peak;
-      for (let i = 0; i < n; i++) hist[(resp[i] * scale) | 0]++;
-      let budget = Math.max(1, Math.floor(n * opt.maxFrac)), b = BINS - 1, acc = 0;
-      for (; b > 0; b--) { acc += hist[b]; if (acc >= budget) break; }
-      lo = Math.max(lo, b / scale);
-    }
-  }
-  const hi = lo * 2.2;
-  const mask = new Float32Array(n);
-  let cnt = 0;
-  for (let i = 0; i < n; i++) {
-    const v = resp[i] <= lo ? 0 : resp[i] >= hi ? 1 : (resp[i] - lo) / (hi - lo);
-    mask[i] = v * v * (3 - 2 * v);
-    if (v > 0.5) cnt++;
-  }
-  const frac = cnt / n;
-  /* Grow slightly: a scratch has a soft shoulder, and inpainting up to the
-     exact edge of a defect leaves a visible rim of the damage behind.
-     Take the MAX of the dilated mask and its blur, never the blur alone —
-     blurring a speck lowers its peak, so a 2px dust mote would come out with
-     a mask of ~0.5 and get only half repaired. The dilation holds the core at
-     full strength; the blur only adds the feathered shoulder around it. */
-  const grown = new Float32Array(n);
-  sqMorph(mask, grown, w, h, 3, true);
-  gauss(grown, a, w, h, 0.55, tmp);   // a tight shoulder, not a halo
-  for (let i = 0; i < n; i++) {
-    const v = grown[i] > a[i] ? grown[i] : a[i];
-    mask[i] = v > 1 ? 1 : v;
-  }
-  return { mask, fraction: frac };
-}
-
-/* ── inpainting ──────────────────────────────────────────────────────────
-   Two stages. Push-pull (Gortler's pyramid fill) gets a smooth, seamless,
-   O(n) guess into every hole regardless of size. That alone looks like a
-   smear across a scratch, so a structure-guided pass then re-fills each hole
-   by averaging ALONG the dominant local direction — which is what makes a
-   crease crossing a doorframe come back as a doorframe rather than a blur. */
-function pushPull(plane, conf, w, h) {
-  const levels = [{ w, h, c: null, v: null }];
-  let cw = w, ch = h;
-  const v0 = new Float32Array(w * h), c0 = new Float32Array(w * h);
-  for (let i = 0; i < w * h; i++) { c0[i] = conf[i]; v0[i] = plane[i] * conf[i]; }
-  levels[0].v = v0; levels[0].c = c0;
-  while (cw > 2 && ch > 2) {                                    // pull
-    const nw = Math.max(1, cw >> 1), nh = Math.max(1, ch >> 1);
-    const pv = levels[levels.length - 1].v, pc = levels[levels.length - 1].c;
-    const nv = new Float32Array(nw * nh), nc = new Float32Array(nw * nh);
-    for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) {
-      let sv = 0, sc = 0;
-      for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
-        const sy = Math.min(ch - 1, y * 2 + dy), sx = Math.min(cw - 1, x * 2 + dx);
-        sv += pv[sy * cw + sx]; sc += pc[sy * cw + sx];
-      }
-      nv[y * nw + x] = sv / 4; nc[y * nw + x] = sc / 4;
-    }
-    levels.push({ w: nw, h: nh, v: nv, c: nc });
-    cw = nw; ch = nh;
-  }
-  let top = levels[levels.length - 1];
-  let acc = new Float32Array(top.w * top.h);
-  for (let i = 0; i < acc.length; i++) acc[i] = top.c[i] > 1e-6 ? top.v[i] / top.c[i] : 0;
-  for (let l = levels.length - 2; l >= 0; l--) {                // push
-    const L = levels[l], up = upBilinear(acc, levels[l + 1].w, levels[l + 1].h, L.w, L.h);
-    const out = new Float32Array(L.w * L.h);
-    for (let i = 0; i < out.length; i++) {
-      const c = Math.min(1, L.c[i]);
-      const own = c > 1e-6 ? L.v[i] / L.c[i] : 0;
-      out[i] = c * own + (1 - c) * up[i];
-    }
-    acc = out;
-  }
-  return acc;
-}
-/* Structure tensor -> dominant orientation, smoothed. */
-function orientation(Y, w, h, sigma) {
-  const n = w * h, tmp = new Float32Array(n);
-  const s = gauss(Y, new Float32Array(n), w, h, 1.0, tmp);
-  const Jxx = new Float32Array(n), Jyy = new Float32Array(n), Jxy = new Float32Array(n);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const i = y * w + x;
-    const xm = x > 0 ? i - 1 : i, xp = x < w - 1 ? i + 1 : i;
-    const ym = y > 0 ? i - w : i, yp = y < h - 1 ? i + w : i;
-    const gx = (s[xp] - s[xm]) * 0.5, gy = (s[yp] - s[ym]) * 0.5;
-    Jxx[i] = gx * gx; Jyy[i] = gy * gy; Jxy[i] = gx * gy;
-  }
-  gauss(Jxx, Jxx, w, h, sigma, tmp); gauss(Jyy, Jyy, w, h, sigma, tmp); gauss(Jxy, Jxy, w, h, sigma, tmp);
-  const dirx = new Float32Array(n), diry = new Float32Array(n), coh = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const a = Jxx[i], b = Jxy[i], c = Jyy[i];
-    const d = Math.sqrt(Math.max(0, (a - c) * (a - c) + 4 * b * b));
-    const l1 = (a + c + d) * 0.5, l2 = (a + c - d) * 0.5;
-    // eigenvector of the SMALLER eigenvalue = along the edge
-    let ex = b, ey = l1 - a;
-    if (Math.abs(ex) + Math.abs(ey) < 1e-12) { ex = 1; ey = 0; }
-    const len = Math.sqrt(ex * ex + ey * ey);
-    dirx[i] = -ey / len; diry[i] = ex / len;
-    coh[i] = (l1 + l2) > 1e-12 ? (l1 - l2) / (l1 + l2) : 0;
-  }
-  return { dirx, diry, coh };
-}
-function sampleBilinear(src, w, h, x, y) {
-  if (x < 0) x = 0; else if (x > w - 1) x = w - 1;
-  if (y < 0) y = 0; else if (y > h - 1) y = h - 1;
-  const x0 = x | 0, y0 = y | 0, x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
-  const tx = x - x0, ty = y - y0;
-  const a = src[y0 * w + x0], b = src[y0 * w + x1], c = src[y1 * w + x0], d = src[y1 * w + x1];
-  return (a + (b - a) * tx) * (1 - ty) + (c + (d - c) * tx) * ty;
-}
-/* ── exemplar fill (PatchMatch) ──────────────────────────────────────────
-   Diffusion can only interpolate, and interpolation cannot reconstruct
-   texture: a scratch across brickwork, a patterned dress or a window grid
-   fills with the average of both sides and reads as a pale smear. The fix is
-   to stop inventing pixels and start copying them — find, for each hole
-   patch, the most similar intact patch nearby and take its centre.
-
-   This is Barnes' PatchMatch: a random guess per hole pixel, then alternate
-   PROPAGATION (my neighbour's source, shifted by one, is probably good for me
-   too — coherent regions converge almost immediately) with RANDOM SEARCH over
-   an exponentially shrinking radius (which lets a pixel escape a bad local
-   match). A handful of sweeps beats an exhaustive search by orders of
-   magnitude and lands in practically the same place.
-
-   Deliberately bounded: it only runs where the surroundings are actually
-   textured — over sky or skin, diffusion is already the better answer and
-   this would only add noise — and it gives up gracefully on very large holes
-   so a big scan cannot wedge the browser. */
-function exemplarFill(plane, mask, w, h, sigma) {
-  const n = w * h, R = 3, SPAN = 2 * R + 1;
-  const holes = [], slot = new Int32Array(n).fill(-1);
-  for (let i = 0; i < n; i++) if (mask[i] > 0.06) { slot[i] = holes.length; holes.push(i); }
-  const hn = holes.length;
-  if (!hn || hn > 400000) return plane;          // nothing to do, or too big
-
-  /* A source patch must be entirely intact, and a target only worth copying
-     into if its surroundings carry texture worth reproducing. */
-  const tmp = new Float32Array(n);
-  const mSm = boxBlur(mask, new Float32Array(n), w, h, R + 1, tmp);
-  const mean = boxBlur(plane, new Float32Array(n), w, h, 4, tmp);
-  const sq = new Float32Array(n);
-  for (let i = 0; i < n; i++) sq[i] = plane[i] * plane[i];
-  boxBlur(sq, sq, w, h, 4, tmp);
-  const texThresh = Math.max(sigma * 3.5, 0.006);
-  const usable = new Uint8Array(n), textured = new Uint8Array(n);
-  for (let i = 0; i < n; i++) {
-    usable[i] = mSm[i] < 0.01 ? 1 : 0;      // patch is genuinely intact
-    const v = sq[i] - mean[i] * mean[i];
-    textured[i] = v > texThresh * texThresh ? 1 : 0;
-  }
-  let active = 0;
-  const live = new Uint8Array(hn);
-  for (let k = 0; k < hn; k++) {
-    const i = holes[k], x = i % w, y = (i / w) | 0;
-    if (x < R || y < R || x >= w - R || y >= h - R) continue;
-    /* textured *around* the hole, since inside it is our own smooth guess */
-    let t = 0;
-    for (let dy = -8; dy <= 8; dy += 4) for (let dx = -8; dx <= 8; dx += 4) {
-      const sx = x + dx, sy = y + dy;
-      if (sx < 0 || sy < 0 || sx >= w || sy >= h) continue;
-      const j = sy * w + sx;
-      if (mask[j] <= 0.06 && textured[j]) t++;
-    }
-    if (t >= 3) { live[k] = 1; active++; }
-  }
-  if (!active) return plane;
-
-  const SEARCH = 40;
-  const srcX = new Int32Array(hn), srcY = new Int32Array(hn), srcC = new Float32Array(hn);
-  let seed = 0x9e3779b9;
-  const rnd = () => { seed ^= seed << 13; seed >>>= 0; seed ^= seed >> 17; seed ^= seed << 5; seed >>>= 0; return seed / 4294967296; };
-
-  const cost = (tx, ty, sx, sy, best) => {
-    if (sx < R || sy < R || sx >= w - R || sy >= h - R) return Infinity;
-    if (!usable[sy * w + sx]) return Infinity;
-    let acc = 0;
-    for (let dy = -R; dy <= R; dy++) {
-      let ti = (ty + dy) * w + tx - R, si = (sy + dy) * w + sx - R;
-      for (let dx = 0; dx < SPAN; dx++, ti++, si++) {
-        /* Known neighbours anchor the match; the hole's own current estimate
-           still votes, but weakly, so the fill is led by real evidence. */
-        const wgt = mask[ti] > 0.06 ? 0.15 : 1;
-        const d = plane[ti] - plane[si];
-        acc += wgt * d * d;
-      }
-      if (acc >= best) return acc;
-    }
-    return acc;
-  };
-
-  for (let k = 0; k < hn; k++) {
-    if (!live[k]) continue;
-    const i = holes[k], x = i % w, y = (i / w) | 0;
-    let bx = x, by = y, bc = Infinity;
-    for (let a = 0; a < 8; a++) {
-      const cx = x + ((rnd() * 2 - 1) * SEARCH) | 0, cy = y + ((rnd() * 2 - 1) * SEARCH) | 0;
-      const c = cost(x, y, cx, cy, bc);
-      if (c < bc) { bc = c; bx = cx; by = cy; }
-    }
-    srcX[k] = bx; srcY[k] = by; srcC[k] = bc;
-  }
-
-  for (let it = 0; it < 4; it++) {
-    const fwd = (it & 1) === 0;
-    for (let q = 0; q < hn; q++) {
-      const k = fwd ? q : hn - 1 - q;
-      if (!live[k]) continue;
-      const i = holes[k], x = i % w, y = (i / w) | 0;
-      let bx = srcX[k], by = srcY[k], bc = cost(x, y, bx, by, Infinity);
-      const step = fwd ? -1 : 1;
-      for (const [dx, dy] of [[step, 0], [0, step]]) {
-        const nx = x + dx, ny = y + dy;
-        if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
-        const s = slot[ny * w + nx];
-        if (s < 0 || !live[s]) continue;
-        const cx = srcX[s] - dx, cy = srcY[s] - dy;
-        const c = cost(x, y, cx, cy, bc);
-        if (c < bc) { bc = c; bx = cx; by = cy; }
-      }
-      for (let rad = SEARCH; rad >= 1; rad >>= 1) {
-        const cx = bx + ((rnd() * 2 - 1) * rad) | 0, cy = by + ((rnd() * 2 - 1) * rad) | 0;
-        const c = cost(x, y, cx, cy, bc);
-        if (c < bc) { bc = c; bx = cx; by = cy; }
-      }
-      srcX[k] = bx; srcY[k] = by; srcC[k] = bc;
-    }
-  }
-
-  /* Vote — but only as far as each match has earned.
-
-     A copied patch is a claim that this hole looks like somewhere else in the
-     photograph. Over fabric, foliage or grain that claim is usually true. Over
-     a rigid repeating structure it can be confidently wrong, and the failure
-     is ugly in a way a blur never is: half a window, a displaced brick, an eye
-     borrowed from the wrong face. So each match is scored against the local
-     variance it is trying to reproduce, and a patch that could not find a
-     genuine likeness simply abstains and leaves the smooth fill in place.
-     Graceful degradation beats peak performance in a tool people point at
-     photographs of their grandparents. */
-  const acc = new Float32Array(n), wgt = new Float32Array(n), cov = new Float32Array(n);
-  const taps = SPAN * SPAN;
-  for (let k = 0; k < hn; k++) {
-    if (!live[k]) continue;
-    const i = holes[k], x = i % w, y = (i / w) | 0, sx = srcX[k], sy = srcY[k];
-    if (!(srcC[k] < Infinity)) continue;
-    const varLocal = Math.max(1e-6, sq[i] - mean[i] * mean[i]);
-    const mse = srcC[k] / taps;
-    let trust = 1 - mse / (0.35 * varLocal);
-    if (trust <= 0.02) continue;
-    if (trust > 1) trust = 1;
-    for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
-      const ti = (y + dy) * w + (x + dx);
-      if (mask[ti] <= 0.06) continue;
-      acc[ti] += plane[(sy + dy) * w + (sx + dx)] * trust;
-      wgt[ti] += trust;
-      cov[ti] += 1;
-    }
-  }
-  const out = Float32Array.from(plane);
-  for (let k = 0; k < hn; k++) {
-    const i = holes[k];
-    if (wgt[i] <= 0 || cov[i] <= 0) continue;
-    const v = acc[i] / wgt[i];              // trust-weighted exemplar opinion
-    const t = Math.min(1, wgt[i] / cov[i]); // ...and how sure it collectively is
-    out[i] = plane[i] + (v - plane[i]) * t;
-  }
-  return out;
-}
-
-function inpaint(plane, mask, w, h, guide, iters) {
-  const n = w * h;
-  /* Below this the mask is only a feathered fringe: the blend would write
-     back a few percent of a fill nobody can see, so those pixels are treated
-     as intact. Keeping the threshold off the floor matters — at 0.02 the
-     fringe alone accounted for a quarter of the frame, which starved the
-     exemplar stage of the intact neighbours it needs to copy from. */
-  const HOLE = 0.06;
-  /* Two different masks, and conflating them was a bug worth naming.
-
-     CONFIDENCE (hard) decides what the fill is allowed to read. It must be
-     binary: a pixel is either trustworthy or it is damage. Using 1-mask here
-     lets a half-flagged scratch shoulder contribute a third of its own broken
-     value, the pyramid carries that up to the coarse levels, and the scratch
-     comes back as a soft bright smear several times its original width.
-
-     BLEND (soft) decides where the fill is written back, and only there does
-     feathering belong — it hides the seam at the outer edge of the mask. */
-  const conf = new Float32Array(n);
-  for (let i = 0; i < n; i++) conf[i] = mask[i] <= HOLE ? 1 : 0;
-  let out = pushPull(plane, conf, w, h);
-  for (let i = 0; i < n; i++) if (conf[i]) out[i] = plane[i];
-
-  if (iters) {
-    const ref = guide || out;
-    const { dirx, diry, coh } = orientation(ref, w, h, 2.0);
-    const cur = out;
-    const next = new Float32Array(n);
-    for (let it = 0; it < iters; it++) {
-      next.set(cur);
-      for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        if (mask[i] <= HOLE) continue;
-        const dx = dirx[i], dy = diry[i];
-        let acc = 0, wsum = 0;
-        for (let t = -3; t <= 3; t++) {
-          if (!t) continue;
-          const wt = 1 / Math.abs(t);
-          acc += sampleBilinear(cur, w, h, x + dx * t, y + dy * t) * wt; wsum += wt;
-        }
-        const k = 0.65 * (0.35 + 0.65 * coh[i]);
-        next[i] = cur[i] * (1 - k) + (acc / wsum) * k;
-      }
-      cur.set(next);
-    }
-    out = cur;
-  }
-
-  /* Copy real texture in where the surroundings have any, on top of the
-     smooth structural fill above. */
-  if (iters) out = exemplarFill(out, mask, w, h, 0.004);
-
-  /* Write the fill back. The boost means anything the detector was reasonably
-     sure about is replaced outright; only the faint outer fringe is mixed, so
-     there is no visible rim of surviving damage. */
-  const res = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const b = Math.min(1, mask[i] * 1.8);
-    res[i] = plane[i] + (out[i] - plane[i]) * b;
-  }
-  return res;
-}
-
-/* ── iterative back-projection ───────────────────────────────────────────
-   The upscaled image must, when pushed back through the camera's downscale,
-   reproduce the pixels we actually measured. Where it doesn't, the error is
-   fed back. This is the classical super-resolution workhorse and it recovers
-   real acutance that interpolation alone can only fake. */
-function backProject(hr, hw, hh, lr, lw, lh, iters, lambda, sigma) {
-  const n = hw * hh, tmp = new Float32Array(n), blur = new Float32Array(n);
-  const corr = new Float32Array(n), err = new Float32Array(lw * lh);
-  for (let it = 0; it < iters; it++) {
-    let s = hr;
-    if (sigma > 0.05) { gauss(hr, blur, hw, hh, sigma, tmp); s = blur; }
-    const sim = decimate(s, hw, hh, lw, lh);
-    let mag = 0;
-    for (let i = 0; i < err.length; i++) { err[i] = lr[i] - sim[i]; mag += Math.abs(err[i]); }
-    if (mag / err.length < 1e-5) break;
-    upBox(err, lw, lh, hw, hh, corr);
-    if (sigma > 0.05) gauss(corr, corr, hw, hh, sigma, tmp);   // the adjoint blur
-    for (let i = 0; i < n; i++) {
-      let c = lambda * corr[i];
-      if (c > 0.06) c = 0.06; else if (c < -0.06) c = -0.06;
-      hr[i] += c;
-    }
-  }
-  return hr;
-}
-
-/* ── stabilised shock filter (Alvarez–Mazorra) ───────────────────────────
-   u_t = -sign(u_nn) * |grad u|, with the sign read off a Gaussian-smoothed
-   copy so noise can't drive it. Turns the soft edges of a scan back into
-   edges. Gated on gradient magnitude so flat skin and sky stay untouched. */
-function shock(u, w, h, iters, dt, sigma, gate) {
-  const n = w * h, tmp = new Float32Array(n), s = new Float32Array(n);
-  for (let it = 0; it < iters; it++) {
-    gauss(u, s, w, h, sigma, tmp);
-    const next = Float32Array.from(u);
-    for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
-      const i = y * w + x;
-      const ux = (s[i + 1] - s[i - 1]) * 0.5, uy = (s[i + w] - s[i - w]) * 0.5;
-      const g2 = ux * ux + uy * uy;
-      if (g2 < gate * gate) continue;
-      const uxx = s[i + 1] - 2 * s[i] + s[i - 1];
-      const uyy = s[i + w] - 2 * s[i] + s[i - w];
-      const uxy = (s[i + w + 1] - s[i + w - 1] - s[i - w + 1] + s[i - w - 1]) * 0.25;
-      const unn = (ux * ux * uxx + 2 * ux * uy * uxy + uy * uy * uyy) / (g2 + 1e-12);
-      const rx = (u[i + 1] - u[i - 1]) * 0.5, ry = (u[i + w] - u[i - w]) * 0.5;
-      const grad = Math.sqrt(rx * rx + ry * ry);
-      next[i] = u[i] - dt * Math.tanh(unn * 900) * grad;
-    }
-    u.set(next);
-  }
-  return u;
-}
-
-/* ── halo-clamped unsharp mask ───────────────────────────────────────────
-   Plain unsharp on an old photo produces the white outline that screams
-   "over-processed". Clamping the result to the local min/max plus a small
-   slack keeps the acutance and drops the halo. */
-function unsharp(u, w, h, amount, sigma) {
-  if (amount <= 0) return u;
-  const n = w * h, tmp = new Float32Array(n);
-  const lo = new Float32Array(n), hi = new Float32Array(n), b = new Float32Array(n);
-  gauss(u, b, w, h, sigma, tmp);
-  sqMorph(u, lo, w, h, 3, false); sqMorph(u, hi, w, h, 3, true);
-  for (let i = 0; i < n; i++) {
-    const v = u[i] + amount * (u[i] - b[i]);
-    const slack = 0.12 * (hi[i] - lo[i]) + 0.004;
-    const mn = lo[i] - slack, mx = hi[i] + slack;
-    u[i] = v < mn ? mn : v > mx ? mx : v;
-  }
-  return u;
-}
-
-/* ── CLAHE on luminance — contrast-limited, tile-interpolated ─────────── */
-function clahe(u, w, h, strength, tiles, clip) {
-  if (strength <= 0) return u;
-  const tx = Math.max(1, Math.min(tiles, Math.floor(w / 32))) || 1;
-  const ty = Math.max(1, Math.min(tiles, Math.floor(h / 32))) || 1;
-  const BINS = 64, maps = new Float32Array(tx * ty * BINS);
-  const hist = new Float32Array(BINS);
-  for (let j = 0; j < ty; j++) for (let i = 0; i < tx; i++) {
-    const x0 = Math.floor(i * w / tx), x1 = Math.floor((i + 1) * w / tx);
-    const y0 = Math.floor(j * h / ty), y1 = Math.floor((j + 1) * h / ty);
-    hist.fill(0);
-    let cnt = 0;
-    for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
-      let v = u[y * w + x]; v = v < 0 ? 0 : v > 1 ? 1 : v;
-      hist[Math.min(BINS - 1, (Math.sqrt(v) * BINS) | 0)]++; cnt++;
-    }
-    if (!cnt) continue;
-    const limit = Math.max(1, clip * cnt / BINS);
-    let excess = 0;
-    for (let b = 0; b < BINS; b++) if (hist[b] > limit) { excess += hist[b] - limit; hist[b] = limit; }
-    const share = excess / BINS;
-    let acc = 0;
-    const base = (j * tx + i) * BINS;
-    for (let b = 0; b < BINS; b++) { acc += hist[b] + share; maps[base + b] = acc / cnt; }
-  }
-  const out = new Float32Array(w * h);
-  for (let y = 0; y < h; y++) {
-    const fy = Math.min(ty - 1, Math.max(0, y * ty / h - 0.5));
-    const j0 = fy | 0, j1 = Math.min(ty - 1, j0 + 1), wy = fy - j0;
-    for (let x = 0; x < w; x++) {
-      const fx = Math.min(tx - 1, Math.max(0, x * tx / w - 0.5));
-      const i0 = fx | 0, i1 = Math.min(tx - 1, i0 + 1), wx = fx - i0;
-      let v = u[y * w + x]; v = v < 0 ? 0 : v > 1 ? 1 : v;
-      const sv = Math.sqrt(v), fb = sv * (BINS - 1), b0 = fb | 0, b1 = Math.min(BINS - 1, b0 + 1), wb = fb - b0;
-      const at = (ti, tj) => {
-        const base = (tj * tx + ti) * BINS;
-        return maps[base + b0] + (maps[base + b1] - maps[base + b0]) * wb;
-      };
-      const m = (at(i0, j0) * (1 - wx) + at(i1, j0) * wx) * (1 - wy)
-              + (at(i0, j1) * (1 - wx) + at(i1, j1) * wx) * wy;
-      const eq = m * m;                                   // undo the sqrt domain
-      out[y * w + x] = v + (eq - v) * strength;
-    }
-  }
-  u.set(out); return u;
-}
-
-/* ── tone: fade and cast recovery ────────────────────────────────────────
-   An old print loses contrast two ways: the dyes fade (the white point comes
-   down) and decades of veiling flare lift the blacks. Both are affine in
-   LINEAR light, which is why the black-point subtraction belongs here and not
-   in gamma space. Per-channel endpoints also remove the colour cast for free
-   — the yellowing IS the blue channel's white point having collapsed.       */
-function channelEndpoints(hist, total, pLo, pHi) {
-  let cum = 0, lo = 0, hi = 255;
-  const nLo = total * pLo, nHi = total * pHi;   // tails, counted from each end
-  for (let i = 0; i < 256; i++) { cum += hist[i]; if (cum >= nLo) { lo = i; break; } }
-  cum = 0;
-  for (let i = 255; i >= 0; i--) { cum += hist[i]; if (cum >= nHi) { hi = i; break; } }
-  if (hi <= lo) { lo = 0; hi = 255; }
-  return [lo, hi];
-}
-function analyze(img) {
-  const { width: w, height: h, data } = img, n = w * h;
-  const Y = new Float32Array(n);
-  for (let i = 0, p = 0; i < n; i++, p += 4)
-    Y[i] = KR * S2L[data[p]] + KG * S2L[data[p + 1]] + KB * S2L[data[p + 2]];
-  const sigma = estimateNoise(Y, w, h);
-
-  /* Dust must not vote on the tone curve. A 400-speck print has ~2.5% of its
-     pixels pinned at pure black or pure white, which is enough to convince a
-     naive percentile that the image already uses its full range — so the fade
-     goes uncorrected. Open-then-close removes specks of either polarity; every
-     pixel that survives unchanged is a pixel we trust to describe the tone. */
-  const a = new Float32Array(n), d = new Float32Array(n);
-  sqMorph(Y, a, w, h, 3, false); sqMorph(a, d, w, h, 3, true);      // opening
-  sqMorph(d, a, w, h, 3, true);  sqMorph(a, d, w, h, 3, false);     // closing
-  const tol = Math.max(0.012, sigma * 8);
-  /* Read sharpness off a harder-despeckled plane: a speck is a perfect step
-     edge, and a few hundred of them make the softest scan look razor sharp.
-     A 3-wide element leaves 3x3 blobs standing, so this one is 5 wide. */
-  const ds = new Float32Array(n);
-  sqMorph(Y, a, w, h, 5, false); sqMorph(a, ds, w, h, 5, true);
-  sqMorph(ds, a, w, h, 5, true); sqMorph(a, ds, w, h, 5, false);
-  const softness = estimateSoftness(ds, w, h);
-
-  const hr = new Float32Array(256), hg = new Float32Array(256), hb = new Float32Array(256);
-  const hl = new Float32Array(256);
-  let chroma = 0, cbm = 0, crm = 0, trusted = 0;
-  for (let i = 0, p = 0; i < n; i++, p += 4) {
-    const R = data[p], G = data[p + 1], B = data[p + 2];
-    const L = (KR * R + KG * G + KB * B) | 0;
-    const cb = B - L, cr = R - L;
-    chroma += Math.abs(cb) + Math.abs(cr); cbm += cb; crm += cr;
-    if (Math.abs(Y[i] - d[i]) > tol) continue;                       // a speck
-    hr[R]++; hg[G]++; hb[B]++;
-    hl[L < 0 ? 0 : L > 255 ? 255 : L]++;
-    trusted++;
-  }
-  chroma /= n; cbm /= n; crm /= n;
-  if (trusted < n * 0.2) {          // pathological: trust everything instead
-    hr.fill(0); hg.fill(0); hb.fill(0); hl.fill(0); trusted = n;
-    for (let i = 0, p = 0; i < n; i++, p += 4) {
-      const R = data[p], G = data[p + 1], B = data[p + 2];
-      hr[R]++; hg[G]++; hb[B]++;
-      const L = (KR * R + KG * G + KB * B) | 0;
-      hl[L < 0 ? 0 : L > 255 ? 255 : L]++;
-    }
-  }
-  const [llo, lhi] = channelEndpoints(hl, trusted, 0.004, 0.004);
-  const range = (lhi - llo) / 255;
-  /* Median display luminance. Endpoints alone cannot tell you a photograph is
-     dark: one bright window and one black corner give a scan the full 0-255
-     range while every face in it sits at 20%. That is a midtone problem, and
-     it needs a curve, not a stretch. */
-  let cum = 0, median = 128;
-  for (let i = 0; i < 256; i++) { cum += hl[i]; if (cum >= trusted * 0.5) { median = i; break; } }
-  let ge = 0;
-  for (let y = 1; y < h - 1; y += 2) for (let x = 1; x < w - 1; x += 2) {
-    const i = y * w + x;
-    const gx = Y[i + 1] - Y[i - 1], gy = Y[i + w] - Y[i - w];
-    ge += Math.sqrt(gx * gx + gy * gy);
-  }
-  ge /= Math.max(1, ((h - 2) >> 1) * ((w - 2) >> 1));
-  return {
-    width: w, height: h, pixels: n, noise: sigma, softness, range, gradient: ge,
-    chroma, castCb: cbm, castCr: crm, trustedFraction: trusted / n,
-    median: median / 255,
-    monochrome: chroma < 12,
-    /* A scanned black-and-white print is never perfectly neutral — paper
-       tone, the scanner's own bias and age all push it off grey. Treating it
-       as a colour photograph and stretching each channel separately is what
-       turns a grey classroom blue. This threshold is deliberately loose. */
-    nearNeutral: chroma < 26,
-    toned: chroma < 26 && (Math.abs(cbm) > 3 || Math.abs(crm) > 3),
-    endpoints: {
-      l: [llo, lhi],
-      r: channelEndpoints(hr, trusted, 0.004, 0.004),
-      g: channelEndpoints(hg, trusted, 0.004, 0.004),
-      b: channelEndpoints(hb, trusted, 0.004, 0.004),
-    },
-  };
-}
-/* ── auto settings ───────────────────────────────────────────────────────
-   The whole point of the app is that the user drops a photo and gets it back
-   fixed. Every number below is derived from what was actually measured in the
-   scan, so the defaults are not defaults at all — they are a reading of this
-   particular photograph. Thresholds are calibrated against the estimators in
-   this file (clean scan ~0.0003 noise, a rough one ~0.02; softness 0 crisp,
-   1 mush), not guessed.                                                     */
-function autoSettings(st) {
-  const mp = st.pixels / 1e6;
-  /* Scaled to what the estimator now really reports. A real grainy scan reads
-     about 0.014; under the old scale that pinned denoise at 0.90 and the
-     result looked like plastic. */
-  const noiseAmt = Math.max(0, Math.min(1, (st.noise - 0.004) / 0.030));
-  const faded = Math.max(0, Math.min(1, (0.88 - st.range) / 0.45));
-  return {
-    /* Deliberately short of the maximum. Auto-levels stretches the measured
-       endpoints to pure black and pure white, which is only correct if the
-       photograph originally used the whole range — many never did. Landing at
-       three-quarters recovers the fade convincingly and leaves the highlights
-       somewhere to go; the slider still reaches 100% by hand. */
-    fade: 0.3 + 0.45 * faded,
-    /* A scan of a black-and-white print should come back black and white.
-       Anything else is the scanner's bias or the paper's age being amplified
-       into a colour cast the photograph never had. */
-    tone: st.nearNeutral ? 'mono' : 'neutral',
-    /* A wide dead band, and gentle outside it. A median of 0.31 is not an
-       under-exposed photograph — it is a dim room with dark clothing in it,
-       and dragging every picture to mid-grey lifts the blacks to milk and
-       flattens the whole frame. Measured on a real scan, the old setting
-       moved the mean from 91 to 129 while LOWERING contrast. Only genuinely
-       dark or blown scans get touched now. */
-    exposure: Math.max(0, Math.min(1, (Math.abs(st.median - 0.47) - 0.19) / 0.18)) * 0.6,
-    repair: 0.55,
-    damageScale: 1,
-    denoise: 0.18 + 0.72 * noiseAmt,
-    /* Small scans have the most to gain and cost the least to enlarge; a big
-       modern scan is already past the point where upscaling adds anything. */
-    /* Only enlarge what benefits. A 2500px-wide scan is already past what
-       any print or screen needs, and doubling it costs the user half a minute
-       to gain nothing — the work that photograph needs is cleaning, not
-       resolution. Small scans are where an upscale genuinely earns its time. */
-    scale: mp < 1 ? 4 : mp < 2 ? 3 : mp < 4 ? 2 : 1,
-    sharpen: 0.3 + 0.55 * st.softness,
-    /* Local contrast compounds with the fade stretch above, so it stays
-       modest — CLAHE on an already-restretched image is what makes a
-       restoration look processed rather than restored. */
-    /* Local contrast multiplies local variance, grain included — measured at
-       +32% grain for the old default. It is a cosmetic stage; it does not get
-       to undo the denoising that precedes it. */
-    contrast: 0.05 + 0.10 * faded,
-    /* Zero. Adding grain to a photograph whose grain we were asked to remove
-       is the wrong default however good it looks on a clean synthetic. */
-    grain: 0,
-  };
-}
-
-const DEFAULTS = {
-  fade: 0.6, tone: 'neutral', exposure: 0.8, repair: 0.55, damageScale: 1,
-  denoise: 0.35, scale: 2, sharpen: 0.6, contrast: 0.25, grain: 0,
-  maxPixels: 30e6, backProject: 6,
-};
-
-/* Deterministic PRNG — reproducible grain keeps the test suite meaningful. */
-function rng(seed) {
-  let s = seed >>> 0 || 1;
-  return () => { s ^= s << 13; s >>>= 0; s ^= s >> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
-}
-
-/* ── the pipeline ────────────────────────────────────────────────────────
-   A generator: it yields {stage, p} between steps so the browser can paint a
-   progress bar and stay responsive, while node drains it in a tight loop.   */
-function* restore(img, options, stats) {
-  const o = Object.assign({}, DEFAULTS, options || {});
-  const w = img.width, h = img.height, n = w * h, data = img.data;
-  const st = stats || analyze(img);
-
-  /* ── the detail unit ──────────────────────────────────────────────────
-     Every radius below used to be an absolute pixel count, tuned on a
-     640-wide test image. That is a bug the moment a real scan arrives: at
-     11MP a radius-2 denoiser is a rounding error, so the grain sails through
-     untouched and the sharpening and local-contrast stages then amplify it.
-     Measured on a soft grainy portrait, the pipeline was DOUBLING the noise
-     it was supposed to remove.
-
-     Film grain, dust and scratches are physical marks on a print, so their
-     size in pixels scales with the scan resolution — and so must every
-     radius that is meant to act on them. */
-  const unit = Math.max(1, Math.min(6, Math.round(Math.min(w, h) / 650)));
-  const odd = k => { const v = Math.max(3, Math.round(k)); return v % 2 ? v : v + 1; };
-
-  yield { stage: 'Reading pixels', p: 0.02 };
-  const r = new Float32Array(n), g = new Float32Array(n), b = new Float32Array(n);
-  let alpha = null;
-  for (let i = 0, p = 0; i < n; i++, p += 4) {
-    r[i] = S2L[data[p]]; g[i] = S2L[data[p + 1]]; b[i] = S2L[data[p + 2]];
-    if (data[p + 3] !== 255) { if (!alpha) { alpha = new Uint8ClampedArray(n).fill(255); }
-      alpha[i] = data[p + 3]; }
-  }
-
-  /* 1. fade + cast */
-  if (o.fade > 0) {
-    yield { stage: 'Recovering faded tone', p: 0.08 };
-    const ep = st.endpoints;
-    const pick = o.tone === 'keep' ? [ep.l, ep.l, ep.l] : [ep.r, ep.g, ep.b];
-    const planes = [r, g, b];
-    /* Fading damages a print in two separable ways, and they want different
-       treatment.
-
-       The BLACK POINT rises because decades of veiling flare add light to the
-       shadows. That is purely additive, it is per-channel, and it is the real
-       source of the yellow cast — so it is removed in full.
-
-       The GAIN falls because the dyes fade. Stretching each channel back to a
-       full 0-255 on its own assumes the photograph originally used the entire
-       range, and most do not: a misty morning, a grey wall, a low-contrast
-       portrait. When blue happens to be the most compressed channel, an
-       unbounded per-channel gain multiplies its contrast half again more than
-       red's and manufactures a lurid blue sky out of a grey one. So the gain
-       is anchored to luminance and each channel may deviate only so far —
-       enough to lift a sepia cast, not enough to invent colour. */
-    const loLum = S2L[ep.l[0]], hiLum = S2L[ep.l[1]];
-    const gLum = hiLum - loLum > 1e-4 ? 1 / (hiLum - loLum) : 1;
-    const LIM = 1.22;
-    for (let c = 0; c < 3; c++) {
-      const loL = S2L[pick[c][0]], hiL = S2L[pick[c][1]];
-      const d = hiL - loL;
-      if (d < 1e-4) continue;
-      let ratio = (1 / d) / gLum;
-      if (ratio > LIM) ratio = LIM; else if (ratio < 1 / LIM) ratio = 1 / LIM;
-      const pl = planes[c], k = gLum * ratio, f = o.fade;
-      for (let i = 0; i < n; i++) {
-        const v = (pl[i] - loL) * k;
-        pl[i] = pl[i] + ((v < 0 ? 0 : v > 1 ? 1 : v) - pl[i]) * f;
-      }
-    }
-  }
-  if (o.tone === 'mono') for (let i = 0; i < n; i++) r[i] = g[i] = b[i] = KR * r[i] + KG * g[i] + KB * b[i];
-
-  /* ── exposure ──────────────────────────────────────────────────────────
-     Stretching the endpoints cannot fix a dark photograph, only a flat one.
-     A room with a bright window and a dark corner already spans the full
-     range while every face in it sits down at 20%, and no amount of
-     black/white-point work will lift them. What is wrong is the midtone, so
-     what it needs is a curve: find the median and bend the transfer function
-     until it lands where a well-exposed print would sit. Done in linear light
-     and applied identically to all three channels, so hue is untouched. */
-  if (o.exposure > 0) {
-    const step = Math.max(1, Math.floor(Math.sqrt(n / 30000)));
-    const samples = [];
-    for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
-      const i = y * w + x;
-      samples.push(KR * r[i] + KG * g[i] + KB * b[i]);
-    }
-    samples.sort((p, q) => p - q);
-    const med = samples[samples.length >> 1];
-    if (med > 0.002 && med < 0.985) {
-      const TARGET = 0.2140;                       // linear value of mid-grey
-      let gam = Math.log(TARGET) / Math.log(med);
-      if (gam < 0.62) gam = 0.62; else if (gam > 1.7) gam = 1.7;
-      gam = 1 + (gam - 1) * o.exposure;
-      if (Math.abs(gam - 1) > 0.01) {
-        const LN = 1024, lut = new Float32Array(LN + 1);
-        for (let i = 0; i <= LN; i++) lut[i] = Math.pow(i / LN, gam);
-        const planes = [r, g, b];
-        for (let c = 0; c < 3; c++) {
-          const pl = planes[c];
-          for (let i = 0; i < n; i++) {
-            let v = pl[i];
-            if (v <= 0) { pl[i] = 0; continue; }
-            if (v >= 1) { pl[i] = lut[LN]; continue; }
-            const f = v * LN, j = f | 0;
-            pl[i] = lut[j] + (lut[j + 1] - lut[j]) * (f - j);
-          }
-        }
-      }
-    }
-  }
-
-  const Y = new Float32Array(n), Cb = new Float32Array(n), Cr = new Float32Array(n);
-  rgbToYcc(r, g, b, Y, Cb, Cr, n);
-
-  /* 2. damage */
-  let mask = null, fraction = 0;
-  if (o.repair > 0) {
-    yield { stage: 'Finding damage', p: 0.16 };
-    const sigma = Math.max(st.noise, 8e-4);
-    const det = detectDefects(Y, w, h, {
-      len: odd([5, 7, 9, 13][Math.max(0, Math.min(3, o.damageScale))] * unit),
-      speck: 1, scratch: 0.85,
-      /* Dimensionless: how many times the local spread a mark must exceed
-         before it counts as damage rather than detail. */
-      /* Calibrated on a real scanned print, not a synthetic: at the old
-         setting this flagged 3% of that photograph and the smeared faces were
-         the result. ~0.5% is what genuine dust and scratches actually occupy. */
-      k: 3.3 - 1.6 * o.repair,
-      /* Headroom before the area brake engages. Calibrated by sweep: real
-         edges consume budget alongside blemishes, and a cap that binds at the
-         default setting silently drops the faintest specks. Recall is worth
-         more than precision here — a speck left behind is glaring, a lightly
-         softened patch is not. */
-      /* Loose on purpose. Now that the score is normalised by local contrast
-         it does the real discriminating, and this is only the emergency stop
-         for a pathological reading. Set tight, it binds on genuinely damaged
-         photographs and silently caps how much can ever be repaired. */
-      maxFrac: 0.04 + 0.16 * o.repair,
-      sigma,
-    });
-    mask = det.mask; fraction = det.fraction;
-    if (o.repair < 1) for (let i = 0; i < n; i++) mask[i] *= o.repair < 0.5 ? o.repair * 2 : 1;
-    yield { stage: 'Repairing damage', p: 0.26 };
-    const Yf = inpaint(Y, mask, w, h, null, 4);
-    Y.set(Yf);
-    if (!st.monochrome) {
-      Cb.set(inpaint(Cb, mask, w, h, Y, 0));
-      Cr.set(inpaint(Cr, mask, w, h, Y, 0));
-    }
-    /* put the film's own grain back into the repaired area, or the patch
-       reads as a plastic smear next to real emulsion */
-    const rand = rng(1234567);
-    const amp = Math.max(st.noise, 6e-4) * 2.2;
-    for (let i = 0; i < n; i++) if (mask[i] > 0.05) Y[i] += (rand() - 0.5) * amp * mask[i];
-  }
-
-  /* 3. denoise — chroma hard, luma soft */
-  if (o.denoise > 0) {
-    yield { stage: 'Cleaning grain', p: 0.36 };
-    /* Denoise in the same perceptually uniform domain the noise was measured
-       in. Done in linear light, a single eps is far too weak in the highlights
-       and far too strong in the shadows, and grain survives the stage almost
-       untouched — which is what let the sharpening and local-contrast stages
-       amplify it into mottling. */
-    const P = new Float32Array(n);
-    for (let i = 0; i < n; i++) P[i] = Math.sqrt(Y[i] > 0 ? Y[i] : 0);
-    /* Radius well past the grain's correlation length. A window the size of
-       the clumps cannot tell them from signal — at radius 4 this removed 25%
-       of the grain, at radius 12 it removes 70% with the eyelashes intact. */
-    const epsY = Math.pow(Math.max(st.noise, 3e-3) * (1.2 + 1.5 * o.denoise), 2);
-    const Pd = guidedFilter(P, P, w, h, Math.max(10, 6 * unit), epsY);
-    const kY = 0.6 + 0.4 * o.denoise;
-    for (let i = 0; i < n; i++) {
-      const v = P[i] + (Pd[i] - P[i]) * kY;
-      Y[i] = v > 0 ? v * v : 0;
-    }
-    if (!st.monochrome) {
-      const rc = Math.max(2, Math.round((3 + 4 * o.denoise) * unit));
-      const epsC = 1e-3;
-      const cb = guidedFilter(Y, Cb, w, h, rc, epsC), cr = guidedFilter(Y, Cr, w, h, rc, epsC);
-      Cb.set(cb); Cr.set(cr);
-    }
-  }
-
-  /* 4. resolution */
-  let ow = w, oh = h, scale = o.scale;
-  if (scale > 1) {
-    const want = n * scale * scale;
-    if (want > o.maxPixels) scale = Math.max(1, Math.sqrt(o.maxPixels / n));
-    ow = Math.max(1, Math.round(w * scale)); oh = Math.max(1, Math.round(h * scale));
-  }
-  let Yo = Y, Cbo = Cb, Cro = Cr;
-  if (ow !== w || oh !== h) {
-    yield { stage: 'Upscaling to ' + ow + '×' + oh, p: 0.46 };
-    Yo = resample(Y, w, h, ow, oh, 3);
-    Cbo = resample(Cb, w, h, ow, oh, 2);
-    Cro = resample(Cr, w, h, ow, oh, 2);
-    if (o.backProject > 0) {
-      yield { stage: 'Back-projecting detail', p: 0.60 };
-      /* The assumed blur must track the real one: too small and the iteration
-         does nothing, too large and it deconvolves detail that was never lost.
-         Softness is measured, then nudged by the user's detail slider. */
-      /* Calibrated against the sweep in tests/run.mjs: a plain box-downscale
-         measures ~0.5 softness and wants sigma 0.4; a genuinely soft scan
-         measures ~1.0 and wants 0.9. Overshooting here is what makes a
-         back-projected image ring, so the mapping is deliberately timid. */
-      const sig = Math.max(0.15, st.softness - 0.1) * (0.85 + 0.3 * o.sharpen);
-      /* Each iteration blurs the full-size output twice, so the cost scales
-         with the enlargement. Past a few megapixels the later iterations are
-         buying a fraction of a decibel for whole seconds of someone's time. */
-      const iters = Math.max(2, Math.min(o.backProject,
-        Math.round(o.backProject * 6e6 / Math.max(1, ow * oh))));
-      backProject(Yo, ow, oh, Y, w, h, iters, 0.8, Math.min(1.1, sig));
-    }
-  }
-
-  /* 5. acutance */
-  if (o.sharpen > 0) {
-    yield { stage: 'Restoring edges', p: 0.74 };
-    const iters = Math.max(1, Math.round(o.sharpen * 3));
-    /* Sharpen at the scale of the image's real structure, not at the scale of
-       its grain — and keep the gate above the grain, or this stage turns a
-       soft cheek into a mottled one. */
-    const gate = Math.max(0.010, st.noise * 6);
-    shock(Yo, ow, oh, iters, 0.14 * o.sharpen + 0.06, (scale > 1 ? 1.1 : 0.8) * unit, gate);
-    unsharp(Yo, ow, oh, o.sharpen * 0.55, (scale > 1 ? 1.3 : 0.9) * unit);
-  }
-  if (o.contrast > 0) {
-    yield { stage: 'Local contrast', p: 0.84 };
-    clahe(Yo, ow, oh, o.contrast * 0.8, 8, 1.8);
-  }
-  if (o.grain > 0) {
-    const rand = rng(987654321), amp = o.grain * 0.012;
-    for (let i = 0; i < Yo.length; i++) {
-      const y = Yo[i], shape = 1 - Math.abs(2 * clamp01(y) - 1) * 0.75;
-      Yo[i] = y + (rand() - 0.5) * amp * shape;
-    }
-  }
-
-  /* 6. back to bytes */
-  yield { stage: 'Writing image', p: 0.92 };
-  const on = ow * oh;
-  const ro = new Float32Array(on), go = new Float32Array(on), bo = new Float32Array(on);
-  yccToRgb(Yo, Cbo, Cro, ro, go, bo, on);
-  const out = new Uint8ClampedArray(on * 4);
-  for (let i = 0, p = 0; i < on; i++, p += 4) {
-    out[p] = linearToByte(ro[i]); out[p + 1] = linearToByte(go[i]); out[p + 2] = linearToByte(bo[i]);
-    out[p + 3] = 255;
-  }
-  if (alpha) {
-    const au = ow === w ? alpha : null;
-    for (let i = 0, p = 3; i < on; i++, p += 4) {
-      if (au) out[p] = au[i];
-      else {
-        const x = Math.min(w - 1, Math.floor((i % ow) * w / ow));
-        const y = Math.min(h - 1, Math.floor(Math.floor(i / ow) * h / oh));
-        out[p] = alpha[y * w + x];
-      }
-    }
-  }
-  yield { stage: 'Done', p: 1 };
-  return {
-    width: ow, height: oh, data: out, mask, maskWidth: w, maskHeight: h,
-    damageFraction: fraction, scale: ow / w, stats: st,
-  };
-}
-/* Drive the generator to completion (node, or a browser that does not care
-   about staying responsive). */
-function restoreSync(img, options, stats) {
-  const it = restore(img, options, stats);
-  let r = it.next();
-  while (!r.done) r = it.next();
-  return r.value;
-}
-
-function psnr(a, b) {
-  let se = 0, n = Math.min(a.length, b.length), cnt = 0;
-  for (let i = 0; i < n; i++) { if ((i & 3) === 3) continue; const d = a[i] - b[i]; se += d * d; cnt++; }
-  const mse = se / cnt;
-  return mse === 0 ? Infinity : 10 * Math.log10(255 * 255 / mse);
-}
-
-return {
-  VERSION, analyze, autoSettings, restore, restoreSync, psnr, DEFAULTS,
-  _internal: {
-    boxBlur, gauss, gaussKernel, win1d, lineMorph, sqMorph, resample, decimate, upBilinear,
-    guidedFilter, estimateNoise, estimateSoftness, upBox, detectDefects, exemplarFill, pushPull, inpaint, orientation,
-    backProject, shock, unsharp, clahe, S2L, linearToByte, rgbToYcc, yccToRgb, rng,
-  },
-};
-})();
-if (typeof module !== 'undefined' && module.exports) module.exports = ReviveEngine;
-/*REVIVE-ENGINE-END*/
-
-/*REVIVE-COLOUR-START*/
-/* ============================================================================
-   Colour — CIELAB conversion for the colourisation stage.
-
-   The network is DDColor (Du et al., ICCV 2023), the 'tiny' ConvNeXt-T
-   variant, Apache-2.0, exported to ONNX from the published weights and
-   dynamically quantised to int8 (223MB -> 78MB, visually indistinguishable on
-   test images). It replaced Zhang/Isola/Efros SIGGRAPH-2017, which worked but
-   rendered everything in a muted wash; DDColor finds warm wood, skin and
-   fabric where the older model saw only sepia.
-
-   It predicts only the two CHROMA channels, at 512x512, from lightness alone.
-   That fits this pipeline exactly: every restoration stage already works on
-   luminance and carries chroma smoothly, so the predicted a/b are simply
-   upsampled and married to the full-resolution restored L. Nothing the
-   network does can touch the detail — it cannot smear a face, because it
-   never sees or writes luminance.
-
-   Its input is not the L plane directly: DDColor expects the image RENDERED
-   as neutral grey in sRGB (what Lab(L,0,0) looks like), three identical
-   channels, 0..1. Its output a/b are already in Lab units.
-   ========================================================================== */
-const ReviveColour = (() => {
-'use strict';
-const D = 6 / 29, D3 = D * D * D, D2_3 = 3 * D * D;
-const WX = 0.95047, WY = 1, WZ = 1.08883;
-const fwd = t => t > D3 ? Math.cbrt(t) : t / D2_3 + 4 / 29;
-const inv = t => t > D ? t * t * t : D2_3 * (t - 4 / 29);
-
-/* Lightness plane (0..100) from packed sRGB bytes. */
-function lightness(data, n, S2L) {
-  const L = new Float32Array(n);
-  for (let i = 0, p = 0; i < n; i++, p += 4) {
-    const r = S2L[data[p]], g = S2L[data[p + 1]], b = S2L[data[p + 2]];
-    const Y = 0.2126729 * r + 0.7151522 * g + 0.0721750 * b;
-    L[i] = 116 * fwd(Y / WY) - 16;
-  }
-  return L;
-}
-/* Full-resolution L with predicted a/b, back to sRGB bytes. */
-function toRgb(L, a, b, n, alphaSrc, linearToByte) {
-  const out = new Uint8ClampedArray(n * 4);
-  for (let i = 0, p = 0; i < n; i++, p += 4) {
-    const fy = (L[i] + 16) / 116, fx = fy + a[i] / 500, fz = fy - b[i] / 200;
-    const X = inv(fx) * WX, Y = inv(fy) * WY, Z = inv(fz) * WZ;
-    out[p]     = linearToByte( 3.2404542 * X - 1.5371385 * Y - 0.4985314 * Z);
-    out[p + 1] = linearToByte(-0.9692660 * X + 1.8760108 * Y + 0.0415560 * Z);
-    out[p + 2] = linearToByte( 0.0556434 * X - 0.2040259 * Y + 1.0572252 * Z);
-    out[p + 3] = alphaSrc ? alphaSrc[p + 3] : 255;
-  }
-  return out;
-}
-/* Saturation trim in Lab: scaling a/b changes chroma without touching
-   lightness, so the restoration underneath is untouched whatever the user
-   picks on the slider. */
-function scaleChroma(a, b, k, n) {
-  if (k === 1) return;
-  for (let i = 0; i < n; i++) { a[i] *= k; b[i] *= k; }
-}
-/* Build the network's input: Lab(L,0,0) rendered to sRGB, three identical
-   channels, NCHW. a=b=0 means the colour IS the white point, so the linear
-   value is simply Y and all three channels agree. */
-function greyInput(Ls, size, linearToByte) {
-  const n = size * size, x = new Float32Array(3 * n);
-  for (let i = 0; i < n; i++) {
-    const v = linearToByte(inv((Ls[i] + 16) / 116)) / 255;
-    x[i] = v; x[n + i] = v; x[2 * n + i] = v;
-  }
-  return x;
-}
-return { lightness, greyInput, toRgb, scaleChroma, SIZE: 512, MODEL: 'colorize.onnx' };
-})();
-if (typeof module !== 'undefined' && module.exports) module.exports.ReviveColour = ReviveColour;
-/*REVIVE-COLOUR-END*/
-
-/*REVIVE-FACE-START*/
-/* ============================================================================
-   Faces — detection, alignment and paste-back.
-
-   Everything classical in this file can clean a photograph; none of it can put
-   a face back IN FOCUS, because the detail was never in the negative to
-   recover. That needs a generative prior, and GFPGAN v1.4 (Wang et al., CVPR
-   2021, Apache-2.0) carries one: a StyleGAN2 face prior, which is why it works
-   on prints that are genuinely degraded rather than merely soft.
-
-   It only accepts a 512x512 face aligned to the FFHQ five-point template, so
-   the real work here is geometry, and it is all exact and testable:
-     detect   YuNet (233KB, Apache-2.0) -> box + 5 landmarks
-     align    closed-form least-squares similarity onto the template
-     restore  GFPGAN on the 512 crop
-     paste    inverse transform, feathered mask, blended back
-
-   The restored face is blended, never stamped: a hard edge at the jawline is
-   worse than a soft face, and a low-confidence detection should barely move
-   the picture at all.
-   ========================================================================== */
-const ReviveFace = (() => {
-'use strict';
-/* FFHQ five-point template at 512: both eyes, nose tip, both mouth corners. */
-const TPL = [[192.98, 239.95], [318.90, 240.19], [256.63, 314.01], [201.26, 371.41], [313.09, 371.15]];
-const NET = 640;                       // YuNet's fixed input
-
-/* YuNet is anchor-free over three strides. For anchor i at stride s the grid
-   position is (i % gw, i / gw), the box is a centre offset plus a log-scale
-   size, and the landmarks are plain offsets — all in units of the stride. */
-function decodeDetections(outs, conf) {
-  const dets = [];
-  for (const s of [8, 16, 32]) {
-    const cls = outs['cls_' + s], obj = outs['obj_' + s];
-    const bb = outs['bbox_' + s], kp = outs['kps_' + s];
-    if (!cls || !obj || !bb || !kp) continue;
-    const gw = NET / s, count = cls.length;
-    for (let i = 0; i < count; i++) {
-      const c = cls[i] > 0 ? cls[i] : 0, o = obj[i] > 0 ? obj[i] : 0;
-      const score = Math.sqrt(c * o);
-      if (score < conf) continue;
-      const col = i % gw, row = (i / gw) | 0;
-      const cx = (col + bb[i * 4]) * s, cy = (row + bb[i * 4 + 1]) * s;
-      const w = Math.exp(bb[i * 4 + 2]) * s, hh = Math.exp(bb[i * 4 + 3]) * s;
-      const pts = [];
-      for (let j = 0; j < 5; j++)
-        pts.push([(col + kp[i * 10 + 2 * j]) * s, (row + kp[i * 10 + 2 * j + 1]) * s]);
-      dets.push({ score, x: cx - w / 2, y: cy - hh / 2, w, h: hh, pts });
-    }
-  }
-  return dets;
-}
-function nms(dets, thr) {
-  const keep = [];
-  for (const d of dets.slice().sort((a, b) => b.score - a.score)) {
-    let ok = true;
-    for (const k of keep) {
-      const x1 = Math.max(d.x, k.x), y1 = Math.max(d.y, k.y);
-      const x2 = Math.min(d.x + d.w, k.x + k.w), y2 = Math.min(d.y + d.h, k.y + k.h);
-      const iw = Math.max(0, x2 - x1), ih = Math.max(0, y2 - y1), inter = iw * ih;
-      if (inter / (d.w * d.h + k.w * k.h - inter + 1e-9) > thr) { ok = false; break; }
-    }
-    if (ok) keep.push(d);
-  }
-  return keep;
-}
-
-/* Closed-form least-squares similarity (rotation + uniform scale +
-   translation) from five point pairs — the 2-D case has an exact solution,
-   so no iteration and no SVD. Reflection is excluded by construction, which
-   matters: a mirrored face would be pasted back inside out. */
-function similarity(src, dst) {
-  const n = src.length;
-  let sxm = 0, sym = 0, dxm = 0, dym = 0;
-  for (let i = 0; i < n; i++) { sxm += src[i][0]; sym += src[i][1]; dxm += dst[i][0]; dym += dst[i][1]; }
-  sxm /= n; sym /= n; dxm /= n; dym /= n;
-  let a = 0, b = 0, c = 0;
-  for (let i = 0; i < n; i++) {
-    const sx = src[i][0] - sxm, sy = src[i][1] - sym;
-    const dx = dst[i][0] - dxm, dy = dst[i][1] - dym;
-    a += sx * dx + sy * dy;
-    b += sx * dy - sy * dx;
-    c += sx * sx + sy * sy;
-  }
-  if (c < 1e-9) return null;
-  const m = a / c, k = b / c;                      // m = s*cos, k = s*sin
-  return [m, -k, dxm - (m * sxm - k * sym),
-          k,  m, dym - (k * sxm + m * sym)];
-}
-function invert(M) {
-  const [m, nk, tx, k, m2, ty] = M;
-  const det = m * m2 - nk * k;
-  if (Math.abs(det) < 1e-12) return null;
-  const a = m2 / det, b = -nk / det, c = -k / det, d = m / det;
-  return [a, b, -(a * tx + b * ty), c, d, -(c * tx + d * ty)];
-}
-const apply = (M, x, y) => [M[0] * x + M[1] * y + M[2], M[3] * x + M[4] * y + M[5]];
-
-/* Sample RGBA bilinearly; out-of-bounds clamps rather than going black, so a
-   face at the very edge of a print does not paste back with a dark rim. */
-function sampleRGBA(data, w, h, x, y, out) {
-  if (x < 0) x = 0; else if (x > w - 1) x = w - 1;
-  if (y < 0) y = 0; else if (y > h - 1) y = h - 1;
-  const x0 = x | 0, y0 = y | 0;
-  const x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
-  const tx = x - x0, ty = y - y0;
-  for (let ch = 0; ch < 3; ch++) {
-    const p00 = data[(y0 * w + x0) * 4 + ch], p01 = data[(y0 * w + x1) * 4 + ch];
-    const p10 = data[(y1 * w + x0) * 4 + ch], p11 = data[(y1 * w + x1) * 4 + ch];
-    out[ch] = (p00 + (p01 - p00) * tx) * (1 - ty) + (p10 + (p11 - p10) * tx) * ty;
-  }
-}
-/* Pull the aligned 512 crop, as the model's NCHW input in [-1,1]. */
-function cropAligned(img, M, size) {
-  const inv = invert(M);
-  if (!inv) return null;
-  const n = size * size, x = new Float32Array(3 * n), px = [0, 0, 0];
-  for (let v = 0; v < size; v++) for (let u = 0; u < size; u++) {
-    const sx = inv[0] * u + inv[1] * v + inv[2];
-    const sy = inv[3] * u + inv[4] * v + inv[5];
-    sampleRGBA(img.data, img.width, img.height, sx, sy, px);
-    const i = v * size + u;
-    x[i]         = px[0] / 127.5 - 1;
-    x[n + i]     = px[1] / 127.5 - 1;
-    x[2 * n + i] = px[2] / 127.5 - 1;
-  }
-  return x;
-}
-/* Feathered oval: full strength over the face, fading out before the edges of
-   the square so the join never shows. */
-function faceMask(size) {
-  const m = new Float32Array(size * size);
-  const cx = size * 0.5, cy = size * 0.54;
-  const rx = size * 0.40, ry = size * 0.48;
-  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
-    const dx = (x - cx) / rx, dy = (y - cy) / ry;
-    const d = Math.sqrt(dx * dx + dy * dy);
-    let v = d <= 0.82 ? 1 : d >= 1 ? 0 : (1 - d) / 0.18;
-    m[y * size + x] = v * v * (3 - 2 * v);
-  }
-  return m;
-}
-/* Blend the restored crop back through the inverse transform. Luminance only
-   by default: the model was trained on colour faces and can shift skin tone,
-   and on a black-and-white print any colour it invents is simply wrong. */
-function pasteBack(img, out, M, size, mask, strength, lumaOnly) {
-  const inv = invert(M); if (!inv) return;
-  const w = img.width, h = img.height;
-  const corners = [[0, 0], [size, 0], [0, size], [size, size]].map(p => apply(inv, p[0], p[1]));
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const [cx, cy] of corners) {
-    x0 = Math.min(x0, cx); y0 = Math.min(y0, cy);
-    x1 = Math.max(x1, cx); y1 = Math.max(y1, cy);
-  }
-  x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0));
-  x1 = Math.min(w - 1, Math.ceil(x1)); y1 = Math.min(h - 1, Math.ceil(y1));
-  const px = [0, 0, 0];
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const u = M[0] * x + M[1] * y + M[2];
-    const v = M[3] * x + M[4] * y + M[5];
-    if (u < 0 || v < 0 || u > size - 1 || v > size - 1) continue;
-    const mu = mask[(Math.min(size - 1, v | 0)) * size + Math.min(size - 1, u | 0)];
-    if (mu <= 0.002) continue;
-    sampleRGBA(out, size, size, u, v, px);
-    const k = mu * strength, p = (y * w + x) * 4;
-    if (lumaOnly) {
-      const lo = 0.2126 * img.data[p] + 0.7152 * img.data[p + 1] + 0.0722 * img.data[p + 2];
-      const ln = 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2];
-      const d = (ln - lo) * k;
-      img.data[p] += d; img.data[p + 1] += d; img.data[p + 2] += d;
-    } else {
-      for (let ch = 0; ch < 3; ch++) img.data[p + ch] += (px[ch] - img.data[p + ch]) * k;
-    }
-  }
-}
-/* Model input: BGR, 0..255, NCHW — YuNet takes raw pixel values. */
-function detectorInput(img) {
-  const n = NET * NET, x = new Float32Array(3 * n), px = [0, 0, 0];
-  const sx = img.width / NET, sy = img.height / NET;
-  for (let v = 0; v < NET; v++) for (let u = 0; u < NET; u++) {
-    sampleRGBA(img.data, img.width, img.height, (u + 0.5) * sx - 0.5, (v + 0.5) * sy - 0.5, px);
-    const i = v * NET + u;
-    x[i] = px[2]; x[n + i] = px[1]; x[2 * n + i] = px[0];
-  }
-  return x;
-}
-return { TPL, NET, decodeDetections, nms, similarity, invert, apply,
-         cropAligned, faceMask, pasteBack, detectorInput, sampleRGBA };
-})();
-if (typeof module !== 'undefined' && module.exports) module.exports.ReviveFace = ReviveFace;
-/*REVIVE-FACE-END*/
-
-/* ============================================================================
-   THE APP — drop a photo, it decides everything itself, original on top and
-   restored underneath, one button to download. The controls exist, but the
-   default path asks the user for nothing.
+   THE APP — drop photographs in, get them back better. One or a hundred.
+
+   All heavy work is handed to worker.js. Nothing expensive runs here, because
+   a main thread busy with a 12-megapixel convolution cannot repaint, and a
+   page that cannot repaint is indistinguishable from a page that is broken.
    ========================================================================== */
 (() => {
 'use strict';
@@ -2052,52 +373,91 @@ $('themeToggle').onclick = () => {
   try { localStorage.setItem('revive-theme', root.classList.contains('theme-light') ? 'light' : 'dark'); } catch (e) {}
 };
 
-/* ── state ── */
-let srcImage = null;      // ImageData of the original
-let srcName = 'photo';
-let stats = null;         // ReviveEngine.analyze result
-let opts = null;          // current settings
-let result = null;        // ReviveEngine.restore result
-let busy = false;
+/* ── model locations ── */
+const ORT_BASE = new URL('ort/', location.href).href;
+const COLOUR_MODEL = { path: 'colorize.onnx', size: 78014375 };
+const FACE_MODEL = {
+  parts: ['models/face.onnx.part0', 'models/face.onnx.part1', 'models/face.onnx.part2'],
+  totalSize: 158232137, detPath: 'models/facedet.onnx', detSize: 232589,
+};
 
+/* ── state ── */
+let srcImage = null, srcName = 'photo', stats = null, opts = null, result = null;
+let busy = false, colourOn = false, abFull = null, batch = null;
+let autoFaces = false, autoColour = false;
 const setState = s => { body.dataset.state = s; };
 const fmt = n => n.toLocaleString('en-US');
 
-/* ── input: click, drag, paste ── */
+/* ── the worker ───────────────────────────────────────────────────────────
+   With a main-thread fallback, because a page opened straight off the disk
+   (file://) is not allowed to start a worker at all, and this app is meant to
+   work that way too. The fallback is slower to look at — it cannot repaint
+   mid-stage — but it is never dead. */
+let worker = null, workerBroken = false, reqId = 0, progressCb = null;
+const pending = new Map();
+
+function getWorker() {
+  if (worker || workerBroken) return worker;
+  try {
+    worker = new Worker('worker.js');
+    worker.onmessage = ev => {
+      const m = ev.data;
+      if (m.type === 'progress') { if (progressCb) progressCb(m); return; }
+      const p = pending.get(m.id);
+      if (!p) return;
+      pending.delete(m.id);
+      if (m.type === 'failed') p.reject(new Error(m.message)); else p.resolve(m);
+    };
+    worker.onerror = () => {
+      workerBroken = true;
+      for (const [, p] of pending) p.reject(new Error('the background worker stopped'));
+      pending.clear();
+    };
+  } catch (e) { workerBroken = true; worker = null; }
+  return worker;
+}
+function callWorker(msg, transfer, onProgress) {
+  const w = getWorker();
+  if (!w) return null;
+  const id = ++reqId;
+  progressCb = onProgress || null;
+  return new Promise((resolve, reject) => {
+    pending.set(id, { resolve, reject });
+    try { w.postMessage(Object.assign({ id }, msg), transfer || []); }
+    catch (e) { pending.delete(id); reject(e); }
+  });
+}
+const raf = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
+
+/* ── input ── */
 const drop = $('drop'), fileInput = $('file');
 drop.onclick = () => fileInput.click();
 drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); } };
 fileInput.onchange = () => { if (fileInput.files.length) loadMany(fileInput.files); };
-['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => {
-  e.preventDefault(); drop.classList.add('drag');
-}));
-['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => {
-  e.preventDefault(); drop.classList.remove('drag');
-}));
-drop.addEventListener('drop', e => {
-  const f = e.dataTransfer.files;
-  if (f && f.length) loadMany(f);
-});
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+drop.addEventListener('drop', e => { const f = e.dataTransfer.files; if (f && f.length) loadMany(f); });
 window.addEventListener('dragover', e => e.preventDefault());
 window.addEventListener('drop', e => e.preventDefault());
 window.addEventListener('paste', e => {
   if (busy) return;
   const items = e.clipboardData && e.clipboardData.items;
   if (!items) return;
-  for (const it of items) if (it.type.startsWith('image/')) { load(it.getAsFile()); break; }
+  const files = [];
+  for (const it of items) if (it.type.startsWith('image/')) files.push(it.getAsFile());
+  if (files.length) loadMany(files);
 });
 
 function fail(msg) { $('errText').textContent = msg; setState('error'); busy = false; }
 $('errBack').onclick = () => setState('idle');
 $('again').onclick = () => { srcImage = null; result = null; setState('idle'); };
 
-/* ── decode ── */
 const looksLikeImage = f =>
-  f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|avif|bmp|gif|tiff?)$/i.test(f.name || '');
+  (f.type || '').startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|avif|bmp|gif|tiff?)$/i.test(f.name || '');
 
 async function decodeFile(file) {
-  /* imageOrientation:'from-image' honours the EXIF rotation a scanner or
-     phone wrote, so a portrait scan does not come back on its side. */
+  /* imageOrientation honours the EXIF rotation a scanner or phone wrote, so a
+     portrait scan does not come back on its side. */
   let bmp;
   try { bmp = await createImageBitmap(file, { imageOrientation: 'from-image' }); }
   catch (e) { bmp = await createImageBitmap(file); }
@@ -2112,68 +472,94 @@ async function decodeFile(file) {
 }
 
 async function loadMany(list) {
-  if (busy || !batchIdle()) return;
+  if (busy) return;
   const files = [...list].filter(looksLikeImage);
   if (!files.length) return fail('Those files do not look like images.');
+  autoFaces = $('optFaces').checked;
+  autoColour = $('optColour').checked;
   if (files.length > 1) return runBatch(files);
   return load(files[0]);
 }
 
 async function load(file) {
-  if (busy) return;
-  if (!looksLikeImage(file)) return fail('That file does not look like an image.');
   srcName = (file.name || 'photo').replace(/\.[^.]+$/, '');
   try { srcImage = await decodeFile(file); }
   catch (e) { return fail('Could not read that image. ' + (e && e.message ? e.message : '')); }
-  stats = ReviveEngine.analyze(srcImage);
-  opts = ReviveEngine.autoSettings(stats);
-  syncControls();
-  /* Whatever was ticked on the way in applies to a single photograph too. */
-  autoFaces = $('optFaces').checked;
-  autoColour = $('optColour').checked;
   run();
 }
-let autoFaces = false, autoColour = false;
-const batchIdle = () => !batch || batch.stop || $('batchStop').hidden;
 
-/* ── run the pipeline, yielding to the browser between stages ── */
+/* ── the working screen: always visibly alive ── */
+let tick = null, started = 0;
+function startTicker() {
+  started = Date.now();
+  stopTicker();
+  tick = setInterval(() => {
+    const s = Math.round((Date.now() - started) / 1000);
+    $('elapsed').textContent = s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + (s % 60) + 's';
+  }, 250);
+}
+function stopTicker() { if (tick) { clearInterval(tick); tick = null; } }
+function showStage(t, p) {
+  $('stageText').textContent = t + '…';
+  if (p != null) $('barFill').style.width = Math.round(p * 100) + '%';
+}
+
+/* ── restore one photograph ── */
 async function run() {
   busy = true;
   setState('working');
-  // a small preview so there is something to look at while it works
+  startTicker();
   const t = $('workThumb'), tw = 150, th = Math.max(1, Math.round(srcImage.height * tw / srcImage.width));
   t.width = tw; t.height = th;
   const tmp = document.createElement('canvas');
   tmp.width = srcImage.width; tmp.height = srcImage.height;
   tmp.getContext('2d').putImageData(srcImage, 0, 0);
   t.getContext('2d').drawImage(tmp, 0, 0, tw, th);
-
-  $('barFill').style.width = '0%';
-  $('stageText').textContent = 'Looking at the photograph…';
-  const frame = () => new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
-  await frame();
+  showStage('Looking at the photograph', 0.02);
+  await raf();
 
   try {
-    const it = ReviveEngine.restore(srcImage, opts, stats);
-    let step = it.next();
-    while (!step.done) {
-      const v = step.value;
-      $('barFill').style.width = Math.round(v.p * 100) + '%';
-      $('stageText').textContent = v.stage + '…';
-      await frame();                       // let the browser paint before the
-      step = it.next();                    // next (blocking) stage runs
-    }
-    result = step.value;
+    result = await restoreImage(srcImage, showStage);
   } catch (e) {
+    stopTicker();
     return fail('Restoration failed: ' + (e && e.message ? e.message : e));
   }
+  stopTicker();
   present();
   busy = false;
   if (autoFaces) { autoFaces = false; await enhanceFaces(); }
   if (autoColour) { autoColour = false; await colourise(); }
 }
 
-/* ── show it: original on top, restored below ── */
+/* Worker if we can, main thread if we must. */
+async function restoreImage(img, onStage) {
+  const copy = new Uint8ClampedArray(img.data);
+  const res = callWorker({ type: 'restore', width: img.width, height: img.height, data: copy.buffer },
+    [copy.buffer], m => onStage(m.stage, m.p));
+  if (res) {
+    const m = await res;
+    stats = m.stats; opts = m.opts; syncControls();
+    return {
+      width: m.width, height: m.height, data: new Uint8ClampedArray(m.data),
+      mask: m.mask ? new Float32Array(m.mask) : null,
+      maskWidth: m.maskWidth, maskHeight: m.maskHeight,
+      damageFraction: m.damageFraction, scale: m.scale,
+    };
+  }
+  stats = ReviveEngine.analyze(img);
+  opts = ReviveEngine.autoSettings(stats);
+  syncControls();
+  const it = ReviveEngine.restore(img, opts, stats);
+  let step = it.next();
+  while (!step.done) {
+    onStage(step.value.stage, step.value.p);
+    await raf();
+    step = it.next();
+  }
+  return step.value;
+}
+
+/* ── show it ── */
 function paint(canvas, img) {
   canvas.width = img.width; canvas.height = img.height;
   canvas.getContext('2d').putImageData(new ImageData(img.data, img.width, img.height), 0, 0);
@@ -2184,25 +570,27 @@ function present() {
   $('dimsBefore').textContent = fmt(srcImage.width) + ' × ' + fmt(srcImage.height);
   $('dimsAfter').textContent = fmt(result.width) + ' × ' + fmt(result.height)
     + (result.scale > 1.01 ? '   (' + (Math.round(result.scale * 10) / 10) + '×)' : '');
-
   const chips = [];
-  const pct = result.damageFraction * 100;
-  if (opts.repair > 0) chips.push(['hi', 'Blemishes repaired', pct < 0.05 ? 'almost none found' : pct.toFixed(1) + '% of the frame']);
+  const pct = (result.damageFraction || 0) * 100;
+  chips.push(['hi', 'Blemishes repaired', pct < 0.05 ? 'almost none found' : pct.toFixed(1) + '% of the frame']);
   if (result.scale > 1.01) chips.push(['hi', 'Resolution', (Math.round(result.scale * 10) / 10) + '× — ' + (result.width * result.height / 1e6).toFixed(1) + ' MP']);
-  if (opts.fade > 0.02) chips.push(['', 'Fade recovered', Math.round(opts.fade * 100) + '%']);
-  if (stats.toned) chips.push(['', 'Toned print', opts.tone === 'keep' ? 'tone kept' : 'neutralised']);
-  chips.push(['', 'Scan quality', stats.softness > 0.65 ? 'soft' : stats.softness > 0.35 ? 'normal' : 'crisp']);
+  if (opts && opts.fade > 0.02) chips.push(['', 'Fade recovered', Math.round(opts.fade * 100) + '%']);
+  if (stats && stats.toned) chips.push(['', 'Toned print', opts.tone === 'keep' ? 'tone kept' : 'neutralised']);
+  if (stats) chips.push(['', 'Scan quality', stats.softness > 0.65 ? 'soft' : stats.softness > 0.35 ? 'normal' : 'crisp']);
   $('summary').innerHTML = chips.map(([cls, k, v]) =>
     '<span class="chip ' + cls + '">' + k + ' <b>' + v + '</b></span>').join('');
 
-  colourOn = false; abFull = null; facesDone = false;
-  $('faceBtn').disabled = false;
-  $('faceBtn').textContent = '☺  Sharpen faces';
-  $('faceNote').textContent = 'One-time 158 MB download. Rebuilds facial detail that the scan lost.';
+  colourOn = false; abFull = null;
   $('satCtl').hidden = true;
-  $('colourBtn').disabled = false;
-  $('colourBtn').textContent = '◐  Colourise';
-  $('colourBtn').onclick = colourise;
+  $('faceBtn').disabled = false; $('faceBtn').textContent = '☺  Sharpen faces';
+  $('faceNote').textContent = 'One-time 158 MB download. Rebuilds facial detail the scan lost.';
+  $('colourBtn').disabled = false; $('colourBtn').textContent = '◐  Colourise';
+  /* Arrow, never the bare function. Assigning `colourise` directly hands the
+     click's MouseEvent to its first parameter — `silent` — which is truthy,
+     so the model ran and then suppressed every visible sign that it had:
+     no button text, no note, no repainted canvas. Clicking did the whole job
+     and showed nothing. That is what "it does nothing" was. */
+  $('colourBtn').onclick = () => colourise();
   $('colourNote').textContent = 'One-time 78 MB download, then it runs on your device like everything else.';
   $('download').textContent = '↓  Download restored photo';
   maskOn = false; $('showMask').setAttribute('aria-pressed', 'false');
@@ -2211,7 +599,94 @@ function present() {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-/* ── 1:1 zoom, scroll-synced so the same place is under both panels ── */
+/* ── faces ── */
+async function enhanceFaces(silent) {
+  silent = silent === true;      // never a MouseEvent
+  const btn = $('faceBtn'), note = t => { if (!silent) $('faceNote').textContent = t; };
+  const say = t => { if (!silent) btn.textContent = t; };
+  btn.disabled = true;
+  try {
+    const copy = new Uint8ClampedArray(result.data);
+    const res = callWorker(Object.assign({
+      type: 'faces', width: result.width, height: result.height, data: copy.buffer,
+      ortBase: ORT_BASE, lumaOnly: !!(stats && stats.nearNeutral),
+    }, FACE_MODEL), [copy.buffer], m => say(m.stage + '…'));
+    if (!res) throw new Error('face restoration needs the page served over http, not opened from a file');
+    const m = await res;
+    if (!m.count) { note('No faces found in this photograph — nothing to sharpen.'); btn.disabled = false; say('☺  Sharpen faces'); return; }
+    result.data = new Uint8ClampedArray(m.data);
+    if (!silent) paint($('canvasAfter'), result);
+    if (abFull) {
+      abFull.L = ReviveColour.lightness(result.data, result.width * result.height, ReviveEngine._internal.S2L);
+      if (colourOn) applyColour(silent);
+    }
+    note(m.count + (m.count === 1 ? ' face' : ' faces') + ' restored. Detail here is rebuilt from a learned prior — a likeness, not a record.');
+    say('☺  Faces sharpened');
+  } catch (e) {
+    note('Face restoration failed: ' + (e && e.message ? e.message : e));
+    btn.disabled = false; say('☺  Sharpen faces');
+  }
+}
+$('faceBtn').onclick = () => enhanceFaces();
+
+/* ── colour ── */
+async function colourise(silent) {
+  silent = silent === true;      // never a MouseEvent
+  const btn = $('colourBtn'), note = t => { if (!silent) $('colourNote').textContent = t; };
+  const say = t => { if (!silent) btn.textContent = t; };
+  btn.disabled = true;
+  try {
+    const copy = new Uint8ClampedArray(result.data);
+    const res = callWorker(Object.assign({
+      type: 'colour', width: result.width, height: result.height, data: copy.buffer, ortBase: ORT_BASE,
+    }, COLOUR_MODEL), [copy.buffer], m => say(m.stage + '…'));
+    if (!res) throw new Error('colourising needs the page served over http, not opened from a file');
+    const m = await res;
+    abFull = { L: new Float32Array(m.L), a: new Float32Array(m.a), b: new Float32Array(m.b) };
+    colourOn = true;
+    applyColour(silent);
+    if (!silent) {
+      $('satCtl').hidden = false;
+      $('vSat').textContent = Math.round(parseFloat($('cSat').value) * 100) + '%';
+      note('Colour is predicted, not recovered — a plausible reading, not a record.');
+      btn.textContent = '◐  Back to black & white';
+      btn.onclick = toggleColour;
+    }
+    btn.disabled = false;
+  } catch (e) {
+    note('Colourising failed: ' + (e && e.message ? e.message : e));
+    btn.disabled = false; say('◐  Colourise');
+  }
+}
+$('colourBtn').onclick = () => colourise();
+
+function applyColour(silent) {
+  silent = silent === true;
+  const n = result.width * result.height;
+  const k = parseFloat($('cSat').value);
+  const a = Float32Array.from(abFull.a), b = Float32Array.from(abFull.b);
+  ReviveColour.scaleChroma(a, b, k, n);
+  result.colour = ReviveColour.toRgb(abFull.L, a, b, n, result.data, ReviveEngine._internal.linearToByte);
+  if (silent) return;
+  paint($('canvasAfter'), { width: result.width, height: result.height, data: result.colour });
+  $('download').textContent = '↓  Download colourised photo';
+}
+function toggleColour() {
+  colourOn = !colourOn;
+  const btn = $('colourBtn');
+  if (colourOn) { applyColour(); btn.textContent = '◐  Back to black & white'; }
+  else {
+    paint($('canvasAfter'), result);
+    btn.textContent = '◐  Show colour';
+    $('download').textContent = '↓  Download restored photo';
+  }
+}
+$('cSat').addEventListener('input', () => {
+  $('vSat').textContent = Math.round(parseFloat($('cSat').value) * 100) + '%';
+  if (colourOn && abFull) applyColour();
+});
+
+/* ── zoom, scroll-synced ── */
 let zoom = false;
 const vB = $('viewBefore'), vA = $('viewAfter');
 $('zoomBtn').onclick = () => {
@@ -2232,7 +707,7 @@ const link = (from, to) => from.addEventListener('scroll', () => {
 });
 link(vB, vA); link(vA, vB);
 
-/* ── damage mask overlay: show the user exactly what was touched ── */
+/* ── what was repaired ── */
 let maskOn = false;
 $('showMask').onclick = () => {
   if (!result || !result.mask) return;
@@ -2240,7 +715,6 @@ $('showMask').onclick = () => {
   $('showMask').setAttribute('aria-pressed', String(maskOn));
   $('showMask').textContent = maskOn ? 'Hide repairs' : 'Show what it repaired';
   if (!maskOn) { paint($('canvasBefore'), srcImage); return; }
-  /* Painted over the ORIGINAL, because that is where the damage is. */
   const c = $('canvasBefore'), ctx = c.getContext('2d');
   const im = ctx.getImageData(0, 0, c.width, c.height), d = im.data;
   const mw = result.maskWidth, mh = result.maskHeight, m = result.mask;
@@ -2258,7 +732,7 @@ $('showMask').onclick = () => {
   ctx.putImageData(im, 0, 0);
 };
 
-/* ── download ── */
+/* ── downloads ── */
 function saveImage(img, name) {
   const c = document.createElement('canvas');
   c.width = img.width; c.height = img.height;
@@ -2272,319 +746,20 @@ function saveImage(img, name) {
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   }, 'image/png');
 }
-const restoredPixels = () => ({
-  width: result.width, height: result.height,
-  data: colourOn && result.colour ? result.colour : result.data,
-});
 const saveRestored = () => {
   if (!result) return;
-  saveImage(restoredPixels(), srcName + (colourOn ? '-colourised' : '-restored') + '.png');
+  saveImage({ width: result.width, height: result.height, data: colourOn && result.colour ? result.colour : result.data },
+    srcName + (colourOn ? '-colourised' : '-restored') + '.png');
 };
 $('download').onclick = saveRestored;
 $('dlAfter').onclick = e => { e.stopPropagation(); saveRestored(); };
-$('dlBefore').onclick = e => {
-  e.stopPropagation();
-  if (srcImage) saveImage(srcImage, srcName + '-original.png');
-};
-
-/* ── face restoration ─────────────────────────────────────────────────────
-   The one thing classical processing cannot do: put a face back in focus.
-   Opt-in, on demand, and like everything else it runs here rather than
-   anywhere else.                                                            */
-let faceSession = null, detSession = null, facesDone = false;
-const FACE_PARTS = 3;
-
-async function fetchParts(paths, onProgress) {
-  /* Split across files only because a single 158MB blob exceeds what GitHub
-     will host; they are concatenated back into one model in memory. */
-  const bufs = [];
-  let done = 0;
-  const sizes = [];
-  for (const p of paths) {
-    const res = await fetch(p);
-    if (!res.ok) throw new Error('could not fetch ' + p + ' (' + res.status + ')');
-    sizes.push(parseInt(res.headers.get('content-length') || '0', 10));
-    const reader = res.body && res.body.getReader();
-    if (!reader) { const a = new Uint8Array(await res.arrayBuffer()); bufs.push(a); done += a.length; onProgress(done); continue; }
-    const chunks = [];
-    let got = 0;
-    for (;;) {
-      const { done: d, value } = await reader.read();
-      if (d) break;
-      chunks.push(value); got += value.length; onProgress(done + got);
-    }
-    const a = new Uint8Array(got);
-    let o = 0; for (const c of chunks) { a.set(c, o); o += c.length; }
-    bufs.push(a); done += got;
-  }
-  let total = 0; for (const b of bufs) total += b.length;
-  const all = new Uint8Array(total);
-  let o = 0; for (const b of bufs) { all.set(b, o); o += b.length; }
-  return all;
-}
-
-function subImage(img, sx, sy, sw, sh) {
-  const d = new Uint8ClampedArray(sw * sh * 4);
-  for (let y = 0; y < sh; y++) {
-    const srcRow = ((sy + y) * img.width + sx) * 4;
-    d.set(img.data.subarray(srcRow, srcRow + sw * 4), y * sw * 4);
-  }
-  return { width: sw, height: sh, data: d };
-}
-
-async function detectFaces(img, onNote) {
-  const F = ReviveFace, N = F.NET;
-  const all = [];
-  /* Whole frame, then a 2x2 overlap pass. One 640 pass over a 2500px scan
-     shrinks a head to ~35px and misses most of a group; the tiles give the
-     small faces enough pixels to be found. */
-  const views = [{ x: 0, y: 0, w: img.width, h: img.height }];
-  /* Tile so that no tile is downscaled by more than ~1.4x into the detector's
-     fixed 640 input. One pass over a 2500px group photograph shrinks a head to
-     about 35 pixels and finds two faces out of five; tiling at native-ish
-     scale finds them all. The tiles overlap by a third so a face never falls
-     across a seam, and NMS merges the duplicates afterwards. */
-  const TILE = Math.round(N * 1.4);
-  if (img.width > TILE * 1.2 || img.height > TILE * 1.2) {
-    const cols = Math.max(1, Math.ceil(img.width / TILE));
-    const rows = Math.max(1, Math.ceil(img.height / TILE));
-    const tw = Math.ceil(img.width / cols * 1.34), th = Math.ceil(img.height / rows * 1.34);
-    for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
-      const x = Math.max(0, Math.min(img.width - tw, Math.round(c * (img.width - tw) / Math.max(1, cols - 1) || 0)));
-      const y = Math.max(0, Math.min(img.height - th, Math.round(r * (img.height - th) / Math.max(1, rows - 1) || 0)));
-      views.push({ x, y, w: Math.min(tw, img.width - x), h: Math.min(th, img.height - y) });
-    }
-  }
-  if (onNote) onNote('Scanning ' + views.length + ' regions for faces…');
-  for (const v of views) {
-    const view = (v.w === img.width && v.h === img.height) ? img : subImage(img, v.x, v.y, v.w, v.h);
-    const input = F.detectorInput(view);
-    const out = await detSession.run({ [detSession.inputNames[0]]:
-      new ort.Tensor('float32', input, [1, 3, N, N]) });
-    const named = {};
-    for (const k of Object.keys(out)) named[k] = out[k].data;
-    const dets = F.decodeDetections(named, 0.5);
-    const kx = v.w / N, ky = v.h / N;
-    for (const d of dets) {
-      d.x = d.x * kx + v.x; d.y = d.y * ky + v.y;
-      d.w *= kx; d.h *= ky;
-      d.pts = d.pts.map(p => [p[0] * kx + v.x, p[1] * ky + v.y]);
-      all.push(d);
-    }
-  }
-  return F.nms(all, 0.35).sort((a, b) => b.w * b.h - a.w * a.h);
-}
-
-async function enhanceFaces(silent) {
-  const btn = $('faceBtn');
-  btn.disabled = true;
-  const say = t => { if (!silent) btn.textContent = t; };
-  const note = t => { if (!silent) $('faceNote').textContent = t; };
-  try {
-    say('Loading…');
-    await loadRuntime();
-    if (!detSession) {
-      const d = await fetchParts(['models/facedet.onnx'], () => {});
-      detSession = await ort.InferenceSession.create(d, { executionProviders: ['wasm'] });
-    }
-    if (!faceSession) {
-      const paths = [];
-      for (let i = 0; i < FACE_PARTS; i++) paths.push('models/face.onnx.part' + i);
-      const TOTAL = 158232137;
-      const bytes = await fetchParts(paths, got => say('Downloading face model… ' + Math.round(got / TOTAL * 100) + '%'));
-      say('Starting…');
-      await new Promise(r => setTimeout(r, 30));
-      faceSession = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
-    }
-    say('Looking for faces…');
-    await new Promise(r => setTimeout(r, 30));
-
-    const F = ReviveFace;
-    const work = { width: result.width, height: result.height, data: result.data };
-    const faces = await detectFaces(work, note);
-    if (!faces.length) {
-      note('No faces found in this photograph — nothing to sharpen.');
-      btn.disabled = false; say('☺  Sharpen faces');
-      return;
-    }
-    const mask = F.faceMask(512);
-    const n512 = 512 * 512;
-    const rgba = new Uint8ClampedArray(n512 * 4);
-    const limit = Math.min(faces.length, 12);
-    for (let i = 0; i < limit; i++) {
-      say('Restoring face ' + (i + 1) + ' of ' + limit + '…');
-      await new Promise(r => setTimeout(r, 20));
-      const f = faces[i];
-      const M = F.similarity(f.pts, F.TPL);
-      if (!M) continue;
-      const x = F.cropAligned(work, M, 512);
-      if (!x) continue;
-      const out = await faceSession.run({ [faceSession.inputNames[0]]:
-        new ort.Tensor('float32', x, [1, 3, 512, 512]) });
-      const y = out[faceSession.outputNames[0]].data;
-      for (let p = 0; p < n512; p++) {
-        rgba[p * 4]     = (y[p] + 1) * 127.5;
-        rgba[p * 4 + 1] = (y[n512 + p] + 1) * 127.5;
-        rgba[p * 4 + 2] = (y[2 * n512 + p] + 1) * 127.5;
-        rgba[p * 4 + 3] = 255;
-      }
-      /* Weaker for a marginal detection: a confident face is worth replacing
-         outright, a doubtful one should barely move the picture. */
-      const strength = Math.max(0.45, Math.min(1, (f.score - 0.5) / 0.35));
-      F.pasteBack(work, rgba, M, 512, mask, strength, stats.nearNeutral);
-    }
-    result.data = work.data;
-    facesDone = true;
-    if (!silent) paint($('canvasAfter'), result);
-    /* Colour is keyed to lightness, so if it is already on, rebuild it from
-       the new faces rather than leaving stale chroma over fresh detail. */
-    if (abFull) { abFull.L = ReviveColour.lightness(result.data, result.width * result.height, ReviveEngine._internal.S2L); if (colourOn) applyColour(); }
-    note(limit + (limit === 1 ? ' face' : ' faces') + ' restored. Detail here is reconstructed from a learned prior — a likeness, not a record.');
-    if (!silent) say('☺  Faces sharpened');
-    return;
-  } catch (e) {
-    note('Face restoration failed: ' + (e && e.message ? e.message : e));
-    btn.disabled = false;
-    say('☺  Sharpen faces');
-  }
-}
-$('faceBtn').onclick = enhanceFaces;
-
-/* ── colourisation ────────────────────────────────────────────────────────
-   Everything here is on demand. The page costs nothing until the button is
-   pressed; only then does the runtime and the 43 MB of weights come down, and
-   they are cached by the browser afterwards. The photograph still never
-   leaves the device — the model travels to it, not the other way round.     */
-/* Self-hosted, not a CDN. A CDN is one more thing that can be blocked, go
-   down, or change what it serves under a version number — and the promise
-   this page makes is that the link works. onnxruntime-web 1.19.2, MIT,
-   vendored in ort/. */
-/* Absolute, because the runtime dynamically imports its own .mjs and a bare
-   relative path is not a valid module specifier. */
-const ORT_BASE = new URL('ort/', location.href).href;
-let ortLoading = null, session = null, colourOn = false, abFull = null;
-
-function loadRuntime() {
-  if (ortLoading) return ortLoading;
-  ortLoading = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = ORT_BASE + 'ort.min.js';
-    s.onload = () => {
-      /* Threads need cross-origin isolation, which GitHub Pages cannot send,
-         so stay single-threaded. SIMD works without it and carries the load. */
-      ort.env.wasm.wasmPaths = ORT_BASE;
-      ort.env.wasm.numThreads = 1;
-      resolve();
-    };
-    s.onerror = () => { ortLoading = null; reject(new Error('could not load the colour runtime')); };
-    document.head.appendChild(s);
-  });
-  return ortLoading;
-}
-
-async function fetchModel(onProgress) {
-  const res = await fetch(ReviveColour.MODEL);
-  if (!res.ok) throw new Error('could not fetch the colour model (' + res.status + ')');
-  const total = parseInt(res.headers.get('content-length') || '78014375', 10);
-  if (!res.body) return new Uint8Array(await res.arrayBuffer());
-  const reader = res.body.getReader(), chunks = [];
-  let got = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    chunks.push(value); got += value.length;
-    onProgress(Math.min(1, got / total));
-  }
-  const buf = new Uint8Array(got);
-  let o = 0;
-  for (const c of chunks) { buf.set(c, o); o += c.length; }
-  return buf;
-}
-
-async function colourise(silent) {
-  const btn = $('colourBtn');
-  btn.disabled = true;
-  const say = t => { if (!silent) btn.textContent = t; };
-  try {
-    say('Loading colour engine…');
-    await loadRuntime();
-    if (!session) {
-      const bytes = await fetchModel(p => say('Downloading colour model… ' + Math.round(p * 100) + '%'));
-      say('Starting colour engine…');
-      await new Promise(r => setTimeout(r, 30));
-      session = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
-    }
-    say('Colourising…');
-    await new Promise(r => setTimeout(r, 30));
-
-    const I = ReviveEngine._internal;
-    const w = result.width, h = result.height, n = w * h;
-    const L = ReviveColour.lightness(result.data, n, I.S2L);
-    const S = ReviveColour.SIZE;
-    /* The network only ever sees lightness, at 256x256. It predicts chroma;
-       it cannot touch a single pixel of the restored detail. */
-    const small = I.resample(L, w, h, S, S, 3);
-    const x = ReviveColour.greyInput(small, S, I.linearToByte);
-    const out = await session.run({ [session.inputNames[0]]:
-      new ort.Tensor('float32', x, [1, 3, S, S]) });
-    const ab = out[session.outputNames[0]].data;
-    const aS = new Float32Array(S * S), bS = new Float32Array(S * S);
-    aS.set(ab.subarray(0, S * S)); bS.set(ab.subarray(S * S, 2 * S * S));
-    abFull = {
-      L,
-      a: I.resample(aS, S, S, w, h, 3),
-      b: I.resample(bS, S, S, w, h, 3),
-    };
-    colourOn = true;
-    applyColour(silent);
-    if (!silent) $('satCtl').hidden = false;
-    if (!silent) $('vSat').textContent = Math.round(parseFloat($('cSat').value) * 100) + '%';
-    $('colourNote').textContent = 'Colour is predicted, not recovered — a plausible reading, not a record.';
-  } catch (e) {
-    $('colourNote').textContent = 'Colourising failed: ' + (e && e.message ? e.message : e);
-    btn.disabled = false;
-    say('◐  Colourise');
-    return;
-  }
-  btn.disabled = false;
-  if (!silent) { btn.textContent = '◐  Back to black & white'; btn.onclick = toggleColour; }
-}
-
-function applyColour(silent) {
-  const I = ReviveEngine._internal;
-  const n = result.width * result.height;
-  const k = parseFloat($('cSat').value);
-  const a = Float32Array.from(abFull.a), b = Float32Array.from(abFull.b);
-  ReviveColour.scaleChroma(a, b, k, n);
-  result.colour = ReviveColour.toRgb(abFull.L, a, b, n, result.data, I.linearToByte);
-  if (silent) return;
-  paint($('canvasAfter'), { width: result.width, height: result.height, data: result.colour });
-  $('download').textContent = '↓  Download colourised photo';
-}
-function toggleColour() {
-  colourOn = !colourOn;
-  const btn = $('colourBtn');
-  if (colourOn) { applyColour(); btn.textContent = '◐  Back to black & white'; }
-  else {
-    paint($('canvasAfter'), result);
-    btn.textContent = '◐  Show colour';
-    $('download').textContent = '↓  Download restored photo';
-  }
-}
-$('colourBtn').onclick = colourise;
-$('cSat').addEventListener('input', () => {
-  $('vSat').textContent = Math.round(parseFloat($('cSat').value) * 100) + '%';
-  if (colourOn && abFull) applyColour();
-});
+$('dlBefore').onclick = e => { e.stopPropagation(); if (srcImage) saveImage(srcImage, srcName + '-original.png'); };
 
 /* ── batch ────────────────────────────────────────────────────────────────
-   One at a time, deliberately. A hundred 12-megapixel photographs cannot be
-   held in memory at once, so each result is encoded to a PNG blob the moment
-   it is finished and its pixel buffers are dropped — blobs are backed by
-   disk, typed arrays are not. Processing in parallel would also make the
-   progress meaningless and leave the tab unusable.                          */
-let batch = null;
-
+   One at a time. A hundred 12-megapixel photographs cannot be held decoded in
+   memory at once, so each result is encoded to a PNG blob the moment it is
+   done and its pixel buffers are dropped: blobs are backed by disk, typed
+   arrays are not. */
 function crc32(bytes) {
   let c, table = crc32.t;
   if (!table) {
@@ -2599,9 +774,9 @@ function crc32(bytes) {
   for (let i = 0; i < bytes.length; i++) c = table[(c ^ bytes[i]) & 255] ^ (c >>> 8);
   return (~c) >>> 0;
 }
-/* A stored (uncompressed) ZIP. PNG is already deflated, so compressing again
-   would burn minutes to save nothing. Built from Blob parts and one file read
-   at a time, so a hundred photographs never sit in memory together. */
+/* Stored, not deflated: PNG is already compressed, so packing it again would
+   burn minutes to save nothing. Built from Blob parts, one file read at a
+   time, so the whole batch never sits in memory together. */
 async function makeZip(entries, onProgress) {
   const enc = new TextEncoder();
   const parts = [], central = [];
@@ -2612,21 +787,14 @@ async function makeZip(entries, onProgress) {
     const data = new Uint8Array(await e.blob.arrayBuffer());
     const crc = crc32(data);
     const lh = new DataView(new ArrayBuffer(30));
-    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0, true);
-    lh.setUint16(8, 0, true); lh.setUint16(10, 0, true); lh.setUint16(12, 0, true);
-    lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true);
-    lh.setUint32(22, data.length, true);
-    lh.setUint16(26, nameBytes.length, true); lh.setUint16(28, 0, true);
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, data.length, true); lh.setUint32(22, data.length, true);
+    lh.setUint16(26, nameBytes.length, true);
     parts.push(new Uint8Array(lh.buffer), nameBytes, data);
     const cd = new DataView(new ArrayBuffer(46));
     cd.setUint32(0, 0x02014b50, true); cd.setUint16(4, 20, true); cd.setUint16(6, 20, true);
-    cd.setUint16(8, 0, true); cd.setUint16(10, 0, true); cd.setUint16(12, 0, true);
-    cd.setUint16(14, 0, true);
-    cd.setUint32(16, crc, true); cd.setUint32(20, data.length, true);
-    cd.setUint32(24, data.length, true);
-    cd.setUint16(28, nameBytes.length, true); cd.setUint16(30, 0, true);
-    cd.setUint16(32, 0, true); cd.setUint16(34, 0, true); cd.setUint16(36, 0, true);
-    cd.setUint32(38, 0, true); cd.setUint32(42, offset, true);
+    cd.setUint32(16, crc, true); cd.setUint32(20, data.length, true); cd.setUint32(24, data.length, true);
+    cd.setUint16(28, nameBytes.length, true); cd.setUint32(42, offset, true);
     central.push(new Uint8Array(cd.buffer), nameBytes);
     offset += 30 + nameBytes.length + data.length;
     if (onProgress) onProgress((i + 1) / entries.length);
@@ -2635,23 +803,22 @@ async function makeZip(entries, onProgress) {
   let cdSize = 0;
   for (const c of central) cdSize += c.length;
   const end = new DataView(new ArrayBuffer(22));
-  end.setUint32(0, 0x06054b50, true); end.setUint16(4, 0, true); end.setUint16(6, 0, true);
+  end.setUint32(0, 0x06054b50, true);
   end.setUint16(8, entries.length, true); end.setUint16(10, entries.length, true);
-  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true); end.setUint16(20, 0, true);
+  end.setUint32(12, cdSize, true); end.setUint32(16, offset, true);
   return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/zip' });
 }
-
-function queueRow(i) { return $('queue').children[i]; }
 function setRow(i, cls, status, link) {
-  const li = queueRow(i); if (!li) return;
+  const li = $('queue').children[i];
+  if (!li) return;
   li.className = cls;
   const st = li.querySelector('.st');
   if (link) { st.innerHTML = ''; st.appendChild(link); } else st.textContent = status;
 }
-
 async function runBatch(files) {
   batch = { items: [], stop: false, done: 0 };
-  const wantFaces = $('optFaces').checked, wantColour = $('optColour').checked;
+  const wantFaces = autoFaces, wantColour = autoColour;
+  autoFaces = autoColour = false;
   const q = $('queue');
   q.innerHTML = '';
   for (const f of files) {
@@ -2665,36 +832,26 @@ async function runBatch(files) {
   $('batchZip').hidden = true; $('batchAgain').hidden = true; $('batchStop').hidden = false;
   const total = batch.items.length;
   $('batchTitle').textContent = 'Restoring ' + total + ' photographs';
+  busy = true;
 
   for (let i = 0; i < total; i++) {
     if (batch.stop) break;
     const item = batch.items[i];
     setRow(i, 'now', 'reading…');
-    queueRow(i).scrollIntoView({ block: 'nearest' });
-    const overall = t => {
-      $('batchFill').style.width = Math.round(((i + t) / total) * 100) + '%';
-      $('batchStage').textContent = (i + 1) + ' of ' + total + ' — ' + (item.file.name || 'photo');
+    const overall = (t, label) => {
+      $('batchFill').style.width = Math.round(((i + Math.min(1, t)) / total) * 100) + '%';
+      $('batchStage').textContent = (i + 1) + ' of ' + total + ' — ' + (item.file.name || 'photo')
+        + (label ? ' — ' + label.toLowerCase() : '');
     };
     overall(0);
     try {
       srcImage = await decodeFile(item.file);
       srcName = item.name;
-      stats = ReviveEngine.analyze(srcImage);
-      opts = ReviveEngine.autoSettings(stats);
-      const it = ReviveEngine.restore(srcImage, opts, stats);
-      let step = it.next();
-      while (!step.done) {
-        setRow(i, 'now', step.value.stage.toLowerCase() + '…');
-        overall(step.value.p * (wantFaces || wantColour ? 0.5 : 0.95));
-        await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));
-        step = it.next();
-      }
-      result = step.value;
+      const span = (wantFaces || wantColour) ? 0.45 : 0.95;
+      result = await restoreImage(srcImage, (stage, p) => { setRow(i, 'now', stage.toLowerCase() + '…'); overall(p * span, stage); });
       colourOn = false; abFull = null;
-
-      if (wantFaces) { setRow(i, 'now', 'faces…'); overall(0.65); await enhanceFaces(true); }
-      if (wantColour) { setRow(i, 'now', 'colour…'); overall(0.85); await colourise(true); }
-
+      if (wantFaces) { setRow(i, 'now', 'faces…'); overall(0.6, 'faces'); await enhanceFaces(true); }
+      if (wantColour) { setRow(i, 'now', 'colour…'); overall(0.85, 'colour'); await colourise(true); }
       const pixels = colourOn && result.colour ? result.colour : result.data;
       item.blob = await new Promise(res => {
         const c = document.createElement('canvas');
@@ -2708,13 +865,13 @@ async function runBatch(files) {
       a.textContent = 'download';
       setRow(i, 'ok', '', a);
       batch.done++;
-      /* Drop the pixels now. Holding a hundred decoded photographs is what
-         makes a batch tool die at image forty. */
       srcImage = null; result = null;
     } catch (e) {
       setRow(i, 'bad', (e && e.message ? e.message : 'failed').slice(0, 40));
     }
+    await raf();
   }
+  busy = false;
   $('batchFill').style.width = '100%';
   $('batchStop').hidden = true;
   $('batchAgain').hidden = false;
@@ -2733,13 +890,15 @@ $('batchZip').onclick = async () => {
   const ok = batch.items.filter(x => x.blob);
   const btn = $('batchZip');
   btn.disabled = true;
-  const zip = await makeZip(ok.map(x => ({ name: x.name + '-restored.png', blob: x.blob })),
-    p => { btn.textContent = 'Packing… ' + Math.round(p * 100) + '%'; });
-  const url = URL.createObjectURL(zip);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'restored-photos.zip';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
+  try {
+    const zip = await makeZip(ok.map(x => ({ name: x.name + '-restored.png', blob: x.blob })),
+      p => { btn.textContent = 'Packing… ' + Math.round(p * 100) + '%'; });
+    const url = URL.createObjectURL(zip);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'restored-photos.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch (e) { $('batchStage').textContent = 'Could not build the ZIP: ' + e.message; }
   btn.disabled = false;
   btn.textContent = '↓  Download all ' + ok.length + ' as a ZIP';
 };
@@ -2751,14 +910,12 @@ const SEGS = [['segScale', 'vScale', 'damageScale', ['Fine', 'Normal', 'Coarse',
               ['segTone', 'vTone', 'tone', { neutral: 'Neutralise', keep: 'Keep tone', mono: 'Black & white' }, false],
               ['segSize', 'vSize', 'scale', null, true]];
 function syncControls() {
-  for (const [c, v, key] of SLIDERS) {
-    $(c).value = opts[key];
-    $(v).textContent = Math.round(opts[key] * 100) + '%';
-  }
-  for (const [seg, v, key, labels, num] of SEGS) {
+  if (!opts) return;
+  for (const [c, v, key] of SLIDERS) { $(c).value = opts[key]; $(v).textContent = Math.round(opts[key] * 100) + '%'; }
+  for (const [seg, v, key, labels] of SEGS) {
     const cur = String(opts[key]);
     for (const b of $(seg).children) b.setAttribute('aria-pressed', String(b.dataset.v === cur));
-    $(v).textContent = labels ? (num ? labels[opts[key]] : labels[opts[key]]) : opts[key] + '×';
+    $(v).textContent = labels ? labels[opts[key]] : opts[key] + '×';
   }
 }
 for (const [c, v, key] of SLIDERS) $(c).addEventListener('input', () => {
@@ -2766,15 +923,41 @@ for (const [c, v, key] of SLIDERS) $(c).addEventListener('input', () => {
   $(v).textContent = Math.round(opts[key] * 100) + '%';
 });
 for (const [seg, v, key, labels, num] of SEGS) $(seg).addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
+  const b = e.target.closest('button');
+  if (!b) return;
   opts[key] = num ? parseInt(b.dataset.v, 10) : b.dataset.v;
   syncControls();
 });
-$('redo').onclick = () => { if (!busy && srcImage) run(); };
+$('redo').onclick = async () => {
+  if (busy || !srcImage) return;
+  busy = true; setState('working'); startTicker();
+  showStage('Applying your settings', 0.02);
+  await raf();
+  try {
+    const copy = new Uint8ClampedArray(srcImage.data);
+    const res = callWorker({ type: 'restore', width: srcImage.width, height: srcImage.height, data: copy.buffer, opts },
+      [copy.buffer], m => showStage(m.stage, m.p));
+    if (res) {
+      const m = await res;
+      result = { width: m.width, height: m.height, data: new Uint8ClampedArray(m.data),
+        mask: m.mask ? new Float32Array(m.mask) : null, maskWidth: m.maskWidth, maskHeight: m.maskHeight,
+        damageFraction: m.damageFraction, scale: m.scale };
+      stats = m.stats;
+    } else {
+      const it = ReviveEngine.restore(srcImage, opts, stats);
+      let step = it.next();
+      while (!step.done) { showStage(step.value.stage, step.value.p); await raf(); step = it.next(); }
+      result = step.value;
+    }
+  } catch (e) { stopTicker(); return fail('Could not apply those settings: ' + e.message); }
+  stopTicker();
+  present();
+  busy = false;
+};
 
-/* Restore the demo state if the page is reloaded mid-flow. */
 setState('idle');
 })();
+
 </script>
 </body>
 </html>
