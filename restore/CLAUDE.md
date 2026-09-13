@@ -1,13 +1,21 @@
-# REVIVE — photo restoration
+# Revive — photo restoration
 
-Drop a scanned photograph in, get it back with the blemishes gone, the fading
-corrected and the resolution increased. Single self-contained `index.html`,
-live at `labern.github.io/Clean/restore/`. No build step, no dependencies, no
-network calls, no model weights — the photo never leaves the device.
+Drop scanned photographs in — one or a hundred — get them back cleaned,
+sharpened and colourised. Live at `labern.github.io/Clean/restore/`. No build
+step. **Nothing is uploaded**: the model weights are fetched to the browser,
+the photograph never leaves the device.
+
+Classical DSP does the cleanup. Two learned models, **both on by default**, do
+what classical cannot: GFPGAN for faces (the only thing that can fix focus)
+and DDColor for colour.
 
 ## Commands
-- Open `index.html` directly in a browser. That is the whole app.
-- `node tests/run.mjs` — 37 assertions, must stay green on every engine change.
+- `node tests/run.mjs` — 71 assertions, must stay green on every change.
+- **Serve it over http to try it** (`npx http-server`), do not open the file
+  directly. `file://` cannot start a Web Worker and cannot fetch the models,
+  so the page falls back to the main thread and both models refuse. Testing on
+  `file://` with `--disable-web-security` is how several shipped bugs were
+  missed; test it the way it is actually used.
 
 ## Shape
 - `index.html` — the page and the UI only.
@@ -29,12 +37,15 @@ network calls, no model weights — the photo never leaves the device.
   ground truth is known exactly, every claim the UI makes is measurable.
 
 ## The interface
-Deliberately one path: drop → it decides everything → original on top,
-restored below → download. `autoSettings()` reads the scan and picks every
-parameter, so the default flow asks the user for nothing. The sliders live
-in a collapsed `<details>` for when the automatic reading is wrong.
-"Show what it repaired" paints the damage mask over the original in pink —
-the honest way to let someone check the tool did not eat their photograph.
+One path, no prose: drop → one progress bar through every stage including the
+models → restored image on top with a download button, original underneath.
+`autoSettings()` reads the scan and picks every parameter, so the default flow
+asks for nothing. Sliders, the repair mask and the manual model buttons live
+in a collapsed "Adjust".
+
+The working screen shows a running elapsed clock. That is deliberate: it is
+proof of life on a photograph that takes a minute, and the absence of any such
+signal is what made a working app look broken.
 
 ## Pipeline, and why in this order
 `decode → linear light → fade/cast → detect damage → inpaint → denoise →
@@ -97,9 +108,10 @@ debugging. The suite has a regression test for every one.
   blurred step edge and reports a mush and a knife-edge alike.
 
 ## Known limits, stated plainly
-- **No colourisation.** Inventing colour for a black-and-white photograph needs
-  a learned model. The tone control offers neutralise / keep sepia / mono, and
-  nothing more, because anything else would be fabrication.
+- **Faces are the only thing that comes back sharp.** GFPGAN is a *face*
+  model. A photograph whose subject is not a face improves far less, and no
+  amount of classical sharpening substitutes — a generative restorer that
+  re-renders the whole frame is a different class of tool.
 - **Exemplar fill abstains on rigid repeating structure.** PatchMatch copies
   real texture into holes, which is right for fabric, foliage, skin and grain.
   Over a window grid or brickwork it can be confidently wrong, and a displaced
@@ -109,9 +121,8 @@ debugging. The suite has a regression test for every one.
 - **Large blotches, missing corners and torn-off areas** are out of scope. The
   detector looks for small blobs and thin lines, which is what dust, specks,
   scratches and creases are.
-- **Stage-level progress only.** The generator yields between stages so the UI
-  can paint; a single stage on a very large scan still blocks. A worker would
-  fix it at the cost of the single-file, `file://`-openable property.
+- **Profiles and turned-away heads are not detected.** YuNet is frontal-ish.
+  Rotation is handled (see below); pose is not.
 
 ## Metrics note
 Stages that must be colour-faithful (fade, repair) are judged on RGB PSNR.
@@ -125,7 +136,7 @@ and looks right — which is why the exemplar stage was tuned by eye against
 browser screenshots.
 
 ## Colourisation
-Optional, opt-in, and the only part of the app that is not classical DSP.
+On by default. Runs automatically after the classical pass.
 
 - **Model:** DDColor (Du et al., ICCV 2023), the `tiny` ConvNeXt-T variant,
   Apache-2.0. Exported with the repo's own `scripts/export_onnx.py` at
@@ -145,7 +156,7 @@ Optional, opt-in, and the only part of the app that is not classical DSP.
     returns subtly wrong colour, so there is a test for it. Output a/b are
     already in Lab units.
 - **Runtime:** onnxruntime-web 1.19.2, MIT, **vendored in `restore/ort/`** and
-  loaded *on demand* — the page costs nothing until the button is pressed. It
+  loaded only when a model is first needed — the page itself stays light. It
   is deliberately not on a CDN: a CDN is one more thing that can be blocked,
   go down, or change what it serves under a version number, and the promise
   this page makes is that the link works.
@@ -158,7 +169,7 @@ Optional, opt-in, and the only part of the app that is not classical DSP.
   cannot send those headers. SIMD works without isolation and carries it.
   ~18s for a 4.4MP photograph.
 - **Why it composes cleanly:** the network predicts only the two CHROMA
-  channels, at 256×256, from lightness alone. That is exactly how the rest of
+  channels, at 512×512, from lightness alone. That is exactly how the rest of
   the pipeline is built — detail on luminance, chroma carried smoothly — so
   the predicted a/b are upsampled and married to the full-resolution restored
   L. The model never sees or writes luminance, so **colourising cannot smear a
@@ -177,7 +188,7 @@ page with no network interception of any kind — model fetch, session creation,
 inference and recombination all ran as shipped.
 
 ## Face restoration
-Optional, opt-in, and the only thing here that can put a face back IN FOCUS.
+On by default, and the only thing here that can put a face back IN FOCUS.
 Nothing classical can: the detail was never in the negative to recover, so it
 has to come from a learned prior.
 
@@ -202,10 +213,11 @@ has to come from a learned prior.
     invents is simply wrong.
 - **Detection coverage.** One 640 pass over a 2500px group photo shrinks a head
   to ~35px and finds two faces out of five, so the image is tiled at close to
-  native scale with a third overlap and merged with NMS. YuNet is still a
-  frontal-ish detector: **profiles and turned-away heads are not found**, which
-  is a model limit, not a bug — on the test classroom photograph most of the
-  heads are in profile and 2 of 5 is the honest answer.
+  native scale with a third overlap and merged with NMS — after the
+  orientation check below. YuNet is still a frontal-ish detector: **profiles
+  and turned-away heads are not found**, which is a model limit, not a bug —
+  on the test classroom photograph most heads are in profile and 2 of 5 is the
+  honest answer.
 - **Cost:** ~34s for two faces including the model download, single-threaded.
 - **Honesty:** the detail is reconstructed from a prior. It is a likeness, not
   a record, and the UI says so.
@@ -225,9 +237,9 @@ is in hand, and a per-row download link as each finishes.
   deflated and re-compressing would burn minutes to save nothing. It is built
   from Blob parts reading one file at a time, so the whole batch never sits in
   memory together. Verified with Python's `zipfile` at 6 and 40 entries.
-- Face restoration and colourisation are opt-in checkboxes on the drop screen
-  and apply to the whole batch; the models load once and are reused across
-  every photograph. They also apply to a single photograph if ticked.
+- Face restoration and colourisation are on by default and apply to the whole
+  batch; the models load once and are reused across every photograph. The two
+  checkboxes on the drop screen turn them off.
 - Measured: 40 files in 83s (restore only); 6 larger files in 59s.
 
 ### Gotcha
