@@ -10,11 +10,19 @@ network calls, no model weights — the photo never leaves the device.
 - `node tests/run.mjs` — 37 assertions, must stay green on every engine change.
 
 ## Shape
-- `index.html` — everything. The DSP core is fenced between
-  `/*REVIVE-ENGINE-START*/` and `/*REVIVE-ENGINE-END*/`, is pure JS over typed
-  arrays with no DOM access, and is pulled out of the HTML by the test suite
-  with `new Function` (the same trick `pica/` uses). Browser and tests
-  therefore run the identical source and cannot drift.
+- `index.html` — the page and the UI only.
+- `engine.js` — the whole compute core, still fenced in `/*REVIVE-ENGINE-*/`,
+  `/*REVIVE-COLOUR-*/` and `/*REVIVE-FACE-*/` markers, pure JS over typed
+  arrays with no DOM access. Loaded twice: by the page (for the pure helpers)
+  and by `worker.js` via `importScripts`. The suite loads it directly, so
+  browser and tests cannot drift.
+- `worker.js` — every expensive stage. **This is not an optimisation.**
+  Restoring a 12-megapixel scan is tens of seconds of dense array work; run on
+  the main thread the tab stops repainting entirely — no progress bar, no
+  spinner — which is indistinguishable from an app that does nothing, and is
+  exactly how it was reported. With the worker, main-thread lag measured
+  1–15ms throughout a 39-second restore. There is a main-thread fallback for
+  `file://`, where a page is not permitted to start a worker at all.
 - `tests/run.mjs`, `tests/fixtures.mjs` — the fixtures are *generated*, not
   checked in: a procedural "photograph", then known degradations (box
   downscale, dust, scratches, fade with a colour cast, noise). Because the
@@ -226,3 +234,21 @@ is in hand, and a per-row download link as each finishes.
 `[hidden]` needs `!important` in this stylesheet. `.btn` sets `display:flex`,
 which has identical specificity and comes later, so hiding a button silently
 did nothing — the batch "Stop" button stayed visible after completion.
+
+
+## Two bugs that both presented as "it does nothing"
+Worth reading before touching the app shell, because neither threw an error
+and neither showed up in any image-quality metric.
+
+1. **A click handler bound to a function whose first parameter is a flag.**
+   `btn.onclick = colourise` hands the click's MouseEvent to `colourise(silent)`.
+   An event is truthy, so the model downloaded, ran to completion, and then
+   suppressed every visible sign of itself: no button text, no note, no
+   repainted canvas. The work happened perfectly and the page looked broken.
+   It arrived the moment `silent` was added for batch mode. Handlers are now
+   always wrapped in arrows, the flags only accept a literal `true`, and
+   `tests/run.mjs` greps the page for bare bindings to flag-taking functions.
+
+2. **The frozen tab.** Everything ran on the main thread, so nothing repainted
+   during a long restore. Fixed by the worker above; the working screen also
+   shows a running elapsed clock, which doubles as proof of life.

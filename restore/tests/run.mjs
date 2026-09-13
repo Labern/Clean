@@ -21,7 +21,11 @@ import { fileURLToPath } from 'node:url';
 import { makePhoto, downscale, damage, fade, addNoise, psnr, psnrAt } from './fixtures.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const html = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8');
+/* The engine now lives in its own file, loaded by both the page and the
+   worker — so that heavy stages run OFF the main thread. A page that cannot
+   repaint looks exactly like a page that does nothing, which is how the
+   main-thread version was reported. */
+const html = fs.readFileSync(path.join(here, '..', 'engine.js'), 'utf8');
 const block = html.match(/\/\*REVIVE-ENGINE-START\*\/[\s\S]*\/\*REVIVE-ENGINE-END\*\//);
 if (!block) { console.error('FAIL: engine markers not found in index.html'); process.exit(1); }
 const E = new Function(block[0] + '; return ReviveEngine;')();
@@ -501,6 +505,48 @@ head('faces');
   for (let i = 0; i < parts; i++)
     if (fs.statSync(path.join(here, '..', 'models', 'face.onnx.part' + i)).size > 99e6) tooBig++;
   ok('...with every part under 99MB', tooBig === 0);
+}
+
+// ── 10. the app shell ───────────────────────────────────────────────────────
+head('app wiring');
+{
+  const page = fs.readFileSync(path.join(here, '..', 'index.html'), 'utf8');
+
+  /* The bug that produced "it literally does nothing": a handler assigned as
+     `btn.onclick = fn` hands the click's MouseEvent to fn's first parameter.
+     Where that parameter is a `silent` flag for batch mode, an event is
+     truthy — so the model ran in full and then suppressed every visible sign
+     of it. No button text, no note, no repainted canvas. The work happened
+     and the page looked broken.
+
+     Any function whose first parameter is a flag must be wrapped in an arrow,
+     so this refuses a bare binding to one. */
+  const flagged = new Set();
+  for (const m of page.matchAll(/(?:async\s+)?function\s+(\w+)\s*\(\s*(\w+)/g))
+    if (/^(silent|quiet|skip|no[A-Z])/.test(m[2])) flagged.add(m[1]);
+  ok('found the flag-taking functions to guard', flagged.size > 0,
+     [...flagged].join(', ') || 'none');
+  const bare = [];
+  for (const m of page.matchAll(/\.onclick\s*=\s*(\w+)\s*;/g))
+    if (flagged.has(m[1])) bare.push(m[1]);
+  ok('no click handler passes its event into a flag parameter', bare.length === 0,
+     bare.length ? 'bare binding to ' + [...new Set(bare)].join(', ') : 'all wrapped');
+
+  /* The heavy stages must be in the worker. On the main thread the tab cannot
+     repaint and looks dead — which is how this was reported. */
+  ok('a worker ships with the app', fs.existsSync(path.join(here, '..', 'worker.js')));
+  ok('the page starts one', /new Worker\(/.test(page));
+  ok('the engine is shared, not duplicated', /<script src="engine\.js">/.test(page)
+     && /importScripts\('engine\.js'\)/.test(fs.readFileSync(path.join(here, '..', 'worker.js'), 'utf8')));
+  ok('...and the page carries no copy of the engine itself',
+     !/REVIVE-ENGINE-START/.test(page));
+  /* Opened straight off disk a page cannot start a worker at all, so there
+     has to be a path that still works. */
+  ok('there is a main-thread fallback', /workerBroken/.test(page));
+
+  /* [hidden] needs !important here: .btn sets display:flex at equal
+     specificity later in the sheet, so hiding a button silently did nothing. */
+  ok('[hidden] actually hides', /\[hidden\]\{display:none!important\}/.test(page));
 }
 
 console.log('\n' + (fail === 0 ? '\x1b[32m' : '\x1b[31m') + pass + ' passed, ' + fail + ' failed\x1b[0m');
