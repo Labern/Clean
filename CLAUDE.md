@@ -15,15 +15,20 @@ no build step, no dependencies.
 - `fullres/` — FullRes: send photos/videos via WhatsApp at original quality
   (share-as-document trick, zero compression). Single-file web app, live at
   `labern.github.io/Clean/fullres/`. See `fullres/CLAUDE.md`.
-- `restore/` — REVIVE: drop in a scanned photograph, get it back with dust,
-  scratches and creases removed, fading and colour cast corrected, and the
-  resolution raised up to 4×. Single-file web app, live at
-  `labern.github.io/Clean/restore/`. Classical DSP, no ML, nothing uploaded.
-  See `restore/CLAUDE.md` — its suite (`node restore/tests/run.mjs`) must stay
-  green on every engine change, and the calibrated constants listed there
-  encode real bugs; don't "tidy" them. Optional colourisation runs a quantised
-  ONNX model (`restore/colorize.onnx`, 78MB — DDColor) in the browser on demand — it
-  predicts chroma only, so it can never disturb the restored detail.
+- `restore/` — Revive: drop in scanned photographs (one or a hundred), get them
+  back cleaned, sharpened, colourised. Live at `labern.github.io/Clean/restore/`.
+  **No longer single-file**: `index.html` (UI) + `engine.js` (compute core,
+  shared) + `worker.js` (runs every heavy stage off the main thread) + `ort/`
+  (vendored onnxruntime-web) + `colorize.onnx` and `models/` (quantised model
+  weights). Nothing is uploaded — the models come to the photograph.
+  - Classical DSP does the cleanup: dust, scratches, fade, cast, grain, upscale.
+  - Two learned models do what classical cannot, **both on by default**:
+    GFPGAN for faces (the only thing that can fix focus) and DDColor for colour.
+  - See `restore/CLAUDE.md` before changing anything. Its suite
+    (`node restore/tests/run.mjs`, 71 assertions) must stay green, and the
+    calibrated constants documented there each encode a real bug — don't
+    "tidy" them. Read in particular the sections on orientation, on the two
+    bugs that presented as "it does nothing", and on the do-no-harm gate.
 - `pica/` — PICA: screenplay editor that imports Final Draft PDFs and reproduces
   them identically, with the full Tab/Enter typing grammar. Single-file web app,
   live at `labern.github.io/Clean/pica/`. See `pica/CLAUDE.md` — its fidelity
@@ -36,6 +41,11 @@ For `ClaudeUsageMonitor/`, see that subsection.
 ## Conventions
 - Keep `index.html` a single self-contained file unless the project grows
   enough to justify splitting out CSS/JS — don't add a build tool prematurely.
+  (`restore/` has outgrown this and is now several files; that was forced by
+  needing a Web Worker, which cannot share code with the page any other way.)
+- The terminal/monospace house style below applies to the older pages.
+  `restore/` deliberately departs from it — plain system font, near-monochrome
+  — because it was rebuilt to put the photograph first and the chrome nowhere.
 - Visual style: dark gradient background, monospace/terminal-flavored type,
   teal/violet/pink accent palette (`#5eead4` / `#a78bfa` / `#f472b6`), glassy
   bordered cards. Match this look across both the webpage and the menu bar app.
