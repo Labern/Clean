@@ -1488,6 +1488,65 @@ function scaleChroma(a, b, k, n) {
   if (k === 1) return;
   for (let i = 0; i < n; i++) { a[i] *= k; b[i] *= k; }
 }
+/* ── orientation ─────────────────────────────────────────────────────────
+   A colourisation network reads a SCENE. Hand it a photograph lying on its
+   side and it cannot tell a wall from a floor or a face from a hand, and it
+   returns a blue-grey wash with magenta patches — measured, on the very same
+   photograph that colourises convincingly when upright. Scans are sideways
+   all the time, so the image is turned upright for the model and the
+   predicted chroma is turned back afterwards. */
+const rotDimsC = (rot, w, h) => (rot & 1) ? [h, w] : [w, h];
+/* original (x,y) -> coordinates in the upright (rotated) view */
+function rotFwd(rot, w, h, x, y) {
+  if (rot === 1) return [h - 1 - y, x];
+  if (rot === 2) return [w - 1 - x, h - 1 - y];
+  if (rot === 3) return [y, w - 1 - x];
+  return [x, y];
+}
+/* and back again */
+function rotInv(rot, w, h, rx, ry) {
+  if (rot === 1) return [ry, h - 1 - rx];
+  if (rot === 2) return [w - 1 - rx, h - 1 - ry];
+  if (rot === 3) return [w - 1 - ry, rx];
+  return [rx, ry];
+}
+/* Lightness resampled into an upright `size`x`size` square. */
+function uprightL(L, w, h, rot, size) {
+  const [RW, RH] = rotDimsC(rot, w, h);
+  const out = new Float32Array(size * size);
+  for (let v = 0; v < size; v++) for (let u = 0; u < size; u++) {
+    const rx = (u + 0.5) * RW / size - 0.5, ry = (v + 0.5) * RH / size - 0.5;
+    let [gx, gy] = rotInv(rot, w, h, rx, ry);
+    gx = gx < 0 ? 0 : gx > w - 1 ? w - 1 : gx;
+    gy = gy < 0 ? 0 : gy > h - 1 ? h - 1 : gy;
+    const x0 = gx | 0, y0 = gy | 0;
+    const x1 = Math.min(w - 1, x0 + 1), y1 = Math.min(h - 1, y0 + 1);
+    const tx = gx - x0, ty = gy - y0;
+    const p00 = L[y0 * w + x0], p01 = L[y0 * w + x1];
+    const p10 = L[y1 * w + x0], p11 = L[y1 * w + x1];
+    out[v * size + u] = (p00 + (p01 - p00) * tx) * (1 - ty) + (p10 + (p11 - p10) * tx) * ty;
+  }
+  return out;
+}
+/* Predicted chroma, back out to full resolution in the original orientation. */
+function abToFull(ab, size, w, h, rot) {
+  const [RW, RH] = rotDimsC(rot, w, h);
+  const out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const [rx, ry] = rotFwd(rot, w, h, x, y);
+    let u = (rx + 0.5) * size / RW - 0.5, v = (ry + 0.5) * size / RH - 0.5;
+    u = u < 0 ? 0 : u > size - 1 ? size - 1 : u;
+    v = v < 0 ? 0 : v > size - 1 ? size - 1 : v;
+    const u0 = u | 0, v0 = v | 0;
+    const u1 = Math.min(size - 1, u0 + 1), v1 = Math.min(size - 1, v0 + 1);
+    const tu = u - u0, tv = v - v0;
+    const p00 = ab[v0 * size + u0], p01 = ab[v0 * size + u1];
+    const p10 = ab[v1 * size + u0], p11 = ab[v1 * size + u1];
+    out[y * w + x] = (p00 + (p01 - p00) * tu) * (1 - tv) + (p10 + (p11 - p10) * tu) * tv;
+  }
+  return out;
+}
+
 /* Build the network's input: Lab(L,0,0) rendered to sRGB, three identical
    channels, NCHW. a=b=0 means the colour IS the white point, so the linear
    value is simply Y and all three channels agree. */
@@ -1499,7 +1558,7 @@ function greyInput(Ls, size, linearToByte) {
   }
   return x;
 }
-return { lightness, greyInput, toRgb, scaleChroma, SIZE: 512, MODEL: 'colorize.onnx' };
+return { lightness, greyInput, toRgb, scaleChroma, uprightL, abToFull, SIZE: 512, MODEL: 'colorize.onnx' };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports.ReviveColour = ReviveColour;
 /*REVIVE-COLOUR-END*/
@@ -1679,19 +1738,60 @@ function pasteBack(img, out, M, size, mask, strength, lumaOnly) {
     }
   }
 }
+/* ── rotation ────────────────────────────────────────────────────────────
+   YuNet is an UPRIGHT face detector. Turn a photograph on its side and it
+   finds nothing at all — measured: twelve detections upright, zero at 90, 180
+   and 270 degrees. Scans are sideways constantly (a baby lying down, a print
+   fed into the scanner the short way, a phone photo of an album), and when
+   that happens face restoration silently has nothing to work on and the whole
+   feature looks broken.
+
+   So the image is offered to the detector at all four right angles. Rather
+   than rotating the pixels — four copies of a 12-megapixel scan — the
+   rotation is folded into the sampling that builds the 640x640 input, and the
+   landmarks are mapped straight back to original coordinates afterwards. */
+const rotDims = (rot, w, h) => (rot & 1) ? [h, w] : [w, h];
+
+/* A point in the rotated view, back to coordinates in the source rect. */
+function unrotate(rot, rect, rx, ry) {
+  const w = rect.w, h = rect.h;
+  let vx, vy;
+  if (rot === 0) { vx = rx; vy = ry; }
+  else if (rot === 1) { vx = ry; vy = h - 1 - rx; }        // source turned 90 clockwise
+  else if (rot === 2) { vx = w - 1 - rx; vy = h - 1 - ry; }
+  else { vx = w - 1 - ry; vy = rx; }                        // 90 anticlockwise
+  return [rect.x + vx, rect.y + vy];
+}
+
 /* Model input: BGR, 0..255, NCHW — YuNet takes raw pixel values. */
-function detectorInput(img) {
+function detectorInput(img, rot, rect) {
+  rot = rot || 0;
+  rect = rect || { x: 0, y: 0, w: img.width, h: img.height };
+  const [RW, RH] = rotDims(rot, rect.w, rect.h);
   const n = NET * NET, x = new Float32Array(3 * n), px = [0, 0, 0];
-  const sx = img.width / NET, sy = img.height / NET;
   for (let v = 0; v < NET; v++) for (let u = 0; u < NET; u++) {
-    sampleRGBA(img.data, img.width, img.height, (u + 0.5) * sx - 0.5, (v + 0.5) * sy - 0.5, px);
+    const rx = (u + 0.5) * RW / NET - 0.5, ry = (v + 0.5) * RH / NET - 0.5;
+    const [gx, gy] = unrotate(rot, rect, rx, ry);
+    sampleRGBA(img.data, img.width, img.height, gx, gy, px);
     const i = v * NET + u;
     x[i] = px[2]; x[n + i] = px[1]; x[2 * n + i] = px[0];
   }
   return x;
 }
+/* Detections come back in 640-space; put them back in the photograph. */
+function mapDetection(d, rot, rect) {
+  const [RW, RH] = rotDims(rot, rect.w, rect.h);
+  const kx = RW / NET, ky = RH / NET;
+  const pts = d.pts.map(p => unrotate(rot, rect, p[0] * kx, p[1] * ky));
+  const corners = [[d.x, d.y], [d.x + d.w, d.y + d.h]]
+    .map(p => unrotate(rot, rect, p[0] * kx, p[1] * ky));
+  const x0 = Math.min(corners[0][0], corners[1][0]), y0 = Math.min(corners[0][1], corners[1][1]);
+  const x1 = Math.max(corners[0][0], corners[1][0]), y1 = Math.max(corners[0][1], corners[1][1]);
+  return { score: d.score, x: x0, y: y0, w: x1 - x0, h: y1 - y0, pts, rot };
+}
 return { TPL, NET, decodeDetections, nms, similarity, invert, apply,
-         cropAligned, faceMask, pasteBack, detectorInput, sampleRGBA };
+         cropAligned, faceMask, pasteBack, detectorInput, sampleRGBA,
+         unrotate, rotDims, mapDetection };
 })();
 if (typeof module !== 'undefined' && module.exports) module.exports.ReviveFace = ReviveFace;
 /*REVIVE-FACE-END*/

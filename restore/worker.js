@@ -15,6 +15,7 @@
 importScripts('engine.js');
 
 let ortReady = null, colourSession = null, faceSession = null, detSession = null;
+let knownRot = null;   // which way up this photograph is, once we know
 
 const post = (type, payload, transfer) => self.postMessage(Object.assign({ type }, payload), transfer || []);
 
@@ -84,37 +85,54 @@ function subImage(img, sx, sy, sw, sh) {
   }
   return { width: sw, height: sh, data: d };
 }
+async function runDetector(img, rot, rect) {
+  const F = ReviveFace, N = F.NET;
+  const input = F.detectorInput(img, rot, rect);
+  const out = await detSession.run({ [detSession.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, N, N]) });
+  const named = {};
+  for (const k of Object.keys(out)) named[k] = out[k].data;
+  return F.decodeDetections(named, 0.5).map(d => F.mapDetection(d, rot, rect));
+}
+
 async function detectFaces(img) {
-  const F = ReviveFace, N = F.NET, all = [];
-  const views = [{ x: 0, y: 0, w: img.width, h: img.height }];
-  /* Tile at close to native scale: one 640 pass over a 2500px group photo
-     shrinks a head to ~35px and finds two faces out of five. */
+  const F = ReviveFace, N = F.NET;
+  const whole = { x: 0, y: 0, w: img.width, h: img.height };
+
+  /* Which way up is this photograph? YuNet only finds upright faces, and a
+     sideways scan yields literally nothing — so try all four right angles on
+     the whole frame first and keep whichever the detector believes most.
+     Four cheap passes settle the orientation before any expensive tiling. */
+  let best = { rot: 0, dets: [], score: -1 };
+  for (let rot = 0; rot < 4; rot++) {
+    post('progress', { stage: 'Checking orientation (' + (rot + 1) + '/4)', p: 0.10 + 0.03 * rot });
+    const dets = await runDetector(img, rot, whole);
+    const score = dets.reduce((s, d) => s + d.score, 0);
+    if (score > best.score) best = { rot, dets, score };
+  }
+  const rot = best.rot;
+  knownRot = rot;
+  const all = best.dets.slice();
+
+  /* Now tile, at the orientation that works, so small faces are not lost to
+     the detector's fixed 640 input. */
   const TILE = Math.round(N * 1.4);
+  const views = [];
   if (img.width > TILE * 1.2 || img.height > TILE * 1.2) {
     const cols = Math.max(1, Math.ceil(img.width / TILE));
     const rows = Math.max(1, Math.ceil(img.height / TILE));
     const tw = Math.min(img.width, Math.ceil(img.width / cols * 1.34));
     const th = Math.min(img.height, Math.ceil(img.height / rows * 1.34));
     for (let c = 0; c < cols; c++) for (let r = 0; r < rows; r++) {
-      const x = cols > 1 ? Math.round(c * (img.width - tw) / (cols - 1)) : 0;
-      const y = rows > 1 ? Math.round(r * (img.height - th) / (rows - 1)) : 0;
-      views.push({ x, y, w: tw, h: th });
+      views.push({
+        x: cols > 1 ? Math.round(c * (img.width - tw) / (cols - 1)) : 0,
+        y: rows > 1 ? Math.round(r * (img.height - th) / (rows - 1)) : 0,
+        w: tw, h: th,
+      });
     }
   }
   for (let i = 0; i < views.length; i++) {
-    const v = views[i];
-    post('progress', { stage: 'Looking for faces (' + (i + 1) + '/' + views.length + ')', p: 0.1 + 0.2 * (i / views.length) });
-    const view = (v.w === img.width && v.h === img.height) ? img : subImage(img, v.x, v.y, v.w, v.h);
-    const input = F.detectorInput(view);
-    const out = await detSession.run({ [detSession.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, N, N]) });
-    const named = {};
-    for (const k of Object.keys(out)) named[k] = out[k].data;
-    const kx = v.w / N, ky = v.h / N;
-    for (const d of F.decodeDetections(named, 0.5)) {
-      d.x = d.x * kx + v.x; d.y = d.y * ky + v.y; d.w *= kx; d.h *= ky;
-      d.pts = d.pts.map(p => [p[0] * kx + v.x, p[1] * ky + v.y]);
-      all.push(d);
-    }
+    post('progress', { stage: 'Looking for faces (' + (i + 1) + '/' + views.length + ')', p: 0.22 + 0.08 * (i / views.length) });
+    for (const d of await runDetector(img, rot, views[i])) all.push(d);
   }
   return F.nms(all, 0.35).sort((a, b) => b.w * b.h - a.w * a.h);
 }
@@ -159,6 +177,30 @@ async function doFaces(msg) {
 }
 
 /* ── colour ──────────────────────────────────────────────────────────────── */
+/* Four cheap detector passes to settle which way up the photograph is. Worth
+   it even when the user never asked for faces: a colourisation model fed a
+   sideways scene returns a blue wash. */
+async function findOrientation(img, msg) {
+  if (knownRot !== null) return knownRot;
+  if (!msg.detPath) return 0;
+  try {
+    if (!detSession) {
+      const d = await fetchParts([msg.detPath], msg.detSize || 232589, () => {});
+      detSession = await ort.InferenceSession.create(d, { executionProviders: ['wasm'] });
+    }
+    const whole = { x: 0, y: 0, w: img.width, h: img.height };
+    let best = { rot: 0, score: -1 };
+    for (let rot = 0; rot < 4; rot++) {
+      post('progress', { stage: 'Checking orientation (' + (rot + 1) + '/4)', p: 0.62 + 0.02 * rot });
+      const dets = await runDetector(img, rot, whole);
+      const score = dets.reduce((s, d) => s + d.score, 0);
+      if (score > best.score) best = { rot, score };
+    }
+    knownRot = best.score > 0 ? best.rot : 0;
+  } catch (e) { knownRot = 0; }
+  return knownRot;
+}
+
 async function doColour(msg) {
   await loadOrt(msg.ortBase);
   if (!colourSession) {
@@ -167,13 +209,15 @@ async function doColour(msg) {
     post('progress', { stage: 'Starting the colour model', p: 0.6 });
     colourSession = await ort.InferenceSession.create(bytes, { executionProviders: ['wasm'] });
   }
-  post('progress', { stage: 'Reading the colour of this scene', p: 0.7 });
   const I = ReviveEngine._internal;
   const w = msg.width, h = msg.height, n = w * h;
   const data = new Uint8ClampedArray(msg.data);
   const L = ReviveColour.lightness(data, n, I.S2L);
+  const rot = await findOrientation({ width: w, height: h, data }, msg);
+  post('progress', { stage: 'Reading the colour of this scene', p: 0.72 });
   const S = ReviveColour.SIZE;
-  const small = I.resample(L, w, h, S, S, 3);
+  /* Upright for the model, back again for the picture. */
+  const small = ReviveColour.uprightL(L, w, h, rot, S);
   const x = ReviveColour.greyInput(small, S, I.linearToByte);
   const out = await colourSession.run({ [colourSession.inputNames[0]]: new ort.Tensor('float32', x, [1, 3, S, S]) });
   const ab = out[colourSession.outputNames[0]].data;
@@ -181,7 +225,9 @@ async function doColour(msg) {
   const aS = new Float32Array(S * S), bS = new Float32Array(S * S);
   aS.set(ab.subarray(0, S * S)); bS.set(ab.subarray(S * S, 2 * S * S));
   return {
-    L, a: I.resample(aS, S, S, w, h, 3), b: I.resample(bS, S, S, w, h, 3),
+    L,
+    a: ReviveColour.abToFull(aS, S, w, h, rot),
+    b: ReviveColour.abToFull(bS, S, w, h, rot),
     data,
   };
 }
@@ -190,6 +236,7 @@ self.onmessage = async ev => {
   const msg = ev.data;
   try {
     if (msg.type === 'restore') {
+      knownRot = null;
       const { result, stats, opts } = doRestore(msg);
       post('done', {
         id: msg.id, width: result.width, height: result.height,
