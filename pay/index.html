@@ -1,0 +1,394 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ------------------------------------------------------------------
+   CONFIG lives in the <script> at the bottom of this file.
+   Edit that, not this.
+   ------------------------------------------------------------------ */
+
+:root{
+  --lemon:      #fff23f;
+  --lemon-deep: #f5d800;
+  --lemon-pale: #fffbcc;
+  --rind:       #3d3200;
+  --ink:        #2b2400;
+}
+
+*{box-sizing:border-box}
+
+html{background-color:var(--lemon-deep)}
+
+body{
+  margin:0;
+  min-height:100dvh;
+  padding:calc(env(safe-area-inset-top,0px) + 24px) 16px
+          calc(env(safe-area-inset-bottom,0px) + 24px);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-family:"Comic Sans MS","Chalkboard SE","Comic Neue",cursive,system-ui;
+  color:var(--ink);
+  background:transparent;
+  overflow-x:hidden;
+}
+
+/* the lemon, and the rainbow behind it ------------------------------ */
+.lemon-sky{
+  position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:
+    radial-gradient(ellipse 130% 70% at 50% -5%, #fffce8 0%, transparent 62%),
+    linear-gradient(165deg, #fff9b0 0%, var(--lemon) 38%, var(--lemon-deep) 100%);
+}
+.rainbow-sky{
+  position:fixed; inset:-40% -40% auto -40%; height:180%;
+  background:conic-gradient(from 0deg,
+    #ff004d,#ff8a00,#ffee00,#2bd44a,#00c2ff,#7a5cff,#ff2ad4,#ff004d);
+  filter:blur(110px);
+  opacity:.16;
+  mix-blend-mode:multiply;
+  animation:spin 26s linear infinite;
+  pointer-events:none;
+  z-index:0;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* the card ---------------------------------------------------------- */
+/* The rainbow rim is the wrapper's background and the cream panel sits
+   inside it. Done with a z-index:-1 pseudo-element it would paint ON TOP
+   of the card: .card needs a stacking context to clear the sky layer, and
+   a negative-z child only slips behind its parent's background when the
+   parent has no stacking context of its own. */
+.card{
+  position:relative; z-index:1;
+  width:100%; max-width:480px; min-width:0;   /* flex item: allow shrink */
+  padding:5px;
+  border-radius:32px;
+  background:linear-gradient(90deg,#ff004d,#ff8a00,#ffee00,#2bd44a,#00c2ff,#7a5cff,#ff2ad4,#ff004d);
+  background-size:400% 100%;
+  animation:slide 7s linear infinite;
+  box-shadow:0 22px 60px rgba(90,70,0,.3);
+}
+.card-inner{
+  padding:34px 28px 28px;
+  border-radius:27px;
+  background:#fffdf0;
+  box-shadow:0 2px 0 #fff inset;
+  text-align:center;
+}
+@keyframes slide{to{background-position:400% 0}}
+
+.lemon{font-size:56px; line-height:1; display:block; margin-bottom:6px;
+       animation:bob 3.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-6deg)}50%{transform:translateY(-9px) rotate(6deg)}}
+
+h1{
+  margin:0 0 4px; font-size:34px; font-weight:700; letter-spacing:-.5px;
+  background:linear-gradient(90deg,#ff004d,#ff8a00,#2bd44a,#00c2ff,#7a5cff,#ff004d);
+  background-size:300% 100%;
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  animation:slide 5s linear infinite;
+}
+.sub{margin:0 0 26px; font-size:14px; opacity:.62}
+
+/* amount input ------------------------------------------------------ */
+.amount-row{
+  display:flex; align-items:center; justify-content:center; gap:4px;
+  background:#fff; border:3px solid var(--rind); border-radius:20px;
+  padding:14px 18px;
+  box-shadow:0 5px 0 var(--rind);
+  transition:transform .12s ease, box-shadow .12s ease;
+}
+.amount-row:focus-within{transform:translateY(-2px); box-shadow:0 7px 0 var(--rind)}
+
+.currency{font-size:40px; font-weight:700; opacity:.45}
+
+#amount{
+  font:inherit; font-size:48px; font-weight:700;
+  width:100%; min-width:0; border:0; outline:0; background:transparent;
+  color:var(--ink); text-align:left; padding:0;
+  -moz-appearance:textfield;
+}
+#amount::-webkit-outer-spin-button,
+#amount::-webkit-inner-spin-button{-webkit-appearance:none; margin:0}
+#amount::placeholder{color:#c9bd7a}
+
+/* quick picks ------------------------------------------------------- */
+.picks{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin:14px 0 18px}
+.pick{
+  font:inherit; font-size:15px; font-weight:700; cursor:pointer;
+  padding:7px 16px; border-radius:999px;
+  border:2px solid var(--rind); background:var(--lemon-pale); color:var(--ink);
+  transition:transform .1s ease, background .15s ease;
+}
+.pick:hover{transform:translateY(-2px); background:var(--lemon)}
+.pick:active{transform:translateY(0)}
+
+/* fee toggle -------------------------------------------------------- */
+.fee{
+  display:flex; align-items:flex-start; gap:10px; text-align:left;
+  font-size:13px; line-height:1.45; padding:12px 14px; margin-bottom:18px;
+  border-radius:14px; background:rgba(61,50,0,.06); cursor:pointer;
+}
+.fee input{margin:2px 0 0; width:17px; height:17px; accent-color:#7a5cff; flex:none; cursor:pointer}
+.fee b{display:block}
+.fee span{opacity:.7}
+
+/* pay button -------------------------------------------------------- */
+#pay{
+  font:inherit; font-size:22px; font-weight:700; cursor:pointer;
+  width:100%; padding:16px; border:3px solid var(--rind); border-radius:20px;
+  color:#fff; text-shadow:0 2px 4px rgba(0,0,0,.3);
+  background:linear-gradient(90deg,#ff004d,#ff8a00,#2bd44a,#00c2ff,#7a5cff,#ff004d);
+  background-size:300% 100%;
+  box-shadow:0 6px 0 var(--rind);
+  animation:slide 5s linear infinite;
+  transition:transform .1s ease, box-shadow .1s ease;
+}
+#pay:hover:not(:disabled){transform:translateY(-2px); box-shadow:0 8px 0 var(--rind)}
+#pay:active:not(:disabled){transform:translateY(4px); box-shadow:0 2px 0 var(--rind)}
+#pay:disabled{opacity:.55; cursor:not-allowed; animation-play-state:paused}
+
+.hint{margin:12px 0 0; font-size:12px; opacity:.5}
+kbd{
+  font-family:inherit; font-size:11px; padding:1px 6px; border-radius:5px;
+  border:1px solid rgba(61,50,0,.3); background:rgba(255,255,255,.7);
+}
+
+/* status ------------------------------------------------------------ */
+#status{margin:14px 0 0; font-size:13px; font-weight:700; min-height:1.2em}
+#status.err{color:#c40036}
+#status.ok{color:#1a8f3c}
+
+.setup{
+  margin-top:18px; padding:14px; border-radius:14px; text-align:left;
+  background:#2b2400; color:#ffe94d; font-size:12px; line-height:1.6;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+.setup code{color:#7dffb0}
+
+@media (max-width:420px){
+  h1{font-size:28px}
+  #amount{font-size:40px}
+  .currency{font-size:32px}
+  .lemon{font-size:46px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before{animation:none !important}
+}
+</style>
+</head>
+<body>
+
+<div class="lemon-sky"></div>
+<div class="rainbow-sky"></div>
+
+<main class="card"><div class="card-inner">
+  <span class="lemon">🍋</span>
+  <h1 id="title">when life gives you lemons</h1>
+  <p class="sub" id="subtitle">type a number, press enter, pay me</p>
+
+  <form id="form" novalidate>
+    <label class="amount-row" for="amount">
+      <span class="currency" id="sym">£</span>
+      <input id="amount" type="number" inputmode="decimal" step="0.01" min="0.30"
+             placeholder="0.00" autocomplete="off" autofocus aria-label="Amount to pay">
+    </label>
+
+    <div class="picks" id="picks"></div>
+
+    <label class="fee">
+      <input type="checkbox" id="covers">
+      <span>
+        <b>I'll cover the card fees 🌈</b>
+        <span id="feeNote">adds a little on top so the full amount lands</span>
+      </span>
+    </label>
+
+    <button id="pay" type="submit">Pay</button>
+  </form>
+
+  <p class="hint">press <kbd>Enter</kbd> &middot; secured by Stripe &middot; card details never touch this page</p>
+  <p id="status" role="status" aria-live="polite"></p>
+  <div class="setup" id="setup" hidden></div>
+</div></main>
+
+<script>
+/* ====================================================================
+   CONFIG — the only bit you need to edit.
+   ==================================================================== */
+const CONFIG = {
+
+  // Where the Checkout Session gets created. This is the proper mode:
+  // the payer types an amount here and is charged exactly that.
+  // Deploy pay/api/checkout.js (Vercel/Netlify/Cloudflare) and put its
+  // URL here. Leave empty to fall back to PAYMENT_LINK below.
+  CHECKOUT_ENDPOINT: "",
+
+  // Fallback with no server at all: a Stripe Payment Link whose price is
+  // "customers choose what to pay". Stripe has no URL parameter for the
+  // amount (checked — only UTM codes and client_reference_id), so the
+  // payer re-enters it on Stripe's page. The number typed here rides
+  // along as client_reference_id so you can see the intent.
+  PAYMENT_LINK: "",
+
+  CURRENCY: "gbp",
+  SYMBOL:   "£",
+  MIN:      0.30,          // Stripe's minimum charge for GBP
+  MAX:      10000,
+  PICKS:    [5, 10, 25, 50],
+
+  DESCRIPTION: "Payment",  // shows on Stripe Checkout and the card statement line
+
+  // Used only to compute the "cover the fees" gross-up shown to the payer.
+  // UK consumer cards, Stripe standard pricing.
+  FEE_PCT:   0.015,
+  FEE_FIXED: 0.20,
+
+  TITLE:    "when life gives you lemons",
+  SUBTITLE: "type a number, press enter, pay me",
+};
+/* ================================================================= */
+
+const $ = id => document.getElementById(id);
+const amountEl = $("amount"), coversEl = $("covers"), payEl = $("pay"),
+      statusEl = $("status"), feeNoteEl = $("feeNote");
+
+$("title").textContent    = CONFIG.TITLE;
+$("subtitle").textContent = CONFIG.SUBTITLE;
+$("sym").textContent      = CONFIG.SYMBOL;
+
+const money = n => CONFIG.SYMBOL + n.toFixed(2);
+
+/* Gross-up: solve  net = charge - (charge*pct + fixed)  for charge.
+   NOT net*(1+pct)+fixed — that under-collects, because the percentage
+   is taken on the larger number. */
+const grossUp = net => (net + CONFIG.FEE_FIXED) / (1 - CONFIG.FEE_PCT);
+
+function parseAmount(){
+  const n = parseFloat(amountEl.value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/* what actually gets charged, in pounds */
+function chargeAmount(){
+  const net = parseAmount();
+  if (!Number.isFinite(net)) return NaN;
+  return coversEl.checked ? Math.round(grossUp(net) * 100) / 100 : net;
+}
+
+function validate(){
+  const net = parseAmount();
+  if (!Number.isFinite(net) || net <= 0) return "type a number first";
+  const c = chargeAmount();
+  if (c < CONFIG.MIN) return `minimum is ${money(CONFIG.MIN)}`;
+  if (c > CONFIG.MAX) return `maximum is ${money(CONFIG.MAX)}`;
+  return null;
+}
+
+function refresh(){
+  const net = parseAmount();
+  const valid = Number.isFinite(net) && net > 0;
+
+  if (coversEl.checked && valid){
+    const c = chargeAmount();
+    feeNoteEl.textContent =
+      `you pay ${money(c)} so ${money(net)} lands (+${money(c - net)})`;
+  } else {
+    feeNoteEl.textContent = "adds a little on top so the full amount lands";
+  }
+
+  payEl.textContent = valid ? `Pay ${money(chargeAmount())} 🌈` : "Pay";
+  payEl.disabled = !valid;
+
+  // Say the minimum while they're typing rather than ambushing them on Enter.
+  if (valid && chargeAmount() < CONFIG.MIN) say(`minimum is ${money(CONFIG.MIN)}`, "err");
+  else if (statusEl.textContent && !statusEl.classList.contains("ok")) say("");
+}
+
+function say(msg, kind){
+  statusEl.textContent = msg;
+  statusEl.className = kind || "";
+}
+
+/* quick picks */
+CONFIG.PICKS.forEach(v => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "pick"; b.textContent = money(v);
+  b.onclick = () => { amountEl.value = v.toFixed(2); refresh(); amountEl.focus(); };
+  $("picks").appendChild(b);
+});
+
+amountEl.addEventListener("input", refresh);
+coversEl.addEventListener("change", refresh);
+
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const problem = validate();
+  if (problem) return say(problem, "err");
+
+  const net    = parseAmount();
+  const charge = chargeAmount();
+  const pence  = Math.round(charge * 100);   // integer minor units, always
+
+  if (CONFIG.CHECKOUT_ENDPOINT){
+    payEl.disabled = true;
+    say("talking to Stripe…");
+    try {
+      const res = await fetch(CONFIG.CHECKOUT_ENDPOINT, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount:      pence,
+          currency:    CONFIG.CURRENCY,
+          description: CONFIG.DESCRIPTION,
+          covered:     coversEl.checked,
+          net:         Math.round(net * 100),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) throw new Error(data.error || `server said ${res.status}`);
+      say("off to Stripe 🌈", "ok");
+      window.location.href = data.url;
+    } catch (err) {
+      say(err.message || "couldn't reach the server", "err");
+      payEl.disabled = false;
+    }
+    return;
+  }
+
+  if (CONFIG.PAYMENT_LINK){
+    const u = new URL(CONFIG.PAYMENT_LINK);
+    u.searchParams.set("client_reference_id", `amt_${pence}`);
+    say("off to Stripe 🌈", "ok");
+    window.location.href = u.toString();
+    return;
+  }
+
+  showSetup();
+});
+
+function showSetup(){
+  const s = $("setup");
+  s.hidden = false;
+  s.innerHTML =
+    "<b>Not wired up yet.</b><br><br>" +
+    "Open <code>pay/index.html</code> and set one of these in CONFIG:<br><br>" +
+    "&bull; <code>CHECKOUT_ENDPOINT</code> &mdash; deploy <code>pay/api/checkout.js</code> " +
+    "and paste its URL. Charges the exact amount typed. This is the real one.<br><br>" +
+    "&bull; <code>PAYMENT_LINK</code> &mdash; a Stripe Payment Link using a " +
+    "\"customers choose what to pay\" price. No server, but they re-enter the amount.";
+  say("needs one line of config", "err");
+}
+
+refresh();
+</script>
+</body>
+</html>
