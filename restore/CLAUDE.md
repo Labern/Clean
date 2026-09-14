@@ -291,3 +291,50 @@ own if face restoration was turned off.
 focus or add colour; hiding them behind opt-in checkboxes meant the default
 experience was the classical pass alone, which is not what anyone wants from a
 restoration tool.
+
+
+## The tone curve — fitted to a reference, not guessed
+The single most valuable measurement in this project, and it overturned what
+the pipeline had been built around.
+
+Given a before/after pair from a restoration the user considered good, the two
+were registered with ECC (correlation 0.91, warp essentially identity) and the
+transformation measured directly. The result:
+
+- **The reference does not sharpen. It softens.** Contrast-normalised gradient
+  energy is **0.87x** the original's, and the radial power spectrum shows the
+  highest band down to **0.22x**. Every bit of "sharpness" a viewer perceives
+  in it is contrast, not detail.
+- **What it actually does is tone**, hard: midtones lifted **+40 to +47
+  levels**, shadows pushed down, highlights rolled to near-white, overall
+  contrast up 31%.
+
+So the curve places three anchors, read straight off that pair and expressed
+as percentiles of whatever photograph is in hand:
+
+    p5  -> 0.07     a real black
+    p50 -> 0.47     the midtone where a well-exposed print sits
+    p95 -> 0.98     highlights rolled to near-white, not clipped flat
+
+with a convex lower segment (gamma 1.15) and concave upper (0.75), which fitted
+best over a grid search. Monotone by construction, so it cannot invert or
+posterise. Against the reference it takes RMSE from **35.0 levels untouched to
+18.1** in isolation, and the full engine lands at **21.1** with every
+percentile close (p50 128 vs 120, p95 251 vs 249).
+
+Two things this cost, both now encoded:
+
+- **It must run AFTER denoising.** It is steep through the midtones by design,
+  so it multiplies whatever grain is left. Run before the denoiser it took a
+  soft portrait's grain from 5.35 to 8.80 and the do-no-harm gate caught it.
+- **The denoiser has to know it is coming.** The eps is scaled by the curve's
+  expected gain — the WORSE of the two segments, because on a portrait whose
+  subject sits above the median the upper segment can be four times steeper
+  than the lower, and it is the subject's grain that gets amplified. With that
+  feed-forward the same portrait comes back with 58% less grain.
+
+### And: never hand a photograph back at its original size
+`autoSettings` used to choose 1x for anything over 4MP, reasoning that a large
+scan "does not need" enlarging. That overrode what was actually asked for, and
+a photograph returned at its original dimensions reads as nothing having
+happened. The minimum is now 2x.

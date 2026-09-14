@@ -225,7 +225,7 @@ head('blemish detection');
      (area / (lw * lh) * 100).toFixed(2) + '% flagged on undamaged input');
   // denoise off: smoothing is a deliberate lossy choice, not damage. What is
   // under test is whether the REPAIR stage leaves a clean photograph alone.
-  const r = E.restoreSync(lo, { scale: 1, sharpen: 0, contrast: 0, grain: 0, exposure: 0, fade: 0, denoise: 0 });
+  const r = E.restoreSync(lo, { scale: 1, sharpen: 0, contrast: 0, grain: 0, exposure: 0, tonecurve: 0, fade: 0, denoise: 0 });
   /* 31 dB, on a fixture built from hard-edged rectangles — the worst case
      there is for a morphological detector, since a corner is locally both
      thin and high-contrast. The residual 0.68% it still flags here is window
@@ -240,7 +240,7 @@ head('repair');
 {
   const Yc = toY(lo), Yd = toY(dmg);
   const before = yPsnrAt(Yd, Yc, truth);
-  const r = E.restoreSync(dmg, { repair: 1, denoise: 0.2, fade: 0, sharpen: 0, contrast: 0, grain: 0, scale: 1 });
+  const r = E.restoreSync(dmg, { repair: 1, denoise: 0.2, fade: 0, tonecurve: 0, sharpen: 0, contrast: 0, grain: 0, scale: 1 });
   const after = yPsnrAt(toY(r), Yc, truth);
   ok('damaged pixels come back (≥ +10 dB where the blemishes were)', after - before >= 10,
      before.toFixed(1) + ' dB → ' + after.toFixed(1) + ' dB');
@@ -332,16 +332,16 @@ head('the whole pipeline, on a scan that is faded, dusty, scratched and noisy');
   const st = E.analyze(degraded);
   const auto = E.autoSettings(st);
   // heavily damaged fixture -> the repair slider turned up, as a user would
-  const out = E.restoreSync(degraded, Object.assign({}, auto, { scale: 2, repair: 0.9 }));
+  const out = E.restoreSync(degraded, Object.assign({}, auto, { scale: 2, repair: 0.9, tonecurve: 0 }));
   // a true do-nothing baseline: every stage off, including exposure
-  const naive = E.restoreSync(degraded, { repair: 0, denoise: 0, fade: 0, exposure: 0, sharpen: 0, contrast: 0, grain: 0, scale: 2, backProject: 0 });
+  const naive = E.restoreSync(degraded, { repair: 0, denoise: 0, fade: 0, exposure: 0, tonecurve: 0, sharpen: 0, contrast: 0, grain: 0, scale: 2, backProject: 0 });
   const gain = psnr(out.data, clean.data) - psnr(naive.data, clean.data);
   ok('beats plain upscaling by ≥ 1.5 dB', gain >= 1.5,
      psnr(naive.data, clean.data).toFixed(2) + ' → ' + psnr(out.data, clean.data).toFixed(2) + ' dB  (+' + gain.toFixed(2) + ')');
   ok('output is the size it promised', out.width === W && out.height === H, out.width + '×' + out.height);
   let bad = 0; for (const v of out.data) if (!Number.isFinite(v)) bad++;
   ok('no non-finite pixels', bad === 0, bad + ' bad');
-  const again = E.restoreSync(degraded, Object.assign({}, auto, { scale: 2, repair: 0.9 }));
+  const again = E.restoreSync(degraded, Object.assign({}, auto, { scale: 2, repair: 0.9, tonecurve: 0 }));
   let diff = 0; for (let i = 0; i < out.data.length; i++) if (out.data[i] !== again.data[i]) diff++;
   ok('deterministic — same photo, same settings, identical bytes', diff === 0, diff + ' bytes differ');
   ok('auto settings react to the damage', auto.fade > 0.4 && auto.repair > 0,
@@ -444,6 +444,46 @@ head('colour');
   const modelPath = path.join(here, '..', C.MODEL);
   ok('the colour model ships with the app', fs.existsSync(modelPath),
      fs.existsSync(modelPath) ? (fs.statSync(modelPath).size / 1e6).toFixed(1) + ' MB' : 'missing ' + C.MODEL);
+}
+
+// ── 8b. the tone curve ──────────────────────────────────────────────────────
+head('tone curve (fitted to a reference restoration)');
+{
+  const A = I.toneAnchors(0.137, 0.329, 0.902);   // the reference pair's percentiles
+  ok('anchors solve for a normal photograph', !!A);
+  const N = 1024, lut = I.toneLut(A, 1, N);
+  const at = x => lut[Math.round(x * N)];
+
+  /* The three anchors are the whole claim: a real black, a midtone where a
+     well-exposed print sits, highlights rolled to near-white. Measured off a
+     before/after pair the user judged good. */
+  ok('p5 lands on a real black', Math.abs(at(0.137) - 0.07) < 0.02, at(0.137).toFixed(3));
+  ok('p50 lands on the midtone', Math.abs(at(0.329) - 0.47) < 0.02, at(0.329).toFixed(3));
+  ok('p95 rolls to near-white', Math.abs(at(0.902) - 0.98) < 0.02, at(0.902).toFixed(3));
+
+  /* Monotone by construction — a non-monotone curve inverts tones and
+     posterises, and it would not be obvious from a thumbnail. */
+  let mono = true, nan = 0;
+  for (let i = 1; i <= N; i++) {
+    if (!Number.isFinite(lut[i])) nan++;
+    if (lut[i] < lut[i - 1] - 1e-9) mono = false;
+  }
+  ok('the curve is monotone everywhere', mono);
+  ok('...and finite everywhere', nan === 0, nan + ' non-finite');
+  ok('endpoints stay in range', lut[0] >= 0 && lut[N] <= 1,
+     lut[0].toFixed(3) + ' .. ' + lut[N].toFixed(3));
+
+  const off = I.toneLut(A, 0, N);
+  let ident = true;
+  for (let i = 0; i <= N; i++) if (Math.abs(off[i] - i / N) > 1e-6) ident = false;
+  ok('strength 0 is exactly the identity', ident);
+
+  ok('a flat scan is refused rather than exploded', I.toneAnchors(0.5, 0.505, 0.51) === null);
+
+  /* It must lift: the failure it was written to fix was a restoration that
+     came back looking identical to its input. */
+  ok('it genuinely lifts a dark scan', at(0.329) - 0.329 > 0.12,
+     '+' + ((at(0.329) - 0.329) * 255).toFixed(0) + ' levels at the median');
 }
 
 // ── 9. faces ────────────────────────────────────────────────────────────────

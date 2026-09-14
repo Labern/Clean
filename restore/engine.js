@@ -972,6 +972,51 @@ function clahe(u, w, h, strength, tiles, clip) {
   u.set(out); return u;
 }
 
+/* ── the tone curve, fitted to a reference restoration ───────────────────
+   This is the stage that makes a photograph look restored, and it was not
+   guessed — it was MEASURED against a before/after pair from a restoration
+   the user considered good, and fitted to it.
+
+   What that measurement showed was the opposite of what I had assumed. The
+   reference does not sharpen at all: its contrast-normalised gradient energy
+   is 0.87x the original's and its highest frequency band is down to 0.22x.
+   It SOFTENS. Everything that reads as "sharper" is tone — a hard S-curve
+   that lifts midtones by 40-47 levels, pushes the shadows down and rolls the
+   highlights to near-white. Contrast up 31%.
+
+   So the curve places three anchors, read straight off that pair:
+       p5 -> 0.07      the print gets a real black
+       p50 -> 0.47     the midtone comes up to where a well-exposed print sits
+       p95 -> 0.98     the highlights roll to near-white without clipping flat
+   with a slightly convex lower segment (1.15) and concave upper (0.75), which
+   is what fitted best. Monotone by construction, so it can never invert or
+   posterise. Fitted against the reference it takes RMSE from 35.0 levels
+   (untouched) to 18.1, with every percentile from p1 to p99 landing within a
+   couple of levels.
+
+   Anchored on THIS photograph's own percentiles, so it adapts rather than
+   replaying one picture's curve over everything. */
+function toneAnchors(p5, p50, p95) {
+  /* Degenerate input (a nearly flat scan) would make the segments explode. */
+  if (!(p95 > p5 + 0.02)) return null;
+  p50 = Math.min(Math.max(p50, p5 + 0.01), p95 - 0.01);
+  return { p5, p50, p95, t5: 0.07, t50: 0.47, t95: 0.98, gLow: 1.15, gHigh: 0.75 };
+}
+function toneLut(a, strength, N) {
+  const lut = new Float32Array(N + 1);
+  for (let i = 0; i <= N; i++) {
+    const x = i / N;
+    let y;
+    if (x < a.p5) y = a.t5 * Math.pow(x / Math.max(a.p5, 1e-6), 1.4);
+    else if (x <= a.p50) y = a.t5 + (a.t50 - a.t5) * Math.pow((x - a.p5) / (a.p50 - a.p5), a.gLow);
+    else if (x <= a.p95) y = a.t50 + (a.t95 - a.t50) * Math.pow((x - a.p50) / (a.p95 - a.p50), a.gHigh);
+    else y = a.t95 + (1 - a.t95) * Math.pow((x - a.p95) / Math.max(1 - a.p95, 1e-6), 0.7);
+    if (!(y >= 0)) y = 0; else if (y > 1) y = 1;
+    lut[i] = x + (y - x) * strength;
+  }
+  return lut;
+}
+
 /* ── tone: fade and cast recovery ────────────────────────────────────────
    An old print loses contrast two ways: the dyes fade (the white point comes
    down) and decades of veiling flare lift the blacks. Both are affine in
@@ -1040,8 +1085,13 @@ function analyze(img) {
      dark: one bright window and one black corner give a scan the full 0-255
      range while every face in it sits at 20%. That is a midtone problem, and
      it needs a curve, not a stretch. */
-  let cum = 0, median = 128;
-  for (let i = 0; i < 256; i++) { cum += hl[i]; if (cum >= trusted * 0.5) { median = i; break; } }
+  let cum = 0, median = 128, p05 = 0, p95 = 255, got5 = false, got50 = false;
+  for (let i = 0; i < 256; i++) {
+    cum += hl[i];
+    if (!got5 && cum >= trusted * 0.05) { p05 = i; got5 = true; }
+    if (!got50 && cum >= trusted * 0.5) { median = i; got50 = true; }
+    if (cum >= trusted * 0.95) { p95 = i; break; }
+  }
   let ge = 0;
   for (let y = 1; y < h - 1; y += 2) for (let x = 1; x < w - 1; x += 2) {
     const i = y * w + x;
@@ -1052,7 +1102,7 @@ function analyze(img) {
   return {
     width: w, height: h, pixels: n, noise: sigma, softness, range, gradient: ge,
     chroma, castCb: cbm, castCr: crm, trustedFraction: trusted / n,
-    median: median / 255,
+    median: median / 255, p05: p05 / 255, p95: p95 / 255,
     monochrome: chroma < 12,
     /* A scanned black-and-white print is never perfectly neutral — paper
        tone, the scanner's own bias and age all push it off grey. Treating it
@@ -1099,17 +1149,19 @@ function autoSettings(st) {
        flattens the whole frame. Measured on a real scan, the old setting
        moved the mean from 91 to 129 while LOWERING contrast. Only genuinely
        dark or blown scans get touched now. */
-    exposure: Math.max(0, Math.min(1, (Math.abs(st.median - 0.47) - 0.19) / 0.18)) * 0.6,
+    exposure: 0,
+    /* Full strength. This is the stage that makes a scan look restored;
+       the timid version is why the output looked identical to the input. */
+    tonecurve: 1,
     repair: 0.55,
     damageScale: 1,
     denoise: 0.18 + 0.72 * noiseAmt,
     /* Small scans have the most to gain and cost the least to enlarge; a big
        modern scan is already past the point where upscaling adds anything. */
-    /* Only enlarge what benefits. A 2500px-wide scan is already past what
-       any print or screen needs, and doubling it costs the user half a minute
-       to gain nothing — the work that photograph needs is cleaning, not
-       resolution. Small scans are where an upscale genuinely earns its time. */
-    scale: mp < 1 ? 4 : mp < 2 ? 3 : mp < 4 ? 2 : 1,
+    /* Never 1x. Deciding a large scan "does not need" enlarging overrode what
+       was actually asked for, and a photograph handed back at its original
+       size reads as nothing having happened at all. */
+    scale: mp < 1 ? 4 : mp < 4 ? 3 : 2,
     sharpen: 0.3 + 0.55 * st.softness,
     /* Local contrast compounds with the fade stretch above, so it stays
        modest — CLAHE on an already-restretched image is what makes a
@@ -1125,7 +1177,7 @@ function autoSettings(st) {
 }
 
 const DEFAULTS = {
-  fade: 0.6, tone: 'neutral', exposure: 0.8, repair: 0.55, damageScale: 1,
+  fade: 0.6, tone: 'neutral', exposure: 0, tonecurve: 1, repair: 0.55, damageScale: 1,
   denoise: 0.35, scale: 2, sharpen: 0.6, contrast: 0.25, grain: 0,
   maxPixels: 30e6, backProject: 6,
 };
@@ -1206,46 +1258,6 @@ function* restore(img, options, stats) {
   }
   if (o.tone === 'mono') for (let i = 0; i < n; i++) r[i] = g[i] = b[i] = KR * r[i] + KG * g[i] + KB * b[i];
 
-  /* ── exposure ──────────────────────────────────────────────────────────
-     Stretching the endpoints cannot fix a dark photograph, only a flat one.
-     A room with a bright window and a dark corner already spans the full
-     range while every face in it sits down at 20%, and no amount of
-     black/white-point work will lift them. What is wrong is the midtone, so
-     what it needs is a curve: find the median and bend the transfer function
-     until it lands where a well-exposed print would sit. Done in linear light
-     and applied identically to all three channels, so hue is untouched. */
-  if (o.exposure > 0) {
-    const step = Math.max(1, Math.floor(Math.sqrt(n / 30000)));
-    const samples = [];
-    for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step) {
-      const i = y * w + x;
-      samples.push(KR * r[i] + KG * g[i] + KB * b[i]);
-    }
-    samples.sort((p, q) => p - q);
-    const med = samples[samples.length >> 1];
-    if (med > 0.002 && med < 0.985) {
-      const TARGET = 0.2140;                       // linear value of mid-grey
-      let gam = Math.log(TARGET) / Math.log(med);
-      if (gam < 0.62) gam = 0.62; else if (gam > 1.7) gam = 1.7;
-      gam = 1 + (gam - 1) * o.exposure;
-      if (Math.abs(gam - 1) > 0.01) {
-        const LN = 1024, lut = new Float32Array(LN + 1);
-        for (let i = 0; i <= LN; i++) lut[i] = Math.pow(i / LN, gam);
-        const planes = [r, g, b];
-        for (let c = 0; c < 3; c++) {
-          const pl = planes[c];
-          for (let i = 0; i < n; i++) {
-            let v = pl[i];
-            if (v <= 0) { pl[i] = 0; continue; }
-            if (v >= 1) { pl[i] = lut[LN]; continue; }
-            const f = v * LN, j = f | 0;
-            pl[i] = lut[j] + (lut[j + 1] - lut[j]) * (f - j);
-          }
-        }
-      }
-    }
-  }
-
   const Y = new Float32Array(n), Cb = new Float32Array(n), Cr = new Float32Array(n);
   rgbToYcc(r, g, b, Y, Cb, Cr, n);
 
@@ -1304,7 +1316,25 @@ function* restore(img, options, stats) {
     /* Radius well past the grain's correlation length. A window the size of
        the clumps cannot tell them from signal — at radius 4 this removed 25%
        of the grain, at radius 12 it removes 70% with the eyelashes intact. */
-    const epsY = Math.pow(Math.max(st.noise, 3e-3) * (1.2 + 1.5 * o.denoise), 2);
+    /* Feed-forward from the tone curve. It runs next and is steep through the
+       midtones by design, so it multiplies whatever grain survives this stage.
+       Denoising to a target and then amplifying it is how the do-no-harm gate
+       ended up 7% short — so the expected midtone gain is folded in here. */
+    let toneGain = 1;
+    if (o.tonecurve > 0) {
+      const a = toneAnchors(st.p05, st.median, st.p95);
+      if (a) {
+        /* The WORST of the two segments, not the lower one. On a portrait
+           whose subject sits above the median the upper segment can be four
+           times steeper than the lower, and it is the subject's grain that
+           gets amplified. */
+        const gLow = (a.t50 - a.t5) / Math.max(a.p50 - a.p5, 1e-3);
+        const gHigh = (a.t95 - a.t50) / Math.max(a.p95 - a.p50, 1e-3);
+        toneGain = 1 + (Math.max(gLow, gHigh) - 1) * o.tonecurve;
+      }
+      toneGain = Math.max(1, Math.min(3, toneGain));
+    }
+    const epsY = Math.pow(Math.max(st.noise, 3e-3) * (1.2 + 1.5 * o.denoise) * toneGain, 2);
     const Pd = guidedFilter(P, P, w, h, Math.max(10, 6 * unit), epsY);
     const kY = 0.6 + 0.4 * o.denoise;
     for (let i = 0; i < n; i++) {
@@ -1316,6 +1346,38 @@ function* restore(img, options, stats) {
       const epsC = 1e-3;
       const cb = guidedFilter(Y, Cb, w, h, rc, epsC), cr = guidedFilter(Y, Cr, w, h, rc, epsC);
       Cb.set(cb); Cr.set(cr);
+    }
+  }
+
+  /* ── tone ──────────────────────────────────────────────────────────────
+     AFTER denoising, deliberately. The curve is steep through the midtones —
+     that is the whole point of it — and a steep curve multiplies whatever is
+     there, grain included. Run before the denoiser it amplified a soft
+     portrait's grain from 5.35 to 8.80 and the do-no-harm gate caught it.
+
+     Applied to luminance, with chroma scaled by the same factor, so tone
+     changes and hue does not. */
+  if (o.tonecurve > 0) {
+    const step = Math.max(1, Math.floor(Math.sqrt(n / 60000)));
+    const samples = [];
+    for (let y = 0; y < h; y += step) for (let x = 0; x < w; x += step)
+      samples.push(linearToByte(Y[y * w + x]) / 255);
+    samples.sort((p, q) => p - q);
+    const q = f => samples[Math.min(samples.length - 1, Math.floor(samples.length * f))];
+    const a = toneAnchors(q(0.05), q(0.5), q(0.95));
+    if (a) {
+      yield { stage: 'Setting the tone', p: 0.42 };
+      const N = 1024, lut = toneLut(a, o.tonecurve, N);
+      for (let i = 0; i < n; i++) {
+        const y0 = Y[i];
+        if (y0 <= 1e-7) { Y[i] = 0; Cb[i] = 0; Cr[i] = 0; continue; }
+        const d = linearToByte(y0) / 255;
+        const f = d * N, j = f | 0, t = f - j;
+        const nd = lut[j] + (lut[j + 1] - lut[j]) * t;
+        const nY = S2L[Math.max(0, Math.min(255, Math.round(nd * 255)))];
+        const k = nY / y0;
+        Y[i] = nY; Cb[i] *= k; Cr[i] *= k;
+      }
     }
   }
 
@@ -1421,7 +1483,8 @@ return {
   VERSION, analyze, autoSettings, restore, restoreSync, psnr, DEFAULTS,
   _internal: {
     boxBlur, gauss, gaussKernel, win1d, lineMorph, sqMorph, resample, decimate, upBilinear,
-    guidedFilter, estimateNoise, estimateSoftness, upBox, detectDefects, exemplarFill, pushPull, inpaint, orientation,
+    guidedFilter, estimateNoise, estimateSoftness, upBox, detectDefects, exemplarFill,
+    toneAnchors, toneLut, pushPull, inpaint, orientation,
     backProject, shock, unsharp, clahe, S2L, linearToByte, rgbToYcc, yccToRgb, rng,
   },
 };
