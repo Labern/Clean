@@ -18,9 +18,17 @@ issuing bank before Stripe takes anything.
 | Chargeback | ~£15, win or lose |
 | Refund | original fee is **not** returned |
 | Standard payout to UK bank | free |
+| **Bacs Direct Debit** | **1%, capped at £4.00** |
 
-No monthly fee, no setup fee. The **cover the fees** tickbox is the only real
-lever: it grosses the charge up so the typed amount is what lands.
+No monthly fee, no setup fee.
+
+**Card fees are uncapped.** That is the whole problem at four figures: £9,999 on
+a UK debit card costs £150.19, and there is no ceiling. Bacs Direct Debit is 1%
+**capped at £4.00**, so the same £9,999 costs £4 — a 97% saving. Bacs clears in
+days rather than seconds and is recallable, which is the trade.
+
+The **cover the fees** tickbox is the other lever: it grosses the charge up so
+the typed amount is what lands.
 
 `charge = (net + 0.20) / (1 - 0.015)` — not `net × 1.015 + 0.20`, which
 under-collects because the percentage applies to the larger number. At £1000
@@ -64,7 +72,9 @@ Stripe's page. The number typed here rides along as `client_reference_id`
 
 ## Other config
 
-`CURRENCY` · `SYMBOL` · `MIN` · `MAX` · `PICKS` (quick-pick buttons) ·
+`CURRENCY` · `SYMBOL` · `MIN` · `MAX` · `PICKS` (quick-pick buttons — set to
+£1,000 / £5,000 / £9,999; note `MAX` must clear the top pick, since £9,999 with
+fees covered grosses to £10,151.47) ·
 `DESCRIPTION` (shown at Checkout) · `FEE_PCT` / `FEE_FIXED` (gross-up maths
 only) · `TITLE` · `SUBTITLE`.
 

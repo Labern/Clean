@@ -241,8 +241,11 @@ const CONFIG = {
   CURRENCY: "gbp",
   SYMBOL:   "£",
   MIN:      0.30,          // Stripe's minimum charge for GBP
-  MAX:      10000,
-  PICKS:    [5, 10, 25, 50],
+
+  // Must sit well clear of the top pick: £9,999 with "cover the fees" on
+  // grosses up to £10,151.47, so a £10,000 ceiling would reject it.
+  MAX:      100000,
+  PICKS:    [1000, 5000, 9999],
 
   DESCRIPTION: "Payment",  // shows on Stripe Checkout and the card statement line
 
@@ -264,7 +267,11 @@ $("title").textContent    = CONFIG.TITLE;
 $("subtitle").textContent = CONFIG.SUBTITLE;
 $("sym").textContent      = CONFIG.SYMBOL;
 
-const money = n => CONFIG.SYMBOL + n.toFixed(2);
+// Thousands separators matter once the amounts have four digits.
+const gbp = new Intl.NumberFormat("en-GB", {
+  style: "currency", currency: CONFIG.CURRENCY.toUpperCase(),
+});
+const money = n => gbp.format(n);
 
 /* Gross-up: solve  net = charge - (charge*pct + fixed)  for charge.
    NOT net*(1+pct)+fixed — that under-collects, because the percentage
