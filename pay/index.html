@@ -249,8 +249,15 @@ const CONFIG = {
   CHECKOUT_ENDPOINT: "",
 
   // Open banking: the payer is sent to their own bank and a Faster Payment
-  // lands in your account. ~20p flat, no percentage, no card network.
-  // Deploy pay/api/openbanking.js and put its URL here.
+  // is pushed to you. No card network, so no interchange and no scheme fees.
+  //
+  // Deploy pay/api/gocardless.js and paste its URL here. GoCardless Standard
+  // is 1% + 20p CAPPED AT £4, and the +0.3% high-value surcharge applies to
+  // Direct Debits only — not to Pay by Bank, which is what this uses.
+  //
+  // pay/api/openbanking.js is the same thing via TrueLayer. Their per-payment
+  // pricing is better but gated behind enterprise volume, so it's there for
+  // later, not for now.
   OPENBANKING_ENDPOINT: "",
 
   // Fallback with no server at all: a Stripe Payment Link whose price is
@@ -276,9 +283,9 @@ const CONFIG = {
   // open banking per-payment fee — confirm yours against your own contract.
   RAILS: {
     bank: {
-      label:"🏦 Bank transfer", pct:0, fixed:0.20, note:"clears in seconds",
+      label:"🏦 Bank transfer", pct:0.01, fixed:0.20, cap:4.00, note:"capped at £4",
       hint:"you approve in your own banking app &middot; we never see your details",
-      cover:"I'll cover the 20p 🌈",
+      cover:"I'll cover the £4 🌈",
     },
     card: {
       label:"💳 Card", pct:0.015, fixed:0.20, note:"1.5% + 20p, uncapped",
@@ -310,14 +317,24 @@ const money = n => gbp.format(n);
 let rail = CONFIG.DEFAULT_RAIL;
 const R = () => CONFIG.RAILS[rail];
 
-/* Fee for a given charge on the current rail. Bank transfer has pct 0, so
-   the same expressions cover both rails without a special case. */
-const feeOn = c => c * R().pct + R().fixed;
+/* Fee on a given charge for a given rail, honouring the cap where there is
+   one. GoCardless is 1% + 20p capped at £4, so above about £380 the cap binds
+   and the fee stops growing; cards have no cap at all. */
+const feeFor = (r, c) => Math.min(c * r.pct + r.fixed, r.cap ?? Infinity);
+const feeOn  = c => feeFor(R(), c);
 
-/* Gross-up: solve  net = charge - (charge*pct + fixed)  for charge.
-   NOT net*(1+pct)+fixed — that under-collects, because the percentage
-   is taken on the larger number. */
-const grossUp = net => (net + R().fixed) / (1 - R().pct);
+/* Gross-up: solve  net = charge - fee(charge)  for charge.
+   NOT net*(1+pct)+fixed — that under-collects, because the percentage is
+   taken on the larger number.
+   With a cap there are two regimes, so solve the uncapped case first and
+   check whether the answer actually lands above the cap. If it does, the
+   fee is just the cap and the charge is net + cap. */
+const grossUp = net => {
+  const r = R();
+  const uncapped = (net + r.fixed) / (1 - r.pct);
+  if (r.cap == null || uncapped * r.pct + r.fixed <= r.cap) return uncapped;
+  return net + r.cap;
+};
 
 /* Build the rail buttons. */
 Object.entries(CONFIG.RAILS).forEach(([key, r]) => {
@@ -341,10 +358,10 @@ function refreshRails(){
   Object.entries(CONFIG.RAILS).forEach(([key, r]) => {
     const note = document.querySelector(`#rail-${key} [data-note]`);
     if (!valid) { note.textContent = r.note; note.className = ""; return; }
-    const mine = net * r.pct + r.fixed;
-    const best = Math.min(...Object.values(CONFIG.RAILS).map(x => net * x.pct + x.fixed));
+    const mine = feeFor(r, net);
+    const best = Math.min(...Object.values(CONFIG.RAILS).map(x => feeFor(x, net)));
     if (mine <= best) {
-      const worst = Math.max(...Object.values(CONFIG.RAILS).map(x => net * x.pct + x.fixed));
+      const worst = Math.max(...Object.values(CONFIG.RAILS).map(x => feeFor(x, net)));
       note.innerHTML = worst > mine
         ? `${money(mine)} fee · <span class="save">saves ${money(worst - mine)}</span>`
         : `${money(mine)} fee`;
@@ -473,8 +490,8 @@ function showSetup(){
     "<b>Not wired up yet.</b><br><br>" +
     "Open <code>pay/index.html</code> and set one of these in CONFIG:<br><br>" +
     "&bull; <code>OPENBANKING_ENDPOINT</code> &mdash; deploy " +
-    "<code>pay/api/openbanking.js</code>. ~20p flat, no percentage. " +
-    "This is the one you want at four figures.<br><br>" +
+    "<code>pay/api/gocardless.js</code>. Capped at &pound;4 however large " +
+    "the payment. This is the one you want at four figures.<br><br>" +
     "&bull; <code>CHECKOUT_ENDPOINT</code> &mdash; deploy " +
     "<code>pay/api/checkout.js</code> for cards via Stripe.<br><br>" +
     "&bull; <code>PAYMENT_LINK</code> &mdash; a Stripe Payment Link, no server, " +

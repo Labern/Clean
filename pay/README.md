@@ -43,17 +43,50 @@ The page offers the payer a choice, with the real saving shown live:
 
 | £9,999 via | Fee | |
 |---|---|---|
-| 🏦 Bank transfer (open banking) | **£0.20** | flat, whatever the amount |
+| 🏦 Pay by Bank (GoCardless) | **£4.00** | capped, whatever the amount |
 | 💳 Card (Stripe) | **£150.18** | 1.5% + 20p, no ceiling |
 
 Bank transfer is the default. Cards stay as the option for anyone who insists.
 
-### 🏦 Open banking — `OPENBANKING_ENDPOINT`
+### 🏦 Pay by Bank — `OPENBANKING_ENDPOINT`
+
+**Use `api/gocardless.js`.** GoCardless Standard is 1% + 20p **capped at £4**,
+published, no monthly fee, no minimum contract, and the first 90 days carry no
+transaction fees at all.
+
+Two traps worth knowing:
+
+1. **Pay by Bank is not Direct Debit.** They are different products. Direct
+   Debit adds **+0.3% on the amount above £2,000**, which is why GoCardless's
+   own fee calculator quotes £28 on a £10,000 payment. Pay by Bank has no such
+   surcharge — £4 flat. The `scheme: "faster_payments"` line in
+   `api/gocardless.js` is what picks the cheap product.
+2. **Direct Debit is a pull, Pay by Bank is a push.** Direct Debit takes ~3
+   working days and is recallable for months. Pay by Bank confirms in seconds
+   and cannot be reversed.
+
+Setup: create an account, take the **sandbox** access token from the dashboard,
+deploy `api/gocardless.js`, and set:
+
+| Variable | |
+|---|---|
+| `GC_ACCESS_TOKEN` | sandbox token first, live token later |
+| `GC_ENV` | `sandbox` (default) or `live` |
+| `GC_REDIRECT_URI` | where the payer lands after paying |
+| `GC_EXIT_URI` | where they land if they bail (defaults to the above) |
+
+Auth is a bearer token — no request signing, no key pairs.
+
+### TrueLayer (`api/openbanking.js`) — for later
 
 The payer is redirected to **their own bank**, approves with their normal
 biometrics, and their bank executes a Faster Payment. No card network, so no
 interchange and no scheme fees — which is the entire reason it is ~20p flat
 rather than a percentage.
+
+TrueLayer's per-payment pricing beats GoCardless, but the good rates need
+roughly $250k/month of volume, so this is written and verified for when that's
+true rather than for now.
 
 1. Sign up at [TrueLayer](https://console.truelayer.com) and create an app.
    Start in **sandbox**; there are test banks with fake credentials.
