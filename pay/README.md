@@ -37,10 +37,61 @@ the naive version leaves you 23p short.
 UK law bans *mandatory* surcharging on consumer cards (PSR 2017). This is an
 optional tickbox, off by default, which is a different thing.
 
-## Wiring it up
+## Two rails
 
-Pick one. Both are configured in the `CONFIG` block at the bottom of
-`index.html`.
+The page offers the payer a choice, with the real saving shown live:
+
+| £9,999 via | Fee | |
+|---|---|---|
+| 🏦 Bank transfer (open banking) | **£0.20** | flat, whatever the amount |
+| 💳 Card (Stripe) | **£150.18** | 1.5% + 20p, no ceiling |
+
+Bank transfer is the default. Cards stay as the option for anyone who insists.
+
+### 🏦 Open banking — `OPENBANKING_ENDPOINT`
+
+The payer is redirected to **their own bank**, approves with their normal
+biometrics, and their bank executes a Faster Payment. No card network, so no
+interchange and no scheme fees — which is the entire reason it is ~20p flat
+rather than a percentage.
+
+1. Sign up at [TrueLayer](https://console.truelayer.com) and create an app.
+   Start in **sandbox**; there are test banks with fake credentials.
+2. Generate an EC **P-521** key pair and upload the public key:
+   ```
+   openssl ecparam -genkey -name secp521r1 -noout -out ec512-private.pem
+   openssl ec -in ec512-private.pem -pubout -out ec512-public.pem
+   ```
+   ES512 requires P-521 specifically. Any other curve fails to sign.
+3. **Verify signing before anything else:**
+   ```
+   node pay/tools/verify-signing.mjs                       # local checks
+   TL_KID=<key-uuid> TL_PRIVATE_KEY="$(cat ec512-private.pem)" \
+     node pay/tools/verify-signing.mjs --remote            # TrueLayer's own check
+   ```
+   The remote check hits TrueLayer's `/v1/test-signature`. A 204 means your
+   signature is correct. Do this first — a signing bug otherwise surfaces as an
+   opaque 401 during a real payment.
+4. Deploy `api/openbanking.js` and set:
+
+   | Variable | |
+   |---|---|
+   | `TL_CLIENT_ID` / `TL_CLIENT_SECRET` | from the console |
+   | `TL_KID` | the signing key's UUID |
+   | `TL_PRIVATE_KEY` | the PEM (escaped newlines are handled) |
+   | `TL_RETURN_URI` | where the payer comes back to |
+   | `TL_ENV` | `sandbox` (default) or `live` |
+   | `TL_MERCHANT_ACCOUNT_ID` | **or** the three below |
+   | `TL_SORT_CODE` / `TL_ACCOUNT_NUMBER` / `TL_ACCOUNT_NAME` | paid bank-to-bank, straight to you |
+
+   Setting the sort code and account number means the money goes **directly**
+   into your account and TrueLayer never holds it. A merchant account parks it
+   with them first, which you want only if you need refunds or batched payouts.
+5. Paste the function URL into `CONFIG.OPENBANKING_ENDPOINT`.
+
+### 💳 Cards
+
+Configured in the `CONFIG` block at the bottom of `index.html`.
 
 ### 1. `CHECKOUT_ENDPOINT` — the real one
 
@@ -77,6 +128,18 @@ Stripe's page. The number typed here rides along as `client_reference_id`
 fees covered grosses to £10,151.47) ·
 `DESCRIPTION` (shown at Checkout) · `FEE_PCT` / `FEE_FIXED` (gross-up maths
 only) · `TITLE` · `SUBTITLE`.
+
+## The regulatory line
+
+**Never let the money land in an account you control before it reaches its
+destination.** The moment it does, you are conducting regulated payment
+services or issuing e-money and need FCA permission.
+
+Open banking *initiation* doesn't cross that line: the payment goes payer's
+bank → your bank directly, and you only initiate and reconcile. That's what
+keeps this setup unregulated. Becoming the platform others use — a PISP in your
+own right — is £50,000 initial capital, professional indemnity insurance, and
+6–10 months of FCA review plus 4–8 weeks preparing the application.
 
 ## Before taking real money
 

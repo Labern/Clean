@@ -130,6 +130,21 @@ h1{
 .pick:hover{transform:translateY(-2px); background:var(--lemon)}
 .pick:active{transform:translateY(0)}
 
+/* rail chooser ------------------------------------------------------ */
+.rails{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px}
+.rail{
+  font:inherit; cursor:pointer; text-align:left;
+  padding:11px 13px; border-radius:16px;
+  border:2px solid rgba(61,50,0,.25); background:transparent; color:var(--ink);
+  transition:border-color .15s ease, background .15s ease, transform .1s ease;
+}
+.rail:hover{transform:translateY(-1px); border-color:var(--rind)}
+.rail[aria-pressed="true"]{border-color:var(--rind); background:var(--lemon-pale)}
+.rail b{display:block; font-size:14px; line-height:1.3}
+.rail small{display:block; font-size:11px; opacity:.65; line-height:1.35; margin-top:2px}
+.rail .save{color:#1a8f3c; font-weight:700}
+.rail:focus-visible{outline:3px solid #7a5cff; outline-offset:2px}
+
 /* fee toggle -------------------------------------------------------- */
 .fee{
   display:flex; align-items:flex-start; gap:10px; text-align:left;
@@ -203,10 +218,12 @@ kbd{
 
     <div class="picks" id="picks"></div>
 
+    <div class="rails" id="rails" role="group" aria-label="How to pay"></div>
+
     <label class="fee">
       <input type="checkbox" id="covers">
       <span>
-        <b>I'll cover the card fees 🌈</b>
+        <b id="coverLabel">I'll cover the fees 🌈</b>
         <span id="feeNote">adds a little on top so the full amount lands</span>
       </span>
     </label>
@@ -214,7 +231,7 @@ kbd{
     <button id="pay" type="submit">Pay</button>
   </form>
 
-  <p class="hint">press <kbd>Enter</kbd> &middot; secured by Stripe &middot; card details never touch this page</p>
+  <p class="hint" id="hint"></p>
   <p id="status" role="status" aria-live="polite"></p>
   <div class="setup" id="setup" hidden></div>
 </div></main>
@@ -230,6 +247,11 @@ const CONFIG = {
   // Deploy pay/api/checkout.js (Vercel/Netlify/Cloudflare) and put its
   // URL here. Leave empty to fall back to PAYMENT_LINK below.
   CHECKOUT_ENDPOINT: "",
+
+  // Open banking: the payer is sent to their own bank and a Faster Payment
+  // lands in your account. ~20p flat, no percentage, no card network.
+  // Deploy pay/api/openbanking.js and put its URL here.
+  OPENBANKING_ENDPOINT: "",
 
   // Fallback with no server at all: a Stripe Payment Link whose price is
   // "customers choose what to pay". Stripe has no URL parameter for the
@@ -249,10 +271,22 @@ const CONFIG = {
 
   DESCRIPTION: "Payment",  // shows on Stripe Checkout and the card statement line
 
-  // Used only to compute the "cover the fees" gross-up shown to the payer.
-  // UK consumer cards, Stripe standard pricing.
-  FEE_PCT:   0.015,
-  FEE_FIXED: 0.20,
+  // Fee shapes per rail, used for the live comparison and the gross-up.
+  // The card line is Stripe UK consumer pricing; the bank line is a typical
+  // open banking per-payment fee — confirm yours against your own contract.
+  RAILS: {
+    bank: {
+      label:"🏦 Bank transfer", pct:0, fixed:0.20, note:"clears in seconds",
+      hint:"you approve in your own banking app &middot; we never see your details",
+      cover:"I'll cover the 20p 🌈",
+    },
+    card: {
+      label:"💳 Card", pct:0.015, fixed:0.20, note:"1.5% + 20p, uncapped",
+      hint:"secured by Stripe &middot; card details never touch this page",
+      cover:"I'll cover the card fees 🌈",
+    },
+  },
+  DEFAULT_RAIL: "bank",
 
   TITLE:    "when life gives you lemons",
   SUBTITLE: "type a number, press enter, pay me",
@@ -273,10 +307,52 @@ const gbp = new Intl.NumberFormat("en-GB", {
 });
 const money = n => gbp.format(n);
 
+let rail = CONFIG.DEFAULT_RAIL;
+const R = () => CONFIG.RAILS[rail];
+
+/* Fee for a given charge on the current rail. Bank transfer has pct 0, so
+   the same expressions cover both rails without a special case. */
+const feeOn = c => c * R().pct + R().fixed;
+
 /* Gross-up: solve  net = charge - (charge*pct + fixed)  for charge.
    NOT net*(1+pct)+fixed — that under-collects, because the percentage
    is taken on the larger number. */
-const grossUp = net => (net + CONFIG.FEE_FIXED) / (1 - CONFIG.FEE_PCT);
+const grossUp = net => (net + R().fixed) / (1 - R().pct);
+
+/* Build the rail buttons. */
+Object.entries(CONFIG.RAILS).forEach(([key, r]) => {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "rail"; b.id = "rail-" + key;
+  b.setAttribute("aria-pressed", String(key === rail));
+  b.innerHTML = `<b>${r.label}</b><small data-note>${r.note}</small>`;
+  b.onclick = () => {
+    rail = key;
+    [...$("rails").children].forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    refresh();
+  };
+  $("rails").appendChild(b);
+});
+
+/* Show what the cheap rail actually saves on this amount — the whole reason
+   anyone would accept the extra tap of a bank redirect. */
+function refreshRails(){
+  const net = parseAmount();
+  const valid = Number.isFinite(net) && net > 0;
+  Object.entries(CONFIG.RAILS).forEach(([key, r]) => {
+    const note = document.querySelector(`#rail-${key} [data-note]`);
+    if (!valid) { note.textContent = r.note; note.className = ""; return; }
+    const mine = net * r.pct + r.fixed;
+    const best = Math.min(...Object.values(CONFIG.RAILS).map(x => net * x.pct + x.fixed));
+    if (mine <= best) {
+      const worst = Math.max(...Object.values(CONFIG.RAILS).map(x => net * x.pct + x.fixed));
+      note.innerHTML = worst > mine
+        ? `${money(mine)} fee · <span class="save">saves ${money(worst - mine)}</span>`
+        : `${money(mine)} fee`;
+    } else {
+      note.textContent = `${money(mine)} fee`;
+    }
+  });
+}
 
 function parseAmount(){
   const n = parseFloat(amountEl.value);
@@ -302,6 +378,10 @@ function validate(){
 function refresh(){
   const net = parseAmount();
   const valid = Number.isFinite(net) && net > 0;
+
+  refreshRails();
+  $("hint").innerHTML = `press <kbd>Enter</kbd> &middot; ${R().hint}`;
+  $("coverLabel").textContent = R().cover;
 
   if (coversEl.checked && valid){
     const c = chargeAmount();
@@ -345,17 +425,21 @@ $("form").addEventListener("submit", async e => {
   const charge = chargeAmount();
   const pence  = Math.round(charge * 100);   // integer minor units, always
 
-  if (CONFIG.CHECKOUT_ENDPOINT){
+  const endpoint = rail === "bank" ? CONFIG.OPENBANKING_ENDPOINT
+                                   : CONFIG.CHECKOUT_ENDPOINT;
+
+  if (endpoint){
     payEl.disabled = true;
     say("talking to Stripe…");
     try {
-      const res = await fetch(CONFIG.CHECKOUT_ENDPOINT, {
+      const res = await fetch(endpoint, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount:      pence,
           currency:    CONFIG.CURRENCY,
           description: CONFIG.DESCRIPTION,
+          reference:   CONFIG.DESCRIPTION,
           covered:     coversEl.checked,
           net:         Math.round(net * 100),
         }),
@@ -371,7 +455,7 @@ $("form").addEventListener("submit", async e => {
     return;
   }
 
-  if (CONFIG.PAYMENT_LINK){
+  if (rail === "card" && CONFIG.PAYMENT_LINK){
     const u = new URL(CONFIG.PAYMENT_LINK);
     u.searchParams.set("client_reference_id", `amt_${pence}`);
     say("off to Stripe 🌈", "ok");
@@ -388,10 +472,13 @@ function showSetup(){
   s.innerHTML =
     "<b>Not wired up yet.</b><br><br>" +
     "Open <code>pay/index.html</code> and set one of these in CONFIG:<br><br>" +
-    "&bull; <code>CHECKOUT_ENDPOINT</code> &mdash; deploy <code>pay/api/checkout.js</code> " +
-    "and paste its URL. Charges the exact amount typed. This is the real one.<br><br>" +
-    "&bull; <code>PAYMENT_LINK</code> &mdash; a Stripe Payment Link using a " +
-    "\"customers choose what to pay\" price. No server, but they re-enter the amount.";
+    "&bull; <code>OPENBANKING_ENDPOINT</code> &mdash; deploy " +
+    "<code>pay/api/openbanking.js</code>. ~20p flat, no percentage. " +
+    "This is the one you want at four figures.<br><br>" +
+    "&bull; <code>CHECKOUT_ENDPOINT</code> &mdash; deploy " +
+    "<code>pay/api/checkout.js</code> for cards via Stripe.<br><br>" +
+    "&bull; <code>PAYMENT_LINK</code> &mdash; a Stripe Payment Link, no server, " +
+    "but the payer re-enters the amount.";
   say("needs one line of config", "err");
 }
 
