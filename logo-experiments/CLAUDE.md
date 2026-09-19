@@ -14,7 +14,21 @@ Every variation, on any ground, anywhere on the page.
   edges — not a grid (he corrected this explicitly).
 - **MOVE**: drag the mark anywhere, the corner grip spins and scales it, `− ×n +`
   repeats it along its own rotated axis. The whole state lives in the URL hash
-  (`#id/palette/move/x,y,scale,rot,n`) so any experiment is shareable.
+  (`#id/palette/move/x,y,scale,rot,n,spacing`) so any experiment is shareable.
+  **On touch, no button is needed** — a finger drag on any mark enters move mode
+  by itself, seeded from whatever is already on screen (`seedT()`), so the
+  arrangement never jumps. A mouse still uses the button, so a stray click can't
+  rearrange the page. The threshold is 6px, so a tap does nothing.
+- **SHARE**: redraws the current composition onto a canvas (same positions,
+  rotations and ground, ~2600px on the long edge) and hands it to
+  `navigator.share()` with the link — on a phone that is the native sheet, so
+  WhatsApp is one tap away and Labern gets both the picture and the exact
+  arrangement. Desktop without file-share support falls back to downloading the
+  PNG and opening `wa.me` with the text. The drawing is primed on `pointerdown`,
+  because iOS only hands over the share sheet inside the gesture that asked for
+  it — awaiting a canvas first would lose the activation.
+- A **footer** under the controls (border above it) explains the whole thing in
+  two sentences and links back to `/logos`.
 - **Hover a mark** → `SVG` / `PNG` buttons (PNG renders at 4096px on the long
   edge, transparent ground, in the current ink colour).
 - Keys: `← →` mark · `↑ ↓` layout · `C` colour · `M` move · `G` index · `F`
@@ -64,3 +78,12 @@ python3 tools/build_logos.py     # ~14s, walks every page of both decks
 - Cinema mode fades the chrome to `.16` rather than `0` — at `0` with
   `pointer-events:none` the controls became an invisible dead zone.
 - `[hidden]` needs `!important` here: the move controls are a `.grp` flex box.
+- `.tile { touch-action:none }` is unconditional, not scoped to move mode — the
+  browser would otherwise consume the very drag that is supposed to start it.
+- Swiping on a **mark** moves it; swiping on the **ground** changes mark. That
+  split is deliberate, and why `pending` is only armed when a tile is hit.
+- `fromHash()` must actively *leave* move mode when the link has no arrangement,
+  or a plain link opened in a live session stays stuck in it.
+- Bitmap traces upsample the **continuous** alpha ramp and threshold after, never
+  before: thresholding first bakes the source pixel grid's stair-steps into the
+  outline, and nothing downstream can remove them. It also traces smaller.

@@ -100,18 +100,23 @@ def axis(mask, box):
 # ── tracing a pasted bitmap back into outlines ───────────────────────────────
 def trace_bitmap(png_bytes, w_attr, h_attr, tmp):
     im = Image.open(io.BytesIO(png_bytes))
-    mask = None
+    # Keep the source's own anti-aliasing: upsample the CONTINUOUS ramp and only
+    # then decide where the edge is. Thresholding first would bake the original
+    # pixel grid's stair-steps into the outline, and no amount of upsampling
+    # afterwards can take them back out.
+    soft, flip = None, False
     if "A" in im.getbands():
         a = im.convert("RGBA").getchannel("A")
         if a.getextrema()[0] < 250:
-            mask = a.point(lambda p: 255 if p > 128 else 0)
-    if mask is None:                        # opaque art: ink = whatever isn't the corner
-        g = im.convert("L")
-        corner = g.getpixel((0, 0))
-        mask = g.point(lambda p: 255 if (p > 140 if corner < 128 else p < 115) else 0)
+            soft = a
+    if soft is None:                        # opaque art: ink = whatever isn't the corner
+        soft = im.convert("L")
+        flip = soft.getpixel((0, 0)) >= 128   # dark ink on a light plate
+        if flip:
+            soft = ImageOps.invert(soft)
 
-    W, H = mask.size
-    big = mask.resize((W * UPS, H * UPS), Image.LANCZOS)
+    W, H = soft.size
+    big = soft.resize((W * UPS, H * UPS), Image.LANCZOS)
     bw = ImageOps.invert(big).point(lambda p: 255 if p > 128 else 0).convert("1")
     pbm, svg = tmp / "t.pbm", tmp / "t.svg"
     bw.save(pbm)

@@ -16,16 +16,16 @@
 /* ── tokens: a palette is one attribute on <html> ────────────────────────── */
 :root{
   --bg:#000; --ink:#ececf2; --hi:#fff; --dim:#4a4a56; --line:rgba(255,255,255,.10);
-  --glow:rgba(255,255,255,.10); --sheen:screen; --veil:rgba(0,0,0,.86);
+  --glow:rgba(255,255,255,.10); --sheen:screen; --veil:rgba(0,0,0,.86); --quiet:#75757f;
   --t:cubic-bezier(.16,1,.3,1);
 }
 :root[data-palette="paper"]{
   --bg:#fff; --ink:#08080a; --hi:#000; --dim:#a9a9b4; --line:rgba(0,0,0,.13);
-  --glow:rgba(0,0,0,.07); --sheen:multiply; --veil:rgba(255,255,255,.9);
+  --glow:rgba(0,0,0,.07); --sheen:multiply; --veil:rgba(255,255,255,.9); --quiet:#8d8d97;
 }
 :root[data-palette="violet"]{
   --bg:#594992; --ink:#f4f1ff; --hi:#fff; --dim:rgba(255,255,255,.5); --line:rgba(255,255,255,.2);
-  --glow:rgba(255,255,255,.14); --sheen:screen; --veil:rgba(38,30,68,.88);
+  --glow:rgba(255,255,255,.14); --sheen:screen; --veil:rgba(38,30,68,.88); --quiet:rgba(255,255,255,.66);
 }
 *{box-sizing:border-box;margin:0;padding:0}
 [hidden]{display:none!important}
@@ -45,6 +45,7 @@ body{
   animation:rise .95s var(--t) both;animation-delay:calc(var(--i,0) * 26ms);
 }
 @keyframes rise{ from{opacity:0;clip-path:inset(0 0 100% 0)} to{opacity:1;clip-path:inset(0 0 -4% 0)} }
+.tile{touch-action:none}
 .tile img{display:block;width:100%;height:100%;filter:drop-shadow(0 0 26px var(--glow))}
 /* a pass of light over the same artwork — never in the way of a click */
 .tile .sheen{
@@ -75,6 +76,14 @@ body.move .frame{opacity:1}
 }
 body.move .tile{cursor:grab}
 body.move .tile.dragging{cursor:grabbing}
+body.move #field{touch-action:none}
+.grip{touch-action:none}
+/* a fingertip needs more than 15px, so the circle carries an invisible pad */
+.grip::before{content:"";position:absolute;inset:-15px;border-radius:50%}
+.grip.hot{background:var(--ink);transform:scale(1.25)}
+.grip{transition:background-color .2s var(--t),transform .2s var(--t)}
+@media (pointer:coarse){ .grip{width:19px;height:19px;right:-10px;bottom:-10px}
+  .grip::before{inset:-20px} }
 
 /* ── hover: take the artwork with you ────────────────────────────────────── */
 #grab{position:fixed;z-index:4;display:flex;gap:1px;opacity:0;pointer-events:none;transition:opacity .22s ease}
@@ -84,12 +93,23 @@ body.move .tile.dragging{cursor:grabbing}
 #grab a:hover{background:var(--hi)}
 
 /* ── chrome ──────────────────────────────────────────────────────────────── */
+#dock{position:fixed;z-index:5;left:0;right:0;bottom:0;transition:opacity .7s var(--t)}
 #bar{
-  position:fixed;z-index:5;left:0;right:0;bottom:0;
-  padding:0 max(18px,env(safe-area-inset-right)) max(16px,calc(env(safe-area-inset-bottom) + 6px)) max(18px,env(safe-area-inset-left));
+  background:linear-gradient(to top,var(--bg) 55%,transparent);
+  padding:14px max(18px,env(safe-area-inset-right)) 11px max(18px,env(safe-area-inset-left));
   display:flex;align-items:center;justify-content:space-between;gap:14px;
-  transition:opacity .7s var(--t);
 }
+#foot{
+  background:var(--bg);border-top:1px solid var(--line);
+  padding:12px max(18px,env(safe-area-inset-right)) max(14px,calc(env(safe-area-inset-bottom) + 4px)) max(18px,env(safe-area-inset-left));
+  display:flex;align-items:flex-start;justify-content:space-between;gap:10px 26px;flex-wrap:wrap;
+  color:var(--quiet);font-size:9.5px;letter-spacing:.06em;line-height:1.95;
+}
+#foot p{max-width:92ch}
+#foot b{color:var(--ink);font-weight:400;letter-spacing:.16em}
+#foot a{color:var(--quiet);text-decoration:none;white-space:nowrap;letter-spacing:.2em;
+  border-bottom:1px solid var(--line);padding-bottom:3px;transition:color .25s var(--t)}
+#foot a:hover,#foot a:focus-visible{color:var(--ink)}
 .grp{display:flex;align-items:center;gap:13px;min-height:34px}
 .sep{width:1px;height:12px;background:var(--line)}
 .btn{
@@ -114,16 +134,11 @@ body.move .tile.dragging{cursor:grabbing}
 #cap{position:fixed;z-index:3;bottom:max(56px,calc(env(safe-area-inset-bottom) + 46px));
   transform:translateX(-50%);color:var(--dim);letter-spacing:.34em;font-size:9px;text-indent:.34em;
   transition:opacity .7s var(--t),left .6s var(--t);white-space:nowrap}
-#back{position:fixed;z-index:5;top:max(15px,env(safe-area-inset-top));left:max(18px,env(safe-area-inset-left));
-  color:var(--dim);letter-spacing:.2em;font-size:9px;text-decoration:none;
-  transition:opacity .7s var(--t),color .25s var(--t)}
-#back:hover{color:var(--ink)}
-body.cinema #back{opacity:0}
 #keys{position:fixed;z-index:5;top:max(15px,env(safe-area-inset-top));right:max(18px,env(safe-area-inset-right));
   color:var(--dim);letter-spacing:.2em;font-size:9px;transition:opacity .7s var(--t);opacity:0}
 @media (pointer:fine){ #keys{opacity:1} }
 /* when you go quiet the chrome recedes, but never out of reach */
-body.cinema #bar{opacity:.16}
+body.cinema #dock{opacity:.16}
 body.cinema #cap,body.cinema #keys{opacity:0}
 
 /* ── the index sheet ─────────────────────────────────────────────────────── */
@@ -143,16 +158,18 @@ body.cinema #cap,body.cinema #keys{opacity:0}
 #sheet figure[aria-current="true"] figcaption{color:var(--ink)}
 @media (max-width:620px){
   #bar{flex-wrap:wrap;justify-content:center;gap:10px 16px}
+  #foot{font-size:9px;line-height:1.85}
   .grp{gap:11px}
   #cap{bottom:max(92px,calc(env(safe-area-inset-bottom) + 82px))}
   /* on a phone the bar keeps only what it needs — the mark's name is already
      set above it, and the counter opens the full index */
   #pick b{display:none}
-  #back{font-size:8.5px}
   #keys{display:none}
   #sheet{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
   #sheet figure{height:176px}
 }
+@media (pointer:coarse){ .btn{padding:11px 2px} .dot{width:15px;height:15px} #dots{gap:13px} }
+#b-share.busy{color:var(--ink);opacity:.55}
 @media (prefers-reduced-motion:reduce){ .tile{animation:none} .tile .sheen{animation:none;opacity:0} }
 </style>
 </head>
@@ -160,10 +177,10 @@ body.cinema #cap,body.cinema #keys{opacity:0}
 <div id="plumb"></div>
 <div id="field"></div>
 <div id="cap"></div>
-<a id="back" href="/logos">&#8592;&nbsp;&nbsp;LOGOS</a>
 <div id="keys">← → LOGO · ↑ ↓ LAYOUT · C COLOUR · M MOVE · G INDEX</div>
 <div id="grab"><a id="dl-svg">SVG</a><a id="dl-png">PNG</a></div>
 
+<div id="dock">
 <div id="bar">
   <div class="grp">
     <div id="dots">
@@ -187,7 +204,20 @@ body.cinema #cap,body.cinema #keys{opacity:0}
       <span class="sep"></span>
       <button class="btn" id="reset">RESET</button>
     </span>
+    <span class="sep"></span>
+    <button class="btn" id="b-share">SHARE</button>
   </div>
+</div>
+  <footer id="foot">
+    <p>The <b>dots</b> set the ground. <b>‹&#8239;›</b> steps through all 18 marks; the
+      counter opens the index of every one. <b>LAYOUT</b> places a mark centre or a third
+      off, or repeats it at full height. <b>MOVE</b> lets you drag a mark anywhere —
+      finger or mouse — and hold the circle at its corner to spin and scale it;
+      <b>− ×n +</b> multiplies it. Hover a mark to take it as SVG or PNG.<br>
+      Experiment — and when you make something good, <b>SHARE</b> sends me the picture
+      and the exact arrangement on WhatsApp.</p>
+    <a href="/logos">&#8592;&nbsp;&nbsp;LOGOS</a>
+  </footer>
 </div>
 
 <div id="sheet" role="dialog" aria-label="all variations"></div>
@@ -198,6 +228,7 @@ body.cinema #cap,body.cinema #keys{opacity:0}
   const L=window.LOGOS, root=document.documentElement, body=document.body,
         field=document.getElementById('field'), plumb=document.getElementById('plumb'),
         cap=document.getElementById('cap'), grab=document.getElementById('grab'),
+        dock=document.getElementById('dock'),
         sheet=document.getElementById('sheet'), tc=document.getElementById('tc');
   const $=id=>document.getElementById(id);
 
@@ -226,9 +257,10 @@ body.cinema #cap,body.cinema #keys{opacity:0}
   const logo=()=>L[S.i];
 
   /* a single mark, sized to the window */
+  const free=()=>innerHeight-dock.offsetHeight;   /* the page above the footer */
   function baseSize(){
     const l=logo(), A=l.w/l.h;
-    const h=Math.min(innerHeight-150,(innerWidth*.86)/A);
+    const h=Math.min(free()-86,(innerWidth*.86)/A);
     return {w:h*A,h:h,A:A};
   }
 
@@ -261,7 +293,7 @@ body.cinema #cap,body.cinema #keys{opacity:0}
     if(S.move){
       const T=S.T, b=baseSize();
       const dx=Math.cos(T.r*Math.PI/180), dy=Math.sin(T.r*Math.PI/180);
-      const step=b.w*T.s*1.34;
+      const step=b.w*T.s*(T.sp||1.34);
       for(let c=0;c<T.n;c++){
         const off=(c-(T.n-1)/2)*step;
         frag.appendChild(tile(T.x+dx*off, T.y+dy*off, b.w, b.h, art,
@@ -270,24 +302,27 @@ body.cinema #cap,body.cinema #keys{opacity:0}
       plumb.classList.remove('on'); cap.style.display='none';
     }else if(lay.id==='repeat'){
       /* one row, the mark at full height — it runs off both edges and keeps going */
-      const pad=Math.max(16,vh*.042);
-      let h=vh-pad*2, w=h*A;
+      const pad=Math.max(16,vh*.038), fr=free();
+      let h=fr-pad*2, w=h*A;
       if(w>vw*.96){ w=vw*.96; h=w/A; }             // a wide mark still stays whole
       const step=w*(A<.3?1.78:1.3), cols=Math.max(1,Math.ceil(vw/step)+2),
             start=vw/2-(cols-1)*step/2;
-      for(let c=0;c<cols;c++) frag.appendChild(tile(start+c*step, vh/2, w, h, art));
+      for(let c=0;c<cols;c++) frag.appendChild(tile(start+c*step, fr/2, w, h, art));
       plumb.classList.remove('on'); cap.style.display='none';
     }else{
-      const b=baseSize();
+      const b=baseSize(), fr=free(), cy=fr/2;
       const x=lay.id==='left'?vw/3:lay.id==='right'?vw*2/3:vw/2;
-      frag.appendChild(tile(x, vh/2, b.w, b.h, art));
+      frag.appendChild(tile(x, cy, b.w, b.h, art));
       /* the caption and the plumb hang off the mark's own optical axis — where
          its stars actually centre — rather than off the middle of the window */
       const ax=x-b.w/2+b.w*l.ax;
       plumb.style.left=ax.toFixed(1)+'px'; plumb.classList.add('on');
       cap.style.left=ax.toFixed(1)+'px'; cap.style.display='';
+      /* the caption tucks under the mark it names, never under the window */
+      cap.style.bottom=Math.max(dock.offsetHeight+14, vh-(cy+b.h/2)-22)+'px';
     }
     field.appendChild(frag);
+    forgetShot();
     cap.textContent=l.label;
     $('pick').querySelector('b').textContent=l.label;
     $('pick').querySelector('i').textContent=String(S.i+1).padStart(2,'0')+'/'+L.length;
@@ -329,13 +364,25 @@ body.cinema #cap,body.cinema #keys{opacity:0}
   });
 
   /* ── move: drag it, spin it, scale it, repeat it ────────────────────── */
+  /* move mode starts from exactly what is already on screen — same place,
+     same size, same number of copies — so grabbing a mark never jumps it */
+  function seedT(){
+    const l=logo(), A=l.w/l.h, vw=innerWidth, fr=free(), lay=LAYOUTS[S.lay], b=baseSize();
+    if(lay.id==='repeat'){
+      const pad=Math.max(16,innerHeight*.038);
+      let h=fr-pad*2, w=h*A;
+      if(w>vw*.96){ w=vw*.96; h=w/A; }
+      const sp=A<.3?1.78:1.3;
+      return {x:vw/2, y:fr/2, s:h/b.h, r:0, n:Math.max(1,Math.ceil(vw/(w*sp))+2), sp:sp};
+    }
+    const x=lay.id==='left'?vw/3:lay.id==='right'?vw*2/3:vw/2;
+    return {x, y:fr/2, s:1, r:0, n:1, sp:1.34};
+  }
   function startMove(){
-    const b=baseSize(), lay=LAYOUTS[S.lay];
-    const x=lay.id==='left'?innerWidth/3:lay.id==='right'?innerWidth*2/3:innerWidth/2;
-    S.T={x, y:innerHeight/2, s:1, r:0, n:1};
+    S.T=seedT();
     S.move=true; body.classList.add('move');
     $('b-move').classList.add('on'); $('moveops').hidden=false;
-    $('count').querySelector('i').textContent='×1';
+    $('count').querySelector('i').textContent='×'+S.T.n;
     build();
   }
   function endMove(){
@@ -352,20 +399,35 @@ body.cinema #cap,body.cinema #keys{opacity:0}
   $('less').addEventListener('click',()=>copies(-1));
   $('count').addEventListener('click',()=>copies(1));
 
-  let drag=null;
+  let drag=null, pending=null;
   field.addEventListener('pointerdown',e=>{
-    if(!S.move) return;
     const grip=e.target.closest('.grip'), t=e.target.closest('.tile');
     if(!t&&!grip) return;
-    e.preventDefault(); field.setPointerCapture(e.pointerId);
+    if(!S.move){
+      /* touch goes straight to moving it — a mouse still uses the MOVE button,
+         so a stray click never rearranges the page */
+      if(e.pointerType!=='mouse') pending={x:e.clientX,y:e.clientY};
+      return;
+    }
+    e.preventDefault();
     const c={x:S.T.x,y:S.T.y};
     drag = grip
       ? {kind:'grip', a0:Math.atan2(e.clientY-c.y,e.clientX-c.x),
          d0:Math.hypot(e.clientY-c.y,e.clientX-c.x)||1, r0:S.T.r, s0:S.T.s}
       : {kind:'move', dx:e.clientX-S.T.x, dy:e.clientY-S.T.y};
     if(t) t.classList.add('dragging');
+    if(grip) grip.classList.add('hot');
+    /* capture is an optimisation, not a requirement — a touch pointer is
+       implicitly captured anyway, and a refusal here must not kill the drag */
+    try{ field.setPointerCapture(e.pointerId); }catch(_){}
   });
   field.addEventListener('pointermove',e=>{
+    if(pending&&!S.move){
+      if(Math.hypot(e.clientX-pending.x,e.clientY-pending.y)<6) return;
+      startMove();
+      drag={kind:'move', dx:pending.x-S.T.x, dy:pending.y-S.T.y};
+      pending=null;
+    }
     if(!drag) return;
     if(drag.kind==='move'){ S.T.x=e.clientX-drag.dx; S.T.y=e.clientY-drag.dy; }
     else{
@@ -376,18 +438,74 @@ body.cinema #cap,body.cinema #keys{opacity:0}
     }
     paint();
   });
-  addEventListener('pointerup',()=>{ if(drag){ drag=null; hash();
-    document.querySelectorAll('.dragging').forEach(t=>t.classList.remove('dragging')); } });
+  const endDrag=()=>{ pending=null; if(!drag) return; drag=null; hash();
+    document.querySelectorAll('.dragging').forEach(t=>t.classList.remove('dragging'));
+    document.querySelectorAll('.grip.hot').forEach(g=>g.classList.remove('hot')); };
+  addEventListener('pointerup',endDrag);
+  addEventListener('pointercancel',endDrag);
   /* while dragging, move what is already on screen instead of rebuilding it */
   function paint(){
     const T=S.T, b=baseSize(), dx=Math.cos(T.r*Math.PI/180), dy=Math.sin(T.r*Math.PI/180),
-          step=b.w*T.s*1.34, tiles=field.children;
+          step=b.w*T.s*(T.sp||1.34), tiles=field.children;
     for(let c=0;c<tiles.length;c++){
       const off=(c-(tiles.length-1)/2)*step, t=tiles[c];
       t.style.left=(T.x+dx*off)+'px'; t.style.top=(T.y+dy*off)+'px';
       t.style.setProperty('--r',T.r+'deg'); t.style.setProperty('--s',T.s);
     }
+    forgetShot();
   }
+
+  /* ── share: the picture plus the exact arrangement ───────────────────────
+     The composition is redrawn onto a canvas rather than screenshotted — same
+     positions, same rotations, same ground, at far better than screen
+     resolution. The link carries the co-ordinates, so anything received can be
+     opened back up exactly as it was. */
+  let shot=null;
+  const forgetShot=()=>{ shot=null; };
+  async function render(){
+    const vw=innerWidth, vh=innerHeight, k=Math.min(3, 2600/Math.max(vw,vh));
+    const W=Math.round(vw*k), H=Math.round(vh*k);
+    const c=document.createElement('canvas'); c.width=W; c.height=H;
+    const ctx=c.getContext('2d');
+    ctx.fillStyle=getComputedStyle(root).getPropertyValue('--bg').trim()||BG[PALETTES[S.pal]];
+    ctx.fillRect(0,0,W,H);
+    const img=new Image(); img.src=uri(svgText(logo(), inkNow()));
+    await img.decode();
+    for(const t of field.children){
+      const w=parseFloat(t.style.width), h=parseFloat(t.style.height),
+            x=parseFloat(t.style.left), y=parseFloat(t.style.top),
+            r=parseFloat(t.style.getPropertyValue('--r'))||0,
+            sc=parseFloat(t.style.getPropertyValue('--s'))||1;
+      ctx.save();
+      ctx.translate(x*k, y*k); ctx.rotate(r*Math.PI/180); ctx.scale(sc,sc);
+      ctx.drawImage(img, -w*k/2, -h*k/2, w*k, h*k);
+      ctx.restore();
+    }
+    return new Promise(r=>c.toBlob(r,'image/png'));
+  }
+  const prime=()=>{ if(!shot) shot=render(); return shot; };
+  const shareBtn=$('b-share');
+  /* start drawing on press, so the share sheet can open on the release —
+     iOS will only hand it over inside the gesture that asked for it */
+  shareBtn.addEventListener('pointerdown',prime);
+  shareBtn.addEventListener('mouseenter',prime);
+  shareBtn.addEventListener('click',async()=>{
+    const l=logo(), name=`paradox-${l.id}-${PALETTES[S.pal]}.png`;
+    const note=`★★★★★ × PARADOX — ${l.label}`;
+    shareBtn.classList.add('busy');
+    try{
+      const blob=await prime();
+      const file=new File([blob], name, {type:'image/png'});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], text:`${note}\n${location.href}`});
+      }else{
+        save(blob, name);                       // desktop: the picture lands in Downloads
+        open('https://wa.me/?text='+encodeURIComponent(`${note}\n${location.href}`),'_blank');
+      }
+    }catch(err){ if(err&&err.name!=='AbortError')
+      open('https://wa.me/?text='+encodeURIComponent(`${note}\n${location.href}`),'_blank'); }
+    shareBtn.classList.remove('busy');
+  });
 
   /* ── the index sheet ────────────────────────────────────────────────── */
   function fillSheet(){
@@ -430,7 +548,7 @@ body.cinema #cap,body.cinema #keys{opacity:0}
   function hash(){
     let h=`#${L[S.i].id}/${PALETTES[S.pal]}/${S.move?'move':LAYOUTS[S.lay].id}`;
     if(S.move){ const T=S.T;
-      h+=`/${Math.round(T.x)},${Math.round(T.y)},${T.s.toFixed(2)},${Math.round(T.r)},${T.n}`; }
+      h+=`/${Math.round(T.x)},${Math.round(T.y)},${T.s.toFixed(2)},${Math.round(T.r)},${T.n},${(T.sp||1.34).toFixed(2)}`; }
     if(location.hash!==h) history.replaceState(null,'',h);
   }
   function fromHash(){
@@ -440,10 +558,13 @@ body.cinema #cap,body.cinema #keys{opacity:0}
     const l=LAYOUTS.findIndex(x=>x.id===c); if(l>=0) S.lay=l;
     root.dataset.palette=PALETTES[S.pal]; tc.content=BG[PALETTES[S.pal]]; marks();
     if(c==='move'&&d){
-      const [x,y,s,r,n]=d.split(',').map(Number);
-      S.T={x,y,s,r,n}; S.move=true; body.classList.add('move');
+      const [x,y,s,r,n,sp]=d.split(',').map(Number);
+      S.T={x,y,s,r,n,sp:sp||1.34}; S.move=true; body.classList.add('move');
       $('b-move').classList.add('on'); $('moveops').hidden=false;
       $('count').querySelector('i').textContent='×'+n;
+    }else if(S.move){            /* a link without an arrangement leaves move mode */
+      S.move=false; S.T=null; body.classList.remove('move');
+      $('b-move').classList.remove('on'); $('moveops').hidden=true;
     }
   }
 
