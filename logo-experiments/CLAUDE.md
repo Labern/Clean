@@ -5,34 +5,35 @@ A single-page presenter for the ★★★★★ × PARADOX marks, live at
 Every variation, on any ground, anywhere on the page.
 
 ## What it does
-- **18 marks**, extracted from Labern's two Keynote decks in `~/Desktop/Logo_Variations/`
-  (`LOGO_VARIATIONS.pdf`, `Trademarks.pdf`). Bottom-left: three colour dots
-  (black / white / violet `#594992` — the deck's own purple), then `‹ NAME nn/18 ›`.
-  Clicking the counter opens the index sheet of every mark.
-- **Layouts** (bottom-right): CENTRE · LEFT THIRD · RIGHT THIRD · REPEAT.
-  REPEAT is deliberately **one row at full viewport height** that runs off both
-  edges — not a grid (he corrected this explicitly).
-- **MOVE**: drag the mark anywhere, the corner grip spins and scales it, `− ×n +`
-  repeats it along its own rotated axis. The whole state lives in the URL hash
-  (`#id/palette/move/x,y,scale,rot,n,spacing`) so any experiment is shareable.
-  **On touch, no button is needed** — a finger drag on any mark enters move mode
-  by itself, seeded from whatever is already on screen (`seedT()`), so the
-  arrangement never jumps. A mouse still uses the button, so a stray click can't
-  rearrange the page. The threshold is 6px, so a tap does nothing.
-- **SHARE**: redraws the current composition onto a canvas (same positions,
-  rotations and ground, ~2600px on the long edge) and hands it to
-  `navigator.share()` with the link — on a phone that is the native sheet, so
-  WhatsApp is one tap away and Labern gets both the picture and the exact
-  arrangement. Desktop without file-share support falls back to downloading the
-  PNG and opening `wa.me` with the text. The drawing is primed on `pointerdown`,
-  because iOS only hands over the share sheet inside the gesture that asked for
-  it — awaiting a canvas first would lose the activation.
-- A **footer** under the controls (border above it) explains the whole thing in
-  two sentences and links back to `/logos`.
-- **Hover a mark** → `SVG` / `PNG` buttons (PNG renders at 4096px on the long
-  edge, transparent ground, in the current ink colour).
-- Keys: `← →` mark · `↑ ↓` layout · `C` colour · `M` move · `G` index · `F`
-  fullscreen · `R` replay · `Esc` out. Swipe works on touch.
+There are no modes. One mark (or several copies of it) sits on the page and is
+**always draggable** — mouse or finger, at any time. The circle at its corner
+spins and scales it. Nothing else is chrome on the artwork: no frame, no
+selection box.
+
+The controls are one bar, and only these: **colour** (three dots — black, white,
+the deck's violet `#594992`), **variation** (`‹ ›`, and the name opens an index
+of all 18), **number** (`− ×n +`, copies spread along the mark's own rotated
+axis), **RESET**, **SHARE**, **HIDE UI**. A footer under it explains that in two
+sentences and links to `/logos`.
+
+Everything holds its place: changing colour or variation keeps the position,
+scale, rotation and count; the controls have fixed-width fields so stepping
+through marks or counts never shifts them; and the dock's height is cached, so
+HIDE UI doesn't resize or move the artwork.
+
+- **HIDE UI** strips the screen for a screenshot; a tap that isn't a drag (or
+  `H`/`Esc`) brings it back.
+- **Hover a mark** → `SVG` / `PNG` (4096px on the long edge, transparent ground).
+- **SHARE** redraws the composition onto a canvas (same positions, rotations and
+  ground, ~2600px) and hands it to `navigator.share()` with the link — on a phone
+  that's the native sheet, so WhatsApp is one tap and Labern gets the picture and
+  the exact arrangement. Desktop without file-share falls back to downloading the
+  PNG and opening `wa.me`. The drawing is primed on `pointerdown`, because iOS
+  only grants the share sheet inside the gesture that asked for it.
+- The whole state is the URL hash (`#id/palette/x,y,scale,rot,n`), so any
+  arrangement reopens exactly as it was.
+- Keys: `← →` variation · `↑ ↓` number · `C` colour · `R` reset · `H` hide ·
+  `G` index · `F` fullscreen · `Esc` out.
 
 ## Crispness is the only priority
 His words. Nothing is ever rasterised into the page — `logos.js` holds pure
@@ -77,7 +78,18 @@ python3 tools/build_logos.py     # ~14s, walks every page of both decks
   lines up with what the eye reads as the mark's spine.
 - Cinema mode fades the chrome to `.16` rather than `0` — at `0` with
   `pointer-events:none` the controls became an invisible dead zone.
-- `[hidden]` needs `!important` here: the move controls are a `.grp` flex box.
+- `[hidden]` needs `!important` here: the bar's groups are flex boxes.
+- **Never auto-hide the controls.** An earlier build faded them to 16% opacity
+  when idle; Labern's verdict was "the UI is awful, I can't see it". HIDE UI is
+  the only thing that removes them, and only when asked.
+- The entrance animation is applied through a `.in` class given out on first
+  build and to genuinely new copies only. Replaying it on every colour or
+  variation change flickered the thing being worked on.
+- Drag listeners for `pointermove`/`pointerup` live on the **window**, not on
+  `#field`: mid-drag the pointer leaves the element, and pointer capture can be
+  refused. Note that Claude-in-Chrome's `left_click_drag` dispatches *only*
+  `pointermove` — no down or up — so it cannot exercise this path; test drags by
+  dispatching PointerEvents instead.
 - `.tile { touch-action:none }` is unconditional, not scoped to move mode — the
   browser would otherwise consume the very drag that is supposed to start it.
 - Swiping on a **mark** moves it; swiping on the **ground** changes mark. That
