@@ -90,35 +90,75 @@ h1 em{font-style:italic;color:var(--acc);}
 }
 .standfirst b{color:#fff;font-weight:600}
 
-/* ladder */
-.ladder{width:56mm;flex:none;padding-top:0}
-.ladder-t{
-  font-family:'JetBrains Mono',monospace;font-size:5.1pt;font-weight:700;letter-spacing:.2em;
-  text-transform:uppercase;color:var(--dim2);margin-bottom:2.4mm;text-align:right;
+/* progression chain */
+.chain{display:flex;align-items:stretch;gap:2.6mm;margin-top:4.4mm}
+.lk{
+  flex:1;padding:1.5mm 2.6mm;border-radius:1.4mm;border:1px solid var(--line2);
+  background:rgba(255,255,255,.022);
+  font-size:7.05pt;font-weight:600;color:var(--dim);letter-spacing:-.005em;line-height:1.15;
 }
-.rung{
-  display:flex;align-items:center;gap:2.4mm;padding:1.05mm 2.4mm;border-radius:1.4mm;
-  border:1px solid transparent;margin-bottom:.9mm;
+.lk i{
+  display:block;font-style:normal;font-family:'JetBrains Mono',monospace;
+  font-size:4.85pt;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--dim2);margin-top:.75mm;
 }
-.rung b{font-size:6.5pt;font-weight:600;color:var(--dim2);letter-spacing:.005em;flex:1}
-.rung u{
-  text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:5pt;font-weight:700;
-  color:var(--dim2);letter-spacing:.06em;opacity:.65
+.lk.dim{opacity:.4}
+.lk:first-child{background:linear-gradient(120deg,rgba(255,255,255,.085),rgba(255,255,255,.015));
+  border-color:var(--line);color:#fff;font-weight:700}
+.lk:first-child i{color:var(--dim)}
+.lk.wall{border-color:rgba(255,230,0,.2);background:rgba(255,230,0,.05);color:#CFD4DA}
+.lk.wall i{color:rgba(255,230,0,.62)}
+.lk.goal{border-color:rgba(255,230,0,.45);
+  background:linear-gradient(120deg,rgba(255,230,0,.17),rgba(255,230,0,.03));
+  color:var(--acc);font-weight:700}
+.lk.goal i{color:var(--acc)}
+.ar{align-self:center;color:#3E434A;font-size:9pt;flex:none}
+
+
+/* ───────── UK band ───────── */
+.viz{width:74mm;flex:none;padding-top:1mm}
+.cycle{margin:4.6mm 0 4mm;padding-top:3mm;border-top:1px solid var(--line)}
+.cyc-t{font-family:'JetBrains Mono',monospace;font-size:5.15pt;font-weight:700;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dim2);margin-bottom:2.4mm}
+.cyc-g{display:grid;grid-template-columns:repeat(4,1fr);gap:4.5mm}
+.cyc{border-left:1.3px solid rgba(255,230,0,.28);padding-left:2.5mm}
+.cyc.hot{border-left-color:var(--acc)}
+.cyc u{display:block;text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:5.3pt;
+  font-weight:700;letter-spacing:.11em;color:rgba(255,230,0,.62);margin-bottom:.5mm}
+.cyc.hot u{color:var(--acc)}
+.cyc b{display:block;font-size:7.05pt;font-weight:700;color:#fff;letter-spacing:-.005em;margin-bottom:.45mm}
+.cyc{font-size:6.2pt;color:var(--dim2);line-height:1.34}
+.viz-t,.clock-t{
+  font-family:'JetBrains Mono',monospace;font-size:5.15pt;font-weight:700;
+  letter-spacing:.17em;text-transform:uppercase;color:var(--dim2);margin-bottom:1.9mm;
 }
-.dot{width:1.5mm;height:1.5mm;border-radius:50%;background:rgba(255,255,255,.16);flex:none}
-.rung.now{background:linear-gradient(90deg,rgba(255,255,255,.075),rgba(255,255,255,.01));border-color:var(--line)}
-.rung.now b{color:#fff}
-.rung.now .dot{background:#fff;box-shadow:0 0 0 1.1mm rgba(255,255,255,.10)}
-.rung.now u{color:var(--dim);opacity:1}
-.rung.gate{background:linear-gradient(90deg,rgba(255,230,0,.055),rgba(255,230,0,.005));border-color:rgba(255,230,0,.18)}
-.rung.gate b{color:#CFD4DA}
-.rung.gate .dot{background:rgba(255,230,0,.5)}
-.rung.gate u{color:rgba(255,230,0,.55);opacity:1}
-.rung.goal{background:linear-gradient(90deg,rgba(255,230,0,.16),rgba(255,230,0,.02));border-color:rgba(255,230,0,.42)}
-.rung.goal b{color:var(--acc);font-weight:700}
-.rung.goal .dot{background:var(--acc);box-shadow:0 0 0 1.1mm rgba(255,230,0,.16)}
-.rung.goal u{color:var(--acc);opacity:1}
-.rung.far{opacity:.42}
+.viz-t b{color:var(--txt);font-weight:700;letter-spacing:.17em}
+.viz-t span{display:block;margin-top:.7mm;color:#565C64;letter-spacing:.13em;font-weight:500}
+.row{display:grid;grid-template-columns:27mm 1fr 8.5mm;align-items:center;gap:2.2mm;margin-bottom:.85mm}
+.row .lab{font-size:6.1pt;color:var(--dim);text-align:right;line-height:1.2;white-space:nowrap}
+.track{position:relative;height:1.75mm}
+.track::before{content:'';position:absolute;left:37.5%;top:-.5mm;bottom:-.5mm;width:.6px;background:rgba(255,255,255,.22)}
+.bar{position:absolute;top:0;height:1.75mm}
+.bar.pos{left:37.5%;background:var(--acc);border-radius:0 .55mm .55mm 0}
+.bar.neg{background:#E5484D;border-radius:.55mm 0 0 .55mm}
+.row .val{font-family:'JetBrains Mono',monospace;font-size:6pt;font-weight:700;color:var(--dim);text-align:right}
+.row.down .val{color:#E5484D}
+.viz-f{font-size:5.5pt;color:#565C64;margin-top:1.4mm;line-height:1.32}
+
+
+.clock ol{list-style:none;counter-reset:c}
+.clock li{
+  display:flex;gap:2.2mm;align-items:baseline;font-size:6.4pt;color:var(--dim);
+  line-height:1.3;margin-bottom:1.05mm;
+}
+.clock li u{
+  text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:5.4pt;font-weight:700;
+  color:var(--acc);letter-spacing:.04em;flex:none;width:15mm;
+}
+.clock li.hot u{color:#fff}
+.clock-n{font-size:6.05pt;color:var(--dim2);line-height:1.38;margin-top:1.5mm;
+  border-left:1.3px solid rgba(255,230,0,.4);padding-left:2.3mm}
+.clock-n b{color:#fff;font-weight:600}
 
 /* ───────── phase strip ───────── */
 .phases{display:grid;grid-template-columns:1fr 1fr 1fr;gap:3mm;margin:3.4mm 0 2.4mm}
@@ -133,8 +173,8 @@ h1 em{font-style:italic;color:var(--acc);}
 }
 .ph:nth-child(2) .yr{color:rgba(255,230,0,.8)}
 .ph:nth-child(3) .yr{color:rgba(255,230,0,.55)}
-.ph .nm{font-size:7.6pt;font-weight:700;color:#fff;margin:.5mm 0 .6mm;letter-spacing:-.005em}
-.ph .ds{font-size:6.35pt;color:var(--dim2);line-height:1.38}
+.ph .nm{font-size:7.5pt;font-weight:700;color:#fff;margin:.45mm 0 .5mm;letter-spacing:-.005em}
+.ph .ds{font-size:6.3pt;color:var(--dim2);line-height:1.34}
 
 /* ───────── grid of ten ───────── */
 .grid{
@@ -199,42 +239,51 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
   <div class="masthead">
     <svg class="eymark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 392.42 402.22"><style>.f{fill:#FFE600}.g{fill:#FFFFFF}</style><polygon class="g" points="267.91 202.77 234.19 267.54 200.56 202.77 134.74 202.77 204.09 322.86 204.09 401.26 263.44 401.26 263.44 322.86 332.89 202.77 267.91 202.77"/><polygon class="f" points="392.42 0 0 143.22 392.42 73.9 392.42 0"/><polygon class="g" points="3.43 401.26 162.23 401.26 162.23 355.61 62.96 355.61 62.96 322.86 134.74 322.86 134.74 281.18 62.96 281.18 62.96 248.42 142.37 248.42 116.02 202.77 3.43 202.77 3.43 401.26"/></svg>
     <div class="mh-rule"></div>
-    <div class="eyebrow">Career operating plan <span>/ 2026–2031</span></div>
+    <div class="eyebrow">Career operating plan <span>/ EY UK &middot; 1 More London Place &middot; SE1</span></div>
     <div class="disclaimer"><b>Personal working document</b>Prepared for my own use &middot; not an EY publication</div>
   </div>
 
   <header>
     <div>
       <h1>From Manager<br>to <em>Director</em>.</h1>
-      <p class="standfirst">Ten steps, two to five years. The jump is not a harder version of your current job — it is a
-      <b>change of category</b>. Managers are paid to deliver. Directors are paid to originate, own revenue and pull the
-      whole firm onto an account. Everything below is built around that single discontinuity.</p>
+      <p class="standfirst">Ten steps, two to five years, written for the UK firm. The jump is not a harder version of your
+      current job — it is a <b>change of category</b>. Managers are paid to deliver; Directors are paid to originate and to
+      own a number. Everything below is built around that discontinuity and the UK calendar that gates it.</p>
     </div>
-    <div class="ladder">
-      <div class="ladder-t">The climb</div>
-      <div class="rung now"><span class="dot"></span><b>Manager</b><u>YOU ARE HERE</u></div>
-      <div class="rung gate"><span class="dot"></span><b>Senior Manager</b><u>THE WALL · 2–4 YRS</u></div>
-      <div class="rung goal"><span class="dot"></span><b>Director</b><u>THE TARGET</u></div>
-      <div class="rung far"><span class="dot"></span><b>Associate Partner</b><u>2–4 yrs</u></div>
-      <div class="rung far"><span class="dot"></span><b>Partner</b><u>elected</u></div>
-    </div>
+      <div class="viz">
+      <div class="viz-t"><b>Where the headroom is</b><span>UK revenue growth by service line &middot; FY25</span></div>
+      <div class="row"><div class="lab">Strategy &amp; Transactions</div>
+        <div class="track"><div class="bar pos" style="width:62.5%"></div></div><div class="val">+10%</div></div>
+      <div class="row"><div class="lab">Tax</div>
+        <div class="track"><div class="bar pos" style="width:31.25%"></div></div><div class="val">+5%</div></div>
+      <div class="row"><div class="lab">Assurance</div>
+        <div class="track"><div class="bar pos" style="width:18.75%"></div></div><div class="val">+3%</div></div>
+      <div class="row down"><div class="lab">Consulting</div>
+        <div class="track"><div class="bar neg" style="left:0;width:37.5%"></div></div><div class="val">&minus;6%</div></div>
+      <div class="viz-f">UK fee income £3.78bn, +2% overall (FY25, to 27 June 2025). By sector, Consumer &amp; Health
+      grew 9% and Financial Services 5%. A Director seat is funded out of a growing P&amp;L — FY26 lands in October.</div>
+      </div>
   </header>
 
-  <div class="phases">
-    <div class="ph">
-      <div class="yr">Year 0 – 1 · Position</div>
-      <div class="nm">Be named, be narrow</div>
-      <div class="ds">Declare the ambition, choose the niche, recruit the people who will argue for you. Steps 1–3.</div>
-    </div>
-    <div class="ph">
-      <div class="yr">Year 1 – 3 · Build</div>
-      <div class="nm">Move the mix, build the book</div>
-      <div class="ds">Convert delivery hours into origination hours and revenue that carries your name. Steps 4–7.</div>
-    </div>
-    <div class="ph">
-      <div class="yr">Year 3 – 5 · Convert</div>
-      <div class="nm">Make the case unarguable</div>
-      <div class="ds">Evidence, headroom, timing — and a hard review date you actually honour. Steps 8–10.</div>
+  <div class="chain">
+    <span class="lk">Manager<i>you are here</i></span>
+    <span class="ar">&rsaquo;</span>
+    <span class="lk wall">Senior Manager<i>the wall &middot; 2–4 yrs</i></span>
+    <span class="ar">&rsaquo;</span>
+    <span class="lk goal">Director<i>the target</i></span>
+    <span class="ar">&rsaquo;</span>
+    <span class="lk dim">Associate Partner</span>
+    <span class="ar">&rsaquo;</span>
+    <span class="lk dim">Partner<i>elected</i></span>
+  </div>
+
+  <div class="cycle">
+    <div class="cyc-t">The UK clock &nbsp;/&nbsp; financial year runs 1 July – 30 June &nbsp;/&nbsp; promotions effective 1 July</div>
+    <div class="cyc-g">
+      <div class="cyc"><u>Jul – Dec</u><b>Bank the evidence</b>Nothing counts that isn't already done and attributed.</div>
+      <div class="cyc hot"><u>Jan – Mar</u><b>Roundtables, nominations</b>Decided here, from what existed by Christmas.</div>
+      <div class="cyc"><u>Apr – Jun</u><b>Outcomes land</b>You hear the result; the case closed months ago.</div>
+      <div class="cyc"><u>1 July</u><b>Effective</b>Grade changes; pay follows roughly three months later.</div>
     </div>
   </div>
 
@@ -244,10 +293,9 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
       <div class="n">1</div>
       <div class="body">
         <h2><span>Declare</span>Say it out loud, in writing, this cycle</h2>
-        <p>Ambition kept private does not exist. Put <b>Director</b> into your LEAD goals, say it to your counsellor and
-        your service-line leader in the same month, and ask the one question most people avoid: <b>what specifically is
-        missing?</b> A pipeline you are not named in never considers you — and roughly 60% of EY partner appointments
-        come from inside, so the pipeline is real.</p>
+        <p>Ambition kept private does not exist. Put <b>Director</b> in your LEAD goals and say it to your counsellor
+        before 1 July — then ask the question most people avoid: <b>what exactly is missing?</b> A pipeline you are
+        not named in never considers you.</p>
         <span class="chip">Ask for the gap list. Get it in writing.</span>
       </div>
     </div>
@@ -256,9 +304,9 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
       <div class="n">2</div>
       <div class="body">
         <h2><span>Narrow</span>Own one intersection, not five</h2>
-        <p>Pick a <b>sector × capability</b> pairing tight enough that you are the first call in the firm — not "data",
-        but "AI assurance for insurers". Directors are bought, not applied for: the market must ask for you by name.
-        Generalists are useful at Manager and invisible at Director, because breadth cannot be sold, only depth can.</p>
+        <p>Pick a <b>sector × capability</b> tight enough that you are the first call — not "data", but "AI assurance
+        for insurers". Directors are bought, not applied for: the market has to ask for you by name. Breadth cannot
+        be sold; depth can.</p>
         <span class="chip">Target: top-3 recognised name in one niche</span>
       </div>
     </div>
@@ -267,9 +315,9 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
       <div class="n">3</div>
       <div class="body">
         <h2><span>Sponsor</span>Recruit the person who spends capital on you</h2>
-        <p>A mentor gives you advice; a <b>sponsor argues for you in rooms you will never enter</b> — that is the trapdoor
-        that opens. Sponsored people are ~23% more likely to be promoted and earn ~12% more. Then widen it: one advocate
-        is a single point of failure. Build three to five partners who can each quote a real number you produced.</p>
+        <p>A mentor advises you; a <b>sponsor argues for you in rooms you will never enter</b> — roughly 23% better
+        odds. You sit in the UK <i>and</i> global head office, so the deciders are in your building, alongside 8,000
+        others. Proximity pays only if they can name what you did.</p>
         <span class="chip">1 sponsor + 3–5 partners who can cite your numbers</span>
       </div>
     </div>
@@ -278,9 +326,9 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
       <div class="n">4</div>
       <div class="body">
         <h2><span>Mix</span>Move from 80/20 delivery to 60/40 by year two</h2>
-        <p>Being superb at delivery is <b>the single most common way to get trapped in it</b>. The firm has every
-        incentive to keep you billing; nobody will hand you origination time. Block it like a client meeting, defend it
-        like one, and accept that the skills that made you an excellent Manager are not the ones now being assessed.</p>
+        <p>Being superb at delivery is <b>the most common way to get trapped in it</b>. The firm has every incentive
+        to keep you billing, and nobody will hand you origination time. Block it like a client meeting, and defend
+        it like one.</p>
         <span class="chip">~2 days a week on origination by end of Y2</span>
       </div>
     </div>
@@ -289,9 +337,9 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
       <div class="n">5</div>
       <div class="body">
         <h2><span>Revenue</span>Get a number with your name on it</h2>
-        <p>Directors are judged on <b>owned revenue and pipeline</b>, not effort or excellence. Move your language — and
-        your reality — from "I delivered on that account" to "that account is mine". Track origination, managed revenue
-        and conversion monthly — Director bands commonly sit near ~$1.75m of managed revenue with a matching cross-sell target.</p>
+        <p>Directors are judged on <b>owned revenue and pipeline</b>, not effort. Move from "I delivered on that
+        account" to "that account is mine", and track it monthly. Director bands sit near ~$1.75m managed, with a
+        matching cross-sell target.</p>
         <span class="chip">Own the P&amp;L of one account or capability</span>
       </div>
     </div>
@@ -299,12 +347,11 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
     <div class="step">
       <div class="n">6</div>
       <div class="body">
-        <h2><span>Cross-sell</span>Bring the whole firm, not your team</h2>
-        <p>The distinguishing Director test is whether you can pull <b>Tax, Consulting, Strategy &amp; Transactions and
-        Assurance</b> into your accounts. Learn the neighbouring service lines well enough to recognise their work inside
-        your client's problems — then make the introduction before they ask. Cross-sell is the metric that separates a
-        very good Senior Manager from a Director.</p>
-        <span class="chip">3+ service lines introduced per key account</span>
+        <h2><span>Cross-sell</span>Bring the whole firm — unless you are in Audit</h2>
+        <p>Outside Assurance, pulling Tax, SaT and Consulting into your accounts <i>is</i> the Director test. Inside
+        it, <b>UK operational separation inverts this</b>: the ring-fenced audit practice takes no fee for
+        introductions, and pay turns above all on <b>audit quality</b>. Know which currency you are paid in.</p>
+        <span class="chip">Advisory: 3+ service lines &nbsp;·&nbsp; Audit: quality + tenders</span>
       </div>
     </div>
 
@@ -313,8 +360,8 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
       <div class="body">
         <h2><span>Bench</span>Build the person who replaces you</h2>
         <p>You cannot be promoted out of a seat <b>nobody else can fill</b>. Grow two Managers who can run delivery
-        without you, and let them be seen doing it in front of partners. Successor risk is a quiet, rarely-stated reason
-        strong cases get deferred a year — remove it before anyone has to raise it.</p>
+        without you, and let partners watch them do it. Successor risk is a quiet reason strong cases get deferred
+        a year.</p>
         <span class="chip">2 named successors, proven on live engagements</span>
       </div>
     </div>
@@ -323,9 +370,9 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
       <div class="n">8</div>
       <div class="body">
         <h2><span>Case</span>Write the business case three years early</h2>
-        <p>Submission windows are often a <b>single week</b> — the case cannot be written then, only retrieved. Keep a live
-        one-pager and lead every line with attribution: "Led the pricing review that recovered £4.2m in margin", not "was
-        involved in". Committees allocate you less credit than you assume, so claim precisely and name your supporters.</p>
+        <p>Submission windows are often a <b>single week</b> — the case is retrieved then, not written. Keep a live
+        one-pager led by attribution: "Led the pricing review that recovered £4.2m", never "was involved in".
+        Committees credit you less than you assume.</p>
         <span class="chip">Refresh quarterly, before every counsellor conversation</span>
       </div>
     </div>
@@ -333,11 +380,11 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
     <div class="step">
       <div class="n">9</div>
       <div class="body">
-        <h2><span>Headroom</span>Go where the firm is short, not where it is crowded</h2>
-        <p>Your personal case is only half the decision. The firm must believe <b>the seat pays for itself</b>. Aim at
-        demand the leadership has already funded — AI, energy transition, private capital, regulatory change — or a
-        geography willing to open a new Director slot. Mobility converts cases that merit alone will not.</p>
-        <span class="chip">Choose a practice with a gap, not a queue</span>
+        <h2><span>Headroom</span>Go where the UK firm is actually growing</h2>
+        <p>The firm must believe <b>the seat pays for itself</b>. The chart above is that argument: Strategy &amp;
+        Transactions ran +10% last year while Consulting fell 6% and shed ~150 senior roles. Seats are funded out
+        of growth, not need.</p>
+        <span class="chip">Aim at a line that grew, not one that cut</span>
       </div>
     </div>
 
@@ -345,9 +392,9 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
       <div class="n">10</div>
       <div class="body">
         <h2><span>Deadline</span>Set a decision date and honour it</h2>
-        <p>Give it <b>two full promotion cycles</b> after you are formally in the pipeline. If you are not nominated, not
-        sponsored, and the answer never becomes specific, that is the answer. A lateral move into a rival at the next
-        grade is the standard accelerant, and it resets both the personal and the business case at once.</p>
+        <p>Give it <b>two full cycles</b> once you are formally in the pipeline. If you are not nominated, not
+        sponsored, and the answer never becomes specific, that is the answer. A lateral at the next grade resets
+        both cases at once.</p>
         <span class="chip">Hard review point: two cycles, then decide</span>
       </div>
     </div>
@@ -370,9 +417,11 @@ footer{margin-top:2.8mm;padding-top:2.5mm;border-top:1px solid var(--line)}
       </div>
     </div>
     <div class="foot">
-      <p class="note"><b>The clock.</b> Two to four years Manager → Senior Manager, two to four again to Director; compressing it means over-delivering on gates 2 and 3 years before anyone asks for them. <b>The failure mode is never effort</b> — it is a brilliant deliverer
-      with no book, no sponsor and no niche, waiting to be noticed by a process that does not work that way.</p>
-      <div class="srcs">SOURCES · EY UK grade structure &amp; partner-appointment<br>disclosures · Big 4 partner-promotion research<br>(Townsend) · Hewlett, sponsorship effect · practitioner<br>reporting on Big 4 managed-revenue targets</div>
+      <p class="note"><b>Scale of the prize.</b> £3.78bn of UK fee income in FY25, 59 new equity partners admitted, an average
+      £787k distributed per partner. <b>The clock:</b> two to four years a grade — compressing it means over-delivering on gates 2
+      and 3 before anyone asks. <b>The failure mode is never effort</b>: it is a brilliant deliverer with no book, no sponsor and
+      no niche, waiting to be noticed by a process that does not work that way.</p>
+      <div class="srcs">SOURCES · EY UK FY25 results &amp; partner disclosures<br>· FRC operational-separation principles · Big 4<br>partner-promotion research (Townsend) · Hewlett,<br>sponsorship effect · practitioner reporting on<br>Big 4 managed-revenue targets</div>
     </div>
   </footer>
 
