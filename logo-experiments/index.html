@@ -59,15 +59,20 @@ body{
 @keyframes rake{ 0%,12%{background-position:0 -220%} 56%,100%{background-position:0 220%} }
 :root[data-palette="paper"] .tile .sheen{opacity:.45}
 
-/* the one handle: hold it to spin and scale. No frame. */
+/* The bounding line shows only while the circle is being held — it is there to
+   size against, and it goes the moment you let go. */
+.frame{position:absolute;inset:-18px;border:1px solid var(--line);pointer-events:none;display:none}
+body.sizing .frame{display:block}
+
+/* the one handle: hold it to spin and scale */
 .grip{
-  position:absolute;right:-13px;bottom:-13px;width:26px;height:26px;border-radius:50%;
+  position:absolute;right:-31px;bottom:-31px;width:26px;height:26px;border-radius:50%;
   background:var(--bg);border:1.5px solid var(--ink);cursor:nwse-resize;touch-action:none;
   transition:background-color .2s var(--t),transform .2s var(--t);
 }
 .grip::before{content:"";position:absolute;inset:-16px;border-radius:50%}
 .grip.hot{background:var(--ink);transform:scale(1.2)}
-@media (pointer:coarse){ .grip{width:30px;height:30px;right:-15px;bottom:-15px}
+@media (pointer:coarse){ .grip{width:32px;height:32px;right:-34px;bottom:-34px}
   .grip::before{inset:-20px} }
 
 /* ── hover: take the artwork with you ────────────────────────────────────── */
@@ -95,6 +100,7 @@ body{
 .btn.lit{color:var(--ink)}
 .arrow{font-size:19px;letter-spacing:0;padding:15px 8px;line-height:1}
 /* fixed widths: stepping through marks or counts never shifts the controls */
+#logos{text-decoration:none}
 #name{width:29ch;text-align:center;color:var(--ink);letter-spacing:.14em;overflow:hidden}
 #num{width:4.5ch;text-align:center;color:var(--ink)}
 #dots{display:flex;gap:14px;align-items:center;padding:14px 0}
@@ -111,48 +117,37 @@ body{
 .sep{width:1px;align-self:center;height:20px;background:var(--line)}
 
 /* ── the note underneath ─────────────────────────────────────────────────── */
-#foot{
-  border-top:1px solid var(--line);
-  padding:14px max(20px,env(safe-area-inset-right)) max(16px,calc(env(safe-area-inset-bottom) + 6px)) max(20px,env(safe-area-inset-left));
-  display:flex;align-items:flex-start;justify-content:space-between;gap:10px 30px;flex-wrap:wrap;
-  color:var(--dim);font-size:12px;letter-spacing:.04em;line-height:1.8;
-}
-#foot p{max-width:88ch}
-#foot b{color:var(--ink);font-weight:400;letter-spacing:.14em}
-#foot a{color:var(--dim);text-decoration:none;white-space:nowrap;letter-spacing:.18em;
-  border-bottom:1px solid var(--line);padding-bottom:3px;transition:color .2s var(--t)}
-#foot a:hover{color:var(--ink)}
 
 /* HIDE takes everything away for a clean shot; a tap anywhere brings it back */
-body.bare #dock,body.bare .grip,body.bare #grab{display:none}
+body.bare #dock,body.bare .grip,body.bare .frame,body.bare #grab{display:none}
 
 /* ── the index of every mark ─────────────────────────────────────────────── */
-#sheet{
-  position:fixed;inset:0;z-index:9;background:var(--veil);
-  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
-  display:none;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));
-  gap:6px;padding:max(22px,env(safe-area-inset-top)) 22px 22px;align-content:start;
-  overflow:auto;overscroll-behavior:contain;
+#sheet{position:fixed;inset:0;z-index:9;background:var(--bg);display:none;
+  flex-direction:column;overscroll-behavior:contain}
+#sheet.on{display:flex}
+#sheet header{display:flex;align-items:center;justify-content:space-between;
+  padding:max(20px,env(safe-area-inset-top)) 24px 18px;
+  color:var(--dim);font-size:13px;letter-spacing:.2em}
+#sheet .grid{
+  flex:1;overflow:auto;display:grid;gap:10px;
+  grid-template-columns:repeat(auto-fill,minmax(210px,1fr));
+  padding:0 24px max(24px,env(safe-area-inset-bottom));align-content:start;
 }
-#sheet.on{display:grid}
-#sheet figure{display:grid;grid-template-rows:1fr auto;justify-items:center;gap:13px;
-  height:246px;padding:16px 10px;cursor:pointer;border:1px solid transparent;transition:border-color .2s}
+/* minmax(0,1fr) — a plain 1fr refuses to shrink below the image's own size,
+   which is what made the marks overflow their cells */
+#sheet figure{display:grid;grid-template-rows:minmax(0,1fr) auto;justify-items:center;gap:18px;
+  height:310px;padding:22px 16px;cursor:pointer;border:1px solid transparent;overflow:hidden}
 #sheet figure:hover,#sheet figure[aria-current="true"]{border-color:var(--line)}
-#sheet img{max-width:100%;max-height:100%;height:100%;object-fit:contain}
-#sheet figcaption{color:var(--dim);font-size:10px;letter-spacing:.12em;text-align:center;
-  line-height:1.6;height:2.6em;overflow:hidden}
-#sheet figure[aria-current="true"] figcaption{color:var(--ink)}
+#sheet img{max-width:100%;max-height:100%;min-height:0;height:100%;object-fit:contain}
+#sheet figcaption{color:var(--dim);font-size:11px;letter-spacing:.14em;text-align:center;line-height:1.6}
+#sheet figure:hover figcaption,#sheet figure[aria-current="true"] figcaption{color:var(--ink)}
 
 @media (max-width:760px){
   #bar{flex-wrap:wrap;justify-content:center;gap:0 14px}
   .grp{gap:13px}
   .btn{font-size:12px;padding:14px 3px}
   #name{width:100%;order:-1;padding-top:14px;padding-bottom:0}
-  #foot{font-size:11.5px}
-  #sheet{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}
-  #sheet figure{height:186px}
-}
-@media (prefers-reduced-motion:reduce){ .tile{animation:none} .tile .sheen{animation:none;opacity:0} }
+  @media (prefers-reduced-motion:reduce){ .tile{animation:none} .tile .sheen{animation:none;opacity:0} }
 </style>
 </head>
 <body>
@@ -172,6 +167,7 @@ body.bare #dock,body.bare .grip,body.bare #grab{display:none}
       <button class="btn arrow" id="prev" aria-label="previous variation">‹</button>
       <button class="btn" id="name" title="every variation"></button>
       <button class="btn arrow" id="next" aria-label="next variation">›</button>
+      <button class="btn" id="all">ALL 18</button>
       <span class="sep"></span>
       <button class="btn arrow" id="less" aria-label="fewer">−</button>
       <button class="btn" id="num"></button>
@@ -180,20 +176,13 @@ body.bare #dock,body.bare .grip,body.bare #grab{display:none}
     <div class="grp">
       <button class="btn" id="reset">RESET</button>
       <span class="sep"></span>
+      <button class="btn" id="save">SAVE</button>
       <button class="btn" id="share">SHARE</button>
       <span class="sep"></span>
-      <button class="btn" id="hide">HIDE UI</button>
+      <button class="btn" id="hide">HIDE</button>
+      <a class="btn" id="logos" href="/logos">LOGOS&nbsp;&nbsp;&#8594;</a>
     </div>
   </div>
-  <footer id="foot">
-    <p>Drag any mark where you like, whenever you like — the circle at its corner
-      spins and scales it. The <b>dots</b> set the ground, <b>‹&#8239;›</b> change the
-      variation (the name opens all 18), <b>−&#8239;+</b> set how many. Hover a mark to
-      take it as SVG or PNG.<br>
-      <b>HIDE UI</b> clears the screen for a screenshot — tap to bring it back. When you
-      make something good, <b>SHARE</b> sends me the picture and the exact arrangement.</p>
-    <a href="/logos">&#8592;&nbsp;&nbsp;LOGOS</a>
-  </footer>
 </div>
 
 <div id="sheet" role="dialog" aria-label="all variations"></div>
@@ -236,7 +225,7 @@ body.bare #dock,body.bare .grip,body.bare #grab{display:none}
 
   function baseSize(){
     const l=logo(), A=l.w/l.h;
-    const h=Math.min(free()-76,(innerWidth*.88)/A);
+    const h=Math.min(free()-92,(innerWidth*.9)/A);
     return {w:h*A, h:h};
   }
   const spread=()=>{ const l=logo(); return (l.w/l.h)<.3 ? 1.7 : 1.3; };
@@ -264,7 +253,11 @@ body.bare #dock,body.bare .grip,body.bare #grab{display:none}
       sh.className='sheen';
       sh.style.cssText=`-webkit-mask-image:url("${art}");mask-image:url("${art}")`;
       t.append(im,sh);
-      if(c===0){ const g=document.createElement('div'); g.className='grip'; t.appendChild(g); }
+      if(c===0){
+        const f=document.createElement('div'); f.className='frame';
+        const g=document.createElement('div'); g.className='grip';
+        t.append(f,g);
+      }
       frag.appendChild(t);
     }
     field.appendChild(frag);
@@ -298,7 +291,7 @@ body.bare #dock,body.bare .grip,body.bare #grab{display:none}
          d0:Math.hypot(e.clientY-c.y,e.clientX-c.x)||1, r0:S.T.r, s0:S.T.s}
       : {dx:e.clientX-S.T.x, dy:e.clientY-S.T.y};
     if(t) t.classList.add('dragging');
-    if(grip) grip.classList.add('hot');
+    if(grip){ grip.classList.add('hot'); body.classList.add('sizing'); }
     try{ field.setPointerCapture(e.pointerId); }catch(_){}
   });
   addEventListener('pointermove',e=>{
@@ -312,7 +305,7 @@ body.bare #dock,body.bare .grip,body.bare #grab{display:none}
     }else{ S.T.x=e.clientX-drag.dx; S.T.y=e.clientY-drag.dy; }
     paint();
   });
-  const endDrag=()=>{ if(!drag) return; drag=null; hash();
+  const endDrag=()=>{ if(!drag) return; drag=null; hash(); body.classList.remove('sizing');
     document.querySelectorAll('.dragging').forEach(t=>t.classList.remove('dragging'));
     document.querySelectorAll('.grip.hot').forEach(g=>g.classList.remove('hot')); };
   addEventListener('pointerup',endDrag);
@@ -379,6 +372,11 @@ body.bare #dock,body.bare .grip,body.bare #grab{display:none}
     return new Promise(r=>c.toBlob(r,'image/png'));
   }
   const prime=()=>{ if(!shot) shot=render(); return shot; };
+  $('save').addEventListener('click',async()=>{
+    const l=logo(), b=await prime();
+    save(b, `paradox-${l.id}-${PALETTES[S.pal]}.png`);
+  });
+  $('save').addEventListener('pointerdown',prime);
   const shareBtn=$('share');
   /* start drawing on press so the sheet can open on release — iOS only hands
      it over inside the gesture that asked for it */
@@ -405,13 +403,17 @@ body.bare #dock,body.bare .grip,body.bare #grab{display:none}
   /* ── the index of every mark ────────────────────────────────────────── */
   function fillSheet(){
     const ink=inkNow();
-    sheet.innerHTML='';
+    sheet.innerHTML='<header><span>ALL '+L.length+' VARIATIONS</span>'+
+                    '<button class="btn" id="close">CLOSE</button></header>';
+    const grid=document.createElement('div'); grid.className='grid';
+    sheet.appendChild(grid);
+    $('close').addEventListener('click',()=>toggleSheet(false));
     L.forEach((l,i)=>{
       const f=document.createElement('figure');
       f.setAttribute('aria-current',String(i===S.i));
       f.innerHTML=`<img src="${uri(svgText(l,ink))}" alt="${l.label}"><figcaption>${l.label}</figcaption>`;
       f.addEventListener('click',()=>{ S.i=i; toggleSheet(false); build(); });
-      sheet.appendChild(f);
+      grid.appendChild(f);
     });
   }
   function toggleSheet(on){
@@ -420,7 +422,8 @@ body.bare #dock,body.bare .grip,body.bare #grab{display:none}
     sheet.classList.toggle('on',want);
   }
   $('name').addEventListener('click',()=>toggleSheet());
-  sheet.addEventListener('click',e=>{ if(e.target===sheet) toggleSheet(false); });
+  $('all').addEventListener('click',()=>toggleSheet());
+  sheet.addEventListener('click',e=>{ if(e.target===sheet||e.target.className==='grid') toggleSheet(false); });
 
   /* ── state ──────────────────────────────────────────────────────────── */
   function marks(){

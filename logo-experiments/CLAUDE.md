@@ -10,18 +10,27 @@ There are no modes. One mark (or several copies of it) sits on the page and is
 spins and scales it. Nothing else is chrome on the artwork: no frame, no
 selection box.
 
-The controls are one bar, and only these: **colour** (three dots — black, white,
-the deck's violet `#594992`), **variation** (`‹ ›`, and the name opens an index
-of all 18), **number** (`− ×n +`, copies spread along the mark's own rotated
-axis), **RESET**, **SHARE**, **HIDE UI**. A footer under it explains that in two
-sentences and links to `/logos`.
+The controls are one quiet bar and nothing else — **no explanatory text**; the
+thing has to be obvious. Left to right: **colour** (three dots — black, white,
+the deck's violet `#594992`), **variation** (`‹ ›` plus **ALL 18**, which says
+what it opens), **number** (`− ×n +`, copies spread along the mark's own rotated
+axis), **RESET**, **SAVE**, **SHARE**, **HIDE**, and a link to `/logos`.
+
+- **SAVE** writes what is on screen right now to a PNG (~2600px on the long
+  edge): the ground and the marks exactly as arranged, none of the chrome.
+- **ALL 18** fills the screen with every variation, each presented on its own
+  with its name, and a CLOSE in the corner. It replaces the view rather than
+  crowding it.
+- While the corner circle is held, a hairline box shows the mark's bounds to
+  size against. It appears on grab and goes on release, and never shows for a
+  plain drag.
 
 Everything holds its place: changing colour or variation keeps the position,
 scale, rotation and count; the controls have fixed-width fields so stepping
 through marks or counts never shifts them; and the dock's height is cached, so
 HIDE UI doesn't resize or move the artwork.
 
-- **HIDE UI** strips the screen for a screenshot; a tap that isn't a drag (or
+- **HIDE** strips the screen for a screenshot; a tap that isn't a drag (or
   `H`/`Esc`) brings it back.
 - **Hover a mark** → `SVG` / `PNG` (4096px on the long edge, transparent ground).
 - **SHARE** redraws the composition onto a canvas (same positions, rotations and
@@ -79,6 +88,18 @@ python3 tools/build_logos.py     # ~14s, walks every page of both decks
 - Cinema mode fades the chrome to `.16` rather than `0` — at `0` with
   `pointer-events:none` the controls became an invisible dead zone.
 - `[hidden]` needs `!important` here: the bar's groups are flex boxes.
+- **No instructions on screen.** Labern's standing verdict: "delete the text that
+  explains how it works. It should be obvious." The logo being shown is the
+  point; everything else earns its pixels or goes.
+- The sizing box is toggled with `display`, not `opacity`. With a transition on
+  `opacity` the computed value stayed at 0 even seconds after the class landed
+  (cascade verified correct — it resolved to 1 the moment the transition was
+  removed). A guide should snap on anyway.
+- The index grid needs `grid-template-rows: minmax(0,1fr) auto`: a plain `1fr`
+  will not shrink below the image's intrinsic size, so every mark overflowed
+  its cell and they printed on top of each other.
+- The mark's height leaves ~92px of the free area spare so the corner handle,
+  which hangs 44px past the artwork, stays clear of the bar.
 - **Never auto-hide the controls.** An earlier build faded them to 16% opacity
   when idle; Labern's verdict was "the UI is awful, I can't see it". HIDE UI is
   the only thing that removes them, and only when asked.
