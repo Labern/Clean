@@ -514,12 +514,21 @@ body.bare #dock,body.bare .grip,body.bare .frame,body.bare #grab{display:none}
   $('num').addEventListener('click',()=>setNum(1));
   $('reset').addEventListener('click',reset);
 
-  const bare=on=>body.classList.toggle('bare', on===undefined ? !body.classList.contains('bare') : on);
+  let hidAt=0;
+  const bare=on=>{
+    const want = on===undefined ? !body.classList.contains('bare') : on;
+    body.classList.toggle('bare',want);
+    if(want) hidAt=Date.now();
+  };
   $('hide').addEventListener('click',()=>bare(true));
   /* bring the controls back: the bottom of the page always does it, and so
      does any tap that was not a drag */
   addEventListener('click',e=>{
     if(!body.classList.contains('bare')) return;
+    /* the very click that hid the controls started on the bar and is still
+       travelling — it must not turn round and undo itself */
+    if(Date.now()-hidAt<400) return;
+    if(e.target&&e.target.closest&&e.target.closest('#dock')) return;
     if(e.clientY>innerHeight-96 || !moved) bare(false);
   });
 
