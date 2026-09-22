@@ -24,6 +24,16 @@ axis), **RESET**, **SAVE**, **SHARE**, **HIDE**, and a link to `/logos`.
 - While the corner circle is held, a hairline box shows the mark's bounds to
   size against. It appears on grab and goes on release, and never shows for a
   plain drag.
+- **The circle clears itself away** once you have sized something, so it is not
+  sitting on the artwork. It comes back on hover, while dragging, and on a
+  **double click** on the mark (Labern's call: "double click to bring back
+  circle is fine").
+- **Zoom** runs past the edge of the window on purpose. Sizing from the circle
+  alone is a trap — scale the mark beyond the viewport and the circle goes with
+  it — so zoom also lives on the **wheel** and on a **two-finger pinch** (both
+  scale about the pointer, so what you aim at stays put), and on `− 140% +` in
+  the bar, which cannot be scrolled off screen. Clicking the percentage is the
+  way home: back to 100% and back to the middle, from however far out.
 
 Everything holds its place: changing colour or variation keeps the position,
 scale, rotation and count; the controls have fixed-width fields so stepping
@@ -91,10 +101,16 @@ python3 tools/build_logos.py     # ~14s, walks every page of both decks
 - **No instructions on screen.** Labern's standing verdict: "delete the text that
   explains how it works. It should be obvious." The logo being shown is the
   point; everything else earns its pixels or goes.
-- The sizing box is toggled with `display`, not `opacity`. With a transition on
-  `opacity` the computed value stayed at 0 even seconds after the class landed
-  (cascade verified correct — it resolved to 1 the moment the transition was
-  removed). A guide should snap on anyway.
+- **Toggle the grip and the sizing box with `display`, never a transitioned
+  `opacity`.** Both were written that way first and both stuck at their old
+  computed value indefinitely after the class changed — with the cascade
+  verified correct, the shorthand parsed correctly (`opacity 0.18s
+  cubic-bezier(...)`), and `getAnimations()` empty. Snapping is better for
+  these anyway; don't spend another hour on it.
+- `HIDE` must never be a one-way door. `moved` is reset on a capture-phase
+  `pointerdown` on the window, because a click on empty ground never reaches
+  the `#field` handler and the flag would otherwise stay `true` from the last
+  drag forever — which is exactly how HIDE became unrecoverable once.
 - The index grid needs `grid-template-rows: minmax(0,1fr) auto`: a plain `1fr`
   will not shrink below the image's intrinsic size, so every mark overflowed
   its cell and they printed on top of each other.

@@ -68,8 +68,11 @@ body.sizing .frame{display:block}
 .grip{
   position:absolute;right:-31px;bottom:-31px;width:26px;height:26px;border-radius:50%;
   background:var(--bg);border:1.5px solid var(--ink);cursor:nwse-resize;touch-action:none;
-  transition:background-color .2s var(--t),transform .2s var(--t);
+  display:none;transition:background-color .2s var(--t),transform .2s var(--t);
 }
+/* it shows while you are on the mark or working it, and clears itself away
+   once you have sized something — a double click calls it back */
+.tile:hover .grip,body.grip-on .grip,body.sizing .grip{display:block}
 .grip::before{content:"";position:absolute;inset:-16px;border-radius:50%}
 .grip.hot{background:var(--ink);transform:scale(1.2)}
 @media (pointer:coarse){ .grip{width:32px;height:32px;right:-34px;bottom:-34px}
@@ -103,6 +106,7 @@ body.sizing .frame{display:block}
 #logos{text-decoration:none}
 #name{width:29ch;text-align:center;color:var(--ink);letter-spacing:.14em;overflow:hidden}
 #num{width:4.5ch;text-align:center;color:var(--ink)}
+#zoom{width:6ch;text-align:center;color:var(--ink)}
 #dots{display:flex;gap:14px;align-items:center;padding:14px 0}
 .dot{
   appearance:none;border:1.5px solid var(--line);width:19px;height:19px;border-radius:50%;
@@ -172,6 +176,10 @@ body.bare #dock,body.bare .grip,body.bare .frame,body.bare #grab{display:none}
       <button class="btn arrow" id="less" aria-label="fewer">−</button>
       <button class="btn" id="num"></button>
       <button class="btn arrow" id="more" aria-label="more">+</button>
+      <span class="sep"></span>
+      <button class="btn arrow" id="out" aria-label="smaller">−</button>
+      <button class="btn" id="zoom" title="back to fit"></button>
+      <button class="btn arrow" id="in" aria-label="bigger">+</button>
     </div>
     <div class="grp">
       <button class="btn" id="reset">RESET</button>
@@ -264,6 +272,7 @@ body.bare #dock,body.bare .grip,body.bare .frame,body.bare #grab{display:none}
     forgetShot();
     $('name').textContent=l.label;
     $('num').textContent='×'+T.n;
+    showZoom();
     hash();
   }
   /* while dragging, move what is on screen instead of rebuilding it */
@@ -278,13 +287,51 @@ body.bare #dock,body.bare .grip,body.bare .frame,body.bare #grab{display:none}
     forgetShot();
   }
 
+  /* ── zoom ────────────────────────────────────────────────────────────
+     Scaling from the corner circle runs out of road: size the mark past the
+     window and the circle goes with it. So zoom also lives on the wheel, on a
+     pinch, and in the bar — none of which can be scrolled off the screen. */
+  const MIN=.05, MAX=40;
+  function zoomBy(f, px, py){
+    const T=S.T, s=Math.max(MIN,Math.min(MAX,T.s*f));
+    f=s/T.s;                                  // the factor actually applied
+    if(f===1) return;
+    T.s=s;
+    if(px!=null){ T.x=px+(T.x-px)*f; T.y=py+(T.y-py)*f; }
+    paint(); showZoom(); hash();
+  }
+  const showZoom=()=>{ $('zoom').textContent=Math.round(S.T.s*100)+'%'; };
+  $('in').addEventListener('click',()=>zoomBy(1.25));
+  $('out').addEventListener('click',()=>zoomBy(1/1.25));
+  /* the readout is the way home: back to fit, and back on screen, however far
+     out you went */
+  $('zoom').addEventListener('click',()=>{
+    S.T.s=1; S.T.x=innerWidth/2; S.T.y=free()/2;
+    paint(); showZoom(); hash();
+  });
+  addEventListener('wheel',e=>{
+    if(sheet.classList.contains('on')) return;
+    if(e.target&&e.target.closest&&e.target.closest('#dock')) return;
+    e.preventDefault();
+    zoomBy(Math.exp(-e.deltaY*.0015), e.clientX, e.clientY);
+  },{passive:false});
+
   /* ── drag it, spin it, scale it — always, mouse or finger ───────────── */
-  let drag=null, moved=false;
+  let drag=null, moved=false, pinch=null;
+  const touches=new Map();
+  addEventListener('pointerdown',e=>{ moved=false; },true);
   field.addEventListener('pointerdown',e=>{
     const grip=e.target.closest('.grip'), t=e.target.closest('.tile');
     if(!t&&!grip) return;
     e.preventDefault();
-    moved=false;
+    touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    body.classList.add('grip-on');
+    if(touches.size===2){                      /* two fingers: pinch to zoom */
+      const [a,b]=[...touches.values()];
+      pinch={d:Math.hypot(a.x-b.x,a.y-b.y)||1};
+      drag=null; body.classList.remove('sizing');
+      return;
+    }
     const c={x:S.T.x,y:S.T.y};
     drag = grip
       ? {grip:true, a0:Math.atan2(e.clientY-c.y,e.clientX-c.x),
@@ -295,6 +342,14 @@ body.bare #dock,body.bare .grip,body.bare .frame,body.bare #grab{display:none}
     try{ field.setPointerCapture(e.pointerId); }catch(_){}
   });
   addEventListener('pointermove',e=>{
+    if(touches.has(e.pointerId)) touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pinch&&touches.size===2){
+      const [a,b]=[...touches.values()], d=Math.hypot(a.x-b.x,a.y-b.y)||1;
+      moved=true;
+      zoomBy(d/pinch.d,(a.x+b.x)/2,(a.y+b.y)/2);
+      pinch.d=d;
+      return;
+    }
     if(!drag) return;
     moved=true;
     if(drag.grip){
@@ -305,11 +360,20 @@ body.bare #dock,body.bare .grip,body.bare .frame,body.bare #grab{display:none}
     }else{ S.T.x=e.clientX-drag.dx; S.T.y=e.clientY-drag.dy; }
     paint();
   });
-  const endDrag=()=>{ if(!drag) return; drag=null; hash(); body.classList.remove('sizing');
+  const endDrag=e=>{
+    if(e&&e.pointerId!=null) touches.delete(e.pointerId);
+    if(touches.size<2) pinch=null;
+    /* once something has been sized, the circle gets out of the way */
+    if(body.classList.contains('sizing')) body.classList.remove('grip-on');
+    if(!drag) return; drag=null; hash(); body.classList.remove('sizing');
     document.querySelectorAll('.dragging').forEach(t=>t.classList.remove('dragging'));
     document.querySelectorAll('.grip.hot').forEach(g=>g.classList.remove('hot')); };
   addEventListener('pointerup',endDrag);
   addEventListener('pointercancel',endDrag);
+  /* a double click on the mark calls the circle back */
+  field.addEventListener('dblclick',e=>{
+    if(e.target.closest('.tile')) body.classList.add('grip-on');
+  });
 
   /* ── downloads ──────────────────────────────────────────────────────── */
   function save(blob,name){
@@ -452,11 +516,11 @@ body.bare #dock,body.bare .grip,body.bare .frame,body.bare #grab{display:none}
 
   const bare=on=>body.classList.toggle('bare', on===undefined ? !body.classList.contains('bare') : on);
   $('hide').addEventListener('click',()=>bare(true));
-  /* a tap that is not a drag brings the controls back */
+  /* bring the controls back: the bottom of the page always does it, and so
+     does any tap that was not a drag */
   addEventListener('click',e=>{
-    if(!body.classList.contains('bare')||moved) return;
-    if(e.target.closest('#dock')) return;
-    bare(false);
+    if(!body.classList.contains('bare')) return;
+    if(e.clientY>innerHeight-96 || !moved) bare(false);
   });
 
   function hash(){
@@ -502,7 +566,7 @@ body.bare #dock,body.bare .grip,body.bare .frame,body.bare #grab{display:none}
   },120); });
 
   addEventListener('hashchange',()=>{ fromHash(); build(); });
-  fromHash(); build();
+  fromHash(); build(); body.classList.add('grip-on');
 })();
 </script>
 </body>
