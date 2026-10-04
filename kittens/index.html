@@ -1,0 +1,1222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ffca3a">
+<title>Misato &amp; Pen Pen</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
+<style>
+/* ── tokens — the Lemon Counter palette (lemons.html), kitten edition ── */
+:root{
+  --r:#ff595e; --o:#ff924c; --y:#ffca3a; --g:#8ac926; --b:#1982c4; --i:#6a4c93; --v:#b15ee3;
+  --gold:#ffec99; --ink:#1a1a1a; --faint:#5b5266; --purple:#5a3d86;
+  --card:rgba(255,255,255,.95); --soft:#fffdf5; --cream:#fffbe0;
+  --pop:0 8px 0 rgba(0,0,0,.18), 0 12px 24px rgba(0,0,0,.22);
+  --pop-sm:0 4px 0 rgba(0,0,0,.18), 0 6px 12px rgba(0,0,0,.18);
+  --misato:#f3f0ff; --misato-line:#b15ee3; --penpen:#2b2b30;
+  --font:"Comic Sans MS","Comic Sans","Chalkboard SE","Marker Felt",system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth;scroll-padding-top:70px}
+body{font-family:var(--font);color:var(--ink);min-height:100vh;overflow-x:hidden;
+  padding:4vh 16px calc(10vh + env(safe-area-inset-bottom));
+  background:linear-gradient(180deg,var(--r) 0%,var(--o) 16%,var(--y) 33%,var(--g) 50%,var(--b) 67%,var(--i) 84%,var(--v) 100%);
+  background-attachment:fixed}
+.wrap{max-width:980px;margin:0 auto;position:relative;z-index:1}
+button,input,select,textarea{font-family:inherit;font-size:1rem;color:var(--ink)}
+[hidden]{display:none!important}
+
+/* ── header ── */
+header{text-align:center}
+h1{font-size:clamp(2.3rem,9vw,4.6rem);line-height:1.05;color:#fff;font-weight:900;
+  text-shadow:3px 3px 0 var(--i),-2px -2px 0 var(--r),0 0 18px rgba(0,0,0,.25)}
+h1 .amp{display:inline-block;animation:pop 2.6s ease-in-out infinite;color:var(--gold)}
+.tagline{color:#fff;font-weight:900;font-size:clamp(1rem,4vw,1.4rem);text-shadow:2px 2px 0 rgba(0,0,0,.25);margin:.3rem 0 .8rem}
+.toprow{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.pill{font-weight:900;font-size:clamp(.78rem,3.3vw,.9rem);color:var(--i);background:var(--soft);border:4px solid #fff;border-radius:999px;
+  padding:.45em 1em;box-shadow:var(--pop-sm);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .1s}
+.pill:active{transform:translateY(3px)}
+.pill.on{background:var(--i);color:#fff;border-color:var(--gold)}
+#syncpill .dot{display:inline-block;width:.65em;height:.65em;border-radius:50%;background:#aaa;margin-right:5px;vertical-align:.02em}
+#syncpill.ok .dot{background:var(--g);box-shadow:0 0 8px var(--g)}
+#syncpill.warn .dot{background:var(--o)}
+
+/* sticky section nav */
+nav{position:sticky;top:6px;z-index:20;display:flex;gap:6px;overflow-x:auto;padding:6px;margin:0 -6px 6px;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch}
+nav::-webkit-scrollbar{display:none}
+nav a{flex:none;text-decoration:none;font-weight:900;font-size:.85rem;color:var(--purple);background:rgba(255,253,245,.96);
+  border:3px solid #000;border-radius:999px;padding:.35em .85em;box-shadow:var(--pop-sm)}
+
+/* ── the stage: girl · kittens · lemon ── */
+.bubble{position:relative;background:rgba(255,255,255,.97);border:5px solid #000;border-radius:30px;
+  padding:clamp(1rem,4vw,1.6rem);max-width:660px;margin:0 auto 34px;box-shadow:0 16px 36px rgba(0,0,0,.28);text-align:center;min-height:5.2em;
+  display:flex;flex-direction:column;justify-content:center}
+.bubble::after{content:"";position:absolute;bottom:-26px;left:50%;transform:translateX(-50%);
+  border-left:24px solid transparent;border-right:24px solid transparent;border-top:28px solid #000}
+.bubble::before{content:"";position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);z-index:1;
+  border-left:16px solid transparent;border-right:16px solid transparent;border-top:20px solid rgba(255,255,255,.97)}
+#say{font-size:clamp(1.15rem,4.6vw,1.8rem);font-weight:900;line-height:1.3;transition:opacity .35s}
+#say b{color:var(--i);text-shadow:2px 2px 0 var(--gold)}
+#saysub{font-size:.9rem;color:var(--faint);font-weight:800;margin-top:.4rem}
+.stage{display:flex;justify-content:center;align-items:flex-end;gap:clamp(2px,1.5vw,22px);flex-wrap:nowrap;
+  padding:0 4px 18px;position:relative;margin-bottom:6px}
+.stage::after{content:"";position:absolute;left:4%;right:4%;bottom:10px;height:16px;border-radius:50%;
+  background:radial-gradient(ellipse at center,rgba(0,0,0,.28),transparent 70%)}
+.char{position:relative;display:flex;flex-direction:column;align-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.char svg,.char img{display:block;filter:drop-shadow(0 10px 12px rgba(0,0,0,.3))}
+.char .tag{margin-top:2px;font-weight:900;font-size:clamp(.66rem,2.6vw,.95rem);background:var(--soft);border:3px solid #000;
+  border-radius:999px;padding:.1em .7em;box-shadow:var(--pop-sm);white-space:nowrap;z-index:2}
+.char .tag small{font-weight:800;color:var(--faint)}
+.bob{animation:bob 3s ease-in-out infinite}
+.bob2{animation:bob 3.4s ease-in-out infinite .5s}
+.bob3{animation:bob 3.2s ease-in-out infinite 1.1s}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-10px) rotate(1deg)}}
+@keyframes pop{0%,100%{transform:scale(1)}50%{transform:scale(1.12) rotate(-2deg)}}
+.char.mew::before{content:attr(data-mew);position:absolute;top:-28px;font-weight:900;font-size:1rem;background:#fff;border:3px solid #000;
+  border-radius:16px;padding:2px 10px;white-space:nowrap;animation:mew 1.4s ease forwards;z-index:3}
+@keyframes mew{0%{opacity:0;transform:translateY(8px) scale(.7)}20%{opacity:1;transform:none}80%{opacity:1}100%{opacity:0;transform:translateY(-10px)}}
+.k-eyes{transform-box:fill-box;transform-origin:center;animation:blink 6s infinite}
+.char:nth-child(3) .k-eyes{animation-delay:2.3s}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.1)}}
+.char.slow .k-eyes{animation:slowblink 1.6s ease-in-out}
+@keyframes slowblink{0%,100%{transform:scaleY(1)}35%,65%{transform:scaleY(.08)}}
+.k-tail{transform-box:view-box;transform-origin:150px 175px;animation:swish 2.6s ease-in-out infinite}
+@keyframes swish{0%,100%{transform:rotate(0)}50%{transform:rotate(-9deg)}}
+.scalenote{text-align:center;color:#fff;font-weight:900;font-size:.85rem;text-shadow:1px 1px 0 rgba(0,0,0,.35);margin-bottom:14px}
+
+/* ── cards ── */
+.card{background:var(--card);border:4px solid #000;border-radius:26px;box-shadow:var(--pop);padding:clamp(14px,3.5vw,24px);margin:18px 0;position:relative}
+.card h2{font-size:clamp(1.35rem,5vw,1.9rem);color:var(--i);text-shadow:2px 2px 0 var(--gold);line-height:1.15;margin-bottom:.15em}
+.card .sub{color:var(--faint);font-weight:800;font-size:.9rem;margin-bottom:12px}
+.card h3{font-size:1.05rem;color:var(--purple);margin:14px 0 8px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px}
+.mini{background:var(--soft);border:3px solid #000;border-radius:20px;padding:14px;box-shadow:var(--pop-sm)}
+.mini.misato{background:linear-gradient(160deg,#fff 0%,#f3ecff 100%)}
+.mini.penpen{background:linear-gradient(160deg,#3a3a42 0%,#1f1f24 100%);color:#fff}
+.mini.penpen .muted,.mini.penpen .stat small{color:#cfc9da}
+.mini.penpen .stat b{color:var(--gold);text-shadow:none}
+.muted{color:var(--faint);font-size:.88rem}
+.khead{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.avatar{width:64px;height:64px;border-radius:50%;border:3px solid #000;background:#fff center/cover no-repeat;flex:none;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;box-shadow:var(--pop-sm)}
+.avatar svg{width:100%;height:100%}
+.khead .nm{font-size:1.45rem;font-weight:900;line-height:1}
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:10px 0}
+.stat{background:rgba(255,255,255,.55);border:2.5px dashed currentColor;border-radius:14px;padding:7px 9px}
+.penpen .stat{background:rgba(255,255,255,.07)}
+.stat small{display:block;font-size:.72rem;font-weight:800;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+.stat b{font-size:1.15rem;color:var(--i);text-shadow:1px 1px 0 var(--gold)}
+.lemonrow{display:flex;flex-wrap:wrap;gap:2px;align-items:center;margin-top:4px;font-size:1.2rem;line-height:1}
+.lemonrow .part{display:inline-block;overflow:hidden;vertical-align:bottom}
+
+/* forms */
+.form{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:3px;flex:1 1 120px;min-width:0}
+.field.wide{flex:3 1 220px}
+.field label{font-size:.75rem;font-weight:900;color:var(--purple);text-transform:uppercase;letter-spacing:.04em}
+input[type=text],input[type=number],input[type=date],input[type=url],input[type=time],select,textarea{
+  width:100%;padding:9px 11px;border:3px solid #000;border-radius:14px;background:var(--cream);box-shadow:var(--pop-sm);min-height:44px}
+textarea{resize:vertical;min-height:70px}
+input[type=color]{width:100%;height:44px;border:3px solid #000;border-radius:14px;background:var(--cream);padding:3px}
+.btn{font-weight:900;font-size:1rem;color:var(--i);background:var(--soft);border:4px solid #000;border-radius:999px;
+  padding:.5em 1.1em;cursor:pointer;box-shadow:var(--pop-sm);min-height:44px;-webkit-tap-highlight-color:transparent;transition:transform .1s}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 rgba(0,0,0,.2)}
+.btn.go{background:var(--y);color:#000}
+.btn.sm{font-size:.82rem;padding:.25em .8em;min-height:34px;border-width:3px}
+.btn.ghost{background:transparent;box-shadow:none;border-style:dashed}
+.x{background:none;border:none;font-size:1.05rem;cursor:pointer;opacity:.55;padding:4px 6px;min-width:32px;min-height:32px}
+.x:hover{opacity:1}
+.seg{display:inline-flex;border:3px solid #000;border-radius:999px;overflow:hidden;box-shadow:var(--pop-sm);background:var(--soft)}
+.seg button{border:none;background:none;padding:.35em .8em;font-weight:900;cursor:pointer;color:var(--purple);min-height:40px}
+.seg button.on{background:var(--i);color:#fff}
+
+/* chart */
+#chartwrap{position:relative;margin-top:6px}
+#chart{width:100%;height:auto;display:block;background:#fff;border:3px solid #000;border-radius:18px;box-shadow:var(--pop-sm);touch-action:pan-y}
+#chart text{font-family:var(--font);font-size:11px;fill:#5b5266}
+#tip{position:absolute;pointer-events:none;background:#000;color:#fff;font-weight:800;font-size:.8rem;padding:5px 9px;border-radius:10px;
+  white-space:nowrap;transform:translate(-50%,-125%);opacity:0;transition:opacity .15s}
+#tip.on{opacity:1}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem;font-weight:800;color:var(--faint);margin-top:8px}
+.legend i{display:inline-block;width:22px;height:6px;border-radius:3px;vertical-align:middle;margin-right:5px;border:1.5px solid #000}
+
+/* lists */
+.list{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.row{display:flex;align-items:center;gap:10px;background:var(--soft);border:3px solid #000;border-radius:16px;padding:8px 10px;box-shadow:var(--pop-sm)}
+.row .grow{flex:1;min-width:0}
+.row .t{font-weight:800;overflow-wrap:anywhere}
+.row .m{font-size:.8rem;color:var(--faint);font-weight:700}
+.row.done .t{text-decoration:line-through;opacity:.55}
+.row.over{border-color:var(--r);background:#fff1f1}
+.row.soon{border-color:var(--o);background:#fff6ea}
+.emo{font-size:1.5rem;flex:none;width:1.6em;text-align:center}
+.chk{appearance:none;-webkit-appearance:none;width:28px;height:28px;border:3px solid #000;border-radius:9px;background:#fff;flex:none;cursor:pointer;
+  display:grid;place-content:center}
+.chk:checked{background:var(--g)}
+.chk:checked::after{content:"✓";color:#fff;font-weight:900;font-size:18px;line-height:1}
+.kdot{display:inline-block;font-size:.72rem;font-weight:900;border:2px solid #000;border-radius:999px;padding:0 .5em;margin-right:4px;vertical-align:.1em}
+.kdot.misato{background:#fff}.kdot.penpen{background:#2b2b30;color:#fff}.kdot.both{background:linear-gradient(90deg,#fff 50%,#2b2b30 50%);color:var(--o)}
+.empty{text-align:center;color:var(--faint);font-weight:800;padding:14px;border:3px dashed #bbb;border-radius:16px}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+
+/* timeline */
+.tl{position:relative;margin-top:12px;padding-left:22px}
+.tl::before{content:"";position:absolute;left:8px;top:6px;bottom:6px;width:5px;border-radius:3px;
+  background:linear-gradient(180deg,var(--r),var(--o),var(--y),var(--g),var(--b),var(--i),var(--v))}
+.tl .row{position:relative;margin-bottom:10px;align-items:flex-start}
+.tl .row::before{content:"";position:absolute;left:-21px;top:16px;width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #000}
+.tl img{max-width:100%;max-height:260px;border-radius:12px;border:3px solid #000;margin-top:6px;display:block;cursor:zoom-in}
+
+/* food */
+.hearts{display:inline-flex;gap:1px;cursor:pointer;font-size:1.05rem;user-select:none}
+.hearts span{filter:grayscale(1);opacity:.35}
+.hearts span.on{filter:none;opacity:1}
+
+/* today care */
+.care{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.carebtn{display:flex;flex-direction:column;align-items:center;gap:2px;background:var(--soft);border:3px solid #000;border-radius:18px;
+  padding:10px 6px;box-shadow:var(--pop-sm);cursor:pointer;font-weight:900;-webkit-tap-highlight-color:transparent;user-select:none}
+.carebtn:active{transform:translateY(3px)}
+.carebtn .big{font-size:1.9rem;line-height:1}
+.carebtn .n{font-size:1.3rem;color:var(--i)}
+.carebtn small{font-size:.7rem;color:var(--faint)}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:12px;font-size:.72rem;text-align:center;font-weight:800;color:var(--faint)}
+.week div{background:var(--soft);border:2px solid #000;border-radius:10px;padding:4px 2px;line-height:1.35}
+.week div.today{background:var(--gold)}
+
+/* facts */
+.fact{font-size:clamp(1.05rem,4vw,1.3rem);font-weight:800;line-height:1.45;min-height:4.4em}
+.stagebox{background:linear-gradient(135deg,#fffbe0,#ffe9f3);border:3px solid #000;border-radius:18px;padding:12px 14px;margin-top:12px;box-shadow:var(--pop-sm)}
+.stagebox b{color:var(--i)}
+.stagebox ul{margin:6px 0 0 1.1em;font-weight:700;font-size:.95rem;line-height:1.5}
+
+/* cams */
+.cams{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr));gap:12px;margin-top:12px}
+.cam{background:#111;border:4px solid #000;border-radius:18px;overflow:hidden;box-shadow:var(--pop-sm);position:relative}
+.cam .feed{aspect-ratio:16/9;width:100%;display:flex;align-items:center;justify-content:center;background:#1b1b22;color:#ddd;font-weight:800;text-align:center;position:relative}
+.cam .feed video,.cam .feed img,.cam .feed iframe{width:100%;height:100%;object-fit:cover;border:0;display:block}
+.cam .bar{display:flex;align-items:center;gap:6px;padding:6px 10px;background:#000;color:#fff;font-weight:900;font-size:.9rem}
+.cam .bar .grow{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cam .bar button{background:none;border:none;color:#fff;cursor:pointer;font-size:1rem;min-width:32px;min-height:32px}
+.live{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--r);animation:pulse 1.4s infinite}
+@keyframes pulse{50%{opacity:.25}}
+.cam .err{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:14px;background:rgba(20,20,28,.92);font-size:.85rem}
+details.guide{margin-top:12px;background:var(--soft);border:3px dashed #000;border-radius:16px;padding:10px 14px}
+details.guide summary{font-weight:900;cursor:pointer;color:var(--purple)}
+details.guide ol,details.guide ul{margin:8px 0 4px 1.2em;line-height:1.55;font-size:.92rem}
+code{font-family:ui-monospace,Menlo,monospace;font-size:.82em;background:#efe7ff;border-radius:6px;padding:1px 5px;overflow-wrap:anywhere}
+
+/* photos */
+.wall{columns:3 160px;column-gap:10px;margin-top:12px}
+.polaroid{break-inside:avoid;background:#fff;border:3px solid #000;border-radius:12px;padding:6px 6px 8px;margin-bottom:10px;box-shadow:var(--pop-sm);
+  transform:rotate(var(--rot,0deg));transition:transform .15s;position:relative}
+.polaroid:hover{transform:rotate(0) scale(1.03);z-index:2}
+.polaroid img{width:100%;display:block;border-radius:6px;cursor:zoom-in}
+.polaroid .cap{font-size:.8rem;font-weight:800;margin-top:4px}
+.polaroid .x{position:absolute;top:2px;right:2px;background:#fff;border-radius:50%}
+
+/* dialog */
+dialog{border:5px solid #000;border-radius:26px;padding:0;max-width:min(560px,94vw);width:100%;background:#fff;box-shadow:0 20px 50px rgba(0,0,0,.4)}
+dialog::backdrop{background:rgba(40,20,70,.55)}
+dialog .in{padding:18px;max-height:84vh;overflow:auto}
+dialog h2{color:var(--i);text-shadow:2px 2px 0 var(--gold);margin-bottom:10px}
+dialog .form{gap:10px}
+dialog .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
+#viewer{background:transparent;border:none;box-shadow:none;max-width:96vw}
+#viewer img{max-width:94vw;max-height:88vh;border:5px solid #000;border-radius:18px;display:block;margin:auto}
+
+/* toast + rain + sparkles */
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translate(-50%,140%);z-index:50;
+  background:#000;color:#fff;font-weight:900;padding:10px 18px;border-radius:999px;transition:transform .3s;max-width:92vw;text-align:center}
+#toast.on{transform:translate(-50%,0)}
+.rain{position:fixed;top:-8vh;font-size:clamp(1.4rem,5vw,2.4rem);pointer-events:none;animation:fall linear forwards;z-index:40}
+@keyframes fall{to{transform:translateY(115vh) rotate(360deg)}}
+.spark{position:fixed;font-size:clamp(.9rem,3vw,1.4rem);pointer-events:none;animation:twinkle 4s ease-in-out infinite;z-index:0}
+@keyframes twinkle{0%,100%{opacity:.15;transform:translateY(0) scale(.9)}50%{opacity:.9;transform:translateY(-14px) scale(1.15)}}
+footer{text-align:center;color:#fff;font-weight:900;text-shadow:1px 1px 0 rgba(0,0,0,.3);margin-top:24px;font-size:.9rem;line-height:1.7}
+footer .btn{margin:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Misato <span class="amp">&amp;</span> Pen Pen</h1>
+  <div class="tagline">🍋 the lemon and the girl's kittens 🌙</div>
+  <div class="toprow">
+    <button class="pill" id="mepill" title="Who's logging on this phone?">🍋 I'm the lemon</button>
+    <button class="pill" id="syncpill" title="Sync between your two phones"><span class="dot"></span><span id="synctext">saving…</span></button>
+    <button class="pill" id="pairbtn">📲 Pair the other phone</button>
+  </div>
+</header>
+
+<nav id="nav">
+  <a href="#kittens">🐾 Kittens</a><a href="#today">☀️ Today</a><a href="#weight">⚖️ Weight</a><a href="#moments">📅 Moments</a>
+  <a href="#food">🍽 Food</a><a href="#todo">✅ To-do</a><a href="#shop">🛒 Shopping</a><a href="#cams">📹 Cams</a>
+  <a href="#photos">📸 Photos</a><a href="#facts">🧠 Facts</a>
+</nav>
+
+<!-- the family -->
+<div class="bubble" id="bubble"><div id="say">…</div><div id="saysub"></div></div>
+<div class="stage" id="stage"></div>
+<div class="scalenote" id="scalenote"></div>
+
+<!-- kittens -->
+<section class="card" id="kittens">
+  <h2>🐾 The kittens</h2>
+  <div class="sub">Tap a profile to edit — birthday, eye colour, microchip, vet, the lot. Ages tick live.</div>
+  <div class="grid2" id="kcards"></div>
+  <div class="form" style="margin-top:14px">
+    <div class="field"><label>Came home</label><input type="date" id="homeDate"></div>
+    <div class="field wide"><div class="muted" id="homeNote" style="padding-bottom:10px"></div></div>
+  </div>
+</section>
+
+<!-- today -->
+<section class="card" id="today">
+  <h2>☀️ Today</h2>
+  <div class="sub" id="todaySub">Tap to count. Long-press (or right-click) to undo one.</div>
+  <div class="care" id="care"></div>
+  <div class="week" id="week"></div>
+</section>
+
+<!-- weight -->
+<section class="card" id="weight">
+  <h2>⚖️ Weight</h2>
+  <div class="sub">Log a weigh-in and the chart, the cartoons and the lemon-o-meter all update.</div>
+  <div class="form">
+    <div class="field"><label>Kitten</label><select id="wK"></select></div>
+    <div class="field"><label>Date</label><input type="date" id="wDate"></div>
+    <div class="field"><label>Grams</label><input type="number" id="wG" inputmode="decimal" min="50" max="12000" placeholder="e.g. 820"></div>
+    <div class="field"><label><input type="checkbox" id="wApprox"> roughly</label><button class="btn go" id="wAdd">⚖️ Add</button></div>
+  </div>
+  <div id="chartwrap"><svg id="chart" viewBox="0 0 640 320" role="img" aria-label="Weight chart"></svg><div id="tip"></div></div>
+  <div class="legend">
+    <span><i style="background:#fff"></i>Misato</span><span><i style="background:#2b2b30"></i>Pen Pen</span>
+    <span><i style="background:rgba(138,201,38,.35);border-style:dashed"></i>typical kitten range (rough guide)</span>
+    <span><i style="background:none;border:none;border-top:3px dotted #6a4c93;height:0"></i>projection</span>
+  </div>
+  <div class="grid2" id="wstats" style="margin-top:14px"></div>
+  <h3>All weigh-ins</h3>
+  <ul class="list" id="wlist"></ul>
+</section>
+
+<!-- moments -->
+<section class="card" id="moments">
+  <h2>📅 Things that happen</h2>
+  <div class="sub">Milestones, vet trips, funny moments, worries — with a photo if you like. Each one remembers how old they were.</div>
+  <div class="form">
+    <div class="field"><label>When</label><input type="date" id="eDate"></div>
+    <div class="field"><label>Who</label><select id="eK"></select></div>
+    <div class="field"><label>Kind</label><select id="eType"></select></div>
+    <div class="field wide"><label>What happened</label><input type="text" id="eText" placeholder="Pen Pen discovered his tail is attached"></div>
+    <div class="field"><label>Photo</label><input type="file" id="ePhoto" accept="image/*" style="font-size:.8rem"></div>
+    <button class="btn go" id="eAdd">✨ Add</button>
+  </div>
+  <div class="filters" id="eFilters"></div>
+  <div class="tl" id="tl"></div>
+</section>
+
+<!-- food -->
+<section class="card" id="food">
+  <h2>🍽 Favourite food</h2>
+  <div class="sub">What they love, what they snub. Tap the hearts to re-rate.</div>
+  <div class="form">
+    <div class="field"><label>Who</label><select id="fK"></select></div>
+    <div class="field wide"><label>Food</label><input type="text" id="fName" placeholder="Brand · flavour · wet/dry"></div>
+    <div class="field"><label>Type</label><select id="fType"><option value="wet">🥫 wet</option><option value="dry">🥣 dry</option><option value="treat">🍬 treat</option><option value="fresh">🍗 fresh</option></select></div>
+    <div class="field"><label>Verdict</label><select id="fRate"><option value="5">❤️×5 obsessed</option><option value="4">❤️×4 loves</option><option value="3" selected>❤️×3 fine</option><option value="2">❤️×2 meh</option><option value="1">❤️×1 tolerates</option><option value="0">🙅 NOPE</option></select></div>
+    <button class="btn go" id="fAdd">➕ Add</button>
+  </div>
+  <div class="grid2" id="flists" style="margin-top:12px"></div>
+  <details class="guide"><summary>🚫 Never feed these (genuinely dangerous to cats)</summary>
+    <ul>
+      <li><b>Lilies</b> — every part, even pollen or vase water. Kidney failure. Keep them out of the house entirely.</li>
+      <li><b>Onion, garlic, chives, leeks</b> — damage red blood cells, including powders in gravy and baby food.</li>
+      <li><b>Chocolate, caffeine, alcohol, xylitol, grapes &amp; raisins.</b></li>
+      <li><b>Cow's milk</b> — most cats are lactose-intolerant after weaning. Water is the drink.</li>
+      <li><b>Raw dough, cooked bones, raw fish in bulk.</b></li>
+      <li><b>Paracetamol &amp; dog flea treatments</b> (permethrin) — both can kill a cat.</li>
+      <li><b>Citrus essential oils</b> — sorry Sol 🍋. Lemons themselves are just unpleasant to cats; the concentrated oils are toxic.</li>
+    </ul>
+  </details>
+</section>
+
+<!-- todo -->
+<section class="card" id="todo">
+  <h2>✅ To-do — health &amp; jobs</h2>
+  <div class="sub">Pre-filled with a UK kitten schedule; due dates follow their birthday. Repeating jobs (worming, fleas) re-schedule themselves when ticked.</div>
+  <div class="form">
+    <div class="field wide"><label>Job</label><input type="text" id="tTitle" placeholder="Book vet for 2nd vaccination"></div>
+    <div class="field"><label>Who</label><select id="tK"></select></div>
+    <div class="field"><label>Due</label><input type="date" id="tDue"></div>
+    <div class="field"><label>Repeat</label><select id="tRep"><option value="0">once</option><option value="7">weekly</option><option value="14">every 2 wks</option><option value="30">monthly</option><option value="90">3-monthly</option><option value="365">yearly</option></select></div>
+    <button class="btn go" id="tAdd">➕ Add</button>
+  </div>
+  <div class="filters"><div class="seg" id="tView"><button data-v="open" class="on">To do</button><button data-v="done">Done</button><button data-v="all">All</button></div></div>
+  <ul class="list" id="tlist"></ul>
+</section>
+
+<!-- shopping -->
+<section class="card" id="shop">
+  <h2>🛒 Things to get</h2>
+  <div class="sub">A starter kit is ticked off as you buy. Add anything.</div>
+  <div class="form">
+    <div class="field wide"><label>Item</label><input type="text" id="sTitle" placeholder="Tall sisal scratching post"></div>
+    <div class="field"><label>Where / link / price</label><input type="text" id="sNote" placeholder="optional"></div>
+    <button class="btn go" id="sAdd">➕ Add</button>
+  </div>
+  <ul class="list" id="slist"></ul>
+</section>
+
+<!-- cams -->
+<section class="card" id="cams">
+  <h2>📹 Kitten cams</h2>
+  <div class="sub">Your Ring cameras, live on this page. Ring has no public streaming API, so this plugs into a small bridge you run at home — the guide below takes ~20 minutes.</div>
+  <div class="form">
+    <div class="field"><label>Name</label><input type="text" id="cName" placeholder="Living room"></div>
+    <div class="field"><label>Type</label><select id="cKind">
+      <option value="hls">HLS stream (.m3u8)</option>
+      <option value="mjpeg">MJPEG stream</option>
+      <option value="snapshot">Snapshot (auto-refresh)</option>
+      <option value="embed">Embed page (go2rtc / Scrypted / HA)</option>
+      <option value="link">Just a link (open Ring app)</option>
+    </select></div>
+    <div class="field wide"><label>URL (https)</label><input type="url" id="cUrl" placeholder="https://cams.example.ts.net/api/stream.m3u8?src=living_room"></div>
+    <div class="field"><label>Refresh (s)</label><input type="number" id="cRef" value="5" min="1" max="600"></div>
+    <button class="btn go" id="cAdd">➕ Add camera</button>
+  </div>
+  <div class="cams" id="camgrid"></div>
+  <details class="guide"><summary>🔧 How to get your Ring cameras on here</summary>
+    <ol>
+      <li><b>Run a bridge at home</b> (any always-on box: Raspberry Pi, NAS, old Mac). Easiest path: <b>ring-mqtt</b> (Docker / Home Assistant add-on). It logs into your Ring account and runs <b>go2rtc</b> inside it, turning every Ring camera into a normal stream.
+        Alternatives: <b>Scrypted</b> (Ring plugin, slick UI) or <b>Home Assistant</b> + its Ring integration.</li>
+      <li><b>Expose it over HTTPS.</b> This page is HTTPS, so browsers block plain <code>http://</code> feeds. Put the bridge behind <b>Tailscale Funnel</b>, a <b>Cloudflare Tunnel</b>, or HA's remote URL.</li>
+      <li><b>Paste a URL above.</b> With go2rtc (stream name = camera name):
+        <ul>
+          <li>HLS: <code>https://YOUR-HOST/api/stream.m3u8?src=CAMERA</code> — best on iPhone</li>
+          <li>MJPEG: <code>https://YOUR-HOST/api/stream.mjpeg?src=CAMERA</code> — works everywhere</li>
+          <li>Snapshot: <code>https://YOUR-HOST/api/frame.jpeg?src=CAMERA</code> — gentlest on battery cams</li>
+          <li>Embed (WebRTC, lowest lag): <code>https://YOUR-HOST/stream.html?src=CAMERA</code></li>
+        </ul></li>
+      <li><b>Battery Ring cams</b> wake up for every live view and drain fast — use <b>Snapshot</b> at 30s+ for those, live streams for wired ones.</li>
+      <li>Camera URLs sync to the other phone end-to-end encrypted, like everything else here. Put a password on the bridge anyway.</li>
+    </ol>
+  </details>
+</section>
+
+<!-- photos -->
+<section class="card" id="photos">
+  <h2>📸 Photo wall</h2>
+  <div class="sub">Every photo from moments and profiles lands here too. Shrunk on your phone before saving so the wall stays fast.</div>
+  <div class="form">
+    <div class="field"><label>Who</label><select id="pK"></select></div>
+    <div class="field wide"><label>Caption</label><input type="text" id="pCap" placeholder="loaf mode"></div>
+    <div class="field"><label>Photos</label><input type="file" id="pFile" accept="image/*" multiple style="font-size:.8rem"></div>
+    <button class="btn go" id="pAdd">📸 Add</button>
+  </div>
+  <div class="wall" id="wall"></div>
+</section>
+
+<!-- facts -->
+<section class="card" id="facts">
+  <h2>🧠 Kitten facts</h2>
+  <div class="sub" id="factSub">One a day — or keep tapping.</div>
+  <div class="fact" id="fact"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px"><button class="btn sm" id="factPrev">◀</button><button class="btn sm go" id="factNext">another one ▶</button></div>
+  <div class="stagebox" id="stagebox"></div>
+</section>
+
+<footer>
+  Saved on this phone instantly · synced to the other one end-to-end encrypted 🔒<br>
+  <button class="btn sm" id="exportBtn">💾 Download backup</button>
+  <label class="btn sm" style="display:inline-block">📂 Restore backup<input type="file" id="importFile" accept="application/json" hidden></label>
+  <br>🍋💛🌙
+</footer>
+</div>
+
+<!-- dialogs -->
+<dialog id="kdlg"><div class="in"><h2 id="kdlgTitle">Edit</h2>
+  <div class="form">
+    <div class="field"><label>Name</label><input type="text" id="kName"></div>
+    <div class="field"><label>Coat</label><input type="text" id="kCoat"></div>
+    <div class="field"><label>Sex</label><select id="kSex"><option value="">?</option><option value="f">♀ girl</option><option value="m">♂ boy</option></select></div>
+    <div class="field"><label>Birthday</label><input type="date" id="kDob"></div>
+    <div class="field"><label><input type="checkbox" id="kDobEst"> estimated</label></div>
+    <div class="field"><label>Eye colour</label><input type="color" id="kEye"></div>
+    <div class="field wide"><label>Personality</label><textarea id="kBio" placeholder="Chaos gremlin. Sleeps on necks."></textarea></div>
+    <div class="field"><label>Microchip no.</label><input type="text" id="kChip" inputmode="numeric"></div>
+    <div class="field"><label>Vet</label><input type="text" id="kVet"></div>
+    <div class="field"><label>Insurance</label><input type="text" id="kIns"></div>
+    <div class="field wide"><label>Markings / quirks</label><input type="text" id="kMarks" placeholder="white whisker, kinked tail…"></div>
+    <div class="field wide"><label>Profile photo</label><input type="file" id="kPhoto" accept="image/*" style="font-size:.85rem"></div>
+  </div>
+  <div class="actions"><button class="btn ghost" id="kPhotoClear">Remove photo</button><button class="btn" id="kCancel">Cancel</button><button class="btn go" id="kSave">Save 💛</button></div>
+</div></dialog>
+
+<dialog id="pairdlg"><div class="in"><h2>📲 Pair the other phone</h2>
+  <p style="font-weight:700;line-height:1.5">Open this link on the other phone once. From then on both phones share everything, live. The key lives after the <code>#</code>, so it never touches a server — the relays only ever see scrambled bytes.</p>
+  <input type="text" id="pairLink" readonly style="margin:12px 0" onclick="this.select()">
+  <div class="actions"><a class="btn" id="pairWa" target="_blank" rel="noopener" style="text-decoration:none">💬 WhatsApp it</a><button class="btn" id="pairCopy">📋 Copy</button><button class="btn go" id="pairClose">Done</button></div>
+</div></dialog>
+
+<dialog id="viewer"><img id="viewerImg" alt=""></dialog>
+<div id="toast"></div>
+
+<script src="vendor/mqtt.min.js"></script>
+<script>
+'use strict';
+/* ═════════════ basics ═════════════ */
+const $ = s => document.querySelector(s);
+const DAY = 86400000;
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-5);
+const pad = n => String(n).padStart(2, '0');
+const ymd = d => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = s => { const [y, m, d] = String(s).split('-').map(Number); return new Date(y, m - 1, d); };
+const todayYmd = () => ymd(new Date());
+const daysBetween = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / DAY);
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
+const nice = s => parseYmd(s).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+const niceY = s => parseYmd(s).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+const LEMON_G = 110;   // a medium lemon
+const KIDS = ['misato', 'penpen'];
+const LS = 'kittens.state.v1', LS_IMG = 'kittens.img.', LS_ME = 'kittens.me', LS_SECRET = 'kittens.secret';
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } };
+const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
+
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2600); }
+function rain(chars = ['🍋', '🐾', '💛', '🌙'], n = 22) {
+  for (let i = 0; i < n; i++) {
+    const r = document.createElement('span'); r.className = 'rain';
+    r.textContent = chars[Math.floor(Math.random() * chars.length)];
+    r.style.left = Math.random() * 100 + 'vw';
+    r.style.animationDuration = (3 + Math.random() * 3.5) + 's';
+    r.style.animationDelay = (Math.random() * 1.6) + 's';
+    document.body.appendChild(r); setTimeout(() => r.remove(), 9000);
+  }
+}
+
+/* ═════════════ the document ═════════════
+   Every collection is a map id → record, every record carries `u`
+   (updated-at ms). Merge = per record, newest u wins. Deletes are
+   tombstones {del:true,u}. That makes two phones editing offline safe. */
+const COLS = ['kittens', 'weights', 'events', 'foods', 'todos', 'shop', 'cams', 'care', 'photos', 'meta'];
+
+function seed() {
+  const d = {}; COLS.forEach(c => d[c] = {});
+  // ~6 weeks old when weighed on Wed 30 Sep 2026 → born ~19 Aug (estimate, editable)
+  d.kittens.misato = { name: 'Misato', coat: 'white', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: '', photo: '', u: 1 };
+  d.kittens.penpen = { name: 'Pen Pen', coat: 'black', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: '', photo: '', u: 1 };
+  d.weights['w-seed-misato'] = { k: 'misato', date: '2026-09-30', g: 700, approx: true, by: 'lemon', u: 1 };
+  d.weights['w-seed-penpen'] = { k: 'penpen', date: '2026-09-30', g: 600, approx: true, by: 'lemon', u: 1 };
+  d.events['e-seed-weigh'] = { date: '2026-09-30', k: 'both', type: 'milestone', text: 'First weigh-in — Misato ~700g, Pen Pen ~600g. About six weeks old.', by: 'lemon', u: 1 };
+  // UK kitten schedule — dueAge = days after birthday; due date follows DOB edits
+  const T = [
+    ['vet', 'Register with a vet', 'both', 0, 0, 'health'],
+    ['ins', 'Pet insurance — before anything goes wrong', 'both', 0, 0, 'health'],
+    ['worm', 'Worming (every 2 weeks until 12 weeks, then monthly)', 'both', 56, 14, 'health'],
+    ['flea', 'Flea treatment — kitten-safe, from the vet', 'both', 56, 30, 'health'],
+    ['vax1', '1st vaccination — cat flu + enteritis (8–9 weeks)', 'both', 63, 0, 'health'],
+    ['vax2', '2nd vaccination (3–4 weeks after the 1st)', 'both', 86, 0, 'health'],
+    ['chip', 'Microchip — the law in England by 20 weeks', 'both', 120, 0, 'health'],
+    ['spay', 'Neuter / spay (from ~4 months)', 'both', 122, 0, 'health'],
+    ['out', 'First supervised garden time (after vax + neuter)', 'both', 135, 0, 'home'],
+    ['food', 'Switch from kitten food to adult food', 'both', 365, 0, 'home'],
+    ['boost', 'First annual booster', 'both', 450, 0, 'health'],
+    ['teeth', 'Start tooth-brushing practice (tiny bits, lots of praise)', 'both', 70, 0, 'home'],
+    ['proof', 'Kitten-proof: cables, blind cords, toilet lid, washing machine door', 'both', 0, 0, 'home'],
+  ];
+  T.forEach(([id, title, k, dueAge, rep, cat]) => d.todos['t-seed-' + id] = { title, k, dueAge, rep, cat, done: false, u: 1 });
+  const S = ['Kitten food — wet + dry, labelled "kitten"', 'Wide shallow food & water bowls', 'Water fountain (cats drink more from moving water)',
+    'Litter trays ×3 (one per cat + one)', 'Kitten-safe litter + scoop', 'Tall, sturdy scratching post', 'Flat cardboard scratcher',
+    'Top-opening carrier (vet trips get easier)', 'Cosy bed / cave', 'Wand toy + crinkle balls', 'Soft kitten brush', 'Cat nail clippers',
+    'Feliway diffuser (settling in)', 'Cat toothbrush + cat toothpaste', 'Window / balcony screens', 'Quick-release collars (after microchip)'];
+  S.forEach((t, i) => d.shop['s-seed-' + i] = { title: t, note: '', done: false, u: 1 });
+  return d;
+}
+
+function load() {
+  let d = null; try { d = JSON.parse(lsGet(LS)); } catch (e) {}
+  const s = seed();
+  if (!d) return s;
+  COLS.forEach(c => { d[c] = Object.assign({}, s[c], d[c] || {}); });   // hydrate over defaults, never drop keys
+  return d;
+}
+let doc = load();
+function save() { lsSet(LS, JSON.stringify(doc)); }
+
+function put(col, id, rec) { doc[col][id] = Object.assign({}, doc[col][id] || {}, rec, { u: Date.now() }); save(); changed(); }
+function del(col, id) { doc[col][id] = { del: true, u: Date.now() }; save(); changed(); }
+const live = col => Object.entries(doc[col]).filter(([, r]) => r && !r.del);
+
+function merge(a, b) {
+  const out = {}; let changedA = false;
+  COLS.forEach(c => {
+    out[c] = Object.assign({}, a[c] || {});
+    for (const [id, r] of Object.entries((b && b[c]) || {})) {
+      const mine = out[c][id];
+      if (!mine || (r && (r.u || 0) > (mine.u || 0))) { out[c][id] = r; changedA = true; }
+    }
+  });
+  return { out, changedA };
+}
+
+/* ═════════════ who's logging (per phone) ═════════════ */
+let me = lsGet(LS_ME) || 'lemon';
+const WHO = { lemon: '🍋', girl: '🌙' };
+function renderMe() { $('#mepill').textContent = me === 'lemon' ? "🍋 I'm the lemon" : "🌙 I'm the girl"; }
+$('#mepill').onclick = () => { me = me === 'lemon' ? 'girl' : 'lemon'; lsSet(LS_ME, me); renderMe(); toast(me === 'lemon' ? '🍋 logging as the lemon' : '🌙 logging as the girl'); };
+
+/* ═════════════ kitten maths ═════════════ */
+const K = id => doc.kittens[id];
+const kname = id => id === 'both' ? 'Both' : (K(id) ? K(id).name : id);
+function ageDays(id, at = todayYmd()) { const k = K(id); return k && k.dob ? daysBetween(k.dob, at) : null; }
+function ageStr(days) {
+  if (days == null) return '?';
+  if (days < 0) return 'not born yet';
+  if (days < 7 * 16) { const w = Math.floor(days / 7), d = days % 7; return w + ' wk' + (d ? ' ' + d + ' d' : ''); }
+  const m = Math.floor(days / 30.44); if (m < 24) return m + ' months';
+  return (days / 365.25).toFixed(1) + ' years';
+}
+function humanYears(days) {   // the usual vet-chart curve, interpolated
+  const P = [[0, 0], [1, 1], [2, 2], [3, 4], [4, 6], [6, 10], [8, 13], [12, 15], [24, 24]];
+  const m = days / 30.44;
+  if (m >= 24) return 24 + (m - 24) / 12 * 4;
+  for (let i = 1; i < P.length; i++) if (m <= P[i][0]) { const [x0, y0] = P[i - 1], [x1, y1] = P[i]; return y0 + (y1 - y0) * (m - x0) / (x1 - x0); }
+  return 0;
+}
+function weightsOf(id) { return live('weights').map(([wid, w]) => Object.assign({ id: wid }, w)).filter(w => w.k === id).sort((a, b) => a.date.localeCompare(b.date) || a.u - b.u); }
+function latest(id) { const w = weightsOf(id); return w[w.length - 1] || null; }
+// typical healthy kitten: ~100g at birth, gaining ~10–17g a day for the first few months
+const guide = days => { const d = Math.max(0, Math.min(days, 180)); return [Math.round(95 + 10 * d - (d > 120 ? (d - 120) * 3 : 0)), Math.round(115 + 17 * d - (d > 120 ? (d - 120) * 5 : 0))]; };
+function rate(id) {   // g/day from the last few points, or from birth if only one
+  const w = weightsOf(id); if (!w.length) return null;
+  const pts = w.slice(-4);
+  if (pts.length >= 2) {
+    const a = pts[0], b = pts[pts.length - 1], dd = daysBetween(a.date, b.date);
+    if (dd >= 2) return (b.g - a.g) / dd;
+  }
+  const ad = ageDays(id, w[w.length - 1].date); return ad > 0 ? (w[w.length - 1].g - 100) / ad : null;
+}
+function projectDate(id, target) { const l = latest(id), r = rate(id); if (!l || !r || r <= 0 || l.g >= target) return null; return addDays(l.date, Math.ceil((target - l.g) / r)); }
+function projectAt(id, date) { const l = latest(id), r = rate(id); if (!l || r == null) return null; return Math.round(l.g + r * daysBetween(l.date, date)); }
+function estNow(id) { const l = latest(id); if (!l) return null; const p = projectAt(id, todayYmd()); return daysBetween(l.date, todayYmd()) > 0 && p ? p : l.g; }
+
+/* ═════════════ cartoons ═════════════ */
+function kittenSVG(id, opt = {}) {
+  const k = K(id) || {}; const black = id === 'penpen';
+  const F = black ? '#2b2b30' : '#fbfaf6', O = '#111', IN = black ? '#c97a9a' : '#ffb3c7', W = black ? '#e8e8e8' : '#555';
+  const eye = k.eye || '#8ec5ea', sheen = black ? 'rgba(255,255,255,.12)' : 'rgba(180,170,220,.18)';
+  const cls = opt.still ? '' : ' class="k-tail"';
+  return `<svg viewBox="0 0 210 215" width="${opt.w || 150}" aria-label="${esc(k.name)} cartoon">
+  <path${cls} d="M150 182 C 205 182, 214 120, 182 100 C 172 94, 163 106, 172 112 C 192 126, 186 168, 146 168 Z" fill="${F}" stroke="${O}" stroke-width="5" stroke-linejoin="round"/>
+  <ellipse cx="100" cy="160" rx="57" ry="47" fill="${F}" stroke="${O}" stroke-width="5"/>
+  <ellipse cx="82" cy="146" rx="20" ry="12" fill="${sheen}"/>
+  ${black ? '' : '<path d="M78 170 Q100 186 122 170" fill="none" stroke="#e7e2f5" stroke-width="6" stroke-linecap="round"/>'}
+  <ellipse cx="78" cy="203" rx="17" ry="10" fill="${F}" stroke="${O}" stroke-width="4.5"/>
+  <ellipse cx="122" cy="203" rx="17" ry="10" fill="${F}" stroke="${O}" stroke-width="4.5"/>
+  <path d="M72 200 v6 M80 200 v7 M116 200 v7 M124 200 v6" stroke="${black ? '#555' : '#bbb'}" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M44 74 L50 16 L94 46 Z" fill="${F}" stroke="${O}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M156 74 L150 16 L106 46 Z" fill="${F}" stroke="${O}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M55 60 L58 32 L80 48 Z" fill="${IN}"/><path d="M145 60 L142 32 L120 48 Z" fill="${IN}"/>
+  <ellipse cx="100" cy="86" rx="64" ry="53" fill="${F}" stroke="${O}" stroke-width="5"/>
+  <ellipse cx="74" cy="62" rx="16" ry="8" fill="${sheen}" transform="rotate(-18 74 62)"/>
+  <g class="k-eyes">
+    <ellipse cx="74" cy="86" rx="14" ry="16" fill="#fff" stroke="${O}" stroke-width="3"/>
+    <ellipse cx="126" cy="86" rx="14" ry="16" fill="#fff" stroke="${O}" stroke-width="3"/>
+    <circle cx="75" cy="88" r="10.5" fill="${eye}"/><circle cx="125" cy="88" r="10.5" fill="${eye}"/>
+    <ellipse cx="75" cy="89" rx="4.5" ry="7.5" fill="#111"/><ellipse cx="125" cy="89" rx="4.5" ry="7.5" fill="#111"/>
+    <circle cx="71" cy="82" r="3.8" fill="#fff"/><circle cx="121" cy="82" r="3.8" fill="#fff"/>
+    <circle cx="79" cy="94" r="1.8" fill="#fff"/><circle cx="129" cy="94" r="1.8" fill="#fff"/>
+  </g>
+  <ellipse cx="58" cy="108" rx="10" ry="5.5" fill="#ff8fab" opacity="${black ? .35 : .55}"/>
+  <ellipse cx="142" cy="108" rx="10" ry="5.5" fill="#ff8fab" opacity="${black ? .35 : .55}"/>
+  <path d="M93 104 L107 104 L100 112 Z" fill="#f49ac1" stroke="${O}" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M100 112 Q100 120 91 119 M100 112 Q100 120 109 119" fill="none" stroke="${black ? '#ddd' : O}" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M60 104 L16 96 M60 110 L14 112 M140 104 L184 96 M140 110 L186 112" stroke="${W}" stroke-width="2.2" stroke-linecap="round"/>
+</svg>`;
+}
+function girlSVG(w) {
+  return `<svg viewBox="0 0 160 250" width="${w}" aria-label="the girl">
+  <path d="M30 78 C 22 140, 34 168, 52 172 L108 172 C 126 168, 138 140, 130 78 C 124 30, 36 30, 30 78 Z" fill="#3b2a24" stroke="#000" stroke-width="5"/>
+  <path d="M58 150 L102 150 L128 228 L32 228 Z" fill="#b15ee3" stroke="#000" stroke-width="5" stroke-linejoin="round"/>
+  <text x="62" y="200" font-size="18">⭐</text><text x="84" y="216" font-size="12">✨</text>
+  <path d="M60 162 Q 38 180 46 204" fill="none" stroke="#000" stroke-width="12" stroke-linecap="round"/><path d="M60 162 Q 38 180 46 204" fill="none" stroke="#ffd9bf" stroke-width="6" stroke-linecap="round"/>
+  <path d="M100 162 Q 124 176 116 200" fill="none" stroke="#000" stroke-width="12" stroke-linecap="round"/><path d="M100 162 Q 124 176 116 200" fill="none" stroke="#ffd9bf" stroke-width="6" stroke-linecap="round"/>
+  <path d="M62 228 v16 M98 228 v16" stroke="#000" stroke-width="8" stroke-linecap="round"/>
+  <ellipse cx="58" cy="245" rx="12" ry="5" fill="#ff595e" stroke="#000" stroke-width="3"/><ellipse cx="102" cy="245" rx="12" ry="5" fill="#ff595e" stroke="#000" stroke-width="3"/>
+  <rect x="72" y="128" width="16" height="26" fill="#ffd9bf" stroke="#000" stroke-width="4"/>
+  <ellipse cx="80" cy="92" rx="44" ry="46" fill="#ffe2cc" stroke="#000" stroke-width="5"/>
+  <path d="M36 88 C 36 50, 60 40, 80 42 C 104 42, 126 52, 124 88 C 112 70, 96 64, 84 56 C 74 70, 52 76, 36 88 Z" fill="#3b2a24" stroke="#000" stroke-width="4.5" stroke-linejoin="round"/>
+  <path d="M112 46 a 14 14 0 1 0 14 20 a 11 11 0 1 1 -14 -20 Z" fill="#ffca3a" stroke="#000" stroke-width="3"/>
+  <ellipse cx="64" cy="98" rx="5" ry="6.5" fill="#111"/><ellipse cx="96" cy="98" rx="5" ry="6.5" fill="#111"/>
+  <circle cx="62" cy="95.5" r="1.8" fill="#fff"/><circle cx="94" cy="95.5" r="1.8" fill="#fff"/>
+  <ellipse cx="54" cy="112" rx="8" ry="4.5" fill="#ff8fab" opacity=".6"/><ellipse cx="106" cy="112" rx="8" ry="4.5" fill="#ff8fab" opacity=".6"/>
+  <path d="M68 116 Q 80 128 92 116" fill="none" stroke="#000" stroke-width="3.5" stroke-linecap="round"/>
+</svg>`;
+}
+
+/* stage — kittens drawn to scale with each other (size ∝ ∛weight) */
+function renderStage() {
+  const vw = Math.min(window.innerWidth, 980);
+  const unit = vw < 380 ? 0.5 : vw < 440 ? 0.56 : vw < 700 ? 0.8 : 1;
+  const ws = KIDS.map(id => estNow(id) || 600);
+  const big = Math.max(...ws);
+  const kw = id => Math.round(150 * unit * Math.cbrt((estNow(id) || 600) / big));
+  const tagFor = id => { const g = estNow(id); return `${esc(K(id).name)} <small>${g ? (g >= 1000 ? (g / 1000).toFixed(2) + 'kg' : g + 'g') : ''}</small>`; };
+  $('#stage').innerHTML = `
+    <div class="char bob" data-who="girl">${girlSVG(Math.round(108 * unit))}<div class="tag">the girl 🌙</div></div>
+    <div class="char bob2" data-who="misato">${kittenSVG('misato', { w: kw('misato') })}<div class="tag">${tagFor('misato')}</div></div>
+    <div class="char bob3" data-who="penpen">${kittenSVG('penpen', { w: kw('penpen') })}<div class="tag">${tagFor('penpen')}</div></div>
+    <div class="char bob" data-who="sol" style="animation-delay:.8s"><img src="sol-lemon.png" alt="Sol the lemon" width="${Math.round(118 * unit)}"><div class="tag">the lemon 🍋</div></div>`;
+  const [m, p] = [estNow('misato'), estNow('penpen')];
+  $('#scalenote').textContent = m && p ? `kittens drawn to scale with each other · Misato is ${Math.round((m / p - 1) * 100)}% ${m >= p ? 'heavier' : 'lighter'} than Pen Pen` : '';
+  $('#stage').querySelectorAll('.char').forEach(c => c.onclick = () => {
+    const w = c.dataset.who;
+    const lines = { girl: ['hi babies 🌙', 'who wants dinner?', 'SO small', 'stop biting toes'], sol: ['🍋 squeeze?', 'keep away from my oils', 'I am the lemon', '🍋💛'],
+      misato: ['mew!', 'mrrp?', '*slow blink*', 'feed me', 'purrrr'], penpen: ['MEW', 'mrrrow', '*slow blink*', 'zoomies!', 'purrrr'] }[w];
+    c.dataset.mew = lines[Math.floor(Math.random() * lines.length)];
+    c.classList.remove('mew', 'slow'); void c.offsetWidth; c.classList.add('mew');
+    if (c.dataset.mew.includes('blink')) c.classList.add('slow');
+  });
+}
+
+/* speech bubble — cycles through live facts about them */
+let sayI = 0;
+function sayLines() {
+  const L = [];
+  KIDS.forEach(id => {
+    const k = K(id), a = ageDays(id), g = estNow(id);
+    if (a != null) L.push([`<b>${esc(k.name)}</b> is ${ageStr(a)} old`, `≈ ${humanYears(a).toFixed(1)} in human years${k.dobEst ? ' · birthday estimated' : ''}`]);
+    if (g) L.push([`<b>${esc(k.name)}</b> weighs about <b>${(g / LEMON_G).toFixed(1)}</b> lemons 🍋`, `${g}g ${latest(id).date === todayYmd() ? 'today' : '(projected from the last weigh-in)'}`]);
+    const kg = projectDate(id, 1000); if (kg) L.push([`<b>${esc(k.name)}</b> hits 1 kg around <b>${nice(kg)}</b>`, 'at the current growth rate']);
+  });
+  const nx = nextTodo(); if (nx) { const dd = daysBetween(todayYmd(), nx.due); L.push([dd < 0 ? `⚠️ <b>${esc(nx.title.split(' (')[0].split(' —')[0])}</b> is ${-dd} day${dd === -1 ? '' : 's'} overdue` : `Next up: <b>${esc(nx.title.split(' (')[0].split(' —')[0])}</b>`, dd >= 0 ? (dd === 0 ? 'due today' : `in ${dd} day${dd === 1 ? '' : 's'} · ${nice(nx.due)}`) : nice(nx.due)]); }
+  const home = doc.meta.home && doc.meta.home.date; if (home) { const d = daysBetween(home, todayYmd()); if (d >= 0) L.push([`<b>${d}</b> day${d === 1 ? '' : 's'} as a family 💛`, 'since they came home on ' + nice(home)]); }
+  const ev = live('events').length; if (ev) L.push([`<b>${ev}</b> moment${ev === 1 ? '' : 's'} logged so far`, 'keep them coming ✨']);
+  return L.length ? L : [['Hello Misato & Pen Pen 🐾', '']];
+}
+function renderSay(rot) {
+  const L = sayLines(); if (rot) sayI++; const [a, b] = L[sayI % L.length];
+  const s = $('#say'); s.style.opacity = 0;
+  setTimeout(() => { s.innerHTML = a; $('#saysub').textContent = b; s.style.opacity = 1; }, rot ? 300 : 0);
+}
+$('#bubble').onclick = () => renderSay(true);
+
+/* ═════════════ kitten cards ═════════════ */
+const photoURL = id => id ? lsGet(LS_IMG + id) : null;
+function renderKittens() {
+  $('#kcards').innerHTML = KIDS.map(id => {
+    const k = K(id), a = ageDays(id), l = latest(id), r = rate(id), g = estNow(id);
+    const ph = photoURL(k.photo);
+    const lem = g ? g / LEMON_G : 0, whole = Math.floor(lem), frac = lem - whole;
+    return `<div class="mini ${id}" data-k="${id}" style="cursor:pointer">
+      <div class="khead"><div class="avatar" style="${ph ? `background-image:url(${ph})` : ''}">${ph ? '' : kittenSVG(id, { w: 64, still: true })}</div>
+        <div><div class="nm">${esc(k.name)} ${k.sex === 'f' ? '♀' : k.sex === 'm' ? '♂' : ''}</div><div class="muted">${esc(k.coat)}${k.marks ? ' · ' + esc(k.marks) : ''}</div></div>
+        <div style="margin-left:auto;font-size:1.3rem">✏️</div></div>
+      <div class="stats">
+        <div class="stat"><small>Age</small><b>${ageStr(a)}</b></div>
+        <div class="stat"><small>Human years</small><b>${a != null ? humanYears(a).toFixed(1) : '?'}</b></div>
+        <div class="stat"><small>Last weighed</small><b>${l ? (l.approx ? '~' : '') + l.g + 'g' : '—'}</b><small style="text-transform:none">${l ? nice(l.date) : ''}</small></div>
+        <div class="stat"><small>Growing</small><b>${r != null ? (r >= 0 ? '+' : '') + Math.round(r) + 'g/day' : '—'}</b></div>
+        <div class="stat"><small>Birthday</small><b style="font-size:.95rem">${k.dob ? niceY(k.dob) : '?'}</b>${k.dobEst ? '<small style="text-transform:none">estimated</small>' : ''}</div>
+        <div class="stat"><small>Microchip</small><b style="font-size:.85rem;overflow-wrap:anywhere">${esc(k.chip) || '—'}</b></div>
+      </div>
+      ${g ? `<div class="muted" style="font-weight:800">Lemon-o-meter: ${lem.toFixed(1)} lemons</div><div class="lemonrow">${'🍋'.repeat(Math.min(whole, 60))}${frac > .05 ? `<span class="part" style="width:${(frac * 1.2).toFixed(2)}em">🍋</span>` : ''}</div>` : ''}
+      ${k.bio ? `<p style="margin-top:8px;font-weight:700">“${esc(k.bio)}”</p>` : ''}
+      ${k.vet || k.ins ? `<p class="muted" style="margin-top:6px">${k.vet ? '🏥 ' + esc(k.vet) : ''} ${k.ins ? ' · 🛡 ' + esc(k.ins) : ''}</p>` : ''}
+    </div>`;
+  }).join('');
+  $('#kcards').querySelectorAll('[data-k]').forEach(el => el.onclick = () => openK(el.dataset.k));
+  const home = doc.meta.home && doc.meta.home.date;
+  $('#homeDate').value = home || '';
+  $('#homeNote').textContent = home ? `${daysBetween(home, todayYmd())} days together · they were ${ageStr(ageDays('misato', home))} when they arrived` : 'Pop in the day they came home and the page counts your days together.';
+}
+$('#homeDate').onchange = e => put('meta', 'home', { date: e.target.value });
+
+let editing = null, pendingKPhoto = undefined;
+function openK(id) {
+  editing = id; pendingKPhoto = undefined; const k = K(id);
+  $('#kdlgTitle').textContent = '✏️ ' + k.name;
+  $('#kName').value = k.name; $('#kCoat').value = k.coat || ''; $('#kSex').value = k.sex || ''; $('#kDob').value = k.dob || '';
+  $('#kDobEst').checked = !!k.dobEst; $('#kEye').value = k.eye || '#8ec5ea'; $('#kBio').value = k.bio || ''; $('#kChip').value = k.chip || '';
+  $('#kVet').value = k.vet || ''; $('#kIns').value = k.ins || ''; $('#kMarks').value = k.marks || ''; $('#kPhoto').value = '';
+  $('#kdlg').showModal();
+}
+$('#kCancel').onclick = () => $('#kdlg').close();
+$('#kPhotoClear').onclick = () => { pendingKPhoto = null; toast('photo will be removed on save'); };
+$('#kPhoto').onchange = async e => { const f = e.target.files[0]; if (f) pendingKPhoto = await shrink(f, 480); };
+$('#kSave').onclick = () => {
+  const rec = { name: $('#kName').value.trim() || K(editing).name, coat: $('#kCoat').value.trim(), sex: $('#kSex').value, dob: $('#kDob').value,
+    dobEst: $('#kDobEst').checked, eye: $('#kEye').value, bio: $('#kBio').value.trim(), chip: $('#kChip').value.trim(), vet: $('#kVet').value.trim(),
+    ins: $('#kIns').value.trim(), marks: $('#kMarks').value.trim() };
+  if (pendingKPhoto) { const pid = addPhoto(pendingKPhoto, { k: editing, caption: rec.name + ' — profile', date: todayYmd() }); rec.photo = pid; }
+  else if (pendingKPhoto === null) rec.photo = '';
+  put('kittens', editing, rec); $('#kdlg').close(); toast('💛 saved');
+};
+
+/* ═════════════ selects ═════════════ */
+function fillKSelect(sel, withBoth) {
+  const v = sel.value;
+  sel.innerHTML = (withBoth ? '<option value="both">🐾 Both</option>' : '') + KIDS.map(id => `<option value="${id}">${id === 'misato' ? '🤍' : '🖤'} ${esc(K(id).name)}</option>`).join('');
+  if (v) sel.value = v;
+}
+const ETYPES = { milestone: '🎉 Milestone', vet: '🏥 Vet', vaccine: '💉 Vaccine / meds', funny: '😹 Funny', cute: '🥹 Cute', food: '🍽 Food', play: '🎾 Play', sleep: '😴 Sleep spot', tray: '💩 Tray', grooming: '🛁 Grooming', worry: '😿 Worry', naughty: '😼 Naughty' };
+$('#eType').innerHTML = Object.entries(ETYPES).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+
+/* ═════════════ today / care ═════════════ */
+const CARE = [['m_misato', '🍽', () => K('misato').name + ' meals'], ['m_penpen', '🍽', () => K('penpen').name + ' meals'], ['litter', '🧻', () => 'tray scooped'],
+  ['play', '🎾', () => 'play sessions'], ['water', '💧', () => 'fresh water'], ['brush', '🪮', () => 'brush / cuddle']];
+function careDay(d) { const r = doc.care[d]; return r && !r.del ? r : {}; }
+function renderCare() {
+  const t = todayYmd(), c = careDay(t);
+  $('#care').innerHTML = CARE.map(([key, emo, lab]) => `<div class="carebtn" data-key="${key}"><span class="big">${emo}</span><span class="n">${c[key] || 0}</span><small>${esc(lab())}</small></div>`).join('');
+  $('#care').querySelectorAll('.carebtn').forEach(b => {
+    const key = b.dataset.key; let pressT = null, longed = false;
+    const bump = n => { const cur = careDay(todayYmd()); put('care', todayYmd(), { [key]: Math.max(0, (cur[key] || 0) + n), by: me }); };
+    b.onpointerdown = () => { longed = false; pressT = setTimeout(() => { longed = true; bump(-1); toast('undone one'); }, 600); };
+    b.onpointerup = b.onpointerleave = () => clearTimeout(pressT);
+    b.onclick = () => { if (!longed) bump(1); };
+    b.oncontextmenu = e => { e.preventDefault(); };
+  });
+  const days = []; for (let i = 6; i >= 0; i--) days.push(addDays(t, -i));
+  $('#week').innerHTML = days.map(d => { const x = careDay(d); const meals = (x.m_misato || 0) + (x.m_penpen || 0);
+    return `<div class="${d === t ? 'today' : ''}">${parseYmd(d).toLocaleDateString('en-GB', { weekday: 'short' })}<br>🍽${meals}<br>🧻${x.litter || 0}<br>🎾${x.play || 0}</div>`; }).join('');
+  const a = ageDays('misato'); const meals = a == null ? '' : a < 84 ? '4 small meals a day at this age' : a < 182 ? '3–4 meals a day at this age' : '2–3 meals a day at this age';
+  $('#todaySub').textContent = `Tap to count, long-press to undo one. ${meals ? 'Guide: ' + meals + '.' : ''}`;
+}
+
+/* ═════════════ weight ═════════════ */
+$('#wAdd').onclick = () => {
+  const k = $('#wK').value, date = $('#wDate').value || todayYmd(), g = Math.round(parseFloat($('#wG').value));
+  if (!g || g < 50 || g > 12000) { toast('grams please — e.g. 820'); return; }
+  const prev = latest(k);
+  put('weights', uid(), { k, date, g, approx: $('#wApprox').checked, by: me });
+  $('#wG').value = ''; $('#wApprox').checked = false;
+  const diff = prev ? g - prev.g : null;
+  toast(`⚖️ ${K(k).name}: ${g}g${diff != null ? ` (${diff >= 0 ? '+' : ''}${diff}g)` : ''}`);
+  if (diff == null || diff > 0) rain(['🍋', '🐾', '⚖️', '💛']);
+};
+function renderWeights() {
+  // stats
+  $('#wstats').innerHTML = KIDS.map(id => {
+    const k = K(id), w = weightsOf(id), l = w[w.length - 1], r = rate(id);
+    if (!l) return `<div class="mini ${id}"><b>${esc(k.name)}</b><div class="muted">No weigh-ins yet.</div></div>`;
+    const a = ageDays(id, l.date), [lo, hi] = a != null ? guide(a) : [0, 0];
+    const verdict = a == null ? '' : l.g < lo ? '🟠 a little under the typical range — worth mentioning to the vet' : l.g > hi ? '🟢 above the typical range — a chonk in the making' : '🟢 right in the typical range';
+    const p9 = k.dob ? projectAt(id, addDays(k.dob, 63)) : null, kg = projectDate(id, 1000);
+    const prev = w[w.length - 2];
+    return `<div class="mini ${id}"><b style="font-size:1.1rem">${esc(k.name)}</b>
+      <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat"><small>Latest</small><b>${l.g}g</b></div>
+        <div class="stat"><small>Change</small><b>${prev ? (l.g - prev.g >= 0 ? '+' : '') + (l.g - prev.g) + 'g' : '—'}</b></div>
+        <div class="stat"><small>Per day</small><b>${r != null ? Math.round(r) + 'g' : '—'}</b></div>
+      </div>
+      <div class="muted" style="font-weight:800">${verdict}${a != null ? ` (typical at ${ageStr(a)}: ${lo}–${hi}g)` : ''}</div>
+      <div class="muted" style="margin-top:4px">${p9 && daysBetween(todayYmd(), addDays(k.dob, 63)) > 0 ? `≈ ${p9}g at first-vaccine age (9 wks) · ` : ''}${kg ? `1 kg ≈ ${nice(kg)}` : l.g >= 1000 ? 'past 1 kg 🎉' : ''}</div>
+    </div>`;
+  }).join('');
+  // list
+  const all = live('weights').map(([id, w]) => Object.assign({ id }, w)).sort((a, b) => b.date.localeCompare(a.date) || b.u - a.u);
+  $('#wlist').innerHTML = all.length ? all.map(w => `<li class="row"><span class="emo">⚖️</span><div class="grow"><div class="t"><span class="kdot ${w.k}">${esc(kname(w.k))}</span>${w.approx ? '~' : ''}${w.g}g</div>
+    <div class="m">${nice(w.date)} · at ${ageStr(ageDays(w.k, w.date))} · ${WHO[w.by] || ''}</div></div><button class="x" data-del="${w.id}" title="Delete">✕</button></li>`).join('')
+    : '<li class="empty">No weigh-ins yet.</li>';
+  $('#wlist').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Delete this weigh-in?')) del('weights', b.dataset.del); });
+  drawChart();
+}
+function drawChart() {
+  const svg = $('#chart'), W = 640, H = 320, L = 48, R = 16, T = 16, B = 40;
+  const dob = KIDS.map(id => K(id).dob).filter(Boolean).sort()[0] || todayYmd();
+  const pts = KIDS.flatMap(id => weightsOf(id));
+  const lastD = pts.length ? pts.map(p => p.date).sort().pop() : todayYmd();
+  const x0 = Math.min(daysBetween(dob, (pts.map(p => p.date).sort()[0] || todayYmd())) - 7, 35);
+  const x1 = Math.max(daysBetween(dob, lastD), daysBetween(dob, todayYmd())) + 21;
+  const yMax = Math.max(500, ...pts.map(p => p.g), ...KIDS.map(id => projectAt(id, addDays(dob, x1)) || 0), guide(x1)[1]) * 1.08;
+  const X = d => L + (d - x0) / (x1 - x0) * (W - L - R), Y = g => T + (1 - g / yMax) * (H - T - B);
+  let s = '';
+  // grid: weekly
+  const stepY = yMax > 3000 ? 1000 : yMax > 1500 ? 500 : 200;
+  for (let g = 0; g <= yMax; g += stepY) s += `<line x1="${L}" x2="${W - R}" y1="${Y(g)}" y2="${Y(g)}" stroke="#eee" stroke-width="1.5"/><text x="${L - 6}" y="${Y(g) + 4}" text-anchor="end">${g >= 1000 ? g / 1000 + 'kg' : g + 'g'}</text>`;
+  const stepX = x1 - x0 > 200 ? 28 : x1 - x0 > 100 ? 14 : 7;
+  for (let d = Math.ceil(x0 / stepX) * stepX; d <= x1; d += stepX) s += `<line x1="${X(d)}" x2="${X(d)}" y1="${T}" y2="${H - B}" stroke="#f4f0fa" stroke-width="1.5"/><text x="${X(d)}" y="${H - B + 15}" text-anchor="middle">${Math.round(d / 7)}w</text><text x="${X(d)}" y="${H - B + 29}" text-anchor="middle" style="font-size:9.5px">${parseYmd(addDays(dob, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`;
+  // typical band
+  let top = '', bot = ''; for (let d = x0; d <= x1; d += 2) { const [lo, hi] = guide(d); top += `${X(d)},${Y(hi)} `; bot = `${X(d)},${Y(lo)} ` + bot; }
+  s += `<polygon points="${top}${bot}" fill="rgba(138,201,38,.22)" stroke="rgba(95,151,24,.55)" stroke-dasharray="5 4" stroke-width="1.5"/>`;
+  // today
+  const td = daysBetween(dob, todayYmd()); s += `<line x1="${X(td)}" x2="${X(td)}" y1="${T}" y2="${H - B}" stroke="#ffca3a" stroke-width="3"/><text x="${X(td)}" y="${T + 10}" text-anchor="middle" style="font-weight:900;fill:#6a4c93">today</text>`;
+  // series
+  const dots = [];
+  KIDS.forEach(id => {
+    const w = weightsOf(id); if (!w.length) return; const kd = K(id).dob || dob, off = daysBetween(dob, kd);
+    const P = w.map(p => [X(daysBetween(kd, p.date) + off), Y(p.g), p]);
+    const black = id === 'penpen';
+    const l = latest(id), pe = projectAt(id, addDays(dob, x1));
+    if (pe != null) s += `<line x1="${P[P.length - 1][0]}" y1="${P[P.length - 1][1]}" x2="${X(x1)}" y2="${Y(pe)}" stroke="#6a4c93" stroke-width="2.5" stroke-dasharray="3 5" stroke-linecap="round"/>`;
+    const path = P.map(p => p[0] + ',' + p[1]).join(' ');
+    if (P.length > 1) { s += `<polyline points="${path}" fill="none" stroke="#000" stroke-width="${black ? 5 : 7}" stroke-linejoin="round" stroke-linecap="round"/>`; if (!black) s += `<polyline points="${path}" fill="none" stroke="#fff" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>`; else s += `<polyline points="${path}" fill="none" stroke="#2b2b30" stroke-width="4" stroke-linejoin="round"/>`; }
+    P.forEach(([x, y, p]) => { s += `<circle cx="${x}" cy="${y}" r="7" fill="${black ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="3"/>`; dots.push({ x, y, txt: `${K(id).name}: ${p.approx ? '~' : ''}${p.g}g · ${nice(p.date)}` }); });
+    s += `<text x="${P[P.length - 1][0] + 10}" y="${P[P.length - 1][1] + (black ? 16 : -10)}" style="font-weight:900;font-size:12px;fill:#1a1a1a">${esc(K(id).name)}</text>`;
+  });
+  svg.innerHTML = s;
+  const tip = $('#tip');
+  svg.onpointermove = e => {
+    const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * W / r.width, sy = (e.clientY - r.top) * H / r.height;
+    let best = null, bd = 900; dots.forEach(d => { const dd = (d.x - sx) ** 2 + (d.y - sy) ** 2; if (dd < bd) { bd = dd; best = d; } });
+    if (best) { tip.textContent = best.txt; tip.style.left = best.x * r.width / W + 'px'; tip.style.top = best.y * r.height / H + 'px'; tip.classList.add('on'); } else tip.classList.remove('on');
+  };
+  svg.onpointerleave = () => tip.classList.remove('on');
+}
+
+/* ═════════════ moments ═════════════ */
+let eFilter = 'all';
+$('#eAdd').onclick = async () => {
+  const text = $('#eText').value.trim(); const f = $('#ePhoto').files[0];
+  if (!text && !f) { toast('say what happened ✨'); return; }
+  const date = $('#eDate').value || todayYmd(), k = $('#eK').value, type = $('#eType').value;
+  let photo = '';
+  if (f) { const data = await shrink(f, 900); photo = addPhoto(data, { k, caption: text, date }); }
+  put('events', uid(), { date, k, type, text, photo, by: me });
+  $('#eText').value = ''; $('#ePhoto').value = '';
+  toast('✨ saved'); if (type === 'milestone') rain(['🎉', '🐾', '🍋', '⭐']);
+};
+function renderEvents() {
+  $('#eFilters').innerHTML = `<div class="seg">${[['all', 'All'], ['misato', K('misato').name], ['penpen', K('penpen').name]].map(([v, l]) => `<button data-f="${v}" class="${eFilter === v ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>`;
+  $('#eFilters').querySelectorAll('button').forEach(b => b.onclick = () => { eFilter = b.dataset.f; renderEvents(); });
+  const ev = live('events').map(([id, e]) => Object.assign({ id }, e)).filter(e => eFilter === 'all' || e.k === eFilter || e.k === 'both')
+    .sort((a, b) => b.date.localeCompare(a.date) || b.u - a.u);
+  $('#tl').innerHTML = ev.length ? ev.map(e => {
+    const ago = daysBetween(e.date, todayYmd()), img = photoURL(e.photo), who = e.k === 'both' ? 'misato' : e.k;
+    return `<div class="row"><span class="emo">${(ETYPES[e.type] || '✨').split(' ')[0]}</span><div class="grow">
+      <div class="t"><span class="kdot ${e.k}">${esc(kname(e.k))}</span>${esc(e.text)}</div>
+      <div class="m">${nice(e.date)} · ${ago === 0 ? 'today' : ago === 1 ? 'yesterday' : ago > 0 ? ago + ' days ago' : 'in ' + -ago + ' days'} · aged ${ageStr(ageDays(who, e.date))} · ${WHO[e.by] || ''}</div>
+      ${img ? `<img src="${img}" alt="" data-view="${e.photo}">` : e.photo ? '<div class="m">📸 photo syncing…</div>' : ''}</div>
+      <button class="x" data-del="${e.id}" title="Delete">✕</button></div>`;
+  }).join('') : '<div class="empty">Nothing yet — first zoomies? first purr? log it.</div>';
+  $('#tl').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Delete this moment?')) del('events', b.dataset.del); });
+  $('#tl').querySelectorAll('[data-view]').forEach(i => i.onclick = () => view(i.src));
+}
+
+/* ═════════════ food ═════════════ */
+$('#fAdd').onclick = () => {
+  const name = $('#fName').value.trim(); if (!name) { toast('which food?'); return; }
+  put('foods', uid(), { k: $('#fK').value, name, type: $('#fType').value, rate: +$('#fRate').value, by: me }); $('#fName').value = ''; toast('🍽 noted');
+};
+function renderFoods() {
+  const F = live('foods').map(([id, f]) => Object.assign({ id }, f));
+  const TY = { wet: '🥫', dry: '🥣', treat: '🍬', fresh: '🍗' };
+  $('#flists').innerHTML = KIDS.map(id => {
+    const mine = F.filter(f => f.k === id || f.k === 'both').sort((a, b) => b.rate - a.rate || a.name.localeCompare(b.name));
+    const loves = mine.filter(f => f.rate > 0), nopes = mine.filter(f => f.rate === 0);
+    const row = f => `<li class="row"><span class="emo">${TY[f.type] || '🍽'}</span><div class="grow"><div class="t">${esc(f.name)}${f.k === 'both' ? ' <span class="kdot both">both</span>' : ''}</div>
+      ${f.rate > 0 ? `<span class="hearts" data-id="${f.id}">${[1, 2, 3, 4, 5].map(n => `<span data-n="${n}" class="${n <= f.rate ? 'on' : ''}">❤️</span>`).join('')}</span>` : '<div class="m">🙅 refuses</div>'}</div>
+      <button class="x" data-del="${f.id}">✕</button></li>`;
+    return `<div class="mini ${id}"><b style="font-size:1.1rem">${id === 'misato' ? '🤍' : '🖤'} ${esc(K(id).name)}'s favourites</b>
+      ${loves[0] ? `<div class="muted" style="margin-top:4px">👑 Number one: <b>${esc(loves[0].name)}</b></div>` : ''}
+      <ul class="list">${loves.map(row).join('') || '<li class="empty">No favourites yet</li>'}</ul>
+      ${nopes.length ? `<h3 style="${id === 'penpen' ? 'color:#ffec99' : ''}">🙅 Won't touch</h3><ul class="list">${nopes.map(row).join('')}</ul>` : ''}</div>`;
+  }).join('');
+  $('#flists').querySelectorAll('.hearts span').forEach(h => h.onclick = () => put('foods', h.parentNode.dataset.id, { rate: +h.dataset.n }));
+  $('#flists').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Remove this food?')) del('foods', b.dataset.del); });
+}
+
+/* ═════════════ to-do ═════════════ */
+let tView = 'open';
+function dueOf(t) {
+  if (t.due) return t.due;
+  if (t.dueAge == null) return null;
+  const dobs = (t.k === 'both' ? KIDS : [t.k]).map(id => K(id) && K(id).dob).filter(Boolean).sort();
+  if (!dobs.length) return null;
+  const d = addDays(dobs[0], t.dueAge);
+  return t.dueAge === 0 ? (daysBetween(d, todayYmd()) > 0 ? todayYmd() : d) : d;
+}
+function todos() { return live('todos').map(([id, t]) => Object.assign({ id }, t, { due: dueOf(t) })); }
+function nextTodo() { return todos().filter(t => !t.done && t.due).sort((a, b) => a.due.localeCompare(b.due))[0] || null; }
+$('#tAdd').onclick = () => {
+  const title = $('#tTitle').value.trim(); if (!title) { toast('what needs doing?'); return; }
+  put('todos', uid(), { title, k: $('#tK').value, due: $('#tDue').value || '', rep: +$('#tRep').value, cat: 'health', done: false, by: me });
+  $('#tTitle').value = ''; $('#tDue').value = ''; toast('✅ added');
+};
+$('#tView').querySelectorAll('button').forEach(b => b.onclick = () => { tView = b.dataset.v; $('#tView').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderTodos(); });
+function renderTodos() {
+  const t = todayYmd();
+  const L = todos().filter(x => tView === 'all' || (tView === 'done' ? x.done : !x.done))
+    .sort((a, b) => (a.done - b.done) || (a.due || '9999').localeCompare(b.due || '9999'));
+  $('#tlist').innerHTML = L.length ? L.map(x => {
+    const dd = x.due ? daysBetween(t, x.due) : null;
+    const cls = x.done ? 'done' : dd != null && dd < 0 ? 'over' : dd != null && dd <= 7 ? 'soon' : '';
+    const when = x.done ? `done ${x.doneAt ? nice(x.doneAt) : ''} ${WHO[x.doneBy] || ''}` : x.due ? (dd < 0 ? `⚠️ ${-dd} day${dd === -1 ? '' : 's'} overdue` : dd === 0 ? '📍 today' : `in ${dd} day${dd === 1 ? '' : 's'}`) + ' · ' + nice(x.due) : 'no date';
+    return `<li class="row ${cls}"><input type="checkbox" class="chk" data-id="${x.id}" ${x.done ? 'checked' : ''}><div class="grow">
+      <div class="t"><span class="kdot ${x.k}">${esc(kname(x.k))}</span>${esc(x.title)}</div>
+      <div class="m">${when}${x.rep ? ' · 🔁 every ' + x.rep + ' days' : ''}</div></div>
+      <input type="date" value="${x.due || ''}" data-due="${x.id}" style="width:auto;min-height:36px;padding:4px 6px;font-size:.8rem" title="Change date">
+      <button class="x" data-del="${x.id}">✕</button></li>`;
+  }).join('') : `<li class="empty">${tView === 'done' ? 'Nothing ticked yet.' : 'All done 🎉'}</li>`;
+  $('#tlist').querySelectorAll('.chk').forEach(c => c.onchange = () => {
+    const x = todos().find(y => y.id === c.dataset.id);
+    put('todos', x.id, { done: c.checked, doneAt: todayYmd(), doneBy: me });
+    if (c.checked && x.rep) { put('todos', uid(), { title: x.title, k: x.k, due: addDays(todayYmd(), x.rep), rep: x.rep, cat: x.cat, done: false, by: me }); toast(`🔁 next one scheduled for ${nice(addDays(todayYmd(), x.rep))}`); }
+    else if (c.checked) { toast('✅ done!'); rain(['✅', '🐾', '🍋'], 12); }
+  });
+  $('#tlist').querySelectorAll('[data-due]').forEach(i => i.onchange = () => put('todos', i.dataset.due, { due: i.value }));
+  $('#tlist').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Delete this job?')) del('todos', b.dataset.del); });
+}
+
+/* ═════════════ shopping ═════════════ */
+$('#sAdd').onclick = () => { const title = $('#sTitle').value.trim(); if (!title) return; put('shop', uid(), { title, note: $('#sNote').value.trim(), done: false, by: me }); $('#sTitle').value = ''; $('#sNote').value = ''; };
+function renderShop() {
+  const L = live('shop').map(([id, s]) => Object.assign({ id }, s)).sort((a, b) => (a.done - b.done) || (a.id.startsWith('s-seed-') && b.id.startsWith('s-seed-') ? +a.id.slice(7) - +b.id.slice(7) : a.u - b.u));
+  const got = L.filter(s => s.done).length;
+  $('#slist').innerHTML = `<li class="muted" style="font-weight:800">${got} of ${L.length} got 🛍</li>` + L.map(s => {
+    const link = /^https?:\/\//.test(s.note) ? `<a href="${esc(s.note)}" target="_blank" rel="noopener">link ↗</a>` : esc(s.note);
+    return `<li class="row ${s.done ? 'done' : ''}"><input type="checkbox" class="chk" data-id="${s.id}" ${s.done ? 'checked' : ''}><div class="grow"><div class="t">${esc(s.title)}</div>${s.note ? `<div class="m">${link}</div>` : ''}</div><button class="x" data-del="${s.id}">✕</button></li>`;
+  }).join('');
+  $('#slist').querySelectorAll('.chk').forEach(c => c.onchange = () => put('shop', c.dataset.id, { done: c.checked, by: me }));
+  $('#slist').querySelectorAll('[data-del]').forEach(b => b.onclick = () => del('shop', b.dataset.del));
+}
+
+/* ═════════════ cams ═════════════ */
+const camTimers = []; let hlsLoading = null;
+function loadHls() { return hlsLoading || (hlsLoading = new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/hls.js@1/dist/hls.min.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); })); }
+$('#cAdd').onclick = () => {
+  const url = $('#cUrl').value.trim(), name = $('#cName').value.trim() || 'Camera';
+  if (!url) { toast('paste the stream URL'); return; }
+  put('cams', uid(), { name, kind: $('#cKind').value, url, refresh: Math.max(1, +$('#cRef').value || 5), by: me });
+  $('#cName').value = ''; $('#cUrl').value = ''; toast('📹 camera added');
+};
+let camSig = '';
+function renderCams() {
+  const C = live('cams').map(([id, c]) => Object.assign({ id }, c));
+  const sig = JSON.stringify(C); if (sig === camSig) return; camSig = sig;   // don't restart live streams on unrelated renders
+  camTimers.splice(0).forEach(clearInterval);
+  const grid = $('#camgrid');
+  if (!C.length) { grid.innerHTML = `<div class="cam"><div class="feed"><div>📹<br>No cameras yet<br><span style="font-size:.8rem;opacity:.7">add one above — see the guide below</span></div></div><div class="bar"><span class="grow">Kitten cam</span></div></div>`; return; }
+  grid.innerHTML = C.map(c => `<div class="cam" data-id="${c.id}"><div class="feed"></div><div class="bar">${c.kind === 'link' ? '🔗' : '<span class="live"></span>'}<span class="grow">${esc(c.name)}</span>
+    <button data-spot="${c.id}" title="Log a sighting">🐾</button><button data-full title="Full screen">⛶</button><button data-del="${c.id}" title="Remove">✕</button></div></div>`).join('');
+  C.forEach(c => {
+    const box = grid.querySelector(`[data-id="${c.id}"] .feed`);
+    const fail = msg => { box.insertAdjacentHTML('beforeend', `<div class="err">⚠️ ${msg}</div>`); };
+    if (location.protocol === 'https:' && /^http:\/\//i.test(c.url) && c.kind !== 'link') { fail('This is an http:// URL — the browser blocks it on an https page. Expose the bridge over https (Tailscale Funnel / Cloudflare Tunnel).'); return; }
+    if (c.kind === 'hls') {
+      const v = document.createElement('video'); v.muted = true; v.autoplay = true; v.playsInline = true; v.controls = true; box.appendChild(v);
+      v.onerror = () => fail("Couldn't play this stream. Check the URL opens on this phone.");
+      if (v.canPlayType('application/vnd.apple.mpegurl')) { v.src = c.url; v.play().catch(() => {}); }
+      else loadHls().then(() => { if (!window.Hls || !Hls.isSupported()) return fail('HLS not supported in this browser.'); const h = new Hls({ liveDurationInfinity: true }); h.loadSource(c.url); h.attachMedia(v); h.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) fail("Stream error — is the bridge running?"); }); }).catch(() => fail("Couldn't load the HLS player."));
+    } else if (c.kind === 'mjpeg' || c.kind === 'snapshot') {
+      const img = new Image(); img.alt = c.name; img.onerror = () => fail("Couldn't load the feed. Check the URL opens on this phone."); box.appendChild(img);
+      const src = () => c.url + (c.kind === 'snapshot' ? (c.url.includes('?') ? '&' : '?') + '_t=' + Date.now() : '');
+      img.src = src(); if (c.kind === 'snapshot') camTimers.push(setInterval(() => { if (!document.hidden) img.src = src(); }, c.refresh * 1000));
+    } else if (c.kind === 'embed') {
+      const f = document.createElement('iframe'); f.src = c.url; f.allow = 'autoplay; fullscreen; picture-in-picture'; f.referrerPolicy = 'no-referrer'; box.appendChild(f);
+    } else {
+      box.innerHTML = `<a class="btn go" href="${esc(c.url)}" target="_blank" rel="noopener" style="text-decoration:none">Open ${esc(c.name)} ↗</a>`;
+    }
+  });
+  grid.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Remove this camera?')) del('cams', b.dataset.del); });
+  grid.querySelectorAll('[data-full]').forEach(b => b.onclick = () => { const f = b.closest('.cam').querySelector('.feed'); (f.requestFullscreen || f.webkitRequestFullscreen || (() => {})).call(f); });
+  grid.querySelectorAll('[data-spot]').forEach(b => b.onclick = () => { const c = C.find(x => x.id === b.dataset.spot); const txt = prompt('What are they up to?', 'spotted on the ' + c.name + ' cam'); if (txt) put('events', uid(), { date: todayYmd(), k: 'both', type: 'cute', text: '📹 ' + txt, by: me }); });
+}
+
+/* ═════════════ photos ═════════════ */
+function shrink(file, max) {
+  return new Promise((ok, no) => {
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height)); const c = document.createElement('canvas');
+      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url); ok(c.toDataURL('image/jpeg', 0.72)); };
+    img.onerror = () => { URL.revokeObjectURL(url); toast("couldn't read that image"); no(); };
+    img.src = url;
+  });
+}
+function addPhoto(data, meta) {
+  const id = 'p' + uid();
+  if (!lsSet(LS_IMG + id, data)) toast('⚠️ phone storage full — download a backup and remove some photos');
+  put('photos', id, Object.assign({ by: me }, meta));
+  publishImg(id, data);
+  return id;
+}
+$('#pAdd').onclick = async () => {
+  const files = [...$('#pFile').files]; if (!files.length) { toast('pick a photo'); return; }
+  for (const f of files) { try { const d = await shrink(f, 900); addPhoto(d, { k: $('#pK').value, caption: $('#pCap').value.trim(), date: todayYmd() }); } catch (e) {} }
+  $('#pFile').value = ''; $('#pCap').value = ''; toast(`📸 ${files.length} added`);
+};
+function renderPhotos() {
+  const P = live('photos').map(([id, p]) => Object.assign({ id }, p)).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.u - a.u);
+  $('#wall').innerHTML = P.length ? P.map((p, i) => { const src = photoURL(p.id);
+    return `<div class="polaroid" style="--rot:${((i * 37) % 7) - 3}deg">${src ? `<img src="${src}" alt="" loading="lazy" data-view>` : '<div class="empty">syncing…</div>'}
+      <div class="cap"><span class="kdot ${p.k}">${esc(kname(p.k))}</span>${esc(p.caption || '')}</div><div class="m" style="font-size:.72rem;color:var(--faint)">${p.date ? nice(p.date) : ''}</div>
+      <button class="x" data-del="${p.id}">✕</button></div>`; }).join('') : '<div class="empty">No photos yet — add the first one 📸</div>';
+  $('#wall').querySelectorAll('[data-view]').forEach(i => i.onclick = () => view(i.src));
+  $('#wall').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Delete this photo from both phones?')) { lsDel(LS_IMG + b.dataset.del); clearImg(b.dataset.del); del('photos', b.dataset.del); } });
+}
+function view(src) { $('#viewerImg').src = src; $('#viewer').showModal(); }
+$('#viewer').onclick = () => $('#viewer').close();
+
+/* ═════════════ facts + development stage ═════════════ */
+const FACTS = [
+  'Every kitten is born with blue eyes. The real colour starts showing at around 6–8 weeks and usually settles by about 3 months — watch Misato and Pen Pen’s eyes change.',
+  'White cats with blue eyes have a much higher chance of being born deaf (it’s linked to the gene that makes them white). A gentle clap or crinkle behind Misato’s head is an easy check.',
+  'Black cats can go “rusty” — sunlight breaks down the black pigment, so Pen Pen may look reddish-brown in summer.',
+  'In Britain and Japan black cats are traditionally <b>good</b> luck. Pen Pen is a lucky charm.',
+  'Kittens sleep 16–20 hours a day. Growth hormone is mostly released during sleep, so naps literally build them.',
+  'Kittens have 26 baby teeth. Adult teeth (30) push through at about 3–4 months, done by about 6 months. Expect chewing.',
+  'A healthy kitten gains roughly 100g a week — about 1 lb a month — for the first few months.',
+  'The socialisation window is roughly 2–7 weeks and tapers after. Gentle handling, new sounds and new (kind) people now shape who they become.',
+  'A slow blink is cat for “I trust you”. Slow-blink at them and they’ll often blink back.',
+  'Cats can’t taste sweetness — the gene for the sweet receptor is broken in all cats.',
+  'Most cats are lactose-intolerant after weaning. Cow’s milk = upset tummies. Water is the drink.',
+  'A cat’s whiskers are roughly as wide as its body — they’re a built-in “will I fit?” gauge. Never trim them.',
+  'Cats have a third eyelid (the nictitating membrane). If it’s showing a lot when they’re awake, that’s a vet question.',
+  'Every cat’s nose print is unique, like a fingerprint.',
+  'Cats walk like camels and giraffes: both right legs, then both left.',
+  'Kneading (“making biscuits”) comes from nursing — they did it to get milk flowing. As adults it means content.',
+  'Purring happens at about 25–150 Hz. Cats also purr when hurt or stressed, so it isn’t always happiness.',
+  'The righting reflex — landing on their feet — develops by about 7 weeks. It still doesn’t make falls from height safe.',
+  'Cats spend up to half their waking hours grooming.',
+  'Cats hate citrus smell, and concentrated citrus oils are toxic to them. Sol the lemon keeps a respectful distance. 🍋',
+  'Kittens learn to use a tray by instinct — it’s mostly about access. One tray per cat plus one, away from food.',
+  'Littermates usually play-fight hardest from 6–14 weeks. Hissing and pouncing is practice, not a feud.',
+  'Cats have 32 muscles in each ear and can turn each one independently, about 180°.',
+  'A cat’s heart beats about twice as fast as a human’s — 140 to 220 beats a minute.',
+  'The “Flehmen” face — mouth open, lip curled — is a cat tasting a smell with an organ in the roof of its mouth.',
+  'Kittens can’t regulate body temperature well until about 4 weeks, which is why they pile up. Littermates sleeping in a heap is just good engineering.',
+];
+let factI = Math.floor(Date.now() / DAY) % FACTS.length;
+function renderFact() { $('#fact').innerHTML = '🧠 ' + FACTS[(factI % FACTS.length + FACTS.length) % FACTS.length]; $('#factSub').textContent = `Fact ${((factI % FACTS.length) + FACTS.length) % FACTS.length + 1} of ${FACTS.length} — one a day, or keep tapping.`; }
+$('#factNext').onclick = () => { factI++; renderFact(); };
+$('#factPrev').onclick = () => { factI--; renderFact(); };
+const STAGES = [
+  [0, 42, 'Tiny babies', ['Mostly sleeping and feeding', 'Eyes open ~1–2 weeks, ears ~2–3 weeks', 'Wobbly walking at ~3–4 weeks']],
+  [42, 56, 'Weaning wild things', ['Nearly fully on solid kitten food — 4 small meals a day', 'Play-fighting, pouncing, climbing everything', 'Socialisation window closing: lots of gentle handling, new sounds, kind visitors', 'Eye colour starting to change']],
+  [56, 84, 'Vaccine season', ['1st vaccination from 8–9 weeks, 2nd 3–4 weeks later', 'Worming every 2 weeks until 12 weeks', 'Indoors only until vaccinated', 'Start handling paws, ears and mouth for future nail trims & teeth']],
+  [84, 120, 'Little explorers', ['Vaccinations done ~a week after the 2nd jab', 'Baby teeth start falling out from ~3–4 months — chew toys!', 'Book neutering (~4 months)', 'Microchip by 20 weeks (law in England)']],
+  [120, 182, 'Teenagers in training', ['Neutering around now', 'Adult teeth coming through — gums may be sore', 'First supervised garden trips once neutered + vaccinated + chipped', '3–4 meals a day']],
+  [182, 365, 'Adolescents', ['Peak chaos: night zoomies are normal', 'Down to 2–3 meals a day', 'Keep up flea & worm treatment', 'Adult size by about 12 months']],
+  [365, 99999, 'Grown-ups', ['Switch to adult food around 12 months', 'Annual booster + health check', 'Still kittens at heart']],
+];
+function renderStageBox() {
+  const a = ageDays('misato'); if (a == null) { $('#stagebox').innerHTML = ''; return; }
+  const s = STAGES.find(([lo, hi]) => a >= lo && a < hi) || STAGES[STAGES.length - 1];
+  $('#stagebox').innerHTML = `<b>Right now (${ageStr(a)}): ${s[2]}</b><ul>${s[3].map(x => `<li>${x}</li>`).join('')}</ul>`;
+}
+
+/* ═════════════ render everything ═════════════ */
+function renderAll() {
+  ['#wK', '#fK', '#pK'].forEach(s => fillKSelect($(s), s !== '#wK'));
+  ['#eK', '#tK'].forEach(s => fillKSelect($(s), true));
+  renderStage(); renderSay(); renderKittens(); renderCare(); renderWeights(); renderEvents(); renderFoods(); renderTodos(); renderShop(); renderCams(); renderPhotos(); renderStageBox();
+}
+function changed() { renderAll(); schedulePublish(); }
+
+/* ═════════════ sync — encrypted, retained, on public MQTT relays ═════════════
+   Same relay trick as cycle/: a retained message is a tiny keyed store.
+   Difference: everything is AES-GCM encrypted with a key that only lives in
+   the pairing link's #fragment, and the topic is a hash of it — the relays
+   (and anyone listening on '#') only see noise. Photos ride on their own
+   retained topics so the main doc stays small. Every phone keeps a full
+   copy and re-publishes the merged doc on connect, so the relays are just
+   a meeting point — the data lives on both phones. */
+const BROKERS = window.KT_BROKERS || ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/'];
+let secret = lsGet(LS_SECRET), cryptoKey = null, topic = null, conns = [], pubTimer = null, lastSync = 0;
+const seenImg = new Set();
+const te = new TextEncoder(), td = new TextDecoder();
+const b64 = buf => { let s = ''; const b = new Uint8Array(buf); for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000)); return btoa(s); };
+const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function sha(s) { return new Uint8Array(await crypto.subtle.digest('SHA-256', te.encode(s))); }
+async function enc(obj) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, te.encode(JSON.stringify(obj))); const out = new Uint8Array(12 + ct.byteLength); out.set(iv); out.set(new Uint8Array(ct), 12); return b64(out); }
+async function dec(str) { const b = unb64(str); const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(0, 12) }, cryptoKey, b.slice(12)); return JSON.parse(td.decode(pt)); }
+
+function setSync(cls, txt) { const p = $('#syncpill'); p.classList.remove('ok', 'warn'); if (cls) p.classList.add(cls); $('#synctext').textContent = txt; }
+function syncLabel() {
+  const n = conns.filter(c => c.connected).length;
+  if (!window.crypto || !crypto.subtle || typeof mqtt === 'undefined') return setSync('warn', 'saved on this phone (sync unavailable)');
+  if (!n) return setSync('warn', 'saved here · connecting…');
+  const ago = lastSync ? Math.round((Date.now() - lastSync) / 1000) : null;
+  setSync('ok', `synced${ago != null ? (ago < 5 ? ' just now' : ago < 60 ? ` ${ago}s ago` : ` ${Math.round(ago / 60)} min ago`) : ''} · ${n}/${BROKERS.length} relays`);
+}
+setInterval(syncLabel, 5000);
+
+async function initSync() {
+  // adopt a pairing key from the link
+  const m = location.hash.match(/pair=([A-Za-z0-9_-]{16,})/);
+  if (m) { secret = m[1]; lsSet(LS_SECRET, secret); history.replaceState(null, '', location.pathname); setTimeout(() => { toast('📲 paired! syncing with the other phone…'); rain(['💛', '📲', '🐾']); }, 600); }
+  if (!secret) { const r = crypto.getRandomValues(new Uint8Array(18)); secret = b64(r).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); lsSet(LS_SECRET, secret); }
+  if (!window.crypto || !crypto.subtle || typeof mqtt === 'undefined') { syncLabel(); return; }
+  cryptoKey = await crypto.subtle.importKey('raw', await sha('kittens-key:' + secret), 'AES-GCM', false, ['encrypt', 'decrypt']);
+  topic = 'kittens/v1/' + [...(await sha('kittens-topic:' + secret))].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join('');
+  conns.forEach(c => { try { c.end(true); } catch (e) {} }); conns = [];
+  BROKERS.forEach(url => {
+    let c; try { c = mqtt.connect(url, { clientId: 'kt_' + Math.random().toString(36).slice(2, 10), clean: true, reconnectPeriod: 5000, connectTimeout: 10000, keepalive: 45 }); } catch (e) { return; }
+    conns.push(c);
+    c.on('connect', () => {
+      c.subscribe([topic, topic + '/img/+'], { qos: 1 });
+      syncLabel();
+      // after retained copies arrive, push our merged doc + any photos this relay is missing
+      setTimeout(async () => { await publishDoc(c); for (const [id] of live('photos')) if (!seenImg.has(url + id)) { const d = lsGet(LS_IMG + id); if (d) publishImgTo(c, id, d); } }, 3500);
+    });
+    c.on('close', syncLabel);
+    c.on('message', async (t, payload) => {
+      const s = payload.toString(); if (!s) return;
+      try {
+        if (t === topic) {
+          const remote = await dec(s); lastSync = Date.now();
+          const { out, changedA } = merge(doc, remote);
+          if (changedA) { doc = out; save(); renderAll(); }
+          if (merge(remote, doc).changedA) schedulePublish();   // they're missing something of ours
+          syncLabel();
+        } else if (t.startsWith(topic + '/img/')) {
+          const id = t.slice(topic.length + 5); seenImg.add(url + id);
+          if (!lsGet(LS_IMG + id)) { const { data } = await dec(s); if (data && lsSet(LS_IMG + id, data)) renderAll(); }
+        }
+      } catch (e) { /* wrong key or garbage — ignore */ }
+    });
+  });
+}
+async function publishDoc(c) { if (!cryptoKey || !c.connected) return; try { c.publish(topic, await enc(doc), { retain: true, qos: 1 }); lastSync = Date.now(); syncLabel(); } catch (e) {} }
+async function publishImgTo(c, id, data) { if (!cryptoKey || !c.connected) return; try { c.publish(topic + '/img/' + id, await enc({ data }), { retain: true, qos: 1 }); } catch (e) {} }
+function publishImg(id, data) { conns.forEach(c => publishImgTo(c, id, data)); }
+function clearImg(id) { conns.forEach(c => { try { if (c.connected) c.publish(topic + '/img/' + id, '', { retain: true, qos: 1 }); } catch (e) {} }); }
+function schedulePublish() { clearTimeout(pubTimer); pubTimer = setTimeout(() => conns.forEach(publishDoc), 700); }
+
+/* pairing */
+function pairLink() { return location.origin + location.pathname + '#pair=' + secret; }
+$('#pairbtn').onclick = $('#syncpill').onclick = () => {
+  $('#pairLink').value = pairLink();
+  $('#pairWa').href = 'https://wa.me/?text=' + encodeURIComponent('🐾 Misato & Pen Pen tracker — open this once to sync: ' + pairLink());
+  $('#pairdlg').showModal();
+};
+$('#pairCopy').onclick = async () => { try { await navigator.clipboard.writeText(pairLink()); toast('📋 copied'); } catch (e) { $('#pairLink').select(); document.execCommand('copy'); toast('📋 copied'); } };
+$('#pairClose').onclick = () => $('#pairdlg').close();
+
+/* backup */
+$('#exportBtn').onclick = () => {
+  const imgs = {}; live('photos').forEach(([id]) => { const d = lsGet(LS_IMG + id); if (d) imgs[id] = d; });
+  const blob = new Blob([JSON.stringify({ kittensBackup: 1, at: new Date().toISOString(), doc, imgs })], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `misato-penpen-backup-${todayYmd()}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+};
+$('#importFile').onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try { const j = JSON.parse(await f.text()); if (!j.doc) throw 0;
+    Object.entries(j.imgs || {}).forEach(([id, d]) => { if (!lsGet(LS_IMG + id)) { lsSet(LS_IMG + id, d); publishImg(id, d); } });
+    doc = merge(doc, j.doc).out; save(); changed(); toast('📂 backup merged in');
+  } catch (err) { toast("that doesn't look like a backup file"); }
+  e.target.value = '';
+};
+
+/* ═════════════ boot ═════════════ */
+const SPOTS = [[5, 16], [92, 10], [10, 64], [88, 72], [48, 4], [72, 40], [24, 36], [62, 88]];
+SPOTS.forEach(([x, y], i) => { const s = document.createElement('span'); s.className = 'spark'; s.textContent = ['✨', '⭐', '🐾', '🍋'][i % 4]; s.style.left = x + 'vw'; s.style.top = y + 'vh'; s.style.animationDelay = i * .6 + 's'; document.body.appendChild(s); });
+['#wDate', '#eDate'].forEach(s => $(s).value = todayYmd());
+renderMe(); renderFact(); renderAll();
+setInterval(() => renderSay(true), 6500);
+let dayNow = todayYmd(); setInterval(() => { if (todayYmd() !== dayNow) { dayNow = todayYmd(); renderAll(); } }, 30000);   // midnight rollover
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderStage, 200); });
+window.addEventListener('storage', e => { if (e.key === LS) { doc = load(); renderAll(); } });   // another tab
+initSync();
+</script>
+</body>
+</html>
