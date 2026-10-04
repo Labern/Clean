@@ -29,6 +29,9 @@ no build step, no dependencies.
     calibrated constants documented there each encode a real bug — don't
     "tidy" them. Read in particular the sections on orientation, on the two
     bugs that presented as "it does nothing", and on the do-no-harm gate.
+- `kittens/` — Misato & Pen Pen tracker (age, weight chart, moments, food,
+  to-dos, shopping, Ring cam framework, photos), encrypted two-phone sync.
+  Live at `labern.github.io/Clean/kittens/`. See `kittens/CLAUDE.md`.
 - `pica/` — PICA: screenplay editor that imports Final Draft PDFs and reproduces
   them identically, with the full Tab/Enter typing grammar. Single-file web app,
   live at `labern.github.io/Clean/pica/`. See `pica/CLAUDE.md` — its fidelity
