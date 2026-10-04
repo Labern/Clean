@@ -510,8 +510,8 @@ const COLS = ['kittens', 'weights', 'events', 'foods', 'todos', 'shop', 'cams', 
 function seed() {
   const d = {}; COLS.forEach(c => d[c] = {});
   // ~6 weeks old when weighed on Wed 30 Sep 2026 → born ~19 Aug (estimate, editable)
-  d.kittens.misato = { name: 'Misato', coat: 'white', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: '', photo: '', u: 1 };
-  d.kittens.penpen = { name: 'Pen Pen', coat: 'black', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: '', photo: '', u: 1 };
+  d.kittens.misato = { name: 'Misato', coat: 'white with black patches', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: 'black ears, patch over one eye, black tail · peach collar', photo: '', u: 2 };
+  d.kittens.penpen = { name: 'Pen Pen', coat: 'black tuxedo', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: 'white blaze, moustache spot, white bib + paws · blue collar', photo: '', u: 2 };
   d.weights['w-seed-misato'] = { k: 'misato', date: '2026-09-30', g: 700, approx: true, by: 'lemon', u: 1 };
   d.weights['w-seed-penpen'] = { k: 'penpen', date: '2026-09-30', g: 600, approx: true, by: 'lemon', u: 1 };
   d.events['e-seed-weigh'] = { date: '2026-09-30', k: 'both', type: 'milestone', text: 'First weigh-in — Misato ~700g, Pen Pen ~600g. About six weeks old.', by: 'lemon', u: 1 };
@@ -545,7 +545,7 @@ function load() {
   const s = seed();
   if (!d) return s;
   COLS.forEach(c => { d[c] = Object.assign({}, s[c], d[c] || {}); });   // hydrate over defaults, never drop keys
-  return d;
+  return merge(d, s).out;   // a newer seed revision (higher u) updates untouched seed records; user edits always win
 }
 let doc = load();
 function save() { lsSet(LS, JSON.stringify(doc)); }
@@ -608,24 +608,41 @@ function projectAt(id, date) { const l = latest(id), r = rate(id); if (!l || r =
 function estNow(id) { const l = latest(id); if (!l) return null; const p = projectAt(id, todayYmd()); return daysBetween(l.date, todayYmd()) > 0 && p ? p : l.g; }
 
 /* ═════════════ cartoons ═════════════ */
+/* drawn from their photos:
+   Pen Pen — black tuxedo: white blaze between the eyes, white muzzle with a
+   black "moustache" spot under the nose, white bib + paws, pale-blue collar w/ bell.
+   Misato — white with black patches: black ears, black patch over her left eye,
+   black blotches on the back, black tail, peach collar. */
+let svgN = 0;
 function kittenSVG(id, opt = {}) {
-  const k = K(id) || {}; const black = id === 'penpen';
-  const F = black ? '#2b2b30' : '#fbfaf6', O = '#111', IN = black ? '#c97a9a' : '#ffb3c7', W = black ? '#e8e8e8' : '#555';
-  const eye = k.eye || '#8ec5ea', sheen = black ? 'rgba(255,255,255,.12)' : 'rgba(180,170,220,.18)';
-  const cls = opt.still ? '' : ' class="k-tail"';
-  return `<svg viewBox="0 0 210 215" width="${opt.w || 150}" aria-label="${esc(k.name)} cartoon">
-  <path${cls} d="M150 182 C 205 182, 214 120, 182 100 C 172 94, 163 106, 172 112 C 192 126, 186 168, 146 168 Z" fill="${F}" stroke="${O}" stroke-width="5" stroke-linejoin="round"/>
-  <ellipse cx="100" cy="160" rx="57" ry="47" fill="${F}" stroke="${O}" stroke-width="5"/>
-  <ellipse cx="82" cy="146" rx="20" ry="12" fill="${sheen}"/>
-  ${black ? '' : '<path d="M78 170 Q100 186 122 170" fill="none" stroke="#e7e2f5" stroke-width="6" stroke-linecap="round"/>'}
-  <ellipse cx="78" cy="203" rx="17" ry="10" fill="${F}" stroke="${O}" stroke-width="4.5"/>
-  <ellipse cx="122" cy="203" rx="17" ry="10" fill="${F}" stroke="${O}" stroke-width="4.5"/>
-  <path d="M72 200 v6 M80 200 v7 M116 200 v7 M124 200 v6" stroke="${black ? '#555' : '#bbb'}" stroke-width="2.4" stroke-linecap="round"/>
-  <path d="M44 74 L50 16 L94 46 Z" fill="${F}" stroke="${O}" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M156 74 L150 16 L106 46 Z" fill="${F}" stroke="${O}" stroke-width="5" stroke-linejoin="round"/>
-  <path d="M55 60 L58 32 L80 48 Z" fill="${IN}"/><path d="M145 60 L142 32 L120 48 Z" fill="${IN}"/>
-  <ellipse cx="100" cy="86" rx="64" ry="53" fill="${F}" stroke="${O}" stroke-width="5"/>
-  <ellipse cx="74" cy="62" rx="16" ry="8" fill="${sheen}" transform="rotate(-18 74 62)"/>
+  const k = K(id) || {}; const pen = id === 'penpen'; const n = ++svgN;
+  const BLK = '#2b2b30', WHT = '#fbfaf6', O = '#111';
+  const F = pen ? BLK : WHT;                                  // base coat
+  const eye = k.eye || '#8ec5ea';
+  const tail = opt.still ? '' : ' class="k-tail"';
+  const head = 'M36 86 a64 53 0 1 0 128 0 a64 53 0 1 0 -128 0 Z', body = 'M43 160 a57 47 0 1 0 114 0 a57 47 0 1 0 -114 0 Z';
+  const earL = 'M44 74 L50 16 L94 46 Z', earR = 'M156 74 L150 16 L106 46 Z';
+  const bodyMarks = pen
+    ? `<path d="M74 116 Q100 108 126 116 Q124 158 100 184 Q76 158 74 116 Z" fill="${WHT}"/>`
+    : `<ellipse cx="136" cy="146" rx="34" ry="26" fill="${BLK}"/><ellipse cx="62" cy="180" rx="20" ry="13" fill="${BLK}"/><ellipse cx="150" cy="190" rx="16" ry="10" fill="${BLK}"/>`;
+  const headMarks = pen
+    ? `<path d="M100 50 C 95 66, 92 80, 87 94 C 74 104, 70 126, 100 134 C 130 126, 126 104, 113 94 C 108 80, 105 66, 100 50 Z" fill="${WHT}"/>`
+    : `<path d="M30 52 C 44 30, 78 26, 98 38 C 96 56, 98 76, 94 102 C 74 110, 46 104, 30 94 Z" fill="${BLK}"/><path d="M118 34 C 134 34, 158 44, 166 64 C 150 64, 132 58, 118 48 Z" fill="${BLK}"/>`;
+  const mouth = O;                                            // both have white muzzles
+  const paw = WHT, toe = '#bbb';
+  const collar = pen ? '#9fd3e8' : '#ffb38a';
+  return `<svg viewBox="0 0 210 220" width="${opt.w || 150}" aria-label="${esc(k.name)} cartoon">
+  <defs><clipPath id="hc${n}"><path d="${head}"/></clipPath><clipPath id="bc${n}"><path d="${body}"/></clipPath></defs>
+  <path${tail} d="M150 182 C 205 182, 214 120, 182 100 C 172 94, 163 106, 172 112 C 192 126, 186 168, 146 168 Z" fill="${BLK}" stroke="${O}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="${body}" fill="${F}"/><g clip-path="url(#bc${n})">${bodyMarks}</g><path d="${body}" fill="none" stroke="${O}" stroke-width="5"/>
+  <ellipse cx="78" cy="203" rx="17" ry="10" fill="${paw}" stroke="${O}" stroke-width="4.5"/>
+  <ellipse cx="122" cy="203" rx="17" ry="10" fill="${paw}" stroke="${O}" stroke-width="4.5"/>
+  <path d="M72 200 v6 M80 200 v7 M116 200 v7 M124 200 v6" stroke="${toe}" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="${earL}" fill="${BLK}" stroke="${O}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="${earR}" fill="${BLK}" stroke="${O}" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M55 60 L58 32 L80 48 Z" fill="#c97a9a"/><path d="M145 60 L142 32 L120 48 Z" fill="#c97a9a"/>
+  <path d="${head}" fill="${F}"/><g clip-path="url(#hc${n})">${headMarks}</g><path d="${head}" fill="none" stroke="${O}" stroke-width="5"/>
+  <ellipse cx="72" cy="60" rx="14" ry="7" fill="rgba(255,255,255,.13)" transform="rotate(-18 72 60)"/>
   <g class="k-eyes">
     <ellipse cx="74" cy="86" rx="14" ry="16" fill="#fff" stroke="${O}" stroke-width="3"/>
     <ellipse cx="126" cy="86" rx="14" ry="16" fill="#fff" stroke="${O}" stroke-width="3"/>
@@ -634,11 +651,16 @@ function kittenSVG(id, opt = {}) {
     <circle cx="71" cy="82" r="3.8" fill="#fff"/><circle cx="121" cy="82" r="3.8" fill="#fff"/>
     <circle cx="79" cy="94" r="1.8" fill="#fff"/><circle cx="129" cy="94" r="1.8" fill="#fff"/>
   </g>
-  <ellipse cx="58" cy="108" rx="10" ry="5.5" fill="#ff8fab" opacity="${black ? .35 : .55}"/>
-  <ellipse cx="142" cy="108" rx="10" ry="5.5" fill="#ff8fab" opacity="${black ? .35 : .55}"/>
-  <path d="M93 104 L107 104 L100 112 Z" fill="#f49ac1" stroke="${O}" stroke-width="2.4" stroke-linejoin="round"/>
-  <path d="M100 112 Q100 120 91 119 M100 112 Q100 120 109 119" fill="none" stroke="${black ? '#ddd' : O}" stroke-width="2.6" stroke-linecap="round"/>
-  <path d="M60 104 L16 96 M60 110 L14 112 M140 104 L184 96 M140 110 L186 112" stroke="${W}" stroke-width="2.2" stroke-linecap="round"/>
+  <ellipse cx="56" cy="110" rx="9" ry="5" fill="#ff8fab" opacity="${pen ? .4 : .55}"/>
+  <ellipse cx="144" cy="110" rx="9" ry="5" fill="#ff8fab" opacity=".55"/>
+  <path d="M93 103 L107 103 L100 111 Z" fill="#f49ac1" stroke="${O}" stroke-width="2.4" stroke-linejoin="round"/>
+  ${pen ? '<ellipse cx="96" cy="118" rx="7.5" ry="4.2" fill="#2b2b30"/>' : ''}
+  <path d="M100 111 Q100 120 91 120 M100 111 Q100 120 109 120" fill="none" stroke="${mouth}" stroke-width="2.6" stroke-linecap="round"/>
+  <path d="M62 104 L16 96 M62 110 L14 112" stroke="${pen ? '#e8e8e8' : '#555'}" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M138 104 L184 96 M138 110 L186 112" stroke="${pen ? '#e8e8e8' : '#555'}" stroke-width="2.2" stroke-linecap="round"/>
+  <path d="M60 130 Q100 150 140 130" fill="none" stroke="${O}" stroke-width="10" stroke-linecap="round"/>
+  <path d="M60 130 Q100 150 140 130" fill="none" stroke="${collar}" stroke-width="5.5" stroke-linecap="round"/>
+  ${pen ? `<circle cx="100" cy="146" r="7" fill="#9fd3e8" stroke="${O}" stroke-width="3"/><path d="M95 147 h10" stroke="${O}" stroke-width="2"/>` : `<circle cx="100" cy="145" r="5" fill="#f4c93c" stroke="${O}" stroke-width="2.5"/>`}
 </svg>`;
 }
 function girlSVG(w) {
