@@ -32,6 +32,11 @@ no build step, no dependencies.
 - `kittens/` — Misato & Pen Pen tracker (age, weight chart, moments, food,
   to-dos, shopping, Ring cam framework, photos), encrypted two-phone sync.
   Live at `labern.github.io/Clean/kittens/`. See `kittens/CLAUDE.md`.
+- `Raven/` — a dashboard for the Tesla's own browser (2019 Model S Raven):
+  Google Maps → send to nav, WhatsApp names on screen, Spotify control, drive
+  stats, live-location sharing. OEM Tesla look (Universal Sans/Inter, Tesla
+  neutrals, one blue). ES modules, no build; `node Raven/tests/run.mjs`.
+  Live at `labern.github.io/Clean/Raven/`. See `Raven/CLAUDE.md`.
 - `pica/` — PICA: screenplay editor that imports Final Draft PDFs and reproduces
   them identically, with the full Tab/Enter typing grammar. Single-file web app,
   live at `labern.github.io/Clean/pica/`. See `pica/CLAUDE.md` — its fidelity

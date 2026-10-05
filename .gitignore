@@ -27,3 +27,6 @@ TetsuoCode/
 
 # pgp → github.com/Labern/pgp (private — PGP tooling)
 pgp/
+
+# Raven: local keys
+Raven/config.js
