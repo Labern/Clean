@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en" data-theme="night">
+<head>
+<meta charset="utf-8">
+<title>Raven probe</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="style.css">
+<style>
+  html, body { overflow: auto; }
+  body { padding: 2.4rem; }
+  pre { font: 1.4rem/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; background: var(--panel); padding: 2rem; border-radius: var(--radius-md); user-select: text; }
+  .row { margin: 1.6rem 0; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<h1 class="display t-3xl">What does this browser give us?</h1>
+<p class="muted">Open this on the car's screen once. Photograph or copy the block.</p>
+<div class="row">
+  <button class="btn primary" id="geo">Test geolocation</button>
+  <button class="btn" id="audio">Test audio</button>
+  <button class="btn" id="fps">Measure fps</button>
+  <button class="btn" id="fs">Fullscreen</button>
+  <button class="btn quiet" id="copy">Copy</button>
+</div>
+<pre id="out"></pre>
+<script>
+const out = document.getElementById('out');
+const R = {};
+const show = () => { out.textContent = Object.entries(R).map(([k, v]) => `${k}: ${v}`).join('\n'); };
+const set = (k, v) => { R[k] = v; show(); };
+
+set('ua', navigator.userAgent);
+set('viewport', `${innerWidth}×${innerHeight}  dpr ${devicePixelRatio}`);
+set('screen', `${screen.width}×${screen.height}  avail ${screen.availWidth}×${screen.availHeight}`);
+set('touch', `${navigator.maxTouchPoints} points, pointer ${matchMedia('(pointer:coarse)').matches ? 'coarse' : 'fine'}`);
+set('lang', `${navigator.language}  tz ${Intl.DateTimeFormat().resolvedOptions().timeZone}`);
+set('online', navigator.onLine + (navigator.connection ? `  ${navigator.connection.effectiveType || ''}` : ''));
+try { localStorage.setItem('probe', '1'); set('localStorage', localStorage.getItem('probe') === '1' ? 'ok' : 'no'); } catch (e) { set('localStorage', 'blocked: ' + e.message); }
+set('geolocation api', 'geolocation' in navigator ? 'present' : 'absent');
+set('Notification api', typeof Notification !== 'undefined' ? `present (${Notification.permission})` : 'absent');
+set('serviceWorker', 'serviceWorker' in navigator ? 'present' : 'absent');
+set('WebSocket', typeof WebSocket !== 'undefined' ? 'present' : 'absent');
+set('AudioContext', (window.AudioContext || window.webkitAudioContext) ? 'present' : 'absent');
+set('speech', ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) ? 'present' : 'absent');
+set('mediaDevices', navigator.mediaDevices ? 'present' : 'absent');
+set('fullscreen api', document.documentElement.requestFullscreen ? 'present' : 'absent');
+set('wake lock', 'wakeLock' in navigator ? 'present' : 'absent');
+set('visibility', document.visibilityState);
+set('font', document.fonts ? 'fonts api present' : 'no fonts api');
+document.fonts?.ready.then(() => set('inter loaded', document.fonts.check('500 20px Inter')));
+try {
+  const ws = new WebSocket('wss://ws.postman-echo.com/raw');
+  ws.onopen = () => { set('ws echo', 'open'); ws.send('raven'); };
+  ws.onmessage = (e) => { set('ws echo', 'round trip ok: ' + e.data); ws.close(); };
+  ws.onerror = () => set('ws echo', 'error');
+} catch (e) { set('ws echo', 'threw ' + e.message); }
+
+document.getElementById('geo').onclick = () => {
+  if (!navigator.geolocation) return set('geo', 'no api');
+  set('geo', 'asking…');
+  const t0 = Date.now();
+  const id = navigator.geolocation.watchPosition((p) => {
+    const c = p.coords;
+    set('geo', `ok after ${Date.now() - t0}ms  ${c.latitude.toFixed(5)},${c.longitude.toFixed(5)}  ±${Math.round(c.accuracy)}m  speed ${c.speed ?? 'null'}  heading ${c.heading ?? 'null'}  alt ${c.altitude ?? 'null'}`);
+    R['geo fixes'] = (R['geo fixes'] || 0) + 1; show();
+  }, (e) => set('geo', `error ${e.code}: ${e.message}`), { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 });
+  setTimeout(() => navigator.geolocation.clearWatch(id), 60000);
+};
+document.getElementById('audio').onclick = async () => {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    const ac = new AC(); await ac.resume();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.frequency.value = 880; g.gain.value = 0.2; o.connect(g).connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.4);
+    set('audio', `context ${ac.state} — did you hear a beep?`);
+  } catch (e) { set('audio', 'failed: ' + e.message); }
+  try {
+    const a = new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=');
+    await a.play(); set('audio element', 'play() resolved');
+  } catch (e) { set('audio element', 'rejected: ' + e.message); }
+};
+document.getElementById('fps').onclick = () => {
+  let n = 0; const t0 = performance.now();
+  const f = () => { n++; if (performance.now() - t0 < 2000) requestAnimationFrame(f); else set('fps', (n / 2).toFixed(0)); };
+  requestAnimationFrame(f);
+};
+document.getElementById('fs').onclick = () => document.documentElement.requestFullscreen?.().then(() => set('fullscreen', 'entered')).catch(e => set('fullscreen', 'rejected: ' + e.message));
+document.getElementById('copy').onclick = async () => { try { await navigator.clipboard.writeText(out.textContent); set('copy', 'copied'); } catch (e) { set('copy', 'clipboard blocked'); } };
+addEventListener('resize', () => set('viewport', `${innerWidth}×${innerHeight}  dpr ${devicePixelRatio}`));
+</script>
+</body>
+</html>
