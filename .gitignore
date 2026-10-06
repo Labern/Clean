@@ -31,3 +31,5 @@ pgp/
 # Raven: local keys
 Raven/config.js
 Raven/docs/*.png
+Raven/server/node_modules/
+Raven/server/data/

@@ -45,14 +45,16 @@ export function mountMap(host, ctx) {
     const car = new g.Marker({ map, position: home, icon: carIcon(g, 0) });
     let follow = true;
     map.addListener('dragstart', () => { follow = false; });
-    on('tesla.state', (t) => {
+    const place = (t) => {
       if (t.lat == null) return;
       const p = { lat: t.lat, lng: t.lng };
       car.setPosition(p); car.setIcon(carIcon(g, t.heading || 0));
       if (follow) map.panTo(p);
-    });
+    };
+    on('car.pos', place);     // browser GPS, when the car's browser gives it
+    on('tesla.state', place); // Fleet API, later
     on('theme', (th) => map.setOptions({ styles: th === 'night' ? NIGHT : DAY }));
-    on('map.recenter', () => { follow = true; const t = latest('tesla.state'); if (t?.lat != null) map.panTo({ lat: t.lat, lng: t.lng }); });
+    on('map.recenter', () => { follow = true; const t = latest('car.pos') || latest('tesla.state'); if (t?.lat != null) map.panTo({ lat: t.lat, lng: t.lng }); });
     ctx.map = map;
     emit('map.ready', { map });
   };

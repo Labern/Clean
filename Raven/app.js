@@ -7,6 +7,7 @@ import { createLink } from './lib/link.js';
 import { isDemo, startDemo } from './lib/demo.js';
 import { isNight } from './lib/sun.js';
 import { clock, miles, unitDist, pct } from './lib/fmt.js';
+import { startGeo } from './lib/geo.js';
 import { mountMap } from './widgets/map.js';
 
 import spotify from './widgets/spotify.js';
@@ -19,7 +20,8 @@ const WIDGETS = [spotify, whatsapp, trip, battery, facts].sort((a, b) => a.order
 
 const $ = (s, r = document) => r.querySelector(s);
 const store = createStore();
-const ctx = { store, emit, on, latest, toast, theme: () => document.documentElement.dataset.theme === 'day' ? 'day' : 'night', map: null };
+let link = null;
+const ctx = { store, emit, on, latest, toast, theme: () => document.documentElement.dataset.theme === 'day' ? 'day' : 'night', map: null, get link() { return link; } };
 
 // ---- One-time key from the URL (?key=…) → localStorage, then scrub the URL.
 (() => {
@@ -62,7 +64,10 @@ on('tesla.state', (s) => {
   $('#temp-pill').textContent = `${Math.round(s.outside)}°`;
 });
 on('wa.chats', (s) => { const el = $('#unread-pill'); el.textContent = s.unread ? `${s.unread} new` : ''; });
-on('link.status', (s) => { const d = $('#dot-server'); d.className = 'dot ' + (s.status === 'on' ? 'on' : s.status === 'off' ? '' : 'warn'); });
+on('link.status', (s) => {
+  const d = $('#dot-server'); d.className = 'dot ' + (s.status === 'on' ? 'on' : s.status === 'off' ? '' : 'warn');
+  if (s.status === 'on' && latest('car.pos')) link.send('car.pos', latest('car.pos')); // catch the server up
+});
 on('spotify.state', (s) => { $('#dot-spotify').className = 'dot ' + (s?.track ? 'on' : ''); });
 on('tesla.state', () => { $('#dot-car').className = 'dot on'; });
 
@@ -139,6 +144,10 @@ function toast(who, what = 'WhatsApp', kind = '', ms = 6000) {
 }
 on('wa.message', (m) => { toast(m.name, 'WhatsApp'); chime(); });
 on('notify', (n) => toast(n.title, n.source || 'Raven', n.kind || ''));
+on('wa.sent', () => toast('Sent', 'WhatsApp', 'good', 2500));
+on('wa.shared', (s) => toast('Sharing live', 'WhatsApp', 'good'));
+on('error', (e) => toast(e.message || 'Something failed', e.of || 'Server', 'bad'));
+on('wa.open', (chat) => { if (openWidget?.id === 'whatsapp') openWidget.detail(sheetBody, undefined, ctx); });
 
 // ---- Map chrome
 $('#recenter').addEventListener('click', () => emit('map.recenter'));
@@ -188,10 +197,11 @@ const settings = { id: 'settings', title: 'Settings', events: [],
 function openSettings() { openSheet(settings); }
 $('#settings-btn').addEventListener('click', openSettings);
 
-// ---- Map, link, demo
+// ---- Map, link, geolocation, demo
 mountMap($('#map-host'), ctx);
-let link = createLink({ server: store.get('server'), key: store.get('key') });
+link = createLink({ server: store.get('server'), key: store.get('key') });
 link.start();
+startGeo({ send: (t, d) => link.send(t, d) });
 if (isDemo()) startDemo();
 
 if (location.hash) window.dispatchEvent(new Event('hashchange'));

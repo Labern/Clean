@@ -177,5 +177,46 @@ await test('widgets: every widget honours the contract', async () => {
   }
 });
 
+// ---- geo
+const geo = await import(`${root}/lib/geo.js`);
+await test('geo: throttles to 1 Hz, suppresses parked repeats, reports status', () => {
+  bus.reset();
+  let cb; const fake = { watchPosition: (ok) => { cb = ok; return 7; }, clearWatch: () => {} };
+  const sent = [];
+  const stop = geo.startGeo({ send: (t, d) => sent.push(d), geo: fake, minMs: 1000 });
+  const fix = (lat, lng, ts) => cb({ timestamp: ts, coords: { latitude: lat, longitude: lng, speed: 10, heading: 90, accuracy: 5 } });
+  fix(51.5, -0.1, 1); fix(51.5, -0.1, 2);           // second one inside 1 s
+  assert.equal(sent.length, 1);
+  assert.equal(bus.latest('geo.status').ok, true);
+  assert.equal(bus.latest('car.pos').speed, 36);     // m/s → km/h
+  stop();
+  assert.equal(geo.dist({ lat: 51.5, lng: -0.1 }, { lat: 51.5, lng: -0.1 }), 0);
+  assert.ok(Math.abs(geo.dist({ lat: 51.5074, lng: -0.1278 }, { lat: 50.8225, lng: -0.1372 }) - 76.2) < 1);
+});
+await test('geo: no API → status only', () => {
+  bus.reset();
+  geo.startGeo({ send: () => { throw new Error('should not send'); }, geo: null });
+  assert.equal(bus.latest('geo.status').ok, false);
+});
+
+// ---- whatsapp widget behaviour (DOM-free: summary into a fake element)
+await test('whatsapp: summary reflects link/unread/share state', async () => {
+  bus.reset();
+  const w = (await import(`${root}/widgets/whatsapp.js`)).default;
+  const el = { innerHTML: '' };
+  w.summary(el);
+  assert.ok(el.innerHTML.includes('Not linked') && el.innerHTML.includes('No server'));
+  bus.emit('link.status', { status: 'on' }); bus.emit('wa.status', { state: 'qr' });
+  w.summary(el); assert.ok(el.innerHTML.includes('Scan the QR'));
+  bus.emit('wa.chats', { chats: [{ id: 'a', name: 'Dad', unread: 2, ts: Date.now() }], unread: 2 });
+  w.summary(el); assert.ok(el.innerHTML.includes('Dad') && el.innerHTML.includes('badge">2'));
+  bus.emit('wa.chats', { chats: [{ id: 'a', name: 'Dad', unread: 0, ts: Date.now() }], unread: 0 });
+  bus.emit('share.state', { shares: [{ token: 't', name: 'Dad', chat: 'a', expires: Date.now() + 1000 }] });
+  w.summary(el); assert.ok(el.innerHTML.includes('Sharing live'));
+  const sent = [];
+  w.actions.stopShares({ link: { send: (t, d) => sent.push([t, d]) } });
+  assert.deepEqual(sent, [['wa.share.stop', { token: 't' }]]);
+});
+
 console.log(`${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

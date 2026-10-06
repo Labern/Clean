@@ -53,9 +53,26 @@ widget over the map) · toasts top-right (sender name only, 6s, chime).
 - Auth: `?key=…&server=…` once → localStorage → URL scrubbed. Spotify PKCE
   in-browser (Phase 2). WhatsApp QR and Tesla OAuth on the phone setup page.
 
+## Server (`server/`)
+Node ≥ 22.13 on your Mac behind Tailscale Funnel; see `server/README.md`.
+`index.mjs` (HTTP + WS + routes) · `hub.mjs` (broadcast, replays last state
+per type on connect) · `wa.mjs` (Baileys linked device; names and counts
+only; `WA_DEMO=1` for synthetic traffic) · `live.mjs` (share tokens, public
+`/api/live/:token`) · `db.mjs` (`node:sqlite`) · `setup.html` (phone page:
+key, QR, open-in-car link, quick replies, active shares).
+Car → server over the WS: `car.pos` (from `lib/geo.js`, browser GPS),
+`wa.send`, `wa.read`, `wa.share {chat, minutes, refreshMin}`, `wa.share.stop`.
+Server → car: `wa.status`, `wa.chats`, `wa.message`, `wa.canned`,
+`share.state`, `car.pos`, `wa.sent`, `wa.shared`, `error`.
+Replies: the composer in the Messages sheet is a plain text field — the
+car's own dictation (hold the right wheel button) types into it.
+Live location: pin + `live/index.html#s=<server>&t=<token>` (Leaflet + CARTO
+tiles, no key), pin refreshed every `refreshMin` while active.
+
 ## Tests
-`node Raven/tests/run.mjs` — zero-dep harness: bus, store, fmt, sun, drives,
-link, demo, widget contract. Keep it green.
+`node Raven/tests/run.mjs` (client: bus, store, fmt, sun, drives, link,
+demo, geo, widget contract/behaviour) and `node Raven/server/tests/run.mjs`
+(db, hub, live, real HTTP + WS against a demo instance). Keep both green.
 
 ## Deploy
 GitHub Pages like the rest of `Clean`: copy `Raven/` onto the gh-pages

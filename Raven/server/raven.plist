@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.labern.raven</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/homebrew/bin/node</string>
+    <string>/Users/YOU/Clean/Raven/server/index.mjs</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/YOU/Clean/Raven/server</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>APP_SECRET</key><string>CHANGE-ME</string>
+    <key>PORT</key><string>8787</string>
+    <key>PUBLIC_URL</key><string>https://MAC-NAME.TAILNET.ts.net</string>
+    <key>OWNER_NAME</key><string>Luke</string>
+    <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/tmp/raven.log</string>
+  <key>StandardErrorPath</key><string>/tmp/raven.log</string>
+</dict>
+</plist>
