@@ -89,7 +89,7 @@ function composer(el, chat, ctx) {
       <span class="avatar">${initials(chat.name)}</span>
       <div class="stack"><span class="display t-2xl">${esc(chat.name)}</span><span class="t-sm faint">${chat.unread ? `${chat.unread} new · ` : ''}${ago(chat.ts) === 'now' ? 'just now' : `${ago(chat.ts)} ago`}</span></div>
     </div>
-    <div class="grid-2" style="align-items:start;gap:2.4rem">
+    <div class="grid-2 stack-portrait" style="align-items:start;gap:2.4rem">
       <div class="stack" style="gap:1.6rem">
         <span class="label">Reply — hold the wheel button to dictate</span>
         <div class="row">

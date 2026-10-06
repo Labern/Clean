@@ -17,14 +17,16 @@ export default {
         <div class="tile-body"><div class="t-xl muted">Parked</div></div>`;
       return;
     }
-    const w = whPer(d.kwh, d.distanceKm, u);
+    const w = d.kwh == null ? null : whPer(d.kwh, d.distanceKm, u);
     el.innerHTML = `
       <div class="tile-head"><span class="label">Trip</span><span class="t-sm faint num">${duration(Date.now() - d.startTs)}</span></div>
       <div class="tile-body">
         <div class="display big num">${miles(d.distanceKm, u, 1)}<span class="unit">${unitDist(u)}</span></div>
         <div class="row" style="gap:2.4rem">
           <span class="display t-2xl num">${speed(d.speed, u)}<span class="unit">${unitSpeed(u)}</span></span>
-          <span class="display t-2xl num">${w ?? '—'}<span class="unit">Wh/${unitDist(u)}</span></span>
+          ${w == null
+            ? `<span class="display t-2xl num">${speed(d.maxSpeed, u)}<span class="unit">top</span></span>`
+            : `<span class="display t-2xl num">${w}<span class="unit">Wh/${unitDist(u)}</span></span>`}
         </div>
       </div>`;
   },
@@ -41,8 +43,8 @@ export default {
         ${stat('Time', duration(ms))}
         ${stat('Average', speed(avg, u), unitSpeed(u))}
         ${stat('Top speed', speed(d.maxSpeed, u), unitSpeed(u))}
-        ${stat('Energy', d.kwh.toFixed(1), 'kWh')}
-        ${stat('Efficiency', whPer(d.kwh, d.distanceKm, u) ?? '—', `Wh/${unitDist(u)}`)}
+        ${stat('Energy', d.kwh == null ? '—' : d.kwh.toFixed(1), 'kWh')}
+        ${stat('Efficiency', d.kwh == null ? '—' : (whPer(d.kwh, d.distanceKm, u) ?? '—'), `Wh/${unitDist(u)}`)}
         ${stat('Now', speed(d.speed, u), unitSpeed(u))}
       </div>`;
   },
