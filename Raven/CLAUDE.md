@@ -6,14 +6,24 @@ what the car can't: Google Maps with "send to nav", WhatsApp on screen (names
 only), full Spotify control, a drive log with real stats, live-location
 sharing, replies from the wheel.
 
-## The car's browser (verified 2026-10-05)
-- Chromium 148 since 2026.26. Pages work while driving; video doesn't.
-- 2026.26 changed the default zoom. Everything is in `rem`; `--ui` (Settings →
-  Size) scales the whole UI. Default 1.5 = 14px body reads as 21px.
-- **No microphone or camera on Intel cars.** Voice input comes from the phone
-  (or Siri over Bluetooth), never the car. `probe.html` tests the exact
-  browser: geolocation, audio, WebSocket, fps, fullscreen. Run it first.
-- 1920×1200 landscape, desktop UA, touch. Targets ≥ 4.8rem.
+## The car's browser (measured on the Raven, 2026-10-06, via `probe.html`)
+- Chrome/148 Linux x86_64 UA. Pages work while driving; video doesn't.
+- **Portrait.** Screen 869×1391 CSS px at DPR 1.38 (= 1200×1920 physical);
+  browser viewport **856×1096** with the nav strip below; a smaller
+  856×668 window also occurs. `style.css` has a `max-width: 1100px` block
+  for this: 2-column widget grid, chips wrap under the search field, brand
+  name hidden, sheets stack one column (`.grid-2.stack-portrait`).
+- Everything is in `rem`; `--ui` (Settings → Size) scales the whole UI.
+- **Geolocation works**: ±1 m, ~2 s to first fix, speed/heading/altitude.
+  `lib/geo.js` → `car.pos`; `lib/trip.js` segments it into drives locally,
+  so Trip and Facts run with no server and no Tesla API.
+- Audio: `AudioContext` runs and `<audio>.play()` resolves (chime works).
+- 61 fps, fullscreen API works (Settings → Screen), WebSocket round-trips,
+  localStorage persists, wake lock present, `Notification` denied (we don't
+  need it), `speech`/`mediaDevices` objects exist but the car's own
+  dictation (hold the right wheel button in a text field) is the input.
+- `touch: 16 points, pointer: fine` — style for touch regardless. Targets
+  ≥ 4.8rem.
 
 ## Design: OEM Tesla
 - Type: Universal Sans Display/Text when a licensed copy is present (one

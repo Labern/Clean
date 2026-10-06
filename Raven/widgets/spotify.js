@@ -51,7 +51,7 @@ export default {
   detail(el, s = latest('spotify.state')) {
     if (!s || !s.track) { el.innerHTML = `<div class="t-2xl muted">Nothing playing</div>`; return; }
     el.innerHTML = `
-      <div class="grid-2" style="align-items:start">
+      <div class="grid-2 stack-portrait" style="align-items:start">
         <div class="stack">
           ${s.art ? `<img class="art" src="${s.art}" alt="">` : `<div class="art"></div>`}
         </div>

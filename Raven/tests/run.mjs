@@ -199,6 +199,33 @@ await test('geo: no API → status only', () => {
   assert.equal(bus.latest('geo.status').ok, false);
 });
 
+// ---- trip from GPS
+const trip = await import(`${root}/lib/trip.js`);
+await test('trip: car.pos → drive.update while moving, history on stop', () => {
+  bus.reset();
+  const mem = new Map();
+  const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v) };
+  const updates = [];
+  bus.on('drive.update', (d) => updates.push(d));
+  const t = trip.startTrip({ storage });
+  assert.deepEqual(bus.latest('drives.history').drives, []);
+  let ts = 0, lng = -0.1;
+  const fix = (speed) => { bus.emit('car.pos', { ts, lat: 51.5, lng, speed }); ts += 10000; };
+  for (let i = 0; i < 60; i++) { lng += 0.001; fix(50); }
+  assert.ok(t.current && updates.at(-1).distanceKm > 4 && updates.at(-1).kwh === null);
+  for (let i = 0; i < 40; i++) fix(0);
+  assert.equal(t.current, null);
+  assert.equal(t.history.length, 1);
+  assert.equal(updates.at(-1), null);
+  assert.equal(JSON.parse(mem.get(trip.HISTORY_KEY)).length, 1);
+  assert.equal(bus.latest('drives.history').drives[0].maxSpeed, 50);
+  t.stop();
+  // reload picks the history back up
+  bus.reset();
+  trip.startTrip({ storage });
+  assert.equal(bus.latest('drives.history').drives.length, 1);
+});
+
 // ---- whatsapp widget behaviour (DOM-free: summary into a fake element)
 await test('whatsapp: summary reflects link/unread/share state', async () => {
   bus.reset();

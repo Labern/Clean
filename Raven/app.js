@@ -8,6 +8,7 @@ import { isDemo, startDemo } from './lib/demo.js';
 import { isNight } from './lib/sun.js';
 import { clock, miles, unitDist, pct } from './lib/fmt.js';
 import { startGeo } from './lib/geo.js';
+import { startTrip } from './lib/trip.js';
 import { mountMap } from './widgets/map.js';
 
 import spotify from './widgets/spotify.js';
@@ -180,6 +181,8 @@ const settings = { id: 'settings', title: 'Settings', events: [],
           <div class="seg" data-set="units">${['mi', 'km'].map(v => `<button data-v="${v}" class="${s.units === v ? 'on' : ''}">${v === 'mi' ? 'Miles' : 'Kilometres'}</button>`).join('')}</div></div>
         <div class="stack"><span class="label">Chime on messages</span>
           <div class="seg" data-set="chime">${[true, false].map(v => `<button data-v="${v}" class="${s.chime === v ? 'on' : ''}">${v ? 'On' : 'Off'}</button>`).join('')}</div></div>
+        <div class="stack"><span class="label">Screen</span>
+          <div class="row"><button class="btn" id="fs-btn">${document.fullscreenElement ? 'Leave fullscreen' : 'Fullscreen'}</button></div></div>
         <div class="stack"><span class="label">Server</span>
           <input class="text" id="server-in" placeholder="https://mac.tailnet.ts.net" value="${esc(s.server)}">
           <div class="t-sm faint">${s.key ? 'Key set.' : 'No key. Open once with ?key=… from the setup page.'}</div></div>
@@ -192,6 +195,9 @@ const settings = { id: 'settings', title: 'Settings', events: [],
       store.set(k, v); settings.detail(el);
       if (k === 'units') for (const w of WIDGETS) { try { w.summary(tiles.get(w.id), undefined, ctx); } catch {} }
     }));
+    el.querySelector('#fs-btn').addEventListener('click', () => {
+      (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).then(() => settings.detail(el)).catch(() => toast('Fullscreen', 'Not allowed here', 'bad'));
+    });
     el.querySelector('#server-in').addEventListener('change', (e) => { store.set('server', e.target.value.trim().replace(/\/$/, '')); link.stop(); link = createLink({ server: store.get('server'), key: store.get('key') }); link.start(); });
   } };
 function openSettings() { openSheet(settings); }
@@ -202,7 +208,7 @@ mountMap($('#map-host'), ctx);
 link = createLink({ server: store.get('server'), key: store.get('key') });
 link.start();
 startGeo({ send: (t, d) => link.send(t, d) });
-if (isDemo()) startDemo();
+if (isDemo()) startDemo(); else startTrip();
 
 if (location.hash) window.dispatchEvent(new Event('hashchange'));
 
