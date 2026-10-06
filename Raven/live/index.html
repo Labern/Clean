@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Raven · live</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<link rel="stylesheet" href="vendor/leaflet.css">
+<style>
+  :root { --bg:#000; --panel:#171a20; --line:#393c41; --fg:#fff; --fg-2:#8e8e8e; --accent:#3e6ae1; --good:#16a34a; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f4f4f4; --panel:#fff; --line:#d0d1d2; --fg:#171a20; --fg-2:#5c5e62; } }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html, body { height:100%; }
+  body { background:var(--bg); color:var(--fg); font:400 16px/1.43 "Universal Sans Text", Inter, -apple-system, Arial, sans-serif; display:grid; grid-template-rows:auto 1fr; -webkit-font-smoothing:antialiased; }
+  header { display:flex; align-items:center; gap:12px; padding:14px 16px; background:var(--panel); border-bottom:1px solid var(--line); }
+  header svg { height:22px; width:auto; fill:currentColor; }
+  h1 { font-family:"Universal Sans Display", Inter, -apple-system, Arial, sans-serif; font-weight:500; letter-spacing:-0.02em; font-size:20px; line-height:1.1; }
+  .sub { color:var(--fg-2); font-size:13px; }
+  .dot { width:10px; height:10px; border-radius:50%; background:var(--line); margin-left:auto; }
+  .dot.on { background:var(--good); }
+  #map { width:100%; height:100%; background:var(--bg); }
+  #foot { position:fixed; left:12px; right:12px; bottom:12px; background:var(--panel); border-radius:12px; padding:14px 16px; display:flex; gap:16px; align-items:center; z-index:1000; }
+  .num { font-family:"Universal Sans Display", Inter, sans-serif; font-weight:500; font-size:28px; letter-spacing:-0.02em; line-height:1; font-variant-numeric:tabular-nums; }
+  .unit { font-size:13px; color:var(--fg-2); margin-left:4px; }
+  .k { font-size:12px; color:var(--fg-2); font-weight:500; letter-spacing:0.04em; }
+  a.btn { margin-left:auto; display:inline-flex; align-items:center; min-height:40px; padding:0 16px; border-radius:4px; background:var(--accent); color:#fff; text-decoration:none; font-weight:500; font-size:14px; }
+  .leaflet-container { font:inherit; }
+  .car { width:18px; height:18px; border-radius:50%; background:var(--accent); border:3px solid #fff; box-shadow:0 0 0 2px var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <svg viewBox="12 0 255 253"><g transform="translate(-33.796,-64.797)"><path d="m173.146 317.299 35.476-199.519c33.815 0 44.481 3.708 46.021 18.843 0 0 22.684-8.458 34.125-25.636-44.646-20.688-89.505-21.621-89.505-21.621l-26.176 31.882 0.059-4e-3 -26.176-31.883s-44.86 0.934-89.5 21.622c11.431 17.178 34.124 25.636 34.124 25.636 1.549-15.136 12.202-18.844 45.79-18.868l35.762 199.548"/><path d="m173.132 80.157c36.09-0.276 77.399 5.583 119.687 24.014 5.652-10.173 7.105-14.669 7.105-14.669-46.227-18.289-89.518-24.548-126.797-24.705-37.277 0.157-80.566 6.417-126.787 24.705 0 0 2.062 5.538 7.1 14.669 42.28-18.431 83.596-24.29 119.687-24.014h5e-3"/></g></svg>
+  <div><h1 id="title">Live</h1><div class="sub" id="sub">Connecting…</div></div>
+  <span class="dot" id="dot"></span>
+</header>
+<div id="map"></div>
+<div id="foot">
+  <div><div class="k">Speed</div><div class="num" id="speed">—<span class="unit">mph</span></div></div>
+  <div><div class="k">Updated</div><div class="num" id="age">—</div></div>
+  <a class="btn" id="gmaps" href="#" target="_blank" rel="noopener">Open in Maps</a>
+</div>
+<script src="vendor/leaflet.js"></script>
+<script>
+const h = new URLSearchParams(location.hash.slice(1));
+const server = (h.get('s') || '').replace(/\/$/, ''), token = h.get('t');
+const $ = (s) => document.querySelector(s);
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+// The map is a bonus; the numbers and the Maps link work without it.
+let map = null, car = null, trail = null;
+if (typeof L !== 'undefined') {
+  map = L.map('map', { zoomControl: false, attributionControl: true }).setView([51.5074, -0.1278], 13);
+  L.tileLayer(dark ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png' : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    { attribution: '&copy; OpenStreetMap &copy; CARTO', maxZoom: 19 }).addTo(map);
+  car = L.marker([0, 0], { icon: L.divIcon({ className: '', html: '<div class="car"></div>', iconSize: [18, 18], iconAnchor: [9, 9] }) });
+  trail = L.polyline([], { color: '#3e6ae1', weight: 4, opacity: 0.7 }).addTo(map);
+  map.on('dragstart', () => { follow = false; });
+}
+let follow = true, first = true, lastTs = 0;
+
+async function tick() {
+  if (!server || !token) { $('#sub').textContent = 'Bad link'; return; }
+  try {
+    const v = await (await fetch(`${server}/api/live/${token}`, { cache: 'no-store' })).json();
+    $('#title').textContent = v.name ? `${v.name} is sharing their location` : 'Live';
+    $('#dot').className = 'dot ' + (v.active ? 'on' : '');
+    if (!v.active) { $('#sub').textContent = 'Sharing ended'; return; }
+    $('#sub').textContent = `Until ${new Date(v.expires).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    if (v.pos) {
+      const p = [v.pos.lat, v.pos.lng];
+      if (map) {
+        if (!car._map) car.addTo(map);
+        car.setLatLng(p); trail.setLatLngs(v.trail || []);
+        if (first) { map.setView(p, 15); first = false; } else if (follow) map.panTo(p);
+      }
+      $('#speed').innerHTML = `${v.pos.speed == null ? '—' : Math.round(v.pos.speed * 0.621371)}<span class="unit">mph</span>`;
+      lastTs = v.pos.ts;
+      $('#gmaps').href = `https://www.google.com/maps/search/?api=1&query=${v.pos.lat},${v.pos.lng}`;
+    }
+  } catch (e) { $('#sub').textContent = 'Reconnecting…'; }
+  setTimeout(tick, 5000);
+}
+setInterval(() => { if (lastTs) { const s = Math.round((Date.now() - lastTs) / 1000); $('#age').textContent = s < 60 ? `${s}s` : `${Math.round(s / 60)}m`; } }, 1000);
+tick();
+</script>
+</body>
+</html>
