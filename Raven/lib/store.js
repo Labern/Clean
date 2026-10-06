@@ -5,7 +5,7 @@ export const KEY = 'raven_v1';
 
 export const DEFAULTS = {
   theme: 'auto',            // 'auto' | 'night' | 'day'
-  ui: 1.5,                  // --ui scale
+  ui: 1.3,                  // --ui scale, tuned for the car's 856×1096 viewport
   units: 'mi',              // 'mi' | 'km'
   currency: 'GBP',
   server: '',               // https://<mac>.<tailnet>.ts.net (empty = no server)
