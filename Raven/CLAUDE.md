@@ -38,10 +38,25 @@ sharing, replies from the wheel.
   chips. Motion 250–330ms `cubic-bezier(.5,0,0,.75)`, colour only.
 - Tesla T mark (SVG symbol in `index.html`). Personal use.
 
-## Layout
-Header (clock, car pill, unread, link dots, settings) · map stage with search,
-saved-place chips, recenter, Send to nav · widget rail · sheet (expanded
-widget over the map) · toasts top-right (sender name only, 6s, chime).
+## Layout (portrait-first, one target: 856×1096 at DPR 1.38, `--ui` 1.3)
+Header 5.6rem (T mark, clock, car pill, unread pill, link dots, settings) ·
+map stage (search full width, Home/Work chips, recenter + Send to nav) ·
+Now Playing strip 9.6rem (full width) · 2×2 tiles of 16rem (Messages, Trip,
+Battery, Facts) · sheet fixed full-screen under the header · toasts
+top-right (sender name only, 6s, chime). Everything fits with no scrolling;
+`shot-portrait` asserts `railBottom === innerHeight`. A laptop shows the
+same layout centred at `max-width: 90rem` — there is no second design.
+
+## Spotify (`lib/spotify-api.js`, ported from SpotifyDrive/variants/pure)
+PKCE in the car's browser, tokens in localStorage (`sp_*`), redirect URI
+`https://labern.github.io/Clean/Raven/index.html`, client id in
+`config.js`. `handleRedirect()` on boot, `start()` polls `/me/player` every
+3 s while visible, `cmd(name, arg)` for toggle/next/prev/like/shuffle/seek/
+play/queue/transfer with the SpotifyDrive 404-re-resolve. Emits
+`spotify.state`, `spotify.auth`, `spotify.error`. Demo mode never
+constructs it; `lib/demo.js` answers `spotify.cmd` instead. The deployed
+`config.js` on gh-pages carries the client id (not secret) and the Maps key
+(referrer-restricted); it is gitignored on master.
 
 ## Code
 - No build step. ES modules served as-is. `config.js` (gitignored, from

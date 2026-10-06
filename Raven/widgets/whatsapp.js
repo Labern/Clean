@@ -29,7 +29,7 @@ export default {
         <div class="tile-body"><div class="t-xl muted">Not linked</div><div class="t-sm faint">${why}</div></div>`;
       return;
     }
-    const top = s.chats.slice(0, 3);
+    const top = s.chats.slice(0, 2); // the tile is 16rem tall; the sheet has everyone
     const shares = latest('share.state')?.shares?.length || 0;
     el.innerHTML = `
       <div class="tile-head"><span class="label">Messages</span>${s.unread ? `<span class="badge">${s.unread}</span>` : shares ? `<span class="t-sm" style="color:var(--good)">Sharing live</span>` : `<span class="t-sm faint">No unread</span>`}</div>

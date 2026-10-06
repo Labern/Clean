@@ -226,6 +226,70 @@ await test('trip: car.pos → drive.update while moving, history on stop', () =>
   assert.equal(bus.latest('drives.history').drives.length, 1);
 });
 
+// ---- spotify api (fake fetch + storage)
+const spapi = await import(`${root}/lib/spotify-api.js`);
+await test('spotify: token refresh, 401 retry, 204 handling, state publish, commands', async () => {
+  bus.reset();
+  const mem = new Map();
+  const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) };
+  const calls = [];
+  let t = 1_000_000;
+  const player = { is_playing: true, progress_ms: 5000, shuffle_state: false, device: { id: 'dev1', name: 'iPhone', type: 'Smartphone' },
+    item: { id: 'tr1', uri: 'spotify:track:tr1', name: 'Hunter', duration_ms: 254000, artists: [{ name: 'Björk' }], album: { name: 'Homogenic', images: [{ url: 'big' }, { url: 'mid' }] } } };
+  const fetch = async (url, opts = {}) => {
+    calls.push([opts.method || 'GET', url, opts.headers?.Authorization]);
+    const json = (status, body) => ({ status, ok: status < 400, json: async () => body, text: async () => body == null ? '' : JSON.stringify(body) });
+    if (url.endsWith('/api/token')) return json(200, { access_token: 'A2', expires_in: 3600, refresh_token: 'R2', scope: spapi.SCOPES });
+    if (url.endsWith('/me/player')) return opts.headers.Authorization === 'Bearer A2' ? json(200, player) : json(401, {});
+    if (url.includes('/me/tracks/contains')) return json(200, [true]);
+    if (url.includes('/me/player/pause') || url.includes('/me/player/next')) return json(204, null);
+    if (url.includes('/me/tracks?ids=')) return json(200, null);
+    return json(404, { error: { message: 'nope' } });
+  };
+  const sp = spapi.createSpotify({ clientId: 'c', redirectUri: 'https://x/', storage, fetch, now: () => t, location: { search: '', pathname: '/', hash: '' } });
+  assert.equal(sp.connected(), false);
+  mem.set('sp_refresh_token', 'R1'); mem.set('sp_access_token', 'A1'); mem.set('sp_token_expiry', String(t + 3600000)); mem.set('sp_granted_scope', spapi.SCOPES);
+  assert.equal(sp.connected(), true);
+  assert.equal(sp.needsReconsent(), false);
+  // A1 is rejected with 401 → refresh → retry with A2
+  await sp.refreshNow();
+  const st = bus.latest('spotify.state');
+  assert.equal(st.track.name, 'Hunter'); assert.equal(st.art, 'mid'); assert.equal(st.device, 'iPhone');
+  assert.ok(calls.some(c => c[1].endsWith('/api/token')), 'refreshed');
+  assert.equal(mem.get('sp_access_token'), 'A2');
+  await new Promise(r => setTimeout(r, 0));
+  assert.equal(bus.latest('spotify.state').liked, true);
+  t += 2000;
+  assert.equal(sp.livePos(), 7000);
+  // toggle → pause with the known device, optimistic state
+  await sp.cmd('toggle');
+  assert.ok(calls.some(c => c[0] === 'PUT' && c[1].includes('/me/player/pause?device_id=dev1')));
+  assert.equal(bus.latest('spotify.state').playing, false);
+  await sp.cmd('like');
+  assert.ok(calls.some(c => c[0] === 'DELETE' && c[1].includes('/me/tracks?ids=tr1')));
+  // a 404 from the player surfaces as the "no device" error, never throws
+  let err; bus.on('spotify.error', (e) => { err = e; });
+  await sp.cmd('shuffle');
+  assert.ok(err && /No active Spotify device/.test(err.message), JSON.stringify(err));
+  sp.stop();
+});
+await test('spotify: handleRedirect exchanges the code once and scrubs the URL', async () => {
+  bus.reset();
+  const mem = new Map([['sp_pkce_v', 'verifier']]);
+  const storage = { getItem: (k) => mem.get(k) ?? null, setItem: (k, v) => mem.set(k, v), removeItem: (k) => mem.delete(k) };
+  const loc = { search: '?code=abc&demo=0', pathname: '/Raven/', hash: '' };
+  let replaced = null;
+  globalThis.history = { replaceState: (_a, _b, url) => { replaced = url; } };
+  const fetch = async (url, opts) => { assert.ok(String(opts.body).includes('code_verifier=verifier')); return { status: 200, ok: true, json: async () => ({ access_token: 'A', refresh_token: 'R', expires_in: 3600, scope: spapi.SCOPES }), text: async () => '' }; };
+  const sp = spapi.createSpotify({ clientId: 'c', redirectUri: 'https://x/', storage, fetch, location: loc });
+  assert.equal(await sp.handleRedirect(), true);
+  assert.equal(replaced, '/Raven/?demo=0');
+  assert.equal(sp.connected(), true);
+  assert.equal(mem.has('sp_pkce_v'), false);
+  assert.equal(bus.latest('spotify.auth').connected, true);
+  delete globalThis.history;
+});
+
 // ---- whatsapp widget behaviour (DOM-free: summary into a fake element)
 await test('whatsapp: summary reflects link/unread/share state', async () => {
   bus.reset();

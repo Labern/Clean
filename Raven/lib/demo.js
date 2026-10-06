@@ -1,7 +1,7 @@
 // Demo mode: synthetic events so every widget is alive without a server,
 // a car, or a sign-in. Turns on for localhost, LAN hosts, or ?demo=1.
 
-import { emit } from './bus.js';
+import { emit, on } from './bus.js';
 
 export function isDemo(loc = globalThis.location) {
   if (!loc) return false;
@@ -23,7 +23,7 @@ export function startDemo({ setInterval: si = globalThis.setInterval, now = Date
   // --- Spotify
   let ti = 0, pos = 42000, playing = true;
   const spot = () => emit('spotify.state', {
-    playing, progressMs: pos, track: TRACKS[ti], liked: ti % 2 === 0,
+    playing, progressMs: pos, track: TRACKS[ti], liked: [0, 2].includes(ti),
     device: 'iPhone', shuffle: false, art: null, at: now(),
   });
   spot();
@@ -32,6 +32,15 @@ export function startDemo({ setInterval: si = globalThis.setInterval, now = Date
     if (pos >= TRACKS[ti].ms) { ti = (ti + 1) % TRACKS.length; pos = 0; spot(); }
   }, 1000));
   timers.push(si(spot, 3000));
+  const liked = new Set([0, 2]);
+  const offCmd = on('spotify.cmd', ({ cmd, arg }) => {
+    if (cmd === 'toggle') playing = !playing;
+    else if (cmd === 'next') { ti = (ti + 1) % TRACKS.length; pos = 0; }
+    else if (cmd === 'prev') { ti = (ti + TRACKS.length - 1) % TRACKS.length; pos = 0; }
+    else if (cmd === 'like') { liked.has(ti) ? liked.delete(ti) : liked.add(ti); }
+    else if (cmd === 'seek') pos = arg;
+    emit('spotify.state', { playing, progressMs: pos, track: TRACKS[ti], liked: liked.has(ti), device: 'iPhone', shuffle: false, art: null, at: now() });
+  });
 
   // --- WhatsApp
   const chats = NAMES.slice(0, 5).map((name, i) => ({ id: `c${i}`, name, unread: i === 1 ? 2 : 0, ts: now() - (i + 1) * 7 * 60000 }));
@@ -63,7 +72,7 @@ export function startDemo({ setInterval: si = globalThis.setInterval, now = Date
   // --- History for facts
   emit('drives.history', { drives: demoDrives(now()) });
 
-  return () => timers.forEach(clearInterval);
+  return () => { timers.forEach(clearInterval); offCmd(); };
 }
 
 export function demoDrives(now) {

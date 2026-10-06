@@ -9,6 +9,7 @@ import { isNight } from './lib/sun.js';
 import { clock, miles, unitDist, pct } from './lib/fmt.js';
 import { startGeo } from './lib/geo.js';
 import { startTrip } from './lib/trip.js';
+import { createSpotify } from './lib/spotify-api.js';
 import { mountMap } from './widgets/map.js';
 
 import spotify from './widgets/spotify.js';
@@ -22,7 +23,12 @@ const WIDGETS = [spotify, whatsapp, trip, battery, facts].sort((a, b) => a.order
 const $ = (s, r = document) => r.querySelector(s);
 const store = createStore();
 let link = null;
-const ctx = { store, emit, on, latest, toast, theme: () => document.documentElement.dataset.theme === 'day' ? 'day' : 'night', map: null, get link() { return link; } };
+// Spotify: PKCE in this browser, no server. Demo mode leaves it out so the
+// synthetic state drives the strip instead.
+const spotifyApi = (!isDemo() && globalThis.RAVEN_CONFIG?.spotifyClientId)
+  ? createSpotify({ clientId: RAVEN_CONFIG.spotifyClientId, redirectUri: RAVEN_CONFIG.spotifyRedirectUri || 'https://labern.github.io/Clean/Raven/index.html' })
+  : null;
+const ctx = { store, emit, on, latest, toast, theme: () => document.documentElement.dataset.theme === 'day' ? 'day' : 'night', map: null, spotify: spotifyApi, get link() { return link; } };
 
 // ---- One-time key from the URL (?key=…) → localStorage, then scrub the URL.
 (() => {
@@ -85,7 +91,7 @@ for (const w of WIDGETS) {
   for (const ev of w.events || []) on(ev, render);
   b.addEventListener('click', (e) => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act && w.actions?.[act]) { e.stopPropagation(); w.actions[act](ctx); return; }
+    if (act && w.actions?.[act]) { e.stopPropagation(); w.actions[act](ctx, e.target.closest('[data-act]')); return; }
     openSheet(w);
   });
 }
@@ -110,7 +116,7 @@ function closeSheet() {
 $('#sheet-close').addEventListener('click', closeSheet);
 sheetBody.addEventListener('click', (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
-  if (act && openWidget?.actions?.[act]) openWidget.actions[act](ctx);
+  if (act && openWidget?.actions?.[act]) openWidget.actions[act](ctx, e.target.closest('[data-act]'));
 });
 window.addEventListener('hashchange', () => {
   const w = WIDGETS.find(x => x.id === location.hash.slice(1));
@@ -176,7 +182,9 @@ const settings = { id: 'settings', title: 'Settings', events: [],
         <div class="stack"><span class="label">Appearance</span>
           <div class="seg" data-set="theme">${['auto', 'night', 'day'].map(v => `<button data-v="${v}" class="${s.theme === v ? 'on' : ''}">${v[0].toUpperCase() + v.slice(1)}</button>`).join('')}</div></div>
         <div class="stack"><span class="label">Size</span>
-          <div class="seg" data-set="ui">${[1.25, 1.5, 1.75, 2].map(v => `<button data-v="${v}" class="${+s.ui === v ? 'on' : ''}">${v}×</button>`).join('')}</div></div>
+          <div class="seg" data-set="ui">${[1.1, 1.2, 1.3, 1.45].map(v => `<button data-v="${v}" class="${+s.ui === v ? 'on' : ''}">${v}×</button>`).join('')}</div></div>
+        <div class="stack"><span class="label">Spotify</span>
+          <div class="row">${spotifyApi?.connected?.() ? `<button class="btn" id="sp-disconnect">Disconnect</button><span class="t-sm faint">Signed in</span>` : `<button class="btn primary" id="sp-connect">Connect</button><span class="t-sm faint">${spotifyApi ? 'Once; the car keeps it' : 'No client id in config.js'}</span>`}</div></div>
         <div class="stack"><span class="label">Units</span>
           <div class="seg" data-set="units">${['mi', 'km'].map(v => `<button data-v="${v}" class="${s.units === v ? 'on' : ''}">${v === 'mi' ? 'Miles' : 'Kilometres'}</button>`).join('')}</div></div>
         <div class="stack"><span class="label">Chime on messages</span>
@@ -195,6 +203,8 @@ const settings = { id: 'settings', title: 'Settings', events: [],
       store.set(k, v); settings.detail(el);
       if (k === 'units') for (const w of WIDGETS) { try { w.summary(tiles.get(w.id), undefined, ctx); } catch {} }
     }));
+    el.querySelector('#sp-connect')?.addEventListener('click', () => spotifyApi?.authorize());
+    el.querySelector('#sp-disconnect')?.addEventListener('click', () => { spotifyApi.stop(); spotifyApi.disconnect(); settings.detail(el); });
     el.querySelector('#fs-btn').addEventListener('click', () => {
       (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen()).then(() => settings.detail(el)).catch(() => toast('Fullscreen', 'Not allowed here', 'bad'));
     });
@@ -209,6 +219,16 @@ link = createLink({ server: store.get('server'), key: store.get('key') });
 link.start();
 startGeo({ send: (t, d) => link.send(t, d) });
 if (isDemo()) startDemo(); else startTrip();
+
+on('spotify.error', (e) => toast(e.message, 'Spotify', 'bad'));
+on('spotify.auth', (a) => { if (a.connected) toast('Connected', 'Spotify', 'good', 2500); });
+if (spotifyApi) {
+  spotifyApi.handleRedirect().finally(() => {
+    if (spotifyApi.needsReconsent()) spotifyApi.authorize();
+    else if (spotifyApi.connected()) spotifyApi.start();
+  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && spotifyApi.connected()) spotifyApi.refreshNow(); });
+}
 
 if (location.hash) window.dispatchEvent(new Event('hashchange'));
 
