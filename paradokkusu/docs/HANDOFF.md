@@ -36,6 +36,10 @@ Original brief also said: black and white base, the logo set as the key, bold an
 interesting, with visuals.
 
 ## Next tasks, in order
+1. **DONE (cloud, 2026-10-09):** all 173 HIG pages crawled and read; digest written to
+   `docs/APPLE-HIG.md`. **Still to do on the Mac:** follow `docs/global-claude-section.md`
+   (copy the digest to `~/.claude/APPLE-HIG.md`, append the block to `~/.claude/CLAUDE.md`).
+   Original instruction, for reference:
 1. **Apple design docs.** He said: "Pull from the Apple Design docs, suck it all up,
    and add it to the global Claude.md so we can pull from it. Do that first then come
    back to me."
