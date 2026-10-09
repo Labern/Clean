@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#ffca3a">
 <title>Misato &amp; Pen Pen</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kittens">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
 <style>
 /* ── tokens — the Lemon Counter palette (lemons.html), kitten edition ── */
@@ -238,6 +242,93 @@ dialog .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;mar
 footer{text-align:center;color:#fff;font-weight:900;text-shadow:1px 1px 0 rgba(0,0,0,.3);margin-top:24px;font-size:.9rem;line-height:1.7}
 footer .btn{margin:4px}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ══════════════ ✨ extras ══════════════ */
+.xdivider{text-align:center;margin:34px 0 8px}
+.xdivider h2{font-size:clamp(2rem,8vw,3.4rem);color:#fff;font-weight:900;line-height:1.05;
+  text-shadow:3px 3px 0 var(--i),-2px -2px 0 var(--r),0 0 18px rgba(0,0,0,.25)}
+.xdivider p{color:#fff;font-weight:900;text-shadow:2px 2px 0 rgba(0,0,0,.25);margin-top:4px}
+nav a .badge{display:inline-block;min-width:1.4em;margin-left:4px;background:var(--r);color:#fff;border-radius:999px;font-size:.75rem;padding:0 .35em;line-height:1.4}
+/* chat */
+.fedbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:linear-gradient(90deg,#fffbe0,#e9fbe0);border:3px solid #000;border-radius:18px;
+  padding:10px 14px;box-shadow:var(--pop-sm);font-weight:900;margin-bottom:12px}
+.fedbar .big{font-size:1.6rem}
+.fedbar.late{background:linear-gradient(90deg,#fff1e6,#ffe1e1)}
+.pins{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.pin{display:flex;gap:8px;align-items:center;background:#fff6c9;border:3px dashed #000;border-radius:14px;padding:6px 10px;font-weight:800}
+.pin .grow{flex:1;min-width:0;overflow-wrap:anywhere}
+.thread{height:min(56vh,460px);overflow-y:auto;background:linear-gradient(180deg,#fffdf5,#f6f0ff);border:3px solid #000;border-radius:20px;
+  padding:12px;display:flex;flex-direction:column;gap:8px;box-shadow:inset 0 2px 8px rgba(0,0,0,.08);overscroll-behavior:contain}
+.msg{max-width:82%;display:flex;flex-direction:column;align-items:flex-start}
+.msg.mine{align-self:flex-end;align-items:flex-end}
+.msg .b{background:#fff;border:3px solid #000;border-radius:18px 18px 18px 4px;padding:7px 12px;font-weight:700;line-height:1.35;overflow-wrap:anywhere;position:relative}
+.msg.mine .b{background:var(--gold);border-radius:18px 18px 4px 18px}
+.msg.girl .b{background:#efe4ff}
+.msg.mine.girl .b{background:#e2cffd}
+.msg.status .b{background:#e9fbe0;font-weight:900}
+.msg .b img{display:block;max-width:220px;max-height:220px;border-radius:10px;border:2px solid #000;margin-top:4px;cursor:zoom-in}
+.msg .meta{font-size:.7rem;color:var(--faint);font-weight:800;margin:2px 6px;display:flex;gap:8px;align-items:center}
+.msg .meta button{background:none;border:none;cursor:pointer;font-size:.85rem;padding:0 2px;min-height:24px}
+.msg .rx{position:absolute;bottom:-12px;right:8px;font-size:.85rem;background:#fff;border:2px solid #000;border-radius:999px;padding:0 5px}
+.dayhdr{align-self:center;font-size:.72rem;font-weight:900;color:var(--purple);background:#fff;border:2px solid #000;border-radius:999px;padding:1px 10px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.chip{font-weight:900;font-size:.85rem;background:var(--soft);border:3px solid #000;border-radius:999px;padding:.3em .8em;cursor:pointer;box-shadow:var(--pop-sm);min-height:38px}
+.chip:active{transform:translateY(2px)}
+.composer{display:flex;gap:8px;align-items:flex-end}
+.composer textarea{min-height:46px;height:46px;flex:1}
+.composer label.btn{display:flex;align-items:center}
+/* generic extras bits */
+.tbl{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:.9rem}
+.tbl th{text-align:left;font-size:.72rem;color:var(--purple);text-transform:uppercase;letter-spacing:.04em;padding:0 8px}
+.tbl td{background:var(--soft);border-top:3px solid #000;border-bottom:3px solid #000;padding:6px 8px;font-weight:700}
+.tbl td:first-child{border-left:3px solid #000;border-radius:12px 0 0 12px}
+.tbl td:last-child{border-right:3px solid #000;border-radius:0 12px 12px 0}
+.tbl input{min-height:34px;padding:4px 6px;font-size:.85rem;box-shadow:none;border-width:2px}
+.scroll-x{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.balance{font-size:clamp(1.3rem,5vw,1.9rem);font-weight:900;text-align:center;margin:6px 0 10px}
+.balance b{color:var(--i);text-shadow:2px 2px 0 var(--gold)}
+.bars{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.bar{display:flex;align-items:center;gap:8px;font-weight:800;font-size:.85rem}
+.bar .track{flex:1;height:16px;border:2.5px solid #000;border-radius:999px;background:#fff;overflow:hidden}
+.bar .fill{height:100%;background:linear-gradient(90deg,var(--r),var(--o),var(--y),var(--g),var(--b),var(--i));background-size:400px 100%}
+.hgrid{display:grid;grid-template-columns:auto repeat(4,1fr);gap:6px;align-items:center;margin-top:8px}
+.hgrid .lab{font-weight:900;font-size:.85rem}
+.tri{display:flex;border:3px solid #000;border-radius:999px;overflow:hidden;background:#fff}
+.tri button{flex:1;border:none;background:none;font-size:1.15rem;padding:4px 0;cursor:pointer;opacity:.35;min-height:40px}
+.tri button.on{opacity:1;background:var(--gold)}
+.tri button.on.bad{background:#ffd0d0}
+.alert{background:#ffe1e1;border:4px solid var(--r);border-radius:18px;padding:12px 14px;margin-top:12px;font-weight:800}
+.alert ul{margin:6px 0 0 1.1em;line-height:1.5;font-weight:700}
+.dots7{display:flex;gap:3px;flex-wrap:wrap}
+.dots7 span{width:22px;height:22px;border-radius:7px;border:2px solid #000;display:grid;place-content:center;font-size:.7rem}
+.rota{display:grid;grid-template-columns:auto repeat(7,1fr);gap:4px;font-size:.78rem;font-weight:900;text-align:center;align-items:center}
+.rota .h{color:var(--purple)}
+.rota .h.today{background:var(--gold);border-radius:8px}
+.rota button{border:2.5px solid #000;border-radius:10px;background:#fff;font-size:1.1rem;min-height:40px;cursor:pointer;padding:0}
+.rota button.today{box-shadow:0 0 0 3px var(--gold)}
+.skill{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lvl{display:inline-flex;gap:2px}
+.lvl button{border:2px solid #000;border-radius:8px;background:#fff;font-size:.95rem;min-width:34px;min-height:34px;cursor:pointer;opacity:.4}
+.lvl button.on{opacity:1;background:var(--gold)}
+.flip{position:relative;background:#000;border:4px solid #000;border-radius:20px;overflow:hidden;aspect-ratio:4/5;max-width:420px;margin:12px auto 8px;box-shadow:var(--pop-sm)}
+.flip img{width:100%;height:100%;object-fit:cover;display:block}
+.flip .lbl{position:absolute;left:10px;bottom:10px;background:#fff;border:3px solid #000;border-radius:999px;padding:2px 12px;font-weight:900;font-size:.9rem}
+.flip .empty{position:absolute;inset:0;display:grid;place-content:center;background:#fffdf5;border:none;border-radius:0}
+input[type=range].plain{width:100%;accent-color:var(--i)}
+.meter{height:12px;border:2.5px solid #000;border-radius:999px;background:#fff;overflow:hidden;width:120px;display:inline-block;vertical-align:middle}
+.meter i{display:block;height:100%;background:var(--r);width:0;transition:width .3s}
+/* weight zoom */
+#wzoom{max-width:min(1100px,98vw);width:100%}
+#wzoom .in{max-height:92vh}
+#zchart,#zvel{width:100%;height:auto;display:block;background:#fff;border:3px solid #000;border-radius:18px;box-shadow:var(--pop-sm);touch-action:pan-y}
+#zchart text,#zvel text{font-family:var(--font);font-size:11px;fill:#5b5266}
+.zbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.ztog{font-weight:900;font-size:.85rem;border:3px solid #000;border-radius:999px;padding:.25em .8em;cursor:pointer;background:#fff;min-height:38px}
+.ztog.on{background:var(--i);color:#fff}
+.zcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0}
+/* sitter mode */
+body.sitter nav,body.sitter .toprow{display:none}
+@media print{body{background:#fff}nav,.toprow,.btn,footer{display:none!important}.card{box-shadow:none}}
 </style>
 </head>
 <body>
@@ -257,6 +348,7 @@ footer .btn{margin:4px}
   <a href="#kittens">🐾 Kittens</a><a href="#today">☀️ Today</a><a href="#weight">⚖️ Weight</a><a href="#moments">📅 Moments</a>
   <a href="#food">🍽 Food</a><a href="#todo">✅ To-do</a><a href="#shop">🛒 Shopping</a><a href="#cams">📹 Cams</a>
   <a href="#photos">📸 Photos</a><a href="#facts">🧠 Facts</a>
+  <a href="#chat">💬 Chat</a><a href="#health">🩺 Health</a><a href="#costs">💷 Costs</a><a href="#extras">✨ Extras</a>
 </nav>
 
 <!-- the family -->
@@ -285,8 +377,8 @@ footer .btn{margin:4px}
 
 <!-- weight -->
 <section class="card" id="weight">
-  <h2>⚖️ Weight</h2>
-  <div class="sub">Log a weigh-in and the chart, the cartoons and the lemon-o-meter all update.</div>
+  <h2>⚖️ Weight <button class="btn sm" id="wzOpen" style="vertical-align:middle;margin-left:6px">🔍 Zoom in</button></h2>
+  <div class="sub">Log a weigh-in and the chart, the cartoons and the lemon-o-meter all update. Zoom in for the close-up tracker.</div>
   <div class="form">
     <div class="field"><label>Kitten</label><select id="wK"></select></div>
     <div class="field"><label>Date</label><input type="date" id="wDate"></div>
@@ -430,6 +522,184 @@ footer .btn{margin:4px}
   <div class="stagebox" id="stagebox"></div>
 </section>
 
+
+<!-- ══════════════ ✨ EXTRAS — everything above is the original page, untouched ══════════════ -->
+<div class="xdivider" id="extras"><h2>✨ Extras</h2><p>🍋 for the lemon and the girl 🌙</p></div>
+
+<!-- chat -->
+<section class="card" id="chat">
+  <h2>💬 Lemon ↔ Girl</h2>
+  <div class="sub">Messages between the two of you, encrypted like everything else. The quick buttons also tick off the Today counters.</div>
+  <div class="fedbar" id="fedbar"></div>
+  <div class="pins" id="pins"></div>
+  <div class="thread" id="thread"></div>
+  <div class="chips" id="chips"></div>
+  <div class="composer">
+    <textarea id="msgText" placeholder="Say something… (Enter to send)" rows="1"></textarea>
+    <label class="btn" title="Add a photo">📷<input type="file" id="msgPhoto" accept="image/*" hidden></label>
+    <button class="btn go" id="msgSend">Send</button>
+  </div>
+  <details class="guide" id="ntfyBox"><summary>🔔 Get a ping on your phone when the other one messages</summary>
+    <p style="margin-top:8px;font-weight:700;line-height:1.5">This page can't send notifications by itself. <b>ntfy</b> is a free app that can:</p>
+    <ol>
+      <li>Install <b>ntfy</b> (App Store / Play Store).</li>
+      <li>Tap <b>+</b> and subscribe to this topic: <code id="ntfyTopic"></code> <button class="btn sm" id="ntfyCopy">📋</button></li>
+      <li>Turn pings on below. Both of you do this once on your own phone.</li>
+    </ol>
+    <label style="font-weight:900;display:flex;gap:8px;align-items:center;margin-top:6px"><input type="checkbox" id="ntfyOn" style="width:22px;height:22px"> Send pings for new messages</label>
+    <p class="muted" style="margin-top:6px">The ping only says who wrote and that it's a kitten message (e.g. "🌙 sent a message"). The message itself is never sent to ntfy.</p>
+  </details>
+</section>
+
+<!-- birthday -->
+<section class="card" id="bday">
+  <h2>🎂 Their birthday</h2>
+  <div class="sub">Still an estimate — about 6 weeks old when weighed on Wed 30 Sep. Change it here and every age, chart, to-do due date, growth guide and stage box updates, on both phones.</div>
+  <div class="form">
+    <div class="field"><label>Born on</label><input type="date" id="bdDate"></div>
+    <div class="field"><label><input type="checkbox" id="bdEst"> still an estimate</label></div>
+    <button class="btn go" id="bdApply">🎂 Use for both</button>
+  </div>
+  <div id="bdPreview" class="muted" style="margin-top:10px;font-weight:800"></div>
+  <div id="bdNow" style="margin-top:8px"></div>
+</section>
+
+<!-- health -->
+<section class="card" id="health">
+  <h2>🩺 Health check-in</h2>
+  <div class="sub">10 seconds a day. Kittens go downhill fast, so one 😟 brings up the "call the vet" list.</div>
+  <div class="form" style="margin-bottom:6px"><div class="field"><label>Day</label><input type="date" id="hDate"></div></div>
+  <div class="grid2" id="hgrids"></div>
+  <div id="halert"></div>
+  <details class="guide"><summary>🚨 Call the vet straight away if…</summary>
+    <ul>
+      <li>Not eating for more than about 12 hours (tiny kittens can't go long without food)</li>
+      <li>Floppy, unusually sleepy, or hiding and won't come out</li>
+      <li>Vomiting more than once, or diarrhoea for more than a day, or any blood</li>
+      <li>Straining in the tray with little or nothing coming out (urgent)</li>
+      <li>Breathing fast, open-mouth breathing, or pale / white gums</li>
+      <li>Swollen or hard belly, crying in pain, a fall or any injury</li>
+      <li>Thick eye or nose discharge, or sneezing that won't stop</li>
+    </ul>
+    <p class="muted" style="margin-top:6px">Out of hours: call your vet's number — it usually redirects to the emergency service.</p>
+  </details>
+</section>
+
+<!-- costs -->
+<section class="card" id="costs">
+  <h2>💷 Shared costs</h2>
+  <div class="sub">Log who paid what and the page keeps a running balance between you.</div>
+  <div class="balance" id="balance"></div>
+  <div class="form">
+    <div class="field"><label>Date</label><input type="date" id="cDate"></div>
+    <div class="field wide"><label>What</label><input type="text" id="cWhat" placeholder="Vaccination × 2"></div>
+    <div class="field"><label>£</label><input type="number" id="cAmt" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
+    <div class="field"><label>Paid by</label><select id="cBy"><option value="lemon">🍋 lemon</option><option value="girl">🌙 girl</option></select></div>
+    <div class="field"><label>Split</label><select id="cSplit"><option value="half">½ each</option><option value="payer">payer's treat</option><option value="other">all on the other</option></select></div>
+    <div class="field"><label>Kind</label><select id="cCat"><option value="vet">🏥 vet</option><option value="food">🍽 food</option><option value="kit">🧸 kit</option><option value="insurance">🛡 insurance</option><option value="litter">🧻 litter</option><option value="other">✨ other</option></select></div>
+    <button class="btn go" id="cAddCost">➕ Add</button>
+  </div>
+  <div class="grid2" style="margin-top:12px"><div class="mini" id="costCats"></div><div class="mini" id="costMonths"></div></div>
+  <ul class="list" id="costList"></ul>
+</section>
+
+<!-- reminders -->
+<section class="card" id="remind">
+  <h2>📆 Calendar reminders</h2>
+  <div class="sub">Every open to-do with a date goes into your phone's calendar, with a reminder at 9am the day before and 9am on the day.</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn go" id="icsAll">📆 Add all to my calendar</button><button class="btn" id="icsHealth">💉 Just the health ones</button></div>
+  <p class="muted" style="margin-top:10px">iPhone: tap the downloaded file → <b>Add All</b>. Android: open with Google Calendar. Changed a date or the birthday? Add them again — same events update rather than duplicate (in most calendar apps).</p>
+  <ul class="list" id="icsPreview"></ul>
+</section>
+
+<!-- rota -->
+<section class="card" id="rota">
+  <h2>🗓 Who's on duty</h2>
+  <div class="sub">Tap a box to switch between 🍋, 🌙 and 💛 (both). Today's column is highlighted.</div>
+  <div class="scroll-x"><div class="rota" id="rotaGrid" style="min-width:420px"></div></div>
+  <div id="rotaToday" style="margin-top:10px;font-weight:900"></div>
+</section>
+
+<!-- sitter -->
+<section class="card" id="sitter">
+  <h2>🧳 Cat-sitter page</h2>
+  <div class="sub">Fill this in once. "Make link" creates a read-only page for whoever's looking after them — it shows only this sheet and can't see the rest of your data.</div>
+  <div class="form">
+    <div class="field wide"><label>Feeding (what, how much, when)</label><textarea id="stFeed" placeholder="½ pouch wet each at 7am, 12pm, 5pm, 9pm. Dry biscuits always out."></textarea></div>
+    <div class="field wide"><label>Routine</label><textarea id="stRoutine" placeholder="Tray scooped twice a day. Play 10 min before bed."></textarea></div>
+    <div class="field wide"><label>Quirks & what calms them</label><textarea id="stQuirks" placeholder="Pen Pen hides under the sofa — leave him. Misato loves the wand toy."></textarea></div>
+    <div class="field wide"><label>Never do</label><textarea id="stDont" placeholder="No milk. Don't let them out. Keep the toilet lid down."></textarea></div>
+    <div class="field"><label>Vet + phone</label><input type="text" id="stVet"></div>
+    <div class="field"><label>Emergency contact</label><input type="text" id="stEmerg" placeholder="Name · number"></div>
+    <div class="field"><label>Where things are</label><input type="text" id="stWhere" placeholder="Food in the left cupboard"></div>
+  </div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+    <button class="btn go" id="stLink">🔗 Make sitter link</button><a class="btn" id="stWa" target="_blank" rel="noopener" style="text-decoration:none">💬 WhatsApp it</a><button class="btn" id="stPreview">👀 Preview</button>
+  </div>
+  <input type="text" id="stOut" readonly style="margin-top:10px" placeholder="the link appears here" onclick="this.select()">
+</section>
+
+<!-- training -->
+<section class="card" id="train">
+  <h2>🎓 Training & handling</h2>
+  <div class="sub">Easiest before ~16 weeks. Tap the level: 🥚 not started · 🐣 trying · 🐥 getting there · 🏆 nailed it.</div>
+  <div class="form"><div class="field wide"><label>New skill</label><input type="text" id="skTitle" placeholder="Sit for a treat"></div><button class="btn go" id="skAdd">➕ Add</button></div>
+  <div class="grid2" id="skGrid" style="margin-top:12px"></div>
+</section>
+
+<!-- flipbook -->
+<section class="card" id="flipbook">
+  <h2>🎞 Then &amp; now</h2>
+  <div class="sub">One portrait a week, same spot, same pose. Play it back and watch them grow.</div>
+  <div class="form">
+    <div class="field"><label>Who</label><select id="fbK"></select></div>
+    <div class="field"><label>This week's portrait</label><input type="file" id="fbFile" accept="image/*" style="font-size:.8rem"></div>
+    <button class="btn go" id="fbAdd">📸 Add</button>
+  </div>
+  <div class="filters"><div class="seg" id="fbView"></div></div>
+  <div class="flip" id="fbStage"></div>
+  <input type="range" class="plain" id="fbSlider" min="0" max="0" value="0">
+  <div style="display:flex;gap:8px;justify-content:center;margin-top:8px"><button class="btn" id="fbPlay">▶ Play</button></div>
+</section>
+
+<!-- motion -->
+<section class="card" id="motion">
+  <h2>🐾 Caught on camera</h2>
+  <div class="sub">Leave one phone or tablet on this page: it watches your Snapshot / MJPEG cams and saves a photo + moment when something moves (at most one every 10 min per camera).</div>
+  <div id="motionList"></div>
+  <details class="guide"><summary>🔧 Making it work</summary>
+    <ul>
+      <li>Uses the cameras from <b>📹 Kitten cams</b> above — add one as <b>Snapshot</b> or <b>MJPEG</b> first.</li>
+      <li>The bridge has to allow the page to read its images (CORS). In go2rtc's config add <code>api: { origin: "*" }</code>. Scrypted / HA: enable CORS for this site.</li>
+      <li>Watching is per-device and only runs while this page is open — an old phone on a charger works well.</li>
+    </ul>
+  </details>
+</section>
+
+<!-- install -->
+<section class="card" id="install">
+  <h2>📲 Put it on your home screen</h2>
+  <div class="sub">Opens full screen like a real app, with its own icon, and works offline.</div>
+  <div id="installBody"></div>
+</section>
+
+<!-- weight zoom (opened from the weight card) -->
+<dialog id="wzoom"><div class="in">
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h2 style="margin:0;flex:1">🔍 Weight — close up</h2><button class="btn" id="wzClose">✕ Close</button></div>
+  <div class="zbar">
+    <div class="seg" id="wzRange"><button data-r="14">2 wks</button><button data-r="30" class="on">1 mo</button><button data-r="90">3 mo</button><button data-r="0">All</button></div>
+    <button class="ztog on" data-z="misato">🤍 Misato</button><button class="ztog on" data-z="penpen">🖤 Pen Pen</button>
+    <button class="ztog on" data-z="band">typical range</button><button class="ztog on" data-z="proj">projection</button><button class="ztog" data-z="zero">from 0 g</button>
+  </div>
+  <div style="position:relative"><svg id="zchart" viewBox="0 0 900 440"></svg><div id="ztip" class="tip" style="position:absolute;pointer-events:none;background:#000;color:#fff;font-weight:800;font-size:.8rem;padding:5px 9px;border-radius:10px;white-space:nowrap;transform:translate(-50%,-125%);opacity:0"></div></div>
+  <div class="zcards" id="zcards"></div>
+  <h3>📈 Growth speed (g per day between weigh-ins)</h3>
+  <svg id="zvel" viewBox="0 0 900 200"></svg>
+  <h3>Every weigh-in</h3>
+  <div class="scroll-x"><table class="tbl" id="ztable"></table></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" id="zcsv">⬇️ Download CSV</button></div>
+</div></dialog>
+
 <footer>
   Saved on this phone instantly · synced to the other one end-to-end encrypted 🔒<br>
   <button class="btn sm" id="exportBtn">💾 Download backup</button>
@@ -505,7 +775,7 @@ function rain(chars = ['🍋', '🐾', '💛', '🌙'], n = 22) {
    Every collection is a map id → record, every record carries `u`
    (updated-at ms). Merge = per record, newest u wins. Deletes are
    tombstones {del:true,u}. That makes two phones editing offline safe. */
-const COLS = ['kittens', 'weights', 'events', 'foods', 'todos', 'shop', 'cams', 'care', 'photos', 'meta'];
+const COLS = ['kittens', 'weights', 'events', 'foods', 'todos', 'shop', 'cams', 'care', 'photos', 'meta', 'msgs', 'costs', 'health', 'skills'];
 
 function seed() {
   const d = {}; COLS.forEach(c => d[c] = {});
@@ -537,6 +807,7 @@ function seed() {
     'Top-opening carrier (vet trips get easier)', 'Cosy bed / cave', 'Wand toy + crinkle balls', 'Soft kitten brush', 'Cat nail clippers',
     'Feliway diffuser (settling in)', 'Cat toothbrush + cat toothpaste', 'Window / balcony screens', 'Quick-release collars (after microchip)'];
   S.forEach((t, i) => d.shop['s-seed-' + i] = { title: t, note: '', done: false, u: 1 });
+  seedExtras(d);
   return d;
 }
 
@@ -548,7 +819,8 @@ function load() {
   return merge(d, s).out;   // a newer seed revision (higher u) updates untouched seed records; user edits always win
 }
 let doc = load();
-function save() { lsSet(LS, JSON.stringify(doc)); }
+const SITTER = /sitter=/.test(location.hash);
+function save() { if (SITTER) return; lsSet(LS, JSON.stringify(doc)); }
 
 function put(col, id, rec) { doc[col][id] = Object.assign({}, doc[col][id] || {}, rec, { u: Date.now() }); save(); changed(); }
 function del(col, id) { doc[col][id] = { del: true, u: Date.now() }; save(); changed(); }
@@ -800,7 +1072,8 @@ function renderCare() {
   $('#care').innerHTML = CARE.map(([key, emo, lab]) => `<div class="carebtn" data-key="${key}"><span class="big">${emo}</span><span class="n">${c[key] || 0}</span><small>${esc(lab())}</small></div>`).join('');
   $('#care').querySelectorAll('.carebtn').forEach(b => {
     const key = b.dataset.key; let pressT = null, longed = false;
-    const bump = n => { const cur = careDay(todayYmd()); put('care', todayYmd(), { [key]: Math.max(0, (cur[key] || 0) + n), by: me }); };
+    const bump = n => { const cur = careDay(todayYmd()); put('care', todayYmd(), { [key]: Math.max(0, (cur[key] || 0) + n), by: me });
+      if (n > 0 && key.startsWith('m_')) put('meta', 'lastFed', { at: Date.now(), by: me, k: key.slice(2) }); };
     b.onpointerdown = () => { longed = false; pressT = setTimeout(() => { longed = true; bump(-1); toast('undone one'); }, 600); };
     b.onpointerup = b.onpointerleave = () => clearTimeout(pressT);
     b.onclick = () => { if (!longed) bump(1); };
@@ -1131,6 +1404,7 @@ function renderAll() {
   ['#wK', '#fK', '#pK'].forEach(s => fillKSelect($(s), s !== '#wK'));
   ['#eK', '#tK'].forEach(s => fillKSelect($(s), true));
   renderStage(); renderSay(); renderKittens(); renderCare(); renderWeights(); renderEvents(); renderFoods(); renderTodos(); renderShop(); renderCams(); renderPhotos(); renderStageBox();
+  renderExtras();
 }
 function changed() { renderAll(); schedulePublish(); }
 
@@ -1163,6 +1437,7 @@ function syncLabel() {
 setInterval(syncLabel, 5000);
 
 async function initSync() {
+  if (SITTER) { setSync('', 'read-only sitter view'); return; }
   // adopt a pairing key from the link
   const m = location.hash.match(/pair=([A-Za-z0-9_-]{16,})/);
   if (m) { secret = m[1]; lsSet(LS_SECRET, secret); history.replaceState(null, '', location.pathname); setTimeout(() => { toast('📲 paired! syncing with the other phone…'); rain(['💛', '📲', '🐾']); }, 600); }
@@ -1229,16 +1504,469 @@ $('#importFile').onchange = async e => {
   e.target.value = '';
 };
 
+
+/* ══════════════════════ ✨ EXTRAS ══════════════════════
+   Everything below the original page. Same doc, same merge, same sync —
+   new collections are listed in COLS so they ride along automatically. */
+const other = () => me === 'lemon' ? 'girl' : 'lemon';
+const hhmm = ms => new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+const agoMs = ms => { const s = Math.round((Date.now() - ms) / 1000); if (s < 60) return 'just now'; const m = Math.round(s / 60); if (m < 60) return m + ' min ago';
+  const h = Math.floor(m / 60), mm = m % 60; if (h < 24) return h + 'h' + (mm ? ' ' + mm + 'm' : '') + ' ago'; return Math.floor(h / 24) + ' day' + (h >= 48 ? 's' : '') + ' ago'; };
+const meta = k => (doc.meta[k] && !doc.meta[k].del) ? doc.meta[k] : {};
+function seedExtras(d) {
+  const S = [['name', 'Comes to their name'], ['carrier', 'Happy going into the carrier'], ['paws', 'Lets you hold paws'], ['nails', 'Nail trim without drama'],
+    ['brush', 'Enjoys being brushed'], ['teeth', 'Tooth-brushing (a few seconds)'], ['shake', 'Comes to the treat-bag shake'], ['scratch', 'Scratches the post, not the sofa'],
+    ['gentle', 'Plays with toys, not hands'], ['harness', 'Wears a harness for 5 minutes'], ['ears', 'Lets you look in ears & mouth'], ['handled', 'Calm being picked up']];
+  S.forEach(([id, t], i) => d.skills['k-seed-' + id] = { title: t, order: i, lv: { misato: 0, penpen: 0 }, u: 1 });
+}
+
+/* ───── chat ───── */
+const CHIPS = [['fed', '🍽 fed them'], ['tray', '🧻 tray done'], ['water', '💧 fresh water'], ['play', '🎾 played'], ['asleep', '😴 they\'re asleep'],
+  ['meds', '💊 meds given'], ['zoom', '⚡ zoomies'], ['buy', '🛒 need food'], ['love', '💛 love you']];
+let lastReadKey = 'kittens.lastread';
+function msgs() { return live('msgs').map(([id, m]) => Object.assign({ id }, m)).sort((a, b) => a.at - b.at); }
+function ntfyPing(text) {
+  const n = meta('ntfy'); if (!n.topic || lsGet('kittens.ntfyOn') !== '1') return;
+  try { fetch('https://ntfy.sh/' + encodeURIComponent(n.topic), { method: 'POST', body: text, headers: { Title: 'Misato & Pen Pen', Tags: 'cat' } }).catch(() => {}); } catch (e) {}
+}
+function sendMsg(rec) {
+  put('msgs', uid(), Object.assign({ by: me, at: Date.now() }, rec));
+  ntfyPing(`${WHO[me]} ${rec.kind === 'status' ? rec.text : 'sent a kitten message'}`);
+  lsSet(lastReadKey, String(Date.now()));
+}
+function chip(key, label) {
+  sendMsg({ text: label, kind: 'status', chip: key });
+  const t = todayYmd(), cur = careDay(t);
+  const map = { fed: ['m_misato', 'm_penpen'], tray: ['litter'], water: ['water'], play: ['play'] }[key];
+  if (map) put('care', t, Object.assign({ by: me }, ...map.map(k => ({ [k]: (cur[k] || 0) + 1 }))));
+  if (key === 'fed') put('meta', 'lastFed', { at: Date.now(), by: me, k: 'both' });
+  if (key === 'buy') put('shop', uid(), { title: 'Kitten food (running low)', note: '', done: false, by: me });
+}
+$('#chips').innerHTML = CHIPS.map(([k, l]) => `<button class="chip" data-c="${k}">${l}</button>`).join('');
+$('#chips').querySelectorAll('.chip').forEach(b => b.onclick = () => chip(b.dataset.c, b.textContent));
+$('#msgSend').onclick = () => { const t = $('#msgText').value.trim(); if (!t) return; sendMsg({ text: t }); $('#msgText').value = ''; };
+$('#msgText').onkeydown = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#msgSend').click(); } };
+$('#msgPhoto').onchange = async e => { const f = e.target.files[0]; if (!f) return; const d = await shrink(f, 900);
+  const pid = addPhoto(d, { k: 'both', caption: $('#msgText').value.trim() || 'from the chat', date: todayYmd() });
+  sendMsg({ text: $('#msgText').value.trim(), photo: pid }); $('#msgText').value = ''; e.target.value = ''; };
+let threadSig = '';
+function renderChat() {
+  // last fed
+  const lf = meta('lastFed'), a = ageDays('misato');
+  const gapH = a == null ? 5 : a < 84 ? 5 : a < 182 ? 6 : 9;            // 4 meals → ~every 5h while awake
+  if (lf.at) { const h = (Date.now() - lf.at) / 3600000;
+    $('#fedbar').className = 'fedbar' + (h > gapH ? ' late' : '');
+    $('#fedbar').innerHTML = `<span class="big">🍽</span><span>Last fed <b>${agoMs(lf.at)}</b> by ${WHO[lf.by] || ''} · ${hhmm(lf.at)}</span><span class="muted" style="margin-left:auto">${h > gapH ? '⏰ probably due' : 'next roughly ' + hhmm(lf.at + gapH * 3600000)}</span>`;
+  } else $('#fedbar').innerHTML = '<span class="big">🍽</span><span>Tap <b>🍽 fed them</b> (or a meal in Today) and both phones will see when they last ate.</span>';
+  const M = msgs();
+  // pins
+  const P = M.filter(m => m.pin);
+  $('#pins').innerHTML = P.map(m => `<div class="pin">📌<span class="grow">${esc(m.text || '📷 photo')}</span><button class="x" data-unpin="${m.id}" title="Unpin">✕</button></div>`).join('');
+  $('#pins').querySelectorAll('[data-unpin]').forEach(b => b.onclick = () => put('msgs', b.dataset.unpin, { pin: false }));
+  // thread (only re-render when it changes, so the scroll position survives syncs)
+  const sig = JSON.stringify(M.map(m => [m.id, m.u, m.photo && !!photoURL(m.photo)])) + me;
+  if (sig !== threadSig) {
+    threadSig = sig;
+    const th = $('#thread'), atBottom = th.scrollHeight - th.scrollTop - th.clientHeight < 80;
+    let lastDay = '', h = '';
+    if (!M.length) h = '<div class="empty" style="margin:auto">No messages yet — say hi 👋</div>';
+    M.forEach(m => {
+      const d = ymd(new Date(m.at)); if (d !== lastDay) { lastDay = d; h += `<div class="dayhdr">${d === todayYmd() ? 'Today' : nice(d)}</div>`; }
+      const mine = m.by === me, img = m.photo ? photoURL(m.photo) : null;
+      const rx = Object.values(m.rx || {}).filter(Boolean).join('');
+      h += `<div class="msg ${m.by} ${mine ? 'mine' : ''} ${m.kind === 'status' ? 'status' : ''}">
+        <div class="b">${m.text ? esc(m.text) : ''}${img ? `<img src="${img}" alt="" data-view>` : m.photo ? '<div class="muted">📷 syncing…</div>' : ''}${rx ? `<span class="rx">${rx}</span>` : ''}</div>
+        <div class="meta">${WHO[m.by] || ''} ${hhmm(m.at)}<button data-rx="${m.id}" title="React">❤️</button><button data-pin="${m.id}" title="Pin">📌</button>${mine ? `<button data-delm="${m.id}" title="Delete">✕</button>` : ''}</div></div>`;
+    });
+    th.innerHTML = h;
+    if (atBottom || !renderChat.done) th.scrollTop = th.scrollHeight;
+    renderChat.done = true;
+    th.querySelectorAll('[data-view]').forEach(i => i.onclick = () => view(i.src));
+    th.querySelectorAll('[data-rx]').forEach(b => b.onclick = () => { const m = M.find(x => x.id === b.dataset.rx); const rxo = Object.assign({}, m.rx || {}); rxo[me] = rxo[me] ? '' : '❤️'; put('msgs', m.id, { rx: rxo }); });
+    th.querySelectorAll('[data-pin]').forEach(b => b.onclick = () => { put('msgs', b.dataset.pin, { pin: true }); toast('📌 pinned'); });
+    th.querySelectorAll('[data-delm]').forEach(b => b.onclick = () => { if (confirm('Delete this message for both of you?')) del('msgs', b.dataset.delm); });
+  }
+  // unread badge + toast for new incoming
+  const lr = +(lsGet(lastReadKey) || 0);
+  const unread = M.filter(m => m.by !== me && m.at > lr).length;
+  const link = document.querySelector('nav a[href="#chat"]');
+  if (link) link.innerHTML = '💬 Chat' + (unread ? `<span class="badge">${unread}</span>` : '');
+  const newest = M[M.length - 1];
+  if (newest && newest.by !== me && renderChat.lastSeen && newest.at > renderChat.lastSeen) toast(`${WHO[newest.by]} ${newest.text ? newest.text.slice(0, 60) : '📷 photo'}`);
+  if (newest) renderChat.lastSeen = Math.max(renderChat.lastSeen || 0, newest.at);
+  // ntfy
+  const n = meta('ntfy'); $('#ntfyTopic').textContent = n.topic || '…'; $('#ntfyOn').checked = lsGet('kittens.ntfyOn') === '1';
+}
+new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { lsSet(lastReadKey, String(Date.now())); renderChat(); } }), { threshold: .3 }).observe($('#thread'));
+$('#ntfyOn').onchange = e => { lsSet('kittens.ntfyOn', e.target.checked ? '1' : '0');
+  if (!meta('ntfy').topic) put('meta', 'ntfy', { topic: 'misato-penpen-' + Math.random().toString(36).slice(2, 12) }); toast(e.target.checked ? '🔔 pings on' : '🔕 pings off'); };
+$('#ntfyCopy').onclick = async () => { try { await navigator.clipboard.writeText(meta('ntfy').topic || ''); toast('📋 copied'); } catch (e) {} };
+
+/* ───── birthday ───── */
+function renderBday() {
+  const dob = K('misato').dob, focused = document.activeElement;
+  if (focused !== $('#bdDate')) $('#bdDate').value = dob || '';
+  if (focused !== $('#bdEst')) $('#bdEst').checked = !!K('misato').dobEst;
+  $('#bdNow').innerHTML = KIDS.map(id => `<span class="kdot ${id}">${esc(K(id).name)}</span> ${K(id).dob ? niceY(K(id).dob) : '?'} · ${ageStr(ageDays(id))}${K(id).dobEst ? ' (est.)' : ''}`).join('<br>');
+  bdPreview();
+}
+function bdPreview() {
+  const v = $('#bdDate').value; if (!v) { $('#bdPreview').textContent = ''; return; }
+  const a = daysBetween(v, todayYmd()), w = daysBetween(v, '2026-09-30');
+  $('#bdPreview').textContent = v === K('misato').dob ? '' : `With this date they'd be ${ageStr(a)} today, and ${ageStr(w)} at the 30 Sep weigh-in. 1st vaccination would move to ${nice(addDays(v, 63))}.`;
+}
+$('#bdDate').oninput = bdPreview;
+$('#bdApply').onclick = () => { const v = $('#bdDate').value; if (!v) return; KIDS.forEach(id => put('kittens', id, { dob: v, dobEst: $('#bdEst').checked })); toast('🎂 birthday updated everywhere'); rain(['🎂', '🎉', '🐾'], 14); };
+
+/* ───── health ───── */
+const HM = [['eat', 'Appetite'], ['energy', 'Energy'], ['poo', 'Poo'], ['eyes', 'Eyes/nose']];
+const HS = [['good', '😀'], ['meh', '😐'], ['bad', '😟']];
+function hrec(d, k) { const r = doc.health[d + '_' + k]; return r && !r.del ? r : {}; }
+function renderHealth() {
+  if (!$('#hDate').value) $('#hDate').value = todayYmd();
+  const d = $('#hDate').value;
+  $('#hgrids').innerHTML = KIDS.map(k => {
+    const r = hrec(d, k);
+    const last7 = []; for (let i = 6; i >= 0; i--) { const dd = addDays(todayYmd(), -i), x = hrec(dd, k); const vals = HM.map(([m]) => x[m]).filter(Boolean);
+      last7.push(`<span title="${nice(dd)}" style="background:${!vals.length ? '#fff' : vals.includes('bad') ? '#ffb3b3' : vals.includes('meh') ? '#ffe9a8' : '#b9eea0'}">${vals.length ? '' : '·'}</span>`); }
+    return `<div class="mini ${k}"><b>${esc(K(k).name)}</b> <span class="muted">${nice(d)}</span>
+      <div class="hgrid">${HM.map(([m, lab]) => `<span class="lab">${lab}</span><div class="tri" style="grid-column:span 4">${HS.map(([s, e]) =>
+        `<button data-k="${k}" data-m="${m}" data-s="${s}" class="${r[m] === s ? 'on' + (s === 'bad' ? ' bad' : '') : ''}">${e}</button>`).join('')}</div>`).join('')}</div>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px"><span class="muted" style="font-weight:800">last 7 days</span><div class="dots7">${last7.join('')}</div></div></div>`;
+  }).join('');
+  $('#hgrids').querySelectorAll('.tri button').forEach(b => b.onclick = () => {
+    const { k, m, s } = b.dataset, key = $('#hDate').value + '_' + k, cur = hrec($('#hDate').value, k);
+    put('health', key, { [m]: cur[m] === s ? '' : s, by: me });
+  });
+  const flags = []; KIDS.forEach(k => { const r = hrec(d, k); HM.forEach(([m, lab]) => { if (r[m] === 'bad') flags.push(`${K(k).name}: ${lab.toLowerCase()}`); }); });
+  $('#halert').innerHTML = flags.length ? `<div class="alert">😟 Flagged — ${flags.map(esc).join(', ')}. Keep a close eye, and call the vet now if any of these apply:<ul>
+    <li>not eating for 12+ hours, or floppy / very sleepy</li><li>repeated vomiting, diarrhoea over a day, or blood</li><li>straining in the tray with nothing coming out</li><li>fast or open-mouth breathing, pale gums</li></ul></div>` : '';
+}
+$('#hDate').onchange = renderHealth;
+
+/* ───── costs ───── */
+const CC = { vet: '🏥', food: '🍽', kit: '🧸', insurance: '🛡', litter: '🧻', other: '✨', settle: '🤝' };
+const gbp = n => '£' + (Math.round(n * 100) / 100).toFixed(2);
+function costs() { return live('costs').map(([id, c]) => Object.assign({ id }, c)).sort((a, b) => b.date.localeCompare(a.date) || b.u - a.u); }
+$('#cAddCost').onclick = () => {
+  const amt = parseFloat($('#cAmt').value); const what = $('#cWhat').value.trim();
+  if (!(amt > 0) || !what) { toast('what and how much?'); return; }
+  put('costs', uid(), { date: $('#cDate').value || todayYmd(), what, amt, paid: $('#cBy').value, split: $('#cSplit').value, cat: $('#cCat').value, by: me });
+  $('#cWhat').value = ''; $('#cAmt').value = ''; toast('💷 logged');
+};
+function renderCosts() {
+  if (!$('#cDate').value) $('#cDate').value = todayYmd();
+  if (document.activeElement !== $('#cBy')) $('#cBy').value = me;
+  const C = costs();
+  let owedToLemon = 0, total = 0;               // + means girl owes lemon
+  C.forEach(c => {
+    const sign = c.paid === 'lemon' ? 1 : -1;
+    if (c.cat === 'settle') { owedToLemon -= sign * c.amt; return; }
+    total += c.amt;
+    const otherShare = c.split === 'half' ? c.amt / 2 : c.split === 'other' ? c.amt : 0;
+    owedToLemon += sign * otherShare;
+  });
+  const bal = Math.round(owedToLemon * 100) / 100;
+  $('#balance').innerHTML = Math.abs(bal) < 0.01 ? '🤝 All square' : bal > 0 ? `🌙 owes 🍋 <b>${gbp(bal)}</b>` : `🍋 owes 🌙 <b>${gbp(-bal)}</b>`;
+  if (Math.abs(bal) >= 0.01) $('#balance').innerHTML += ` <button class="btn sm" id="settle">🤝 Settle up</button>`;
+  const sb = $('#settle'); if (sb) sb.onclick = () => { if (confirm(`Record that ${bal > 0 ? 'the girl paid the lemon' : 'the lemon paid the girl'} ${gbp(Math.abs(bal))}?`)) put('costs', uid(), { date: todayYmd(), what: 'Settled up', amt: Math.abs(bal), paid: bal > 0 ? 'girl' : 'lemon', split: 'other', cat: 'settle', by: me }); };
+  const byCat = {}, byMonth = {};
+  C.filter(c => c.cat !== 'settle').forEach(c => { byCat[c.cat] = (byCat[c.cat] || 0) + c.amt; const m = c.date.slice(0, 7); byMonth[m] = (byMonth[m] || 0) + c.amt; });
+  const bars = (o, labf) => { const mx = Math.max(1, ...Object.values(o)); return Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
+    `<div class="bar"><span style="width:6.5em">${labf(k)}</span><div class="track"><div class="fill" style="width:${v / mx * 100}%"></div></div><span>${gbp(v)}</span></div>`).join('') || '<div class="muted">nothing yet</div>'; };
+  $('#costCats').innerHTML = `<b>By kind</b> <span class="muted">· ${gbp(total)} total</span><div class="bars">${bars(byCat, k => CC[k] + ' ' + k)}</div>`;
+  $('#costMonths').innerHTML = `<b>By month</b><div class="bars">${bars(Object.fromEntries(Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0])).slice(0, 6)), m => parseYmd(m + '-01').toLocaleDateString('en-GB', { month: 'short', year: '2-digit' }))}</div>`;
+  $('#costList').innerHTML = C.map(c => `<li class="row"><span class="emo">${CC[c.cat] || '💷'}</span><div class="grow"><div class="t">${esc(c.what)} · ${gbp(c.amt)}</div>
+    <div class="m">${nice(c.date)} · paid by ${WHO[c.paid]} · ${c.cat === 'settle' ? 'settle-up' : c.split === 'half' ? 'split ½' : c.split === 'payer' ? "payer's treat" : 'all on the other'}</div></div><button class="x" data-del="${c.id}">✕</button></li>`).join('');
+  $('#costList').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Delete this cost?')) del('costs', b.dataset.del); });
+}
+
+/* ───── calendar (.ics) ───── */
+function ics(filter) {
+  const T = todos().filter(t => !t.done && t.due && daysBetween(todayYmd(), t.due) >= -1 && filter(t));
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '');
+  const escI = s => String(s).replace(/[\\;,]/g, m => '\\' + m).replace(/\n/g, '\\n');
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//lemon//kittens//EN', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Misato & Pen Pen'];
+  T.forEach(t => { const d = t.due.replace(/-/g, ''), d2 = addDays(t.due, 1).replace(/-/g, '');
+    L.push('BEGIN:VEVENT', `UID:${t.id}@misato-penpen`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${d2}`,
+      `SUMMARY:${escI('🐾 ' + t.title + ' — ' + kname(t.k))}`, `DESCRIPTION:${escI('From the Misato & Pen Pen tracker\n' + location.origin + location.pathname)}`,
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Tomorrow', 'TRIGGER:-PT15H', 'END:VALARM',
+      'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Today', 'TRIGGER:PT9H', 'END:VALARM', 'END:VEVENT'); });
+  L.push('END:VCALENDAR');
+  if (!T.length) { toast('no dated to-dos to add'); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([L.join('\r\n')], { type: 'text/calendar' }));
+  a.download = 'misato-penpen.ics'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); toast(`📆 ${T.length} reminders`);
+}
+$('#icsAll').onclick = () => ics(() => true);
+$('#icsHealth').onclick = () => ics(t => t.cat === 'health');
+function renderIcsPreview() {
+  const T = todos().filter(t => !t.done && t.due && daysBetween(todayYmd(), t.due) >= -1).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 5);
+  $('#icsPreview').innerHTML = T.map(t => `<li class="row"><span class="emo">🔔</span><div class="grow"><div class="t">${esc(t.title)}</div><div class="m">${nice(t.due)} · reminder 9am the day before</div></div></li>`).join('');
+}
+
+/* ───── rota ───── */
+const DUTIES = [['am', '🌅 Morning feed'], ['mid', '☀️ Lunch'], ['pm', '🌆 Tea'], ['late', '🌙 Supper'], ['tray', '🧻 Tray'], ['play', '🎾 Play']];
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const CYC = ['', 'lemon', 'girl', 'both'], CYE = { '': '·', lemon: '🍋', girl: '🌙', both: '💛' };
+function renderRota() {
+  const R = meta('rota'), td = (new Date().getDay() + 6) % 7;
+  let h = '<span></span>' + DAYS.map((d, i) => `<span class="h ${i === td ? 'today' : ''}">${d}</span>`).join('');
+  DUTIES.forEach(([k, lab]) => { h += `<span class="h" style="text-align:left;white-space:nowrap">${lab}</span>` + DAYS.map((d, i) => `<button data-d="${d}" data-k="${k}" class="${i === td ? 'today' : ''}">${CYE[R[d + k] || '']}</button>`).join(''); });
+  $('#rotaGrid').innerHTML = h;
+  $('#rotaGrid').querySelectorAll('button').forEach(b => b.onclick = () => { const key = b.dataset.d + b.dataset.k, cur = meta('rota')[key] || ''; put('meta', 'rota', { [key]: CYC[(CYC.indexOf(cur) + 1) % CYC.length] }); });
+  const mineToday = DUTIES.filter(([k]) => { const v = R[DAYS[td] + k]; return v === me || v === 'both'; }).map(([, l]) => l);
+  $('#rotaToday').textContent = mineToday.length ? `${WHO[me]} you're on today: ${mineToday.join(', ')}` : `${WHO[me]} nothing assigned to you today.`;
+}
+
+/* ───── sitter ───── */
+const ST = { feed: '#stFeed', routine: '#stRoutine', quirks: '#stQuirks', dont: '#stDont', vet: '#stVet', emerg: '#stEmerg', where: '#stWhere' };
+Object.entries(ST).forEach(([k, sel]) => { let t; $(sel).oninput = () => { clearTimeout(t); t = setTimeout(() => put('meta', 'sitter', { [k]: $(sel).value }), 600); }; });
+function renderSitterForm() { const s = meta('sitter'); Object.entries(ST).forEach(([k, sel]) => { if (document.activeElement !== $(sel)) $(sel).value = s[k] || ''; }); }
+const b64u = s => btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const unb64u = s => decodeURIComponent(escape(atob(s.replace(/-/g, '+').replace(/_/g, '/'))));
+function sitterPayload() {
+  const s = meta('sitter');
+  const favs = id => live('foods').map(([, f]) => f).filter(f => (f.k === id || f.k === 'both') && f.rate >= 4).map(f => f.name).slice(0, 4);
+  const nopes = id => live('foods').map(([, f]) => f).filter(f => (f.k === id || f.k === 'both') && f.rate === 0).map(f => f.name).slice(0, 4);
+  return { v: 1, s: { feed: s.feed, routine: s.routine, quirks: s.quirks, dont: s.dont, vet: s.vet, emerg: s.emerg, where: s.where },
+    k: KIDS.map(id => ({ id, name: K(id).name, coat: K(id).coat, dob: K(id).dob, eye: K(id).eye, marks: K(id).marks, bio: K(id).bio, chip: K(id).chip, favs: favs(id), nopes: nopes(id), g: (latest(id) || {}).g })) };
+}
+function sitterLink() { return location.origin + location.pathname + '#sitter=' + b64u(JSON.stringify(sitterPayload())); }
+$('#stLink').onclick = () => { $('#stOut').value = sitterLink(); $('#stOut').select(); try { navigator.clipboard.writeText($('#stOut').value); toast('🔗 link copied'); } catch (e) {} };
+$('#stWa').onclick = () => { $('#stWa').href = 'https://wa.me/?text=' + encodeURIComponent('🐾 Everything you need for Misato & Pen Pen: ' + sitterLink()); };
+$('#stPreview').onclick = () => window.open(sitterLink(), '_blank');
+function renderSitterMode(p) {
+  document.body.classList.add('sitter');
+  p.k.forEach(k => { doc.kittens[k.id] = Object.assign({}, doc.kittens[k.id] || {}, k); });
+  const s = p.s || {}, blk = (t, v) => v ? `<h3>${t}</h3><p style="font-weight:700;line-height:1.5;white-space:pre-wrap">${esc(v)}</p>` : '';
+  document.querySelector('.wrap').innerHTML = `<header><h1>Misato <span class="amp">&amp;</span> Pen Pen</h1><div class="tagline">🧳 the cat-sitter's guide · thank you! 💛</div></header>
+    <div class="stage">${p.k.map(k => `<div class="char bob"><div>${kittenSVG(k.id, { w: 130 })}</div><div class="tag">${esc(k.name)}</div></div>`).join('')}</div>
+    <section class="card"><h2>🐾 Who's who</h2><div class="grid2">${p.k.map(k => `<div class="mini ${k.id}"><b style="font-size:1.2rem">${esc(k.name)}</b>
+      <div class="muted">${esc(k.coat || '')}${k.marks ? ' · ' + esc(k.marks) : ''}</div>
+      <p style="margin-top:6px;font-weight:700">${k.dob ? ageStr(daysBetween(k.dob, todayYmd())) + ' old' : ''}${k.g ? ' · about ' + k.g + 'g' : ''}</p>
+      ${k.bio ? `<p style="font-weight:700">“${esc(k.bio)}”</p>` : ''}${k.favs.length ? `<p>❤️ Loves: ${k.favs.map(esc).join(', ')}</p>` : ''}${k.nopes.length ? `<p>🙅 Won't eat: ${k.nopes.map(esc).join(', ')}</p>` : ''}
+      ${k.chip ? `<p class="muted">Microchip: ${esc(k.chip)}</p>` : ''}</div>`).join('')}</div></section>
+    <section class="card"><h2>📋 The routine</h2>${blk('🍽 Feeding', s.feed)}${blk('🔁 Routine', s.routine)}${blk('😺 Quirks', s.quirks)}${blk('🚫 Never', s.dont)}${blk('📍 Where things are', s.where)}
+      ${!s.feed && !s.routine ? '<p class="muted">The owners haven\'t filled this in yet.</p>' : ''}</section>
+    <section class="card"><h2>📞 If anything's wrong</h2>${blk('🏥 Vet', s.vet)}${blk('☎️ Emergency contact', s.emerg)}
+      <h3>🚨 Call the vet straight away if</h3><ul style="margin-left:1.2em;line-height:1.6;font-weight:700"><li>not eating for 12+ hours</li><li>floppy, very sleepy or hiding</li><li>repeated vomiting / diarrhoea / blood</li><li>straining in the tray with nothing coming out</li><li>breathing fast or open-mouthed</li><li>any fall or injury</li></ul>
+      <h3>🚫 Toxic to cats</h3><p style="font-weight:700">Lilies (even pollen), onion, garlic, chocolate, grapes, cow's milk, paracetamol, dog flea treatment, essential oils.</p></section>
+    <footer>🍋💛🌙 <button class="btn sm" onclick="print()">🖨 Print</button></footer>`;
+}
+
+/* ───── training ───── */
+const LV = ['🥚', '🐣', '🐥', '🏆'];
+$('#skAdd').onclick = () => { const t = $('#skTitle').value.trim(); if (!t) return; put('skills', uid(), { title: t, order: 99, lv: { misato: 0, penpen: 0 }, by: me }); $('#skTitle').value = ''; };
+function renderSkills() {
+  const S = live('skills').map(([id, s]) => Object.assign({ id }, s)).sort((a, b) => (a.order ?? 99) - (b.order ?? 99) || a.u - b.u);
+  $('#skGrid').innerHTML = KIDS.map(k => { const done = S.filter(s => (s.lv || {})[k] === 3).length;
+    return `<div class="mini ${k}"><b>${esc(K(k).name)}</b> <span class="muted">· ${done}/${S.length} nailed</span><ul class="list">${S.map(s => `<li class="row" style="padding:6px 8px"><div class="grow skill"><span class="t" style="flex:1;min-width:8em">${esc(s.title)}</span>
+      <span class="lvl">${LV.map((e, i) => `<button data-id="${s.id}" data-k="${k}" data-l="${i}" class="${((s.lv || {})[k] || 0) === i ? 'on' : ''}">${e}</button>`).join('')}</span></div>
+      ${s.id.startsWith('k-seed-') ? '' : `<button class="x" data-del="${s.id}">✕</button>`}</li>`).join('')}</ul></div>`; }).join('');
+  $('#skGrid').querySelectorAll('.lvl button').forEach(b => b.onclick = () => { const s = S.find(x => x.id === b.dataset.id); const lv = Object.assign({}, s.lv || {}, { [b.dataset.k]: +b.dataset.l });
+    put('skills', s.id, { lv }); if (+b.dataset.l === 3) { toast('🏆 nailed it!'); rain(['🏆', '🐾', '⭐'], 12); } });
+  $('#skGrid').querySelectorAll('[data-del]').forEach(b => b.onclick = () => del('skills', b.dataset.del));
+}
+
+/* ───── flipbook ───── */
+let fbK = 'misato', fbI = -1, fbTimer = null;
+$('#fbAdd').onclick = async () => { const f = $('#fbFile').files[0]; if (!f) { toast('pick a photo'); return; }
+  const k = $('#fbK').value; const d = await shrink(f, 900); addPhoto(d, { k, caption: K(k).name + ' · week ' + Math.floor((ageDays(k) || 0) / 7), date: todayYmd(), flip: true });
+  $('#fbFile').value = ''; fbK = k; fbI = -1; toast('🎞 added to the flipbook'); };
+function fbFrames() { return live('photos').map(([id, p]) => Object.assign({ id }, p)).filter(p => p.flip && p.k === fbK && photoURL(p.id)).sort((a, b) => (a.date || '').localeCompare(b.date || '')); }
+function weightNear(k, d) { const w = weightsOf(k); let best = null; w.forEach(x => { if (!best || Math.abs(daysBetween(x.date, d)) < Math.abs(daysBetween(best.date, d))) best = x; }); return best && Math.abs(daysBetween(best.date, d)) <= 4 ? best.g : null; }
+function renderFlip() {
+  $('#fbView').innerHTML = KIDS.map(k => `<button data-k="${k}" class="${fbK === k ? 'on' : ''}">${esc(K(k).name)}</button>`).join('');
+  $('#fbView').querySelectorAll('button').forEach(b => b.onclick = () => { fbK = b.dataset.k; fbI = -1; renderFlip(); });
+  const F = fbFrames(); if (fbI < 0 || fbI >= F.length) fbI = F.length - 1;
+  $('#fbSlider').max = Math.max(0, F.length - 1); $('#fbSlider').value = Math.max(0, fbI);
+  if (!F.length) { $('#fbStage').innerHTML = `<div class="empty">No portraits of ${esc(K(fbK).name)} yet.<br>Same spot each week works best 📸</div>`; return; }
+  const p = F[fbI], g = weightNear(fbK, p.date);
+  $('#fbStage').innerHTML = `<img src="${photoURL(p.id)}" alt=""><span class="lbl">${ageStr(ageDays(fbK, p.date))}${g ? ' · ' + g + 'g' : ''} · ${nice(p.date)}</span>`;
+}
+$('#fbSlider').oninput = e => { fbI = +e.target.value; renderFlip(); };
+$('#fbPlay').onclick = () => {
+  if (fbTimer) { clearInterval(fbTimer); fbTimer = null; $('#fbPlay').textContent = '▶ Play'; return; }
+  const n = fbFrames().length; if (n < 2) { toast('add at least two portraits'); return; }
+  fbI = 0; renderFlip(); $('#fbPlay').textContent = '⏸ Pause';
+  fbTimer = setInterval(() => { fbI = (fbI + 1) % fbFrames().length; renderFlip(); }, 700);
+};
+
+/* ───── motion watcher (per device) ───── */
+const watching = {}; let motionSig = '';
+function renderMotion() {
+  const C = live('cams').map(([id, c]) => Object.assign({ id }, c)).filter(c => c.kind === 'snapshot' || c.kind === 'mjpeg');
+  const sig = JSON.stringify(C.map(c => [c.id, c.u])); if (sig === motionSig) return; motionSig = sig;
+  const on = JSON.parse(lsGet('kittens.watch') || '{}');
+  $('#motionList').innerHTML = C.length ? C.map(c => `<div class="row" style="margin-bottom:8px"><span class="emo">📹</span><div class="grow"><div class="t">${esc(c.name)}</div>
+    <div class="m" id="mst-${c.id}">${on[c.id] ? 'starting…' : 'not watching on this device'}</div></div><span class="meter"><i id="mm-${c.id}"></i></span>
+    <label style="font-weight:900;display:flex;gap:4px;align-items:center"><input type="checkbox" data-w="${c.id}" ${on[c.id] ? 'checked' : ''} style="width:22px;height:22px"> watch</label></div>`).join('')
+    : '<div class="empty">No Snapshot / MJPEG cameras yet — add one in 📹 Kitten cams above.</div>';
+  $('#motionList').querySelectorAll('[data-w]').forEach(i => i.onchange = () => { const o = JSON.parse(lsGet('kittens.watch') || '{}'); o[i.dataset.w] = i.checked; lsSet('kittens.watch', JSON.stringify(o)); syncWatchers(); });
+  syncWatchers();
+}
+function syncWatchers() {
+  const on = JSON.parse(lsGet('kittens.watch') || '{}');
+  const C = live('cams').map(([id, c]) => Object.assign({ id }, c));
+  Object.keys(watching).forEach(id => { if (!on[id] || !C.find(c => c.id === id)) { clearInterval(watching[id].t); delete watching[id]; const s = $('#mst-' + id); if (s) s.textContent = 'not watching on this device'; } });
+  C.filter(c => on[c.id] && !watching[c.id] && (c.kind === 'snapshot' || c.kind === 'mjpeg')).forEach(c => {
+    const st = watching[c.id] = { prev: null, last: 0, t: null };
+    const small = document.createElement('canvas'); small.width = 64; small.height = 36; const sx = small.getContext('2d', { willReadFrequently: true });
+    const tick = () => {
+      if (document.hidden) return;
+      const img = new Image(); img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          sx.drawImage(img, 0, 0, 64, 36); const px = sx.getImageData(0, 0, 64, 36).data, g = new Float32Array(64 * 36);
+          for (let i = 0; i < g.length; i++) g[i] = px[i * 4] * .3 + px[i * 4 + 1] * .59 + px[i * 4 + 2] * .11;
+          let diff = 0; if (st.prev) { for (let i = 0; i < g.length; i++) diff += Math.abs(g[i] - st.prev[i]); diff /= g.length; } st.prev = g;
+          const bar = $('#mm-' + c.id); if (bar) bar.style.width = Math.min(100, diff * 5) + '%';
+          const s = $('#mst-' + c.id); if (s) s.textContent = `watching · movement ${diff.toFixed(1)}${st.last ? ' · last catch ' + agoMs(st.last) : ''}`;
+          if (diff > 10 && Date.now() - st.last > 600000) {
+            st.last = Date.now(); const big = document.createElement('canvas'), sc = Math.min(1, 900 / img.width); big.width = img.width * sc; big.height = img.height * sc;
+            big.getContext('2d').drawImage(img, 0, 0, big.width, big.height);
+            const pid = addPhoto(big.toDataURL('image/jpeg', .72), { k: 'both', caption: '📹 caught in the act · ' + c.name, date: todayYmd() });
+            put('events', uid(), { date: todayYmd(), k: 'both', type: 'cute', text: `📹 caught in the act on the ${c.name} cam (${hhmm(Date.now())})`, photo: pid, by: me });
+          }
+        } catch (e) { const s = $('#mst-' + c.id); if (s) s.textContent = '⚠️ the bridge isn\'t allowing reads (CORS) — see "Making it work"'; }
+      };
+      img.onerror = () => { const s = $('#mst-' + c.id); if (s) s.textContent = '⚠️ can\'t reach this camera'; };
+      img.src = c.kind === 'snapshot' ? c.url + (c.url.includes('?') ? '&' : '?') + '_t=' + Date.now() : c.url.replace('stream.mjpeg', 'frame.jpeg');
+    };
+    tick(); st.t = setInterval(tick, Math.max(3, c.refresh || 5) * 1000);
+  });
+}
+
+/* ───── install (PWA) ───── */
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; renderInstall(); });
+function renderInstall() {
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  $('#installBody').innerHTML = standalone ? '<p style="font-weight:900">✅ Installed — you\'re using the app right now.</p>'
+    : deferredInstall ? '<button class="btn go" id="installBtn">📲 Install the app</button>'
+    : ios ? '<ol style="margin-left:1.2em;line-height:1.7;font-weight:700"><li>Open this page in <b>Safari</b></li><li>Tap the <b>Share</b> button (square with the arrow)</li><li>Tap <b>Add to Home Screen</b> → <b>Add</b></li></ol>'
+    : '<ol style="margin-left:1.2em;line-height:1.7;font-weight:700"><li>Open the browser menu (⋮)</li><li>Tap <b>Install app</b> or <b>Add to Home screen</b></li></ol>';
+  const ib = $('#installBtn'); if (ib) ib.onclick = async () => { deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; renderInstall(); };
+}
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+
+/* ───── weight zoom ───── */
+const WZ = { range: 30, show: { misato: true, penpen: true, band: true, proj: true, zero: false } };
+$('#wzClose').onclick = () => $('#wzoom').close();
+$('#wzRange').querySelectorAll('button').forEach(b => b.onclick = () => { WZ.range = +b.dataset.r; $('#wzRange').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderZoom(); });
+document.querySelectorAll('.ztog').forEach(b => b.onclick = () => { WZ.show[b.dataset.z] = !WZ.show[b.dataset.z]; b.classList.toggle('on', WZ.show[b.dataset.z]); renderZoom(); });
+function openZoom() { $('#wzoom').showModal(); renderZoom(); }
+function renderZoom() {
+  if (!$('#wzoom').open) return;
+  const dob = KIDS.map(id => K(id).dob).filter(Boolean).sort()[0] || todayYmd();
+  const ids = KIDS.filter(id => WZ.show[id]);
+  const all = ids.flatMap(id => weightsOf(id));
+  const td = daysBetween(dob, todayYmd());
+  const lastD = all.length ? Math.max(...all.map(p => daysBetween(dob, p.date))) : td;
+  const x1 = Math.max(td, lastD) + (WZ.show.proj ? 14 : 3);
+  const x0 = WZ.range ? Math.max(0, x1 - WZ.range - (WZ.show.proj ? 14 : 3)) : Math.max(0, Math.min(...all.map(p => daysBetween(dob, p.date)), td) - 5);
+  const inR = all.filter(p => { const d = daysBetween(dob, p.date); return d >= x0 && d <= x1; });
+  const projs = WZ.show.proj ? ids.map(id => projectAt(id, addDays(dob, x1))).filter(v => v != null) : [];
+  const bandVals = WZ.show.band ? [guide(x0)[0], guide(x1)[1]] : [];
+  const vals = [...inR.map(p => p.g), ...projs, ...bandVals]; if (!vals.length) vals.push(500, 900);
+  let y0 = WZ.show.zero ? 0 : Math.min(...vals), y1 = Math.max(...vals);
+  const padY = Math.max(40, (y1 - y0) * .12); y0 = WZ.show.zero ? 0 : Math.max(0, Math.floor((y0 - padY) / 50) * 50); y1 = Math.ceil((y1 + padY) / 50) * 50;
+  const W = 900, H = 440, L = 56, R = 20, T = 18, B = 46;
+  const X = d => L + (d - x0) / Math.max(1, x1 - x0) * (W - L - R), Y = g => T + (1 - (g - y0) / (y1 - y0)) * (H - T - B);
+  let s = '', ax = '';
+  const span = y1 - y0, stepY = span > 3000 ? 500 : span > 1200 ? 200 : span > 500 ? 100 : 50;
+  for (let g = Math.ceil(y0 / stepY) * stepY; g <= y1; g += stepY) { s += `<line x1="${L}" x2="${W - R}" y1="${Y(g)}" y2="${Y(g)}" stroke="#eee" stroke-width="1.5"/>`; ax += `<text x="${L - 6}" y="${Y(g) + 4}" text-anchor="end">${g >= 1000 ? (g / 1000).toFixed(g % 1000 ? 1 : 0) + 'kg' : g + 'g'}</text>`; }
+  const stepX = x1 - x0 > 150 ? 14 : x1 - x0 > 45 ? 7 : x1 - x0 > 20 ? 2 : 1;
+  for (let d = Math.ceil(x0 / stepX) * stepX; d <= x1; d += stepX) { const wk = d % 7 === 0;
+    s += `<line x1="${X(d)}" x2="${X(d)}" y1="${T}" y2="${H - B}" stroke="${wk ? '#e6dcff' : '#f6f3fb'}" stroke-width="${wk ? 2 : 1}"/>`;
+    if (wk || stepX >= 7 || (stepX === 1 ? d % 3 === 0 : d % 4 === 0)) s += `<text x="${X(d)}" y="${H - B + 15}" text-anchor="middle">${wk ? Math.round(d / 7) + 'w' : ''}</text><text x="${X(d)}" y="${H - B + 30}" text-anchor="middle" style="font-size:9.5px">${parseYmd(addDays(dob, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`; }
+  if (WZ.show.band) { let top = '', bot = ''; for (let d = x0; d <= x1; d += Math.max(1, (x1 - x0) / 80)) { const [lo, hi] = guide(d); top += `${X(d)},${Y(Math.min(hi, y1))} `; bot = `${X(d)},${Y(Math.max(lo, y0))} ` + bot; }
+    s += `<polygon points="${top}${bot}" fill="rgba(138,201,38,.2)" stroke="rgba(95,151,24,.55)" stroke-dasharray="5 4" stroke-width="1.5"/>`; }
+  if (td >= x0 && td <= x1) s += `<line x1="${X(td)}" x2="${X(td)}" y1="${T}" y2="${H - B}" stroke="#ffca3a" stroke-width="3"/><text x="${X(td)}" y="${T + 10}" text-anchor="middle" style="font-weight:900;fill:#6a4c93">today</text>`;
+  [500, 1000, 1500, 2000, 3000].filter(g => g > y0 && g < y1).forEach(g => s += `<line x1="${L}" x2="${W - R}" y1="${Y(g)}" y2="${Y(g)}" stroke="#b15ee3" stroke-width="1" stroke-dasharray="2 6"/><text x="${W - R - 4}" y="${Y(g) - 4}" text-anchor="end" style="fill:#b15ee3;font-weight:900">${g >= 1000 ? g / 1000 + ' kg' : g + ' g'}</text>`);
+  const dots = [];
+  ids.forEach(id => {
+    const w = weightsOf(id); if (!w.length) return; const pen = id === 'penpen';
+    const P = w.map(p => [X(daysBetween(dob, p.date)), Y(p.g), p]);
+    if (WZ.show.proj) { const pe = projectAt(id, addDays(dob, x1)), l = P[P.length - 1]; if (pe != null) s += `<line x1="${l[0]}" y1="${l[1]}" x2="${X(x1)}" y2="${Y(pe)}" stroke="#6a4c93" stroke-width="2.5" stroke-dasharray="3 5" stroke-linecap="round"/><text x="${X(x1) - 4}" y="${Y(pe) - 8}" text-anchor="end" style="fill:#6a4c93;font-weight:900">${pe}g?</text>`; }
+    const path = P.map(p => p[0] + ',' + p[1]).join(' ');
+    if (P.length > 1) { s += `<polyline points="${path}" fill="none" stroke="#000" stroke-width="${pen ? 5 : 7}" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${path}" fill="none" stroke="${pen ? '#2b2b30' : '#fff'}" stroke-width="${pen ? 4 : 3.5}" stroke-linejoin="round" stroke-linecap="round"/>`; }
+    P.forEach(([x, y, p], i) => { s += `<circle cx="${x}" cy="${y}" r="7" fill="${pen ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="3"/>`;
+      if (x >= L && x <= W - R) s += `<text x="${x}" y="${y + (pen ? 22 : -12)}" text-anchor="middle" style="font-weight:900;fill:#1a1a1a">${p.approx ? '~' : ''}${p.g}</text>`;
+      const prev = w[i - 1]; dots.push({ x, y, txt: `${K(id).name}: ${p.g}g · ${nice(p.date)} · ${ageStr(ageDays(id, p.date))}${prev ? ` · ${p.g - prev.g >= 0 ? '+' : ''}${p.g - prev.g}g` : ''}` }); });
+  });
+  $('#zchart').innerHTML = `<defs><clipPath id="zclip"><rect x="${L}" y="0" width="${W - L - R}" height="${H}"/></clipPath></defs><g clip-path="url(#zclip)">${s}</g>${ax}`;
+  const tip = $('#ztip'), svg = $('#zchart');
+  svg.onpointermove = e => { const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * W / r.width, sy = (e.clientY - r.top) * H / r.height; let best = null, bd = 1400;
+    dots.forEach(d => { const dd = (d.x - sx) ** 2 + (d.y - sy) ** 2; if (dd < bd) { bd = dd; best = d; } });
+    if (best) { tip.textContent = best.txt; tip.style.left = best.x * r.width / W + 'px'; tip.style.top = best.y * r.height / H + 'px'; tip.style.opacity = 1; } else tip.style.opacity = 0; };
+  svg.onpointerleave = () => tip.style.opacity = 0;
+  // velocity bars
+  const segs = []; ids.forEach(id => { const w = weightsOf(id); for (let i = 1; i < w.length; i++) { const dd = daysBetween(w[i - 1].date, w[i].date); if (dd > 0) segs.push({ id, from: w[i - 1].date, to: w[i].date, r: (w[i].g - w[i - 1].g) / dd }); } });
+  const VW = 900, VH = 200, vL = 56, vB = 30, vT = 14, vmax = Math.max(20, ...segs.map(z => Math.abs(z.r))) * 1.15, vmin = Math.min(0, ...segs.map(z => z.r)) * 1.15;
+  const vy = v => vT + (1 - (v - vmin) / (vmax - vmin)) * (VH - vT - vB);
+  let v = `<line x1="${vL}" x2="${VW - 20}" y1="${vy(0)}" y2="${vy(0)}" stroke="#000" stroke-width="2"/>`;
+  [10, 17].forEach(g => { if (g < vmax) v += `<rect x="${vL}" y="${vy(17)}" width="${VW - 20 - vL}" height="${vy(10) - vy(17)}" fill="rgba(138,201,38,.15)"/>`; });
+  v += `<text x="${VW - 24}" y="${vy(17) - 4}" text-anchor="end" style="fill:#5f9718;font-weight:900">typical 10–17 g/day</text>`;
+  for (let g = 0; g <= vmax; g += vmax > 60 ? 20 : 10) v += `<text x="${vL - 6}" y="${vy(g) + 4}" text-anchor="end">${g}</text>`;
+  if (!segs.length) v += `<text x="${VW / 2}" y="${VH / 2}" text-anchor="middle" style="font-size:14px;font-weight:900">Needs two weigh-ins of the same kitten</text>`;
+  else { const bw = Math.min(70, (VW - vL - 30) / segs.length - 6); segs.sort((a, b) => a.to.localeCompare(b.to) || a.id.localeCompare(b.id)).forEach((z, i) => { const x = vL + 10 + i * (bw + 6);
+    v += `<rect x="${x}" y="${Math.min(vy(z.r), vy(0))}" width="${bw}" height="${Math.abs(vy(z.r) - vy(0))}" rx="6" fill="${z.id === 'penpen' ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="2.5"/>
+      <text x="${x + bw / 2}" y="${vy(z.r) - 5}" text-anchor="middle" style="font-weight:900;fill:#1a1a1a">${Math.round(z.r)}</text><text x="${x + bw / 2}" y="${VH - 10}" text-anchor="middle" style="font-size:9.5px">${parseYmd(z.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`; }); }
+  $('#zvel').innerHTML = v;
+  // summary cards
+  $('#zcards').innerHTML = KIDS.map(id => { const w = weightsOf(id); if (!w.length) return `<div class="mini ${id}"><b>${esc(K(id).name)}</b><div class="muted">no weigh-ins</div></div>`;
+    const f = w[0], l = w[w.length - 1], days = daysBetween(f.date, l.date), avg = days > 0 ? (l.g - f.g) / days : rate(id), since = daysBetween(l.date, todayYmd());
+    const wk = w.filter(x => daysBetween(x.date, l.date) <= 7); const r7 = wk.length > 1 && daysBetween(wk[0].date, l.date) > 0 ? (l.g - wk[0].g) / daysBetween(wk[0].date, l.date) : null;
+    const ms = [1000, 1500, 2000].map(t => [t, projectDate(id, t)]).filter(([, d]) => d);
+    return `<div class="mini ${id}"><b style="font-size:1.05rem">${esc(K(id).name)}</b>
+      <div class="stats" style="grid-template-columns:1fr 1fr"><div class="stat"><small>Gained</small><b>${l.g - f.g >= 0 ? '+' : ''}${l.g - f.g}g</b><small style="text-transform:none">over ${days} days</small></div>
+      <div class="stat"><small>Average</small><b>${avg != null ? Math.round(avg) + 'g/day' : '—'}</b>${r7 != null ? `<small style="text-transform:none">last week ${Math.round(r7)}g/day</small>` : ''}</div></div>
+      <div class="muted" style="font-weight:800">${since > 7 ? `⏰ last weighed ${since} days ago — weekly weigh-ins keep the projection honest` : `weighed ${since === 0 ? 'today' : since + ' day' + (since === 1 ? '' : 's') + ' ago'}`}</div>
+      ${ms.length ? `<div class="muted" style="margin-top:4px">${ms.map(([t, d]) => `${t / 1000} kg ≈ ${nice(d)}`).join(' · ')}</div>` : ''}</div>`; }).join('')
+    + (() => { const a = latest('misato'), b = latest('penpen'); if (!a || !b) return ''; const ea = estNow('misato'), eb = estNow('penpen'), d = ea - eb;
+      return `<div class="mini"><b>Head to head</b><p style="font-weight:800;margin-top:6px">${d >= 0 ? K('misato').name : K('penpen').name} is about <b>${Math.abs(d)}g</b> ahead today</p><p class="muted">${(Math.abs(d) / LEMON_G).toFixed(1)} lemons' difference 🍋</p></div>`; })();
+  // table
+  const rows = live('weights').map(([wid, w]) => Object.assign({ id: wid }, w)).filter(w => WZ.show[w.k]).sort((a, b) => b.date.localeCompare(a.date) || b.u - a.u);
+  $('#ztable').innerHTML = `<tr><th>Kitten</th><th>Date</th><th>Grams</th><th>Age</th><th>Change</th><th>g/day</th><th>vs typical</th><th></th></tr>` + rows.map(w => {
+    const ws = weightsOf(w.k), i = ws.findIndex(x => x.id === w.id), prev = ws[i - 1], dd = prev ? daysBetween(prev.date, w.date) : 0, a = ageDays(w.k, w.date);
+    const [lo, hi] = a != null ? guide(a) : [0, 0], mid = (lo + hi) / 2, pct = a != null ? Math.round((w.g / mid - 1) * 100) : null;
+    return `<tr><td><span class="kdot ${w.k}">${esc(K(w.k).name)}</span></td><td><input type="date" value="${w.date}" data-wd="${w.id}"></td><td><input type="number" value="${w.g}" data-wg="${w.id}" style="width:5.5em"></td>
+      <td>${ageStr(a)}</td><td>${prev ? (w.g - prev.g >= 0 ? '+' : '') + (w.g - prev.g) + 'g' : '—'}</td><td>${prev && dd > 0 ? Math.round((w.g - prev.g) / dd) : '—'}</td>
+      <td>${pct == null ? '—' : (w.g < lo ? '🟠 ' : '🟢 ') + (pct >= 0 ? '+' : '') + pct + '%'}</td><td><button class="x" data-wdel="${w.id}">✕</button></td></tr>`; }).join('');
+  $('#ztable').querySelectorAll('[data-wd]').forEach(i => i.onchange = () => i.value && put('weights', i.dataset.wd, { date: i.value }));
+  $('#ztable').querySelectorAll('[data-wg]').forEach(i => i.onchange = () => { const g = Math.round(+i.value); if (g >= 50) put('weights', i.dataset.wg, { g, approx: false }); });
+  $('#ztable').querySelectorAll('[data-wdel]').forEach(b => b.onclick = () => { if (confirm('Delete this weigh-in?')) del('weights', b.dataset.wdel); });
+}
+$('#zcsv').onclick = () => {
+  const rows = [['kitten', 'date', 'grams', 'approx', 'age_days', 'logged_by']].concat(live('weights').map(([, w]) => w).sort((a, b) => a.date.localeCompare(b.date)).map(w => [K(w.k).name, w.date, w.g, w.approx ? 'yes' : '', ageDays(w.k, w.date), w.by || '']));
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([rows.map(r => r.join(',')).join('\n')], { type: 'text/csv' })); a.download = `misato-penpen-weights-${todayYmd()}.csv`; a.click();
+};
+
+function renderExtras() {
+  fillKSelect($('#fbK'), false);
+  renderChat(); renderBday(); renderHealth(); renderCosts(); renderIcsPreview(); renderRota(); renderSitterForm(); renderSkills(); renderFlip(); renderMotion(); renderInstall(); renderZoom();
+}
+if (!SITTER) setInterval(() => { if (!document.hidden) renderChat(); }, 30000);   // re-age "last fed"
+
 /* ═════════════ boot ═════════════ */
 const SPOTS = [[5, 16], [92, 10], [10, 64], [88, 72], [48, 4], [72, 40], [24, 36], [62, 88]];
 SPOTS.forEach(([x, y], i) => { const s = document.createElement('span'); s.className = 'spark'; s.textContent = ['✨', '⭐', '🐾', '🍋'][i % 4]; s.style.left = x + 'vw'; s.style.top = y + 'vh'; s.style.animationDelay = i * .6 + 's'; document.body.appendChild(s); });
+if (SITTER) {
+  // a cat-sitter link shows only the sitter sheet, read-only — nothing else boots, nothing is saved or synced
+  try { renderSitterMode(JSON.parse(unb64u(location.hash.match(/sitter=([A-Za-z0-9_-]+)/)[1]))); }
+  catch (e) { document.querySelector('.wrap').innerHTML = '<section class="card"><h2>🧳 Sitter link</h2><p>This link doesn\'t look right — ask the owners to make a new one.</p></section>'; }
+} else {
 ['#wDate', '#eDate'].forEach(s => $(s).value = todayYmd());
 renderMe(); renderFact(); renderAll();
 setInterval(() => renderSay(true), 6500);
 let dayNow = todayYmd(); setInterval(() => { if (todayYmd() !== dayNow) { dayNow = todayYmd(); renderAll(); } }, 30000);   // midnight rollover
 let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderStage, 200); });
 window.addEventListener('storage', e => { if (e.key === LS) { doc = load(); renderAll(); } });   // another tab
+$('#wzOpen').onclick = openZoom;
 initSync();
+}
 </script>
 </body>
 </html>
