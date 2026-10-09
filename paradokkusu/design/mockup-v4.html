@@ -1,0 +1,149 @@
+<title>パラドックス</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the white Japanese lockup is the home spine; four coloured tabs with rotated names stand beside it. One is always open. */
+:root{
+  --ink:#ffffff; --ground:#000000;
+  --ink-2:rgba(255,255,255,.62); --faint:rgba(255,255,255,.34); --hair:rgba(255,255,255,.16);
+  --teal:#87d7d7; --pink:#ff87ff; --green:#5fd7af; --gold:#ffd75f; --violet:#af87ff;
+  --serif:"New York","Iowan Old Style","Canela",Palatino,Georgia,serif;
+  --jp:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;
+  --mono:"JetBrains Mono","SF Mono",Menlo,monospace;
+  --tab:44px;
+  color-scheme:dark;
+}
+html,body{height:100%;margin:0}
+body{background:var(--ground);color:var(--ink);font-family:var(--serif);overflow:hidden;-webkit-user-select:none;user-select:none}
+.phone{height:100%;max-width:430px;margin:0 auto;display:flex;flex-direction:column}
+.shelf{flex:1;display:flex;min-height:0}
+.spine{position:relative;flex:0 0 var(--tab);min-width:0;overflow:hidden;display:flex;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:flex-grow .5s cubic-bezier(.2,.8,.2,1),flex-basis .5s cubic-bezier(.2,.8,.2,1)}
+.spine.open{flex:1 1 0}
+/* the tab strip */
+.strip{flex:0 0 var(--tab);width:var(--tab);display:flex;flex-direction:column;align-items:center;padding-top:22px;color:var(--c,var(--ink))}
+.spine.home .strip{border-right:1px solid var(--hair)}
+.spine:not(.home) .strip{background:var(--c);color:var(--ground);transition:background .35s,color .35s}
+.spine:not(.home).open .strip{background:transparent;color:var(--c)}
+.stars{display:flex;flex-direction:column;align-items:center;line-height:1.08;font-size:20px}
+.x{font-size:13px;margin:12px 0 10px;line-height:1;color:var(--ink-2)}
+.jp{font-family:var(--jp);writing-mode:vertical-rl;text-orientation:mixed;font-size:14px;letter-spacing:.42em;line-height:1}
+.word{writing-mode:vertical-rl;text-orientation:mixed;font-family:var(--serif);font-size:19px;letter-spacing:.3em;line-height:1;text-transform:uppercase;padding-top:2px}
+/* the page */
+.page{position:absolute;inset:0 0 0 var(--tab);opacity:0;transform:translateX(10px);transition:opacity .3s .12s,transform .4s .08s;padding:20px 18px 18px 14px;display:flex;flex-direction:column;overflow:hidden;pointer-events:none}
+.spine.open .page{opacity:1;transform:none;pointer-events:auto}
+.eyebrow{font-family:var(--mono);font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--faint)}
+.title{font-family:var(--serif);font-size:clamp(44px,13vw,56px);line-height:.95;letter-spacing:-.02em;margin:10px 0 6px;color:var(--c,var(--ink))}
+.lede{font-size:17px;line-height:1.35;color:var(--ink-2);font-style:italic;text-wrap:balance;margin:0 0 18px}
+.list{display:grid;border-top:1px solid var(--ink)}
+.item{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid var(--hair);font-family:var(--mono);font-size:13px;cursor:pointer}
+.item i{flex:0 0 16px;height:16px;border:1.5px solid var(--c,var(--ink));border-radius:50%;display:inline-block;position:relative}
+.item.done i{background:var(--c,var(--ink))}
+.item.done span{color:var(--faint);text-decoration:line-through}
+.item em{margin-left:auto;font-style:normal;color:var(--faint);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase}
+.btn{margin-top:auto;display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border:1px solid var(--c,var(--ink));color:var(--c,var(--ink));font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;text-decoration:none}
+.btn b{font-weight:500}
+.home-mark{margin:auto 0;text-align:left}
+.home-mark .big{font-family:var(--serif);font-size:22px;line-height:1;letter-spacing:.1em;white-space:nowrap}
+.home-mark .sx{font-family:var(--serif);font-size:18px;color:var(--ink-2);margin:8px 0}
+.home-mark .pd{font-family:var(--serif);font-size:27px;line-height:1;letter-spacing:.08em;white-space:nowrap}
+.home-mark .jpline{font-family:var(--jp);font-size:14px;letter-spacing:.4em;color:var(--ink-2);margin-top:18px}
+.meta{font-family:var(--mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--faint);display:grid;gap:8px}
+.foot{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--faint);text-align:center;padding:10px 0 calc(10px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--hair)}
+@media (prefers-reduced-motion:reduce){.spine,.page,.strip{transition:none}}
+</style>
+
+<div class="phone">
+  <div class="shelf" id="shelf">
+
+    <section class="spine home open">
+      <div class="strip"><div class="stars"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div><div class="x">×</div><div class="jp">パラドックス</div></div>
+      <div class="page">
+        <div class="eyebrow">Thursday 9 October</div>
+        <div class="home-mark">
+          <div class="big">★★★★★</div>
+          <div class="sx">×</div>
+          <div class="pd">PARADOX</div>
+          <div class="jpline">パラドックス</div>
+        </div>
+        <div class="meta"><div>Tesla · 3 open</div><div>Ring · quiet</div><div>© 2026 PARADOXICA Ltd.</div></div>
+      </div>
+    </section>
+
+    <section class="spine" style="--c:var(--teal)">
+      <div class="strip"><div class="word">Tesla</div></div>
+      <div class="page">
+        <div class="eyebrow">Model 3 · to do</div>
+        <div class="title">Tesla</div>
+        <p class="lede">Three things before the weekend.</p>
+        <div class="list">
+          <div class="item"><i></i><span>Fix the rear wiper arm</span><em>fix</em></div>
+          <div class="item"><i></i><span>Wash and vacuum, front mats</span><em>wash</em></div>
+          <div class="item"><i></i><span>Get tyre pressure caps</span><em>get</em></div>
+          <div class="item done"><i></i><span>Book the MOT</span><em>done</em></div>
+        </div>
+        <a class="btn" href="#"><b>Open Tesla</b><span>→</span></a>
+      </div>
+    </section>
+
+    <section class="spine" style="--c:var(--pink)">
+      <div class="strip"><div class="word">Ring</div></div>
+      <div class="page">
+        <div class="eyebrow">Ring · home</div>
+        <div class="title">Ring</div>
+        <p class="lede">Front door, drive, garden, side.</p>
+        <div class="list">
+          <div class="item"><i></i><span>Replace the side camera battery</span><em>get</em></div>
+          <div class="item"><i></i><span>Angle the garden cam down</span><em>fix</em></div>
+        </div>
+        <a class="btn" href="#"><b>Open Ring</b><span>→</span></a>
+      </div>
+    </section>
+
+    <section class="spine" style="--c:var(--green)">
+      <div class="strip"><div class="word">Spotify</div></div>
+      <div class="page">
+        <div class="eyebrow">Music</div>
+        <div class="title">Spotify</div>
+        <p class="lede">Straight into the car queue.</p>
+        <div class="list">
+          <div class="item"><i></i><span>Driving · ★★★★★</span><em>playlist</em></div>
+          <div class="item"><i></i><span>Kind of Blue</span><em>album</em></div>
+        </div>
+        <a class="btn" href="#"><b>Open Spotify</b><span>→</span></a>
+      </div>
+    </section>
+
+    <section class="spine" style="--c:var(--gold)">
+      <div class="strip"><div class="word">Diary</div></div>
+      <div class="page">
+        <div class="eyebrow">Today</div>
+        <div class="title">Diary</div>
+        <p class="lede">Read-through at 15:30. Gym at 19:00.</p>
+        <div class="list">
+          <div class="item"><i></i><span>15:30 Read-through · Soho</span><em>next</em></div>
+          <div class="item"><i></i><span>19:00 Gym</span><em></em></div>
+        </div>
+        <a class="btn" href="#"><b>Open Calendar</b><span>→</span></a>
+      </div>
+    </section>
+
+  </div>
+  <div class="foot">Tap a tab · swipe to move</div>
+</div>
+
+<script>
+(function(){
+  var shelf=document.getElementById('shelf');
+  var spines=[].slice.call(shelf.querySelectorAll('.spine'));
+  function open(s){spines.forEach(function(o){o.classList.toggle('open',o===s)});}
+  spines.forEach(function(s){s.querySelector('.strip').addEventListener('click',function(){open(s)});});
+  [].forEach.call(document.querySelectorAll('.item'),function(it){it.addEventListener('click',function(){it.classList.toggle('done')})});
+  [].forEach.call(document.querySelectorAll('.btn'),function(b){b.addEventListener('click',function(e){e.preventDefault()})});
+  function step(d){var i=spines.findIndex(function(s){return s.classList.contains('open')});open(spines[(i+d+spines.length)%spines.length]);}
+  var x0=null;
+  shelf.addEventListener('touchstart',function(e){x0=e.touches[0].clientX},{passive:true});
+  shelf.addEventListener('touchend',function(e){if(x0==null)return;var dx=e.changedTouches[0].clientX-x0;x0=null;if(Math.abs(dx)>60)step(dx<0?1:-1);});
+  document.addEventListener('keydown',function(e){if(e.key==='ArrowRight')step(1);else if(e.key==='ArrowLeft')step(-1);});
+  try{var h=location.hash.replace('#','');if(/^[1-5]$/.test(h))open(spines[+h-1]);}catch(_){}
+})();
+</script>
