@@ -6,7 +6,7 @@ import UIKit
 // in dark mode and deepened in light mode so titles keep their contrast.
 
 extension UIColor {
-    convenience init(hex: UInt32, alpha: CGFloat = 1) {
+    nonisolated convenience init(hex: UInt32, alpha: CGFloat = 1) {
         self.init(red: CGFloat((hex >> 16) & 0xFF) / 255,
                   green: CGFloat((hex >> 8) & 0xFF) / 255,
                   blue: CGFloat(hex & 0xFF) / 255,
@@ -18,7 +18,7 @@ extension Color {
     init(hex: UInt32) { self.init(uiColor: UIColor(hex: hex)) }
 
     static func adaptive(light: UInt32, dark: UInt32) -> Color {
-        Color(uiColor: UIColor { $0.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) })
+        Color(uiColor: UIColor { @Sendable trait in trait.userInterfaceStyle == .dark ? UIColor(hex: dark) : UIColor(hex: light) })
     }
 }
 
@@ -27,8 +27,8 @@ enum Ink {
     static let ground = Color.adaptive(light: 0xFAF9FC, dark: 0x0B0A10)
     static let surface = Color.adaptive(light: 0xEFEDF4, dark: 0x17151F)
     static let surface2 = Color.adaptive(light: 0xE2DFEA, dark: 0x262232)
-    static let hairline = Color(uiColor: UIColor {
-        $0.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.10) : UIColor(white: 0, alpha: 0.10)
+    static let hairline = Color(uiColor: UIColor { @Sendable trait in
+        trait.userInterfaceStyle == .dark ? UIColor(white: 1, alpha: 0.10) : UIColor(white: 0, alpha: 0.10)
     })
     /// 菫 sumire in light, 藤紫 fujimurasaki in dark.
     static let fuji = Color.adaptive(light: 0x7058A3, dark: 0xA59ACA)

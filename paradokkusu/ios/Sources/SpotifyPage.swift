@@ -188,11 +188,6 @@ struct PinFromLink: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .keyboardType(.URL)
-                    PasteButton(payloadType: String.self) { strings in
-                        if let first = strings.first {
-                            DispatchQueue.main.async { link = first }
-                        }
-                    }
                 } footer: {
                     if !link.isEmpty && uri == nil {
                         Text("Use a Spotify album, playlist, track, artist or show link.")

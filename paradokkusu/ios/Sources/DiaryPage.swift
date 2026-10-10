@@ -24,10 +24,13 @@ import EventKitUI
         }
     }
 
-    @MainActor func request(then day: Date) async {
-        let granted = (try? await store.requestFullAccessToEvents()) ?? false
-        access = granted ? .granted : .denied
-        load(day: day)
+    func request(then day: Date) {
+        store.requestFullAccessToEvents { granted, _ in
+            Task { @MainActor in
+                self.access = granted ? .granted : .denied
+                self.load(day: day)
+            }
+        }
     }
 
     func load(day: Date) {
@@ -79,7 +82,7 @@ struct DiaryPage: View {
                           busy: calendar.busyDays,
                           written: Set(entries.filter { !$0.text.isEmpty || $0.stars > 0 }.map { cal.startOfDay(for: $0.day) }))
                 AgendaCard(access: calendar.access, events: calendar.events) {
-                    Task { await calendar.request(then: day) }
+                    calendar.request(then: day)
                 }
                 JournalCard(day: day, entry: entry)
                 TodoCard(spine: .diary, inlineAdd: true)
@@ -341,7 +344,7 @@ struct EventEditor: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: EKEventEditViewController, context: Context) {}
 
-    final class Coordinator: NSObject, EKEventEditViewDelegate {
+    final class Coordinator: NSObject, @preconcurrency EKEventEditViewDelegate {
         var isPresented: Binding<Bool>
 
         init(isPresented: Binding<Bool>) { self.isPresented = isPresented }

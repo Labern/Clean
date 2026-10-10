@@ -193,10 +193,9 @@ struct ProminentStyle: ButtonStyle {
             .foregroundStyle(spine.onFill)
             .frame(maxWidth: .infinity, minHeight: 54)
             .padding(.horizontal, 12)
-            .background(spine.fill.gradient, in: Capsule())
-            .overlay(Capsule().strokeBorder(.white.opacity(0.16), lineWidth: 0.5))
+            .glassEffect(.regular.tint(spine.fill).interactive(), in: Capsule())
             .opacity(isEnabled ? 1 : 0.4)
-            .brightness(configuration.isPressed ? -0.08 : 0)
+            .brightness(configuration.isPressed ? -0.06 : 0)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
@@ -213,9 +212,8 @@ struct QuietStyle: ButtonStyle {
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, minHeight: 46)
             .padding(.horizontal, 8)
-            .background(Ink.surface, in: Capsule())
+            .glassEffect(.regular.interactive(), in: Capsule())
             .opacity(isEnabled ? 1 : 0.4)
-            .brightness(configuration.isPressed ? -0.05 : 0)
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
