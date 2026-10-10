@@ -37,7 +37,7 @@ interesting, with visuals.
 
 ## Next tasks, in order
 1. **DONE (cloud, 2026-10-09):** all 173 HIG pages crawled and read; digest written to
-   `docs/APPLE-HIG.md` (since moved to `ios/docs/APPLE-HIG.md`, crawler to `ios/tools/`). **Still to do on the Mac:** follow `docs/global-claude-section.md`
+   `docs/APPLE-HIG.md` (since moved to the iOS repo: `iOS/docs/APPLE-HIG.md`, crawler `iOS/tools/`). **Still to do on the Mac:** follow `docs/global-claude-section.md`
    (copy the digest to `~/.claude/APPLE-HIG.md`, append the block to `~/.claude/CLAUDE.md`).
    Original instruction, for reference:
 1. **Apple design docs.** He said: "Pull from the Apple Design docs, suck it all up,
