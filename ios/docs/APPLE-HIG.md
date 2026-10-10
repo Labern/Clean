@@ -2,7 +2,7 @@
 
 Our own summary of Apple's Human Interface Guidelines, written for building iPhone apps.
 Source: all 173 HIG pages, crawled 2026-10-09 (guidelines revised June 2026; Liquid Glass era).
-Apple's raw text is not in this repo. To re-crawl: `python3 paradokkusu/tools/hig-crawl.py`
+Apple's raw text is not in this repo. To re-crawl: `python3 ios/tools/hig-crawl.py`
 in a scratch directory. When this file and Apple disagree, Apple wins; re-crawl and fix this.
 
 ---

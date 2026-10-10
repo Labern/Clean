@@ -3,7 +3,7 @@
 The cloud can't write to `~/.claude/`. On the Mac, run:
 
 ```sh
-cp ~/path/to/Clean/paradokkusu/docs/APPLE-HIG.md ~/.claude/APPLE-HIG.md
+cp ~/path/to/Clean/ios/docs/APPLE-HIG.md ~/.claude/APPLE-HIG.md
 ```
 
 Then append the block below to `~/.claude/CLAUDE.md`.

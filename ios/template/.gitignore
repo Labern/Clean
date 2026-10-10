@@ -1,0 +1,10 @@
+*.xcodeproj/
+DerivedData/
+build/
+.build/
+xcuserdata/
+*.xcuserstate
+.DS_Store
+.env
+*.p12
+*.mobileprovision

@@ -7,7 +7,7 @@ rejections, and what to do next.
 
 ## Rules for this project
 - **Design is governed by Apple's Human Interface Guidelines.** Read
-  `docs/APPLE-HIG.md` before any UI work. If it is missing, build it first
+  `../ios/docs/APPLE-HIG.md` before any UI work (moved there: it is shared by every iOS app). If it is missing, build it first
   (see HANDOFF).
 - Never put instructional hint text in the UI ("tap a tab, swipe to move"). No iOS
   app does this.
