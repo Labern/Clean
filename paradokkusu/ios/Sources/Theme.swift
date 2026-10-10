@@ -132,6 +132,19 @@ enum Days {
     }
 }
 
+enum Ago {
+    /// "now", "48m", "2h", "3d": short enough for a narrow tile.
+    static func short(_ date: Date, from now: Date = .now) -> String {
+        let s = max(0, Int(now.timeIntervalSince(date)))
+        switch s {
+        case ..<60: return "now"
+        case ..<3600: return "\(s / 60)m"
+        case ..<86_400: return "\(s / 3600)h"
+        default: return "\(s / 86_400)d"
+        }
+    }
+}
+
 enum Launcher {
     /// Opens an app by URL scheme, falling back to the web if the app isn't installed.
     static func open(_ primary: String, fallback: String?, with openURL: OpenURLAction) {

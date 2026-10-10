@@ -9,6 +9,7 @@ struct TeslaPage: View {
     @State private var editing: Deadline?
     @State private var logging = false
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     static let tags = ["Fix", "Wash", "Get", "Book"]
 
@@ -20,7 +21,8 @@ struct TeslaPage: View {
                 TodoCard(spine: .tesla)
             }
         } reach: {
-            HStack(spacing: 10) {
+            let pair = typeSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
+            pair {
                 Button { logging = true } label: {
                     Label("Charge", systemImage: "bolt.fill")
                 }
@@ -100,6 +102,8 @@ struct DeadlineRow: View {
             .frame(width: 34, height: 34)
             VStack(alignment: .leading, spacing: 1) {
                 Text(deadline.title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(deadline.date, format: .dateTime.day().month(.abbreviated))
                     .font(.caption)
                     .foregroundStyle(.secondary)

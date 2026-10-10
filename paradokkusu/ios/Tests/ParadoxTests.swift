@@ -53,3 +53,14 @@ struct ChargeTests {
         #expect(abs(charge.cost - 3.0) < 0.0001)
     }
 }
+
+@Suite("Ago")
+struct AgoTests {
+    @Test func compact() {
+        let now = Date()
+        #expect(Ago.short(now.addingTimeInterval(-30), from: now) == "now")
+        #expect(Ago.short(now.addingTimeInterval(-48 * 60), from: now) == "48m")
+        #expect(Ago.short(now.addingTimeInterval(-2 * 3600), from: now) == "2h")
+        #expect(Ago.short(now.addingTimeInterval(-3 * 86_400), from: now) == "3d")
+    }
+}

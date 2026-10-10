@@ -74,7 +74,7 @@ struct CameraTile: View {
                     Text(camera.battery, format: .percent.precision(.fractionLength(0)))
                     Spacer(minLength: 0)
                     if let motion = camera.lastMotion {
-                        Text(motion, format: .dateTime.hour().minute())
+                        Text(Ago.short(motion))
                     }
                 }
                 .font(.caption)

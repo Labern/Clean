@@ -37,7 +37,7 @@ struct PageScaffold<Content: View, Reach: View>: View {
                     .frame(minHeight: proxy.size.height, alignment: .top)
                 }
                 .scrollIndicators(.hidden)
-                .defaultScrollAnchor(.bottom)
+                .defaultScrollAnchor(.top)
             }
             VStack(spacing: 10) {
                 reach()
