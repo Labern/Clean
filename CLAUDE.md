@@ -45,7 +45,11 @@ no build step, no dependencies.
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
   Simulator, test, install on a phone, upload to TestFlight. New iPhone apps live at
-  `<Project>/ios/`. See `iOS/README.md`.
+  `<Project>/ios/`. **The blueprint is `iOS/CLAUDE.md`**: say "iOS: <one sentence>"
+  and it becomes a usable ★★★★★ × PARADOX app. The design knowledge lives there too:
+  `iOS/docs/APPLE-HIG.md` (rules, moved from paradokkusu) and
+  `iOS/docs/DESIGN-CRAFT.md` (taste: principles, award-winner case studies, craft
+  toolkit, iterate-three-times loop). Read both before any iOS UI work.
 
 ## Commands
 Top-level dir: none — `index.html` is static, just `open` it.
