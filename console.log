@@ -1,0 +1,8 @@
+Timestamp               Ty Process[PID:TID]
+2026-10-10 01:54:11.828 F  Paradox[8687:83a3] [com.apple.renderbox:error] building pipeline primitive_coverage-emba5dba6dheba4 took 0.672825 seconds
+2026-10-10 01:54:34.950 E  Paradox[9263:8a26] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name: com.apple.app_launch_measurement.FirstFramePresentationMetric
+2026-10-10 01:54:35.102 E  Paradox[9263:8a31] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name: com.apple.app_launch_measurement.ExtendedLaunchMetrics
+2026-10-10 01:55:07.197 E  Paradox[10852:98b4] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name: com.apple.app_launch_measurement.FirstFramePresentationMetric
+2026-10-10 01:55:07.475 E  Paradox[10852:98b4] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name: com.apple.app_launch_measurement.ExtendedLaunchMetrics
+2026-10-10 01:55:26.136 E  Paradox[11790:a1d7] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name: com.apple.app_launch_measurement.FirstFramePresentationMetric
+2026-10-10 01:55:26.253 E  Paradox[11790:a1d9] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name: com.apple.app_launch_measurement.ExtendedLaunchMetrics

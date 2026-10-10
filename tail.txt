@@ -1,0 +1,80 @@
+CoreData: error:   755
+2026-10-10 01:51:43.635659+0000 Paradox[5080:20693] [error] CoreData: error:   component is not a symbolic link
+CoreData: error:   component is not a symbolic link
+2026-10-10 01:51:43.635771+0000 Paradox[5080:20693] [error] CoreData: error:   component is readable
+CoreData: error:   component is readable
+2026-10-10 01:51:43.635881+0000 Paradox[5080:20693] [error] CoreData: error:   component is writeable
+CoreData: error:   component is writeable
+2026-10-10 01:51:43.635953+0000 Paradox[5080:20693] [error] CoreData: error: Failed to stat path '/Users/runner/Library/Developer/CoreSimulator/Devices/22452A91-4697-4369-8812-53ADB77EB73B/data/Containers/Data/Application/7E13E5E0-0E5C-4F5D-A1A6-1F95B1D0BB51/Library/Application Support', errno 2 / No such file or directory.
+CoreData: error: Failed to stat path '/Users/runner/Library/Developer/CoreSimulator/Devices/22452A91-4697-4369-8812-53ADB77EB73B/data/Containers/Data/Application/7E13E5E0-0E5C-4F5D-A1A6-1F95B1D0BB51/Library/Application Support', errno 2 / No such file or directory.
+2026-10-10 01:51:43.636698+0000 Paradox[5080:20693] [error] CoreData: error:   Sandbox access to file-write-create denied
+CoreData: error:   Sandbox access to file-write-create denied
+2026-10-10 01:51:43.637743+0000 Paradox[5080:20693] [error] CoreData: error: addPersistentStoreWithType:configuration:URL:options:error: returned error NSCocoaErrorDomain (512)
+CoreData: error: addPersistentStoreWithType:configuration:URL:options:error: returned error NSCocoaErrorDomain (512)
+2026-10-10 01:51:43.637827+0000 Paradox[5080:20693] [error] CoreData: error: userInfo:
+CoreData: error: userInfo:
+2026-10-10 01:51:43.638340+0000 Paradox[5080:20693] [error] CoreData: error: 	reason : Failed to create file; code = 2
+CoreData: error: 	reason : Failed to create file; code = 2
+2026-10-10 01:51:43.638398+0000 Paradox[5080:20693] [error] CoreData: error: storeType: SQLite
+CoreData: error: storeType: SQLite
+2026-10-10 01:51:43.638456+0000 Paradox[5080:20693] [error] CoreData: error: configuration: default
+CoreData: error: configuration: default
+2026-10-10 01:51:43.638529+0000 Paradox[5080:20693] [error] CoreData: error: URL: file:///Users/runner/Library/Developer/CoreSimulator/Devices/22452A91-4697-4369-8812-53ADB77EB73B/data/Containers/Data/Application/7E13E5E0-0E5C-4F5D-A1A6-1F95B1D0BB51/Library/Application%20Support/default.store
+CoreData: error: URL: file:///Users/runner/Library/Developer/CoreSimulator/Devices/22452A91-4697-4369-8812-53ADB77EB73B/data/Containers/Data/Application/7E13E5E0-0E5C-4F5D-A1A6-1F95B1D0BB51/Library/Application%20Support/default.store
+CoreData: annotation: options:
+CoreData: annotation: 	NSMigratePersistentStoresAutomaticallyOption : 1
+CoreData: annotation: 	NSInferMappingModelAutomaticallyOption : 1
+CoreData: annotation: 	NSPersistentStoreRemoteChangeNotificationOptionKey : 1
+CoreData: annotation: 	NSPersistentHistoryTrackingKey : 1
+2026-10-10 01:51:43.640171+0000 Paradox[5080:20693] [error] CoreData: error: <NSPersistentStoreCoordinator: 0x10a829000>: Attempting recovery from error encountered during addPersistentStore: 0x10786a040 Error Domain=NSCocoaErrorDomain Code=512 "The file couldn’t be saved." UserInfo={reason=Failed to create file; code = 2}
+CoreData: error: <NSPersistentStoreCoordinator: 0x10a829000>: Attempting recovery from error encountered during addPersistentStore: 0x10786a040 Error Domain=NSCocoaErrorDomain Code=512 "The file couldn’t be saved." UserInfo={reason=Failed to create file; code = 2}
+2026-10-10 01:51:43.640335+0000 Paradox[5080:20693] [error] CoreData: error: During recovery, parent directory path reported as missing
+CoreData: error: During recovery, parent directory path reported as missing
+2026-10-10 01:51:43.649477+0000 Paradox[5080:20693] [error] CoreData: error: Recovery attempt while adding <NSPersistentStoreDescription: 0x10786a040> (type: SQLite, url: file:///Users/runner/Library/Developer/CoreSimulator/Devices/22452A91-4697-4369-8812-53ADB77EB73B/data/Containers/Data/Application/7E13E5E0-0E5C-4F5D-A1A6-1F95B1D0BB51/Library/Application%20Support/default.store) was successful!
+CoreData: error: Recovery attempt while adding <NSPersistentStoreDescription: 0x10786a040> (type: SQLite, url: file:///Users/runner/Library/Developer/CoreSimulator/Devices/22452A91-4697-4369-8812-53ADB77EB73B/data/Containers/Data/Application/7E13E5E0-0E5C-4F5D-A1A6-1F95B1D0BB51/Library/Application%20Support/default.store) was successful!
+IOSurfaceClientSetSurfaceNotify failed e00002c7
+2026-10-10 01:51:44.292690+0000 Paradox[5080:20693] fopen failed for data file: errno = 2 (No such file or directory)
+2026-10-10 01:51:44.610978+0000 Paradox[5080:20693] fopen failed for data file: errno = 2 (No such file or directory)
+Test Suite 'All tests' started at 2026-10-10 01:51:46.894.
+Test Suite 'All tests' passed at 2026-10-10 01:51:46.895.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+◇ Test run started.
+↳ Testing Library Version: 1902
+↳ Target Platform: arm64-apple-ios13.0-simulator
+◇ Suite "Spotify links" started.
+◇ Test parsesShareLink() started.
+✔ Test parsesShareLink() passed after 0.001 seconds.
+◇ Test keepsAURIAsIs() started.
+✔ Test keepsAURIAsIs() passed after 0.001 seconds.
+◇ Test rejectsOtherSites() started.
+✔ Test rejectsOtherSites() passed after 0.001 seconds.
+◇ Test webFallback() started.
+✔ Test webFallback() passed after 0.001 seconds.
+◇ Test kinds() started.
+✔ Test kinds() passed after 0.001 seconds.
+✔ Suite "Spotify links" passed after 0.004 seconds.
+◇ Suite "Days" started.
+◇ Test shortLabels() started.
+✔ Test shortLabels() passed after 0.001 seconds.
+◇ Test phrases() started.
+✔ Test phrases() passed after 0.001 seconds.
+✔ Suite "Days" passed after 0.001 seconds.
+◇ Suite "Charging" started.
+◇ Test costInPounds() started.
+✔ Test costInPounds() passed after 0.001 seconds.
+✔ Suite "Charging" passed after 0.001 seconds.
+◇ Suite "Ago" started.
+◇ Test compact() started.
+✔ Test compact() passed after 0.001 seconds.
+✔ Suite "Ago" passed after 0.001 seconds.
+✔ Test run with 9 tests in 4 suites passed after 0.010 seconds.
+2026-10-10 01:51:48.948 xcodebuild[3216:13618] [MT] IDETestOperationsObserverDebug: 127.239 elapsed -- Testing started completed.
+2026-10-10 01:51:48.948 xcodebuild[3216:13618] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-10-10 01:51:48.948 xcodebuild[3216:13618] [MT] IDETestOperationsObserverDebug: 127.239 sec, +127.239 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/Clean/Clean/paradokkusu/ios/DerivedData/Logs/Test/Test-Paradox-2026.10.10_01-49-20-+0000.xcresult
+
+** TEST SUCCEEDED **
+
+Testing started
