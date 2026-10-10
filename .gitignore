@@ -33,3 +33,7 @@ Raven/config.js
 Raven/docs/*.png
 Raven/server/node_modules/
 Raven/server/data/
+
+# iOS → github.com/Labern/iOS (private — the iOS app pipeline)
+iOS/
+ios/
