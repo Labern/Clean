@@ -119,7 +119,7 @@ struct DeadlineRow: View {
 struct ChargingCard: View {
     let charges: [Charge]
 
-    struct Week: Identifiable {
+    nonisolated struct Week: Identifiable {
         let start: Date
         let cost: Double
         var id: Date { start }

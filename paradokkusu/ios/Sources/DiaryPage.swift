@@ -25,7 +25,7 @@ import EventKitUI
     }
 
     func request(then day: Date) {
-        store.requestFullAccessToEvents { granted, _ in
+        store.requestFullAccessToEvents { @Sendable granted, _ in
             Task { @MainActor in
                 self.access = granted ? .granted : .denied
                 self.load(day: day)
