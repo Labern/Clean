@@ -37,3 +37,8 @@ Raven/server/data/
 # iOS → github.com/Labern/iOS (private — the iOS app pipeline)
 iOS/
 ios/
+
+# paradokkusu Xcode user state and local builds
+paradokkusu/**/xcuserdata/
+paradokkusu/**/*.xcuserstate
+paradokkusu/build/

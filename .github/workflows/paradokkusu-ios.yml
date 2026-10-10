@@ -1,0 +1,92 @@
+name: paradokkusu iOS
+
+# Builds the パラドックス app for the simulator, screenshots every spine in
+# dark and light, and force-pushes the log and screenshots to the
+# ci/paradokkusu branch so they can be read with plain git.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'paradokkusu/Paradox/**'
+      - 'paradokkusu/Paradox.xcodeproj/**'
+      - 'paradokkusu/Paradox-Info.plist'
+      - '.github/workflows/paradokkusu-ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paradokkusu-ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick Xcode
+        run: |
+          mkdir -p out
+          X=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -z "$X" ] && X=$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)
+          sudo xcode-select -s "$X"
+          { echo "commit ${GITHUB_SHA}"; xcodebuild -version; } | tee out/ci.txt
+
+      - name: Build
+        id: build
+        continue-on-error: true
+        run: |
+          xcodebuild -project paradokkusu/Paradox.xcodeproj -target Paradox \
+            -sdk iphonesimulator -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO SYMROOT="$PWD/build" build > out/build-full.log 2>&1
+          status=$?
+          grep -E "error:|warning:|\*\* BUILD" out/build-full.log | sort -u > out/build.log || true
+          tail -n 120 out/build-full.log > out/build-tail.log
+          rm out/build-full.log
+          echo "build exit $status" | tee -a out/ci.txt
+          exit $status
+
+      - name: Screenshots
+        if: steps.build.outcome == 'success'
+        continue-on-error: true
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          d = json.load(sys.stdin)["devices"]
+          c = [x for k, v in d.items() if "iOS" in k for x in v
+               if x["name"].startswith("iPhone") and "Pro" in x["name"] and "Max" not in x["name"]]
+          print(sorted(c, key=lambda x: x["name"])[-1]["udid"])')
+          xcrun simctl list devices | grep "$UDID" | tee -a out/ci.txt
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+          xcrun simctl install "$UDID" build/Debug-iphonesimulator/Paradox.app
+          for mode in dark light; do
+            xcrun simctl ui "$UDID" appearance "$mode"
+            for i in 0 1 2 3 4; do
+              xcrun simctl terminate "$UDID" com.paradoxica.paradokkusu 2>/dev/null || true
+              xcrun simctl launch "$UDID" com.paradoxica.paradokkusu -openSpine "$i"
+              sleep 6
+              xcrun simctl io "$UDID" screenshot "out/$mode-$i.png"
+            done
+          done
+          xcrun simctl spawn "$UDID" log show --last 5m --style compact \
+            --predicate 'process == "Paradox" AND messageType >= 16' > out/app.log 2>&1 || true
+
+      - name: Publish results
+        if: always()
+        run: |
+          cd out
+          git init -q
+          git checkout -q -b ci/paradokkusu
+          git add -A
+          git -c user.name="paradokkusu-ci" -c user.email="ci@users.noreply.github.com" commit -qm "CI ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci/paradokkusu
+
+      - name: Fail if the build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
