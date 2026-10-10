@@ -42,6 +42,11 @@ no build step, no dependencies.
   live at `labern.github.io/Clean/pica/`. See `pica/CLAUDE.md` — its fidelity
   test (`node pica/tests/run.mjs`) must stay at 100% on every engine change.
 
+- `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
+  gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
+  Simulator, test, install on a phone, upload to TestFlight. New iPhone apps live at
+  `<Project>/ios/`. See `iOS/README.md`.
+
 ## Commands
 Top-level dir: none — `index.html` is static, just `open` it.
 For `ClaudeUsageMonitor/`, see that subsection.
