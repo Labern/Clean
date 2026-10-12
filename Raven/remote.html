@@ -9,8 +9,8 @@
 <!-- Spotify on the car, from the Mac. The car runs only its own Spotify app —
      no browser, no Raven — which is a Spotify Connect device ("Tesla …"). This
      page runs on the Mac and drives it through the Web API, targeting it by id.
-     Sign-in redirects back to this page (register it in the Spotify app);
-     tokens are Raven's sp_* keys, shared by origin. -->
+     Sign-in borrows SpotifyDrive/index.html, the one registered redirect URI;
+     its first script bounces ?code back here via sessionStorage.sp_return. -->
 <style>
 @font-face { font-family: "Inter"; src: url("fonts/InterVariable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
 :root {
@@ -124,9 +124,9 @@ function banner(text, label, fn) {
 if (!cfg.spotifyClientId) {
   banner('No Spotify client id — config.js is missing.');
 } else {
-  const sp = createSpotify({ clientId: cfg.spotifyClientId, redirectUri: 'https://labern.github.io/Clean/Raven/remote.html' });
+  const sp = createSpotify({ clientId: cfg.spotifyClientId, redirectUri: 'https://labern.github.io/Clean/SpotifyDrive/index.html' });
   sp.handleRedirect().then((done) => { if (done) location.reload(); });
-  const signIn = () => sp.authorize();
+  const signIn = () => { sessionStorage.setItem('sp_return', location.href); sp.authorize(); };
 
   if (!sp.connected() || sp.needsReconsent()) {
     banner('Sign in to Spotify once. It is the same sign-in as Raven.', 'Connect Spotify', signIn);
