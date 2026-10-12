@@ -33,7 +33,7 @@ header h1 { font: 500 18px/1.1 "Universal Sans Display", Inter, sans-serif; lett
 #where { margin-left: auto; font-size: 13px; padding: 4px 12px; border-radius: 999px; background: var(--card); color: var(--fg-2); }
 #where.on { color: var(--fg); }
 #where.on::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #16a34a; margin-right: 7px; vertical-align: 1px; }
-.art { width: 100%; aspect-ratio: 1; border-radius: 12px; background: var(--card) center/cover; }
+.art { width: min(280px, 70%); margin: 0 auto; aspect-ratio: 1; border-radius: 12px; background: var(--card) center/cover; }
 .title { font: 500 22px/1.2 "Universal Sans Display", Inter, sans-serif; letter-spacing: -.02em; }
 .bar { height: 4px; border-radius: 2px; background: var(--line); cursor: pointer; }
 .bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--fg); }
@@ -71,7 +71,7 @@ input[type=search]:focus { background: var(--line); }
 
   <section id="player" hidden>
     <div class="art" id="art"></div>
-    <div style="margin-top:16px">
+    <div style="margin-top:16px;text-align:center">
       <div class="title" id="name">Nothing playing</div>
       <div class="faint" id="artist"></div>
     </div>
