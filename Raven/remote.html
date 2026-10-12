@@ -96,7 +96,7 @@ input[type=search]:focus { background: var(--line); }
   </section>
 
   <div id="err"></div>
-  <div class="keys" id="keys" hidden>space play/pause · ← → skip · ↑ ↓ volume · / search</div>
+  <div class="keys" id="keys" hidden>space play/pause · ← → skip · / search</div>
 </main>
 
 <script type="module">
@@ -148,6 +148,8 @@ if (!cfg.spotifyClientId) {
     try {
       const devs = await sp.devices();
       car = devs.find(isCar) || null;
+      // Spotify refuses volume on the car's player ("Cannot control device volume").
+      $('vol').parentElement.hidden = !!car && car.supports_volume === false;
       if (car && !volDragging) { $('vol').value = car.volume_percent ?? 50; $('vol-n').textContent = `${car.volume_percent ?? ''}`; }
       render();
     } catch (e) { if (e?.status !== 401) showErr(e.message); }
@@ -228,6 +230,7 @@ if (!cfg.spotifyClientId) {
     if (e.key === ' ') { e.preventDefault(); sp.cmd('toggle'); }
     else if (e.key === 'ArrowRight') sp.cmd('next');
     else if (e.key === 'ArrowLeft') sp.cmd('prev');
+    else if ($('vol').parentElement.hidden) return;
     else if (e.key === 'ArrowUp') { e.preventDefault(); setVolume(+$('vol').value + 5); }
     else if (e.key === 'ArrowDown') { e.preventDefault(); setVolume(+$('vol').value - 5); }
     else if (e.key === '/') { e.preventDefault(); $('q').focus(); }
