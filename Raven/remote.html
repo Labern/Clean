@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Raven Remote</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<script src="config.js" onerror="window.RAVEN_CONFIG=window.RAVEN_CONFIG||{}"></script>
+<!-- Spotify on the car, from the Mac. The car runs only its own Spotify app —
+     no browser, no Raven — which is a Spotify Connect device ("Tesla …"). This
+     page runs on the Mac and drives it through the Web API, targeting it by id. Sign-in
+     piggybacks on Raven's: same origin, same sp_* tokens, same registered
+     redirect URI — index.html bounces back here via sessionStorage.sp_return. -->
+<style>
+@font-face { font-family: "Inter"; src: url("fonts/InterVariable.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  --bg: #000; --card: #171a20; --line: #393c41; --fg-3: #5c5e62; --fg-2: #8e8e8e; --fg: #f4f4f4;
+  --accent: #3e6ae1; --ease: cubic-bezier(.5,0,0,.75);
+}
+* { box-sizing: border-box; margin: 0; }
+html { font: 400 15px/1.43 "Universal Sans Text", Inter, system-ui, sans-serif; background: var(--bg); color: var(--fg); -webkit-font-smoothing: antialiased; }
+body { min-height: 100vh; display: grid; place-items: start center; padding: 48px 16px; }
+main { width: 100%; max-width: 440px; display: grid; gap: 20px; }
+button { font: inherit; color: inherit; background: var(--card); border: 0; border-radius: 4px; padding: 10px 16px; cursor: pointer; transition: background .25s var(--ease); }
+button:hover { background: var(--line); }
+button.primary { background: var(--accent); color: #fff; }
+button.primary:hover { background: #3457b8; }
+.label { font-weight: 500; letter-spacing: .04em; font-size: 12px; color: var(--fg-2); }
+.faint { color: var(--fg-2); }
+header { display: flex; align-items: center; gap: 10px; }
+header svg { width: 22px; height: 22px; fill: var(--fg); }
+header h1 { font: 500 18px/1.1 "Universal Sans Display", Inter, sans-serif; letter-spacing: -.02em; }
+#where { margin-left: auto; font-size: 13px; padding: 4px 12px; border-radius: 999px; background: var(--card); color: var(--fg-2); }
+#where.on { color: var(--fg); }
+#where.on::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #16a34a; margin-right: 7px; vertical-align: 1px; }
+.art { width: 100%; aspect-ratio: 1; border-radius: 12px; background: var(--card) center/cover; }
+.title { font: 500 22px/1.2 "Universal Sans Display", Inter, sans-serif; letter-spacing: -.02em; }
+.bar { height: 4px; border-radius: 2px; background: var(--line); cursor: pointer; }
+.bar i { display: block; height: 100%; width: 0; border-radius: 2px; background: var(--fg); }
+.times { display: flex; justify-content: space-between; font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; margin-top: 6px; }
+.controls { display: flex; justify-content: center; gap: 12px; }
+.controls button { width: 64px; height: 52px; padding: 0; display: grid; place-items: center; }
+.controls #toggle { width: 88px; background: var(--fg); color: #000; }
+.controls svg { width: 22px; height: 22px; fill: currentColor; }
+input[type=range] { width: 100%; accent-color: var(--fg); }
+input[type=search] { width: 100%; font: inherit; color: var(--fg); background: var(--card); border: 0; border-radius: 4px; padding: 12px 14px; outline: none; }
+input[type=search]:focus { background: var(--line); }
+.list { display: grid; gap: 2px; margin-top: 8px; }
+.list button { display: flex; align-items: center; gap: 12px; text-align: left; background: transparent; padding: 6px 8px; }
+.list button:hover { background: var(--card); }
+.list img { width: 40px; height: 40px; border-radius: 4px; background: var(--card); flex: none; }
+.list .t { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#banner { background: var(--card); border-radius: 12px; padding: 16px; display: grid; gap: 12px; }
+#banner[hidden], [hidden] { display: none !important; }
+#err { font-size: 13px; color: #f87171; min-height: 1em; }
+.keys { font-size: 12px; color: var(--fg-3); text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <svg viewBox="12 0 255 253"><g transform="translate(-33.796,-64.797)"><path d="m173.146 317.299 35.476-199.519c33.815 0 44.481 3.708 46.021 18.843 0 0 22.684-8.458 34.125-25.636-44.646-20.688-89.505-21.621-89.505-21.621l-26.176 31.882 0.059-4e-3 -26.176-31.883s-44.86 0.934-89.5 21.622c11.431 17.178 34.124 25.636 34.124 25.636 1.549-15.136 12.202-18.844 45.79-18.868l35.762 199.548"/><path d="m173.132 80.157c36.09-0.276 77.399 5.583 119.687 24.014 5.652-10.173 7.105-14.669 7.105-14.669-46.227-18.289-89.518-24.548-126.797-24.705-37.277 0.157-80.566 6.417-126.787 24.705 0 0 2.062 5.538 7.1 14.669 42.28-18.431 83.596-24.29 119.687-24.014h5e-3"/></g></svg>
+    <h1>Remote</h1>
+    <span id="where">Looking for the car…</span>
+  </header>
+
+  <div id="banner" hidden>
+    <div id="banner-text"></div>
+    <button id="banner-btn" class="primary"></button>
+  </div>
+
+  <section id="player" hidden>
+    <div class="art" id="art"></div>
+    <div style="margin-top:16px">
+      <div class="title" id="name">Nothing playing</div>
+      <div class="faint" id="artist"></div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="bar" id="bar"><i></i></div>
+      <div class="times"><span id="pos">0:00</span><span id="dur">0:00</span></div>
+    </div>
+    <div class="controls" style="margin-top:12px">
+      <button id="prev" title="Previous (←)"><svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button id="toggle" title="Play / pause (space)"><svg viewBox="0 0 24 24"><path id="toggle-icon" d="M7 5v14l12-7z"/></svg></button>
+      <button id="next" title="Next (→)"><svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    </div>
+    <div style="margin-top:16px">
+      <span class="label">Volume <span id="vol-n" class="faint"></span></span>
+      <input type="range" id="vol" min="0" max="100" step="1">
+    </div>
+  </section>
+
+  <section id="find" hidden>
+    <input type="search" id="q" placeholder="Play on the car… (/)" autocomplete="off">
+    <div class="list" id="results"></div>
+  </section>
+
+  <div id="err"></div>
+  <div class="keys" id="keys" hidden>space play/pause · ← → skip · ↑ ↓ volume · / search</div>
+</main>
+
+<script type="module">
+import { createSpotify, trackView } from './lib/spotify-api.js';
+import { on } from './lib/bus.js';
+
+const cfg = window.RAVEN_CONFIG || {};
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const mmss = (ms) => { const s = Math.floor((ms || 0) / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const isCar = (d) => /tesla/i.test(d?.name || '');
+
+let state = null, car = null, volTimer = null, volDragging = false;
+
+function showErr(m) { $('err').textContent = m || ''; if (m) setTimeout(() => { if ($('err').textContent === m) $('err').textContent = ''; }, 5000); }
+function banner(text, label, fn) {
+  $('banner').hidden = !text;
+  if (!text) return;
+  $('banner-text').textContent = text;
+  $('banner-btn').hidden = !label;
+  $('banner-btn').textContent = label || '';
+  $('banner-btn').onclick = fn;
+}
+
+if (!cfg.spotifyClientId) {
+  banner('No Spotify client id — config.js is missing.');
+} else {
+  const sp = createSpotify({ clientId: cfg.spotifyClientId, redirectUri: cfg.spotifyRedirectUri || 'https://labern.github.io/Clean/Raven/index.html' });
+  const signIn = () => { sessionStorage.setItem('sp_return', location.href); sp.authorize(); };
+
+  if (!sp.connected() || sp.needsReconsent()) {
+    banner('Sign in to Spotify once. It is the same sign-in as Raven.', 'Connect Spotify', signIn);
+  } else {
+    $('player').hidden = $('find').hidden = $('keys').hidden = false;
+    sp.start();
+    findCar();
+    setInterval(() => { if (document.visibilityState !== 'hidden') findCar(); }, 8000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { sp.refreshNow(); findCar(); } });
+  }
+
+  on('spotify.error', (e) => showErr(e.message));
+  on('spotify.auth', (a) => { if (!a.connected) location.reload(); });
+  on('spotify.state', (s) => { state = s; render(); });
+
+  // The car only appears in /devices while it is awake with its Spotify app
+  // signed in. Volume lives on the device, not the player state.
+  async function findCar() {
+    try {
+      const devs = await sp.devices();
+      car = devs.find(isCar) || null;
+      if (car && !volDragging) { $('vol').value = car.volume_percent ?? 50; $('vol-n').textContent = `${car.volume_percent ?? ''}`; }
+      render();
+    } catch (e) { if (e?.status !== 401) showErr(e.message); }
+  }
+
+  const onCar = () => !!car && (car.is_active || isCar({ name: state?.device }));
+
+  function render() {
+    const w = $('where');
+    if (onCar()) { w.textContent = car.name; w.className = 'on'; banner(''); }
+    else if (car) {
+      w.textContent = 'Car idle'; w.className = '';
+      banner(state?.device ? `Playing on ${state.device}, not the car.` : 'The car is awake but not playing.', 'Play on the car', () => sp.cmd('transfer', { id: car.id }).then(findCar));
+    } else {
+      w.textContent = 'Car not found'; w.className = '';
+      banner('The car isn’t visible to Spotify. Wake it and start anything in its Spotify app once — then it shows up here.', 'Look again', findCar);
+    }
+    const t = state?.track;
+    $('name').textContent = t?.name || 'Nothing playing';
+    $('artist').textContent = t ? `${t.artist}${state.device && !onCar() ? ` · on ${state.device}` : ''}` : '';
+    $('art').style.backgroundImage = state?.art ? `url("${state.art}")` : '';
+    $('toggle-icon').setAttribute('d', state?.playing ? 'M6 5h4v14H6zM14 5h4v14h-4z' : 'M7 5v14l12-7z');
+    $('dur').textContent = mmss(t?.ms);
+  }
+
+  // Progress bar runs off the module's interpolated position.
+  setInterval(() => {
+    const ms = state?.track?.ms;
+    if (!ms) return;
+    const p = sp.livePos();
+    $('bar').firstElementChild.style.width = `${(p / ms) * 100}%`;
+    $('pos').textContent = mmss(p);
+  }, 250);
+
+  // Commands pin to the car whenever it's known; otherwise whatever is active.
+  const target = () => (car ? `device_id=${car.id}` : '');
+  const run = (p) => p.then(() => setTimeout(sp.refreshNow, 500)).catch((e) => showErr(e.status === 404 ? 'The car went to sleep or closed Spotify.' : e.message));
+
+  $('toggle').onclick = () => sp.cmd('toggle');
+  $('prev').onclick = () => sp.cmd('prev');
+  $('next').onclick = () => sp.cmd('next');
+  $('bar').onclick = (e) => { const ms = state?.track?.ms; if (ms) sp.cmd('seek', (e.offsetX / e.currentTarget.clientWidth) * ms); };
+
+  function setVolume(v) {
+    v = Math.max(0, Math.min(100, Math.round(v)));
+    $('vol').value = v; $('vol-n').textContent = v;
+    clearTimeout(volTimer);
+    volTimer = setTimeout(() => run(sp.api(`/me/player/volume?volume_percent=${v}${car ? `&${target()}` : ''}`, 'PUT')), 150);
+  }
+  $('vol').addEventListener('pointerdown', () => volDragging = true);
+  $('vol').addEventListener('pointerup', () => setTimeout(() => volDragging = false, 1500));
+  $('vol').oninput = (e) => setVolume(+e.target.value);
+
+  // Search → click plays straight on the car.
+  let qTimer = null;
+  $('q').oninput = (e) => {
+    clearTimeout(qTimer);
+    const text = e.target.value.trim();
+    if (!text) { $('results').innerHTML = ''; return; }
+    qTimer = setTimeout(async () => {
+      try {
+        const items = (await sp.search(text)).map(trackView);
+        $('results').innerHTML = items.map(t => `<button data-uri="${esc(t.uri)}"><img src="${esc(t.art || '')}" alt=""><span class="t"><div class="t">${esc(t.name)}</div><div class="faint t">${esc(t.artist)}</div></span></button>`).join('');
+      } catch (err) { showErr(err.message); }
+    }, 250);
+  };
+  $('q').onkeydown = (e) => { if (e.key === 'Enter') $('results').querySelector('button')?.click(); if (e.key === 'Escape') e.target.blur(); };
+  $('results').onclick = (e) => {
+    const b = e.target.closest('button[data-uri]');
+    if (!b) return;
+    const qs = target();
+    run(sp.api(`/me/player/play${qs ? `?${qs}` : ''}`, 'PUT', { uris: [b.dataset.uri] }));
+    $('q').value = ''; $('results').innerHTML = ''; $('q').blur();
+  };
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('input[type=search]') || e.metaKey || e.ctrlKey || $('player').hidden) return;
+    if (e.key === ' ') { e.preventDefault(); sp.cmd('toggle'); }
+    else if (e.key === 'ArrowRight') sp.cmd('next');
+    else if (e.key === 'ArrowLeft') sp.cmd('prev');
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setVolume(+$('vol').value + 5); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setVolume(+$('vol').value - 5); }
+    else if (e.key === '/') { e.preventDefault(); $('q').focus(); }
+  });
+}
+</script>
+</body>
+</html>
