@@ -64,10 +64,10 @@ no browser. That app is a Spotify Connect device named "Tesla …", visible in
 `/me/player/devices` while the car is awake and its Spotify is signed in.
 The page finds it by `/tesla/i`, offers "Play on the car" (transfer) when
 something else is active, and sends search-plays and volume with
-`device_id=<car>`. Keys: space, ←/→, ↑/↓ volume, `/` search. Sign-in redirects
-to `https://labern.github.io/Clean/Raven/remote.html`, which must be listed
-in the Spotify app's Redirect URIs (only `SpotifyDrive/index.html` was).
-Tokens are Raven's `sp_*` keys, shared by origin.
+`device_id=<car>`. Keys: space, ←/→, ↑/↓ volume, `/` search. Sign-in borrows
+`SpotifyDrive/index.html`, the one URI registered in the Spotify app: remote
+sets `sessionStorage.sp_return`, SpotifyDrive's first `<head>` script bounces
+`?code` back and swallows the rest of itself with `<plaintext>`. Tokens are Raven's `sp_*` keys.
 
 ## Code
 - No build step. ES modules served as-is. `config.js` (gitignored, from

@@ -1,6 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>
+// Raven's remote signs in through this page's registered redirect URI: hand the
+// code straight back and stop this page before it tries to spend it.
+if (sessionStorage.getItem('sp_return') && /[?&](code|error)=/.test(location.search)) {
+  const r = sessionStorage.getItem('sp_return'); sessionStorage.removeItem('sp_return');
+  location.replace(r.split('?')[0] + location.search);
+  document.write('<plaintext hidden>'); // rest of this file parses as inert text
+}
+</script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <meta name="apple-mobile-web-app-capable" content="yes">
