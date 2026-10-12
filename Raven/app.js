@@ -224,6 +224,9 @@ on('spotify.error', (e) => toast(e.message, 'Spotify', 'bad'));
 on('spotify.auth', (a) => { if (a.connected) toast('Connected', 'Spotify', 'good', 2500); });
 if (spotifyApi) {
   spotifyApi.handleRedirect().finally(() => {
+    // remote.html signs in through this page's registered redirect URI; send it home.
+    const back = sessionStorage.getItem('sp_return');
+    if (back) { sessionStorage.removeItem('sp_return'); location.replace(back); return; }
     if (spotifyApi.needsReconsent()) spotifyApi.authorize();
     else if (spotifyApi.connected()) spotifyApi.start();
   });

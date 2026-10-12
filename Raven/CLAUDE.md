@@ -58,6 +58,16 @@ constructs it; `lib/demo.js` answers `spotify.cmd` instead. The deployed
 `config.js` on gh-pages carries the client id (not secret) and the Maps key
 (referrer-restricted); it is gitignored on master.
 
+## Remote (`remote.html`) — Spotify on the car, driven from the Mac
+Runs on the Mac, not the car. The car needs nothing but its own Spotify app:
+no browser. That app is a Spotify Connect device named "Tesla …", visible in
+`/me/player/devices` while the car is awake and its Spotify is signed in.
+The page finds it by `/tesla/i`, offers "Play on the car" (transfer) when
+something else is active, and sends search-plays and volume with
+`device_id=<car>`. Keys: space, ←/→, ↑/↓ volume, `/` search. Sign-in reuses
+Raven's tokens (same origin) and Raven's registered redirect URI: remote sets
+`sessionStorage.sp_return`, `app.js` bounces back after `handleRedirect()`.
+
 ## Code
 - No build step. ES modules served as-is. `config.js` (gitignored, from
   `config.example.js`) holds the Google Maps key.
