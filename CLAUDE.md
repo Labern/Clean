@@ -47,6 +47,10 @@ no build step, no dependencies.
   heritage). ES modules, no build; `node gt7/tests/run.mjs`. Deployed via the
   `gh-pages` branch to `labern.github.io/Clean/gt7/`. See `gt7/CLAUDE.md`.
 
+- `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
+  shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
+  live at `labern.github.io/Clean/ribbit/`. See `ribbit/CLAUDE.md`.
+
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
   Simulator, test, install on a phone, upload to TestFlight. New iPhone apps live at
