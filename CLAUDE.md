@@ -42,6 +42,10 @@ no build step, no dependencies.
   live at `labern.github.io/Clean/pica/`. See `pica/CLAUDE.md` — its fidelity
   test (`node pica/tests/run.mjs`) must stay at 100% on every engine change.
 
+- `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
+  shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
+  live at `labern.github.io/Clean/ribbit/`. See `ribbit/CLAUDE.md`.
+
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
   Simulator, test, install on a phone, upload to TestFlight. New iPhone apps live at
