@@ -135,7 +135,7 @@ export default [
     blurb: 'Soichiro Honda\'s figure-eight. The S Curves, Degner, Spoon and 130R ask for precision and courage in one lap.',
     history: 'Designed by John Hugenholtz for Honda in 1962. It is the only figure-of-eight on the F1 calendar, with a bridge carrying the back straight over the infield. Senna and Prost decided two championships at the chicane.',
     laps: { 'Gr.3': ['1:57.0', '1:59.0', '2:02.0'], 'Gr.4': ['2:06.0', '2:08.5', '2:12.0'] },
-    car: 'f296gt3', alt: ['rsr991', 'nsxgt3'],
+    car: 'f296gt3', alt: ['rsr991', 'amggt3'],
     carWhy: 'Suzuka is direction changes. The 296\'s sharp turn-in pays off in the S Curves and Degner.',
     setup: 'Medium downforce. Spoon and 130R reward stability. Brake balance −1 if the car pushes in the S Curves.',
     sectors: [

@@ -25,7 +25,7 @@ export function thumb(track) {
   if (!m) return stripThumb(track);
   const b = box(m, 40);
   const all = m.pts.map((p) => p.join(',')).join(' ');
-  return `<svg viewBox="${b.x} ${b.y} ${b.w} ${b.h}" aria-hidden="true">
+  return `<svg viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
     <polyline points="${all}" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="34" stroke-linejoin="round" stroke-linecap="round"/>
     <polygon points="${all}" fill="none" stroke="#fff" stroke-width="12" stroke-linejoin="round"/>
     <circle cx="${m.pts[0][0]}" cy="${m.pts[0][1]}" r="20" fill="#e1131f" stroke="#fff" stroke-width="6"/>
@@ -63,7 +63,7 @@ export function fullMap(track, sel = -1, sector = -1) {
       <text text-anchor="middle" dy="${label.length > 3 ? 8 : 10}" fill="${on ? '#0b1f4b' : '#fff'}" style="font-size:${label.length > 3 ? 22 : 30}px">${label}</text>
     </g>`;
   }).join('');
-  return `<svg viewBox="${b.x} ${b.y} ${b.w} ${b.h}" role="img" aria-label="${track.short} map">
+  return `<svg viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${track.short} map">
     <polygon points="${all}" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="46" stroke-linejoin="round"/>
     <polygon points="${all}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="20" stroke-linejoin="round"/>
     ${secs}
@@ -73,9 +73,38 @@ export function fullMap(track, sel = -1, sector = -1) {
   </svg>`;
 }
 
-// Lap strip for tracks without geometry (and as a secondary view for all).
+// Lap strip for tracks without geometry: a vertical ribbon of lap distance
+// (start at the top), sectors coloured, a numbered badge at each corner's
+// estimated position and its name beside it. Vertical so names stay full-size
+// on a phone; badges are pushed apart when corners sit close together.
 export function lapStrip(track, sel = -1) {
-  const secs = track.sectors.map((s, i) => `<div class="sec" style="left:${s.from * 100}%;width:${(s.to - s.from) * 100}%;background:${SECTOR_COLORS[i]}"></div>`).join('');
-  const ticks = track.corners.map((c, i) => `<div class="tick${c.key ? ' k' : ''}" data-i="${i}" style="left:${c.at * 100}%"><span>${String(c.n)}</span><i style="${i === sel ? 'background:#e1131f' : ''}"></i></div>`).join('');
-  return `<div class="strip"><div class="track"></div>${secs}${ticks}</div>`;
+  const X = 70, Y0 = 50, Y1 = 50 + Math.max(640, track.corners.length * 62), MIN = 50;
+  const y = (f) => Y0 + f * (Y1 - Y0);
+  const ys = [];
+  track.corners.forEach((c, i) => ys.push(Math.max(y(c.at), i ? ys[i - 1] + MIN : -1e9)));
+  const over = ys.length ? ys.at(-1) - (Y1 - 20) : 0;
+  if (over > 0) for (let i = ys.length - 1; i >= 0; i--) ys[i] = Math.min(ys[i], (i === ys.length - 1 ? Y1 - 20 : ys[i + 1] - MIN));
+  const secs = track.sectors.map((s, i) => `<line x1="${X}" y1="${y(s.from)}" x2="${X}" y2="${y(s.to)}" stroke="${SECTOR_COLORS[i]}" stroke-width="12" stroke-linecap="round"/>
+    <text x="${X - 34}" y="${(y(s.from) + y(s.to)) / 2}" text-anchor="middle" fill="${SECTOR_COLORS[i]}" style="font-size:16px" transform="rotate(-90 ${X - 34} ${(y(s.from) + y(s.to)) / 2})">S${i + 1}</text>`).join('');
+  const esc = (t) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const pins = track.corners.map((c, i) => {
+    const on = i === sel, cy = ys[i], ty = y(c.at);
+    const raw = String(c.n).replace(/^T(?=\d)/, '');
+    const label = raw.length <= 5 ? raw : raw.slice(0, 3);
+    return `<g class="pin${on ? ' on' : ''}" data-i="${i}">
+      <rect x="${X + 30}" y="${cy - 24}" width="${400 - X - 34}" height="48" rx="10" fill="${on ? 'rgba(255,255,255,.14)' : 'transparent'}"/>
+      ${Math.abs(cy - ty) > 2 ? `<path d="M${X} ${ty} L${X + 20} ${cy}" stroke="rgba(255,255,255,.4)" stroke-width="2"/>` : ''}
+      <circle class="dot" cx="${X + 24}" cy="${cy}" r="${on ? 22 : 19}" fill="${on ? '#fff' : c.key ? '#e1131f' : '#0b1f4b'}" stroke="#fff" stroke-width="3.5"/>
+      <text x="${X + 24}" y="${cy + 6}" text-anchor="middle" fill="${on ? '#0b1f4b' : '#fff'}" style="font-size:${label.length > 3 ? 12 : 16}px">${esc(label)}</text>
+      <text x="${X + 56}" y="${cy + 7}" fill="${on ? '#ffc531' : '#fff'}" style="font-size:20px;font-style:normal;font-weight:600;font-family:Barlow,sans-serif">${esc(c.name.length > 22 ? c.name.slice(0, 21) + '…' : c.name)}</text>
+    </g>`;
+  }).join('');
+  return `<svg class="strip-v" viewBox="0 0 400 ${Y1 + 40}" width="100%" preserveAspectRatio="xMidYMin meet" role="img" aria-label="${track.short} lap strip">
+    <line x1="${X}" y1="${Y0}" x2="${X}" y2="${Y1}" stroke="#2a447f" stroke-width="20" stroke-linecap="round"/>
+    ${secs}
+    <rect x="${X - 22}" y="${Y0 - 4}" width="44" height="8" rx="2" fill="#fff"/>
+    <text x="${X}" y="${Y0 - 16}" text-anchor="middle" fill="#9fb3e6" style="font-size:13px;font-style:normal;font-family:Barlow,sans-serif">START</text>
+    <text x="${X}" y="${Y1 + 30}" text-anchor="middle" fill="#9fb3e6" style="font-size:13px;font-style:normal;font-family:Barlow,sans-serif">FINISH</text>
+    ${pins}
+  </svg>`;
 }

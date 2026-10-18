@@ -3,27 +3,29 @@
 const W = {
   // Racing line: one 90° corner leading onto a straight; toggle the line type.
   line(el) {
+    // Road: up from the bottom (x -15..135), right-hander onto a straight (y 105..255).
     const lines = {
-      early: { d: 'M 120 560 L 120 430 Q 120 300 250 300 L 300 300 Q 470 300 470 140 L 470 60', label: 'Early apex', note: 'Turns in too soon. The car runs wide at the exit, so you lift. Slowest onto the straight.', exit: 0.82 },
-      geo: { d: 'M 90 560 L 90 400 Q 90 230 260 230 Q 470 230 520 60', label: 'Geometric', note: 'The widest constant arc gives the highest minimum speed, but the exit is no better than the entry.', exit: 0.92 },
-      late: { d: 'M 90 560 L 90 330 Q 95 210 260 205 Q 380 205 410 160 L 470 60', label: 'Late apex', note: 'Turns in later and straightens the exit. Full throttle earlier, so it wins the straight that follows.', exit: 1 },
+      early: { d: 'M 0 640 L 0 500 C 0 400 80 330 138 312 C 190 298 205 135 232 109 L 700 109', label: 'Early apex', note: 'Turns in too soon. The car is pointed at the wall on exit, so you lift. Slowest onto the straight.', exit: 0.82, c: '#ff5b63' },
+      geo: { d: 'M 0 640 L 0 440 C 0 340 70 280 152 270 C 230 262 280 120 380 112 L 700 112', label: 'Geometric', note: 'The widest constant arc gives the highest minimum speed, but the exit is no better than the entry.', exit: 0.92, c: '#7fa8ff' },
+      late: { d: 'M 0 640 L 0 380 C 0 300 60 262 190 255 C 260 251 330 140 420 113 L 700 112', label: 'Late apex', note: 'Turns in later and straightens the exit. Full throttle earlier, so it wins the straight that follows.', exit: 1, c: '#ffc531' },
     };
     let cur = 'late';
     const draw = () => {
       const L = lines[cur];
       el.innerHTML = `
-        <svg viewBox="0 0 640 600">
-          <path d="M 40 600 L 40 300 Q 40 160 180 160 L 640 160 L 640 260 L 240 260 Q 160 260 160 340 L 160 600 Z" fill="#23407f" opacity=".0"/>
-          <path d="M 60 600 L 60 330 Q 60 180 210 180 L 640 180" fill="none" stroke="#2c4a8f" stroke-width="150" stroke-linejoin="round"/>
-          <path d="M 60 600 L 60 330 Q 60 180 210 180 L 640 180" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2" stroke-dasharray="10 12"/>
-          <path d="M 640 115 L 640 245" stroke="#fff" stroke-width="6" stroke-dasharray="12 8"/>
-          <path d="${L.d.replace(/470 60|520 60/g, '640 180')}" fill="none" stroke="#ffc531" stroke-width="7" stroke-linecap="round"/>
-          <circle cx="135" cy="255" r="10" fill="#e1131f"/><text x="150" y="250" fill="#ffd5d8" font-size="18" font-family="Barlow">apex zone</text>
+        <svg viewBox="-60 40 720 580">
+          <path d="M 60 640 L 60 330 Q 60 180 210 180 L 700 180" fill="none" stroke="#2c4a8f" stroke-width="150" stroke-linejoin="round"/>
+          <path d="M 60 640 L 60 330 Q 60 180 210 180 L 700 180" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2" stroke-dasharray="10 12"/>
+          <path d="M 135 640 L 135 330 Q 135 255 210 255 L 700 255" fill="none" stroke="#e1131f" stroke-width="6" stroke-dasharray="16 12"/>
+          ${Object.entries(lines).filter(([k]) => k !== cur).map(([, v]) => `<path d="${v.d}" fill="none" stroke="${v.c}" stroke-width="4" opacity=".28"/>`).join('')}
+          <path d="${L.d}" fill="none" stroke="${L.c}" stroke-width="8" stroke-linecap="round"/>
+          <text x="150" y="290" fill="#ffd5d8" font-size="18" font-family="Barlow">inside kerb / apex</text>
+          <text x="470" y="95" fill="#9fb3e6" font-size="18" font-family="Barlow">straight →</text>
         </svg>
         <div class="ctrl">
           <div class="seg">${Object.entries(lines).map(([k, v]) => `<button data-k="${k}" class="${k === cur ? 'on' : ''}">${v.label}</button>`).join('')}</div>
           <div><b style="color:#fff">${L.label}.</b> ${L.note}</div>
-          <div>Speed onto the straight: <b style="color:#ffc531">${Math.round(L.exit * 100)}%</b></div>
+          <div>Speed onto the straight: <b style="color:${L.c}">${Math.round(L.exit * 100)}%</b></div>
         </div>`;
       el.querySelectorAll('button[data-k]').forEach((b) => (b.onclick = () => { cur = b.dataset.k; draw(); }));
     };

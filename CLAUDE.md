@@ -42,6 +42,11 @@ no build step, no dependencies.
   live at `labern.github.io/Clean/pica/`. See `pica/CLAUDE.md` — its fidelity
   test (`node pica/tests/run.mjs`) must stay at 100% on every engine change.
 
+- `gt7/` — GT7 Endgame: Gran Turismo 7 companion (next-move engine, 25 track
+  guides on real OSM geometry, garage + credit engine, academy, wheel lab,
+  heritage). ES modules, no build; `node gt7/tests/run.mjs`. Deployed via the
+  `gh-pages` branch to `labern.github.io/Clean/gt7/`. See `gt7/CLAUDE.md`.
+
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
   Simulator, test, install on a phone, upload to TestFlight. New iPhone apps live at
