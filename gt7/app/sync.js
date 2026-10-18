@@ -13,6 +13,12 @@ import * as laps from './laps.js';
 
 const BROKERS = window.GT7_BROKERS || ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/'];
 const LS = 'gt7-endgame-account';
+// Set by signIn on a device: the first copy that arrives from the cloud is
+// adopted regardless of timestamps, so a new device never overwrites the real
+// save with whatever was tapped before signing in. If no copy arrives within
+// ADOPT_MS, this device's data becomes the cloud save.
+const ADOPT = 'gt7-endgame-adopt', ADOPT_MS = 7000;
+let connectedAt = 0;
 const te = new TextEncoder(), td = new TextDecoder();
 const b64 = (u8) => btoa(String.fromCharCode(...u8));
 const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
@@ -47,6 +53,10 @@ async function open(str) {
 
 async function publish() {
   if (!key || !store.get().updatedAt) return; // never let a pristine device clobber the cloud copy
+  if (localStorage.getItem(ADOPT)) {
+    if (Date.now() - connectedAt < ADOPT_MS) { setTimeout(publish, ADOPT_MS); return; } // still waiting for the cloud copy
+    localStorage.removeItem(ADOPT); // nothing in the cloud: this device's save becomes it
+  }
   const msg = JSON.stringify({ v: 1, at: store.get().updatedAt, box: await seal(store.get()) });
   conns.forEach((c) => c.connected && c.publish(topic, msg, { retain: true, qos: 1 }));
   lastSync = Date.now(); emit();
@@ -61,7 +71,7 @@ function connect() {
     let c;
     try { c = mqtt.connect(url, { clientId: 'gt7_' + Math.random().toString(36).slice(2, 10), clean: true, connectTimeout: 8000, reconnectPeriod: 15000 }); } catch { continue; }
     conns.push(c);
-    c.on('connect', () => { c.subscribe([topic, topic + '/laps/+'], { qos: 1 }); status = 'live'; emit(); setTimeout(publish, 1500); setTimeout(() => publishAllLaps(c), 4000); });
+    c.on('connect', () => { connectedAt ||= Date.now(); c.subscribe([topic, topic + '/laps/+'], { qos: 1 }); status = 'live'; emit(); setTimeout(publish, 1500); setTimeout(() => publishAllLaps(c), 4000); });
     c.on('message', async (t, buf) => {
       try {
         const m = JSON.parse(buf.toString());
@@ -72,8 +82,10 @@ function connect() {
           window.dispatchEvent(new CustomEvent('gt7-lap-saved', { detail: lap }));
           return;
         }
-        if (!m.box || (m.at || 0) <= (store.get().updatedAt || 0)) return; // ours is as new or newer
+        const adopting = !!localStorage.getItem(ADOPT);
+        if (!m.box || (!adopting && (m.at || 0) <= (store.get().updatedAt || 0))) return; // ours is as new or newer
         const doc = await open(m.box);
+        if (adopting) localStorage.removeItem(ADOPT);
         store.replace(doc);
         lastSync = Date.now(); emit();
       } catch { /* wrong key or junk: ignore */ }
@@ -89,6 +101,8 @@ export async function signIn(user, pass) {
   if (!window.crypto?.subtle) throw new Error('This browser has no WebCrypto (needs https).');
   const d = await derive(user, pass);
   localStorage.setItem(LS, JSON.stringify({ user: user.trim(), k: b64(d.enc), id: d.id }));
+  localStorage.setItem(ADOPT, '1');
+  connectedAt = 0;
   await start();
 }
 

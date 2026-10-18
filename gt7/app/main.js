@@ -410,27 +410,36 @@ views.credits = () => {
     html: html`
     <div class="kicker">Credit Engine</div><h1>Make It Rain</h1>
     <p class="muted" style="max-width:66ch;margin-top:10px">Payouts change with patches. Every number below is editable and your edits win. Log runs and the bank updates.</p>
-    <div class="grid g3" style="margin-top:20px">
-      <div class="card pad">
+    <div class="card pad" style="margin-top:20px">
         <label class="f">Your credits<input type="number" id="cr" value="${s.credits ?? ''}" placeholder="e.g. 4200000"></label>
         <label class="opt ${s.grind.clean ? 'on' : ''}" style="margin-top:12px"><input type="checkbox" id="clean" ${s.grind.clean ? raw('checked') : ''}> Count the clean race bonus (+${CLEAN_BONUS * 100}%)</label>
-      </div>
+        ${s.creditsSource === 'gt7' ? html`<p class="muted small" style="margin:10px 0 0">Credits come from your GT7 stats (GT-Gridstats) and refresh automatically.</p>` : ''}
+    </div>
+    <div class="grid g3" style="margin-top:16px">
       <div class="card stat"><div class="v">${rows[0]?.perHour ? crShort(rows[0].perHour) : '—'}<span style="font-size:20px">/hr</span></div><div class="l">Best grind · ${rows[0]?.name || ''}</div></div>
       ${target ? html`<a class="card stat" href="#/car/${target}"><div class="v">${hrs(hoursFor(s, Math.max(0, priceOf(s, target) - (s.credits || 0))))}</div><div class="l">To ${carById[target].name.split(' (')[0]}</div></a>` : raw('<a class="card stat" href="#/garage"><div class="v">★</div><div class="l">Add a wishlist target</div></a>')}
     </div>
-    <section class="section card pad scroll-x">
-      <h3>Grinds, ranked by credits per hour</h3>
-      <table class="tbl" style="margin-top:12px;min-width:760px">
-        <tr><th>Race</th><th>Payout (win)</th><th>Minutes</th><th>Per race</th><th>Per hour</th><th></th></tr>
-        ${rows.map((r) => html`<tr>
-          <td><b>${r.name}</b><div class="muted small">${r.track && trackById[r.track] ? raw(`<a href="#/track/${r.track}" style="text-decoration:underline">${esc(trackById[r.track].short)}</a> · `) : ''}${r.layout}${r.pp ? ` · ${r.pp} PP` : ''}</div><div class="small" style="max-width:46ch;margin-top:4px">${r.why}</div><div class="small muted" style="max-width:46ch;margin-top:4px"><b>How:</b> ${r.how}</div></td>
-          <td><input type="number" data-pay="${r.id}" value="${r.payout ?? ''}" placeholder="enter"></td>
-          <td><input type="number" data-min="${r.id}" value="${r.minutes}" style="width:70px"></td>
-          <td class="num">${r.per ? crShort(r.per) : '—'}</td>
-          <td class="num">${r.perHour ? crShort(r.perHour) : '—'}</td>
-          <td>${r.per ? raw(`<button class="btn sm" data-log="${r.id}">+ Log run</button>`) : ''}</td>
-        </tr>`)}
-      </table>
+    <section class="section">
+      <div class="head"><h2>Grinds</h2><span class="muted small">Ranked by credits per hour${s.grind.clean ? ', clean race bonus included' : ''}</span></div>
+      <div class="grid g2">
+        ${rows.map((r, i) => html`<div class="card pad grind ${i === 0 && r.perHour ? 'best' : ''}">
+          <div class="row" style="justify-content:space-between;align-items:start">
+            <div><div class="kicker">${i === 0 && r.perHour ? 'Best right now' : r.track && trackById[r.track] ? trackById[r.track].short : r.layout}</div><h3 style="margin-top:4px">${r.name}</h3>
+              <div class="muted small">${r.track && trackById[r.track] ? raw(`<a href="#/track/${r.track}" style="text-decoration:underline">${esc(trackById[r.track].short)}</a> · `) : ''}${r.layout}${r.pp ? ` · ${r.pp} PP` : ''} · ${r.minutes} min</div></div>
+            <div class="grind-rate"><b>${r.perHour ? crShort(r.perHour) : '—'}</b><span>per hour</span></div>
+          </div>
+          <p style="margin:12px 0 6px">${r.why}</p>
+          <p class="muted small" style="margin:0 0 14px"><b>How:</b> ${r.how}</p>
+          <div class="grind-inputs">
+            <label class="f">Win payout<input type="number" inputmode="numeric" data-pay="${r.id}" value="${r.payout ?? ''}" placeholder="enter"></label>
+            <label class="f">Minutes<input type="number" inputmode="numeric" data-min="${r.id}" value="${r.minutes}"></label>
+          </div>
+          <div class="row" style="justify-content:space-between;margin-top:14px">
+            <span class="muted">Per race <b style="color:var(--navy);font-family:var(--display);font-style:italic;font-size:22px">${r.per ? crShort(r.per) : '—'}</b></span>
+            ${r.per ? html`<button class="btn red" data-log="${r.id}">+ Log a run</button>` : html`<span class="chip gold">Enter the payout</span>`}
+          </div>
+        </div>`)}
+      </div>
     </section>
     <section class="section">
       <div class="head"><h2>Boosters</h2></div>

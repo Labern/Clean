@@ -399,3 +399,24 @@ ol.steps { margin: 16px 0 0; padding-left: 24px; display: grid; gap: 10px; font-
 ol.steps a, .acct a { color: var(--blue-hi); font-weight: 700; text-decoration: underline; }
 .t-icon { width: 54px; height: 54px; border-radius: 10px; flex: none; }
 code { font-size: .9em; background: #eef1f7; padding: 2px 6px; border-radius: 6px; }
+
+/* touch targets: anything tappable is at least 44 px */
+.brand { min-height: 48px; }
+.nextbar .nb-t { display: block; line-height: 46px; min-height: 46px; }
+button.chip, a.chip { min-height: 44px; padding: 8px 16px; cursor: pointer; }
+
+@media (max-width: 760px) {
+  .laps th, .laps td { padding: 8px 3px; }
+  .laps td.t { font-size: 19px; }
+  .laps input[data-pb] { width: 78px !important; padding: 8px 6px !important; min-height: 44px; font-size: 16px; }
+}
+/* stat tiles pack two-up on phones instead of one huge tile per row */
+.grid:has(> .stat) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 165px), 1fr)); }
+@media (max-width: 760px) { .stat .v { font-size: 36px; } .stat { padding: 16px; } }
+
+.grid:has(> .stat) > .card.pad { grid-column: 1 / -1; }
+.grind.best { border: 2px solid var(--red); }
+.grind-rate { text-align: right; flex: none; }
+.grind-rate b { display: block; font-family: var(--display); font-style: italic; font-weight: 900; font-size: 38px; color: var(--navy); line-height: 1; }
+.grind-rate span { font-size: 14px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
+.grind-inputs { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
