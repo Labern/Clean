@@ -1,0 +1,13 @@
+{
+  "appId": "com.labern.gt7endgame",
+  "appName": "GT7 Endgame",
+  "webDir": "www",
+  "backgroundColor": "#f2f4f8",
+  "server": { "androidScheme": "https" },
+  "plugins": {
+    "CapacitorHttp": { "enabled": true },
+    "SplashScreen": { "launchShowDuration": 0 }
+  },
+  "ios": { "contentInset": "never", "scheme": "GT7 Endgame" },
+  "android": { "allowMixedContent": true }
+}

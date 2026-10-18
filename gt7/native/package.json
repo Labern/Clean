@@ -1,0 +1,20 @@
+{
+  "name": "gt7-endgame-native",
+  "private": true,
+  "type": "module",
+  "description": "iOS/Android shells for GT7 Endgame. The app itself is the web code in ../ (no fork).",
+  "scripts": {
+    "web": "sh build-web.sh",
+    "ios": "npm run web && npx cap add ios 2>/dev/null; npx cap sync ios && npx cap open ios",
+    "android": "npm run web && npx cap add android 2>/dev/null; npx cap sync android && npx cap open android",
+    "sync": "npm run web && npx cap sync"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.1.2",
+    "@capacitor/ios": "^6.1.2",
+    "@capacitor/android": "^6.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.1.2"
+  }
+}

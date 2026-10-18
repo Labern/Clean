@@ -39,23 +39,31 @@ export function progress(s) {
 }
 
 // Ranked suggestions. Each: { kind, title, why, href, cta, step? }
+const snoozed = (s, id) => (s.snooze?.[id] || 0) > Date.now();
+
 export function nextSteps(s, n = 3) {
   const out = [];
+  const push = (x) => { if (!snoozed(s, x.id)) out.push(x); };
   if (!s.onboarded) {
-    out.push({ kind: 'setup', title: 'Tell the app where you are', why: 'Credits, the cars you own and what you\'re chasing. Every recommendation adapts to it.', href: '#/setup', cta: 'Set up' });
+    push({ id: 'setup', kind: 'setup', title: 'Tell the app where you are', why: 'Credits, the cars you own and what you\'re chasing. Every recommendation adapts to it.', href: '#/setup', cta: 'Set up' });
   }
   const credits = s.credits ?? 0;
+
+  // Real data beats typed data: connecting PSN + GT7 makes every suggestion sharper.
+  if (s.onboarded && !s.gt && !s.psn) {
+    push({ id: 'connect', kind: 'connect', title: 'Connect PlayStation + your GT7 stats', why: 'Your real credits, licence, garage, DR/SR and trophies, pulled in automatically. Then every next move is based on where you actually are.', href: '#/connect', cta: 'Connect' });
+  }
 
   // Wishlist: buy what you can afford, else show the gap.
   const wish = s.wish.filter((id) => !s.owned.includes(id) && carById[id]);
   const affordable = wish.find((id) => (priceOf(s, id) ?? Infinity) <= credits);
   if (affordable) {
     const c = carById[affordable];
-    out.push({ kind: 'buy', title: `Buy the ${c.name}`, why: `You have the credits (${Math.round(priceOf(s, affordable) / 1000).toLocaleString()}k). It's top of your wishlist. Find it at ${c.where}.`, href: `#/car/${c.id}`, cta: 'Open car', car: c.id });
+    push({ id: 'buy:' + c.id, kind: 'buy', title: `Buy the ${c.name}`, why: `You have the credits (${Math.round(priceOf(s, affordable) / 1000).toLocaleString()}k). It's top of your wishlist. Find it at ${c.where}.`, href: `#/car/${c.id}`, cta: 'Open car', car: c.id });
   } else if (wish.length) {
     const id = wish[0], c = carById[id], gap = (priceOf(s, id) ?? 0) - credits;
     const h = hoursFor(s, gap);
-    out.push({ kind: 'grind', title: `Grind ${Math.round(gap / 1e6 * 10) / 10}M for the ${c.name}`, why: h ? `About ${h < 10 ? h.toFixed(1) : Math.round(h)} hours of your best grind at the current clean-race rate.` : 'Set a payout in the Credit Engine to get an estimate.', href: '#/credits', cta: 'Credit Engine', car: c.id });
+    push({ id: 'grind:' + c.id, kind: 'grind', title: `Grind ${Math.round(gap / 1e6 * 10) / 10}M for the ${c.name}`, why: h ? `About ${h < 10 ? h.toFixed(1) : Math.round(h)} hours of your best grind at the current clean-race rate.` : 'Set a payout in the Credit Engine to get an estimate.', href: '#/credits', cta: 'Credit Engine', car: c.id });
   }
 
   // Roadmap: lowest priority number first, boosted by your focus.
@@ -68,16 +76,23 @@ export function nextSteps(s, n = 3) {
     }
     return { st, score };
   }).sort((a, b) => a.score - b.score);
+  // The easiest GT7 trophy you haven't earned (from PSN): a concrete, rewarding target.
+  const trophy = (s.psn?.gt7?.trophies || []).filter((t) => !t.earned && !t.hidden && t.type !== 'platinum').sort((a, b) => (b.rate ?? -1) - (a.rate ?? -1))[0];
+  let trophyQueued = false;
+
   for (const { st } of pending) {
+    if (trophy && !trophyQueued && out.length === 1) { trophyQueued = true; push({ id: 'trophy:' + trophy.id, kind: 'trophy', title: `Trophy: ${trophy.name}`, why: `${trophy.detail}${trophy.rate != null ? ` (${trophy.rate}% of GT7 players have it: one of your easiest remaining).` : ''}`, href: '#/connect', cta: 'See trophies' }); }
     if (out.length >= n) break;
+    if (snoozed(s, st.id)) continue;
     const p = st.car ? priceOf(s, st.car) : null;
     out.push({
-      kind: 'step', title: st.title, step: st.id,
+      id: st.id, kind: 'step', title: st.title, step: st.id,
       why: st.how + (p != null && p > credits ? ` (You need ${(p - credits).toLocaleString()} more Cr.)` : ''),
       href: st.car ? `#/car/${st.car}` : st.id.startsWith('lic') || st.id.startsWith('ce') ? '#/roadmap' : st.id === 'wheel-setup' ? '#/wheel' : st.id === 'academy' ? '#/academy' : st.id.startsWith('tune') ? '#/tuning' : st.id.startsWith('sport') ? '#/sport' : '#/roadmap',
       cta: 'Go', phase: st.phase.title,
     });
   }
+  if (trophy && !trophyQueued && out.length < n) push({ id: 'trophy:' + trophy.id, kind: 'trophy', title: `Trophy: ${trophy.name}`, why: trophy.detail, href: '#/connect', cta: 'See trophies' });
   return out.slice(0, n);
 }
 

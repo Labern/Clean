@@ -18,6 +18,8 @@ import { BUILD } from '../data/build.js';
 import * as sync from './sync.js';
 import { telemetryView, lapView } from './telemetry.js';
 import { startView, chapterView } from './start.js';
+import * as connect from './connect.js';
+import { isNative } from './platform.js';
 
 const S = store.get;
 const NO_IMG = new Set(['escudo']);
@@ -57,6 +59,21 @@ function trackCard(t) {
   </a>`;
 }
 
+function wireNext(root) {
+  $$('[data-done]', root).forEach((b) => (b.onclick = () => { store.set((s) => { s.done[b.dataset.done] = true; }); toast('Ticked off. Next move loaded.'); render(); }));
+  $$('[data-snooze]', root).forEach((b) => (b.onclick = () => { store.set((s) => { s.snooze = { ...(s.snooze || {}), [b.dataset.snooze]: Date.now() + 864e5 }; }); toast('Snoozed until tomorrow'); render(); }));
+}
+
+function paintNextBar(name) {
+  const bar = $('#nextbar');
+  if (['home', 'setup', 'start', 'lap'].includes(name)) { bar.hidden = true; return; }
+  const st = nextSteps(S(), 1)[0];
+  if (!st) { bar.hidden = true; return; }
+  bar.hidden = false;
+  bar.innerHTML = String(html`<span class="nb-k">Next</span><a class="nb-t" href="${st.href}">${st.title}</a>${st.step ? html`<button class="nb-done" data-done="${st.step}" aria-label="Mark done">✓</button>` : ''}<a class="nb-go" href="${st.href}">Go →</a>`);
+  wireNext(bar);
+}
+
 const back = (href, label) => html`<a class="back" href="${href}">← ${label}</a>`;
 
 // ── views ───────────────────────────────────────────────
@@ -72,35 +89,33 @@ views.home = () => {
   const rate = bestRate(s);
   return {
     html: html`
-    <a class="card start-band fade-in" href="#/start">
+    ${(() => {
+      const st = steps[0];
+      const art = carById[st?.car] || heroCar;
+      return html`<section class="next-hero fade-in">
+        <div class="copy">
+          <div class="stripe-big"><span></span><span></span></div>
+          <div class="kicker">Your next move${st?.phase ? ' · ' + st.phase : ''}</div>
+          <h1 class="next-title">${st ? st.title : 'Everything on the roadmap is done'}</h1>
+          <p class="lede">${st ? st.why : 'Alien status. Pick a track and chase a benchmark.'}</p>
+          <div class="row next-actions">
+            ${st ? html`<a class="btn red xl" href="${st.href}">${st.cta === 'Go' ? 'Do it' : st.cta} →</a>` : ''}
+            ${st?.step ? html`<button class="btn ghost-light xl" data-done="${st.step}">Done ✓</button>` : ''}
+            ${st ? html`<button class="btn ghost-light xl" data-snooze="${st.id}">Not now</button>` : ''}
+          </div>
+        </div>
+        <div class="art">${raw(img(art.id))}</div>
+      </section>
+      ${steps.length > 1 ? html`<section class="then"><div class="kicker" style="margin-bottom:10px">Then</div><div class="grid g2" style="gap:12px">
+        ${steps.slice(1).map((x, i) => html`<a class="card then-card" href="${x.href}"><span class="num">0${i + 2}</span><span><span class="kicker">${x.phase || { buy: 'Buy now', grind: 'Credits', setup: 'Setup', connect: 'Accounts', trophy: 'Trophy' }[x.kind] || ''}</span><b>${x.title}</b></span><span class="go">→</span></a>`)}
+      </div></section>` : ''}`;
+    })()}
+
+    <a class="card start-band" href="#/start">
       <span class="start-dot">NEW TO GT?</span>
       <span><b>Start Here</b> <span class="muted">How to play from zero: controls, car physics, licences, assists, racing clean.</span></span>
       <span class="btn sm red">Begin →</span>
     </a>
-    <section class="hero fade-in">
-      <div class="copy">
-        <div class="stripe-big"><span></span><span></span></div>
-        <div class="kicker">Command Centre</div>
-        <h1>The Endgame<br>Starts Here</h1>
-        <p class="lede">Café done. Now it's about credits, the greatest cars ever made, and lap times nobody can touch. Here is your next move.</p>
-        <div class="row">
-          <a class="btn red" href="${steps[0]?.href || '#/roadmap'}">${steps[0]?.cta || 'Roadmap'} →</a>
-          <a class="btn ghost" style="color:#fff;box-shadow:inset 0 0 0 2px rgba(255,255,255,.5)" href="#/car/${heroCar.id}">${s.wish.length ? 'Next target' : 'The dream car'}: ${heroCar.name.split(' (')[0]}</a>
-        </div>
-      </div>
-      <div class="art">${raw(img(heroCar.id))}</div>
-    </section>
-
-    <section class="section">
-      <div class="head"><h2>Next Moves</h2><a class="btn sm ghost" href="#/roadmap">Full roadmap</a></div>
-      <div class="grid" style="gap:12px">
-        ${steps.map((st, i) => html`<div class="card next fade-in" style="animation-delay:${i * 60}ms">
-          <div class="num">0${i + 1}</div>
-          <div><div class="kicker">${st.phase || { setup: 'Setup', buy: 'Buy now', grind: 'Credits' }[st.kind] || ''}</div><h3>${st.title}</h3><div class="muted" style="margin-top:4px">${st.why}</div></div>
-          <div class="row">${st.step ? raw(`<button class="btn sm ghost" data-done="${st.step}">Done ✓</button>`) : ''}<a class="btn sm" href="${st.href}">${st.cta}</a></div>
-        </div>`)}
-      </div>
-    </section>
 
     <section class="section grid g4">
       <a class="card stat" href="#/credits"><div class="v">${s.credits == null ? '—' : crShort(s.credits)}</div><div class="l">Credits</div><div class="muted small" style="margin-top:6px">${rate ? `Best grind ≈ ${crShort(rate)}/hr` : 'Set payouts'}</div></a>
@@ -134,7 +149,7 @@ views.home = () => {
       </div>
     </section>`,
     wire(root) {
-      $$('[data-done]', root).forEach((b) => (b.onclick = () => { store.set((s) => { s.done[b.dataset.done] = true; }); toast('Ticked off. Next move loaded.'); render(); }));
+      wireNext(root);
     },
   };
 };
@@ -147,6 +162,11 @@ views.setup = () => {
     ${back('#/', 'Command')}
     <div class="kicker">Setup</div><h1>Where You Are</h1>
     <p class="muted" style="max-width:60ch;margin-top:10px">Takes a minute. Everything stays on this device. Change it any time.</p>
+    <a class="card start-band" href="#/connect" style="margin-top:18px;border-left-color:#0070d1">
+      <span class="start-dot" style="color:#0070d1">FASTEST</span>
+      <span><b>Connect PlayStation + GT7 instead</b> <span class="muted">Your real credits, licence, garage and trophies, filled in for you.</span></span>
+      <span class="btn sm">Connect →</span>
+    </a>
     <div class="grid g2 section" style="margin-top:20px">
       <div class="card pad">
         <h3>Credits</h3>
@@ -576,7 +596,7 @@ views.wheel = () => {
 views.more = () => html`
   <div class="kicker">More</div><h1>Everything Else</h1>
   <div class="grid g3" style="margin-top:22px">
-    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/start', 'Start Here', 'How to play GT from zero'], ['#/roadmap', 'Roadmap', 'Post-Café to alien pace'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals'], ['#/account', 'Cloud save', 'Sign in once, same save everywhere'], ['#/telemetry', 'Data Logger', 'Record laps, replay your racing line'], ['#/status', 'Build status', 'What\'s done and what\'s next']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
+    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/start', 'Start Here', 'How to play GT from zero'], ['#/roadmap', 'Roadmap', 'Post-Café to alien pace'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals'], ['#/connect', 'PlayStation + GT7', 'Your real credits, licence, DR/SR, trophies'], ['#/account', 'Cloud save', 'Sign in once, same save everywhere'], ['#/telemetry', 'Data Logger', 'Record laps, replay your racing line'], ['#/status', 'Build status', 'What\'s done and what\'s next']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
   </div>
   <section class="section card pad">
     <h3>Your data</h3>
@@ -686,6 +706,88 @@ views.status = () => {
 };
 
 views.start = (arg) => (arg ? chapterView(arg) : startView());
+
+views.connect = () => {
+  const s = S(), p = s.psn, g = s.gt, st = g?.stats || {};
+  const ago = (t) => { if (!t) return 'never'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
+  const tro = p?.gt7?.trophies || [];
+  const nextT = connect.nextTrophies(s, 6);
+  const ec = p?.gt7?.earnedCounts || {}, dc = p?.gt7?.definedCounts || {};
+  const icon = { platinum: '💎', gold: '🥇', silver: '🥈', bronze: '🥉' };
+  return {
+    html: html`
+    ${back('#/more', 'More')}
+    <div class="kicker">Accounts</div><h1>Connect Your Game</h1>
+    <p class="muted" style="max-width:72ch;margin-top:10px">Two connections. Once they're in, the app reads where you really are (credits, licence, garage, ratings, trophies) and every next move is built on it.</p>
+
+    <section class="section grid g2" style="align-items:start">
+      <div class="card pad acct">
+        <div class="acct-h"><span class="acct-logo psn">PS</span><div><div class="kicker">PlayStation Network</div><h2 style="font-size:34px">${p?.profile?.onlineId || (p ? 'Connected' : 'Not connected')}</h2></div>
+          ${p?.profile?.avatar ? html`<img src="${p.profile.avatar}" alt="" class="avatar">` : ''}</div>
+        ${p ? html`
+          <div class="grid g3" style="gap:10px;margin-top:16px">
+            <div class="mini"><b>${p.gt7 ? p.gt7.progress + '%' : '—'}</b><span>GT7 trophies</span></div>
+            <div class="mini"><b>${p.play?.hours != null ? Math.round(p.play.hours) + ' h' : '—'}</b><span>GT7 played</span></div>
+            <div class="mini"><b>${p.profile?.level ?? '—'}</b><span>Trophy level</span></div>
+          </div>
+          ${p.gt7 ? html`<div class="row" style="margin-top:12px">${['platinum', 'gold', 'silver', 'bronze'].map((k) => html`<span class="chip">${icon[k]} ${ec[k] ?? 0}/${dc[k] ?? 0}</span>`)}</div>` : ''}
+          <p class="muted small" style="margin-top:12px">Updated ${ago(p.fetchedAt)}${p.errors?.length ? ' · some parts unavailable: ' + p.errors.join('; ') : ''}</p>
+          <div class="row" style="margin-top:12px"><button class="btn" id="psn-refresh">Refresh</button><button class="btn ghost" id="psn-off">Disconnect</button></div>`
+        : html`
+          <ol class="steps">
+            <li>Sign in at <a href="https://www.playstation.com" target="_blank" rel="noopener">playstation.com</a> in this browser.</li>
+            <li>Open <a href="${connect.NPSSO_URL}" target="_blank" rel="noopener">this Sony page</a>. It shows <code>{"npsso":"…"}</code>. Copy the long value between the quotes.</li>
+            <li>Paste it here and connect. You do this once; it stays connected for about two months.</li>
+          </ol>
+          <label class="f" style="margin-top:8px">NPSSO token<input type="password" id="npsso" placeholder="64-character token" autocomplete="off"></label>
+          <div class="row" style="margin-top:14px"><button class="btn red xl" id="psn-go">Connect PlayStation</button></div>
+          <p class="muted small" style="margin-top:12px">${isNative() ? 'The token stays on this device.' : 'Sony blocks web pages from calling PSN, so this runs through your Mac bridge: open the app from the bridge address to connect. The token stays on the Mac, never in the cloud; your phone gets the results through your synced save.'} It's the same sign-in the PlayStation App uses. Treat the NPSSO like a password.</p>`}
+      </div>
+
+      <div class="card pad acct">
+        <div class="acct-h"><span class="acct-logo gt">GT</span><div><div class="kicker">Gran Turismo 7 stats</div><h2 style="font-size:34px">${g ? (g.Nickname || g.PSN_ID) : 'Not connected'}</h2></div></div>
+        ${g ? html`
+          <div class="grid g3" style="gap:10px;margin-top:16px">
+            <div class="mini"><b>${crShort(st.total_credits)}</b><span>Credits</span></div>
+            <div class="mini"><b>${g.DR || '—'} / ${g.SR || '—'}</b><span>DR / SR</span></div>
+            <div class="mini"><b>${st.license || '—'}</b><span>Licence</span></div>
+            <div class="mini"><b>${st.garage_count ?? '—'}</b><span>Cars · ${st.collection_progress || '—'}</span></div>
+            <div class="mini"><b>${st.victories ?? 0}/${st.total_races ?? 0}</b><span>Wins / races</span></div>
+            <div class="mini"><b>${st.clean_races ?? 0}</b><span>Clean races</span></div>
+          </div>
+          <p class="muted small" style="margin-top:12px">${st.play_time_readable || ''}${st.distance_km ? ' · ' + st.distance_km + ' km driven' : ''} · GT-Gridstats synced ${g.last_sync || '—'} · fetched ${ago(g.fetchedAt)}</p>
+          <div class="row" style="margin-top:12px"><button class="btn" id="gt-refresh">Refresh</button><button class="btn ghost" id="gt-off">Disconnect</button></div>`
+        : html`
+          <ol class="steps">
+            <li>Make a free account at <a href="https://gtgridstats.com" target="_blank" rel="noopener">GT-Gridstats</a> and create a personal API token.</li>
+            <li>Enter your PSN ID and the token. The app pulls your GT7 profile: credits, licence, garage, DR/SR, races.</li>
+          </ol>
+          <label class="f" style="margin-top:8px">PSN ID<input type="text" id="gt-id" value="${s.gtLink?.psnId || p?.profile?.onlineId || sync.info().user || ''}" autocomplete="off"></label>
+          <label class="f" style="margin-top:12px">GT-Gridstats token<input type="password" id="gt-tok" value="${s.gtLink?.token || ''}" autocomplete="off"></label>
+          <div class="row" style="margin-top:14px"><button class="btn red xl" id="gt-go">Connect GT7 stats</button></div>
+          <p class="muted small" style="margin-top:12px">GT-Gridstats is an unofficial third-party service (not Polyphony). Its data is as fresh as its last sync of your profile. The token is stored in your encrypted save.</p>`}
+      </div>
+    </section>
+
+    ${nextT.length ? html`<section class="section"><div class="head"><h2>Your Next Trophies</h2><span class="muted small">Easiest unearned first, by % of players</span></div>
+      <div class="grid g3">${nextT.map((t) => html`<div class="card pad trophy"><div class="row" style="gap:12px">${t.icon ? html`<img src="${t.icon}" alt="" class="t-icon">` : ''}<div><div class="kicker">${icon[t.type] || ''} ${t.type}${t.rate != null ? ' · ' + t.rate + '% have it' : ''}</div><h3 style="font-size:22px;margin-top:4px">${t.name}</h3></div></div><p class="muted" style="margin:10px 0 0">${t.detail}</p></div>`)}</div></section>` : ''}
+
+    ${tro.length ? html`<section class="section"><div class="head"><h2>All GT7 Trophies</h2><span class="muted small">${tro.filter((t) => t.earned).length}/${tro.length} earned</span></div>
+      <div class="grid" style="gap:8px">${tro.slice().sort((a, b) => (a.earned - b.earned) || ((b.rate ?? -1) - (a.rate ?? -1))).map((t) => html`<div class="check ${t.earned ? 'done' : ''}" style="cursor:default"><span class="box"></span><div style="flex:1"><div class="t">${t.hidden && !t.earned ? 'Hidden trophy' : t.name}</div><div class="d">${t.hidden && !t.earned ? '' : t.detail}</div></div><span class="chip">${icon[t.type] || ''}${t.rate != null ? ' ' + t.rate + '%' : ''}</span></div>`)}</div></section>` : ''}`,
+    wire(root) {
+      const busy = (b, label) => { b.disabled = true; b.dataset.l = b.textContent; b.textContent = label; };
+      const done = (b) => { b.disabled = false; b.textContent = b.dataset.l; };
+      const run = (id, label, fn) => { const b = $(id, root); if (b) b.onclick = async () => { busy(b, label); try { await fn(); render(); } catch (e) { toast(e.message); done(b); } }; };
+      run('#psn-go', 'Connecting…', async () => { const v = $('#npsso', root).value.trim().replace(/^.*"npsso"\s*:\s*"([^"]+)".*$/, '$1'); await connect.connectPSN(v); toast('PlayStation connected'); });
+      run('#psn-refresh', 'Refreshing…', async () => { await connect.refreshPSN(); toast('PSN refreshed'); });
+      run('#psn-off', '…', async () => { await connect.disconnectPSN(); });
+      run('#gt-go', 'Fetching…', async () => { await connect.fetchGT($('#gt-id', root).value, $('#gt-tok', root).value.trim()); toast('GT7 stats connected'); });
+      run('#gt-refresh', 'Fetching…', async () => { await connect.fetchGT(S().gtLink.psnId, S().gtLink.token); toast('GT7 stats refreshed'); });
+      run('#gt-off', '…', async () => { store.set((s) => { delete s.gt; s.creditsSource = null; }); });
+    },
+  };
+};
+
 views.telemetry = telemetryView;
 views.lap = lapView;
 
@@ -707,8 +809,9 @@ function render() {
   const res = out && out.html !== undefined && !(out instanceof Object && out.s) ? out : { html: out };
   root.innerHTML = String(res.html);
   (res.wire || WIRES[name])?.(root);
-  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more', account: 'more', status: 'more', telemetry: 'telemetry', lap: 'telemetry', start: 'start' }[name] || name;
+  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more', account: 'more', status: 'more', connect: 'more', telemetry: 'telemetry', lap: 'telemetry', start: 'start' }[name] || name;
   $$('#nav a').forEach((a) => a.classList.toggle('on', a.dataset.r === navKey));
+  paintNextBar(name);
   const s = S();
   $('#credits-pill').textContent = s.credits == null ? 'Cr. —' : 'Cr. ' + crShort(s.credits);
   paintSync();
@@ -731,5 +834,6 @@ store.subscribe((_s, why) => { if (why === 'remote') { render(); toast('Synced f
 render();
 lastName = route().name;
 sync.start();
+connect.autoRefresh();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

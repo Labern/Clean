@@ -70,6 +70,29 @@ Physics chapters embed the Academy widgets (`widgetFor`). The content was drafte
 by a Haiku sub-agent and fact-corrected (tyre families, ABS, wheel rotation).
 Keep it consistent with the Academy: inputs *blend*, they aren't sequential.
 
+## The priority: tell the player what to do next
+Every screen serves `engine.nextSteps()`. Home leads with one big NEXT card
+(Do it / Done / Not now, where snooze = 24 h in `s.snooze`), "Then" shows two more,
+and `#nextbar` shows the top move on every other page. New data sources
+should feed the engine, not just a screen.
+
+## Accounts (`app/connect.js`, `app/psn-core.js`, `app/platform.js`)
+- PSN: NPSSO → OAuth (PlayStation App client, as psn-api does) → profile,
+  GT7 trophies + rarity, play time. Browsers can't call Sony (no CORS), so the
+  web app goes through the bridge (`/api/psn/*`; token in `~/GT7Laps/.psn-token.json`,
+  0600, never synced). Native shells call Sony directly via CapacitorHttp with
+  the same `psn-core.js`. Results (no tokens) go into the synced save as `s.psn`.
+- GT7 stats: GT-Gridstats (`gtgridstats.com/api/racers/<psn>`, Bearer token).
+  Fetched directly, falling back to the bridge relay. `applyGT` makes GT7
+  credits replace typed credits and ticks licence/Sport steps; `applyPSN`
+  ticks steps from trophy names. PSN lists the game as "Gran Turismo™ 7".
+- `platform.js` is the only place that knows web vs native.
+
+## Native (`native/`)
+Capacitor shells around this same code (`npm run ios|android` on the Mac).
+UI is touch-first: `--tap` 52 px minimum, hover only under `@media (hover: hover)`,
+safe-area insets on header/nav.
+
 ## Content honesty
 Lap benchmarks are estimates (labelled so in the UI). Credit payouts and
 Legend prices drift with patches: every number is user-overridable and

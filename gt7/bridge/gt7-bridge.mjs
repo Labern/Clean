@@ -22,6 +22,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { SIZE, decrypt as dec, encrypt as enc, parse } from './protocol.mjs';
+import * as psn from '../app/psn-core.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
@@ -98,9 +99,44 @@ function listLaps() {
     try { const d = JSON.parse(fs.readFileSync(path.join(LAPS, f), 'utf8')); delete d.pts; return d; } catch { return null; }
   }).filter(Boolean).sort((a, b) => b.t0 - a.t0);
 }
-http.createServer((req, res) => {
+// ── PSN + GT-Gridstats (accounts) ─────────────────────────────────────────
+// The NPSSO / refresh token never leaves this Mac: it lives in a 0600 file
+// next to your laps. The app only receives the summary.
+const PSN_FILE = path.join(LAPS, '.psn-token.json');
+const readTok = () => { try { return JSON.parse(fs.readFileSync(PSN_FILE, 'utf8')); } catch { return null; } };
+const writeTok = (t) => { fs.writeFileSync(PSN_FILE, JSON.stringify(t)); fs.chmodSync(PSN_FILE, 0o600); };
+async function psnAccess() {
+  let t = readTok();
+  if (!t) throw new Error('not connected');
+  if (Date.now() > t.expiresAt) { t = await psn.refreshTokens(fetch, t.refresh); writeTok(t); }
+  return t.access;
+}
+const body = (req) => new Promise((ok) => { let d = ''; req.on('data', (c) => (d += c)); req.on('end', () => { try { ok(JSON.parse(d || '{}')); } catch { ok({}); } }); });
+async function accounts(req, res, u) {
+  try {
+    if (u.pathname === '/api/psn/connect' && req.method === 'POST') {
+      const { npsso } = await body(req);
+      if (!npsso || npsso.length < 40) return json(res, { ok: false, error: 'That doesn\'t look like an NPSSO (64 characters).' }, 400);
+      writeTok(await psn.tokensFromCode(fetch, await psn.exchangeNpsso(fetch, npsso)));
+      return json(res, { ok: true, summary: await psn.summary(fetch, await psnAccess()) });
+    }
+    if (u.pathname === '/api/psn/summary') return json(res, { ok: true, summary: await psn.summary(fetch, await psnAccess()) });
+    if (u.pathname === '/api/psn/disconnect' && req.method === 'POST') { fs.rmSync(PSN_FILE, { force: true }); return json(res, { ok: true }); }
+    if (u.pathname === '/api/psn/status') { const t = readTok(); return json(res, { ok: true, connected: !!t, refreshExpiresAt: t?.refreshExpiresAt || null }); }
+    if (u.pathname.startsWith('/api/proxy/gridstats/')) { // GT-Gridstats doesn't promise CORS: relay it
+      const r = await fetch('https://gtgridstats.com/api/' + u.pathname.slice('/api/proxy/gridstats/'.length) + u.search, { headers: { Authorization: 'Bearer ' + (req.headers['x-gg-token'] || ''), Accept: 'application/json' } });
+      res.writeHead(r.status, { 'Content-Type': 'application/json' }); return res.end(await r.text());
+    }
+  } catch (e) { return json(res, { ok: false, error: String(e.message || e) }, e.message === 'not connected' ? 401 : 502); }
+  return false;
+}
+
+http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
   res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-GG-Token');
+  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+  if (u.pathname.startsWith('/api/psn/') || u.pathname.startsWith('/api/proxy/')) { if ((await accounts(req, res, u)) !== false) return; }
   if (u.pathname === '/api/status') return json(res, { ok: true, ps5, packets, lastPacket, type: TYPE, laps: LAPS, demo: !!args.demo });
   if (u.pathname === '/api/laps') return json(res, listLaps());
   if (u.pathname.startsWith('/api/laps/')) {
@@ -123,7 +159,7 @@ http.createServer((req, res) => {
   const ips = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
   console.log(`GT7 Endgame bridge\n  app:   http://localhost:${PORT}` + ips.map((ip) => `\n  phone: http://${ip}:${PORT}`).join('') + `\n  laps → ${LAPS}`);
 });
-function json(res, o) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); }
+function json(res, o, code = 200) { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); }
 
 // ── --demo: encrypt a synthetic lap and send it to ourselves ──────────────
 // Exercises the exact decode path a real PS5 uses. The lap comes from

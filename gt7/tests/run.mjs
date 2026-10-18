@@ -73,6 +73,40 @@ console.log('beginners');
   ok(BEGINNER.firstWeek.length === 7 && BEGINNER.glossary.length >= 25, 'first week + glossary');
 }
 
+console.log('accounts');
+{
+  const psn = await import('../app/psn-core.js');
+  const fake = (routes) => async (url, opt = {}) => {
+    const hit = Object.entries(routes).find(([k]) => url.includes(k));
+    const body = hit ? hit[1] : null;
+    return { status: body ? 200 : 404, headers: { get: (h) => (h === 'location' && body?.location) || null }, json: async () => body || {}, text: async () => JSON.stringify(body) };
+  };
+  const code = await psn.exchangeNpsso(fake({ '/authorize': { location: 'com.scee.psxandroid.scecompcall://redirect/?code=v3.ABC&cid=x' } }), 'x'.repeat(64));
+  ok(code === 'v3.ABC', 'NPSSO → auth code parsed from the redirect');
+  const sum = await psn.summary(fake({
+    '/profile2': { profile: { onlineId: 'Lab3rn', avatarUrls: [{ avatarUrl: 'a.png' }], trophySummary: { level: 312 } } },
+    '/users/me/trophyTitles': { trophyTitles: [{ trophyTitleName: 'Gran Turismo™ 7', npCommunicationId: 'NPWR1', npServiceName: 'trophy2', progress: 40, earnedTrophies: { gold: 2 }, definedTrophies: { gold: 9 } }] },
+    '/users/me/npCommunicationIds/NPWR1': { trophies: [{ trophyId: 1, earned: true, trophyEarnedRate: '55.1' }, { trophyId: 2, earned: false, trophyEarnedRate: '33.0' }] },
+    '/npCommunicationIds/NPWR1': { trophies: [{ trophyId: 1, trophyType: 'bronze', trophyName: 'International B', trophyDetail: 'Earn the International B licence' }, { trophyId: 2, trophyType: 'silver', trophyName: 'Fast', trophyDetail: 'Win a race' }] },
+    '/gamelist/': { titles: [{ name: 'Gran Turismo 7', playDuration: 'PT412H30M', playCount: 300 }] },
+  }), 'tok');
+  ok(sum.profile?.onlineId === 'Lab3rn' && sum.profile.level === 312, 'PSN profile parsed');
+  ok(sum.gt7?.trophies.length === 2 && sum.gt7.trophies[0].earned && sum.gt7.trophies[1].rate === 33, 'GT7 trophies merged with earned state and rarity');
+  ok(Math.abs(sum.play?.hours - 412.5) < 1e-9, 'GT7 play time parsed');
+  globalThis.window ??= {}; globalThis.localStorage ??= { getItem: () => null, setItem() {}, removeItem() {} };
+  const C = await import('../app/connect.js');
+  const s = { done: {}, psn: sum, gt: { DR: 'A', SR: 'S', stats: { total_credits: 12345678, license: 'IA', total_races: 40 } } };
+  C.applyGT(s); C.applyPSN(s);
+  ok(s.credits === 12345678 && s.creditsSource === 'gt7', 'GT7 credits replace typed credits');
+  ok(s.done['lic-ib'] && s.done['lic-ia'] && !s.done['lic-s'], 'licence IA ticks IB + IA, not S');
+  ok(s.done['sport-dr-b'] && s.done['sport-dr-a'] && s.done['sport-sr-s'] && s.done['sport-first'], 'DR A / SR S tick the Sport Mode steps');
+  ok(C.nextTrophies(s)[0]?.name === 'Fast', 'next trophy = easiest unearned');
+  const E = await import('../app/engine.js');
+  const steps = E.nextSteps({ ...s, onboarded: true, owned: [], wish: [], prices: {}, focus: ['sport'], grind: { payouts: {}, minutes: {}, clean: true } }, 3);
+  ok(steps.some((x) => x.kind === 'trophy'), 'trophy appears in the next moves');
+  ok(!steps.some((x) => x.kind === 'connect'), 'no "connect" nag once connected');
+}
+
 console.log('telemetry protocol');
 const proto = await import('../bridge/protocol.mjs');
 {
