@@ -6,6 +6,12 @@
 
 export const BASES = [
   {
+    id: 'logitech-rs50', name: 'Logitech G PRO / RS50 (direct drive) · your wheel', kind: 'Direct drive, 11 Nm (G PRO)',
+    ingame: { torque: '10', sens: '1' },
+    base: [['Settings', 'On-wheel menu (G HUB isn\'t on PS5)'], ['Operating range', 'Max / auto: GT7 applies each car\'s real lock'], ['FFB strength', 'Start ~70%, raise until fast corners feel heavy but not numb'], ['TRUEFORCE', 'Off or low: it masks tyre detail'], ['Damper', 'Low: just enough to stop oscillation on straights']],
+    notes: 'Logitech\'s own GT7 recommendation for the G PRO is Max Torque 10, Sensitivity 1. With 11 Nm you have headroom, so do strength on the wheel and keep GT7 at 10/1. If high-downforce cars (Gr.1) shake on straights, add a little damper before touching Sensitivity.',
+  },
+  {
     id: 'fanatec-dd', name: 'Fanatec GT DD Pro / CSL DD (direct drive)', kind: 'Direct drive',
     ingame: { torque: '8–10', sens: '1' },
     base: [['SEN', 'AUTO'], ['FF', '100'], ['FFS', 'PEAK'], ['NDP', '35–50'], ['NFR', '5–15'], ['NIN', '0'], ['INT', '3'], ['FEI', '80–100'], ['FOR / SPR / DPR', '100']],
@@ -16,12 +22,6 @@ export const BASES = [
     ingame: { torque: '5–7', sens: '1' },
     base: [['SEN', 'AUTO'], ['FF', '60–80'], ['FFS', 'PEAK'], ['NDP', '30–40'], ['NFR', '5'], ['INT', '3'], ['FEI', '100']],
     notes: 'Huge torque headroom: lower in-game Max Torque so the forces stay realistic and avoid oscillation on straights.',
-  },
-  {
-    id: 'logitech-rs50', name: 'Logitech G PRO / RS50 (direct drive) · your wheel', kind: 'Direct drive, 11 Nm (G PRO)',
-    ingame: { torque: '10', sens: '1' },
-    base: [['Settings', 'On-wheel menu (G HUB isn\'t on PS5)'], ['Operating range', 'Max / auto: GT7 applies each car\'s real lock'], ['FFB strength', 'Start ~70%, raise until fast corners feel heavy but not numb'], ['TRUEFORCE', 'Off or low: it masks tyre detail'], ['Damper', 'Low: just enough to stop oscillation on straights']],
-    notes: 'Logitech\'s own GT7 recommendation for the G PRO is Max Torque 10, Sensitivity 1. With 11 Nm you have headroom, so do strength on the wheel and keep GT7 at 10/1. If high-downforce cars (Gr.1) shake on straights, add a little damper before touching Sensitivity.',
   },
   {
     id: 'thrustmaster-tgt', name: 'Thrustmaster T-GT II / T248 / T300', kind: 'Belt / hybrid',

@@ -16,7 +16,8 @@ export function bridgeBase() {
   return (s.bridgeUrl || '').replace(/\/$/, '');
 }
 export async function probe() {
-  try { const r = await fetch('api/status', { cache: 'no-store' }); if (r.ok && (await r.json()).ok) { bridgeOk = 'same'; return true; } } catch { /* not on the bridge */ }
+  // GitHub Pages can never be the bridge: skip the same-origin check there (it only 404s)
+  if (!/\.github\.io$/.test(location.hostname)) try { const r = await fetch('api/status', { cache: 'no-store' }); if (r.ok && (await r.json()).ok) { bridgeOk = 'same'; return true; } } catch { /* not on the bridge */ }
   const b = (store.get().bridgeUrl || '').replace(/\/$/, '');
   if (b) { try { const r = await fetch(b + '/api/status', { cache: 'no-store' }); if (r.ok) { bridgeOk = 'remote'; return true; } } catch { /* unreachable or mixed content */ } }
   bridgeOk = false; return false;
