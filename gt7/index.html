@@ -21,6 +21,7 @@
     <span class="brand-text"><b>GRAN TURISMO</b><i>ENDGAME</i></span>
   </a>
   <div class="stripe" aria-hidden="true"><span></span><span></span></div>
+  <a class="sync-pill" href="#/account" id="sync-pill" title="Cloud save"><span class="sdot"></span><span class="slabel">Sign in</span></a>
   <a class="credits-pill" href="#/credits" id="credits-pill" title="Your credits">Cr. —</a>
 </header>
 
@@ -31,11 +32,13 @@
   <a href="#/credits" data-r="credits"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke-width="2.2"/><path d="M14.5 9.2a3 3 0 1 0 0 5.6" fill="none" stroke-width="2.2"/></svg><span>Credits</span></a>
   <a href="#/roadmap" data-r="roadmap"><svg viewBox="0 0 24 24"><path d="M4 4h2v16H4zM8 5h11l-2 3.5L19 12H8z"/></svg><span>Roadmap</span></a>
   <a href="#/academy" data-r="academy"><svg viewBox="0 0 24 24"><path d="M12 3l10 5-10 5L2 8zM6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5l-6 3z"/></svg><span>Academy</span></a>
+  <a href="#/telemetry" data-r="telemetry"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3 4-7 5 5" fill="none" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg><span>Logger</span></a>
   <a href="#/more" data-r="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg><span>More</span></a>
 </nav>
 
 <main id="view" tabindex="-1"></main>
 
+<script src="vendor/mqtt.min.js" defer></script>
 <script type="module" src="app/main.js"></script>
 </body>
 </html>

@@ -43,6 +43,27 @@ matches whole phrases only.
 GT originals (Trial Mountain, Deep Forest, …) have no geometry: `map: null`,
 drawn as a lap strip with estimated corner positions. Never fake a map for them.
 
+## Cloud save (`app/sync.js`)
+Sign in once per device with PSN ID + passphrase → PBKDF2 → AES-GCM key +
+topic id. The save is published *retained* on three public MQTT brokers
+(same pattern as `kittens/`, `cycle/`; mqtt.js vendored in `vendor/`). Newest
+`updatedAt` wins. A pristine device (updatedAt 0) never publishes, so it can't
+clobber the cloud copy. Laps go on `<topic>/laps/<hash>`, thinned to ~10 Hz.
+Real PSN sign-in / GT7 garage data is impossible: no third-party PSN OAuth,
+no GT7 data API. The UI says so. Local test broker: aedes over ws, pages
+pick it up via `window.GT7_BROKERS`.
+
+## Data Logger (`bridge/`, `app/telemetry.js`, `app/laps.js`)
+`bridge/gt7-bridge.mjs` (zero deps) decodes GT7's Salsa20 UDP telemetry
+(`bridge/protocol.mjs`, verified against the eSTREAM vector), records laps at
+20 Hz into `~/GT7Laps`, serves the app + `/api/*` on :8787 (same origin, so
+no mixed-content problem), and streams live frames over SSE. `--demo` encrypts
+`data/demo-lap.json` (made by `tools/make_demo_lap.mjs` from real Spa
+geometry, in a rotated + mirrored frame) and sends it to itself.
+`laps.js align()` identifies the circuit by Procrustes-fitting the lap to
+every OSM map (rotation, reflection, scale 0.85–1.15, start offset); the
+replay draws in the map's north-up frame via `Tinv`. Laps live in IndexedDB.
+
 ## Content honesty
 Lap benchmarks are estimates (labelled so in the UI). Credit payouts and
 Legend prices drift with patches: every number is user-overridable and

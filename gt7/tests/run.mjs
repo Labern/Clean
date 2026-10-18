@@ -64,5 +64,40 @@ CHAPTERS.forEach((ch) => (ch.cars || []).forEach((id) => ok(carById[id], `chapte
 ok(TIMELINE.every((e, i) => !i || e.year >= TIMELINE[i - 1].year), 'timeline in order');
 ok(BASES.length >= 4, 'wheel bases listed');
 
+console.log('telemetry protocol');
+const proto = await import('../bridge/protocol.mjs');
+{
+  // Salsa20: eSTREAM 256-bit set 1, vector 0
+  const k = Buffer.alloc(32); k[0] = 0x80;
+  ok(proto.salsa20(k, Buffer.alloc(8), Buffer.alloc(64)).toString('hex').toUpperCase().startsWith('E3BE8FDD8BECA2E3EA8EF9475B29A6E7'), 'salsa20 matches the eSTREAM test vector');
+  for (const type of ['A', 'B', '~']) {
+    const pk = Buffer.alloc(proto.SIZE[type]);
+    pk.writeUInt32LE(0x47375330, 0); pk.writeFloatLE(123.5, 0x04); pk.writeFloatLE(-50.25, 0x0C); pk.writeFloatLE(50, 0x4C);
+    pk.writeInt16LE(3, 0x74); pk.writeInt32LE(83456, 0x7C); pk.writeInt16LE(1 | 8, 0x8E); pk[0x90] = 4 | (15 << 4); pk[0x91] = 255; pk[0x92] = 0; pk.writeInt32LE(3437, 0x124);
+    if (pk.length >= 0x13C) pk.writeFloatLE(0.25, 0x128);
+    const enc = proto.encrypt(pk, 0xC0FFEE, type);
+    ok(enc.readUInt32LE(0) !== 0x47375330, `${type}: packet is actually encrypted`);
+    const d = proto.decrypt(enc, type);
+    ok(d, `${type}: decrypts with the right XOR`);
+    const f = d && proto.parse(d);
+    ok(f && Math.abs(f.v - 180) < 0.01 && f.gear === 4 && f.thr === 1 && f.lap === 3 && f.last === 83456 && f.car === 3437 && f.onTrack, `${type}: fields parse`);
+    ok(f && Math.abs(f.x - 123.5) < 1e-3 && Math.abs(f.z + 50.25) < 1e-3, `${type}: position parses`);
+    if (type === '~') ok(f && Math.abs(f.steer - 0.25) < 1e-6, '~: steering parses');
+    ok(!proto.decrypt(enc, type === 'A' ? 'B' : 'A'), `${type}: wrong XOR is rejected`);
+  }
+}
+
+console.log('lap alignment');
+{
+  globalThis.indexedDB ??= {};
+  const L = await import('../app/laps.js');
+  const lap = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/demo-lap.json'), 'utf8'));
+  const a = L.align(lap);
+  ok(a && a.track.id === 'spa', 'demo lap (rotated + mirrored frame) is identified as Spa');
+  ok(a && a.rms < 15, `alignment fit under 15 m (${a && a.rms.toFixed(1)} m)`);
+  const back = a && a.Tinv([lap.pts[0][1], lap.pts[0][2]]);
+  ok(back && Math.hypot(back[0] - a.map.pts[0][0] * a.map.mPerUnit, back[1] - a.map.pts[0][1] * a.map.mPerUnit) < 60, 'lap start maps back to near the start line');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -14,6 +14,9 @@ import { thumb, fullMap, lapStrip, SECTOR_COLORS } from './map.js';
 import { nextSteps, progress, grindRows, hoursFor, priceOf, isDone, trackOfTheDay, bestRate } from './engine.js';
 import { mountWidget } from './widgets.js';
 import { TIMELINE, CHAPTERS } from '../data/heritage.js';
+import { BUILD } from '../data/build.js';
+import * as sync from './sync.js';
+import { telemetryView, lapView } from './telemetry.js';
 
 const S = store.get;
 const NO_IMG = new Set(['escudo']);
@@ -117,7 +120,8 @@ views.home = () => {
     <section class="section">
       <div class="head"><h2>Explore</h2></div>
       <div class="grid g4">
-        ${[['#/academy', 'Racecraft Academy', 'From the racing line to alien technique, with interactive diagrams.'],
+        ${[['#/telemetry', 'Data Logger', 'Record your real laps from the PS5 and scrub through your racing line.'],
+          ['#/academy', 'Racecraft Academy', 'From the racing line to alien technique, with interactive diagrams.'],
           ['#/wheel', 'Wheel Lab', 'Force feedback and pedals, tuned for your exact wheel base.'],
           ['#/tuning', 'Tuning Lab', 'What every setting does, plus a symptom → fix solver.'],
           ['#/sport', 'Sport Mode', 'How DR and SR really work, and how to climb.']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><div class="kicker">Open</div><h3 style="margin:6px 0">${t}</h3><div class="muted small">${d}</div></a>`)}
@@ -566,7 +570,7 @@ views.wheel = () => {
 views.more = () => html`
   <div class="kicker">More</div><h1>Everything Else</h1>
   <div class="grid g3" style="margin-top:22px">
-    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
+    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals'], ['#/account', 'Cloud save', 'Sign in once, same save everywhere'], ['#/telemetry', 'Data Logger', 'Record laps, replay your racing line'], ['#/status', 'Build status', 'What\'s done and what\'s next']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
   </div>
   <section class="section card pad">
     <h3>Your data</h3>
@@ -612,6 +616,72 @@ views.heritage = () => {
 };
 
 
+
+views.account = () => {
+  const i = sync.info();
+  const when = i.lastSync ? new Date(i.lastSync).toLocaleTimeString() : 'not yet';
+  return {
+    html: html`
+    ${back('#/more', 'More')}
+    <div class="kicker">Cloud save</div><h1>${i.user ? 'Signed In' : 'Sign In Once'}</h1>
+    ${i.user ? html`
+      <div class="grid g3" style="margin-top:20px">
+        <div class="card stat"><div class="v" style="font-size:30px">${i.user}</div><div class="l">PSN ID</div></div>
+        <div class="card stat"><div class="v" style="font-size:30px;color:${i.status === 'live' ? 'var(--ok)' : 'var(--warn)'}">${i.status === 'live' ? 'Live' : i.status === 'connecting' ? 'Connecting…' : i.status}</div><div class="l">${i.brokers}/3 relays connected</div></div>
+        <div class="card stat"><div class="v" style="font-size:30px">${when}</div><div class="l">Last synced</div></div>
+      </div>
+      <p class="muted" style="max-width:70ch;margin-top:18px">Open the app on any other device, sign in with the same PSN ID and passphrase, and your whole save follows: credits, garage, wishlist, PBs, roadmap, notes, wheel settings and laps. Changes sync within seconds while both are open.</p>
+      <div class="row" style="margin-top:12px"><button class="btn" id="snow">Sync now</button><button class="btn ghost" id="sout">Sign out on this device</button></div>`
+    : html`
+      <div class="grid g2" style="margin-top:20px;align-items:start">
+        <div class="card pad">
+          <label class="f">PSN ID<input type="text" id="au" autocomplete="username" placeholder="e.g. your PSN online ID"></label>
+          <label class="f" style="margin-top:12px">Passphrase (pick one, remember it)<input type="password" id="ap" autocomplete="current-password" placeholder="at least 8 characters"></label>
+          <div class="row" style="margin-top:16px"><button class="btn red" id="ain">Sign in & sync</button></div>
+          <p class="muted small" style="margin-top:12px">First sign-in creates your cloud save from what's on this device. Every other device: same two fields, once.</p>
+        </div>
+        <div class="card pad">
+          <h3>How it works</h3>
+          <ul class="pts" style="margin-top:10px">
+            <li style="font-weight:500">Your save is encrypted on the device with a key made from your PSN ID + passphrase. The passphrase never leaves the device.</li>
+            <li style="font-weight:500">The encrypted copy is kept on three public relays. Every device you sign in on re-uploads it, so it persists.</li>
+            <li style="font-weight:500">Lose the passphrase and the cloud copy can't be opened. Your devices still have it, and Export in More is a backup.</li>
+          </ul>
+        </div>
+      </div>`}
+    <section class="section card pad">
+      <div class="kicker">Why not "Sign in with PlayStation"?</div>
+      <p style="margin-top:8px;max-width:80ch">Sony doesn't offer PSN sign-in to third-party apps, and GT7 has no public API for your garage, credits or results. Nothing outside the game can read them, so here you type credits once and tick cars off. The real live data GT7 does publish is its <b>telemetry</b> stream from the PS5 (speed, revs, throttle, brake, gear, tyres, position on track). The Data Logger reads that: it records your laps and replays your actual racing line. <a href="#/telemetry" style="text-decoration:underline">Open the Data Logger →</a></p>
+    </section>`,
+    wire(root) {
+      const ain = $('#ain', root);
+      if (ain) ain.onclick = async () => {
+        const u = $('#au', root).value.trim(), p = $('#ap', root).value;
+        if (!u || p.length < 8) { toast('PSN ID and an 8+ character passphrase'); return; }
+        ain.disabled = true; ain.textContent = 'Signing in…';
+        try { await sync.signIn(u, p); toast('Signed in. Syncing.'); } catch (e) { toast(e.message); }
+        render();
+      };
+      const so = $('#sout', root); if (so) so.onclick = () => { if (confirm('Sign out on this device? Your data stays here and in the cloud.')) { sync.signOut(); render(); } };
+      const sn = $('#snow', root); if (sn) sn.onclick = async () => { await sync.syncNow(); toast('Synced'); render(); };
+    },
+  };
+};
+
+views.status = () => {
+  const col = { done: 'ok', doing: 'gold', next: 'blue', later: '' };
+  const lab = { done: 'Done', doing: 'In progress', next: 'Next', later: 'Later' };
+  const n = BUILD.filter((b) => b.s === 'done').length;
+  return html`
+    ${back('#/more', 'More')}
+    <div class="kicker">${n}/${BUILD.length} shipped</div><h1>Build Status</h1>
+    <div class="bar red" style="height:12px;margin:18px 0 22px;max-width:520px"><i style="width:${(n / BUILD.length) * 100}%"></i></div>
+    <div class="grid" style="gap:8px;max-width:820px">${BUILD.map((b) => html`<div class="check ${b.s === 'done' ? 'done' : ''}" style="cursor:default"><span class="box"></span><div class="t" style="flex:1">${b.t}</div><span class="chip ${col[b.s]}">${lab[b.s]}</span></div>`)}</div>`;
+};
+
+views.telemetry = telemetryView;
+views.lap = lapView;
+
 views.notfound = () => html`<h1>Off track</h1><p class="muted">That page doesn't exist. <a href="#/" style="text-decoration:underline">Back to the Command Centre</a>.</p>`;
 
 // ── router ──────────────────────────────────────────────
@@ -630,20 +700,29 @@ function render() {
   const res = out && out.html !== undefined && !(out instanceof Object && out.s) ? out : { html: out };
   root.innerHTML = String(res.html);
   (res.wire || WIRES[name])?.(root);
-  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more' }[name] || name;
+  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more', account: 'more', status: 'more', telemetry: 'telemetry', lap: 'telemetry' }[name] || name;
   $$('#nav a').forEach((a) => a.classList.toggle('on', a.dataset.r === navKey));
   const s = S();
   $('#credits-pill').textContent = s.credits == null ? 'Cr. —' : 'Cr. ' + crShort(s.credits);
+  paintSync();
 }
 
 let lastName = null;
 window.addEventListener('hashchange', () => {
   const { name } = route();
   render();
-  if (name !== lastName || name === 'track' || name === 'car' || name === 'lesson') window.scrollTo({ top: 0 });
+  if (name !== lastName || name === 'track' || name === 'car' || name === 'lesson' || name === 'lap') window.scrollTo({ top: 0 });
   lastName = name;
 });
+function paintSync() {
+  const i = sync.info(), el = $('#sync-pill');
+  el.className = 'sync-pill ' + i.status;
+  $('.slabel', el).textContent = i.user ? (i.status === 'live' ? 'Synced' : 'Syncing…') : 'Sign in';
+}
+sync.onStatus(() => { paintSync(); if (route().name === 'account') render(); });
+store.subscribe((_s, why) => { if (why === 'remote') { render(); toast('Synced from your other device'); } });
 render();
 lastName = route().name;
+sync.start();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
