@@ -18,6 +18,7 @@ export const BUILD = [
   { t: 'Start Here: 10-chapter beginners course, first week, glossary', s: 'done' },
   { t: 'Richer corner text for the thinner track guides (93 corners)', s: 'done' },
   { t: 'Your next move leads everything: big NEXT card, Done / Not now, next bar on every page', s: 'done' },
+  { t: 'Beyond the Apex: 19 concepts from Polyphony\'s manual, each demonstrated on real corners with a drill', s: 'done' },
   { t: 'PlayStation Network: profile, GT7 trophies + rarity, play time', s: 'done' },
   { t: 'GT7 stats via GT-Gridstats: real credits, licence, garage, DR/SR', s: 'done' },
   { t: 'Chunky touch UI: bigger type, 52 px+ buttons', s: 'done' },

@@ -76,6 +76,14 @@ Every screen serves `engine.nextSteps()`. Home leads with one big NEXT card
 and `#nextbar` shows the top move on every other page. New data sources
 should feed the engine, not just a screen.
 
+## Beyond the Apex (`app/apex.js`, `data/apex.js`)
+Polyphony's official GT7 manual (TOC API `gran-turismo.com/us/gt7/api/apex/`,
+articles at `/us/gt7/apex<src>`). Each concept is paraphrased, never copied, links
+its source article, and is pinned to `demos` = track id + corner indices drawn by
+`map.js focusMap`. Tests check every track/corner/lesson reference. Progress lives in
+`s.apex`; the roadmap step `apex` sends the engine to the next undriven concept, and
+track guides list the concepts demonstrated there.
+
 ## Accounts (`app/connect.js`, `app/psn-core.js`, `app/platform.js`)
 - PSN: NPSSO → OAuth (PlayStation App client, as psn-api does) → profile,
   GT7 trophies + rarity, play time. Browsers can't call Sony (no CORS), so the

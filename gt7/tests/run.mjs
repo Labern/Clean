@@ -12,6 +12,7 @@ import { GRINDS } from '../data/grinds.js';
 import { LESSONS } from '../data/academy.js';
 import { CHAPTERS, TIMELINE } from '../data/heritage.js';
 import { BASES } from '../data/wheel.js';
+import { APEX, APEX_PARTS, apexUrl, apexForTrack } from '../data/apex.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
@@ -128,6 +129,30 @@ const proto = await import('../bridge/protocol.mjs');
     if (type === '~') ok(f && Math.abs(f.steer - 0.25) < 1e-6, '~: steering parses');
     ok(!proto.decrypt(enc, type === 'A' ? 'B' : 'A'), `${type}: wrong XOR is rejected`);
   }
+}
+
+console.log('beyond the apex');
+{
+  ok(new Set(APEX.map((a) => a.id)).size === APEX.length, 'apex ids unique');
+  const parts = new Set(APEX_PARTS.map((p) => p.id));
+  const lessonIds = new Set(LESSONS.map((l) => l.id));
+  const widgets = new Set(['line', 'brake', 'weight', 'circle']);
+  for (const a of APEX) {
+    ok(parts.has(a.part), `${a.id}: part ${a.part} exists`);
+    ok(/^\/[a-z_]+\/[a-z_]+\/\d\d$/.test(a.src) && apexUrl(a).startsWith('https://www.gran-turismo.com/us/gt7/apex/'), `${a.id}: official article url`);
+    ok(a.idea.length >= 2 && a.points.length >= 2 && a.demos.length >= 1, `${a.id}: has idea, points, demos`);
+    if (a.lesson) ok(lessonIds.has(a.lesson), `${a.id}: lesson ${a.lesson} exists`);
+    if (a.widget) ok(widgets.has(a.widget), `${a.id}: widget ${a.widget} exists`);
+    for (const d of a.demos) {
+      const t = trackById[d.track];
+      ok(t, `${a.id}: demo track ${d.track} exists`);
+      ok(d.corners.length >= 1, `${a.id}/${d.track}: names at least one corner`);
+      d.corners.forEach((i) => ok(t && t.corners[i], `${a.id}/${d.track}: corner index ${i} exists`));
+      ok(d.title && d.watch && d.drill, `${a.id}/${d.track}: title, watch, drill`);
+    }
+  }
+  ok(PHASES.some((p) => p.steps.some((s) => s.id === 'apex')), 'roadmap has the apex step');
+  ok(apexForTrack('fuji').some(({ a }) => a.id === 'markers'), 'Fuji carries the manual\'s own braking-marker example');
 }
 
 console.log('lap alignment');

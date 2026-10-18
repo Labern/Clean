@@ -64,6 +64,7 @@ export const PHASES = [
     blurb: 'The last few tenths. Racing line theory, rotation at the limit, minimum corner speed, ghosts and telemetry.',
     steps: [
       { id: 'academy', title: 'Finish the Racecraft Academy', prio: 33, focus: ['pace', 'wheel'], how: 'Every lesson, then use each one on a track.' },
+      { id: 'apex', title: 'Drive Beyond the Apex', prio: 34, focus: ['pace', 'tune'], how: 'Polyphony\'s own manual, one concept at a time, on the exact corners where you feel it. Run each drill.' },
       { id: 'tt-gold', title: 'Beat "fast" benchmark on 5 tracks', prio: 48, focus: ['pace'], how: 'Log PBs in the track guides.' },
       { id: 'tt-alien', title: 'Hit an "alien" benchmark anywhere', prio: 70, focus: ['pace'], how: 'Download a top ghost and match its braking and minimum speeds.' },
     ],
