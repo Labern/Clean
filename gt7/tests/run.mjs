@@ -64,6 +64,15 @@ CHAPTERS.forEach((ch) => (ch.cars || []).forEach((id) => ok(carById[id], `chapte
 ok(TIMELINE.every((e, i) => !i || e.year >= TIMELINE[i - 1].year), 'timeline in order');
 ok(BASES.length >= 4, 'wheel bases listed');
 
+console.log('beginners');
+{
+  const { BEGINNER } = await import('../data/beginners.js');
+  ok(BEGINNER.chapters.length === 10, '10 beginner chapters');
+  ok(new Set(BEGINNER.chapters.map((c) => c.id)).size === 10, 'chapter ids unique');
+  BEGINNER.chapters.forEach((c) => ok(c.sections.length >= 2 && c.tips.length >= 3 && c.try, `chapter ${c.id} complete`));
+  ok(BEGINNER.firstWeek.length === 7 && BEGINNER.glossary.length >= 25, 'first week + glossary');
+}
+
 console.log('telemetry protocol');
 const proto = await import('../bridge/protocol.mjs');
 {

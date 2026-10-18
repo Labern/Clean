@@ -17,6 +17,7 @@ import { TIMELINE, CHAPTERS } from '../data/heritage.js';
 import { BUILD } from '../data/build.js';
 import * as sync from './sync.js';
 import { telemetryView, lapView } from './telemetry.js';
+import { startView, chapterView } from './start.js';
 
 const S = store.get;
 const NO_IMG = new Set(['escudo']);
@@ -71,6 +72,11 @@ views.home = () => {
   const rate = bestRate(s);
   return {
     html: html`
+    <a class="card start-band fade-in" href="#/start">
+      <span class="start-dot">NEW TO GT?</span>
+      <span><b>Start Here</b> <span class="muted">How to play from zero: controls, car physics, licences, assists, racing clean.</span></span>
+      <span class="btn sm red">Begin →</span>
+    </a>
     <section class="hero fade-in">
       <div class="copy">
         <div class="stripe-big"><span></span><span></span></div>
@@ -570,7 +576,7 @@ views.wheel = () => {
 views.more = () => html`
   <div class="kicker">More</div><h1>Everything Else</h1>
   <div class="grid g3" style="margin-top:22px">
-    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals'], ['#/account', 'Cloud save', 'Sign in once, same save everywhere'], ['#/telemetry', 'Data Logger', 'Record laps, replay your racing line'], ['#/status', 'Build status', 'What\'s done and what\'s next']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
+    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/start', 'Start Here', 'How to play GT from zero'], ['#/roadmap', 'Roadmap', 'Post-Café to alien pace'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals'], ['#/account', 'Cloud save', 'Sign in once, same save everywhere'], ['#/telemetry', 'Data Logger', 'Record laps, replay your racing line'], ['#/status', 'Build status', 'What\'s done and what\'s next']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
   </div>
   <section class="section card pad">
     <h3>Your data</h3>
@@ -679,6 +685,7 @@ views.status = () => {
     <div class="grid" style="gap:8px;max-width:820px">${BUILD.map((b) => html`<div class="check ${b.s === 'done' ? 'done' : ''}" style="cursor:default"><span class="box"></span><div class="t" style="flex:1">${b.t}</div><span class="chip ${col[b.s]}">${lab[b.s]}</span></div>`)}</div>`;
 };
 
+views.start = (arg) => (arg ? chapterView(arg) : startView());
 views.telemetry = telemetryView;
 views.lap = lapView;
 
@@ -700,7 +707,7 @@ function render() {
   const res = out && out.html !== undefined && !(out instanceof Object && out.s) ? out : { html: out };
   root.innerHTML = String(res.html);
   (res.wire || WIRES[name])?.(root);
-  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more', account: 'more', status: 'more', telemetry: 'telemetry', lap: 'telemetry' }[name] || name;
+  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more', account: 'more', status: 'more', telemetry: 'telemetry', lap: 'telemetry', start: 'start' }[name] || name;
   $$('#nav a').forEach((a) => a.classList.toggle('on', a.dataset.r === navKey));
   const s = S();
   $('#credits-pill').textContent = s.credits == null ? 'Cr. —' : 'Cr. ' + crShort(s.credits);
@@ -711,7 +718,7 @@ let lastName = null;
 window.addEventListener('hashchange', () => {
   const { name } = route();
   render();
-  if (name !== lastName || name === 'track' || name === 'car' || name === 'lesson' || name === 'lap') window.scrollTo({ top: 0 });
+  if (name !== lastName || ['track', 'car', 'lesson', 'lap', 'start'].includes(name)) window.scrollTo({ top: 0 });
   lastName = name;
 });
 function paintSync() {

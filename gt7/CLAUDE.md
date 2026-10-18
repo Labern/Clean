@@ -64,6 +64,12 @@ geometry, in a rotated + mirrored frame) and sends it to itself.
 every OSM map (rotation, reflection, scale 0.85–1.15, start offset); the
 replay draws in the map's north-up frame via `Tinv`. Laps live in IndexedDB.
 
+## Start Here (`app/start.js`, `data/beginners.js`)
+The beginners' course, first in the nav and as a band above the home hero.
+Physics chapters embed the Academy widgets (`widgetFor`). The content was drafted
+by a Haiku sub-agent and fact-corrected (tyre families, ABS, wheel rotation).
+Keep it consistent with the Academy: inputs *blend*, they aren't sequential.
+
 ## Content honesty
 Lap benchmarks are estimates (labelled so in the UI). Credit payouts and
 Legend prices drift with patches: every number is user-overridable and

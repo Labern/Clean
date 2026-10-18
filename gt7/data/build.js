@@ -15,8 +15,9 @@ export const BUILD = [
   { t: 'Telemetry bridge (GT7 data logger → app), live HUD', s: 'done' },
   { t: 'Lap replay: scrub your real racing line, auto track ID, corner stats, lap compare', s: 'done' },
   { t: 'Laps sync to your account (Mac → phone)', s: 'done' },
-  { t: 'Beginners: how to play GT from zero', s: 'doing' },
-  { t: 'Richer corner text for the thinner track guides', s: 'next' },
+  { t: 'Start Here: 10-chapter beginners course, first week, glossary', s: 'done' },
+  { t: 'Richer corner text for the thinner track guides (93 corners)', s: 'done' },
+  { t: 'Corner text for GT original tracks', s: 'next' },
   { t: 'Native iOS / Android app', s: 'later' },
   { t: 'Multi-user accounts', s: 'later' },
 ];
