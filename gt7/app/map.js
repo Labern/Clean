@@ -108,3 +108,33 @@ export function lapStrip(track, sel = -1) {
     ${pins}
   </svg>`;
 }
+
+// Concept map for Beyond the Apex: the whole lap dimmed, the demonstrated
+// corners lit (a short stretch either side of each) and only their pins drawn.
+export function focusMap(track, idxs = [], small = false) {
+  const m = track.map && MAPS[track.map];
+  if (!m) return lapStrip(track, idxs[0] ?? -1);
+  const b = box(m, 70);
+  const all = m.pts.map((p) => p.join(',')).join(' ');
+  const W = 0.035;
+  const lit = idxs.map((i) => track.corners[i]).filter(Boolean).map((c) => {
+    const from = c.at - W, to = c.at + W;
+    const seg = from < 0 ? [[from + 1, 1], [0, to]] : to > 1 ? [[from, 1], [0, to - 1]] : [[from, to]];
+    return seg.map(([f, t]) => `<polyline points="${polyline(m, f, t)}" fill="none" stroke="#ffc531" stroke-width="${small ? 30 : 24}" stroke-linejoin="round" stroke-linecap="round"/>`).join('');
+  }).join('');
+  const p0 = at(m, 0);
+  const pins = idxs.map((i) => track.corners[i]).filter(Boolean).map((c) => {
+    const p = at(m, c.at);
+    const label = String(c.n).replace(/^T/, '').slice(0, 5);
+    const r = small ? 52 : 38;
+    return `<g transform="translate(${p[0]},${p[1]})"><circle r="${r}" fill="#e1131f" stroke="#fff" stroke-width="6"/>
+      <text text-anchor="middle" dy="${label.length > 3 ? 8 : 11}" fill="#fff" style="font-family:'Barlow Condensed';font-weight:800;font-style:italic;font-size:${(label.length > 3 ? 22 : 32) * (small ? 1.4 : 1)}px">${label}</text></g>`;
+  }).join('');
+  return `<svg viewBox="${b.x} ${b.y} ${b.w} ${b.h}" width="100%" height="100%" preserveAspectRatio="xMidYMid meet" role="img" aria-label="${track.short}: highlighted corners">
+    <polygon points="${all}" fill="none" stroke="rgba(255,255,255,.10)" stroke-width="46" stroke-linejoin="round"/>
+    <polygon points="${all}" fill="none" stroke="rgba(255,255,255,.5)" stroke-width="${small ? 16 : 12}" stroke-linejoin="round"/>
+    ${lit}
+    <circle cx="${p0[0]}" cy="${p0[1]}" r="${small ? 22 : 16}" fill="#fff"/>
+    ${pins}
+  </svg>`;
+}

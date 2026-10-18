@@ -3,6 +3,7 @@ import { PHASES } from '../data/roadmap.js';
 import { GRINDS, CLEAN_BONUS } from '../data/grinds.js';
 import { carById } from '../data/cars.js';
 import { TRACKS } from '../data/tracks.js';
+import { APEX } from '../data/apex.js';
 
 export const priceOf = (s, id) => s.prices[id] ?? carById[id]?.price ?? null;
 
@@ -88,7 +89,7 @@ export function nextSteps(s, n = 3) {
     out.push({
       id: st.id, kind: 'step', title: st.title, step: st.id,
       why: st.how + (p != null && p > credits ? ` (You need ${(p - credits).toLocaleString()} more Cr.)` : ''),
-      href: st.car ? `#/car/${st.car}` : st.id.startsWith('lic') || st.id.startsWith('ce') ? '#/roadmap' : st.id === 'wheel-setup' ? '#/wheel' : st.id === 'academy' ? '#/academy' : st.id.startsWith('tune') ? '#/tuning' : st.id.startsWith('sport') ? '#/sport' : '#/roadmap',
+      href: st.car ? `#/car/${st.car}` : st.id.startsWith('lic') || st.id.startsWith('ce') ? '#/roadmap' : st.id === 'wheel-setup' ? '#/wheel' : st.id === 'academy' ? '#/academy' : st.id === 'apex' ? '#/apex' + ((x) => (x ? '/' + x.id : ''))(APEX.find((a) => !(s.apex || {})[a.id])) : st.id.startsWith('tune') ? '#/tuning' : st.id.startsWith('sport') ? '#/sport' : '#/roadmap',
       cta: 'Go', phase: st.phase.title,
     });
   }

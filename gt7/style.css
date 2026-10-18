@@ -420,3 +420,16 @@ button.chip, a.chip { min-height: 44px; padding: 8px 16px; cursor: pointer; }
 .grind-rate b { display: block; font-family: var(--display); font-style: italic; font-weight: 900; font-size: 38px; color: var(--navy); line-height: 1; }
 .grind-rate span { font-size: 14px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; }
 .grind-inputs { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+
+/* Beyond the Apex */
+.apex-card { display: grid; grid-template-rows: 180px auto; }
+.apex-card .apex-map { background: linear-gradient(160deg, #0b1f4b, #13306e); padding: 14px; display: grid; place-items: center; }
+.apex-card .apex-map svg { width: 100%; height: 100%; max-height: 152px; }
+.apex-card .body { padding: 14px 18px 18px; }
+.apex-card.done .kicker { color: var(--ok); }
+.apex-demo { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+.apex-stage { min-height: 0; padding-bottom: 18px; }
+.apex-stage svg { max-height: min(480px, 56vh); }
+.apex-corner { padding: 14px 16px; }
+.apex-band { border-left: 6px solid var(--red); }
+@media (max-width: 760px) { .apex-demo { grid-template-columns: 1fr; } .apex-card { grid-template-rows: 150px auto; } }
