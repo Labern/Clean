@@ -17,7 +17,13 @@ export const BUILD = [
   { t: 'Laps sync to your account (Mac → phone)', s: 'done' },
   { t: 'Start Here: 10-chapter beginners course, first week, glossary', s: 'done' },
   { t: 'Richer corner text for the thinner track guides (93 corners)', s: 'done' },
+  { t: 'Your next move leads everything: big NEXT card, Done / Not now, next bar on every page', s: 'done' },
+  { t: 'PlayStation Network: profile, GT7 trophies + rarity, play time', s: 'done' },
+  { t: 'GT7 stats via GT-Gridstats: real credits, licence, garage, DR/SR', s: 'done' },
+  { t: 'Chunky touch UI: bigger type, 52 px+ buttons', s: 'done' },
+  { t: 'Native-ready: Capacitor iOS/Android shells, icons, safe areas', s: 'done' },
   { t: 'Corner text for GT original tracks', s: 'next' },
+  { t: 'Native UDP telemetry (no Mac needed)', s: 'later' },
   { t: 'Native iOS / Android app', s: 'later' },
   { t: 'Multi-user accounts', s: 'later' },
 ];

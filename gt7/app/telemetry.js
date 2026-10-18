@@ -15,7 +15,7 @@ export function bridgeBase() {
   if (bridgeOk === 'same') return '';
   return (s.bridgeUrl || '').replace(/\/$/, '');
 }
-async function probe() {
+export async function probe() {
   try { const r = await fetch('api/status', { cache: 'no-store' }); if (r.ok && (await r.json()).ok) { bridgeOk = 'same'; return true; } } catch { /* not on the bridge */ }
   const b = (store.get().bridgeUrl || '').replace(/\/$/, '');
   if (b) { try { const r = await fetch(b + '/api/status', { cache: 'no-store' }); if (r.ok) { bridgeOk = 'remote'; return true; } } catch { /* unreachable or mixed content */ } }
