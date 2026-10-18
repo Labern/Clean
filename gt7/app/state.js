@@ -12,10 +12,11 @@ const DEFAULTS = {
   lessons: {},          // lesson id -> true
   pbs: {},              // track id -> { class: 'm:ss.s' }
   focus: ['collect', 'sport', 'pace', 'tune', 'wheel', 'heritage'],
-  wheelBase: null,
+  wheelBase: 'logitech-rs50', // the owner drives a Logitech G PRO
   wheelNotes: '',
   grind: { payouts: {}, minutes: {}, clean: true, log: [] },
   trackNotes: {},
+  updatedAt: 0,         // ms; newest copy wins when devices sync
 };
 
 let state = load();
@@ -32,10 +33,23 @@ function load() {
 
 export const get = () => state;
 
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private mode: keep in memory */ }
+}
+
+// Local edit: bump updatedAt so this copy wins the next sync.
 export function set(fn) {
   fn(state);
-  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* private mode: keep in memory */ }
-  subs.forEach((f) => f(state));
+  state.updatedAt = Date.now();
+  persist();
+  subs.forEach((f) => f(state, 'local'));
+}
+
+// A newer copy arrived from another device: take it wholesale (one user).
+export function replace(doc) {
+  state = { ...structuredClone(DEFAULTS), ...doc, grind: { ...DEFAULTS.grind, ...(doc.grind || {}) } };
+  persist();
+  subs.forEach((f) => f(state, 'remote'));
 }
 
 export const subscribe = (f) => (subs.add(f), () => subs.delete(f));
