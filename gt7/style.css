@@ -71,7 +71,12 @@ p { margin: 0 0 .8em; }
 .sync-pill.live .sdot { background: var(--ok); box-shadow: 0 0 0 4px rgba(16,163,90,.18); }
 .sync-pill.connecting .sdot { background: var(--warn); }
 .sync-pill.error .sdot { background: var(--red); }
-@media (max-width: 760px) { .sync-pill .slabel { display: none; } .sync-pill { padding: 0; width: 44px; justify-content: center; } }
+/* Signed out: always labelled (and tinted) so it's findable; signed in: just the dot on phones. */
+.sync-pill.out { background: #fde8ea; color: var(--red); }
+.sync-pill.out .sdot { background: var(--red); }
+@media (max-width: 760px) { .sync-pill:not(.out) .slabel { display: none; } .sync-pill:not(.out) { padding: 0; width: 44px; justify-content: center; } .sync-pill.out { padding: 8px 14px; font-size: 15px; } }
+.sync-pill, .credits-pill { white-space: nowrap; flex-shrink: 0; }
+@media (max-width: 360px) { .sync-pill.out { padding: 8px 10px; gap: 6px; } .credits-pill { padding-left: 12px; padding-right: 12px; } }
 .credits-pill { font-family: var(--display); font-weight: 800; font-style: italic; font-size: 23px; min-height: 44px; display: inline-flex; align-items: center;
   padding: 6px 18px; border-radius: 999px; background: var(--navy); color: #fff; letter-spacing: .02em;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 4px 14px rgba(11,31,75,.25);

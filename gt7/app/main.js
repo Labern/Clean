@@ -844,7 +844,7 @@ window.addEventListener('hashchange', () => {
 });
 function paintSync() {
   const i = sync.info(), el = $('#sync-pill');
-  el.className = 'sync-pill ' + i.status;
+  el.className = 'sync-pill ' + i.status + (i.user ? '' : ' out');
   $('.slabel', el).textContent = i.user ? (i.status === 'live' ? 'Synced' : 'Syncing…') : 'Sign in';
 }
 sync.onStatus(() => { paintSync(); if (route().name === 'account') render(); });
