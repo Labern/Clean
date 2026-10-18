@@ -207,8 +207,9 @@ label.f { display: grid; gap: 6px; font-size: 14px; font-weight: 600; color: var
 .t-hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 22px; align-items: stretch; }
 @media (max-width: 980px) { .t-hero { grid-template-columns: 1fr; } }
 .mapstage { background: radial-gradient(120% 90% at 30% 20%, #18398a, #0b1f4b 55%, #06112e); border-radius: 20px; padding: 18px; position: relative; box-shadow: var(--shadow-hi); min-height: 360px; }
-.mapstage svg { width: 100%; height: auto; max-height: 560px; display: block; }
-.mapstage .legend { position: absolute; left: 18px; bottom: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+.mapstage svg { width: 100%; height: auto; max-height: min(560px, 62vh); display: block; margin: 0 auto; }
+.mapstage { padding-bottom: 58px; }
+.mapstage .legend { position: absolute; left: 18px; right: 18px; bottom: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
 .mapstage .legend button { border: 0; border-radius: 999px; padding: 6px 12px; font-weight: 700; font-size: 13px; color: #fff; background: rgba(255,255,255,.1); }
 .mapstage .legend button.on { background: #fff; color: var(--navy); }
 .mapstage .note { position: absolute; right: 16px; top: 12px; font-size: 11px; color: #8ea2d6; }
@@ -312,3 +313,14 @@ ul.pts li::before { content: ''; position: absolute; left: 0; top: 7px; width: 1
 .modal { background: #fff; border-radius: 20px; max-width: 640px; width: 100%; max-height: 90vh; overflow: auto; padding: 26px; box-shadow: var(--shadow-hi); }
 .opt { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border: 1.5px solid var(--line); border-radius: 12px; cursor: pointer; font-weight: 600; }
 .opt.on { border-color: var(--blue-hi); background: rgba(31,91,255,.05); }
+
+/* heritage timeline */
+.timeline { display: flex; gap: 10px; overflow-x: auto; padding: 6px 2px 14px; scroll-snap-type: x mandatory; }
+.tl-dot { flex: none; scroll-snap-align: center; border: 0; background: #fff; border-radius: 14px; padding: 12px 14px; min-width: 150px; text-align: left; box-shadow: var(--shadow); display: grid; gap: 2px; border-top: 4px solid #c8d0e0; transition: transform .2s, border-color .2s; }
+.tl-dot b { font-family: var(--display); font-style: italic; font-weight: 900; font-size: 28px; color: var(--navy); line-height: 1; }
+.tl-dot span { font-size: 13px; color: var(--ink-3); font-weight: 600; line-height: 1.25; }
+.tl-dot.big { border-top-color: var(--blue); }
+.tl-dot.on { border-top-color: var(--red); transform: translateY(-3px); box-shadow: var(--shadow-hi); }
+
+.mapstage svg.strip-v { max-width: 440px; max-height: none; }
+.pin text { font-family: var(--display); font-weight: 800; font-style: italic; }

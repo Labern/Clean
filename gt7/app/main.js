@@ -13,6 +13,7 @@ import { BASES, METHOD, PEDALS, SEATING } from '../data/wheel.js';
 import { thumb, fullMap, lapStrip, SECTOR_COLORS } from './map.js';
 import { nextSteps, progress, grindRows, hoursFor, priceOf, isDone, trackOfTheDay, bestRate } from './engine.js';
 import { mountWidget } from './widgets.js';
+import { TIMELINE, CHAPTERS } from '../data/heritage.js';
 
 const S = store.get;
 const NO_IMG = new Set(['escudo']);
@@ -207,7 +208,7 @@ views.track = (id) => {
   const pb = s.pbs[t.id] || {};
   const classes = Object.keys(t.laps);
   let sel = -1, sector = -1;
-  const mapHtml = () => fullMap(t, sel, sector) || `<div style="padding:30px 10px 10px"><div class="kicker" style="color:#ff8a90">GT original · no real-world geometry</div><h3 style="color:#fff;margin:6px 0 4px">Lap strip</h3><p style="color:#9fb3e6;font-size:14px">Corners placed by estimated distance round the lap. Tap a marker.</p>${lapStrip(t, sel)}</div>`;
+  const mapHtml = () => fullMap(t, sel, sector) || `<div style="padding:30px 10px 10px"><div class="kicker" style="color:#ff8a90">GT original · no real-world geometry</div><h3 style="color:#fff;margin:6px 0 4px">Lap strip</h3><p style="color:#9fb3e6;font-size:14px;margin-bottom:6px">Corners placed by estimated distance round the lap. Tap a marker.</p>${lapStrip(t, sel)}</div>`;
   return {
     html: html`
     ${back('#/tracks', 'Tracks')}
@@ -282,7 +283,7 @@ views.track = (id) => {
         $$('.corner', root).forEach((c) => c.classList.toggle('on', +c.dataset.i === sel));
         if (scroll && sel >= 0) $(`.corner[data-i="${sel}"]`, root).scrollIntoView({ behavior: 'smooth', block: 'center' });
       };
-      const bindPins = () => $$('#mapsvg .pin, #mapsvg .tick', root).forEach((p) => (p.onclick = () => select(+p.dataset.i, true)));
+      const bindPins = () => $$('#mapsvg .pin', root).forEach((p) => (p.onclick = () => select(+p.dataset.i, true)));
       bindPins();
       $$('.corner', root).forEach((c) => (c.onclick = () => select(+c.dataset.i, false)));
       $$('[data-sec]', root).forEach((b) => (b.onclick = () => {
@@ -582,10 +583,34 @@ const moreWire = (root) => {
   $('#rst', root).onclick = () => { if (confirm('Erase all your data on this device?')) { store.reset(); toast('Reset'); location.hash = '#/'; } };
 };
 
-views.heritage = () => html`
-  <div class="kicker">Heritage</div><h1>30 Years of GT</h1>
-  <p class="muted" style="max-width:66ch;margin-top:10px">The full timeline is being built: GT1 to GT7, the Skylines, the 787B, GT Academy, and why Japanese cars run through the series' DNA. Start with the heritage cars:</p>
-  <div class="grid g4" style="margin-top:22px">${CARS.filter((c) => c.tier === 'heritage').map(carCard)}</div>`;
+let heritageSel = TIMELINE.length - 1;
+views.heritage = () => {
+  const e = TIMELINE[heritageSel];
+  return {
+    html: html`
+    <div class="kicker">Heritage · 1997–${new Date().getFullYear()}</div><h1>30 Years of GT</h1>
+    <p class="muted" style="max-width:66ch;margin-top:10px">The Real Driving Simulator: where it came from, the cars that built it, and why it matters to the brands in your garage. Tap through the years.</p>
+    <section class="section">
+      <div class="timeline" id="tl">${TIMELINE.map((x, i) => html`<button class="tl-dot ${i === heritageSel ? 'on' : ''} ${x.big ? 'big' : ''}" data-i="${i}"><b>${x.year}</b><span>${x.title}</span></button>`)}</div>
+      <div class="card pad tl-card fade-in" style="margin-top:16px">
+        <div class="row" style="justify-content:space-between"><div class="kicker">${e.year} · ${e.platform}</div><div class="row"><button class="btn sm ghost" data-step="-1">←</button><button class="btn sm ghost" data-step="1">→</button></div></div>
+        <h2 style="margin:8px 0 12px">${e.title}</h2>
+        <p style="font-size:18px;color:var(--ink-2);max-width:75ch;margin:0">${e.text}</p>
+      </div>
+    </section>
+    ${CHAPTERS.map((c) => html`<section class="section">
+      <div class="head"><h2>${c.title}</h2></div>
+      <div class="prose">${c.text.map((t) => html`<p>${t}</p>`)}</div>
+      ${c.cars ? html`<div class="grid g4" style="margin-top:14px">${c.cars.filter((id) => carById[id]).map((id) => carCard(carById[id]))}</div>` : ''}
+    </section>`)}`,
+    wire(root) {
+      $$('.tl-dot', root).forEach((b) => (b.onclick = () => { heritageSel = +b.dataset.i; render(); }));
+      $$('[data-step]', root).forEach((b) => (b.onclick = () => { heritageSel = (heritageSel + +b.dataset.step + TIMELINE.length) % TIMELINE.length; render(); }));
+      $('.tl-dot.on', root)?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    },
+  };
+};
+
 
 views.notfound = () => html`<h1>Off track</h1><p class="muted">That page doesn't exist. <a href="#/" style="text-decoration:underline">Back to the Command Centre</a>.</p>`;
 
