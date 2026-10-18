@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GT7 Endgame</title>
+<meta name="description" content="Gran Turismo 7 endgame companion: credits, cars, track guides, racecraft.">
+<meta name="theme-color" content="#0b1f4b">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="img/brand/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="img/brand/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;1,600;1,700;1,800;1,900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#/" aria-label="Home">
+    <span class="gt-mark" aria-hidden="true"></span>
+    <span class="brand-text"><b>GRAN TURISMO</b><i>ENDGAME</i></span>
+  </a>
+  <div class="stripe" aria-hidden="true"><span></span><span></span></div>
+  <a class="credits-pill" href="#/credits" id="credits-pill" title="Your credits">Cr. —</a>
+</header>
+
+<nav class="nav" id="nav">
+  <a href="#/" data-r="home"><svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Command</span></a>
+  <a href="#/tracks" data-r="tracks"><svg viewBox="0 0 24 24"><path d="M5 18c-2-3 0-6 3-6s4-2 3-4 1-5 4-4 5 4 3 8-6 2-7 5-4 4-6 1z" fill="none" stroke-width="2.2"/></svg><span>Tracks</span></a>
+  <a href="#/garage" data-r="garage"><svg viewBox="0 0 24 24"><path d="M3 15l2-5c.4-1 1.2-1.5 2.2-1.5h9.6c1 0 1.8.5 2.2 1.5l2 5v4h-3v-2H6v2H3zM6.5 14a1.5 1.5 0 1 0 0 .01M17.5 14a1.5 1.5 0 1 0 0 .01"/></svg><span>Garage</span></a>
+  <a href="#/credits" data-r="credits"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke-width="2.2"/><path d="M14.5 9.2a3 3 0 1 0 0 5.6" fill="none" stroke-width="2.2"/></svg><span>Credits</span></a>
+  <a href="#/roadmap" data-r="roadmap"><svg viewBox="0 0 24 24"><path d="M4 4h2v16H4zM8 5h11l-2 3.5L19 12H8z"/></svg><span>Roadmap</span></a>
+  <a href="#/academy" data-r="academy"><svg viewBox="0 0 24 24"><path d="M12 3l10 5-10 5L2 8zM6 11v5c0 1.5 3 3 6 3s6-1.5 6-3v-5l-6 3z"/></svg><span>Academy</span></a>
+  <a href="#/more" data-r="more"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg><span>More</span></a>
+</nav>
+
+<main id="view" tabindex="-1"></main>
+
+<script type="module" src="app/main.js"></script>
+</body>
+</html>
