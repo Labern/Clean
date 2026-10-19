@@ -7,6 +7,10 @@ import { focusMap } from './map.js';
 import { APEX, APEX_PARTS, apexById, apexUrl, apexForTrack } from '../data/apex.js';
 import { trackById } from '../data/tracks.js';
 import { LESSONS } from '../data/academy.js';
+import { simBlock, mountSimIn } from './simview.js';
+
+// Concepts that get the input simulator, and which scenario shows them best.
+const SIM = { width: 'line', markers: 'braking', turnin: 'line', vision: 'vision', throttle: 'priority', assists: 'throttle', etiquette: 'slipstream', slip: 'circle', balance: 'weight', yaw: 'alien', load: 'weight', layout: 'throttle', lsd: 'throttle', brakes: 'braking', fixes: 'trail', wet: 'wet' };
 
 const seen = () => store.get().apex || {};
 export const nextApex = () => APEX.find((a) => !seen()[a.id]) || null;
@@ -63,6 +67,7 @@ export function apexView(id) {
           <div class="row">${lesson ? html`<a class="chip blue" href="#/lesson/${lesson.id}">Academy: ${lesson.title}</a>` : ''}${a.tool ? html`<a class="chip blue" href="${a.tool[0]}">${a.tool[1]}</a>` : ''}</div>
         </div>
       </div>
+      ${SIM[id] ? simBlock(SIM[id], 'See it in the inputs') : ''}
       <section class="section">
         <div class="head"><h2>On Track</h2><span class="muted small">Where you'll feel it</span></div>
         ${a.demos.length > 1 ? html`<div class="seg" id="demo-tabs" style="margin-bottom:16px">${a.demos.map((d, k) => { const t = trackById[d.track], dup = a.demos.filter((x) => x.track === d.track).length > 1; return html`<button data-d="${k}" class="${k ? '' : 'on'}">${dup ? t.corners[d.corners[0]].name.replace(/^T\d+\S*\s/, '') : t.short}</button>`; })}</div>` : ''}
@@ -74,6 +79,7 @@ export function apexView(id) {
       </div>`,
     wire(root) {
       const el = $('#awidget', root); if (el) mountWidget(a.widget, el);
+      mountSimIn(root);
       $$('[data-d]', root).forEach((b) => (b.onclick = () => {
         cur = +b.dataset.d;
         $$('[data-d]', root).forEach((x) => x.classList.toggle('on', +x.dataset.d === cur));

@@ -21,6 +21,9 @@ import { startView, chapterView } from './start.js';
 import { apexIndex, apexView, apexOnTrack, nextApex } from './apex.js';
 import { apexForTrack } from '../data/apex.js';
 import { videosSection, wireVideos } from './videos.js';
+import { mountSim, simBlock } from './simview.js';
+import { systemsIndex, systemView } from './systems.js';
+import { SCENARIOS } from './scenarios.js';
 import * as connect from './connect.js';
 import { isNative } from './platform.js';
 
@@ -149,6 +152,7 @@ views.home = () => {
         ${[['#/telemetry', 'Data Logger', 'Record your real laps from the PS5 and scrub through your racing line.'],
           ['#/academy', 'Racecraft Academy', 'From the racing line to alien technique, with interactive diagrams.'],
           ['#/apex', 'Beyond the Apex', 'Polyphony\'s official manual, demonstrated corner by corner on real tracks.'],
+          ['#/systems', 'Race Systems', 'Pits, fuel maps, tyres, TCS, ABS, brake balance, the MFD, weather, penalties.'],
           ['#/wheel', 'Wheel Lab', 'Force feedback and pedals, tuned for your exact wheel base.'],
           ['#/tuning', 'Tuning Lab', 'What every setting does, plus a symptom → fix solver.'],
           ['#/sport', 'Sport Mode', 'How DR and SR really work, and how to climb.']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><div class="kicker">Open</div><h3 style="margin:6px 0">${t}</h3><div class="muted small">${d}</div></a>`)}
@@ -507,7 +511,8 @@ views.academy = () => {
   return {
     html: html`
     <div class="kicker">Racecraft Academy</div><h1>Go Faster</h1>
-    <p class="muted" style="max-width:66ch;margin-top:10px">Twelve lessons from the racing line to alien technique. Several have interactive diagrams.</p>
+    <p class="muted" style="max-width:66ch;margin-top:10px">Twelve lessons from the racing line to alien technique. Every one has an input simulator: the wheel, pedals and G-forces of a fast lap, frame by frame.</p>
+    <a class="card pad gloss apex-band" href="#/systems" style="display:block;margin-top:12px"><div class="kicker">Race Systems</div><h3 style="margin:6px 0">Pits, fuel, tyres, TCS, ABS, brake balance, the MFD</h3><div class="muted small">What each one does and exactly how to use it in a race.</div></a>
     <a class="card pad gloss apex-band" href="#/apex" style="display:block;margin-top:18px"><div class="kicker">Beyond the Apex · the official GT7 manual</div><h3 style="margin:6px 0">${nextApex() ? 'Next concept: ' + nextApex().title : 'All concepts driven ✓'}</h3><div class="muted small">Polyphony's own explanations, each demonstrated on the corners where you feel it.</div></a>
     <div class="grid g3" style="margin-top:22px">${LESSONS.map((l) => html`<a class="card pad lesson-card gloss" href="#/lesson/${l.id}">
       <span class="n">${String(l.n).padStart(2, '0')}</span>
@@ -525,6 +530,7 @@ views.lesson = (id) => {
     html: html`
     ${back('#/academy', 'Academy')}
     <div class="kicker">Lesson ${l.n} · ${l.level}</div><h1>${l.title}</h1>
+    ${SCENARIOS[id] ? simBlock(id) : ''}
     <div class="grid g2" style="margin-top:22px;align-items:start">
       <div class="prose"><p class="pull">${l.hook}</p>${l.body.map((p) => html`<p>${p}</p>`)}</div>
       <div class="grid" style="gap:16px">
@@ -543,6 +549,7 @@ views.lesson = (id) => {
     wire(root) {
       const w = $('#widget', root);
       if (w) mountWidget(l.widget, w);
+      const sm = $('#sim', root); if (sm) mountSim(sm, id);
       $('#ldone', root).onclick = () => {
         store.set((s) => { s.lessons[id] = !s.lessons[id]; if (LESSONS.every((x) => s.lessons[x.id])) s.done.academy = true; });
         render();
@@ -617,7 +624,7 @@ views.wheel = () => {
 views.more = () => html`
   <div class="kicker">More</div><h1>Everything Else</h1>
   <div class="grid g3" style="margin-top:22px">
-    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/apex', 'Beyond the Apex', 'The official manual, on specific corners'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/start', 'Start Here', 'How to play GT from zero'], ['#/roadmap', 'Roadmap', 'Post-Café to alien pace'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals'], ['#/connect', 'PlayStation + GT7', 'Your real credits, licence, DR/SR, trophies'], ['#/account', 'Cloud save', 'Sign in once, same save everywhere'], ['#/telemetry', 'Data Logger', 'Record laps, replay your racing line'], ['#/status', 'Build status', 'What\'s done and what\'s next']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
+    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/apex', 'Beyond the Apex', 'The official manual, on specific corners'], ['#/systems', 'Race Systems', 'Pits, fuel, tyres, TCS, ABS, MFD'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/start', 'Start Here', 'How to play GT from zero'], ['#/roadmap', 'Roadmap', 'Post-Café to alien pace'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals'], ['#/connect', 'PlayStation + GT7', 'Your real credits, licence, DR/SR, trophies'], ['#/account', 'Cloud save', 'Sign in once, same save everywhere'], ['#/telemetry', 'Data Logger', 'Record laps, replay your racing line'], ['#/status', 'Build status', 'What\'s done and what\'s next']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
   </div>
   <section class="section card pad">
     <h3>Your data</h3>
@@ -728,6 +735,7 @@ views.status = () => {
 
 views.start = (arg) => (arg ? chapterView(arg) : startView());
 views.apex = (arg) => (arg ? apexView(arg) : apexIndex());
+views.systems = (arg) => (arg ? systemView(arg) : systemsIndex());
 
 views.connect = () => {
   const s = S(), p = s.psn, g = s.gt, st = g?.stats || {};
@@ -831,7 +839,7 @@ function render() {
   const res = out && out.html !== undefined && !(out instanceof Object && out.s) ? out : { html: out };
   root.innerHTML = String(res.html);
   (res.wire || WIRES[name])?.(root);
-  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', apex: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more', account: 'more', status: 'more', connect: 'more', telemetry: 'telemetry', lap: 'telemetry', start: 'start' }[name] || name;
+  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', apex: 'academy', systems: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more', account: 'more', status: 'more', connect: 'more', telemetry: 'telemetry', lap: 'telemetry', start: 'start' }[name] || name;
   $$('#nav a').forEach((a) => a.classList.toggle('on', a.dataset.r === navKey));
   paintNextBar(name);
   const s = S();
@@ -843,7 +851,7 @@ let lastName = null;
 window.addEventListener('hashchange', () => {
   const { name } = route();
   render();
-  if (name !== lastName || ['track', 'car', 'lesson', 'lap', 'start', 'apex'].includes(name)) window.scrollTo({ top: 0 });
+  if (name !== lastName || ['track', 'car', 'lesson', 'lap', 'start', 'apex', 'systems'].includes(name)) window.scrollTo({ top: 0 });
   lastName = name;
 });
 function paintSync() {

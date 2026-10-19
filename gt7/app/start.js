@@ -4,6 +4,10 @@ import { $, html, raw } from './util.js';
 import * as store from './state.js';
 import { mountWidget } from './widgets.js';
 import { BEGINNER } from '../data/beginners.js';
+import { simBlock, mountSimIn } from './simview.js';
+
+// Chapters that get the input simulator, and which scenario.
+const SIM = { 'grip-and-tyres': 'circle', 'weight-transfer': 'weight', 'braking-and-the-line': 'braking', 'drivetrains-and-handling': 'throttle', assists: 'throttle', 'racing-others': 'slipstream' };
 
 const WIDGET = { grip: 'circle', 'weight-transfer': 'weight', braking: 'brake', 'racing-line': 'line' };
 const widgetFor = (c) => WIDGET[c.id] || (/grip|tyre/.test(c.id) ? 'circle' : /weight/.test(c.id) ? 'weight' : /brak|line/.test(c.id) ? 'line' : null);
@@ -42,6 +46,7 @@ export function chapterView(id) {
       <a class="back" href="#/start">← Start Here</a>
       <div class="kicker">${c.kicker} · ${c.minutes} min read</div><h1>${c.title}</h1>
       <p class="pull" style="margin-top:16px">${c.summary}</p>
+      ${SIM[id] ? simBlock(SIM[id]) : ''}
       <div class="grid g2" style="align-items:start;margin-top:10px">
         <div class="prose">${c.sections.map((sec) => html`<h3 style="margin:18px 0 8px">${sec.h}</h3>${sec.p.map((p) => html`<p>${p}</p>`)}`)}</div>
         <div class="grid" style="gap:16px;align-content:start;position:sticky;top:84px">
@@ -56,6 +61,7 @@ export function chapterView(id) {
       </div>`,
     wire(root) {
       const el = $('#bwidget', root); if (el) mountWidget(w, el);
+      mountSimIn(root);
       $('#bdone', root).onclick = () => {
         store.set((s) => { s.read = { ...(s.read || {}), [id]: true }; });
         location.hash = next ? '#/start/' + next.id : '#/start';
