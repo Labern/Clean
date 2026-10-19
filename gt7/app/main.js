@@ -534,7 +534,7 @@ views.lesson = (id) => {
     <div class="grid g2" style="margin-top:22px;align-items:start">
       <div class="prose"><p class="pull">${l.hook}</p>${l.body.map((p) => html`<p>${p}</p>`)}</div>
       <div class="grid" style="gap:16px">
-        ${l.widget ? raw('<div class="widget" id="widget"></div>') : ''}
+        ${l.widget && !SCENARIOS[id] ? raw('<div class="widget" id="widget"></div>') : ''}
         <div class="card pad"><div class="kicker">Remember</div><ul class="pts" style="margin-top:10px">${l.points.map((p) => html`<li>${p}</li>`)}</ul></div>
       </div>
     </div>
