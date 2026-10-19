@@ -1,6 +1,6 @@
 // Offline shell: network-first for code/data (always fresh when online),
 // cache-first for images. Bump VERSION to drop old caches.
-const VERSION = 'gt7-v9';
+const VERSION = 'gt7-v10';
 self.addEventListener('install', (e) => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener('fetch', (e) => {

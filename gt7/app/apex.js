@@ -62,7 +62,7 @@ export function apexView(id) {
         <div class="prose">${a.idea.map((p, k) => html`<p class="${k ? '' : 'pull'}">${p}</p>`)}
           <p class="muted small">From <a href="${apexUrl(a)}" target="_blank" rel="noopener" style="text-decoration:underline">${a.article}</a> (Beyond the Apex, Polyphony Digital). Paraphrased.</p></div>
         <div class="grid" style="gap:16px;align-content:start">
-          ${a.widget ? raw('<div class="widget" id="awidget"></div>') : ''}
+          ${a.widget && !SIM[id] ? raw('<div class="widget" id="awidget"></div>') : ''}
           <div class="card pad"><div class="kicker">Remember</div><ul class="pts" style="margin-top:10px">${a.points.map((p) => html`<li style="font-weight:500">${p}</li>`)}</ul></div>
           <div class="row">${lesson ? html`<a class="chip blue" href="#/lesson/${lesson.id}">Academy: ${lesson.title}</a>` : ''}${a.tool ? html`<a class="chip blue" href="${a.tool[0]}">${a.tool[1]}</a>` : ''}</div>
         </div>

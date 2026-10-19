@@ -453,39 +453,55 @@ button.chip, a.chip { min-height: 44px; padding: 8px 16px; cursor: pointer; }
 /* Input simulator */
 .sim { background: radial-gradient(120% 90% at 30% 10%, #18398a, #0b1f4b 55%, #06112e); border-radius: 20px; padding: 14px; color: #fff; box-shadow: var(--shadow-hi); display: grid; gap: 12px; }
 .sim-top { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; }
-.sim-mapbox { position: relative; border-radius: 14px; overflow: hidden; background: #123d22; aspect-ratio: 4 / 3; }
-.sim-map { width: 100%; height: 100%; display: block; background: radial-gradient(#1c5230, #0f3a1f); }
-.sim-mini { position: absolute; right: 8px; top: 8px; width: 20%; max-width: 130px; aspect-ratio: 1; background: rgba(6,17,46,.75); border-radius: 10px; border: 1px solid rgba(255,255,255,.2); cursor: pointer; }
-.sim-cam { position: absolute; left: 8px; top: 8px; min-height: 40px; border: 0; border-radius: 10px; background: rgba(6,17,46,.8); color: #fff; font-weight: 700; padding: 6px 14px; font-size: 14px; }
-.sim-road { fill: #4a5263; stroke: #e8ecf5; stroke-width: .25; }
-.sim-kerb { fill: none; stroke: #e1131f; stroke-width: .8; stroke-dasharray: 1.2 1.2; }
-.sim-board { fill: #fff; stroke: #0b1f4b; stroke-width: .15; }
-.sim-board-t { font: 800 1.6px var(--display); text-anchor: middle; fill: #0b1f4b; }
-.sim-line { fill: none; stroke-width: .9; stroke-linecap: round; stroke-linejoin: round; }
-.sim-ghost { fill: none; stroke: rgba(255,255,255,.35); stroke-width: .5; stroke-dasharray: 1.5 1.5; }
-.sim-mk { fill: #ffc531; stroke: #0b1f4b; stroke-width: .3; } .sim-mk.brk { fill: #ff3b46; }
-.sim-mk-t { font: 700 2.4px var(--body); fill: #fff; paint-order: stroke; stroke: #0b1f4b; stroke-width: .5px; }
-.sim-body { fill: #1f5bff; stroke: #fff; stroke-width: .12; } .other .sim-body { fill: #9aa3b5; }
-.sim-glass { fill: #0b1f4b; opacity: .75; }
-.sim-wheel { fill: #111; } .sim-wheel.spin { fill: #ff3b46; }
-.sim-bl { fill: #ff2030; }
-.sim-gvec { stroke: #ffc531; stroke-width: .5; stroke-linecap: round; }
+.sim-mapbox { position: relative; border-radius: 14px; overflow: hidden; background: #1d5a32; aspect-ratio: 4 / 3; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12), inset 0 0 60px rgba(0,0,0,.45); }
+.sim-mapbox::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.35)); }
+.sim-map { width: 100%; height: 100%; display: block; }
+.sim-mini { position: absolute; right: 8px; top: 8px; width: 20%; max-width: 130px; aspect-ratio: 1; background: rgba(6,17,46,.78); border-radius: 10px; border: 1px solid rgba(255,255,255,.25); cursor: pointer; z-index: 1; backdrop-filter: blur(4px); }
+.sim-cam { position: absolute; left: 8px; top: 8px; min-height: 40px; border: 0; border-radius: 10px; background: rgba(6,17,46,.8); color: #fff; font-weight: 700; padding: 6px 14px; font-size: 14px; z-index: 1; backdrop-filter: blur(4px); }
+.sim-runoff { fill: #5d636e; }
+.sim-gravel { stroke: rgba(0,0,0,.15); stroke-width: .2; }
+.sim-road { stroke: rgba(0,0,0,.35); stroke-width: .3; }
+.sim-edge { fill: none; stroke: #f2f4f8; stroke-width: .3; }
+.sim-kerb-w { fill: none; stroke: #f4f6fa; stroke-width: 1.1; }
+.sim-kerb-r { fill: none; stroke: #e1131f; stroke-width: 1.1; stroke-dasharray: 1.4 1.4; }
+.sim-board { fill: #fff; stroke: #0b1f4b; stroke-width: .2; }
+.sim-board-t { font: 900 italic 2.1px var(--display); text-anchor: middle; fill: #0b1f4b; }
+.sim-line-glow { fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; opacity: .28; }
+.sim-line { fill: none; stroke-width: .8; stroke-linecap: round; stroke-linejoin: round; }
+.sim-ghost { fill: none; stroke: rgba(255,255,255,.5); stroke-width: .4; stroke-dasharray: 1.2 1.2; }
+.sim-mk { fill: #ffc531; stroke: #0b1f4b; stroke-width: .35; } .sim-mk.brk { fill: #ff3b46; }
+.sim-mk-halo { fill: rgba(255,197,49,.25); } .sim-mk-halo.brk { fill: rgba(255,59,70,.28); }
+.sim-mk-bg { fill: #0b1f4b; stroke: #ffc531; stroke-width: .25; } .sim-mk-bg.brk { stroke: #ff3b46; }
+.sim-mk-stem { stroke: #ffc531; stroke-width: .25; }
+.sim-mk-t { font: 900 italic 2.2px var(--display); fill: #fff; text-anchor: middle; letter-spacing: .05px; }
+.sim-body { stroke: rgba(255,255,255,.75); stroke-width: .07; }
+.sim-glass { fill: #0a1430; stroke: rgba(255,255,255,.35); stroke-width: .05; }
+.sim-wing { fill: #10131a; stroke: rgba(255,255,255,.3); stroke-width: .05; } .sim-splitter { fill: #10131a; }
+.sim-wheel { fill: #0d0e12; } .sim-wheel.spin { fill: #ff3b46; }
+.sim-bl { fill: #ff2030; filter: drop-shadow(0 0 .4px #ff2030); }
+.sim-gvec { stroke: #ffc531; stroke-width: .45; stroke-linecap: round; }
 .sim-eye { stroke: #ffc531; stroke-width: .35; stroke-dasharray: 1 .8; } .sim-eyedot { fill: #ffc531; }
-.sim-mini-road { fill: none; stroke: rgba(255,255,255,.7); stroke-width: 6; stroke-linejoin: round; } .sim-minidot { fill: #ff3b46; }
+.sim-mini-road { fill: none; stroke: rgba(255,255,255,.75); stroke-width: 6; stroke-linejoin: round; } .sim-minidot { fill: #ff3b46; }
 .sim-cockpit { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; gap: 10px; align-content: start; }
 .sim-wheelbox { position: relative; display: grid; place-items: center; }
 .sim-wheel-svg { width: 100%; max-width: 210px; }
-.sw-arc-bg { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 6; } .sw-arc { fill: none; stroke: #4c8dff; stroke-width: 6; stroke-linecap: round; }
-.sw-rim { fill: none; stroke: #1b1d24; stroke-width: 16; } .sw-spoke { fill: none; stroke: #1b1d24; stroke-width: 14; stroke-linecap: round; stroke-linejoin: round; }
-.sw-hub { fill: #2a2d36; stroke: #44495a; stroke-width: 2; } .sw-mark { fill: #e1131f; }
-.sw-logo { font: 800 12px var(--display); font-style: italic; text-anchor: middle; fill: #9fb3e6; }
+.sw-arc-bg { fill: none; stroke: rgba(255,255,255,.08); stroke-width: 7; } .sw-arc { fill: none; stroke: #4c8dff; stroke-width: 7; stroke-linecap: round; filter: drop-shadow(0 0 4px rgba(76,141,255,.8)); }
+.sw-paddle { fill: #2c2f37; stroke: #4a4f5c; stroke-width: 1.5; }
+.sw-grip { fill: none; stroke: #4a4f5c; stroke-width: 20; stroke-linecap: round; opacity: .5; }
+.sw-mark { fill: #e1131f; }
+.sw-disp { font: 900 italic 22px var(--display); text-anchor: middle; fill: #ffc531; dominant-baseline: middle; }
+.sw-logo { font: 900 italic 13px var(--display); text-anchor: middle; fill: #8ea2d6; letter-spacing: .08em; }
+.sw-led { fill: #2a2d36; stroke: #0b0c10; stroke-width: 1.5; } .sw-led.g { fill: #36d399; filter: drop-shadow(0 0 3px #36d399); } .sw-led.y { fill: #ffc531; filter: drop-shadow(0 0 3px #ffc531); } .sw-led.r { fill: #ff3b46; filter: drop-shadow(0 0 3px #ff3b46); }
+.sw-led.flash { animation: swflash .12s steps(2) infinite; } @keyframes swflash { 50% { fill: #4c8dff; } }
 .sim-deg { position: absolute; bottom: -4px; left: 0; right: 0; text-align: center; }
 .sim-deg b { font: 900 italic 30px var(--display); } .sim-deg span { display: block; font-size: 12px; color: #9fb3e6; margin-top: -4px; }
 .sim-pedals { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .sim-pedal { width: 100%; }
-.pm-bg { fill: rgba(255,255,255,.08); } .brake .pm-fill { fill: #ff3b46; } .thr .pm-fill { fill: #36d399; }
-.pm-pct { font: 800 16px var(--display); text-anchor: middle; fill: #fff; }
-.pd-arm { fill: #6b7385; } .pd-face { fill: #c9ced8; } .brake .pd-face { fill: #dfe3ea; } .pd-grip { fill: #5c6373; }
+.pm-bg { fill: rgba(0,0,0,.35); stroke: rgba(255,255,255,.15); } .pm-tick { stroke: rgba(255,255,255,.3); stroke-width: 1.5; }
+.pm-fill { filter: drop-shadow(0 0 5px rgba(255,255,255,.25)); }
+.sim-pedal.hot.brake .pm-fill { filter: drop-shadow(0 0 8px #ff3b46); } .sim-pedal.hot.thr .pm-fill { filter: drop-shadow(0 0 8px #36d399); }
+.pm-pct { font: 900 italic 18px var(--display); text-anchor: middle; fill: #fff; }
+.pd-base { fill: #1a1d24; stroke: #3a3f4b; } .pd-grip { fill: #4a505e; }
 .pd-label { font: 800 12px var(--display); letter-spacing: .08em; text-anchor: middle; fill: #9fb3e6; }
 .sim-hud { grid-column: 1 / -1; display: grid; grid-template-columns: auto auto 1fr 1fr; grid-template-rows: auto auto; gap: 6px 12px; align-items: center; }
 .sim-speed b, .sim-gear b { font: 900 italic 44px var(--display); line-height: .9; display: block; } .sim-speed span, .sim-gear span { font-size: 12px; color: #9fb3e6; }
@@ -494,24 +510,24 @@ button.chip, a.chip { min-height: 44px; padding: 8px 16px; cursor: pointer; }
 .sim-rpm i { display: block; height: 100%; background: linear-gradient(90deg, #36d399, #ffc531 70%, #ff3b46); }
 .sim-rpm.shift { box-shadow: 0 0 0 2px #ff3b46; }
 .sim-gg { grid-row: 1 / 3; grid-column: 3; width: 100%; max-width: 130px; justify-self: center; }
-.gg-ring { fill: rgba(255,255,255,.05); stroke: rgba(255,255,255,.4); stroke-width: 1.5; } .gg-ring2 { fill: none; stroke: rgba(255,255,255,.15); }
+.gg-ring { fill: radial-gradient(#fff,#000); fill: rgba(0,0,0,.3); stroke: rgba(255,255,255,.45); stroke-width: 1.5; } .gg-ring2 { fill: none; stroke: rgba(255,255,255,.18); stroke-dasharray: 2 3; }
 .gg-ax { stroke: rgba(255,255,255,.15); } .gg-t { font: 700 9px var(--body); text-anchor: middle; fill: #9fb3e6; }
-.gg-trail { fill: none; stroke: #ffc531; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; opacity: .7; } .gg-dot { fill: #ffc531; stroke: #0b1f4b; stroke-width: 2; }
-.sim-loads { grid-row: 1 / 3; grid-column: 4; width: 100%; max-width: 80px; justify-self: center; }
-.ld-body { fill: rgba(31,91,255,.5); stroke: #fff; stroke-width: 1.5; } .ld-c { fill: rgba(255,197,49,.85); stroke: #0b1f4b; stroke-width: 1.5; } .ld-t { font: 700 9px var(--body); text-anchor: middle; fill: #9fb3e6; }
+.gg-trail { fill: none; stroke: #ffc531; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; opacity: .7; } .gg-dot { fill: #ffc531; stroke: #0b1f4b; stroke-width: 2; filter: drop-shadow(0 0 5px #ffc531); }
+.sim-loads { grid-row: 1 / 3; grid-column: 4; width: 100%; max-width: 110px; justify-self: center; overflow: visible; }
+.ld-body { fill: #1f5bff; stroke: rgba(255,255,255,.7); stroke-width: 1.2; } .ld-glass { fill: #0a1430; } .ld-c { stroke: #0b0c10; stroke-width: 1.5; } .ld-t { font: 700 9px var(--body); text-anchor: middle; fill: #9fb3e6; } .ld-p { font: 800 8px var(--display); fill: #dfe6f7; }
 .sim-extra:empty { display: none; } .sim-extra { grid-column: 1 / -1; }
 .sim-tow { display: flex; align-items: center; gap: 8px; } .sim-tow span { font: 800 13px var(--display); color: #9fb3e6; } .sim-tow i { display: block; height: 10px; border-radius: 6px; background: #4c8dff; width: 0; transition: width .1s; }
 .sim-spin { font: 900 italic 18px var(--display); color: rgba(255,255,255,.2); letter-spacing: .1em; } .sim-spin.on { color: #ff3b46; }
 .sim-caption { background: rgba(255,255,255,.07); border-radius: 12px; padding: 10px 14px; min-height: 52px; }
 .sim-caption b { font: 900 italic 22px var(--display); text-transform: uppercase; color: #ffc531; margin-right: 10px; } .sim-caption span { color: #dfe6f7; }
 .sim-trace { width: 100%; height: 240px; background: rgba(0,0,0,.18); border-radius: 12px; touch-action: none; cursor: ew-resize; }
-.tr-lane { fill: rgba(255,255,255,.03); } .tr-lab { font: 800 11px var(--display); fill: #8ea2d6; letter-spacing: .06em; }
+.tr-lane { fill: rgba(255,255,255,.03); } .tr-lab { font: 800 15px var(--display); fill: #8ea2d6; letter-spacing: .06em; }
 .tr-zero { stroke: rgba(255,255,255,.18); stroke-dasharray: 4 4; }
 .tr-ghost { fill: none; stroke: rgba(255,255,255,.28); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
 .tr-thr { fill: rgba(54,211,153,.55); stroke: #36d399; stroke-width: 1; vector-effect: non-scaling-stroke; } .tr-brk { fill: rgba(255,59,70,.6); stroke: #ff3b46; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .tr-spd { fill: none; stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; } .tr-str { fill: none; stroke: #4c8dff; stroke-width: 2; vector-effect: non-scaling-stroke; } .tr-dlt { fill: none; stroke: #ffc531; stroke-width: 2; vector-effect: non-scaling-stroke; }
-.tr-note { font: 600 11px var(--body); fill: #8ea2d6; }
-.tr-mk { stroke: rgba(255,197,49,.35); stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; } .tr-mk-t { font: 700 11px var(--body); fill: #ffc531; }
+.tr-note { font: 600 14px var(--body); fill: #8ea2d6; }
+.tr-mk { stroke: rgba(255,197,49,.35); stroke-dasharray: 3 4; vector-effect: non-scaling-stroke; } .tr-mk-t { font: 800 italic 15px var(--display); fill: #ffc531; text-transform: uppercase; }
 .tr-head { stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; } .tr-d-spd { fill: #fff; } .tr-d-str { fill: #4c8dff; }
 .sim-ctrl { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
 .sim-play { min-width: 64px; }

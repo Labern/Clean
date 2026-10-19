@@ -50,7 +50,7 @@ export function chapterView(id) {
       <div class="grid g2" style="align-items:start;margin-top:10px">
         <div class="prose">${c.sections.map((sec) => html`<h3 style="margin:18px 0 8px">${sec.h}</h3>${sec.p.map((p) => html`<p>${p}</p>`)}`)}</div>
         <div class="grid" style="gap:16px;align-content:start;position:sticky;top:84px">
-          ${w ? raw('<div class="widget" id="bwidget"></div>') : ''}
+          ${w && !SIM[id] ? raw('<div class="widget" id="bwidget"></div>') : ''}
           <div class="card pad"><div class="kicker">Tips</div><ul class="pts" style="margin-top:10px">${c.tips.map((t) => html`<li style="font-weight:500">${t}</li>`)}</ul></div>
           <div class="card pad" style="border-left:5px solid var(--red)"><div class="kicker">Try it now</div><p style="margin:8px 0 0">${c.try}</p></div>
         </div>
