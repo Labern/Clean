@@ -1,26 +1,46 @@
 // Interactive diagrams for the Academy. Each mount(el) draws into `el` and wires its controls.
 
 const W = {
-  // Racing line: one 90° corner leading onto a straight; toggle the line type.
+  // Racing line: one 90° right-hander onto a straight, drawn from geometry, not by hand.
+  // Road: entry leg x 0..150 going up, exit leg y 100..250 going right, both edges
+  // concentric about C (inner radius 40, outer 190). Each line is two tangent arcs
+  // that only ever turn right: arc 1 is tangent to the entry edge, arc 2 to the exit
+  // edge, and they meet at the apex on the inside kerb. The apex angle (degrees round
+  // the corner from the entry side) decides everything: early < 45 = geometric < late.
   line(el) {
-    // Road: up from the bottom (x -15..135), right-hander onto a straight (y 105..255).
+    const C = [190, 290], RI = 40, M = 14, TOP = 100, LEFT = 0;
     const lines = {
-      early: { d: 'M 0 640 L 0 500 C 0 400 80 330 138 312 C 190 298 205 135 232 109 L 700 109', label: 'Early apex', note: 'Turns in too soon. The car is pointed at the wall on exit, so you lift. Slowest onto the straight.', exit: 0.82, c: '#ff5b63' },
-      geo: { d: 'M 0 640 L 0 440 C 0 340 70 280 152 270 C 230 262 280 120 380 112 L 700 112', label: 'Geometric', note: 'The widest constant arc gives the highest minimum speed, but the exit is no better than the entry.', exit: 0.92, c: '#7fa8ff' },
-      late: { d: 'M 0 640 L 0 380 C 0 300 60 262 190 255 C 260 251 330 140 420 113 L 700 112', label: 'Late apex', note: 'Turns in later and straightens the exit. Full throttle earlier, so it wins the straight that follows.', exit: 1, c: '#ffc531' },
+      early: { a: 30, label: 'Early apex', note: 'Turns in too soon and clips the kerb before the corner. The exit is the tightest part, so you\'re still turning (and off the throttle) when you reach the straight.', exit: 0.82, c: '#ff5b63' },
+      geo: { a: 45, label: 'Geometric', note: 'One constant arc, edge to apex to edge. Highest minimum speed, but the exit is no straighter than the entry.', exit: 0.92, c: '#7fa8ff' },
+      late: { a: 60, label: 'Late apex', note: 'Turns in later and tighter, apexes past the middle, then the exit opens into an almost straight line. Full throttle earlier, so it wins the straight.', exit: 1, c: '#ffc531' },
     };
+    const geom = (deg) => {
+      const t = deg * Math.PI / 180, ra = RI + M;
+      const P = [C[0] - ra * Math.cos(t), C[1] - ra * Math.sin(t)];
+      const R1 = (P[0] - (LEFT + M)) / (1 - Math.cos(t));       // tangent to the entry edge
+      const R2 = (P[1] - (TOP + M)) / (1 - Math.sin(t));        // tangent to the exit edge
+      const T1 = [LEFT + M, P[1] + R1 * Math.sin(t)];           // turn-in
+      const T2 = [P[0] + R2 * Math.cos(t), TOP + M];            // track-out
+      const f = (v) => v.map((n) => n.toFixed(1)).join(' ');
+      return { P, T1, T2, d: `M ${LEFT + M} 700 L ${f(T1)} A ${R1.toFixed(1)} ${R1.toFixed(1)} 0 0 1 ${f(P)} A ${R2.toFixed(1)} ${R2.toFixed(1)} 0 0 1 ${f(T2)} L 760 ${TOP + M}` };
+    };
+    const road = 'M 0 700 L 0 290 A 190 190 0 0 1 190 100 L 760 100 L 760 250 L 190 250 A 40 40 0 0 0 150 290 L 150 700 Z';
     let cur = 'late';
     const draw = () => {
-      const L = lines[cur];
+      const L = lines[cur], g = geom(L.a);
+      const dot = (p, txt, dx, dy, col) => `<circle cx="${p[0]}" cy="${p[1]}" r="9" fill="${col}" stroke="#0b1f4b" stroke-width="3"/><text x="${p[0] + dx}" y="${p[1] + dy}" fill="#fff" font-size="17" font-family="Barlow" font-weight="600">${txt}</text>`;
       el.innerHTML = `
-        <svg viewBox="-60 40 720 580">
-          <path d="M 60 640 L 60 330 Q 60 180 210 180 L 700 180" fill="none" stroke="#2c4a8f" stroke-width="150" stroke-linejoin="round"/>
-          <path d="M 60 640 L 60 330 Q 60 180 210 180 L 700 180" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="2" stroke-dasharray="10 12"/>
-          <path d="M 135 640 L 135 330 Q 135 255 210 255 L 700 255" fill="none" stroke="#e1131f" stroke-width="6" stroke-dasharray="16 12"/>
-          ${Object.entries(lines).filter(([k]) => k !== cur).map(([, v]) => `<path d="${v.d}" fill="none" stroke="${v.c}" stroke-width="4" opacity=".28"/>`).join('')}
-          <path d="${L.d}" fill="none" stroke="${L.c}" stroke-width="8" stroke-linecap="round"/>
-          <text x="150" y="290" fill="#ffd5d8" font-size="18" font-family="Barlow">inside kerb / apex</text>
-          <text x="470" y="95" fill="#9fb3e6" font-size="18" font-family="Barlow">straight →</text>
+        <svg viewBox="-50 60 760 580">
+          <path d="${road}" fill="#2c4a8f"/>
+          <path d="M 75 700 L 75 290 A 115 115 0 0 1 190 175 L 760 175" fill="none" stroke="rgba(255,255,255,.14)" stroke-width="2" stroke-dasharray="10 12"/>
+          <path d="M 150 700 L 150 290 A 40 40 0 0 1 190 250 L 760 250" fill="none" stroke="#e1131f" stroke-width="7" stroke-dasharray="16 12"/>
+          ${Object.entries(lines).filter(([k]) => k !== cur).map(([, v]) => `<path d="${geom(v.a).d}" fill="none" stroke="${v.c}" stroke-width="4" opacity=".3"/>`).join('')}
+          <path d="${g.d}" fill="none" stroke="${L.c}" stroke-width="8" stroke-linecap="round"/>
+          ${g.T1[1] < 620 ? dot(g.T1, 'turn-in', 16, 6, '#fff') : ''}
+          ${dot(g.P, 'apex', 16, 26, L.c)}
+          ${g.T2[0] < 700 ? dot(g.T2, 'track-out', -40, -16, '#fff') : ''}
+          <text x="200" y="300" fill="#ffd5d8" font-size="16" font-family="Barlow">inside kerb</text>
+          <text x="470" y="222" fill="#9fb3e6" font-size="17" font-family="Barlow">straight →</text>
         </svg>
         <div class="ctrl">
           <div class="seg">${Object.entries(lines).map(([k, v]) => `<button data-k="${k}" class="${k === cur ? 'on' : ''}">${v.label}</button>`).join('')}</div>
