@@ -54,7 +54,7 @@ function trackCard(t) {
   return html`<a class="card track-card" href="#/track/${t.id}">
     <div class="mapbox"><span class="flag">${t.flag}</span><span class="km">${t.km.toFixed(3)} km</span>${raw(thumb(t))}</div>
     <div class="body">
-      <div class="row" style="justify-content:space-between"><span class="stars">${raw(stars(t.fame))}</span>${has ? raw('<span class="chip ok">PB logged</span>') : t.map ? raw('<span class="chip blue">Real map</span>') : raw('<span class="chip">GT original</span>')}</div>
+      <div class="row" style="justify-content:space-between"><span class="stars">${raw(stars(t.fame))}</span>${has ? raw('<span class="chip ok">PB logged</span>') : t.country !== 'GT original' ? raw('<span class="chip blue">Real map</span>') : raw('<span class="chip">GT original</span>')}</div>
       <h3 style="margin-top:6px">${t.short}</h3>
       <div class="muted small">${t.country} · ${t.corners.length} key corners · ${t.layout}</div>
     </div>
@@ -215,13 +215,13 @@ views.setup = () => {
 
 let trackFilter = 'all', trackQuery = '';
 views.tracks = () => {
-  const list = TRACKS.filter((t) => (trackFilter === 'all' || (trackFilter === 'real' ? t.map : trackFilter === 'gt' ? !t.map : t.tags.some((x) => /sport|staple/i.test(x))))
+  const list = TRACKS.filter((t) => (trackFilter === 'all' || (trackFilter === 'real' ? t.country !== 'GT original' : trackFilter === 'gt' ? t.country === 'GT original' : t.tags.some((x) => /sport|staple/i.test(x))))
     && (!trackQuery || (t.name + t.short + t.country).toLowerCase().includes(trackQuery.toLowerCase())))
     .sort((a, b) => b.fame - a.fame);
   return {
     html: html`
-    <div class="kicker">${TRACKS.length} circuits · ${TRACKS.filter((t) => t.map).length} real maps</div><h1>Track Guides</h1>
-    <p class="muted" style="max-width:66ch;margin-top:10px">Corner by corner, sector by sector, with benchmark lap times and the car to bring. Real circuits use their actual geometry from OpenStreetMap.</p>
+    <div class="kicker">${TRACKS.length} circuits · ${TRACKS.filter((t) => t.country !== 'GT original').length} real circuits · ${TRACKS.filter((t) => t.country === 'GT original').length} GT originals</div><h1>Track Guides</h1>
+    <p class="muted" style="max-width:66ch;margin-top:10px">Corner by corner, sector by sector, with benchmark lap times and the car to bring. Real circuits use their actual geometry from OpenStreetMap; GT originals are traced from the in-game course maps.</p>
     <div class="row" style="margin:20px 0">
       <div class="seg">${[['all', 'All'], ['real', 'Real maps'], ['gt', 'GT originals'], ['sport', 'Sport staples']].map(([k, l]) => html`<button data-f="${k}" class="${trackFilter === k ? 'on' : ''}">${l}</button>`)}</div>
       <input type="search" id="tq" placeholder="Search tracks" value="${trackQuery}" style="max-width:260px">
@@ -255,7 +255,7 @@ views.track = (id) => {
 
     <div class="t-hero">
       <div class="mapstage" id="mapstage">
-        <div class="note">${t.map ? 'Geometry © OpenStreetMap contributors' : ''}</div>
+        <div class="note">${t.country === 'GT original' ? 'Layout traced from the in-game course map' : t.map ? 'Geometry © OpenStreetMap contributors' : ''}</div>
         <div id="mapsvg">${raw(mapHtml())}</div>
         <div class="legend">${t.sectors.map((x, i) => html`<button data-sec="${i}" style="border-left:4px solid ${SECTOR_COLORS[i]}">S${i + 1}</button>`)}</div>
       </div>
@@ -622,7 +622,7 @@ views.more = () => html`
   </section>
   <section class="section card pad small muted">
     <h3 style="color:var(--ink)">Sources & credits</h3>
-    <p style="margin-top:8px">Track geometry © OpenStreetMap contributors (ODbL). Car photos: Wikimedia Commons (see data/credits.json for each file and licence). Credit payouts: racinggames.gg, Coach Dave Academy. Wheel settings: GTPlanet, Fanatec forum, Coach Dave, dg-edge, simracingsetup. GT original layouts: GTPlanet, Traxion. Gran Turismo and the GT logo are trademarks of Sony Interactive Entertainment. Fan-made, personal use.</p>
+    <p style="margin-top:8px">Track geometry © OpenStreetMap contributors (ODbL). Car photos: Wikimedia Commons (see data/credits.json for each file and licence). Credit payouts: racinggames.gg, Coach Dave Academy. Wheel settings: GTPlanet, Fanatec forum, Coach Dave, dg-edge, simracingsetup. GT original layouts: traced from the in-game course maps (via the Gran Turismo Wiki); descriptions from GTPlanet, Traxion. Gran Turismo and the GT logo are trademarks of Sony Interactive Entertainment. Fan-made, personal use.</p>
   </section>`;
 const moreWire = (root) => {
   $('#exp', root).onclick = async () => { const t = store.exportJSON(); try { await navigator.clipboard.writeText(t); toast('Copied to clipboard'); } catch { prompt('Copy this:', t); } };

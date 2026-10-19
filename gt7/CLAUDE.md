@@ -40,8 +40,15 @@ Bus Stop. Watkins Glen targets 5.552 so it takes the Inner Loop. MotoGP and
 long-lap segments are excluded. Autopolis is flipped. "Paddock Hill",
 "Pit Straight" and "Virage du Karting" are racing line, so the pit filter
 matches whole phrases only.
-GT originals (Trial Mountain, Deep Forest, …) have no geometry: `map: null`,
-drawn as a lap strip with estimated corner positions. Never fake a map for them.
+GT originals (Trial Mountain, Deep Forest, …) have no real-world geometry. They
+are traced from their in-game course maps (Gran Turismo Wiki images) by
+`tools/trace_gt.py <imgdir>` → `data/maps-gt.js` (numpy + PIL only: threshold,
+bridge corner-tick gaps, hand-cut pit lanes via `erase`, fill the lap interior,
+grow to the line centre, trace, resample, orient from a known start + direction,
+scale to the official km). `data/allmaps.js` merges both; import MAPS from there.
+Corner `at`s for originals were snapped to curvature detected on the trace; the
+guide's own descriptions (Deep Forest, Trial Mountain final chicane) confirmed
+the direction of travel. Never hand-draw a map.
 
 ## Cloud save (`app/sync.js`)
 Sign in once per device with PSN ID + passphrase → PBKDF2 → AES-GCM key +

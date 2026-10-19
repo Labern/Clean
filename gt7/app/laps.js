@@ -5,7 +5,7 @@
 //    recorded line to every OSM map (rotation + reflection + translation +
 //    scale, Procrustes on arc-length samples), then returns the transform that
 //    puts the map outline and corner pins into the lap's own coordinates
-import { MAPS } from '../data/maps.js';
+import { MAPS } from '../data/allmaps.js';
 import { TRACKS } from '../data/tracks.js';
 
 // ── IndexedDB ───────────────────────────────────────────

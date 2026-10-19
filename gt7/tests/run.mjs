@@ -6,7 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { TRACKS, trackById } from '../data/tracks.js';
 import { CARS, carById } from '../data/cars.js';
-import { MAPS } from '../data/maps.js';
+import { MAPS } from '../data/allmaps.js';
 import { PHASES } from '../data/roadmap.js';
 import { GRINDS } from '../data/grinds.js';
 import { LESSONS } from '../data/academy.js';

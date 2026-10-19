@@ -216,7 +216,7 @@ function renderReplay(el, lap, al, others) {
     if (!dl) return '';
     const mx = Math.max(0.5, ...dl.map((d) => Math.abs(d[1])));
     const pts = dl.map(([d, v]) => `${(d / D.at(-1)) * 1000},${CH / 2 - (v / mx) * (CH / 2 - 6)}`).join(' ');
-    return `<line x1="0" y1="${CH / 2}" x2="1000" y2="${CH / 2}" stroke="#3f5ea8"/><polyline points="${pts}" fill="none" stroke="#ffc531" stroke-width="2.5"/><text x="8" y="16" fill="#9fb3e6" style="font-size:13px;font-family:Barlow">+${mx.toFixed(2)} s (slower)</text><text x="8" y="${CH - 6}" fill="#9fb3e6" style="font-size:13px;font-family:Barlow">−${mx.toFixed(2)} s (faster)</text>`;
+    return `<line x1="0" y1="${CH / 2}" x2="1000" y2="${CH / 2}" stroke="#3f5ea8"/><polyline points="${pts}" fill="none" stroke="#ffc531" stroke-width="2.5"/><text x="8" y="16" fill="#9fb3e6" style="font-size:13px;font-family:Archivo">+${mx.toFixed(2)} s (slower)</text><text x="8" y="${CH - 6}" fill="#9fb3e6" style="font-size:13px;font-family:Archivo">−${mx.toFixed(2)} s (faster)</text>`;
   };
 
   const stats = cornerStats();
