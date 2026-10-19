@@ -14,6 +14,8 @@ import { CHAPTERS, TIMELINE } from '../data/heritage.js';
 import { BASES } from '../data/wheel.js';
 import { APEX, APEX_PARTS, apexUrl, apexForTrack } from '../data/apex.js';
 import { VIDEOS, VIDEO_KINDS } from '../data/videos.js';
+import { SCENARIOS, runScenario } from '../app/scenarios.js';
+import { SYSTEMS } from '../data/systems.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
@@ -165,6 +167,44 @@ console.log('videos');
     ok(v.some((x) => x.kind === 'guide'), `${t.id}: has a track guide video`);
     ok(new Set(v.map((x) => x.id)).size === v.length, `${t.id}: videos deduped`);
     v.forEach((x) => ok(/^[\w-]{11}$/.test(x.id) && kinds.has(x.kind) && x.title, `${t.id}: video ${x.id} well-formed`));
+  }
+}
+
+console.log('input simulator');
+{
+  for (const l of LESSONS) ok(SCENARIOS[l.id], `lesson ${l.id} has a simulator scenario`);
+  for (const [id, sc] of Object.entries(SCENARIOS)) {
+    const runs = runScenario(id);
+    ok(runs.length === sc.variants.length && runs.length >= 2, `${id}: every variant simulates`);
+    for (const { v, o } of runs) {
+      let bad = 0, back = 0;
+      for (let i = 0; i < o.N; i++) { if (![o.v[i], o.t[i], o.steer[i], o.thr[i], o.brk[i], o.fl[i]].every(Number.isFinite)) bad++; if (i && o.t[i] < o.t[i - 1]) back++; }
+      ok(!bad, `${id}/${v.id}: no NaN in the run`);
+      ok(!back, `${id}/${v.id}: time only moves forward`);
+      ok(o.thr.every((x, i) => x >= 0 && x <= 1.0001 && !(x > 0.02 && o.brk[i] > 0.05)), `${id}/${v.id}: pedals in range, never both pressed`);
+      ok(o.marks.length >= 2, `${id}/${v.id}: has turn-in/apex markers`);
+    }
+  }
+  // the physics should agree with the lessons
+  const T = (id, k) => { const o = runScenario(id)[k].o; return o.t[o.N - 1]; };
+  ok(T('trail', 0) < T('trail', 1), 'trail braking beats brake-then-turn');
+  ok(T('braking', 0) < T('braking', 1), 'the expert out-brakes the beginner');
+  ok(T('wet', 0) < T('wet', 1), 'the wet is slower');
+  ok(T('throttle', 0) < T('throttle', 1), 'progressive throttle beats a stab');
+  ok(T('priority', 0) < T('priority', 1), 'exit-first wins before a long straight');
+  const geo = runScenario('line')[1].o, ap = geo.marks.find((m) => m[1] === 'Apex')[0];
+  let iPk = 0; for (let i = 0; i < geo.N; i++) if (Math.abs(geo.steer[i]) > Math.abs(geo.steer[iPk])) iPk = i;
+  ok(Math.abs(geo.st[iPk] - ap) < 6, `geometric line: peak lock at the apex (${geo.st[iPk].toFixed(0)} vs ${ap.toFixed(0)} m)`);
+}
+
+console.log('race systems');
+{
+  const ids = new Set(SYSTEMS.map((x) => x.id));
+  ok(ids.size === SYSTEMS.length && SYSTEMS.length >= 12, 'systems ids unique');
+  for (const x of SYSTEMS) {
+    ok(x.what.length >= 2 && x.how.length >= 3 && x.tips.length >= 2 && x.mistakes.length >= 2, `${x.id}: substantive`);
+    (x.related || []).forEach((r) => ok(ids.has(r), `${x.id}: related ${r} exists`));
+    ok(!/—/.test(JSON.stringify(x)), `${x.id}: no em dashes`);
   }
 }
 
