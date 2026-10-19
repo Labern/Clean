@@ -13,6 +13,7 @@ import { LESSONS } from '../data/academy.js';
 import { CHAPTERS, TIMELINE } from '../data/heritage.js';
 import { BASES } from '../data/wheel.js';
 import { APEX, APEX_PARTS, apexUrl, apexForTrack } from '../data/apex.js';
+import { VIDEOS, VIDEO_KINDS } from '../data/videos.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
@@ -153,6 +154,18 @@ console.log('beyond the apex');
   }
   ok(PHASES.some((p) => p.steps.some((s) => s.id === 'apex')), 'roadmap has the apex step');
   ok(apexForTrack('fuji').some(({ a }) => a.id === 'markers'), 'Fuji carries the manual\'s own braking-marker example');
+}
+
+console.log('videos');
+{
+  const kinds = new Set(VIDEO_KINDS.map(([k]) => k));
+  for (const t of TRACKS) {
+    const v = VIDEOS[t.id] || [];
+    ok(v.length >= 8, `${t.id}: at least 8 videos (${v.length})`);
+    ok(v.some((x) => x.kind === 'guide'), `${t.id}: has a track guide video`);
+    ok(new Set(v.map((x) => x.id)).size === v.length, `${t.id}: videos deduped`);
+    v.forEach((x) => ok(/^[\w-]{11}$/.test(x.id) && kinds.has(x.kind) && x.title, `${t.id}: video ${x.id} well-formed`));
+  }
 }
 
 console.log('lap alignment');

@@ -20,6 +20,7 @@ import { telemetryView, lapView } from './telemetry.js';
 import { startView, chapterView } from './start.js';
 import { apexIndex, apexView, apexOnTrack, nextApex } from './apex.js';
 import { apexForTrack } from '../data/apex.js';
+import { videosSection, wireVideos } from './videos.js';
 import * as connect from './connect.js';
 import { isNative } from './platform.js';
 
@@ -299,6 +300,8 @@ views.track = (id) => {
 
     ${raw(String(apexOnTrack(t.id)))}
 
+    ${videosSection(t)}
+
     <section class="section grid g3">
       <div class="card pad"><div class="kicker">Practice drill</div><p style="margin-top:8px">${t.drill}</p></div>
       <div class="card pad"><div class="kicker">On a wheel</div><p style="margin-top:8px">${t.wheel}</p></div>
@@ -313,6 +316,7 @@ views.track = (id) => {
       <textarea id="tnotes" rows="4" placeholder="Braking markers, setup tweaks, what clicked…" style="margin-top:10px">${s.trackNotes[t.id] || ''}</textarea>
     </section>`,
     wire(root) {
+      wireVideos(root);
       const select = (i, scroll) => {
         sel = sel === i ? -1 : i;
         $('#mapsvg', root).innerHTML = mapHtml();
