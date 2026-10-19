@@ -28,7 +28,7 @@ const W = {
     let cur = 'late';
     const draw = () => {
       const L = lines[cur], g = geom(L.a);
-      const dot = (p, txt, dx, dy, col) => `<circle cx="${p[0]}" cy="${p[1]}" r="9" fill="${col}" stroke="#0b1f4b" stroke-width="3"/><text x="${p[0] + dx}" y="${p[1] + dy}" fill="#fff" font-size="17" font-family="Barlow" font-weight="600">${txt}</text>`;
+      const dot = (p, txt, dx, dy, col) => `<circle cx="${p[0]}" cy="${p[1]}" r="9" fill="${col}" stroke="#0b1f4b" stroke-width="3"/><text x="${p[0] + dx}" y="${p[1] + dy}" fill="#fff" font-size="17" font-family="Archivo" font-weight="600">${txt}</text>`;
       el.innerHTML = `
         <svg viewBox="-50 60 760 580">
           <path d="${road}" fill="#2c4a8f"/>
@@ -39,8 +39,8 @@ const W = {
           ${g.T1[1] < 620 ? dot(g.T1, 'turn-in', 16, 6, '#fff') : ''}
           ${dot(g.P, 'apex', 16, 26, L.c)}
           ${g.T2[0] < 700 ? dot(g.T2, 'track-out', -40, -16, '#fff') : ''}
-          <text x="200" y="300" fill="#ffd5d8" font-size="16" font-family="Barlow">inside kerb</text>
-          <text x="470" y="222" fill="#9fb3e6" font-size="17" font-family="Barlow">straight →</text>
+          <text x="200" y="300" fill="#ffd5d8" font-size="16" font-family="Archivo">inside kerb</text>
+          <text x="470" y="222" fill="#9fb3e6" font-size="17" font-family="Archivo">straight →</text>
         </svg>
         <div class="ctrl">
           <div class="seg">${Object.entries(lines).map(([k, v]) => `<button data-k="${k}" class="${k === cur ? 'on' : ''}">${v.label}</button>`).join('')}</div>

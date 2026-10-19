@@ -1,7 +1,7 @@
 // Track drawings. Real circuits: the OSM geometry from data/maps.js, with the
 // sectors coloured and a pin per corner at its measured lap fraction. GT
 // originals: a lap strip (distance along the lap), since there is no geometry.
-import { MAPS } from '../data/maps.js';
+import { MAPS } from '../data/allmaps.js';
 
 export const SECTOR_COLORS = ['#3d7bff', '#ff3b46', '#ffc531', '#36d399'];
 
@@ -55,7 +55,7 @@ export function fullMap(track, sel = -1, sector = -1) {
   const pins = track.corners.map((c, i) => {
     const p = at(m, c.at);
     const on = i === sel;
-    const label = String(c.n).replace(/^T/, '').slice(0, 5);
+    const label = String(c.n).replace(/^T(?=\d)/, '').slice(0, 5);
     const r = on ? 40 : c.key ? 34 : 29;
     return `<g class="pin${on ? ' on' : ''}" data-i="${i}" transform="translate(${p[0]},${p[1]})">
       <circle r="${r + 10}" fill="transparent"/>
@@ -96,15 +96,15 @@ export function lapStrip(track, sel = -1) {
       ${Math.abs(cy - ty) > 2 ? `<path d="M${X} ${ty} L${X + 20} ${cy}" stroke="rgba(255,255,255,.4)" stroke-width="2"/>` : ''}
       <circle class="dot" cx="${X + 24}" cy="${cy}" r="${on ? 22 : 19}" fill="${on ? '#fff' : c.key ? '#e1131f' : '#0b1f4b'}" stroke="#fff" stroke-width="3.5"/>
       <text x="${X + 24}" y="${cy + 6}" text-anchor="middle" fill="${on ? '#0b1f4b' : '#fff'}" style="font-size:${label.length > 3 ? 12 : 16}px">${esc(label)}</text>
-      <text x="${X + 56}" y="${cy + 7}" fill="${on ? '#ffc531' : '#fff'}" style="font-size:20px;font-style:normal;font-weight:600;font-family:Barlow,sans-serif">${esc(c.name.length > 22 ? c.name.slice(0, 21) + '…' : c.name)}</text>
+      <text x="${X + 56}" y="${cy + 7}" fill="${on ? '#ffc531' : '#fff'}" style="font-size:20px;font-style:normal;font-weight:600;font-family:Archivo,sans-serif">${esc(c.name.length > 22 ? c.name.slice(0, 21) + '…' : c.name)}</text>
     </g>`;
   }).join('');
   return `<svg class="strip-v" viewBox="0 0 400 ${Y1 + 40}" width="100%" preserveAspectRatio="xMidYMin meet" role="img" aria-label="${track.short} lap strip">
     <line x1="${X}" y1="${Y0}" x2="${X}" y2="${Y1}" stroke="#2a447f" stroke-width="20" stroke-linecap="round"/>
     ${secs}
     <rect x="${X - 22}" y="${Y0 - 4}" width="44" height="8" rx="2" fill="#fff"/>
-    <text x="${X}" y="${Y0 - 16}" text-anchor="middle" fill="#9fb3e6" style="font-size:13px;font-style:normal;font-family:Barlow,sans-serif">START</text>
-    <text x="${X}" y="${Y1 + 30}" text-anchor="middle" fill="#9fb3e6" style="font-size:13px;font-style:normal;font-family:Barlow,sans-serif">FINISH</text>
+    <text x="${X}" y="${Y0 - 16}" text-anchor="middle" fill="#9fb3e6" style="font-size:13px;font-style:normal;font-family:Archivo,sans-serif">START</text>
+    <text x="${X}" y="${Y1 + 30}" text-anchor="middle" fill="#9fb3e6" style="font-size:13px;font-style:normal;font-family:Archivo,sans-serif">FINISH</text>
     ${pins}
   </svg>`;
 }
@@ -125,7 +125,7 @@ export function focusMap(track, idxs = [], small = false) {
   const p0 = at(m, 0);
   const pins = idxs.map((i) => track.corners[i]).filter(Boolean).map((c) => {
     const p = at(m, c.at);
-    const label = String(c.n).replace(/^T/, '').slice(0, 5);
+    const label = String(c.n).replace(/^T(?=\d)/, '').slice(0, 5);
     const r = small ? 52 : 38;
     return `<g transform="translate(${p[0]},${p[1]})"><circle r="${r}" fill="#e1131f" stroke="#fff" stroke-width="6"/>
       <text text-anchor="middle" dy="${label.length > 3 ? 8 : 11}" fill="#fff" style="font-family:'Barlow Condensed';font-weight:800;font-style:italic;font-size:${(label.length > 3 ? 22 : 32) * (small ? 1.4 : 1)}px">${label}</text></g>`;
