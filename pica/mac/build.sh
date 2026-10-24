@@ -46,6 +46,24 @@ cp ../fonts/*.ttf "$WEB/fonts/" 2>/dev/null || echo "  ! fonts missing — will 
 
 # pdf.js is fetched at build time rather than committed; without it the app still
 # imports PDFs, but only when online (it falls back to the CDN).
+# the studio card — one file, shared by every product; see ~/Desktop/★★★★★/brand
+CARD="$HOME/Desktop/★★★★★/brand/studio-card.html"
+# the app's own logo, drawn for paper: made beside the iconset by makeicon
+if [ -f "$BUILD/card-icon.png" ]; then
+  cp "$BUILD/card-icon.png" "$WEB/app-icon.png"
+  cp "$BUILD/card-icon.png" "../app-icon.png"
+fi
+
+if [ -f "$CARD" ]; then
+  # into the bundle, and beside index.html so the web build ships the same file —
+  # every build re-syncs from the master copy, so the two can never drift apart
+  cp "$CARD" "$WEB/studio-card.html"
+  cp "$CARD" "../studio-card.html"      # build.sh runs from mac/; the web copy lives beside index.html
+  echo "  › studio card bundled"
+else
+  echo "  › no studio card found at $CARD — the app will simply open without one"
+fi
+
 if [ ! -f "vendor-cache/pdf.min.mjs" ]; then
   echo "› fetching pdf.js $PDFJS"
   mkdir -p vendor-cache
@@ -98,7 +116,7 @@ PLIST
 
 # ---- 4. compile ----
 echo "› compiling"
-swiftc -O -parse-as-library PICA.swift -o "$APP/Contents/MacOS/$APP_NAME" \
+swiftc -O -parse-as-library PICA.swift WebProxy.swift OCR.swift Splash.swift -o "$APP/Contents/MacOS/$APP_NAME" \
   -framework Cocoa -framework WebKit
 
 # ---- 5. sign (auto-detects an Apple Developer ID; degrades gracefully) ----
@@ -122,7 +140,14 @@ echo "› built $APP"
 if [ "${1:-}" = "--install" ]; then
   if [ -z "${PICA_SKIP_TESTS:-}" ]; then
     echo "› smoketest: driving the built bundle headlessly"
-    swiftc -O smoketest.swift -o "$BUILD/smoketest" 2>/dev/null
+    # NEVER hide this: a compile error here used to leave a STALE smoketest binary in
+    # place, which then passed happily without running the step that had just been added.
+    # two files means top-level code needs the entry point to be called main.swift
+    cp smoketest.swift "$BUILD/main.swift"
+    if ! swiftc -O "$BUILD/main.swift" WebProxy.swift OCR.swift -o "$BUILD/smoketest"; then
+      echo "SMOKETEST DID NOT COMPILE — install refused"
+      exit 1
+    fi
     if ! PICA_BUILD_DIR="$BUILD" "$BUILD/smoketest" > /tmp/pica-smoke.log 2>&1; then
       echo "SMOKETEST RED — install refused. tail of /tmp/pica-smoke.log:"
       tail -12 /tmp/pica-smoke.log
