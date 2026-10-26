@@ -1,0 +1,19 @@
+Timestamp               Ty Process[PID:TID]
+2026-10-26 10:23:15.326 F  App[6185:5d12] [com.apple.runtime-issues:UIKit App Config] `UIScene` lifecycle will soon be required. Failure to adopt will result in an assert in the future.
+2026-10-26 10:23:15.944 E  App[6185:5d18] [com.apple.extensionkit:default] Failed to resolve host network app id to config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 5D40A81D-A45C-45A9-84EB-2E7D7E000A3D])
+2026-10-26 10:23:17.484 F  App[6185:5d12] [com.apple.WebKit:Process] WebContent process (0x10d1040c0) took 1.328727 seconds to launch
+2026-10-26 10:23:17.678 F  App[6185:5d12] [com.apple.WebKit:Process] GPU process (0x10d1341e0) took 1.446750 seconds to launch
+2026-10-26 10:23:18.028 E  App[6185:5d12] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access quirks from WebPrivacy.
+2026-10-26 10:23:18.028 E  App[6185:5d12] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access user agent string quirks from WebPrivacy.
+2026-10-26 10:23:18.028 E  App[6185:5d12] [com.apple.WebKit:ResourceLoadStatistics] Failed to request known fingerprinting scripts from WebPrivacy: Error Domain=WebPrivacyErrorDomain Code=1001 "List data not found" UserInfo={NSLocalizedDescription=List data not found}
+2026-10-26 10:23:18.109 E  App[6185:5d12] [com.apple.WebKit:ResourceLoadStatistics] Failed to request query parameters from WebPrivacy.
+2026-10-26 10:23:19.131 E  App[6185:5d55] [com.apple.WebKit:ResourceLoadStatistics] WebContent[6192] Unable to filter tracking query parameters (missing data)
+2026-10-26 10:23:23.706 E  App[6185:5d55] [com.apple.WebKit:ResourceLoadStatistics] WebContent[6192] Unable to hide query parameters from script (missing data)
+2026-10-26 10:23:23.731 E  App[6185:5d12] [com.apple.WebKit:ResourceLoadStatistics] Failed to request allowed query parameters from WebPrivacy.
+2026-10-26 10:23:25.024 E  App[6185:5d12] [com.apple.WebKit:ResourceLoadStatistics] Failed to request restricted opener domains from WebPrivacy
+2026-10-26 10:23:44.667 F  App[6717:6463] [com.apple.runtime-issues:UIKit App Config] `UIScene` lifecycle will soon be required. Failure to adopt will result in an assert in the future.
+2026-10-26 10:23:44.773 E  App[6717:6471] [com.apple.extensionkit:default] Failed to resolve host network app id to config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 60AEBB1E-35CA-4448-B42E-17AA1B6EBD84])
+2026-10-26 10:23:47.940 E  App[6717:6497] [com.apple.WebKit:ResourceLoadStatistics] WebContent[6959] Unable to hide query parameters from script (missing data)
+2026-10-26 10:24:11.627 F  App[8168:6fd5] [com.apple.runtime-issues:UIKit App Config] `UIScene` lifecycle will soon be required. Failure to adopt will result in an assert in the future.
+2026-10-26 10:24:11.729 E  App[8168:6fe0] [com.apple.extensionkit:default] Failed to resolve host network app id to config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 7B935A4E-5E68-4192-9B94-9331FDDDE231])
+2026-10-26 10:24:14.763 E  App[8168:7005] [com.apple.WebKit:ResourceLoadStatistics] WebContent[8172] Unable to hide query parameters from script (missing data)

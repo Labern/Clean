@@ -1,0 +1,40 @@
+Cordova.framework/Cordova
+Cordova.framework/Info.plist
+Cordova.framework/PrivacyInfo.xcprivacy
+
+sent 129783 bytes  received 92 bytes  41895161 bytes/sec
+total size is 129261  speedup is 1.00
+
+CopySwiftLibs /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app (in target 'App' from project 'App')
+    cd /Users/runner/work/Clean/Clean/gt7/native/ios/App
+    builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/App --scan-folder /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/Frameworks --scan-folder /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/PlugIns --scan-folder /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/SystemExtensions --scan-folder /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/Extensions --scan-folder /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/Pods_App.framework --platform iphoneos --toolchain /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.6.109.0.oLP76y/Metal.xctoolchain --toolchain /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Intermediates.noindex/App.build/Release-iphoneos/App.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os --back-deploy-swift-concurrency --back-deploy-swift-span
+Ignoring --strip-bitcode because --sign was not passed
+
+ExtractAppIntentsMetadata (in target 'App' from project 'App')
+    cd /Users/runner/work/Clean/Clean/gt7/native/ios/App
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --toolchain-dir /var/run/com.apple.security.cryptexd/mnt/com.apple.MobileAsset.MetalToolchain-v17.6.109.0.oLP76y/Metal.xctoolchain --module-name App --sdk-root /Applications/Xcode_26.6.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.5.sdk --xcode-version 17F113 --platform-family iOS --deployment-target 13.0 --bundle-identifier com.labern.gt7endgame --output /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app --target-triple arm64-apple-ios13.0 --binary-file /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/App --dependency-file /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Intermediates.noindex/App.build/Release-iphoneos/App.build/Objects-normal/arm64/App_dependency_info.dat --stringsdata-file /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Intermediates.noindex/App.build/Release-iphoneos/App.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Intermediates.noindex/App.build/Release-iphoneos/App.build/Objects-normal/arm64/App.SwiftFileList --metadata-file-list /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Intermediates.noindex/App.build/Release-iphoneos/App.build/App.DependencyMetadataFileList --static-metadata-file-list /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Intermediates.noindex/App.build/Release-iphoneos/App.build/App.DependencyStaticMetadataFileList --swift-const-vals-list /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Intermediates.noindex/App.build/Release-iphoneos/App.build/Objects-normal/arm64/App.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing --validate-assistant-intents --no-app-shortcuts-localization
+2026-10-26 10:19:34.632 appintentsmetadataprocessor[3892:14819] Starting appintentsmetadataprocessor export
+2026-10-26 10:19:34.635 appintentsmetadataprocessor[3892:14819] warning: Metadata extraction skipped. No AppIntents.framework dependency found.
+
+AppIntentsSSUTraining (in target 'App' from project 'App')
+    cd /Users/runner/work/Clean/Clean/gt7/native/ios/App
+    /Applications/Xcode_26.6.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/Info.plist --temp-dir-path /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Intermediates.noindex/App.build/Release-iphoneos/App.build/ssu --bundle-id com.labern.gt7endgame --product-path /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app --extracted-metadata-path /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/Metadata.appintents --metadata-file-list /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Intermediates.noindex/App.build/Release-iphoneos/App.build/App.DependencyMetadataFileList --source-file /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app/Info.plist --archive-ssu-assets
+2026-10-26 10:19:34.661 appintentsnltrainingprocessor[3893:14820] Parsing options for appintentsnltrainingprocessor
+2026-10-26 10:19:34.662 appintentsnltrainingprocessor[3893:14820] Starting AppIntents SSU YAML Generation
+2026-10-26 10:19:34.662 appintentsnltrainingprocessor[3893:14820] No AppShortcuts found - Skipping.
+
+RegisterExecutionPolicyException /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app (in target 'App' from project 'App')
+    cd /Users/runner/work/Clean/Clean/gt7/native/ios/App
+    builtin-RegisterExecutionPolicyException /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app
+
+Validate /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app (in target 'App' from project 'App')
+    cd /Users/runner/work/Clean/Clean/gt7/native/ios/App
+    builtin-validationUtility /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app -validate-for-store -shallow-bundle -infoplist-subpath Info.plist
+
+Touch /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app (in target 'App' from project 'App')
+    cd /Users/runner/work/Clean/Clean/gt7/native/ios/App
+    /usr/bin/touch -c /Users/runner/work/Clean/Clean/gt7/native/DD-dev/Build/Products/Release-iphoneos/App.app
+
+warning: Run script build phase '[CP] Embed Pods Frameworks' will be run during every build because it does not specify any outputs. To address this issue, either add output dependencies to the script phase, or configure it to run in every build by unchecking "Based on dependency analysis" in the script phase. (in target 'App' from project 'App')
+** BUILD SUCCEEDED **
+

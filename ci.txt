@@ -1,0 +1,12 @@
+commit a9fdb46c295a75e19ca1364051d9cdeeb426455e
+Xcode 26.6
+Build version 17F113
+cocoapods 1.17.0
+iOS: Gt7Direct wired in.
+plugin refs in project: 4
+local network: GT7 Endgame talks to your PS5 on your Wi-Fi to read live telemetry from Gran Turismo 7.
+simulator build exit 0
+device build exit 0
+-rw-r--r--  1 runner  staff  9369139 Oct 26 10:19 out/GT7Endgame.ipa
+com.labern.gt7endgame: 6185
+console lines: 19
