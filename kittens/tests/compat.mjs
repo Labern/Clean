@@ -32,6 +32,10 @@ for (const [name, { fn: merge }] of Object.entries(impls)) {
   r = merge({ weights: { w: newRec } }, { weights: { w: { del: true, u: 30 } } }).out.weights.w; ok(r.del === true && !r.note, 'newer delete wins whole');
   r = merge({ weights: { w: { del: true, u: 30 } } }, { weights: { w: { g: 1, u: 40 } } }).out.weights.w; ok(!r.del && r.g === 1, 'revive after delete is a live record');
   r = merge({ weights: { w: { del: true, u: 50 } } }, { weights: { w: newRec } }).out.weights.w; ok(r.del === true, 'older live copy cannot resurrect a newer delete');
+  // 3b. a delete keeps the content inside the tombstone (the bin), through any merge
+  const tomb = { del: true, u: 70, was: Object.assign({}, newRec) };
+  r = merge({ weights: { w: newRec } }, { weights: { w: tomb } }).out.weights.w; ok(r.del && r.was && r.was.note === 'from weight app' && r.was.photo === 'p1', 'deleted record content survives in the bin');
+  r = merge({ weights: { w: tomb } }, { weights: { w: newRec } }).out.weights.w; ok(r.del && r.was && r.was.g === 900, 'bin survives an older live copy arriving');
   // 4. explicit blanking (how a version removes a field) still works
   r = merge({ weights: { w: newRec } }, { weights: { w: Object.assign({}, newRec, { photo: null, u: 60 }) } }).out.weights.w; ok(r.photo === null && r.note === 'from weight app', 'explicit null clears a field');
   // 5. no-ops are no-ops

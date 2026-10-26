@@ -142,3 +142,21 @@ banner when this browser holds no real entries (or nothing in 7+ days); the
 headlines show the last REAL weigh-in, with the estimate only as small print.
 Pen Pen is a girl (seed revision u:3 sets `sex:'f'`); use `pron(id)`, never
 hard-code pronouns.
+
+## Never-lose-anything layer (all versions)
+- **Bin:** `del()` writes `softDel()` — the tombstone keeps the whole record as
+  `was`. Photo deletes keep the image (local + relays). Restore from
+  `/kittens/check/`. Nothing in the bin is ever purged automatically.
+- **Every pairing key is remembered** (`kittens.secrets`); sync subscribes and
+  publishes on all of them, so opening a pairing link can never split phones.
+  Image "already on relay" tracking is per relay + topic.
+- **Loud saves:** `writeDoc()` — if storage is full it frees space by
+  dropping the app's own snapshots first, then alerts; never silent.
+- **Daily snapshot** (`kittens.snap.<date>`, text only, last 7) — never
+  auto-restored; the check page can merge one back (append-only).
+- `navigator.storage.persist()` requested on every load.
+- `/kittens/check/` — fingerprint codes (compare phones), counts, newest
+  weigh-ins, photos present/syncing, storage %, the bin, snapshots, archive.
+- Tests: `tests/compat.mjs` (35), and `tests/torture.mjs` (needs the local
+  aedes broker + http server on :8765, see the script) — 3 phones, v1/v2/weight
+  app, stale tab, key split, deletes + restore, full storage.

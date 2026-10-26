@@ -126,10 +126,10 @@ const SITTER = false;
 function save() {
   let disk = null; try { disk = JSON.parse(lsGet(LS)); } catch (e) {}
   if (disk && typeof disk === 'object') doc = merge(doc, disk).out;     // never clobber another tab / version
-  if (!lsSet(LS, JSON.stringify(doc))) toast('⚠️ couldn\'t save — phone storage is full. Download a backup.');
+  writeDoc();
 }
 function put(col, id, rec) { if (!doc[col]) doc[col] = {}; doc[col][id] = Object.assign({}, doc[col][id] || {}, rec, { u: Date.now() }); save(); changed(); }
-function del(col, id) { if (!doc[col]) doc[col] = {}; doc[col][id] = { del: true, u: Date.now() }; save(); changed(); }
+function del(col, id) { if (!doc[col]) doc[col] = {}; doc[col][id] = softDel(col, id); save(); changed(); }
 const live = col => Object.entries(doc[col] || {}).filter(([, r]) => r && !r.del);
 function changed() { if (typeof renderAll === 'function') renderAll(); schedulePublish(); }
 // another tab (any version) saved — pull it in
@@ -319,46 +319,75 @@ setInterval(syncLabel, 5000);
 
 async function initSync() {
   if (SITTER) { setSync('', 'read-only sitter view'); return; }
-  // adopt a pairing key from the link
+  // adopt a pairing key from the link — the old key is REMEMBERED, never dropped, so nothing ever un-pairs
   const m = location.hash.match(/pair=([A-Za-z0-9_-]{16,})/);
-  if (m) { const isNew = m[1] !== secret; secret = m[1]; lsSet(LS_SECRET, secret); history.replaceState(null, '', location.pathname); if (isNew) setTimeout(() => { toast('📲 paired! syncing with your data…'); rain(['💛', '📲', '🐾']); }, 600); }
+  if (m) { const isNew = m[1] !== secret; if (isNew && secret) rememberSecret(secret); secret = m[1]; lsSet(LS_SECRET, secret); history.replaceState(null, '', location.pathname); if (isNew) setTimeout(() => { toast('📲 paired! syncing with your data…'); rain(['💛', '📲', '🐾']); }, 600); }
   if (!secret) { const r = crypto.getRandomValues(new Uint8Array(18)); secret = b64(r).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); lsSet(LS_SECRET, secret); }
+  rememberSecret(secret);
   if (!window.crypto || !crypto.subtle || typeof mqtt === 'undefined') { syncLabel(); return; }
-  cryptoKey = await crypto.subtle.importKey('raw', await sha('kittens-key:' + secret), 'AES-GCM', false, ['encrypt', 'decrypt']);
-  topic = 'kittens/v1/' + [...(await sha('kittens-topic:' + secret))].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join('');
+  // one channel per key this browser has ever used: listen on all of them, publish to all of them
+  chans = [];
+  for (const sec of knownSecrets()) chans.push({ sec, key: await crypto.subtle.importKey('raw', await sha('kittens-key:' + sec), 'AES-GCM', false, ['encrypt', 'decrypt']),
+    topic: 'kittens/v1/' + [...(await sha('kittens-topic:' + sec))].slice(0, 12).map(x => x.toString(16).padStart(2, '0')).join('') });
+  const primary = chans.find(c => c.sec === secret) || chans[0]; cryptoKey = primary.key; topic = primary.topic;
   conns.forEach(c => { try { c.end(true); } catch (e) {} }); conns = [];
   BROKERS.forEach(url => {
     let c; try { c = mqtt.connect(url, { clientId: 'kt_' + Math.random().toString(36).slice(2, 10), clean: true, reconnectPeriod: 5000, connectTimeout: 10000, keepalive: 45 }); } catch (e) { return; }
     conns.push(c);
     c.on('connect', () => {
-      c.subscribe([topic, topic + '/img/+'], { qos: 1 });
+      c.subscribe(chans.flatMap(ch => [ch.topic, ch.topic + '/img/+']), { qos: 1 });
       syncLabel();
       // after retained copies arrive, push our merged doc + any photos this relay is missing
-      setTimeout(async () => { await publishDoc(c); for (const [id] of live('photos')) if (!seenImg.has(url + id)) { const d = lsGet(LS_IMG + id); if (d) publishImgTo(c, id, d); } }, 3500);
+      setTimeout(async () => { await publishDoc(c); for (const [id] of live('photos')) { const d = lsGet(LS_IMG + id); if (!d) continue; const need = chans.filter(ch => !seenImg.has(url + ch.topic + id)); if (need.length) publishImgTo(c, id, d, need); } }, 3500);
     });
     c.on('close', syncLabel);
     c.on('message', async (t, payload) => {
       const s = payload.toString(); if (!s) return;
+      const ch = chans.find(x => t === x.topic || t.startsWith(x.topic + '/img/')); if (!ch) return;
       try {
-        if (t === topic) {
-          const remote = await dec(s); lastSync = Date.now();
+        if (t === ch.topic) {
+          const remote = await decK(s, ch.key); lastSync = Date.now();
           const { out, changedA } = merge(doc, remote);
           if (changedA) { doc = out; save(); renderAll(); }
           if (merge(remote, doc).changedA) schedulePublish();   // they're missing something of ours
           syncLabel();
-        } else if (t.startsWith(topic + '/img/')) {
-          const id = t.slice(topic.length + 5); seenImg.add(url + id);
-          if (!lsGet(LS_IMG + id)) { const { data } = await dec(s); if (data && lsSet(LS_IMG + id, data)) renderAll(); }
+        } else {
+          const id = t.slice(ch.topic.length + 5); seenImg.add(url + ch.topic + id);
+          if (!lsGet(LS_IMG + id)) { const { data } = await decK(s, ch.key); if (data && lsSet(LS_IMG + id, data)) renderAll(); }
         }
       } catch (e) { /* wrong key or garbage — ignore */ }
     });
   });
 }
-async function publishDoc(c) { if (!cryptoKey || !c.connected) return; try { c.publish(topic, await enc(doc), { retain: true, qos: 1 }); lastSync = Date.now(); syncLabel(); } catch (e) {} }
-async function publishImgTo(c, id, data) { if (!cryptoKey || !c.connected) return; try { c.publish(topic + '/img/' + id, await enc({ data }), { retain: true, qos: 1 }); } catch (e) {} }
+let chans = [];
+const LS_SECRETS = 'kittens.secrets';
+function knownSecrets() { let a = []; try { a = JSON.parse(lsGet(LS_SECRETS) || '[]'); } catch (e) {} if (!Array.isArray(a)) a = []; if (secret && !a.includes(secret)) a.unshift(secret); return a.filter(x => typeof x === 'string' && /^[A-Za-z0-9_-]{16,}$/.test(x)).slice(0, 8); }
+function rememberSecret(sec) { if (!sec) return; const a = knownSecrets(); if (!a.includes(sec)) a.push(sec); lsSet(LS_SECRETS, JSON.stringify(a)); }
+async function encK(obj, key) { const iv = crypto.getRandomValues(new Uint8Array(12)); const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, te.encode(JSON.stringify(obj))); const out = new Uint8Array(12 + ct.byteLength); out.set(iv); out.set(new Uint8Array(ct), 12); return b64(out); }
+async function decK(str, key) { const b = unb64(str); const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.slice(0, 12) }, key, b.slice(12)); return JSON.parse(td.decode(pt)); }
+async function publishDoc(c) { if (!chans.length || !c.connected) return; try { for (const ch of chans) c.publish(ch.topic, await encK(doc, ch.key), { retain: true, qos: 1 }); lastSync = Date.now(); syncLabel(); } catch (e) {} }
+async function publishImgTo(c, id, data, only) { if (!chans.length || !c.connected) return; try { for (const ch of (only || chans)) c.publish(ch.topic + '/img/' + id, await encK({ data }, ch.key), { retain: true, qos: 1 }); } catch (e) {} }
 function publishImg(id, data) { conns.forEach(c => publishImgTo(c, id, data)); }
-function clearImg(id) { conns.forEach(c => { try { if (c.connected) c.publish(topic + '/img/' + id, '', { retain: true, qos: 1 }); } catch (e) {} }); }
+function clearImg(id) { /* photos are never wiped from the relays any more — a deleted photo stays restorable from the bin */ }
 function schedulePublish() { clearTimeout(pubTimer); pubTimer = setTimeout(() => conns.forEach(publishDoc), 700); }
+
+/* ═════════════ never lose anything: bin, snapshots, loud saves, persistent storage ═════════════ */
+// a delete keeps the whole record inside its tombstone (`was`), so it can be restored from the bin
+function softDel(col, id) { const old = doc[col] && doc[col][id]; const was = old && !old.del ? Object.assign({}, old) : (old && old.was) || null; return Object.assign({ del: true, u: Date.now() }, was ? { was } : {}); }
+// one text-only snapshot of the whole dataset per day, the last 7 kept — never restored automatically
+const LS_SNAP = 'kittens.snap.';
+function snapshots() { const out = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(LS_SNAP)) out.push(k.slice(LS_SNAP.length)); } } catch (e) {} return out.sort(); }
+function trimSnapshots(keep) { snapshots().slice(0, Math.max(0, snapshots().length - keep)).forEach(d => lsDel(LS_SNAP + d)); }
+function takeSnapshot() { if (SITTER) return; const d = todayYmd(); if (lsGet(LS_SNAP + d)) return; const txt = JSON.stringify(doc);
+  if (!lsSet(LS_SNAP + d, txt)) { trimSnapshots(1); lsSet(LS_SNAP + d, txt); } trimSnapshots(7); }
+// write the dataset; if storage is full, make room by dropping OUR OWN old snapshots (never your data), then shout
+function writeDoc() { const txt = JSON.stringify(doc); if (lsSet(LS, txt)) return true;
+  for (const d of snapshots()) { lsDel(LS_SNAP + d); if (lsSet(LS, txt)) return true; }
+  toast('⚠️ NOT SAVED — this phone\'s storage is full. Download an archive, then remove a few photos.'); try { alert('⚠️ Not saved: this phone\'s storage for the kitten app is full.\n\nYour last change is still on screen and still syncing to the other phone. Please download an archive (bottom of v2 or the weight app), then delete a few photos to make room.'); } catch (e) {}
+  return false; }
+// ask the browser to keep this site's storage permanently (Safari otherwise clears sites unused for 7 days)
+try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {}); } catch (e) {}
+setTimeout(() => { try { takeSnapshot(); } catch (e) {} }, 4000);
 function pairLink() { return location.origin + location.pathname + '#pair=' + secret; }
 function setSync(cls, txt) { const p = document.getElementById('syncpill'), t = document.getElementById('synctext'); if (!p || !t) return; p.classList.remove('ok', 'warn'); if (cls) p.classList.add(cls); t.textContent = txt; }
 function exportBackup() {
