@@ -24,6 +24,9 @@ export async function probe() {
   if (!/\.github\.io$/.test(location.hostname)) try { const r = await fetch('api/status', { cache: 'no-store' }); if (r.ok && (await r.json()).ok) { bridgeOk = 'same'; return true; } } catch { /* not on the bridge */ }
   // then a saved address, then the bridge on this computer (the live site can reach localhost)
   const tries = [(store.get().bridgeUrl || '').replace(/\/$/, ''), 'http://localhost:8787', 'http://127.0.0.1:8787'].filter(Boolean);
+  // Safari never lets a secure page reach a plain-http bridge: don't try (Chrome allows localhost)
+  const safari = /^((?!chrome|crios|android).)*safari/i.test(navigator.userAgent);
+  if (location.protocol === 'https:' && safari) { found = ''; bridgeOk = false; return false; }
   for (const b of tries) {
     try {
       const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 1500);

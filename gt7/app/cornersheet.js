@@ -118,7 +118,7 @@ async function drawMap(box, x, c) {
     ${yu ? line(yu, '#ff6b73', sw * 2.4) : ''}
     ${line(d, '#fff', sw * 1.4, `stroke-dasharray="${sw * 3} ${sw * 2}"`)}
     ${c.brakeAt != null ? tick(c.brakeAt, '#fff', 'DEMO') : ''}
-    ${lastRec?.brake != null && c.brakeAt != null ? tick(c.brakeAt + lastRec.brake, '#ff6b73', 'YOU') : ''}
+    ${lastRec?.brake != null && Math.abs(lastRec.brake) >= 5 && c.brakeAt != null ? tick(c.brakeAt + lastRec.brake, '#ff6b73', 'YOU') : ''}
     <circle cx="${ax}" cy="${az}" r="${sw * 4}" fill="#ffc531" stroke="#0b1f4b" stroke-width="${sw}"/>
   </svg><div class="sh-maplegend"><span><i style="background:#fff"></i>demo</span>${yu ? '<span><i style="background:#ff6b73"></i>your last</span>' : ''}<span><i style="background:#ffc531;border-radius:50%;width:9px;height:9px"></i>apex</span></div>`;
 }
