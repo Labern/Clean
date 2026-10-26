@@ -47,7 +47,7 @@ export function wireWizard(root, rerender) {
   if (!isNative()) {
     if (bridge === null) recheck();
     clearInterval(wireWizard.t);
-    wireWizard.t = setInterval(() => { if (!root.isConnected) return clearInterval(wireWizard.t); if (!bridge) recheck(); }, 3000);
+    wireWizard.t = setInterval(() => { if (!root.querySelector('.wz')) return clearInterval(wireWizard.t); if (!bridge) recheck(); }, 3000);
   }
   $('#wz-copy')?.addEventListener('click', async () => { try { await navigator.clipboard.writeText(CMD); toast('Copied. Paste it into Terminal.'); } catch { toast('Select the command and copy it'); } });
   $('#wz-psn')?.addEventListener('click', () => { window.open('https://my.playstation.com/', '_blank', 'noopener'); opened.psn = true; rerender(); });
