@@ -8,6 +8,7 @@ the code branch). For the kittens project that is:
 - v2: https://labern.github.io/Clean/kittens/v2/
 - Original (v1): https://labern.github.io/Clean/kittens/
 - Classic weight app: https://labern.github.io/Clean/kittens/weight/classic.html
+- Data check: https://labern.github.io/Clean/kittens/check/
 - Code branch: https://github.com/Labern/Clean/tree/kittens-v2
 For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
