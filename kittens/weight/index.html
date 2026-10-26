@@ -11,232 +11,305 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%96%EF%B8%8F%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="../shared/theme.css">
 <style>
-.wrap{max-width:1100px}
-h1{font-size:clamp(2.1rem,8vw,4rem)}
-.backs{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-.backs a{text-decoration:none}
-/* quick add */
-.qa{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:10px;align-items:end}
-.gbox{display:flex;align-items:center;gap:4px}
-.gbox input{font-size:1.5rem;font-weight:900;text-align:center;min-height:52px}
-.step{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
-.step button{font-weight:900;border:2.5px solid #000;border-radius:10px;background:#fff;min-width:44px;min-height:36px;cursor:pointer}
-.bigk{display:flex;gap:8px}
-.bigk button{flex:1;display:flex;align-items:center;gap:6px;justify-content:center;font-weight:900;font-size:1rem;border:3px solid #000;border-radius:16px;background:#fff;padding:4px 8px;cursor:pointer;min-height:56px}
-.bigk button.on{background:var(--gold);box-shadow:var(--pop-sm)}
-.bigk svg{width:40px;height:40px}
-details.more{margin-top:10px}
-details.more summary{font-weight:900;color:var(--purple);cursor:pointer}
-/* tabs */
-.tabs{position:sticky;top:6px;z-index:20;display:flex;gap:6px;overflow-x:auto;padding:6px;margin:14px -6px 0;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tabs button{flex:none;font-weight:900;font-size:.92rem;color:var(--purple);background:rgba(255,253,245,.97);border:3px solid #000;border-radius:999px;padding:.45em 1em;box-shadow:var(--pop-sm);cursor:pointer}
-.tabs button.on{background:var(--i);color:#fff;border-color:var(--gold)}
-.pane[hidden]{display:none}
-/* chart */
-.ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-.ctl .lbl{font-size:.72rem;font-weight:900;color:var(--purple);text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
-.tg{font-weight:900;font-size:.82rem;border:2.5px solid #000;border-radius:999px;padding:.25em .75em;cursor:pointer;background:#fff;min-height:36px}
-.tg.on{background:var(--i);color:#fff}
-#big{width:100%;height:auto;display:block;background:#fff;border:3px solid #000;border-radius:18px;box-shadow:var(--pop-sm);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
-#big:active{cursor:grabbing}
-#big text,.svgc text{font-family:var(--font);font-size:11px;fill:#5b5266}
-.readout{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-weight:900}
-.readout span{background:var(--soft);border:2.5px solid #000;border-radius:999px;padding:.2em .8em}
-.hint{font-size:.8rem;color:var(--faint);font-weight:800;margin-top:6px}
-.svgc{width:100%;height:auto;display:block;background:#fff;border:3px solid #000;border-radius:18px;box-shadow:var(--pop-sm)}
-/* tables */
-.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
-table.log{border-collapse:separate;border-spacing:0 6px;width:100%;min-width:820px;font-size:.88rem}
+:root{--mis:#b15ee3;--pen:#ffb703;--ink:#111;--paperA:#fffdf5}
+.wrap{max-width:1180px}
+body{padding-top:2vh}
+/* ── title ── */
+.title{text-align:center;margin:6px 0 4px}
+.title h1{font-size:clamp(2.4rem,10vw,5.2rem);letter-spacing:.02em;line-height:.95}
+.title h1 span{display:inline-block;animation:bob 3.6s ease-in-out infinite}
+.title h1 span:nth-child(6n+1){color:#ff595e}.title h1 span:nth-child(6n+2){color:#ff924c}.title h1 span:nth-child(6n+3){color:#ffca3a}
+.title h1 span:nth-child(6n+4){color:#8ac926}.title h1 span:nth-child(6n+5){color:#1982c4}.title h1 span:nth-child(6n){color:#b15ee3}
+.title h1 span{text-shadow:3px 3px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000}
+.title .sub2{color:#fff;font-weight:900;text-shadow:2px 2px 0 rgba(0,0,0,.35);font-size:clamp(.95rem,3.6vw,1.25rem)}
+.heads{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin:12px 0 4px}
+.head{display:flex;align-items:center;gap:8px;background:var(--paperA);border:4px solid #000;border-radius:999px;padding:4px 16px 4px 4px;box-shadow:5px 6px 0 #000}
+.head .av{width:52px;height:52px;border-radius:50%;border:3px solid #000;background:#fff;overflow:hidden;display:grid;place-content:center}
+.head .av svg{width:58px;height:58px}
+.head b{font-size:1.45rem;font-variant-numeric:tabular-nums}
+.head small{display:block;font-weight:800;color:var(--faint);font-size:.75rem;line-height:1}
+.toprow{margin-top:10px}
+/* ── scene nav ── */
+.snav{position:sticky;top:6px;z-index:30;display:flex;gap:6px;overflow-x:auto;padding:8px 6px;margin:12px -6px 0;scrollbar-width:none}
+.snav::-webkit-scrollbar{display:none}
+.snav a{flex:none;text-decoration:none;font-weight:900;font-size:.9rem;color:#000;background:var(--paperA);border:3px solid #000;border-radius:14px;padding:.4em .9em;box-shadow:3px 4px 0 #000;transition:transform .1s}
+.snav a:active{transform:translate(2px,3px);box-shadow:1px 1px 0 #000}
+/* ── scenes ── */
+.scene{position:relative;background:var(--paperA);border:5px solid #000;border-radius:34px;box-shadow:8px 10px 0 #000;padding:clamp(16px,3.5vw,30px);margin:34px 0 26px;scroll-margin-top:70px}
+.scene>.label{position:absolute;top:-24px;left:22px;transform:rotate(-2.5deg);background:var(--y);border:4px solid #000;border-radius:14px;padding:.15em .8em;font-weight:900;font-size:clamp(1.15rem,4.4vw,1.6rem);box-shadow:4px 5px 0 #000;white-space:nowrap}
+.scene>.label.p{background:#e7d4ff}.scene>.label.g{background:#c9f2a8}.scene>.label.b{background:#bfe3ff}.scene>.label.r{background:#ffc6c6}.scene>.label.o{background:#ffd9b0}
+.scene .intro{font-weight:800;color:var(--faint);margin:8px 0 14px;font-size:.95rem}
+/* chunky controls */
+.kpick{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.kpick button{display:flex;align-items:center;gap:8px;font-weight:900;font-size:1.05rem;border:4px solid #000;border-radius:20px;background:#fff;padding:4px 16px 4px 6px;cursor:pointer;box-shadow:4px 5px 0 #000;transition:transform .12s;min-height:60px}
+.kpick button.on{background:var(--y);transform:rotate(-2deg) scale(1.04)}
+.kpick button svg{width:54px;height:54px}
+.chunk{font-family:var(--font);font-weight:900;border:4px solid #000;border-radius:16px;background:#fff;cursor:pointer;box-shadow:4px 5px 0 #000;padding:.35em .9em;font-size:1rem;min-height:48px;transition:transform .08s,box-shadow .08s;-webkit-tap-highlight-color:transparent;color:#000}
+.chunk:active{transform:translate(3px,4px);box-shadow:1px 1px 0 #000}
+.chunk.go{background:linear-gradient(180deg,#ffe066,#ffca3a)}
+.chunk.big{font-size:clamp(1.3rem,5vw,1.8rem);padding:.4em 1.4em;border-radius:22px}
+.chunk.sm{font-size:.85rem;min-height:38px;padding:.2em .7em;border-width:3px;box-shadow:3px 3px 0 #000;border-radius:12px}
+.chunk.on{background:#000;color:#fff}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{font-weight:900;font-size:.82rem;border:3px solid #000;border-radius:999px;padding:.25em .8em;cursor:pointer;background:#fff;min-height:38px;box-shadow:2px 3px 0 #000;user-select:none}
+.chip.on{background:#000;color:#fff}
+.chip.mis.on{background:var(--mis)}.chip.pen.on{background:#2b2b30;color:var(--pen)}
+/* sliders — fat rainbow tracks, kitten-paw thumbs */
+.sl{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;background:#fff;border:3px solid #000;border-radius:18px;padding:10px 14px;box-shadow:3px 4px 0 #000}
+.sl label{font-weight:900;font-size:.9rem;white-space:nowrap}
+.sl output{font-weight:900;color:var(--i);min-width:4.5em;text-align:right;font-variant-numeric:tabular-nums}
+.sl small{grid-column:1/-1;color:var(--faint);font-weight:800;font-size:.75rem}
+input[type=range].fat{-webkit-appearance:none;appearance:none;width:100%;height:18px;border-radius:999px;border:3px solid #000;cursor:pointer;
+  background:linear-gradient(90deg,#ff595e,#ff924c,#ffca3a,#8ac926,#1982c4,#6a4c93);box-shadow:inset 0 2px 0 rgba(255,255,255,.4)}
+input[type=range].fat::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:34px;height:34px;border-radius:50%;background:#fff;border:4px solid #000;box-shadow:2px 3px 0 #000;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext x='50' y='70' font-size='56' text-anchor='middle'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E");background-size:100%}
+input[type=range].fat::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:#fff;border:4px solid #000}
+.sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:10px;margin-top:14px}
+
+/* ═══ THE SCALE ═══ */
+.scalewrap{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:22px;align-items:center}
+@media (max-width:760px){.scalewrap{grid-template-columns:1fr}}
+#scale{width:100%;max-width:440px;display:block;margin:0 auto;touch-action:none;user-select:none;-webkit-user-select:none}
+#scale .drum{cursor:grab}
+#scale text{font-family:var(--font)}
+.lcd{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-weight:900;font-size:clamp(2.6rem,10vw,4rem);text-align:center;background:#16241a;color:#a6ff8f;border:5px solid #000;border-radius:18px;
+  padding:6px 10px;box-shadow:inset 0 0 18px rgba(0,0,0,.6),5px 6px 0 #000;text-shadow:0 0 12px rgba(166,255,143,.6);cursor:text;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.lcd small{font-size:.38em;opacity:.8}
+.lcdsub{text-align:center;font-weight:900;margin-top:8px;min-height:2.6em;line-height:1.3}
+.lcdsub .up{color:#2e8b13}.lcdsub .dn{color:#c62828}
+.keys{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.keys .chunk{min-height:52px;font-size:1.1rem}
+.wmeta{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-top:12px}
+.wmeta .field label{font-size:.72rem}
+details.more{margin-top:10px;background:#fff;border:3px dashed #000;border-radius:16px;padding:8px 12px}
+details.more summary{font-weight:900;cursor:pointer}
+.stamp{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%) rotate(-14deg) scale(2.4);opacity:0;pointer-events:none;font-weight:900;font-size:clamp(2rem,8vw,3.6rem);
+  color:#d62828;border:7px solid #d62828;border-radius:18px;padding:.05em .4em;background:rgba(255,255,255,.85);z-index:5;letter-spacing:.05em}
+.stamp.go{animation:stamp 1.6s ease forwards}
+@keyframes stamp{0%{opacity:0;transform:translate(-50%,-50%) rotate(-14deg) scale(2.4)}18%{opacity:1;transform:translate(-50%,-50%) rotate(-14deg) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-50%) rotate(-14deg) scale(1)}}
+
+/* ═══ THE CHART ═══ */
+.parade{flex-wrap:wrap;display:flex;justify-content:center;align-items:flex-end;gap:clamp(10px,4vw,46px);min-height:170px;padding:4px 0 0;position:relative}
+.parade .pk{position:relative;display:flex;flex-direction:column;align-items:center}
+.parade .pk .ghost{position:absolute;bottom:34px;opacity:.16;filter:grayscale(1)}
+.parade .pk .bub{margin-top:2px;font-weight:900;background:#fff;border:3px solid #000;border-radius:999px;padding:.05em .8em;white-space:nowrap;box-shadow:2px 3px 0 #000;font-variant-numeric:tabular-nums}
+.parade .pk .bub small{color:var(--faint)}
+.parade svg{transition:width .12s linear}
+@media (max-width:500px){.parade .pk .bub{font-size:.78rem;padding:0 .5em}.parade{gap:6px 10px}}
+.whenbar{text-align:center;font-weight:900;font-size:1.1rem;margin:6px 0 8px}
+.whenbar .fut{display:inline-block;background:#e7d4ff;border:2px solid #000;border-radius:999px;padding:0 .6em;font-size:.8rem;margin-left:6px}
+.chartbox{position:relative;background:#fff;border:4px solid #000;border-radius:24px;box-shadow:5px 6px 0 #000;overflow:hidden}
+#gchart{width:100%;display:block;touch-action:pan-y;user-select:none;-webkit-user-select:none;cursor:ew-resize}
+#gchart text,#brush text,.mini svg text{font-family:var(--font)}
+#gchart .draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw 1.4s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+#gchart .pop{transform-box:fill-box;transform-origin:center;animation:popin .5s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes popin{from{transform:scale(0)}to{transform:scale(1)}}
+#brush{width:100%;display:block;margin-top:10px;touch-action:none;background:#fff;border:3px solid #000;border-radius:16px;box-shadow:3px 4px 0 #000;cursor:grab}
+.pcard{position:absolute;z-index:6;width:min(250px,70vw);background:#fff;border:4px solid #000;border-radius:18px;box-shadow:5px 6px 0 #000;padding:10px;pointer-events:auto;transform:translate(-50%,calc(-100% - 16px))}
+.pcard img{width:100%;border-radius:10px;border:2px solid #000;display:block;margin-bottom:6px;max-height:160px;object-fit:cover}
+.pcard b{font-size:1.25rem}
+.pcard .x{position:absolute;top:2px;right:4px}
+.ticker{margin-top:14px;background:#000;color:#fff;border-radius:16px;padding:10px 16px;font-weight:900;min-height:3em;display:flex;align-items:center;gap:10px;box-shadow:4px 5px 0 #ffca3a}
+.ticker .t{transition:opacity .35s}
+.ticker button{margin-left:auto;background:#fff;color:#000;border:none;border-radius:999px;font-weight:900;padding:2px 10px;cursor:pointer;min-height:30px}
+
+/* ═══ THE RACE ═══ */
+#race{width:100%;display:block;background:linear-gradient(180deg,#bfe3ff 0,#e6f6ff 38%,#c9f2a8 38%,#a6e07e 100%);border:4px solid #000;border-radius:22px;box-shadow:5px 6px 0 #000}
+#race text{font-family:var(--font)}
+.racebar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.racebar .grow{flex:1;min-width:200px}
+
+/* ═══ THE BALANCE ═══ */
+#bal{width:100%;display:block;background:radial-gradient(ellipse at 50% 120%,#ffe9a8,#fffdf5 60%);border:4px solid #000;border-radius:22px;box-shadow:5px 6px 0 #000;max-height:460px}
+#bal text{font-family:var(--font)}
+.tray{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin-top:12px}
+.tray button{display:flex;flex-direction:column;align-items:center;gap:0;background:#fff;border:3px solid #000;border-radius:16px;cursor:pointer;box-shadow:3px 4px 0 #000;padding:6px 4px;font-weight:900;font-size:.75rem;min-height:70px}
+.tray button .e{font-size:1.9rem;line-height:1.1}
+.tray button:active{transform:translate(2px,3px);box-shadow:1px 1px 0 #000}
+.balmsg{text-align:center;font-weight:900;font-size:clamp(1.1rem,4.4vw,1.5rem);margin:10px 0 0;min-height:1.6em}
+
+/* ═══ SPIRAL ═══ */
+.spiralwrap{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;align-items:center}
+@media (max-width:760px){.spiralwrap{grid-template-columns:1fr}}
+#spiral{width:100%;max-width:560px;display:block;margin:0 auto}
+#spiral .spin{transform-origin:300px 300px;animation:spin 140s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#spiral text{font-family:var(--font)}
+.legendS{display:flex;flex-direction:column;gap:8px;font-weight:800}
+
+/* ═══ NUMBERS ═══ */
+.bign{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:6px}
+.bn{border:3px solid #000;border-radius:18px;padding:10px 12px;box-shadow:3px 4px 0 #000;background:#fff}
+.bn.misato{background:linear-gradient(160deg,#fff,#f1e6ff)}
+.bn.penpen{background:linear-gradient(160deg,#36363d,#1d1d22);color:#fff}
+.bn small{display:block;font-weight:900;font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;opacity:.75}
+.bn b{display:block;font-size:clamp(1.5rem,6vw,2.1rem);line-height:1.05;font-variant-numeric:tabular-nums}
+.bn i{font-style:normal;font-weight:800;font-size:.78rem;opacity:.75}
+.mini svg{width:100%;display:block;background:#fff;border:3px solid #000;border-radius:16px;box-shadow:3px 4px 0 #000}
+.heat{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:230px}
+.heat span{aspect-ratio:1;border-radius:6px;border:2px solid #000;font-size:.6rem;display:grid;place-content:center;font-weight:900}
+
+/* ═══ LOG ═══ */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:10px}
+table.log{border-collapse:separate;border-spacing:0 7px;width:100%;min-width:860px;font-size:.88rem}
 table.log th{text-align:left;font-size:.7rem;color:var(--purple);text-transform:uppercase;letter-spacing:.04em;padding:0 6px;white-space:nowrap}
-table.log td{background:var(--soft);border-top:3px solid #000;border-bottom:3px solid #000;padding:5px 6px;font-weight:700;white-space:nowrap}
-table.log td:first-child{border-left:3px solid #000;border-radius:12px 0 0 12px}
-table.log td:last-child{border-right:3px solid #000;border-radius:0 12px 12px 0}
+table.log td{background:#fff;border-top:3px solid #000;border-bottom:3px solid #000;padding:5px 6px;font-weight:700;white-space:nowrap}
+table.log tr.penpen td{background:#f1f1f3}
+table.log td:first-child{border-left:3px solid #000;border-radius:14px 0 0 14px}
+table.log td:last-child{border-right:3px solid #000;border-radius:0 14px 14px 0}
 table.log input,table.log select{min-height:34px;padding:3px 6px;font-size:.85rem;box-shadow:none;border-width:2px;border-radius:9px}
-table.log .thumb{width:40px;height:40px;border-radius:8px;border:2px solid #000;object-fit:cover;cursor:zoom-in;display:block}
-.pos{color:#3d8b1f}.neg{color:#c62828}
-/* stats */
-.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:8px}
-.m1{background:rgba(255,255,255,.6);border:2.5px dashed currentColor;border-radius:14px;padding:7px 9px}
-.penpen .m1{background:rgba(255,255,255,.07)}
-.m1 small{display:block;font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.04em;opacity:.75}
-.m1 b{font-size:1.1rem}
-.heat{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:360px}
-.heat span{aspect-ratio:1;border-radius:5px;border:1.5px solid #000;font-size:.6rem;display:grid;place-content:center;font-weight:900}
-/* compare */
-.objs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
-.obj{background:#fff;border:3px solid #000;border-radius:16px;padding:8px 10px;cursor:pointer;box-shadow:var(--pop-sm)}
-.obj.on{background:var(--gold)}
-.obj .e{font-size:1.8rem;line-height:1}
-.obj b{display:block;font-size:1.2rem;color:var(--i)}
-.scene{display:flex;align-items:flex-end;justify-content:center;gap:clamp(10px,4vw,40px);background:linear-gradient(180deg,#fffdf5,#f0ffe6);border:3px solid #000;border-radius:20px;padding:20px 10px 14px;min-height:240px;margin-top:12px;position:relative;overflow:hidden}
-.scene::after{content:"";position:absolute;left:0;right:0;bottom:0;height:14px;background:#8ac926;border-top:3px solid #000}
-.scene .it{display:flex;flex-direction:column;align-items:center;z-index:1;margin-bottom:14px}
-.scene .it .lab{font-weight:900;font-size:.8rem;background:#fff;border:2px solid #000;border-radius:999px;padding:0 .6em;margin-top:3px;white-space:nowrap}
-.scene .em{line-height:1;filter:drop-shadow(0 6px 6px rgba(0,0,0,.25))}
-.prog{height:22px;border:3px solid #000;border-radius:999px;background:#fff;overflow:hidden;position:relative}
-.prog i{position:absolute;inset:0 auto 0 0;background:var(--rainbow,linear-gradient(90deg,#ff595e,#ff924c,#ffca3a,#8ac926,#1982c4,#6a4c93))}
-.prog span{position:absolute;inset:0;display:grid;place-content:center;font-weight:900;font-size:.8rem}
-/* play */
-.tm{display:flex;align-items:flex-end;justify-content:center;gap:clamp(16px,6vw,60px);min-height:260px;background:linear-gradient(180deg,#fffdf5,#f6f0ff);border:3px solid #000;border-radius:20px;padding:16px 10px 10px;position:relative}
-.tm.future{background:repeating-linear-gradient(45deg,#f6f0ff 0 14px,#efe4ff 14px 28px)}
-.tm .it{display:flex;flex-direction:column;align-items:center}
-.tm .it svg{transition:width .25s ease}
-.tm .lab{font-weight:900;background:#fff;border:2.5px solid #000;border-radius:999px;padding:.1em .8em;margin-top:4px;white-space:nowrap}
-.tmdate{text-align:center;font-weight:900;font-size:1.2rem;margin:10px 0 4px}
-.tmdate small{display:block;color:var(--faint);font-size:.8rem}
-input[type=range].fat{width:100%;accent-color:var(--i);height:30px}
-/* pics */
-.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
-.pc{background:#fff;border:3px solid #000;border-radius:14px;padding:6px;box-shadow:var(--pop-sm);position:relative;cursor:pointer}
-.pc.sel{outline:4px solid var(--i);outline-offset:2px}
-.pc img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
-.pc .cap{font-weight:900;font-size:.82rem;margin-top:4px}
-.sbs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
-.sbs .side{background:#fff;border:3px solid #000;border-radius:16px;padding:8px;text-align:center;font-weight:900}
-.sbs img{width:100%;border-radius:10px;display:block;margin-bottom:6px}
-/* edit sheet */
+table.log .thumb{width:42px;height:42px;border-radius:50%;border:3px solid #000;object-fit:cover;cursor:zoom-in;display:block}
+.pos{color:#2e8b13}.neg{color:#c62828}
+
+/* ═══ FILM ═══ */
+.film{display:flex;gap:0;overflow-x:auto;background:#111;border:4px solid #000;border-radius:14px;padding:22px 10px;margin-top:10px;position:relative;scroll-snap-type:x mandatory;box-shadow:5px 6px 0 #000}
+.film::before,.film::after{content:"";position:absolute;left:0;right:0;height:12px;background:repeating-linear-gradient(90deg,transparent 0 10px,#fffdf5 10px 22px,transparent 22px 30px);opacity:.85}
+.film::before{top:5px}.film::after{bottom:5px}
+.frame{flex:none;width:170px;margin:0 6px;background:#222;border-radius:6px;padding:6px;scroll-snap-align:start;cursor:pointer;position:relative}
+.frame.sel{outline:4px solid var(--y);outline-offset:2px}
+.frame img{width:100%;aspect-ratio:4/5;object-fit:cover;border-radius:4px;display:block}
+.frame .st{position:absolute;right:10px;bottom:34px;background:#d62828;color:#fff;font-weight:900;border-radius:8px;padding:0 .5em;transform:rotate(-6deg);border:2px solid #fff}
+.frame .c{color:#fff;font-weight:900;font-size:.78rem;margin-top:4px}
+.vs{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-top:12px}
+.vs .side{background:#fff;border:4px solid #000;border-radius:18px;padding:8px;text-align:center;font-weight:900;box-shadow:4px 5px 0 #000}
+.vs img{width:100%;border-radius:10px;display:block;margin-bottom:6px}
+.vs .mid{font-weight:900;font-size:1.4rem;text-align:center}
+
 #edlg .form{gap:10px}
 #edlg img{max-width:100%;max-height:220px;border:3px solid #000;border-radius:12px;display:block;margin:6px auto}
 #undo{position:fixed;right:14px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:45;display:none}
-#undo.on{display:inline-block}
+#undo.on{display:inline-flex;align-items:center}
+footer a{color:#fff}
 </style>
 </head>
 <body>
 <div class="wrap">
-<header>
-  <h1>⚖️ The Weight App</h1>
-  <div class="tagline">Misato &amp; Pen Pen, gram by gram 🍋🌙</div>
+
+<div class="title">
+  <h1 id="ttl"></h1>
+  <div class="sub2">Misato &amp; Pen Pen, gram by gram 🍋🌙</div>
+  <div class="heads" id="heads"></div>
   <div class="toprow">
     <button class="pill" id="mepill">🍋 I'm the lemon</button>
     <button class="pill" id="syncpill"><span class="dot"></span><span id="synctext">saving…</span></button>
+    <a class="pill" href="../v2/" style="text-decoration:none">← v2</a><a class="pill" href="../" style="text-decoration:none">← original</a>
   </div>
-  <div class="backs"><a class="pill" href="../v2/">← v2</a><a class="pill" href="../">← original</a></div>
-</header>
+</div>
 
-<!-- quick add -->
-<section class="card" id="add">
-  <h2>➕ New weigh-in</h2>
-  <div class="bigk" id="qK"></div>
-  <div class="qa" style="margin-top:12px">
-    <div class="field" style="grid-column:span 2"><label>Grams</label>
-      <div class="gbox"><input type="number" id="qG" inputmode="decimal" min="50" max="12000" placeholder="grams"></div>
-      <div class="step"><button data-s="-50">−50</button><button data-s="-10">−10</button><button data-s="-5">−5</button><button data-s="-1">−1</button><button data-s="1">+1</button><button data-s="5">+5</button><button data-s="10">+10</button><button data-s="50">+50</button></div>
-      <div class="hint" id="qHint"></div></div>
-    <div class="field"><label>Date</label><input type="date" id="qDate"></div>
-    <div class="field"><label>Time</label><input type="time" id="qTime"></div>
-    <div class="field"><label>Fed?</label><select id="qFed"><option value="">—</option><option value="before">before food</option><option value="after">after food</option></select></div>
-  </div>
-  <details class="more"><summary>📷 photo · ✏️ note · 🎯 guesses</summary>
-    <div class="qa" style="margin-top:8px">
-      <div class="field"><label>Photo on the scales</label><input type="file" id="qPhoto" accept="image/*" style="font-size:.8rem"></div>
-      <div class="field" style="grid-column:span 2"><label>Note</label><input type="text" id="qNote" placeholder="wriggly, kept stepping off"></div>
-      <div class="field"><label>🍋 guessed</label><input type="number" id="qGl" inputmode="decimal" placeholder="g"></div>
-      <div class="field"><label>🌙 guessed</label><input type="number" id="qGg" inputmode="decimal" placeholder="g"></div>
-      <div class="field"><label><input type="checkbox" id="qApprox"> roughly</label></div>
-    </div>
-  </details>
-  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn go" id="qSave" style="font-size:1.15rem">⚖️ Save weigh-in</button></div>
-</section>
-
-<nav class="tabs" id="tabs">
-  <button data-t="chart" class="on">📈 Chart</button><button data-t="log">📋 Log</button><button data-t="stats">🔬 Stats</button>
-  <button data-t="compare">⚖️ Compare</button><button data-t="play">🧪 Play</button><button data-t="pics">📸 Pics</button>
+<nav class="snav">
+  <a href="#s-scale">⚖️ Weigh</a><a href="#s-chart">📈 Chart</a><a href="#s-race">🏁 Race</a><a href="#s-bal">🎢 Balance</a>
+  <a href="#s-spiral">🌀 Spiral</a><a href="#s-nums">🔢 Numbers</a><a href="#s-log">📋 Log</a><a href="#s-film">🎞 Photos</a>
 </nav>
 
-<!-- chart -->
-<section class="card pane" id="p-chart">
-  <h2>📈 The chart</h2>
-  <div class="ctl">
-    <span class="lbl">show</span><button class="tg on" data-o="misato">🤍 Misato</button><button class="tg on" data-o="penpen">🖤 Pen Pen</button>
-    <button class="tg on" data-o="band">typical range</button><button class="tg on" data-o="ms">milestones</button><button class="tg" data-o="events">moments</button><button class="tg on" data-o="photos">📷</button><button class="tg" data-o="labels">values</button>
+<!-- ═══════════ THE SCALE ═══════════ -->
+<section class="scene" id="s-scale"><div class="label">⚖️ The scale</div>
+  <div class="intro">Pick a kitten, then spin the drum with your finger (or scroll / use the keys). Tap the screen to type.</div>
+  <div class="kpick" id="kpick"></div>
+  <div class="scalewrap" style="margin-top:14px">
+    <div style="position:relative;overflow:hidden"><svg id="scale" viewBox="0 0 400 500"></svg><div class="stamp" id="stamp">WEIGHED!</div></div>
+    <div>
+      <div class="lcd" id="lcd" title="tap to type">0<small> g</small></div>
+      <input type="number" id="lcdIn" inputmode="decimal" hidden style="font-size:2rem;text-align:center;margin-top:8px">
+      <div class="lcdsub" id="lcdsub"></div>
+      <div class="keys"><button class="chunk" data-n="-10">−10</button><button class="chunk" data-n="-1">−1</button><button class="chunk" data-n="1">+1</button><button class="chunk" data-n="10">+10</button></div>
+      <div class="wmeta">
+        <div class="field"><label>Date</label><input type="date" id="qDate"></div>
+        <div class="field"><label>Time</label><input type="time" id="qTime"></div>
+        <div class="field"><label>Fed?</label><select id="qFed"><option value="">—</option><option value="before">before food</option><option value="after">after food</option></select></div>
+      </div>
+      <details class="more"><summary>📷 photo · ✏️ note · 🎯 guesses · ~ roughly</summary>
+        <div class="wmeta">
+          <div class="field" style="grid-column:1/-1"><label>Photo on the scales</label><input type="file" id="qPhoto" accept="image/*" style="font-size:.8rem"></div>
+          <div class="field" style="grid-column:1/-1"><label>Note</label><input type="text" id="qNote" placeholder="wriggly, kept stepping off"></div>
+          <div class="field"><label>🍋 guessed</label><input type="number" id="qGl" inputmode="decimal" placeholder="g"></div>
+          <div class="field"><label>🌙 guessed</label><input type="number" id="qGg" inputmode="decimal" placeholder="g"></div>
+          <div class="field"><label><input type="checkbox" id="qApprox"> roughly</label></div>
+        </div>
+      </details>
+      <div style="display:flex;gap:10px;justify-content:center;margin-top:14px;flex-wrap:wrap"><button class="chunk go big" id="qSave">⚖️ Weigh in!</button><button class="chunk sm" id="qReset" title="back to the expected weight">↺ expected</button></div>
+    </div>
   </div>
-  <div class="ctl">
-    <span class="lbl">range</span><div class="seg" id="cRange"><button data-r="7">1w</button><button data-r="14">2w</button><button data-r="30">1m</button><button data-r="90">3m</button><button data-r="0" class="on">all</button><button data-r="-1">future</button></div>
-    <span class="lbl">x</span><div class="seg" id="cX"><button data-x="date" class="on">date</button><button data-x="age">age</button></div>
-  </div>
-  <div class="ctl">
-    <span class="lbl">units</span><div class="seg" id="cU"><button data-u="g" class="on">g</button><button data-u="kg">kg</button><button data-u="lb">lb</button><button data-u="lemon">🍋</button></div>
-    <span class="lbl">projection</span><div class="seg" id="cP"><button data-p="none">off</button><button data-p="rate">recent pace</button><button data-p="curve" class="on">growth curve</button></div>
-  </div>
-  <svg id="big" viewBox="0 0 1000 520"></svg>
-  <div class="readout" id="readout"></div>
-  <div class="hint">Drag to pan · pinch or scroll to zoom · double-tap to reset · tap a dot to edit that weigh-in.</div>
 </section>
 
-<!-- log -->
-<section class="card pane" id="p-log" hidden>
-  <h2>📋 Every weigh-in</h2>
-  <div class="sub">Edit anything in place — it saves as you go, on both phones. Mistake? Hit ↩︎ Undo.</div>
-  <div class="filters" style="margin-bottom:8px"><div class="seg" id="lK"><button data-k="all" class="on">Both</button><button data-k="misato">Misato</button><button data-k="penpen">Pen Pen</button></div>
-    <div class="seg" id="lSort"><button data-s="desc" class="on">newest first</button><button data-s="asc">oldest first</button></div></div>
+<!-- ═══════════ THE CHART ═══════════ -->
+<section class="scene" id="s-chart"><div class="label p">📈 The growth chart</div>
+  <div class="intro">Drag across the chart to travel through time — the kittens grow above it. Drag or stretch the window underneath to zoom. Tap any dot to open that weigh-in.</div>
+  <div class="parade" id="parade"></div>
+  <div class="whenbar" id="whenbar"></div>
+  <div class="chartbox"><svg id="gchart" viewBox="0 0 1000 560"></svg><div id="pcardWrap"></div></div>
+  <svg id="brush" viewBox="0 0 1000 96"></svg>
+  <div class="chips" style="margin-top:12px">
+    <span class="chip mis" data-o="misato">🤍 Misato</span><span class="chip pen" data-o="penpen">🖤 Pen Pen</span>
+    <span class="chip" data-o="cone">🔮 future cone</span><span class="chip" data-o="band">🌿 typical range</span><span class="chip" data-o="things">🥫 everyday weights</span>
+    <span class="chip" data-o="photos">📷 photos</span><span class="chip" data-o="moments">🚩 moments</span><span class="chip" data-o="ghost">👻 preview the scale</span>
+  </div>
+  <div class="chips" style="margin-top:8px">
+    <span class="lbl" style="font-weight:900;font-size:.75rem;color:var(--purple)">UNITS</span><span class="chip" data-u="g">g</span><span class="chip" data-u="kg">kg</span><span class="chip" data-u="lb">lb/oz</span><span class="chip" data-u="lemon">🍋 lemons</span>
+    <span class="lbl" style="font-weight:900;font-size:.75rem;color:var(--purple);margin-left:8px">AXIS</span><span class="chip" data-x="date">by date</span><span class="chip" data-x="age">by age</span>
+  </div>
+  <div class="sliders">
+    <div class="sl"><label>⏩ Future pace</label><input type="range" class="fat" id="slPace" min="50" max="150" value="100"><output id="oPace"></output><small>Bend the future: slower or faster than a typical kitten curve.</small></div>
+    <div class="sl"><label>🔭 Look ahead</label><input type="range" class="fat" id="slAhead" min="0" max="365" value="60"><output id="oAhead"></output><small>How far into the future to draw.</small></div>
+    <div class="sl"><label>〰 Smoothness</label><input type="range" class="fat" id="slSmooth" min="0" max="100" value="70"><output id="oSmooth"></output><small>Straight lines ↔ flowing curves.</small></div>
+  </div>
+  <div class="ticker"><span>💡</span><span class="t" id="tick"></span><button id="tickNext">next ▶</button></div>
+</section>
+
+<!-- ═══════════ THE RACE ═══════════ -->
+<section class="scene" id="s-race"><div class="label g">🏁 The race to grown-up</div>
+  <div class="intro">The track is weight: every gram is a step towards the finish line at grown-up size. Scrub the date or hit play.</div>
+  <svg id="race" viewBox="0 0 1000 380"></svg>
+  <div class="racebar"><button class="chunk go" id="racePlay">▶ Race!</button><div class="grow"><input type="range" class="fat" id="raceS" min="0" max="100" value="0"></div><span style="font-weight:900" id="raceDate"></span></div>
+</section>
+
+<!-- ═══════════ THE BALANCE ═══════════ -->
+<section class="scene" id="s-bal"><div class="label o">🎢 The balance</div>
+  <div class="intro">Pile things on the other side until it balances. Tap the pile to take the last thing off.</div>
+  <div class="chips" style="justify-content:center;margin-bottom:10px">
+    <span class="chip" data-bm="misato">🤍 Misato vs things</span><span class="chip" data-bm="penpen">🖤 Pen Pen vs things</span><span class="chip" data-bm="duel">🤍 vs 🖤 duel</span><span class="chip" data-bm="both">🐾 both vs things</span>
+  </div>
+  <svg id="bal" viewBox="0 0 1000 440"></svg>
+  <div class="balmsg" id="balmsg"></div>
+  <div class="tray" id="tray"></div>
+  <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap"><button class="chunk sm" id="balAuto">✨ fill it for me</button><button class="chunk sm" id="balClear">🧹 clear</button></div>
+</section>
+
+<!-- ═══════════ THE SPIRAL ═══════════ -->
+<section class="scene" id="s-spiral"><div class="label b">🌀 The growth spiral</div>
+  <div class="intro">Every day since their first weigh-in, one lap per week — like rings in a tree. Bigger, warmer dots = heavier kitten.</div>
+  <div class="chips" style="justify-content:center;margin-bottom:8px"><span class="chip" data-sp="misato">🤍 Misato</span><span class="chip" data-sp="penpen">🖤 Pen Pen</span></div>
+  <div class="spiralwrap"><svg id="spiral" viewBox="0 0 600 600"></svg><div class="legendS" id="spLegend"></div></div>
+</section>
+
+<!-- ═══════════ NUMBERS ═══════════ -->
+<section class="scene" id="s-nums"><div class="label r">🔢 The numbers</div>
+  <div id="nums"></div>
+  <div class="grid2" style="margin-top:16px">
+    <div class="mini"><h3>⚡ Growth speed (g/day)</h3><svg id="vel" viewBox="0 0 600 240"></svg></div>
+    <div class="mini"><h3>↔️ The gap between them</h3><svg id="gap" viewBox="0 0 600 240"></svg></div>
+  </div>
+  <div class="grid2" style="margin-top:12px" id="heats"></div>
+  <div id="guess" style="margin-top:12px"></div>
+</section>
+
+<!-- ═══════════ LOG ═══════════ -->
+<section class="scene" id="s-log"><div class="label">📋 Every weigh-in</div>
+  <div class="intro">Change anything — it saves as you type, on both phones. Mistake? ↩︎ Undo.</div>
+  <div class="chips"><span class="chip" data-lk="all">Both</span><span class="chip" data-lk="misato">🤍 Misato</span><span class="chip" data-lk="penpen">🖤 Pen Pen</span>
+    <span class="chip" data-ls="desc" style="margin-left:8px">newest first</span><span class="chip" data-ls="asc">oldest first</span>
+    <button class="chunk sm" id="csv" style="margin-left:auto">⬇️ CSV</button><button class="chunk sm" id="json">⬇️ JSON</button></div>
   <div class="tw"><table class="log" id="logt"></table></div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" id="csv">⬇️ CSV</button><button class="btn" id="json">⬇️ JSON</button></div>
 </section>
 
-<!-- stats -->
-<section class="card pane" id="p-stats" hidden>
-  <h2>🔬 In immense detail</h2>
-  <div class="grid2" id="sCards"></div>
-  <h3>📈 Growth speed — g per day between weigh-ins</h3>
-  <svg class="svgc" id="vel" viewBox="0 0 1000 240"></svg>
-  <h3>↔️ The gap between them</h3>
-  <svg class="svgc" id="gap" viewBox="0 0 1000 220"></svg>
-  <h3>🗓 Week by week</h3>
-  <div class="tw"><table class="log" id="weeks" style="min-width:560px"></table></div>
-  <h3>🔥 Weigh-in calendar (last 12 weeks)</h3>
-  <div class="grid2" id="heats"></div>
-  <h3>🎯 Guess-the-weight leaderboard</h3>
-  <div id="guess"></div>
+<!-- ═══════════ FILM ═══════════ -->
+<section class="scene" id="s-film"><div class="label p">🎞 On the scales</div>
+  <div class="intro">Every weigh-in photo on one roll of film. Tap two frames to put them side by side.</div>
+  <div class="film" id="film"></div>
+  <div id="vs"></div>
 </section>
 
-<!-- compare -->
-<section class="card pane" id="p-compare" hidden>
-  <h2>⚖️ Compare</h2>
-  <div class="sub">Tap something to stand it next to them — drawn to scale by weight.</div>
-  <div class="filters" style="margin-bottom:8px"><div class="seg" id="cmK"><button data-k="misato" class="on">Misato</button><button data-k="penpen">Pen Pen</button></div></div>
-  <div class="scene" id="scene"></div>
-  <div class="objs" id="objs"></div>
-  <h3>🌱 How grown-up are they?</h3>
-  <div id="adult"></div>
-  <h3>📏 Against a typical kitten</h3>
-  <div id="vsTypical"></div>
-  <h3>⏪ Against their younger selves</h3>
-  <div class="scene" id="selves"></div>
-</section>
-
-<!-- play -->
-<section class="card pane" id="p-play" hidden>
-  <h2>🧪 Play</h2>
-  <h3>⏳ Time machine</h3>
-  <div class="tm" id="tm"></div>
-  <div class="tmdate" id="tmDate"></div>
-  <input type="range" class="fat" id="tmS" min="0" max="100" value="0">
-  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button class="btn" id="tmPlay">▶ Play</button><button class="btn sm" id="tmToday">today</button><button class="btn sm" id="tmBday">first birthday</button></div>
-  <h3>🎛 What if…</h3>
-  <div class="sub">Drag the daily gain and see when they'd hit each size.</div>
-  <div class="grid2" id="whatif"></div>
-  <h3>👻 Ghost weigh-in</h3>
-  <div class="sub">Try a number without saving it — see how it would change things.</div>
-  <div class="form">
-    <div class="field"><label>Kitten</label><select id="ghK"><option value="misato">🤍 Misato</option><option value="penpen">🖤 Pen Pen</option></select></div>
-    <div class="field"><label>Date</label><input type="date" id="ghD"></div>
-    <div class="field"><label>Grams</label><input type="number" id="ghG" inputmode="decimal"></div>
-    <button class="btn" id="ghKeep">💾 keep it for real</button>
-  </div>
-  <div id="ghOut" style="margin-top:10px"></div>
-</section>
-
-<!-- pics -->
-<section class="card pane" id="p-pics" hidden>
-  <h2>📸 On the scales</h2>
-  <div class="sub">Every weigh-in photo. Tap two to compare them side by side.</div>
-  <div class="filters"><div class="seg" id="pK"><button data-k="all" class="on">Both</button><button data-k="misato">Misato</button><button data-k="penpen">Pen Pen</button></div></div>
-  <div class="sbs" id="sbs"></div>
-  <div class="pgrid" id="pgrid"></div>
-</section>
-
-<footer><button class="btn sm" id="exportBtn">💾 Backup everything</button><br>same data as the original and v2 · 🍋💛🌙</footer>
+<footer><button class="btn sm" id="exportBtn">💾 Backup everything</button><br>same data as the original and v2 · <a href="classic.html">the classic weight app</a> · 🍋💛🌙</footer>
 </div>
 
 <!-- edit sheet -->
@@ -255,46 +328,55 @@ input[type=range].fat{width:100%;accent-color:var(--i);height:30px}
   <div class="actions"><button class="btn ghost" id="eDel">🗑 Delete</button><button class="btn" id="eCancel">Cancel</button><button class="btn go" id="eSave">Save</button></div>
 </div></dialog>
 <dialog id="viewer"><img id="viewerImg" alt=""></dialog>
-<button class="btn go" id="undo">↩︎ Undo</button>
+<button class="chunk go" id="undo">↩︎ Undo</button>
 <div id="toast"></div>
 
 <script src="../vendor/mqtt.min.js"></script>
 <script src="../shared/core.js"></script>
 <script>
 'use strict';
-/* ═════════════ helpers ═════════════ */
+/* ═════════════════════ state & helpers ═════════════════════ */
 const pen = id => id === 'penpen';
 const DOB = () => KIDS.map(id => K(id).dob).filter(Boolean).sort()[0] || todayYmd();
-const ls = (k, v) => v === undefined ? lsGet('kittens.wapp.' + k) : lsSet('kittens.wapp.' + k, v);   // per-phone view prefs only
-const S = Object.assign({ tab: 'chart', unit: 'g', proj: 'curve', x: 'date', range: 0, show: { misato: true, penpen: true, band: true, ms: true, events: false, photos: true, labels: false } }, (() => { try { return JSON.parse(ls('prefs')) || {}; } catch (e) { return {}; } })());
-const saveS = () => ls('prefs', JSON.stringify(S));
+const pref = (k, v) => v === undefined ? lsGet('kittens.wapp2.' + k) : lsSet('kittens.wapp2.' + k, v);   // per-phone view prefs only
+const S = Object.assign({ unit: 'g', x: 'date', pace: 100, ahead: 60, smooth: 70, show: { misato: true, penpen: true, cone: true, band: true, things: true, photos: true, moments: false, ghost: true },
+  lk: 'all', ls: 'desc', bm: 'misato', sp: 'misato' }, (() => { try { return JSON.parse(pref('s')) || {}; } catch (e) { return {}; } })());
+const saveS = () => pref('s', JSON.stringify(S));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const sign = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n));
 function fmt(g, u = S.unit) {
   if (g == null || isNaN(g)) return '—';
-  if (u === 'kg') return (g / 1000).toFixed(g >= 10000 ? 1 : 2) + ' kg';
+  if (u === 'kg') return (g / 1000).toFixed(2) + ' kg';
   if (u === 'lb') { const oz = g / 28.3495, lb = Math.floor(oz / 16); return lb ? `${lb} lb ${(oz - lb * 16).toFixed(1)} oz` : `${oz.toFixed(1)} oz`; }
   if (u === 'lemon') return (g / LEMON_G).toFixed(1) + ' 🍋';
-  return Math.round(g) + ' g';
+  return Math.round(g).toLocaleString('en-GB') + ' g';
 }
-function axisFmt(g) { if (S.unit === 'kg') return (g / 1000).toFixed(g % 1000 ? 1 : 0) + 'kg'; if (S.unit === 'lb') return (g / 453.592).toFixed(1) + 'lb'; if (S.unit === 'lemon') return (g / LEMON_G).toFixed(0) + '🍋'; return g >= 1000 ? (g / 1000).toFixed(g % 1000 ? 1 : 0) + 'kg' : g + 'g'; }
-const sign = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n));
-const W8 = id => weightsOf(id);
-// weight at a date: interpolate between weigh-ins; before the first → null; after the last → projection (model)
-function wAt(id, date, model = S.proj) {
-  const w = W8(id); if (!w.length) return null;
-  if (date < w[0].date) return null;
-  for (let i = 1; i < w.length; i++) if (date <= w[i].date) { const a = w[i - 1], b = w[i], span = daysBetween(a.date, b.date); return span ? a.g + (b.g - a.g) * daysBetween(a.date, date) / span : b.g; }
-  const l = w[w.length - 1]; if (date === l.date) return l.g;
-  if (model === 'none') return null;
-  return model === 'rate' ? projectAt(id, date) : projCurve(id, date);
-}
-function when(id, target, model = S.proj) {
-  if (model === 'rate') return projectDate(id, target);
-  return whenReaches(id, target);
-}
+const short = g => S.unit === 'kg' ? (g / 1000).toFixed(2) + 'kg' : S.unit === 'lb' ? (g / 453.592).toFixed(2) + 'lb' : S.unit === 'lemon' ? (g / LEMON_G).toFixed(1) + '🍋' : Math.round(g) + 'g';
 function view(src) { $('#viewerImg').src = src; $('#viewer').showModal(); }
 $('#viewer').onclick = () => $('#viewer').close();
+const THINGS = [['🥚', 'an egg', 'eggs', 60], ['🎾', 'a tennis ball', 'tennis balls', 58], ['🍋', 'a lemon', 'lemons', LEMON_G], ['🍌', 'a banana', 'bananas', 120], ['🍎', 'an apple', 'apples', 180],
+  ['📱', 'a phone', 'phones', 190], ['🥫', 'a tin of beans', 'tins of beans', 415], ['⚽', 'a football', 'footballs', 430], ['🥛', 'a pint of milk', 'pints of milk', 568], ['🦔', 'a hedgehog', 'hedgehogs', 800],
+  ['🍚', 'a bag of sugar', 'bags of sugar', 1000], ['🍍', 'a pineapple', 'pineapples', 1500], ['🐇', 'a rabbit', 'rabbits', 2000], ['🐕', 'a chihuahua', 'chihuahuas', 2500], ['👶', 'a newborn baby', 'newborn babies', 3400], ['🐈', 'a grown-up cat', 'grown-up cats', 4200]];
+const CHART_THINGS = [[415, '🥫', 'tin of beans'], [568, '🥛', 'pint of milk'], [1000, '🍚', 'bag of sugar'], [1500, '🍍', 'pineapple'], [2000, '🐇', 'rabbit'], [2500, '🐕', 'chihuahua'], [3400, '👶', 'newborn'], [4200, '🐈', 'grown-up cat']];
+function equiv(g) { const t = THINGS.slice().reverse().find(x => g >= x[3] * .9) || THINGS[0]; const n = g / t[3]; return n < 1.15 ? `about ${t[1]}` : `${n.toFixed(1)} ${t[2]}`; }
 
-/* ═════════════ undo ═════════════ */
+/* the scale's dial value acts as a "ghost" weigh-in everywhere until saved */
+const Q = { k: pref('k') || 'misato', g: null, touched: false };
+function withGhost(fn) {
+  if (!(S.show.ghost && Q.touched && Q.g >= 50)) return fn();
+  const real = doc.weights; doc.weights = Object.assign({}, real, { __ghost: { k: Q.k, date: $('#qDate').value || todayYmd(), g: Q.g, u: Date.now() + 1e9, ghost: true } });
+  try { return fn(); } finally { doc.weights = real; }
+}
+// weight at a date: interpolated between weigh-ins, projected (with the pace slider) after the last
+function proj(id, date, k = 1) { const l = latest(id); if (!l) return null; const c = projCurve(id, date); if (c == null) return null; return l.g + (c - l.g) * (S.pace / 100) * k; }
+function wAt(id, date, k = 1) {
+  const w = weightsOf(id); if (!w.length || date < w[0].date) return null;
+  for (let i = 1; i < w.length; i++) if (date <= w[i].date) { const a = w[i - 1], b = w[i], sp = daysBetween(a.date, b.date); return sp ? a.g + (b.g - a.g) * daysBetween(a.date, date) / sp : b.g; }
+  return date === w[w.length - 1].date ? w[w.length - 1].g : proj(id, date, k);
+}
+function whenPaced(id, target) { const l = latest(id); if (!l || l.g >= target) return null; for (let i = 1; i < 900; i++) { const d = addDays(l.date, i); if (proj(id, d) >= target) return d; } return null; }
+
+/* ═════════════════════ undo + edit sheet ═════════════════════ */
 const undoStack = [];
 function wput(id, rec) { undoStack.push({ id, prev: doc.weights[id] ? Object.assign({}, doc.weights[id]) : null }); put('weights', id, rec); showUndo(); }
 function wdel(id) { undoStack.push({ id, prev: Object.assign({}, doc.weights[id]) }); del('weights', id); showUndo(); }
@@ -305,154 +387,6 @@ $('#undo').onclick = () => { const x = undoStack.pop(); if (!x) return;
     const cur = doc.weights[x.id] || {}, blank = {}; Object.keys(cur).forEach(k => { if (!(k in x.prev) && k !== 'u') blank[k] = k === 'del' ? false : null; });
     doc.weights[x.id] = Object.assign(blank, x.prev, { u: Date.now() }); if (!x.prev.del) delete doc.weights[x.id].del; save(); changed(); }
   toast('↩︎ undone'); showUndo(); };
-
-/* ═════════════ who ═════════════ */
-function renderMe() { $('#mepill').textContent = me === 'lemon' ? "🍋 I'm the lemon" : "🌙 I'm the girl"; }
-$('#mepill').onclick = () => { setMe(me === 'lemon' ? 'girl' : 'lemon'); renderMe(); toast(me === 'lemon' ? '🍋 logging as the lemon' : '🌙 logging as the girl'); };
-
-/* ═════════════ quick add ═════════════ */
-let qK = ls('qK') || 'misato';
-function renderQK() {
-  $('#qK').innerHTML = KIDS.map(id => `<button data-k="${id}" class="${qK === id ? 'on' : ''}">${kittenSVG(id, { w: 40, still: true })}${esc(K(id).name)}</button>`).join('');
-  $('#qK').querySelectorAll('button').forEach(b => b.onclick = () => { qK = b.dataset.k; ls('qK', qK); renderQK(); qHint(); });
-}
-function qHint() {
-  const l = latest(qK), est = estNow(qK), ex = projCurve(qK, $('#qDate').value || todayYmd());
-  $('#qG').placeholder = ex ? '≈ ' + ex : 'grams';
-  $('#qHint').textContent = l ? `last: ${l.g}g on ${nice(l.date)} · expecting about ${ex || est}g` : 'first weigh-in!';
-}
-$('#add').querySelectorAll('.step button').forEach(b => b.onclick = () => { const cur = +$('#qG').value || projCurve(qK, $('#qDate').value || todayYmd()) || latest(qK)?.g || 0; $('#qG').value = Math.max(0, Math.round(cur + +b.dataset.s)); });
-$('#qDate').onchange = qHint;
-$('#qSave').onclick = async () => {
-  const g = Math.round(parseFloat($('#qG').value)); if (!g || g < 50 || g > 12000) { toast('grams please'); return; }
-  const date = $('#qDate').value || todayYmd(), id = uid(), prev = latest(qK);
-  const rec = { k: qK, date, g, approx: $('#qApprox').checked, by: me, time: $('#qTime').value || '', fed: $('#qFed').value, note: $('#qNote').value.trim() };
-  const gl = +$('#qGl').value, gg = +$('#qGg').value; if (gl || gg) rec.guess = Object.assign({}, gl ? { lemon: gl } : {}, gg ? { girl: gg } : {});
-  const f = $('#qPhoto').files[0];
-  if (f) { try { const d = await shrink(f, 900); rec.photo = addPhoto(d, { k: qK, caption: `⚖️ ${g}g`, date, weigh: id }); } catch (e) {} }
-  wput(id, rec);
-  ['#qG', '#qNote', '#qGl', '#qGg'].forEach(s => $(s).value = ''); $('#qPhoto').value = ''; $('#qApprox').checked = false; $('#qTime').value = new Date().toTimeString().slice(0, 5);
-  let msg = `⚖️ ${K(qK).name}: ${g}g`; if (prev) msg += ` (${sign(g - prev.g)}g)`;
-  if (rec.guess) { const e = Object.entries(rec.guess).map(([p, v]) => [p, Math.abs(v - g)]).sort((a, b) => a[1] - b[1]); msg += ` · 🎯 ${WHO[e[0][0]]} closest (${e[0][1]}g off)`; }
-  toast(msg); if (!prev || g > prev.g) rain(['⚖️', '🐾', '🍋', '💛']);
-};
-
-/* ═════════════ tabs ═════════════ */
-function setTab(t) { S.tab = t; saveS(); $('#tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); document.querySelectorAll('.pane').forEach(p => p.hidden = p.id !== 'p-' + t); renderTab(); }
-$('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => setTab(b.dataset.t));
-
-/* ═════════════ 📈 big chart ═════════════ */
-const CW = 1000, CH = 520, CL = 64, CR = 24, CT = 22, CB = 56;
-let vp = null;            // {x0,x1,y0,y1} in days-since-DOB and grams — null = auto
-function autoVP() {
-  const dob = DOB(), td = daysBetween(dob, todayYmd());
-  const ids = KIDS.filter(id => S.show[id]), all = ids.flatMap(W8);
-  const first = all.length ? Math.min(...all.map(p => daysBetween(dob, p.date))) : td - 14;
-  const last = all.length ? Math.max(...all.map(p => daysBetween(dob, p.date))) : td;
-  let x0, x1;
-  if (S.range === -1) { x0 = Math.max(0, td - 14); x1 = td + 120; }
-  else if (S.range > 0) { x1 = Math.max(td, last) + Math.max(3, Math.round(S.range / 5)); x0 = x1 - S.range - Math.max(3, Math.round(S.range / 5)); }
-  else { x0 = Math.max(0, first - 5); x1 = Math.max(td, last) + (S.proj !== 'none' ? 21 : 5); }
-  return Object.assign({ x0, x1 }, fitY(x0, x1));
-}
-function fitY(x0, x1) {
-  const dob = DOB(), vals = [];
-  KIDS.filter(id => S.show[id]).forEach(id => { W8(id).forEach(p => { const d = daysBetween(dob, p.date); if (d >= x0 - 2 && d <= x1 + 2) vals.push(p.g); });
-    [x0, (x0 + x1) / 2, x1].forEach(d => { const v = wAt(id, addDays(dob, Math.round(d))); if (v != null) vals.push(v); }); });
-  if (S.show.band) { vals.push(guide(Math.max(0, x0))[0], guide(Math.max(0, x1))[1]); }
-  if (!vals.length) vals.push(400, 1200);
-  let y0 = Math.min(...vals), y1 = Math.max(...vals); const pad = Math.max(30, (y1 - y0) * .1);
-  return { y0: Math.max(0, y0 - pad), y1: y1 + pad };
-}
-function drawBig() {
-  const v = vp || autoVP(), dob = DOB(), svg = $('#big');
-  const X = d => CL + (d - v.x0) / (v.x1 - v.x0) * (CW - CL - CR), Y = g => CT + (1 - (g - v.y0) / (v.y1 - v.y0)) * (CH - CT - CB);
-  const iX = px => v.x0 + (px - CL) / (CW - CL - CR) * (v.x1 - v.x0);
-  let g = '', ax = '';
-  // y grid
-  const span = v.y1 - v.y0, unitG = S.unit === 'lb' ? 453.592 : S.unit === 'lemon' ? LEMON_G : 1;
-  const raw = span / unitG / 6, mag = Math.pow(10, Math.floor(Math.log10(raw))), stepU = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw), step = stepU * unitG;
-  for (let y = Math.ceil(v.y0 / step) * step; y <= v.y1; y += step) { g += `<line x1="${CL}" x2="${CW - CR}" y1="${Y(y)}" y2="${Y(y)}" stroke="#eee" stroke-width="1.5"/>`; ax += `<text x="${CL - 8}" y="${Y(y) + 4}" text-anchor="end">${axisFmt(Math.round(y))}</text>`; }
-  // x grid: choose step by visible span
-  const xs = v.x1 - v.x0, xstep = xs > 240 ? 28 : xs > 90 ? 7 : xs > 30 ? 3 : xs > 12 ? 1 : 1;
-  for (let d = Math.ceil(v.x0 / xstep) * xstep; d <= v.x1; d += xstep) { const wk = d % 7 === 0;
-    g += `<line x1="${X(d)}" x2="${X(d)}" y1="${CT}" y2="${CH - CB}" stroke="${wk ? '#e6dcff' : '#f6f3fb'}" stroke-width="${wk ? 2 : 1}"/>`;
-    const date = addDays(dob, d), lbl = S.x === 'age' ? (wk ? Math.round(d / 7) + ' wk' : (xs <= 30 ? Math.floor(d / 7) + 'w' + (d % 7) + 'd' : '')) : parseYmd(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-    const sub = S.x === 'age' ? (xs <= 60 ? parseYmd(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') : (wk ? Math.round(d / 7) + 'w' : '');
-    if (lbl) ax += `<text x="${X(d)}" y="${CH - CB + 17}" text-anchor="middle" style="font-weight:${wk ? 900 : 400}">${lbl}</text>`;
-    if (sub) ax += `<text x="${X(d)}" y="${CH - CB + 33}" text-anchor="middle" style="font-size:9.5px">${sub}</text>`; }
-  // band
-  if (S.show.band) { let top = '', bot = ''; const st = Math.max(.5, xs / 120); for (let d = Math.max(0, v.x0); d <= v.x1 + st; d += st) { const [lo, hi] = guide(d); top += `${X(d)},${Y(hi)} `; bot = `${X(d)},${Y(lo)} ` + bot; }
-    g += `<polygon points="${top}${bot}" fill="rgba(138,201,38,.18)" stroke="rgba(95,151,24,.5)" stroke-dasharray="5 4" stroke-width="1.5"/>`; }
-  // milestones
-  if (S.show.ms) { [500, 750, 1000, 1500, 2000, 2500, 3000, 4000].filter(m => m > v.y0 && m < v.y1).forEach(m => g += `<line x1="${CL}" x2="${CW - CR}" y1="${Y(m)}" y2="${Y(m)}" stroke="#b15ee3" stroke-width="1.2" stroke-dasharray="2 6"/><text x="${CW - CR - 6}" y="${Y(m) - 5}" text-anchor="end" style="fill:#b15ee3;font-weight:900">${fmt(m)}</text>`);
-    [[56, '8 wk'], [63, '1st jab'], [84, '12 wk'], [120, '4 mo'], [182, '6 mo'], [365, '1 yr']].filter(([d]) => d > v.x0 && d < v.x1).forEach(([d, l]) => g += `<text x="${X(d) + 4}" y="${CH - CB - 6}" style="fill:#b15ee3;font-weight:900;font-size:10px">${l}</text>`); }
-  // today
-  const td = daysBetween(dob, todayYmd()); if (td >= v.x0 && td <= v.x1) g += `<line x1="${X(td)}" x2="${X(td)}" y1="${CT}" y2="${CH - CB}" stroke="#ffca3a" stroke-width="3"/><text x="${X(td)}" y="${CT - 6}" text-anchor="middle" style="font-weight:900;fill:#6a4c93">today</text>`;
-  // moments
-  if (S.show.events) live('events').map(([, e]) => e).forEach(e => { const d = daysBetween(dob, e.date); if (d >= v.x0 && d <= v.x1) g += `<text x="${X(d)}" y="${CT + 14}" text-anchor="middle" style="font-size:13px">🚩</text><title>${esc(e.text)}</title>`; });
-  // series
-  const dots = [], visible = KIDS.filter(id => S.show[id]).flatMap(id => W8(id).filter(p => { const d = daysBetween(dob, p.date); return d >= v.x0 && d <= v.x1; })).length;
-  KIDS.filter(id => S.show[id]).forEach(id => {
-    const w = W8(id); if (!w.length) return; const P = w.map(p => [X(daysBetween(dob, p.date)), Y(p.g), p]), b = pen(id);
-    // projection path
-    if (S.proj !== 'none') { const l = w[w.length - 1], ld = daysBetween(dob, l.date); let pp = `${X(ld)},${Y(l.g)}`; const st = Math.max(1, Math.round(xs / 60));
-      for (let d = ld + st; d <= v.x1 + st; d += st) { const val = wAt(id, addDays(dob, d)); if (val != null) pp += ` ${X(d)},${Y(val)}`; }
-      g += `<polyline points="${pp}" fill="none" stroke="${b ? '#2b2b30' : '#6a4c93'}" stroke-width="2.5" stroke-dasharray="3 6" stroke-linecap="round" opacity=".8"/>`; }
-    const path = P.map(p => p[0] + ',' + p[1]).join(' ');
-    if (P.length > 1) g += `<polyline points="${path}" fill="none" stroke="#000" stroke-width="${b ? 5.5 : 7.5}" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${path}" fill="none" stroke="${b ? '#2b2b30' : '#fff'}" stroke-width="${b ? 4 : 4}" stroke-linejoin="round" stroke-linecap="round"/>`;
-    P.forEach(([x, y, p], i) => {
-      const hasPh = p.photo && photoURL(p.photo);
-      g += `<circle cx="${x}" cy="${y}" r="${p.approx ? 6 : 8}" fill="${b ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="3" ${p.approx ? 'stroke-dasharray="3 2"' : ''} data-w="${p.id}" style="cursor:pointer"/>`;
-      if (S.show.photos && hasPh) g += `<text x="${x}" y="${y - 13}" text-anchor="middle" style="font-size:13px">📷</text>`;
-      if ((S.show.labels || visible <= 16) && x >= CL && x <= CW - CR) g += `<text x="${x}" y="${y + (b ? 24 : -14 - (S.show.photos && hasPh ? 14 : 0))}" text-anchor="middle" style="font-weight:900;fill:#1a1a1a;font-size:12px">${fmt(p.g).replace(' ', '')}</text>`;
-      dots.push({ x, y, id: p.id });
-    });
-  });
-  svg.innerHTML = `<defs><clipPath id="cc"><rect x="${CL}" y="0" width="${CW - CL - CR}" height="${CH - CB + 2}"/></clipPath></defs><g clip-path="url(#cc)">${g}<line id="xh" x1="0" x2="0" y1="${CT}" y2="${CH - CB}" stroke="#6a4c93" stroke-width="1.5" opacity="0"/></g>${ax}`;
-  drawBig.ctx = { X, Y, iX, dots, v };
-  readout(addDays(dob, Math.min(td, Math.round(v.x1))));
-}
-function readout(date) {
-  const r = KIDS.filter(id => S.show[id]).map(id => { const val = wAt(id, date); const real = W8(id).find(p => p.date === date);
-    return `<span>${pen(id) ? '🖤' : '🤍'} ${esc(K(id).name)}: ${val == null ? '—' : fmt(val)}${real ? ' ✓' : val != null && date > (latest(id) || {}).date ? ' (proj.)' : val != null ? ' (interp.)' : ''}</span>`; });
-  const a = ageDays('misato', date);
-  $('#readout').innerHTML = `<span>📅 ${nice(date)} · ${ageStr(a)}</span>` + r.join('') + (KIDS.every(id => S.show[id] && wAt(id, date) != null) ? `<span>gap ${Math.round(Math.abs(wAt('misato', date) - wAt('penpen', date)))}g</span>` : '');
-}
-// interaction: drag pan, wheel & pinch zoom, tap dot → edit, double-tap reset
-(function () {
-  const svg = $('#big'), ptrs = new Map(); let start = null, moved = false, lastTap = 0;
-  const toSvg = e => { const r = svg.getBoundingClientRect(); return [(e.clientX - r.left) * CW / r.width, (e.clientY - r.top) * CH / r.height]; };
-  function zoomAt(px, f) { const v = vp || autoVP(), c = drawBig.ctx.iX(px); const x0 = c - (c - v.x0) * f, x1 = c + (v.x1 - c) * f;
-    if (x1 - x0 < 3 || x1 - x0 > 900) return; vp = Object.assign({ x0, x1 }, fitY(x0, x1)); drawBig(); }
-  svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(toSvg(e)[0], e.deltaY > 0 ? 1.15 : 1 / 1.15); }, { passive: false });
-  svg.addEventListener('pointerdown', e => { svg.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, toSvg(e)); moved = false;
-    start = { v: Object.assign({}, vp || autoVP()), p: toSvg(e), d: ptrs.size === 2 ? Math.abs([...ptrs.values()][0][0] - [...ptrs.values()][1][0]) : null }; });
-  svg.addEventListener('pointermove', e => {
-    const p = toSvg(e), ctx = drawBig.ctx; if (!ctx) return;
-    const xh = $('#xh'); if (xh && p[0] >= CL && p[0] <= CW - CR) { xh.setAttribute('x1', p[0]); xh.setAttribute('x2', p[0]); xh.setAttribute('opacity', .6); readout(addDays(DOB(), Math.round(ctx.iX(p[0])))); }
-    if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, p);
-    if (ptrs.size === 2 && start && start.d) { const [a, b] = [...ptrs.values()], d = Math.abs(a[0] - b[0]); if (d > 10) { const f = start.d / d, c = (a[0] + b[0]) / 2;
-      const cd = start.v.x0 + (c - CL) / (CW - CL - CR) * (start.v.x1 - start.v.x0); const x0 = cd - (cd - start.v.x0) * f, x1 = cd + (start.v.x1 - cd) * f;
-      if (x1 - x0 >= 3 && x1 - x0 <= 900) { vp = Object.assign({ x0, x1 }, fitY(x0, x1)); drawBig(); moved = true; } } return; }
-    if (ptrs.size === 1 && start) { const dx = p[0] - start.p[0]; if (Math.abs(dx) > 4) moved = true; if (!moved) return;
-      const dd = -dx / (CW - CL - CR) * (start.v.x1 - start.v.x0), x0 = start.v.x0 + dd, x1 = start.v.x1 + dd; vp = Object.assign({ x0, x1 }, fitY(x0, x1)); drawBig(); }
-  });
-  const up = e => { const p = toSvg(e); ptrs.delete(e.pointerId);
-    if (!moved && ptrs.size === 0) { const now = Date.now();
-      if (now - lastTap < 320) { vp = null; drawBig(); lastTap = 0; return; } lastTap = now;
-      const hit = drawBig.ctx.dots.map(d => [d, (d.x - p[0]) ** 2 + (d.y - p[1]) ** 2]).sort((a, b) => a[1] - b[1])[0]; if (hit && hit[1] < 500) setTimeout(() => { if (Date.now() - lastTap >= 300) openEdit(hit[0].id); }, 330); }
-    if (ptrs.size < 2) start = ptrs.size ? { v: Object.assign({}, vp || autoVP()), p: [...ptrs.values()][0], d: null } : null; };
-  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
-  svg.addEventListener('pointerleave', () => { const xh = $('#xh'); if (xh) xh.setAttribute('opacity', 0); });
-})();
-// chart controls
-document.querySelectorAll('#p-chart .tg').forEach(b => { b.classList.toggle('on', !!S.show[b.dataset.o]); b.onclick = () => { S.show[b.dataset.o] = !S.show[b.dataset.o]; b.classList.toggle('on'); saveS(); vp = null; renderAll(); }; });
-function segBind(sel, key, attr, conv = v => v) { const box = $(sel); box.querySelectorAll('button').forEach(b => { b.classList.toggle('on', String(S[key]) === b.dataset[attr]);
-  b.onclick = () => { S[key] = conv(b.dataset[attr]); saveS(); box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); vp = null; renderAll(); }; }); }
-segBind('#cRange', 'range', 'r', Number); segBind('#cX', 'x', 'x'); segBind('#cU', 'unit', 'u'); segBind('#cP', 'proj', 'p');
-
-/* ═════════════ edit sheet ═════════════ */
 let editId = null, editPhoto;
 function openEdit(id) {
   const w = doc.weights[id]; if (!w || w.del) return; editId = id; editPhoto = undefined;
@@ -469,25 +403,471 @@ $('#eSave').onclick = () => { const g = Math.round(+$('#eG').value); if (!(g >= 
   if (editPhoto) rec.photo = addPhoto(editPhoto, { k: rec.k, caption: `⚖️ ${g}g`, date: rec.date, weigh: editId });
   wput(editId, rec); $('#edlg').close(); toast('✏️ saved'); };
 
-/* ═════════════ 📋 log ═════════════ */
-let lK = 'all', lSort = 'desc';
-$('#lK').querySelectorAll('button').forEach(b => b.onclick = () => { lK = b.dataset.k; $('#lK').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderLog(); });
-$('#lSort').querySelectorAll('button').forEach(b => b.onclick = () => { lSort = b.dataset.s; $('#lSort').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderLog(); });
-function rowsFor(k) { return KIDS.filter(id => k === 'all' || id === k).flatMap(id => { const w = W8(id); return w.map((p, i) => { const prev = w[i - 1], dd = prev ? daysBetween(prev.date, p.date) : 0;
+/* ═════════════════════ title + heads ═════════════════════ */
+$('#ttl').innerHTML = [...'THE WEIGHT APP'].map((c, i) => c === ' ' ? '&nbsp;' : `<span style="animation-delay:${i * .12}s">${c}</span>`).join('');
+function renderHeads() {
+  $('#heads').innerHTML = KIDS.map(id => { const g = estNow(id), l = latest(id);
+    return `<div class="head"><div class="av">${kittenSVG(id, { w: 58, still: true })}</div><div><small>${esc(K(id).name)} · ${ageStr(ageDays(id))}</small><b>${g ? fmt(g) : '—'}</b><small>${l ? (l.date === todayYmd() ? 'weighed today' : 'est. today · last ' + nice(l.date)) : 'not weighed yet'}</small></div></div>`; }).join('');
+}
+function renderMe() { $('#mepill').textContent = me === 'lemon' ? "🍋 I'm the lemon" : "🌙 I'm the girl"; }
+$('#mepill').onclick = () => { setMe(me === 'lemon' ? 'girl' : 'lemon'); renderMe(); toast(me === 'lemon' ? '🍋 logging as the lemon' : '🌙 logging as the girl'); };
+
+/* ═════════════════════ ⚖️ THE SCALE ═════════════════════
+   A drum scale: the numbered drum rotates under a fixed red pointer.
+   One full turn = 500 g. Drag round the dial, scroll, or tap the keys.
+   The kitten on the pan grows with the number, live.                  */
+const DRUM = 500;
+function expected() { const d = $('#qDate').value || todayYmd(); return Math.round(wAt(Q.k, d) || latest(Q.k)?.g || 600); }
+function renderKPick() {
+  $('#kpick').innerHTML = KIDS.map(id => `<button data-k="${id}" class="${Q.k === id ? 'on' : ''}">${kittenSVG(id, { w: 54, still: true })}${esc(K(id).name)}</button>`).join('');
+  $('#kpick').querySelectorAll('button').forEach(b => b.onclick = () => { Q.k = b.dataset.k; pref('k', Q.k); Q.touched = false; Q.g = expected(); renderKPick(); drawScale(); onGhost(); });
+}
+function nestSVG(str, x, y, w, ar = 220 / 210) { return str.replace('<svg ', `<svg x="${x}" y="${y}" height="${w * ar}" `); }
+function drawScale() {
+  if (Q.g == null) Q.g = expected();
+  const g = Q.g, max = Math.max(1500, ...KIDS.map(id => estNow(id) || 0) ) * 1.3;
+  const kw = Math.round(190 * Math.cbrt(clamp(g, 60, 9000) / max)), sink = clamp(g / 300, 0, 12);
+  // drum ticks around the dial window (centre 200,330 r 104), pointer at top
+  let ticks = ''; const cx = 200, cy = 330, R = 104;
+  for (let v = Math.floor((g - DRUM * .45) / 5) * 5; v <= g + DRUM * .45; v += 5) {
+    if (v < 0) continue; const a = (v - g) / DRUM * 2 * Math.PI, big = v % 50 === 0, mid = v % 10 === 0;
+    const r1 = R - (big ? 26 : mid ? 16 : 9), x1 = cx + Math.sin(a) * R, y1 = cy - Math.cos(a) * R, x2 = cx + Math.sin(a) * r1, y2 = cy - Math.cos(a) * r1;
+    ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#111" stroke-width="${big ? 3.2 : mid ? 2.2 : 1.2}" stroke-linecap="round"/>`;
+    if (big) { const rt = R - 42, tx = cx + Math.sin(a) * rt, ty = cy - Math.cos(a) * rt; ticks += `<text x="${tx}" y="${ty + 5}" text-anchor="middle" font-size="${v % 100 === 0 ? 15 : 12}" font-weight="900" fill="${v % 100 === 0 ? '#111' : '#666'}" transform="rotate(${a * 180 / Math.PI} ${tx} ${ty})">${v}</text>`; }
+  }
+  const kit = nestSVG(kittenSVG(Q.k, { w: kw, still: true }), 200 - kw / 2, 150 - kw * 220 / 210 + sink + 4, kw);
+  $('#scale').innerHTML = `
+    <defs><radialGradient id="dialg" cx="50%" cy="40%"><stop offset="0" stop-color="#fffdf2"/><stop offset="1" stop-color="#f1e4bb"/></radialGradient>
+      <linearGradient id="bodyg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${pen(Q.k) ? '#ffd86b' : '#d9c2ff'}"/><stop offset="1" stop-color="${pen(Q.k) ? '#ffb703' : '#b15ee3'}"/></linearGradient>
+      <clipPath id="dialclip"><circle cx="${cx}" cy="${cy}" r="${R}"/></clipPath></defs>
+    <ellipse cx="200" cy="456" rx="150" ry="9" fill="rgba(0,0,0,.18)"/>
+    <path d="M70 200 Q60 200 58 214 L42 432 Q40 452 62 452 L338 452 Q360 452 358 432 L342 214 Q340 200 330 200 Z" fill="url(#bodyg)" stroke="#000" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="188" y="${160 + sink}" width="24" height="${44 - sink}" fill="#ddd" stroke="#000" stroke-width="5"/>
+    <g transform="translate(0 ${sink})"><ellipse cx="200" cy="160" rx="150" ry="24" fill="#e9e9ef" stroke="#000" stroke-width="6"/><ellipse cx="200" cy="154" rx="128" ry="14" fill="#fff" opacity=".7"/></g>
+    ${kit}
+    <circle cx="${cx}" cy="${cy}" r="${R + 14}" fill="#222" stroke="#000" stroke-width="6"/>
+    <g class="drum" clip-path="url(#dialclip)"><circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#dialg)"/>${ticks}
+      <circle cx="${cx}" cy="${cy}" r="26" fill="#fff" stroke="#111" stroke-width="3"/><text x="${cx}" y="${cy + 6}" text-anchor="middle" font-size="16" font-weight="900">g</text></g>
+    <path d="M${cx - 11} ${cy - R - 16} L${cx + 11} ${cy - R - 16} L${cx} ${cy - R + 18} Z" fill="#e63946" stroke="#000" stroke-width="3.5" stroke-linejoin="round"/>
+    <path d="M${cx - R * .7} ${cy - R * .7} A ${R} ${R} 0 0 1 ${cx + R * .7} ${cy - R * .7}" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="10" stroke-linecap="round"/>
+    <rect x="112" y="466" width="176" height="28" rx="14" fill="#000"/><text x="200" y="486" text-anchor="middle" font-size="14" font-weight="900" fill="#ffca3a" letter-spacing="1">${esc(K(Q.k).name.toUpperCase())}-O-METER</text>`;
+  const lcd = $('#lcd'); lcd.innerHTML = `${Math.round(g).toLocaleString('en-GB')}<small> g</small>`;
+  const l = latest(Q.k), ex = expected(), d = $('#qDate').value || todayYmd();
+  const parts = [];
+  if (l) { const dd = daysBetween(l.date, d); parts.push(`<span class="${g >= l.g ? 'up' : 'dn'}">${sign(g - l.g)}g</span> since ${nice(l.date)}${dd > 0 ? ` (${Math.round((g - l.g) / dd)} g/day)` : ''}`); }
+  if (Q.touched && ex) parts.push(`${sign(g - ex)}g vs expected ${ex}g`);
+  parts.push(`≈ ${equiv(g)}`);
+  $('#lcdsub').innerHTML = parts.join('<br>');
+}
+(function () {   // drag the drum round; scroll for single grams
+  const svg = $('#scale'); let last = null;
+  const ang = e => { const r = svg.getBoundingClientRect(), x = (e.clientX - r.left) * 400 / r.width - 200, y = (e.clientY - r.top) * 500 / r.height - 330; return Math.atan2(x, -y); };
+  svg.addEventListener('pointerdown', e => { svg.setPointerCapture(e.pointerId); last = ang(e); });
+  svg.addEventListener('pointermove', e => { if (last == null) return; const a = ang(e); let d = a - last; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; last = a;
+    // dragging the drum clockwise moves higher numbers under the pointer → value goes UP
+    const dg = -d / (2 * Math.PI) * DRUM; Q.acc = (Q.acc || 0) + dg; const step = Math.trunc(Q.acc); if (step) { Q.acc -= step; setG(Q.g + step); } });
+  const up = () => { last = null; }; svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+  svg.addEventListener('wheel', e => { e.preventDefault(); setG(Q.g + (e.deltaY > 0 ? -1 : 1) * (e.shiftKey ? 10 : 1)); }, { passive: false });
+})();
+let ghostT = null;
+function setG(v) { Q.g = clamp(Math.round(v), 50, 12000); Q.touched = true; drawScale(); clearTimeout(ghostT); ghostT = setTimeout(onGhost, 120); if (navigator.vibrate && Q.g % 10 === 0) try { navigator.vibrate(4); } catch (e) {} }
+function onGhost() { if (S.show.ghost) { drawChart(); drawParade(); } }
+$('#s-scale').querySelectorAll('.keys .chunk').forEach(b => b.onclick = () => setG(Q.g + +b.dataset.n));
+$('#lcd').onclick = () => { const i = $('#lcdIn'); i.hidden = false; i.value = Q.g; i.focus(); i.select(); };
+$('#lcdIn').onchange = $('#lcdIn').onblur = () => { const v = +$('#lcdIn').value; if (v >= 50) setG(v); $('#lcdIn').hidden = true; };
+$('#qReset').onclick = () => { Q.touched = false; Q.g = expected(); drawScale(); onGhost(); };
+$('#qDate').onchange = () => { if (!Q.touched) Q.g = expected(); drawScale(); onGhost(); };
+$('#qSave').onclick = async () => {
+  const g = Q.g; if (!(g >= 50)) return;
+  const date = $('#qDate').value || todayYmd(), id = uid(), prev = latest(Q.k), ex = expected();
+  const rec = { k: Q.k, date, g, approx: $('#qApprox').checked, by: me, time: $('#qTime').value || '', fed: $('#qFed').value, note: $('#qNote').value.trim() };
+  const gl = +$('#qGl').value, gg = +$('#qGg').value; if (gl || gg) rec.guess = Object.assign({}, gl ? { lemon: gl } : {}, gg ? { girl: gg } : {});
+  const f = $('#qPhoto').files[0]; if (f) { try { const d = await shrink(f, 900); rec.photo = addPhoto(d, { k: Q.k, caption: `⚖️ ${g}g`, date, weigh: id }); } catch (e) {} }
+  Q.touched = false; wput(id, rec);
+  ['#qNote', '#qGl', '#qGg'].forEach(s => $(s).value = ''); $('#qPhoto').value = ''; $('#qApprox').checked = false; $('#qTime').value = new Date().toTimeString().slice(0, 5);
+  const st = $('#stamp'); st.textContent = g >= 1000 && (!prev || prev.g < 1000) ? '1 KG CLUB!' : 'WEIGHED!'; st.classList.remove('go'); void st.offsetWidth; st.classList.add('go');
+  let msg = `⚖️ ${K(Q.k).name}: ${g}g`; if (prev) msg += ` (${sign(g - prev.g)}g)`;
+  if (rec.guess) { const e = Object.entries(rec.guess).map(([p, v]) => [p, Math.abs(v - g)]).sort((a, b) => a[1] - b[1]); msg += ` · 🎯 ${WHO[e[0][0]]} closest (${e[0][1]}g off)`; }
+  toast(msg); rain(g >= ex ? ['⚖️', '🐾', '🍋', '💛', '🎉'] : ['⚖️', '🐾', '💛'], 26);
+  Q.g = g; drawScale();
+};
+
+/* ═════════════════════ 📈 THE CHART ═════════════════════ */
+let CW = 1000, CH = 560, CL = 66, CR = 26, CT = 44, CB = 58;   // re-measured every draw: 1 SVG unit = 1 CSS px, so text stays readable on a phone
+let win = null, scrub = null, drawn = false;   // win = [x0,x1] in days-since-DOB; scrub = day
+function extent() {
+  const dob = DOB(), td = daysBetween(dob, todayYmd()), all = KIDS.flatMap(weightsOf);
+  const first = all.length ? Math.min(...all.map(p => daysBetween(dob, p.date))) : td - 14;
+  return [Math.max(0, first - 4), Math.max(td, all.length ? Math.max(...all.map(p => daysBetween(dob, p.date))) : td) + +S.ahead + 2];
+}
+function curWin() { const [a, b] = extent(); if (!win) { const td = daysBetween(DOB(), todayYmd()); return innerWidth < 600 ? [a, Math.min(b, td + Math.min(+S.ahead, 21))] : [a, b]; } return [clamp(win[0], a - 30, b), clamp(win[1], a, b + 30)]; }
+// smooth path through points with monotone tangents; t = 0 straight … 1 flowing
+function smoothPath(P, t) {
+  if (P.length < 2) return P.length ? `M${P[0][0]},${P[0][1]}` : '';
+  const n = P.length, m = [], dk = [];
+  for (let i = 0; i < n - 1; i++) dk.push((P[i + 1][1] - P[i][1]) / ((P[i + 1][0] - P[i][0]) || 1));
+  for (let i = 0; i < n; i++) m.push(i === 0 ? dk[0] : i === n - 1 ? dk[n - 2] : (dk[i - 1] * dk[i] <= 0 ? 0 : (dk[i - 1] + dk[i]) / 2));
+  let d = `M${P[0][0].toFixed(1)},${P[0][1].toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) { const [x0, y0] = P[i], [x1, y1] = P[i + 1], h = (x1 - x0) / 3;
+    d += ` C${(x0 + h).toFixed(1)},${(y0 + m[i] * h * t).toFixed(1)} ${(x1 - h).toFixed(1)},${(y1 - m[i + 1] * h * t).toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`; }
+  return d;
+}
+function drawChart() { withGhost(drawChartInner); }
+function drawChartInner() {
+  const wpx = Math.round($('#gchart').getBoundingClientRect().width || 1000); CW = Math.max(300, wpx); CH = Math.round(clamp(CW * .62, 420, 600)); CL = CW < 600 ? 46 : 66; CR = CW < 600 ? 12 : 26;
+  $('#gchart').setAttribute('viewBox', `0 0 ${CW} ${CH}`);
+  const dob = DOB(), [x0, x1] = curWin(), td = daysBetween(dob, todayYmd()), ids = KIDS.filter(id => S.show[id]);
+  if (scrub == null) scrub = td;
+  // y range: everything visible in the window
+  const vals = [];
+  ids.forEach(id => { weightsOf(id).forEach(p => { const d = daysBetween(dob, p.date); if (d >= x0 - 3 && d <= x1 + 3) vals.push(p.g); });
+    for (let d = x0; d <= x1; d += Math.max(1, (x1 - x0) / 12)) { const v = wAt(id, addDays(dob, Math.round(d)), S.show.cone ? 1.22 : 1); if (v != null) vals.push(v); const v2 = S.show.cone ? wAt(id, addDays(dob, Math.round(d)), .78) : null; if (v2 != null) vals.push(v2); } });
+  if (!vals.length) vals.push(400, 1200);
+  let y0 = Math.min(...vals), y1 = Math.max(...vals); const pad = Math.max(40, (y1 - y0) * .12); y0 = Math.max(0, y0 - pad); y1 = y1 + pad;
+  const X = d => CL + (d - x0) / Math.max(1, x1 - x0) * (CW - CL - CR), Y = g => CT + (1 - (g - y0) / (y1 - y0)) * (CH - CT - CB);
+  const day2date = d => addDays(dob, Math.round(d));
+  let bg = '', fg = '', ax = '';
+  // zebra weeks + week-of-life labels
+  for (let w = Math.floor(x0 / 7); w * 7 <= x1; w++) { const a = Math.max(x0, w * 7), b = Math.min(x1, w * 7 + 7); if (b <= a) continue;
+    if (w % 2 === 0) bg += `<rect x="${X(a)}" y="${CT}" width="${X(b) - X(a)}" height="${CH - CT - CB}" fill="#faf6ff"/>`;
+    if (X(b) - X(a) > 34 || (X(b) - X(a) > 14 && w % 2 === 0 && X(b) - X(a) > 22)) ax += `<text x="${(X(a) + X(b)) / 2}" y="${CT - 12}" text-anchor="middle" font-size="11" font-weight="900" fill="#b15ee3">wk ${w}</text>`; }
+  // y grid
+  const unitG = S.unit === 'lb' ? 453.592 : S.unit === 'lemon' ? LEMON_G : 1, raw = (y1 - y0) / unitG / 6, mag = Math.pow(10, Math.floor(Math.log10(raw))), step = [1, 2, 2.5, 5, 10].map(q => q * mag).find(s => s >= raw) * unitG;
+  for (let y = Math.ceil(y0 / step) * step; y <= y1; y += step) { bg += `<line x1="${CL}" x2="${CW - CR}" y1="${Y(y)}" y2="${Y(y)}" stroke="#ece6f5" stroke-width="1.5"/>`; ax += `<text x="${CL - 8}" y="${Y(y) + 4}" text-anchor="end" font-size="12" font-weight="800" fill="#5b5266">${short(y)}</text>`; }
+  // x labels
+  const span = x1 - x0, ppd = (CW - CL - CR) / Math.max(1, span), xs = [1, 2, 3, 7, 14, 28, 56, 91].find(q => q * ppd >= (CW < 600 ? 62 : 70)) || 91;
+  for (let d = Math.ceil(x0 / xs) * xs; d <= x1; d += xs) { const dt = day2date(d);
+    ax += `<text x="${X(d)}" y="${CH - CB + 20}" text-anchor="middle" font-size="11.5" font-weight="800" fill="#5b5266">${S.x === 'age' ? (d % 7 ? Math.floor(d / 7) + 'w' + d % 7 + 'd' : d / 7 + ' wk') : parseYmd(dt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`;
+    ax += `<text x="${X(d)}" y="${CH - CB + 36}" text-anchor="middle" font-size="9.5" fill="#9a90a8">${S.x === 'age' ? parseYmd(dt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ageStr(d)}</text>`; }
+  // typical range
+  if (S.show.band) { let top = '', bot = ''; const st = Math.max(.5, span / 120); for (let d = Math.max(0, x0); d <= x1 + st; d += st) { const [lo, hi] = guide(d); top += `${X(d).toFixed(1)},${Y(hi).toFixed(1)} `; bot = `${X(d).toFixed(1)},${Y(lo).toFixed(1)} ` + bot; }
+    bg += `<polygon points="${top}${bot}" fill="url(#bandg)" stroke="#8ac926" stroke-opacity=".45" stroke-dasharray="6 5" stroke-width="1.5"/>`; }
+  // everyday-weight lines
+  if (S.show.things) CHART_THINGS.filter(([g]) => g > y0 && g < y1).forEach(([g, e, n]) => { bg += `<line x1="${CL}" x2="${CW - CR}" y1="${Y(g)}" y2="${Y(g)}" stroke="#ff924c" stroke-width="1.4" stroke-dasharray="1 7" stroke-linecap="round"/>`;
+    ax += `<text x="${CW - CR - 4}" y="${Y(g) - 6}" text-anchor="end" font-size="12" font-weight="900" fill="#d9631a">${e} ${n}</text>`; });
+  // today
+  if (td >= x0 && td <= x1) bg += `<line x1="${X(td)}" x2="${X(td)}" y1="${CT}" y2="${CH - CB}" stroke="#ffca3a" stroke-width="4"/><text x="${X(td) + 6}" y="${CH - CB - 8}" font-size="12" font-weight="900" fill="#c9900a">today</text>`;
+  // moments
+  if (S.show.moments) live('events').map(([, e]) => e).forEach(e => { const d = daysBetween(dob, e.date); if (d >= x0 && d <= x1) fg += `<g><title>${esc(e.text)}</title><line x1="${X(d)}" x2="${X(d)}" y1="${CT}" y2="${CT + 26}" stroke="#e63946" stroke-width="2"/><text x="${X(d) + 2}" y="${CT + 12}" font-size="14">🚩</text></g>`; });
+  // series
+  const pts = [];
+  ids.forEach(id => {
+    const w = weightsOf(id); if (!w.length) return; const b = pen(id), col = b ? '#2b2b30' : '#ffffff', glow = b ? '#ffb703' : '#b15ee3';
+    const real = w.filter(p => !p.ghost), l = real[real.length - 1] || w[w.length - 1], ld = daysBetween(dob, l.date);
+    // future cone + projection
+    if (S.show.cone && x1 > ld) { let up = '', lo = '', mid = []; const st = Math.max(1, Math.round(span / 70));
+      for (let d = ld; d <= x1 + st; d += st) { const dt = day2date(d), hi = wAt(id, dt, 1.22), lw = wAt(id, dt, .78), m = wAt(id, dt); if (hi == null) continue; up += `${X(d).toFixed(1)},${Y(hi).toFixed(1)} `; lo = `${X(d).toFixed(1)},${Y(lw).toFixed(1)} ` + lo; mid.push([X(d), Y(m)]); }
+      bg += `<polygon points="${up}${lo}" fill="${glow}" fill-opacity=".13" stroke="${glow}" stroke-opacity=".35" stroke-width="1.5"/>`;
+      if (mid.length > 1) fg += `<path d="${smoothPath(mid, 1)}" fill="none" stroke="${b ? '#2b2b30' : '#8a3fc4'}" stroke-width="3" stroke-dasharray="2 8" stroke-linecap="round"/>`; }
+    const P = w.map(p => [X(daysBetween(dob, p.date)), Y(p.g), p]);
+    const path = smoothPath(P.map(p => [p[0], p[1]]), S.smooth / 100);
+    if (P.length > 1) {
+      bg += `<path d="${path} L${P[P.length - 1][0]},${CH - CB} L${P[0][0]},${CH - CB} Z" fill="url(#area-${id})"/>`;
+      const len = Math.round(P.reduce((s, p, i) => i ? s + Math.hypot(p[0] - P[i - 1][0], p[1] - P[i - 1][1]) : 0, 0) * 1.3 + 50);
+      fg += `<path d="${path}" fill="none" stroke="${glow}" stroke-opacity=".45" stroke-width="16" stroke-linecap="round" stroke-linejoin="round" filter="url(#blur)"/>`;
+      fg += `<path class="${drawn ? '' : 'draw'}" style="--len:${len}" d="${path}" fill="none" stroke="#000" stroke-width="${b ? 7 : 9}" stroke-linecap="round" stroke-linejoin="round"/>`;
+      fg += `<path class="${drawn ? '' : 'draw'}" style="--len:${len}" d="${path}" fill="none" stroke="${col}" stroke-width="${b ? 4 : 4.5}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    P.forEach(([x, y, p], i) => {
+      const src = S.show.photos && p.photo && photoURL(p.photo), delay = drawn ? 0 : (i / Math.max(1, P.length - 1)) * 1.2;
+      if (p.ghost) { fg += `<g class="pop"><circle cx="${x}" cy="${y}" r="14" fill="#fff" stroke="#e63946" stroke-width="3" stroke-dasharray="4 3"/><text x="${x}" y="${y + 5}" text-anchor="middle" font-size="14">👻</text><text x="${x}" y="${y - 22}" text-anchor="middle" font-size="13" font-weight="900" fill="#e63946">${short(p.g)}?</text></g>`; return; }
+      if (src) fg += `<g class="${drawn ? '' : 'pop'}" style="animation-delay:${delay}s"><clipPath id="cp-${p.id}"><circle cx="${x}" cy="${y}" r="17"/></clipPath><circle cx="${x}" cy="${y}" r="20" fill="${b ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="3.5"/><image href="${src}" x="${x - 17}" y="${y - 17}" width="34" height="34" clip-path="url(#cp-${p.id})" preserveAspectRatio="xMidYMid slice"/></g>`;
+      else fg += `<circle class="${drawn ? '' : 'pop'}" style="animation-delay:${delay}s" cx="${x}" cy="${y}" r="${p.approx ? 7 : 9}" fill="${b ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="3.5" ${p.approx ? 'stroke-dasharray="4 3"' : ''}/>`;
+      const visN = P.filter(q => q[0] >= CL && q[0] <= CW - CR).length, room = (CW - CL - CR) / Math.max(1, visN) > 58;
+      const lastOne = i === P.length - 1 || (P[i + 1] && P[i + 1][2].ghost);
+      if (x > CL && x < CW - CR && (lastOne || (room && visN <= 6))) fg += `<text x="${lastOne ? x - 14 : x}" y="${y + (b ? (src ? 34 : 26) : (src ? -24 : -16))}" text-anchor="${lastOne ? 'end' : 'middle'}" font-size="12.5" font-weight="900" fill="#111" paint-order="stroke" stroke="#fff" stroke-width="4">${short(p.g)}</text>`;
+      pts.push({ x, y, id: p.id });
+    });
+    // the kitten riding the end of its line
+    const lp = P.filter(p => !p[2].ghost).pop(); if (lp && lp[0] > CL && lp[0] < CW - CR) fg += nestSVG(kittenSVG(id, { w: 44, still: true }), lp[0] + 6, lp[1] - (b ? -6 : 52), 44);
+  });
+  $('#gchart').innerHTML = `<defs>
+      <linearGradient id="area-misato" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#b15ee3" stop-opacity=".28"/><stop offset="1" stop-color="#b15ee3" stop-opacity="0"/></linearGradient>
+      <linearGradient id="area-penpen" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2b2b30" stop-opacity=".25"/><stop offset="1" stop-color="#2b2b30" stop-opacity="0"/></linearGradient>
+      <linearGradient id="bandg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#8ac926" stop-opacity=".22"/><stop offset="1" stop-color="#8ac926" stop-opacity=".08"/></linearGradient>
+      <filter id="blur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="5"/></filter>
+      <clipPath id="plot"><rect x="${CL}" y="${CT - 30}" width="${CW - CL - CR}" height="${CH - CT - CB + 30}"/></clipPath></defs>
+    <g clip-path="url(#plot)">${bg}${fg}</g>${ax}<g id="ph"></g>`;
+  drawChart.ctx = { X, Y, x0, x1, pts, dob }; drawn = true;
+  drawPlayhead(); drawBrush();
+}
+function drawPlayhead() {
+  const c = drawChart.ctx; if (!c) return; const { X, Y, x0, x1, dob } = c; const d = clamp(scrub, x0, x1), x = X(d), date = addDays(dob, Math.round(d));
+  let s = `<line x1="${x}" x2="${x}" y1="${CT - 4}" y2="${CH - CB}" stroke="#e63946" stroke-width="3"/><circle cx="${x}" cy="${CT - 4}" r="11" fill="#e63946" stroke="#000" stroke-width="3"/><text x="${x}" y="${CT}" text-anchor="middle" font-size="11" fill="#fff" font-weight="900">⇔</text>`;
+  withGhost(() => KIDS.filter(id => S.show[id]).forEach(id => { const v = wAt(id, date); if (v == null) return; const y = Y(v), b = pen(id), pw = CW < 600 ? 78 : 118, right = x < CW - pw - 60;
+    s += `<circle cx="${x}" cy="${y}" r="8" fill="${b ? '#ffb703' : '#b15ee3'}" stroke="#000" stroke-width="3"/>
+      <g transform="translate(${right ? x + 14 : x - 14} ${y - 15})"><rect x="${right ? 0 : -pw}" y="0" width="${pw}" height="30" rx="15" fill="${b ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="3"/>
+      <text x="${right ? pw / 2 : -pw / 2}" y="20" text-anchor="middle" font-size="14" font-weight="900" fill="${b ? '#ffb703' : '#111'}">${short(v)}</text></g>`; }));
+  $('#ph').innerHTML = s; drawParade();
+}
+function drawParade() {
+  const c = drawChart.ctx; if (!c) return; const date = addDays(c.dob, Math.round(clamp(scrub, c.x0, c.x1)));
+  withGhost(() => {
+    const [, e1] = extent(), maxW = Math.max(800, ...KIDS.map(id => wAt(id, addDays(c.dob, e1)) || 0), ...KIDS.map(id => estNow(id) || 0)), vw = Math.min(innerWidth, 1180), base = vw < 420 ? 92 : vw < 700 ? 130 : 175;
+    $('#parade').innerHTML = KIDS.filter(id => S.show[id]).map(id => { const v = wAt(id, date), f = firstWeigh(id); if (v == null) return `<div class="pk"><div class="bub">${esc(K(id).name)} <small>not weighed yet</small></div></div>`;
+      const w = Math.round(base * Math.cbrt(v / maxW)), gw = f ? Math.round(base * Math.cbrt(f.g / maxW)) : 0;
+      return `<div class="pk">${gw ? `<div class="ghost">${kittenSVG(id, { w: gw, still: true })}</div>` : ''}${kittenSVG(id, { w })}<div class="bub">${esc(K(id).name)} ${short(v)} <small>${f ? (v / f.g).toFixed(1) + '×' : ''}</small></div></div>`; }).join('')
+      + `<div class="pk"><img src="../sol-lemon.png" width="${Math.round(base * Math.cbrt(LEMON_G / maxW) * 1.7)}" alt=""><div class="bub">🍋 ${LEMON_G}g</div></div>`;
+    const td = todayYmd(), dd = daysBetween(td, date);
+    $('#whenbar').innerHTML = `${nice(date)} · ${ageStr(ageDays('misato', date))}${dd > 0 ? `<span class="fut">🔮 ${dd} days ahead — predicted</span>` : dd < 0 ? `<span class="fut" style="background:#fff">⏪ ${-dd} days ago</span>` : '<span class="fut" style="background:#ffe066">📍 today</span>'}`;
+  });
+}
+// chart gestures: drag = scrub through time, wheel / pinch = zoom, tap a dot = card
+(function () {
+  const svg = $('#gchart'), ptrs = new Map(); let downAt = null, moved = false, pinch = null;
+  const toSvg = e => { const r = svg.getBoundingClientRect(); return [(e.clientX - r.left) * CW / r.width, (e.clientY - r.top) * CH / r.height]; };
+  const toDay = px => { const c = drawChart.ctx; return c.x0 + (px - CL) / (CW - CL - CR) * (c.x1 - c.x0); };
+  function zoom(cx, f) { const [a, b] = curWin(), c = toDay(cx), na = c - (c - a) * f, nb = c + (b - c) * f; if (nb - na < 5 || nb - na > 800) return; win = [na, nb]; drawChart(); }
+  svg.addEventListener('wheel', e => { e.preventDefault(); zoom(toSvg(e)[0], e.deltaY > 0 ? 1.15 : 1 / 1.15); }, { passive: false });
+  svg.addEventListener('pointerdown', e => { ptrs.set(e.pointerId, toSvg(e)); downAt = toSvg(e); moved = false; if (ptrs.size === 2) { const [p, q] = [...ptrs.values()]; pinch = { d: Math.abs(p[0] - q[0]), w: curWin() }; } });
+  svg.addEventListener('pointermove', e => {
+    const p = toSvg(e); if (!ptrs.has(e.pointerId)) { if (e.pointerType === 'mouse') { scrub = toDay(clamp(p[0], CL, CW - CR)); drawPlayhead(); } return; }
+    ptrs.set(e.pointerId, p);
+    if (ptrs.size === 2 && pinch) { const [a, b] = [...ptrs.values()], d = Math.abs(a[0] - b[0]); if (d > 20) { const f = pinch.d / d, c = toDay((a[0] + b[0]) / 2), [wa, wb] = pinch.w; const na = c - (c - wa) * f, nb = c + (wb - c) * f; if (nb - na >= 5) { win = [na, nb]; drawChart(); } } moved = true; return; }
+    if (Math.abs(p[0] - downAt[0]) > 4) { moved = true; svg.setPointerCapture(e.pointerId); }
+    if (moved) { scrub = toDay(clamp(p[0], CL, CW - CR)); drawPlayhead(); }
+  });
+  const up = e => { const p = toSvg(e); ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
+    if (!moved && downAt) { const hit = (drawChart.ctx.pts || []).map(d => [d, (d.x - p[0]) ** 2 + (d.y - p[1]) ** 2]).sort((a, b) => a[1] - b[1])[0];
+      if (hit && hit[1] < 700) showCard(hit[0]); else { closeCard(); scrub = toDay(clamp(p[0], CL, CW - CR)); drawPlayhead(); } } downAt = null; };
+  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', e => { ptrs.delete(e.pointerId); pinch = null; downAt = null; });
+  svg.addEventListener('dblclick', () => { win = null; drawChart(); });
+})();
+function showCard(pt) {
+  const w = doc.weights[pt.id]; if (!w) return; const ws = weightsOf(w.k), i = ws.findIndex(x => x.id === pt.id), prev = ws[i - 1], src = w.photo && photoURL(w.photo);
+  const r = $('#gchart').getBoundingClientRect(), box = $('#gchart').parentNode.getBoundingClientRect();
+  const left = clamp(pt.x * r.width / CW, 130, r.width - 130), top = pt.y * r.height / CH;
+  $('#pcardWrap').innerHTML = `<div class="pcard" style="left:${left}px;top:${Math.max(top, 170)}px">
+    <button class="x" id="pcx">✕</button>${src ? `<img src="${src}" alt="" onclick="view(this.src)">` : ''}
+    <span class="kdot ${w.k}">${esc(K(w.k).name)}</span> <b>${fmt(w.g)}</b>${w.approx ? ' <i>roughly</i>' : ''}
+    <div class="muted">${nice(w.date)}${w.time ? ' · ' + w.time : ''} · ${ageStr(ageDays(w.k, w.date))}</div>
+    ${prev ? `<div style="font-weight:800">${sign(w.g - prev.g)}g since ${nice(prev.date)}${daysBetween(prev.date, w.date) > 0 ? ` · ${Math.round((w.g - prev.g) / daysBetween(prev.date, w.date))} g/day` : ''}</div>` : '<div style="font-weight:800">the first weigh-in 🌱</div>'}
+    <div class="muted">≈ ${equiv(w.g)}${w.fed ? ' · ' + w.fed + ' food' : ''}${w.note ? ' · “' + esc(w.note) + '”' : ''}</div>
+    <div style="display:flex;gap:6px;margin-top:8px"><button class="chunk sm" id="pce">✏️ edit</button><label class="chunk sm" style="display:inline-flex;align-items:center">📷<input type="file" accept="image/*" hidden id="pcp"></label></div></div>`;
+  $('#pcx').onclick = closeCard; $('#pce').onclick = () => { closeCard(); openEdit(pt.id); };
+  $('#pcp').onchange = async e => { const f = e.target.files[0]; if (!f) return; const d = await shrink(f, 900); wput(pt.id, { photo: addPhoto(d, { k: w.k, caption: `⚖️ ${w.g}g`, date: w.date, weigh: pt.id }) }); closeCard(); toast('📷 added'); };
+}
+function closeCard() { $('#pcardWrap').innerHTML = ''; }
+// brush: an overview with a draggable / stretchable window
+function drawBrush() {
+  const [e0, e1] = extent(), [w0, w1] = curWin(), dob = DOB(), BW = 1000, BH = 96, L = 10, R = 10;
+  const X = d => L + (d - e0) / Math.max(1, e1 - e0) * (BW - L - R);
+  const all = KIDS.flatMap(id => weightsOf(id).map(p => p.g)), ymin = Math.min(...all, 400) * .9, ymax = Math.max(...all, ...KIDS.map(id => wAt(id, addDays(dob, e1)) || 0), 800) * 1.05, Y = g => 10 + (1 - (g - ymin) / (ymax - ymin)) * (BH - 26);
+  let s = '';
+  KIDS.forEach(id => { const P = []; for (let d = e0; d <= e1; d += Math.max(1, (e1 - e0) / 80)) { const v = wAt(id, addDays(dob, Math.round(d))); if (v != null) P.push([X(d), Y(v)]); }
+    if (P.length > 1) s += `<path d="${smoothPath(P, 1)}" fill="none" stroke="${pen(id) ? '#2b2b30' : '#b15ee3'}" stroke-width="3"/>`; });
+  const a = X(clamp(w0, e0, e1)), b = X(clamp(w1, e0, e1));
+  s = `<rect x="0" y="0" width="${BW}" height="${BH}" fill="#fff"/>${s}<rect x="${L}" y="4" width="${a - L}" height="${BH - 8}" fill="rgba(0,0,0,.28)"/><rect x="${b}" y="4" width="${BW - R - b}" height="${BH - 8}" fill="rgba(0,0,0,.28)"/>
+    <rect x="${a}" y="4" width="${b - a}" height="${BH - 8}" rx="10" fill="rgba(255,202,58,.25)" stroke="#000" stroke-width="4"/>
+    <rect x="${a - 9}" y="${BH / 2 - 22}" width="18" height="44" rx="7" fill="#ffca3a" stroke="#000" stroke-width="3.5"/><rect x="${b - 9}" y="${BH / 2 - 22}" width="18" height="44" rx="7" fill="#ffca3a" stroke="#000" stroke-width="3.5"/>
+    <text x="${(a + b) / 2}" y="${BH - 10}" text-anchor="middle" font-size="12" font-weight="900">${Math.round(w1 - w0)} days</text>`;
+  $('#brush').innerHTML = s; drawBrush.ctx = { X, e0, e1, a, b, L, R, BW };
+}
+(function () {
+  const svg = $('#brush'); let mode = null, startX = 0, startW = null;
+  const px = e => { const r = svg.getBoundingClientRect(); return (e.clientX - r.left) * 1000 / r.width; };
+  const toDay = x => { const c = drawBrush.ctx; return c.e0 + (x - c.L) / (c.BW - c.L - c.R) * (c.e1 - c.e0); };
+  svg.addEventListener('pointerdown', e => { svg.setPointerCapture(e.pointerId); const x = px(e), c = drawBrush.ctx; startX = x; startW = curWin();
+    mode = Math.abs(x - c.a) < 22 ? 'a' : Math.abs(x - c.b) < 22 ? 'b' : (x > c.a && x < c.b) ? 'move' : 'jump';
+    if (mode === 'jump') { const half = (startW[1] - startW[0]) / 2, d = toDay(x); win = [d - half, d + half]; startW = win.slice(); mode = 'move'; drawChart(); } });
+  svg.addEventListener('pointermove', e => { if (!mode) return; const dd = toDay(px(e)) - toDay(startX), [a, b] = startW;
+    if (mode === 'move') win = [a + dd, b + dd]; else if (mode === 'a') win = [Math.min(a + dd, b - 5), b]; else win = [a, Math.max(b + dd, a + 5)]; drawChart(); });
+  const up = () => mode = null; svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+  svg.addEventListener('dblclick', () => { win = null; drawChart(); });
+})();
+// chips + sliders
+document.querySelectorAll('#s-chart .chip[data-o]').forEach(c => { c.classList.toggle('on', !!S.show[c.dataset.o]); c.onclick = () => { S.show[c.dataset.o] = !S.show[c.dataset.o]; c.classList.toggle('on'); saveS(); drawChart(); renderRace(); }; });
+function chipGroup(sel, key, attr, after) { const cs = document.querySelectorAll(sel); cs.forEach(c => { c.classList.toggle('on', String(S[key]) === c.dataset[attr]); c.onclick = () => { S[key] = c.dataset[attr]; saveS(); cs.forEach(x => x.classList.toggle('on', x === c)); after(); }; }); }
+chipGroup('#s-chart .chip[data-u]', 'unit', 'u', () => renderAll());
+chipGroup('#s-chart .chip[data-x]', 'x', 'x', () => drawChart());
+function bindSlider(id, key, out, fmtv, after) { const el = $(id); el.value = S[key]; const show = () => $(out).textContent = fmtv(+el.value); show();
+  el.oninput = () => { S[key] = +el.value; show(); after(); }; el.onchange = saveS; }
+bindSlider('#slPace', 'pace', '#oPace', v => v === 100 ? 'typical' : (v > 100 ? '+' : '') + (v - 100) + '%', () => { drawChart(); renderRace(); ticker(true); });
+bindSlider('#slAhead', 'ahead', '#oAhead', v => v < 60 ? v + ' days' : Math.round(v / 30.4) + ' months', () => { win = null; drawChart(); });
+bindSlider('#slSmooth', 'smooth', '#oSmooth', v => v + '%', () => drawChart());
+// insight ticker
+let tickI = 0;
+function insights() {
+  const L = [];
+  KIDS.forEach(id => { const w = weightsOf(id), n = K(id).name; if (!w.length) return; const f = w[0], l = w[w.length - 1];
+    if (w.length > 1) L.push(`${n} has gained ${l.g - f.g}g since ${nice(f.date)} — ${equiv(l.g - f.g)}.`);
+    L.push(`${n} is ${(estNow(id) / f.g).toFixed(1)}× the size she was on ${nice(f.date)}.`.replace('she', pen(id) ? 'he' : K(id).sex === 'm' ? 'he' : 'she'));
+    let best = null; for (let i = 1; i < w.length; i++) { const dd = daysBetween(w[i - 1].date, w[i].date); if (dd > 0) { const r = (w[i].g - w[i - 1].g) / dd; if (!best || r > best.r) best = { r, to: w[i].date }; } }
+    if (best) L.push(`${n}'s fastest growth: ${Math.round(best.r)} g/day, up to ${nice(best.to)}.`);
+    [1000, 1500, 2000, 3000].forEach(t => { const d = whenPaced(id, t); if (d) L.push(`At ${S.pace === 100 ? 'a typical pace' : S.pace + '% pace'}, ${n} reaches ${fmt(t, 'kg')} around ${nice(d)} (${daysBetween(todayYmd(), d)} days).`); });
+    const r = rate(id); if (r != null) L.push(`${n} is growing ${Math.round(r)} g a day right now — a lemon's weight every ${Math.max(1, Math.round(LEMON_G / Math.max(1, r)))} days.`);
+  });
+  const a = estNow('misato'), b = estNow('penpen'); if (a && b) L.push(`${a > b ? K('misato').name : K('penpen').name} is ${Math.abs(a - b)}g heavier today — ${(Math.abs(a - b) / LEMON_G).toFixed(1)} lemons in it.`);
+  return L.length ? L : ['Weigh a kitten to unlock insights 💡'];
+}
+function ticker(stay) { const L = insights(); if (!stay) tickI++; const t = $('#tick'); t.style.opacity = 0; setTimeout(() => { t.textContent = L[tickI % L.length]; t.style.opacity = 1; }, 250); }
+$('#tickNext').onclick = () => ticker();
+setInterval(() => { if (!document.hidden) ticker(); }, 7000);
+
+/* ═════════════════════ 🏁 THE RACE ═════════════════════ */
+let raceDay = null, raceTimer = null;
+function raceSpan() { const all = KIDS.flatMap(weightsOf); const s = all.length ? all.map(p => p.date).sort()[0] : todayYmd(); return { s, e: addDays(DOB(), 365), n: daysBetween(s, addDays(DOB(), 365)) }; }
+function renderRace() {
+  const R = raceSpan(); if (raceDay == null) raceDay = clamp(daysBetween(R.s, todayYmd()), 0, R.n);
+  $('#raceS').max = R.n; $('#raceS').value = raceDay; const date = addDays(R.s, raceDay), FIN = 4200;
+  const RW = 1000, L = 50, Rr = 70, X = g => L + clamp(g, 0, FIN * 1.05) / FIN * (RW - L - Rr);
+  let s = '';
+  // distance markers
+  for (let g = 0; g <= FIN; g += 500) s += `<line x1="${X(g)}" x2="${X(g)}" y1="132" y2="356" stroke="rgba(255,255,255,.7)" stroke-width="${g % 1000 ? 2 : 4}"/><text x="${X(g)}" y="372" text-anchor="middle" font-size="12" font-weight="900" fill="#1d4a0f">${g ? (g / 1000).toFixed(1) + 'kg' : 'start'}</text>`;
+  // flags at everyday weights
+  [[415, '🥫'], [1000, '🍚'], [1500, '🍍'], [2000, '🐇'], [2500, '🐕'], [3400, '👶']].forEach(([g, e], i) => s += `<line x1="${X(g)}" x2="${X(g)}" y1="${70 + (i % 2) * 18}" y2="128" stroke="#000" stroke-width="2.5"/><text x="${X(g) + 3}" y="${68 + (i % 2) * 18}" font-size="22">${e}</text>`);
+  // finish
+  for (let i = 0; i < 11; i++) for (let j = 0; j < 2; j++) s += `<rect x="${X(FIN) + j * 10}" y="${134 + i * 20}" width="10" height="20" fill="${(i + j) % 2 ? '#000' : '#fff'}"/>`;
+  s += `<text x="${X(FIN) + 10}" y="118" text-anchor="middle" font-size="30">🏁</text><text x="${X(FIN) + 10}" y="58" text-anchor="middle" font-size="13" font-weight="900">grown-up</text>`;
+  // lanes
+  KIDS.forEach((id, li) => { const y = 178 + li * 92, v = wAt(id, date), f = firstWeigh(id), b = pen(id);
+    s += `<rect x="${L - 30}" y="${y - 40}" width="${RW - L}" height="80" rx="16" fill="${b ? 'rgba(43,43,48,.16)' : 'rgba(177,94,227,.16)'}" stroke="#000" stroke-width="2.5" stroke-dasharray="8 6"/>`;
+    s += `<text x="${L - 20}" y="${y - 24}" font-size="12" font-weight="900" fill="#333">${esc(K(id).name)}${v != null ? ` · ${(v / FIN * 100).toFixed(0)}% of the way` : ''}</text>`;
+    if (v == null) { s += `<text x="${L}" y="${y + 10}" font-weight="900" font-size="15">hasn't been weighed yet</text>`; return; }
+    if (f) s += `<line x1="${X(f.g)}" x2="${X(v)}" y1="${y + 22}" y2="${y + 22}" stroke="${b ? '#ffb703' : '#b15ee3'}" stroke-width="10" stroke-linecap="round" opacity=".75"/><circle cx="${X(f.g)}" cy="${y + 22}" r="7" fill="#fff" stroke="#000" stroke-width="3"/>`;
+    s += nestSVG(kittenSVG(id, { w: 64, still: true }), X(v) - 32, y - 40, 64);
+    const bx = X(v) + 36 + 92 > RW ? X(v) - 128 : X(v) + 36;
+    s += `<rect x="${bx}" y="${y - 6}" width="92" height="26" rx="13" fill="${b ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="3"/><text x="${bx + 46}" y="${y + 12}" text-anchor="middle" font-size="13" font-weight="900" fill="${b ? '#ffb703' : '#111'}">${short(v)}</text>`; });
+  $('#race').innerHTML = s;
+  const a = wAt('misato', date), b = wAt('penpen', date), fut = date > todayYmd();
+  $('#raceDate').textContent = `${nice(date)}${fut ? ' 🔮' : ''}${a && b ? ` · ${a > b ? K('misato').name : K('penpen').name} leads by ${Math.round(Math.abs(a - b))}g` : ''}`;
+}
+$('#raceS').oninput = e => { raceDay = +e.target.value; renderRace(); };
+$('#racePlay').onclick = () => { if (raceTimer) { clearInterval(raceTimer); raceTimer = null; $('#racePlay').textContent = '▶ Race!'; return; }
+  const R = raceSpan(); raceDay = 0; $('#racePlay').textContent = '⏸ Pause';
+  raceTimer = setInterval(() => { raceDay = Math.min(R.n, raceDay + Math.max(1, Math.round(R.n / 180))); renderRace(); if (raceDay >= R.n) { clearInterval(raceTimer); raceTimer = null; $('#racePlay').textContent = '▶ Race again'; rain(['🏁', '🐾', '🎉'], 18); } }, 45); };
+
+/* ═════════════════════ 🎢 THE BALANCE ═════════════════════
+   A seesaw with a damped spring: the beam swings, overshoots, settles. */
+const BAL = { pile: [], ang: 0, vel: 0, target: 0, raf: null };
+function balSides() {
+  const g = id => estNow(id) || 0;
+  if (S.bm === 'duel') return { L: g('misato'), R: g('penpen'), lk: ['misato'], rk: ['penpen'] };
+  if (S.bm === 'both') return { L: g('misato') + g('penpen'), R: BAL.pile.reduce((s, i) => s + THINGS[i][3], 0), lk: ['misato', 'penpen'], rk: [] };
+  return { L: g(S.bm), R: BAL.pile.reduce((s, i) => s + THINGS[i][3], 0), lk: [S.bm], rk: [] };
+}
+function renderTray() {
+  $('#tray').innerHTML = S.bm === 'duel' ? '' : THINGS.map(([e, one, many, g], i) => `<button data-i="${i}"><span class="e">${e}</span>${g >= 1000 ? (g / 1000) + 'kg' : g + 'g'}</button>`).join('');
+  $('#tray').querySelectorAll('button').forEach(b => b.onclick = () => { BAL.pile.push(+b.dataset.i); balTarget(); });
+  $('#balAuto').hidden = $('#balClear').hidden = S.bm === 'duel';
+}
+function balTarget() { const { L, R } = balSides(), m = Math.max(L, R, 1); BAL.target = clamp((R - L) / m, -1, 1) * 18; if (!BAL.raf) BAL.raf = requestAnimationFrame(balStep); drawBal(); }
+function balStep() { const k = .06, damp = .86; BAL.vel = (BAL.vel + (BAL.target - BAL.ang) * k) * damp; BAL.ang += BAL.vel; drawBal(); if (Math.abs(BAL.vel) > .01 || Math.abs(BAL.target - BAL.ang) > .01) BAL.raf = requestAnimationFrame(balStep); else BAL.raf = null; }
+function drawBal() {
+  const { L, R, lk, rk } = balSides(), a = BAL.ang * Math.PI / 180, cx = 500, cy = 220, half = 360;
+  const lx = cx - Math.cos(a) * half, ly = cy - Math.sin(a) * half, rx = cx + Math.cos(a) * half, ry = cy + Math.sin(a) * half;
+  const pan = (x, y, inner) => `<line x1="${x}" y1="${y}" x2="${x - 70}" y2="${y + 66}" stroke="#000" stroke-width="3"/><line x1="${x}" y1="${y}" x2="${x + 70}" y2="${y + 66}" stroke="#000" stroke-width="3"/>
+    <path d="M${x - 96} ${y + 66} Q${x} ${y + 112} ${x + 96} ${y + 66} Z" fill="#ffd166" stroke="#000" stroke-width="5" stroke-linejoin="round"/>${inner}`;
+  const kits = (ks, x, y) => ks.map((id, i) => { const w = ks.length > 1 ? 82 : 110; return nestSVG(kittenSVG(id, { w, still: true }), x - (ks.length > 1 ? (i ? -6 : 88) : w / 2), y + 70 - w * 220 / 210, w); }).join('');
+  let pile = '';
+  if (S.bm === 'duel') pile = kits(rk, rx, ry);
+  else BAL.pile.forEach((ti, i) => { const col = i % 5, row = Math.floor(i / 5); pile += `<text x="${rx - 70 + col * 35}" y="${ry + 64 - row * 30}" font-size="34" text-anchor="middle">${THINGS[ti][0]}</text>`; });
+  $('#bal').innerHTML = `
+    <path d="M${cx} ${cy + 8} L${cx - 70} 420 L${cx + 70} 420 Z" fill="#8ac926" stroke="#000" stroke-width="6" stroke-linejoin="round"/>
+    <rect x="${cx - 120}" y="418" width="240" height="14" rx="6" fill="#5a3d86" stroke="#000" stroke-width="4"/>
+    <line x1="${lx}" y1="${ly}" x2="${rx}" y2="${ry}" stroke="#000" stroke-width="20" stroke-linecap="round"/><line x1="${lx}" y1="${ly}" x2="${rx}" y2="${ry}" stroke="#ff924c" stroke-width="11" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="16" fill="#ffca3a" stroke="#000" stroke-width="5"/>
+    ${pan(lx, ly, kits(lk, lx, ly))}${pan(rx, ry, pile)}
+    <text x="${lx}" y="${ly + 140}" text-anchor="middle" font-size="22" font-weight="900">${fmt(L)}</text><text x="${rx}" y="${ry + 140}" text-anchor="middle" font-size="22" font-weight="900">${fmt(R)}</text>
+    <g id="balPileHit"><rect x="${rx - 110}" y="${ry - 40}" width="220" height="130" fill="transparent" style="cursor:pointer"/></g>`;
+  const hit = $('#balPileHit'); if (hit) hit.onclick = () => { if (S.bm !== 'duel' && BAL.pile.length) { BAL.pile.pop(); balTarget(); } };
+  const diff = R - L, m = Math.max(L, R, 1), names = lk.map(id => K(id).name).join(' + ');
+  let msg;
+  if (S.bm === 'duel') msg = Math.abs(diff) / m < .03 ? '⚖️ Dead level — perfect twins!' : `${diff > 0 ? K('penpen').name : K('misato').name} tips it by ${Math.abs(Math.round(diff))}g`;
+  else if (!BAL.pile.length) msg = `Put something on the scale to weigh against ${names} 👇`;
+  else if (Math.abs(diff) / m < .03) { msg = `⚖️ Balanced! ${names} = ${BAL.pile.length} thing${BAL.pile.length > 1 ? 's' : ''}`; if (!BAL.cheered) { BAL.cheered = true; rain(['⚖️', '🎉', '🐾', '🍋'], 20); } }
+  else { BAL.cheered = false; msg = diff < 0 ? `${names} is ${Math.round(-diff)}g heavier — keep piling` : `Too much! ${Math.round(diff)}g over — tap the pile to take one off`; }
+  $('#balmsg').textContent = msg;
+}
+$('#balAuto').onclick = () => { const { L } = balSides(); BAL.pile = []; let left = L; const order = THINGS.map((t, i) => i).sort((a, b) => THINGS[b][3] - THINGS[a][3]);
+  for (const i of order) while (left >= THINGS[i][3] * .97 && BAL.pile.length < 25) { BAL.pile.push(i); left -= THINGS[i][3]; } balTarget(); };
+$('#balClear').onclick = () => { BAL.pile = []; balTarget(); };
+chipGroup('#s-bal .chip[data-bm]', 'bm', 'bm', () => { BAL.pile = []; renderTray(); balTarget(); });
+
+/* ═════════════════════ 🌀 THE SPIRAL ═════════════════════ */
+chipGroup('#s-spiral .chip[data-sp]', 'sp', 'sp', () => renderSpiral());
+function heatCol(t) { const stops = [[0, [130, 190, 255]], [.35, [138, 201, 38]], [.6, [255, 202, 58]], [.8, [255, 146, 76]], [1, [230, 57, 70]]];
+  for (let i = 1; i < stops.length; i++) if (t <= stops[i][0]) { const [a, ca] = stops[i - 1], [b, cb] = stops[i], f = (t - a) / (b - a); return `rgb(${ca.map((c, j) => Math.round(c + (cb[j] - c) * f)).join(',')})`; } return 'rgb(230,57,70)'; }
+function renderSpiral() {
+  const id = S.sp, w = weightsOf(id), f = w[0];
+  if (!f) { $('#spiral').innerHTML = `<text x="300" y="300" text-anchor="middle" font-size="20" font-weight="900">${esc(K(id).name)} hasn't been weighed yet</text>`; $('#spLegend').innerHTML = ''; return; }
+  const end = addDays(todayYmd(), 56), n = daysBetween(f.date, end), weighSet = new Set(w.map(p => p.date)), maxG = Math.max(...KIDS.map(k => wAt(k, end) || 0), 1500);
+  // Archimedean spiral r = r0 + bθ, days spaced evenly along the curve; ~one lap a week early on
+  const rmax = 272, r0 = 52, laps = Math.max(2.5, n / 7), b = (rmax - r0) / (laps * 2 * Math.PI), Ltot = (rmax * rmax - r0 * r0) / (2 * b), sp = Ltot / Math.max(1, n);
+  const theta = d => (-r0 + Math.sqrt(r0 * r0 + 2 * b * sp * d)) / b;
+  let s = '', turns = '', trail = '';
+  for (let t = 0; t <= theta(n); t += .05) { const r = r0 + b * t; trail += `${(300 + Math.cos(t - Math.PI / 2) * r).toFixed(1)},${(300 + Math.sin(t - Math.PI / 2) * r).toFixed(1)} `; }
+  s += `<polyline points="${trail}" fill="none" stroke="#e7d4ff" stroke-width="3"/>`;
+  for (let d = 0; d <= n; d++) { const dt = addDays(f.date, d), v = wAt(id, dt); if (v == null) continue; const th = theta(d), ang = th - Math.PI / 2, r = r0 + b * th;
+    const x = 300 + Math.cos(ang) * r, y = 300 + Math.sin(ang) * r, fut = dt > todayYmd(), today = dt === todayYmd(), dot = Math.min(sp * .48, 2.2 + 10 * Math.sqrt(v / maxG));
+    s += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${dot.toFixed(1)}" fill="${heatCol(v / maxG)}" ${fut ? 'fill-opacity=".28"' : ''} stroke="${weighSet.has(dt) ? '#000' : today ? '#e63946' : 'none'}" stroke-width="${weighSet.has(dt) || today ? 2.8 : 0}"><title>${nice(dt)} · ${fmt(v)}${weighSet.has(dt) ? ' (weighed)' : fut ? ' (predicted)' : ''}</title></circle>`;
+    const a = ageDays(id, dt); if (a != null && a % 7 === 0) { const tx = 300 + Math.cos(ang) * (r - 15), ty = 300 + Math.sin(ang) * (r - 15); turns += `<text x="${tx.toFixed(1)}" y="${(ty + 4).toFixed(1)}" text-anchor="middle" font-size="10" font-weight="900" fill="#6a4c93">${a / 7}w</text>`; }
+    if (today) turns += `<text x="${x}" y="${y - dot - 6}" text-anchor="middle" font-size="12" font-weight="900" fill="#e63946">today</text>`; }
+  const now = estNow(id);
+  $('#spiral').innerHTML = `<g class="spin">${s}${turns}</g><circle cx="300" cy="300" r="40" fill="#fff" stroke="#000" stroke-width="4"/>${nestSVG(kittenSVG(id, { w: 62, still: true }), 269, 266, 62)}`;
+  $('#spLegend').innerHTML = `<div class="bn ${id}"><small>${esc(K(id).name)} today</small><b>${fmt(now)}</b><i>${(now / f.g).toFixed(2)}× the first weigh-in</i></div>
+    <div>⚫ ring = a day you weighed · 🔴 ring = today</div><div>faded dots = the next 8 weeks, predicted</div>
+    <div style="display:flex;align-items:center;gap:6px">small <span style="flex:1;height:14px;border:2px solid #000;border-radius:99px;background:linear-gradient(90deg,${[0, .35, .6, .8, 1].map(heatCol).join(',')})"></span> big</div>
+    <div>${w.length} weigh-ins · ${daysBetween(f.date, todayYmd())} days · ${Math.ceil(daysBetween(f.date, todayYmd()) / 7)} laps</div>`;
+}
+
+/* ═════════════════════ 🔢 NUMBERS ═════════════════════ */
+function renderNums() {
+  $('#nums').innerHTML = KIDS.map(id => { const w = weightsOf(id); if (!w.length) return '';
+    const f = w[0], l = w[w.length - 1], days = daysBetween(f.date, l.date), now = estNow(id);
+    const segs = []; for (let i = 1; i < w.length; i++) { const dd = daysBetween(w[i - 1].date, w[i].date); if (dd > 0) segs.push((w[i].g - w[i - 1].g) / dd); }
+    const best = segs.length ? Math.max(...segs) : null, half = w.slice().reverse().find(x => x.g <= l.g / 2), at = a => K(id).dob ? wAt(id, addDays(K(id).dob, a)) : null;
+    const next = [1000, 1500, 2000, 2500, 3000, 4000].find(t => t > now), nd = next ? whenPaced(id, next) : null;
+    const B = [['Now (est.)', fmt(now), l.date === todayYmd() ? 'weighed today' : 'last ' + nice(l.date)], ['× first weigh-in', (now / f.g).toFixed(2) + '×', `from ${fmt(f.g)}`], ['Gained', sign(now - f.g) + 'g', equiv(now - f.g)],
+      ['Pace now', rate(id) != null ? Math.round(rate(id)) + ' g/day' : '—', rate(id) != null ? Math.round(rate(id) * 7) + ' g a week' : ''], ['Fastest stretch', best != null ? Math.round(best) + ' g/day' : '—', ''],
+      ['Doubled in', half ? daysBetween(half.date, l.date) + ' days' : 'not yet', ''], ['At 8 weeks', at(56) != null ? fmt(at(56)) : '—', ''], ['At 12 weeks', at(84) != null ? fmt(at(84)) : '—', at(84) != null && addDays(K(id).dob, 84) > l.date ? 'predicted' : ''],
+      ['Next milestone', next ? fmt(next, 'kg') : '🎉', nd ? nice(nd) + ` · in ${daysBetween(todayYmd(), nd)}d` : ''], ['Weigh-ins', w.length, `over ${days} days`]];
+    return `<h3 style="margin-top:12px">${pen(id) ? '🖤' : '🤍'} ${esc(K(id).name)}</h3><div class="bign">${B.map(([k, v, i]) => `<div class="bn ${id}"><small>${k}</small><b>${v}</b><i>${i}</i></div>`).join('')}</div>`; }).join('') || '<div class="empty">No weigh-ins yet</div>';
+  // velocity bars
+  const segs = []; KIDS.forEach(id => { const w = weightsOf(id); for (let i = 1; i < w.length; i++) { const dd = daysBetween(w[i - 1].date, w[i].date); if (dd > 0) segs.push({ id, to: w[i].date, r: (w[i].g - w[i - 1].g) / dd }); } });
+  segs.sort((a, b) => a.to.localeCompare(b.to)); const VW = 600, VH = 240, L = 40, B = 30, T = 14, vmax = Math.max(25, ...segs.map(s => s.r)) * 1.15, vmin = Math.min(0, ...segs.map(s => s.r)) * 1.15, vy = v => T + (1 - (v - vmin) / (vmax - vmin)) * (VH - T - B);
+  let v = `<rect x="${L}" y="${vy(17)}" width="${VW - L - 10}" height="${vy(10) - vy(17)}" fill="rgba(138,201,38,.2)"/><text x="${VW - 14}" y="${vy(17) - 4}" text-anchor="end" font-size="11" font-weight="900" fill="#5f9718">typical 10–17</text><line x1="${L}" x2="${VW - 10}" y1="${vy(0)}" y2="${vy(0)}" stroke="#000" stroke-width="2"/>`;
+  if (!segs.length) v += `<text x="${VW / 2}" y="${VH / 2}" text-anchor="middle" font-size="14" font-weight="900">needs two weigh-ins of the same kitten</text>`;
+  else { const bw = Math.min(46, (VW - L - 20) / segs.length - 6); segs.forEach((s, i) => { const x = L + 8 + i * (bw + 6);
+    v += `<rect x="${x}" y="${Math.min(vy(s.r), vy(0))}" width="${bw}" height="${Math.abs(vy(s.r) - vy(0))}" rx="7" fill="${pen(s.id) ? '#2b2b30' : '#b15ee3'}" stroke="#000" stroke-width="2.5"/><text x="${x + bw / 2}" y="${vy(s.r) - 5}" text-anchor="middle" font-size="12" font-weight="900">${Math.round(s.r)}</text><text x="${x + bw / 2}" y="${VH - 9}" text-anchor="middle" font-size="9.5">${parseYmd(s.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`; }); }
+  $('#vel').innerHTML = v;
+  // gap
+  const dates = [...new Set(KIDS.flatMap(id => weightsOf(id).map(p => p.date)))].sort().filter(d => KIDS.every(id => { const w = weightsOf(id); return w.length && d >= w[0].date && d <= w[w.length - 1].date; }));
+  let gs = ''; if (!dates.length) gs = `<text x="300" y="120" text-anchor="middle" font-size="14" font-weight="900">needs weigh-ins of both</text>`;
+  else { const G = dates.map(d => [d, wAt('misato', d) - wAt('penpen', d)]), gm = Math.max(40, ...G.map(x => Math.abs(x[1]))) * 1.3, gy = x => 16 + (1 - (x + gm) / (2 * gm)) * 196, d0 = dates[0], dn = Math.max(1, daysBetween(d0, dates[dates.length - 1])), gx = d => 50 + daysBetween(d0, d) / dn * 520;
+    gs = `<rect x="44" y="16" width="530" height="${gy(0) - 16}" fill="rgba(177,94,227,.1)"/><rect x="44" y="${gy(0)}" width="530" height="${212 - gy(0)}" fill="rgba(43,43,48,.08)"/><text x="50" y="32" font-size="11" font-weight="900" fill="#8a3fc4">🤍 Misato ahead</text><text x="50" y="206" font-size="11" font-weight="900">🖤 Pen Pen ahead</text><line x1="44" x2="574" y1="${gy(0)}" y2="${gy(0)}" stroke="#000" stroke-width="2"/>`;
+    gs += `<path d="${smoothPath(G.map(([d, x]) => [gx(d), gy(x)]), .8)}" fill="none" stroke="#ff924c" stroke-width="5" stroke-linecap="round"/>`;
+    G.forEach(([d, x]) => gs += `<circle cx="${gx(d)}" cy="${gy(x)}" r="6" fill="#fff" stroke="#000" stroke-width="2.5"/><text x="${gx(d)}" y="${gy(x) - 10}" text-anchor="middle" font-size="11" font-weight="900">${Math.round(Math.abs(x))}g</text><text x="${gx(d)}" y="232" text-anchor="middle" font-size="9.5">${parseYmd(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`); }
+  $('#gap').innerHTML = gs;
+  // heat
+  $('#heats').innerHTML = KIDS.map(id => { const set = new Set(weightsOf(id).map(p => p.date)), start = addDays(todayYmd(), -((new Date().getDay() + 6) % 7) - 49); let h = '';
+    ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach(d => h += `<span style="border:none">${d}</span>`);
+    for (let i = 0; i < 56; i++) { const d = addDays(start, i), has = set.has(d), fut = d > todayYmd(); h += `<span title="${nice(d)}" style="background:${fut ? 'transparent' : has ? (pen(id) ? '#2b2b30' : '#b15ee3') : '#fff'};color:#fff;${fut ? 'border-style:dashed;opacity:.3' : ''}">${has ? '⚖' : ''}</span>`; }
+    return `<div class="mini"><h3>🔥 ${esc(K(id).name)}'s weigh-in days <span class="muted">· last 8 weeks</span></h3><div class="heat">${h}</div></div>`; }).join('');
+  // guesses
+  const G = { lemon: [], girl: [] }; live('weights').forEach(([, w]) => { if (w.guess) Object.entries(w.guess).forEach(([p, val]) => G[p] && val && G[p].push(Math.abs(val - w.g))); });
+  const avg = a => a.length ? Math.round(a.reduce((s, x) => s + x, 0) / a.length) : null, al = avg(G.lemon), ag = avg(G.girl);
+  $('#guess').innerHTML = `<h3>🎯 Guess-the-weight</h3>` + (al != null || ag != null ? `<div class="bign">${[['lemon', al, G.lemon.length], ['girl', ag, G.girl.length]].map(([p, a, n]) => `<div class="bn"><small>${WHO[p]} ${p === 'lemon' ? 'the lemon' : 'the girl'}</small><b>${a != null ? a + 'g off' : '—'}</b><i>${n} guesses</i></div>`).join('')}
+    <div class="bn" style="background:#ffe066"><small>Best eye</small><b>${al != null && ag != null ? (al === ag ? '🤝 tie' : al < ag ? '🍋' : '🌙') : '—'}</b><i>lower is better</i></div></div>` : '<div class="muted" style="font-weight:800">Before weighing, both type a guess under "🎯 guesses" on the scale.</div>');
+}
+
+/* ═════════════════════ 📋 LOG ═════════════════════ */
+chipGroup('#s-log .chip[data-lk]', 'lk', 'lk', () => renderLog());
+chipGroup('#s-log .chip[data-ls]', 'ls', 'ls', () => renderLog());
+function rowsFor(k) { return KIDS.filter(id => k === 'all' || id === k).flatMap(id => { const w = weightsOf(id); return w.map((p, i) => { const prev = w[i - 1], dd = prev ? daysBetween(prev.date, p.date) : 0;
   return Object.assign({}, p, { d: prev ? p.g - prev.g : null, r: prev && dd > 0 ? (p.g - prev.g) / dd : null, pct: prev ? (p.g / prev.g - 1) * 100 : null, age: ageDays(id, p.date) }); }); }); }
 function renderLog() {
-  const R = rowsFor(lK).sort((a, b) => (lSort === 'asc' ? 1 : -1) * (a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || '') || a.u - b.u));
-  $('#logt').innerHTML = `<tr><th>Kitten</th><th>Date</th><th>Time</th><th>Grams</th><th>~</th><th>Fed</th><th>Change</th><th>g/day</th><th>%</th><th>Age</th><th>Note</th><th>📷</th><th>By</th><th></th></tr>` + (R.length ? R.map(p => {
-    const src = p.photo && photoURL(p.photo);
-    return `<tr><td><span class="kdot ${p.k}">${esc(K(p.k).name)}</span></td>
+  const R = rowsFor(S.lk).sort((a, b) => (S.ls === 'asc' ? 1 : -1) * (a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || '') || a.u - b.u));
+  $('#logt').innerHTML = `<tr><th></th><th>Date</th><th>Time</th><th>Grams</th><th>~</th><th>Fed</th><th>Change</th><th>g/day</th><th>%</th><th>Age</th><th>Note</th><th>📷</th><th>By</th><th></th></tr>` + (R.length ? R.map(p => { const src = p.photo && photoURL(p.photo);
+    return `<tr class="${p.k}"><td>${kittenSVG(p.k, { w: 34, still: true })}</td>
       <td><input type="date" value="${p.date}" data-f="date" data-id="${p.id}"></td><td><input type="time" value="${p.time || ''}" data-f="time" data-id="${p.id}" style="width:6.5em"></td>
-      <td><input type="number" value="${p.g}" data-f="g" data-id="${p.id}" style="width:5.5em;font-weight:900"></td>
+      <td><input type="number" value="${p.g}" data-f="g" data-id="${p.id}" style="width:5.5em;font-weight:900;font-size:1rem"></td>
       <td><input type="checkbox" ${p.approx ? 'checked' : ''} data-f="approx" data-id="${p.id}" style="width:20px;height:20px;min-height:0"></td>
       <td><select data-f="fed" data-id="${p.id}"><option value="" ${!p.fed ? 'selected' : ''}>—</option><option value="before" ${p.fed === 'before' ? 'selected' : ''}>before</option><option value="after" ${p.fed === 'after' ? 'selected' : ''}>after</option></select></td>
-      <td class="${p.d > 0 ? 'pos' : p.d < 0 ? 'neg' : ''}">${p.d == null ? '—' : sign(p.d) + 'g'}</td><td>${p.r == null ? '—' : Math.round(p.r)}</td><td>${p.pct == null ? '—' : (p.pct >= 0 ? '+' : '') + p.pct.toFixed(1) + '%'}</td>
+      <td class="${p.d > 0 ? 'pos' : p.d < 0 ? 'neg' : ''}" style="font-weight:900">${p.d == null ? '🌱' : sign(p.d) + 'g'}</td><td>${p.r == null ? '—' : Math.round(p.r)}</td><td>${p.pct == null ? '—' : (p.pct >= 0 ? '+' : '') + p.pct.toFixed(1) + '%'}</td>
       <td>${ageStr(p.age)}</td><td><input type="text" value="${esc(p.note || '')}" data-f="note" data-id="${p.id}" style="width:11em" placeholder="…"></td>
-      <td>${src ? `<img class="thumb" src="${src}" data-view>` : `<label class="btn sm" style="min-height:30px">＋<input type="file" accept="image/*" hidden data-ph="${p.id}"></label>`}</td>
-      <td>${WHO[p.by] || ''}</td><td><button class="x" data-ed="${p.id}" title="Open">✏️</button><button class="x" data-del="${p.id}" title="Delete">✕</button></td></tr>`; }).join('') : '<tr><td colspan="14">No weigh-ins yet.</td></tr>');
+      <td>${src ? `<img class="thumb" src="${src}" data-view>` : `<label class="chunk sm" style="min-height:32px;display:inline-flex;align-items:center">＋<input type="file" accept="image/*" hidden data-ph="${p.id}"></label>`}</td>
+      <td>${WHO[p.by] || ''}</td><td><button class="x" data-ed="${p.id}" title="Open">✏️</button><button class="x" data-del="${p.id}" title="Delete">✕</button></td></tr>`; }).join('') : '<tr><td colspan="14">No weigh-ins yet — spin the scale ⚖️</td></tr>');
   $('#logt').querySelectorAll('[data-f]').forEach(i => i.onchange = () => { const f = i.dataset.f; let v = i.type === 'checkbox' ? i.checked : i.value; if (f === 'g') { v = Math.round(+v); if (!(v >= 50)) return; } if (f === 'date' && !v) return; wput(i.dataset.id, { [f]: v }); });
   $('#logt').querySelectorAll('[data-ph]').forEach(i => i.onchange = async () => { const f = i.files[0]; if (!f) return; const w = doc.weights[i.dataset.ph]; const d = await shrink(f, 900); wput(i.dataset.ph, { photo: addPhoto(d, { k: w.k, caption: `⚖️ ${w.g}g`, date: w.date, weigh: i.dataset.ph }) }); });
   $('#logt').querySelectorAll('[data-view]').forEach(i => i.onclick = () => view(i.src));
@@ -499,165 +879,28 @@ $('#csv').onclick = () => { const R = rowsFor('all').sort((a, b) => a.date.local
   download(`weights-${todayYmd()}.csv`, [['kitten', 'date', 'time', 'grams', 'approx', 'fed', 'change_g', 'g_per_day', 'age_days', 'note', 'by'], ...R.map(p => [K(p.k).name, p.date, p.time || '', p.g, p.approx ? 'yes' : '', p.fed || '', p.d ?? '', p.r != null ? p.r.toFixed(1) : '', p.age ?? '', '"' + String(p.note || '').replace(/"/g, '""') + '"', p.by || ''])].map(r => r.join(',')).join('\n'), 'text/csv'); };
 $('#json').onclick = () => download(`weights-${todayYmd()}.json`, JSON.stringify(rowsFor('all'), null, 1), 'application/json');
 
-/* ═════════════ 🔬 stats ═════════════ */
-function statsFor(id) {
-  const w = W8(id); if (!w.length) return null; const f = w[0], l = w[w.length - 1], days = daysBetween(f.date, l.date);
-  const segs = []; for (let i = 1; i < w.length; i++) { const dd = daysBetween(w[i - 1].date, w[i].date); if (dd > 0) segs.push({ r: (w[i].g - w[i - 1].g) / dd, to: w[i].date, from: w[i - 1].date }); }
-  const rs = segs.map(s => s.r), mean = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null, sd = rs.length > 1 ? Math.sqrt(rs.reduce((a, b) => a + (b - mean) ** 2, 0) / (rs.length - 1)) : null;
-  const best = segs.slice().sort((a, b) => b.r - a.r)[0], worst = segs.slice().sort((a, b) => a.r - b.r)[0];
-  const at = a => { const d = K(id).dob ? addDays(K(id).dob, a) : null; return d ? wAt(id, d, 'none') : null; };
-  const a = ageDays(id, l.date), [lo, hi] = a != null ? guide(a) : [0, 0], mid = (lo + hi) / 2;
-  const double = (() => { const half = l.g / 2; const p = w.slice().reverse().find(x => x.g <= half); return p ? daysBetween(p.date, l.date) : null; })();
-  return { n: w.length, f, l, days, gain: l.g - f.g, avg: days > 0 ? (l.g - f.g) / days : null, mean, sd, best, worst, since: daysBetween(l.date, todayYmd()),
-    mn: Math.min(...w.map(x => x.g)), mx: Math.max(...w.map(x => x.g)), at8: at(56), at12: at(84), at16: at(112), vsMid: a != null ? (l.g / mid - 1) * 100 : null, double, mult: l.g / f.g,
-    photos: w.filter(x => x.photo).length, approx: w.filter(x => x.approx).length };
-}
-function renderStats() {
-  $('#sCards').innerHTML = KIDS.map(id => { const s = statsFor(id); if (!s) return `<div class="mini ${id}"><b>${esc(K(id).name)}</b><div class="muted">No weigh-ins yet</div></div>`;
-    const M = [['Weigh-ins', s.n], ['Latest', fmt(s.l.g)], ['Est. today', fmt(estNow(id))], ['Since first', sign(s.gain) + 'g'], ['× arrival', s.mult.toFixed(2) + '×'], ['Days tracked', s.days],
-      ['Avg gain', s.avg != null ? Math.round(s.avg) + ' g/day' : '—'], ['Avg per week', s.avg != null ? Math.round(s.avg * 7) + ' g' : '—'], ['Pace now', rate(id) != null ? Math.round(rate(id)) + ' g/day' : '—'],
-      ['Steadiness (±)', s.sd != null ? Math.round(s.sd) + ' g/day' : '—'], ['Best stretch', s.best ? Math.round(s.best.r) + ' g/day' : '—'], ['Slowest stretch', s.worst ? Math.round(s.worst.r) + ' g/day' : '—'],
-      ['Lightest', fmt(s.mn)], ['Heaviest', fmt(s.mx)], ['Vs typical mid', s.vsMid != null ? (s.vsMid >= 0 ? '+' : '') + s.vsMid.toFixed(0) + '%' : '—'], ['Doubled in', s.double != null ? s.double + ' days' : 'not yet'],
-      ['At 8 wks', s.at8 ? fmt(s.at8) : '—'], ['At 12 wks', s.at12 ? fmt(s.at12) : '—'], ['At 16 wks', s.at16 ? fmt(s.at16) : '—'], ['Last weighed', s.since === 0 ? 'today' : s.since + 'd ago'],
-      ['1 kg', s.l.g >= 1000 ? '✅' : (when(id, 1000) ? nice(when(id, 1000)) : '—')], ['2 kg', s.l.g >= 2000 ? '✅' : (when(id, 2000) ? nice(when(id, 2000)) : '—')], ['📷 photos', s.photos], ['~ rough', s.approx]];
-    return `<div class="mini ${id}"><b style="font-size:1.15rem">${esc(K(id).name)}</b> <span class="muted">${ageStr(ageDays(id))}</span><div class="mgrid">${M.map(([k, v]) => `<div class="m1"><small>${k}</small><b>${v}</b></div>`).join('')}</div></div>`; }).join('');
-  // velocity bars
-  const segs = []; KIDS.forEach(id => { const w = W8(id); for (let i = 1; i < w.length; i++) { const dd = daysBetween(w[i - 1].date, w[i].date); if (dd > 0) segs.push({ id, to: w[i].date, r: (w[i].g - w[i - 1].g) / dd }); } });
-  segs.sort((a, b) => a.to.localeCompare(b.to) || a.id.localeCompare(b.id));
-  const VW = 1000, VH = 240, L = 56, B = 32, T = 16, vmax = Math.max(25, ...segs.map(s => s.r)) * 1.15, vmin = Math.min(0, ...segs.map(s => s.r)) * 1.15, vy = v => T + (1 - (v - vmin) / (vmax - vmin)) * (VH - T - B);
-  let v = `<rect x="${L}" y="${vy(17)}" width="${VW - L - 16}" height="${vy(10) - vy(17)}" fill="rgba(138,201,38,.15)"/><text x="${VW - 20}" y="${vy(17) - 4}" text-anchor="end" style="fill:#5f9718;font-weight:900">typical 10–17 g/day</text><line x1="${L}" x2="${VW - 16}" y1="${vy(0)}" y2="${vy(0)}" stroke="#000" stroke-width="2"/>`;
-  for (let gg = 0; gg <= vmax; gg += vmax > 60 ? 20 : 10) v += `<text x="${L - 6}" y="${vy(gg) + 4}" text-anchor="end">${gg}</text>`;
-  if (!segs.length) v += `<text x="${VW / 2}" y="${VH / 2}" text-anchor="middle" style="font-size:15px;font-weight:900">Needs two weigh-ins of the same kitten</text>`;
-  else { const bw = Math.min(60, (VW - L - 30) / segs.length - 6); segs.forEach((s, i) => { const x = L + 10 + i * (bw + 6);
-    v += `<rect x="${x}" y="${Math.min(vy(s.r), vy(0))}" width="${bw}" height="${Math.abs(vy(s.r) - vy(0))}" rx="6" fill="${pen(s.id) ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="2.5"/><text x="${x + bw / 2}" y="${vy(s.r) - 5}" text-anchor="middle" style="font-weight:900;fill:#1a1a1a">${Math.round(s.r)}</text><text x="${x + bw / 2}" y="${VH - 10}" text-anchor="middle" style="font-size:9.5px">${parseYmd(s.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`; }); }
-  $('#vel').innerHTML = v;
-  // gap chart (Misato − Pen Pen, interpolated at every weigh-in date of either)
-  const dates = [...new Set(KIDS.flatMap(id => W8(id).map(p => p.date)))].sort().filter(d => KIDS.every(id => wAt(id, d, 'none') != null));
-  const gaps = dates.map(d => [d, wAt('misato', d, 'none') - wAt('penpen', d, 'none')]);
-  let gs = ''; if (gaps.length < 1) gs = `<text x="500" y="110" text-anchor="middle" style="font-size:15px;font-weight:900">Needs weigh-ins of both on overlapping dates</text>`;
-  else { const GH = 220, gm = Math.max(50, ...gaps.map(x => Math.abs(x[1]))) * 1.2, gy = val => 16 + (1 - (val + gm) / (2 * gm)) * (GH - 48), d0 = dates[0], dn = Math.max(1, daysBetween(d0, dates[dates.length - 1])), gx = d => 60 + daysBetween(d0, d) / dn * (1000 - 90);
-    gs = `<line x1="60" x2="980" y1="${gy(0)}" y2="${gy(0)}" stroke="#000" stroke-width="2"/><text x="56" y="${gy(gm * .6)}" text-anchor="end">🤍 ahead</text><text x="56" y="${gy(-gm * .6)}" text-anchor="end">🖤 ahead</text>`;
-    gs += `<polyline points="${gaps.map(([d, val]) => gx(d) + ',' + gy(val)).join(' ')}" fill="none" stroke="#b15ee3" stroke-width="4" stroke-linejoin="round"/>`;
-    gaps.forEach(([d, val]) => gs += `<circle cx="${gx(d)}" cy="${gy(val)}" r="6" fill="#fff" stroke="#000" stroke-width="2.5"/><text x="${gx(d)}" y="${gy(val) - 10}" text-anchor="middle" style="font-weight:900;fill:#1a1a1a">${Math.round(Math.abs(val))}g</text><text x="${gx(d)}" y="${GH - 12}" text-anchor="middle" style="font-size:9.5px">${parseYmd(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`); }
-  $('#gap').innerHTML = gs;
-  // week by week (age weeks)
-  const rowsW = []; KIDS.forEach(id => { const w = W8(id); const byW = {}; w.forEach(p => { const a = ageDays(id, p.date); if (a == null) return; const wk = Math.floor(a / 7); (byW[wk] = byW[wk] || []).push(p); });
-    Object.keys(byW).map(Number).sort((a, b) => a - b).forEach((wk, i, arr) => { const ps = byW[wk], avg = ps.reduce((s, p) => s + p.g, 0) / ps.length, prevW = arr[i - 1] != null ? byW[arr[i - 1]] : null;
-      const pavg = prevW ? prevW.reduce((s, p) => s + p.g, 0) / prevW.length : null; rowsW.push({ id, wk, n: ps.length, avg, hi: Math.max(...ps.map(p => p.g)), d: pavg != null ? (avg - pavg) / (wk - arr[i - 1]) : null }); }); });
-  rowsW.sort((a, b) => a.wk - b.wk || a.id.localeCompare(b.id));
-  $('#weeks').innerHTML = `<tr><th>Week of life</th><th>Kitten</th><th>Weigh-ins</th><th>Average</th><th>Heaviest</th><th>vs last week</th></tr>` + rowsW.map(r => `<tr><td>wk ${r.wk}</td><td><span class="kdot ${r.id}">${esc(K(r.id).name)}</span></td><td>${r.n}</td><td>${fmt(r.avg)}</td><td>${fmt(r.hi)}</td><td class="${r.d > 0 ? 'pos' : r.d < 0 ? 'neg' : ''}">${r.d == null ? '—' : sign(r.d) + 'g'}</td></tr>`).join('');
-  // heatmaps
-  $('#heats').innerHTML = KIDS.map(id => { const set = new Set(W8(id).map(p => p.date)), start = addDays(todayYmd(), -83 - ((new Date().getDay() + 6) % 7) + 6); let h = '';
-    ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach(d => h += `<span style="border:none;font-size:.7rem">${d}</span>`);
-    for (let i = 0; i < 84; i++) { const d = addDays(start, i), has = set.has(d), fut = d > todayYmd(); h += `<span title="${nice(d)}" style="background:${fut ? 'transparent' : has ? (pen(id) ? '#2b2b30' : '#ffca3a') : '#fff'};color:${has && pen(id) ? '#fff' : '#000'};${fut ? 'border-style:dashed;opacity:.3' : ''}">${has ? '⚖' : ''}</span>`; }
-    return `<div class="mini ${id}"><b>${esc(K(id).name)}</b> <span class="muted">${set.size} weigh-in days</span><div class="heat" style="margin-top:6px">${h}</div></div>`; }).join('');
-  // guesses
-  const G = { lemon: [], girl: [] }; live('weights').forEach(([, w]) => { if (w.guess) Object.entries(w.guess).forEach(([p, v]) => G[p] && G[p].push(Math.abs(v - w.g))); });
-  const avg = a => a.length ? Math.round(a.reduce((s, x) => s + x, 0) / a.length) : null;
-  $('#guess').innerHTML = (G.lemon.length || G.girl.length) ? `<div class="grid2">${['lemon', 'girl'].map(p => `<div class="mini"><b>${WHO[p]} ${p === 'lemon' ? 'the lemon' : 'the girl'}</b><p style="font-weight:800;margin-top:6px">${G[p].length ? `${G[p].length} guesses · on average ${avg(G[p])}g off` : 'no guesses yet'}</p></div>`).join('')}</div>
-    <p style="font-weight:900;text-align:center;margin-top:8px">${avg(G.lemon) != null && avg(G.girl) != null ? (avg(G.lemon) === avg(G.girl) ? '🤝 dead heat' : `👑 ${avg(G.lemon) < avg(G.girl) ? '🍋 the lemon' : '🌙 the girl'} has the better eye`) : ''}</p>`
-    : '<div class="empty">Before you weigh, both write a guess in "🎯 guesses" — the closest wins bragging rights.</div>';
+/* ═════════════════════ 🎞 FILM ═════════════════════ */
+const fSel = [];
+function renderFilm() {
+  const P = live('weights').map(([id, w]) => Object.assign({ id }, w)).filter(w => w.photo && photoURL(w.photo)).sort((a, b) => a.date.localeCompare(b.date));
+  $('#film').innerHTML = P.length ? P.map(w => `<div class="frame ${fSel.includes(w.id) ? 'sel' : ''}" data-id="${w.id}"><img src="${photoURL(w.photo)}" alt=""><span class="st">${short(w.g)}</span><div class="c">${esc(K(w.k).name)} · ${nice(w.date)}</div></div>`).join('')
+    : '<div style="color:#fff;font-weight:900;padding:30px 20px">No weigh-in photos yet — add one under "📷 photo" on the scale, from a chart dot, or in the log.</div>';
+  $('#film').querySelectorAll('.frame').forEach(f => f.onclick = () => { const i = fSel.indexOf(f.dataset.id); if (i >= 0) fSel.splice(i, 1); else { fSel.push(f.dataset.id); if (fSel.length > 2) fSel.shift(); } renderFilm(); });
+  const A = fSel.map(id => doc.weights[id]).filter(w => w && !w.del).sort((a, b) => a.date.localeCompare(b.date));
+  $('#vs').innerHTML = A.length === 2 ? (() => { const [a, b] = A, dd = daysBetween(a.date, b.date);
+    return `<div class="vs"><div class="side"><img src="${photoURL(a.photo)}" onclick="view(this.src)">${esc(K(a.k).name)} · ${fmt(a.g)}<br><span class="muted">${nice(a.date)}</span></div>
+      <div class="mid">${sign(b.g - a.g)}g<br><span style="font-size:.8rem">×${(b.g / a.g).toFixed(2)} in ${dd}d</span></div>
+      <div class="side"><img src="${photoURL(b.photo)}" onclick="view(this.src)">${esc(K(b.k).name)} · ${fmt(b.g)}<br><span class="muted">${nice(b.date)}</span></div></div>`; })() : A.length === 1 ? '<p class="muted" style="text-align:center;font-weight:900;margin-top:10px">Tap one more frame to compare</p>' : '';
 }
 
-/* ═════════════ ⚖️ compare ═════════════ */
-const OBJ = [['🥚', 'eggs', 60, 'an egg'], ['🎾', 'tennis balls', 58, 'a tennis ball'], ['🍋', 'lemons', LEMON_G, 'a lemon'], ['🍌', 'bananas', 120, 'a banana'], ['🐹', 'hamsters', 120, 'a hamster'], ['🍎', 'apples', 180, 'an apple'], ['📱', 'phones', 190, 'a phone'],
-  ['🥫', 'tins of beans', 415, 'a tin of beans'], ['⚽', 'footballs', 430, 'a football'], ['🥛', 'pints of milk', 568, 'a pint of milk'], ['🦔', 'hedgehogs', 800, 'a hedgehog'], ['🍚', 'bags of sugar', 1000, 'a bag of sugar'], ['🐹', 'guinea pigs', 1000, 'a guinea pig'],
-  ['🍍', 'pineapples', 1500, 'a pineapple'], ['🐇', 'rabbits', 2000, 'a rabbit'], ['🐕', 'chihuahuas', 2500, 'a chihuahua'], ['👶', 'newborn babies', 3400, 'a newborn baby'], ['🐈', 'grown-up cats', 4200, 'a grown-up cat'], ['🦊', 'foxes', 6000, 'a fox']];
-let cmK = 'misato', cmO = 2;
-$('#cmK').querySelectorAll('button').forEach(b => b.onclick = () => { cmK = b.dataset.k; $('#cmK').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderCompare(); });
-function renderCompare() {
-  const g = estNow(cmK); if (!g) { $('#scene').innerHTML = '<div class="empty" style="margin:auto">No weigh-ins yet</div>'; return; }
-  const o = OBJ[cmO], n = g / o[2];
-  // to scale by weight: linear size ∝ ∛mass
-  const base = 170, kS = base, oS = base * Math.cbrt(o[2] / g), cnt = Math.min(12, Math.max(1, Math.round(n)));
-  $('#scene').innerHTML = `<div class="it">${kittenSVG(cmK, { w: kS })}<span class="lab">${esc(K(cmK).name)} · ${fmt(g)}</span></div>
-    <div class="it"><div style="display:flex;flex-wrap:wrap-reverse;max-width:${Math.max(oS * 1.4, oS * Math.min(cnt, Math.ceil(Math.sqrt(cnt * 2.5))) * .95)}px;justify-content:center;align-items:flex-end;line-height:.85">${Array.from({ length: n >= 1 ? cnt : 1 }, () => `<span class="em" style="font-size:${oS}px">${o[0]}</span>`).join('')}</div>
-    <span class="lab">${n >= 1 ? `${n.toFixed(1)} ${o[1]}` : `${o[3]} = ${(1 / n).toFixed(1)}× ${esc(K(cmK).name)}`}</span></div>`;
-  $('#objs').innerHTML = OBJ.map(([e, name, w, one], i) => { const r = g / w; return `<div class="obj ${i === cmO ? 'on' : ''}" data-i="${i}"><span class="e">${e}</span><b>${r >= 1 ? r.toFixed(1) + '×' : (r * 100).toFixed(0) + '%'}</b><span class="muted">${r >= 1 ? name : 'of ' + one}</span></div>`; }).join('');
-  $('#objs').querySelectorAll('.obj').forEach(x => x.onclick = () => { cmO = +x.dataset.i; renderCompare(); });
-  // adult progress (typical adult ~4 kg; boys usually a bit more)
-  $('#adult').innerHTML = KIDS.map(id => { const v = estNow(id); if (!v) return ''; const adult = K(id).sex === 'm' ? 4500 : K(id).sex === 'f' ? 3800 : 4200, p = Math.min(100, v / adult * 100);
-    return `<div style="margin:8px 0"><b>${esc(K(id).name)}</b> <span class="muted">${fmt(v)} of a typical grown-up ~${fmt(adult)}</span><div class="prog"><i style="width:${p}%"></i><span>${p.toFixed(0)}% grown</span></div></div>`; }).join('');
-  // vs typical band
-  $('#vsTypical').innerHTML = KIDS.map(id => { const v = estNow(id), a = ageDays(id); if (!v || a == null) return ''; const [lo, hi] = guide(a), pos = Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
-    return `<div style="margin:8px 0"><b>${esc(K(id).name)}</b> <span class="muted">at ${ageStr(a)} the typical range is ${lo}–${hi}g</span><div class="prog" style="background:linear-gradient(90deg,#ffe1e1,#e9fbe0 20%,#e9fbe0 80%,#fff6c9)"><i style="width:6px;left:calc(${pos}% - 3px);background:#000"></i><span>${pos < 15 ? 'on the small side' : pos > 85 ? 'a big one 💪' : 'right in the middle'} (${pos.toFixed(0)}%)</span></div></div>`; }).join('');
-  // younger selves
-  const w = W8(cmK), picks = w.length ? [w[0], w[Math.floor((w.length - 1) / 2)], w[w.length - 1]].filter((p, i, a) => a.findIndex(q => q.id === p.id) === i) : [], gmx = Math.max(...picks.map(p => p.g), 1);
-  $('#selves').innerHTML = picks.map(p => `<div class="it">${kittenSVG(cmK, { w: Math.round(160 * Math.cbrt(p.g / gmx)), still: true })}<span class="lab">${nice(p.date)} · ${fmt(p.g)}</span></div>`).join('') || '<div class="empty" style="margin:auto">No weigh-ins yet</div>';
-}
-
-/* ═════════════ 🧪 play ═════════════ */
-let tmI = null, tmTimer = null;
-function tmRange() { const all = KIDS.flatMap(W8); const start = all.length ? all.map(p => p.date).sort()[0] : todayYmd(); const end = addDays(DOB(), 400); return { start, end, n: daysBetween(start, end) }; }
-function renderTM() {
-  const R = tmRange(); $('#tmS').max = R.n; if (tmI == null) tmI = Math.min(R.n, daysBetween(R.start, todayYmd()));
-  $('#tmS').value = tmI; const d = addDays(R.start, tmI), fut = d > todayYmd();
-  const vals = KIDS.map(id => wAt(id, d, 'curve')), mx = Math.max(...KIDS.map(id => wAt(id, R.end, 'curve') || 1), 1);
-  $('#tm').classList.toggle('future', fut);
-  $('#tm').innerHTML = KIDS.map((id, i) => `<div class="it">${vals[i] ? kittenSVG(id, { w: Math.max(30, Math.round(230 * Math.cbrt(vals[i] / mx))), still: true }) : '<div class="empty">not weighed yet</div>'}<span class="lab">${esc(K(id).name)} · ${vals[i] ? fmt(vals[i]) : '—'}</span></div>`).join('')
-    + `<div class="it"><img src="../sol-lemon.png" alt="" width="${Math.round(230 * Math.cbrt(LEMON_G / mx) * 1.6)}"><span class="lab">🍋 for scale</span></div>`;
-  $('#tmDate').innerHTML = `${nice(d)} ${fut ? '🔮' : d === todayYmd() ? '📍' : '⏪'}<small>${ageStr(ageDays('misato', d))} old · ${fut ? 'predicted' : 'from your weigh-ins'}</small>`;
-}
-$('#tmS').oninput = e => { tmI = +e.target.value; renderTM(); };
-$('#tmPlay').onclick = () => { if (tmTimer) { clearInterval(tmTimer); tmTimer = null; $('#tmPlay').textContent = '▶ Play'; return; }
-  const R = tmRange(); if (tmI >= R.n) tmI = 0; $('#tmPlay').textContent = '⏸ Pause';
-  tmTimer = setInterval(() => { tmI = Math.min(R.n, tmI + Math.max(1, Math.round(R.n / 160))); renderTM(); if (tmI >= R.n) { clearInterval(tmTimer); tmTimer = null; $('#tmPlay').textContent = '▶ Play'; } }, 60); };
-$('#tmToday').onclick = () => { tmI = daysBetween(tmRange().start, todayYmd()); renderTM(); };
-$('#tmBday').onclick = () => { tmI = daysBetween(tmRange().start, addDays(DOB(), 365)); renderTM(); };
-const WIF = { misato: null, penpen: null };
-function renderWhatIf() {
-  $('#whatif').innerHTML = KIDS.map(id => { const l = latest(id); if (!l) return `<div class="mini ${id}"><b>${esc(K(id).name)}</b><div class="muted">no weigh-ins</div></div>`;
-    if (WIF[id] == null) WIF[id] = Math.max(1, Math.round(rate(id) || 12)); const r = WIF[id];
-    const T = [1000, 1500, 2000, 3000, 4000].filter(t => t > l.g).map(t => { const dd = Math.ceil((t - l.g) / r), d = addDays(l.date, dd), m = whenReaches(id, t);
-      return `<div class="m1"><small>${fmt(t)}</small><b>${nice(d)}</b><small style="text-transform:none">curve says ${m ? nice(m) : '—'}</small></div>`; }).join('');
-    return `<div class="mini ${id}"><b>${esc(K(id).name)}</b> <span class="muted">from ${fmt(l.g)} on ${nice(l.date)}</span>
-      <div style="margin:8px 0;font-weight:900">if gaining <span style="color:var(--i)">${r} g/day</span> (${Math.round(r * 7)} g/week)</div>
-      <input type="range" class="fat" min="1" max="40" value="${r}" data-wi="${id}"><div class="mgrid">${T || '<div class="m1"><b>past every milestone 🎉</b></div>'}</div></div>`; }).join('');
-  $('#whatif').querySelectorAll('[data-wi]').forEach(i => i.oninput = () => { WIF[i.dataset.wi] = +i.value; renderWhatIf(); const n = $(`[data-wi="${i.dataset.wi}"]`); n.focus(); });
-}
-function renderGhost() {
-  const k = $('#ghK').value, d = $('#ghD').value || todayYmd(), g = +$('#ghG').value; if (!$('#ghD').value) $('#ghD').value = todayYmd();
-  if (!g) { $('#ghOut').innerHTML = '<div class="muted">Type a weight to see what it would do.</div>'; return; }
-  const before = { rate: rate(k), kg: whenReaches(k, 1000), exp: wAt(k, d, 'curve') };
-  const realW = doc.weights; const tmp = '__ghost'; doc.weights = Object.assign({}, realW, { [tmp]: { k, date: d, g, u: Date.now() } });
-  const after = { rate: rate(k), kg: whenReaches(k, 1000), k2: whenReaches(k, 2000) }; doc.weights = realW;
-  const diff = before.exp ? g - before.exp : null;
-  $('#ghOut').innerHTML = `<div class="mini ${k}"><b>👻 ${esc(K(k).name)} at ${fmt(g)} on ${nice(d)}</b>
-    <div class="mgrid"><div class="m1"><small>vs expected</small><b>${diff == null ? '—' : sign(diff) + 'g'}</b><small style="text-transform:none">expected ${before.exp ? fmt(before.exp) : '—'}</small></div>
-    <div class="m1"><small>pace</small><b>${after.rate != null ? Math.round(after.rate) + ' g/day' : '—'}</b><small style="text-transform:none">now ${before.rate != null ? Math.round(before.rate) : '—'}</small></div>
-    <div class="m1"><small>1 kg</small><b>${after.kg ? nice(after.kg) : g >= 1000 ? '✅' : '—'}</b><small style="text-transform:none">now ${before.kg ? nice(before.kg) : '—'}</small></div>
-    <div class="m1"><small>2 kg</small><b>${after.k2 ? nice(after.k2) : '—'}</b></div></div></div>`;
-}
-['#ghK', '#ghD', '#ghG'].forEach(s => $(s).oninput = renderGhost);
-$('#ghKeep').onclick = () => { const g = Math.round(+$('#ghG').value); if (!(g >= 50)) { toast('type a weight first'); return; } wput(uid(), { k: $('#ghK').value, date: $('#ghD').value || todayYmd(), g, by: me }); $('#ghG').value = ''; renderGhost(); toast('💾 saved for real'); };
-
-/* ═════════════ 📸 pics ═════════════ */
-let pK = 'all'; const pSel = [];
-$('#pK').querySelectorAll('button').forEach(b => b.onclick = () => { pK = b.dataset.k; $('#pK').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderPics(); });
-function weighPics() { return live('weights').map(([id, w]) => Object.assign({ id }, w)).filter(w => w.photo && photoURL(w.photo) && (pK === 'all' || w.k === pK)).sort((a, b) => b.date.localeCompare(a.date)); }
-function renderPics() {
-  const P = weighPics();
-  $('#pgrid').innerHTML = P.length ? P.map(w => `<div class="pc ${pSel.includes(w.id) ? 'sel' : ''}" data-id="${w.id}"><img src="${photoURL(w.photo)}" alt=""><div class="cap"><span class="kdot ${w.k}">${esc(K(w.k).name)}</span>${fmt(w.g)}</div><div class="muted" style="font-size:.75rem">${nice(w.date)} · ${ageStr(ageDays(w.k, w.date))}</div></div>`).join('')
-    : '<div class="empty">No weigh-in photos yet — add one with "📷 photo" when you weigh, or from the Log.</div>';
-  $('#pgrid').querySelectorAll('.pc').forEach(c => c.onclick = () => { const i = pSel.indexOf(c.dataset.id); if (i >= 0) pSel.splice(i, 1); else { pSel.push(c.dataset.id); if (pSel.length > 2) pSel.shift(); } renderPics(); });
-  const A = pSel.map(id => doc.weights[id]).filter(w => w && !w.del);
-  $('#sbs').innerHTML = A.length === 2 ? (() => { const [a, b] = A.slice().sort((x, y) => x.date.localeCompare(y.date)); const dd = daysBetween(a.date, b.date);
-    return [a, b].map(w => `<div class="side"><img src="${photoURL(w.photo)}" alt="" style="cursor:zoom-in" onclick="view(this.src)">${esc(K(w.k).name)} · ${fmt(w.g)}<br><span class="muted">${nice(w.date)}</span></div>`).join('')
-      + `<div class="side" style="grid-column:span 2">${sign(b.g - a.g)}g in ${dd} day${dd === 1 ? '' : 's'} · ×${(b.g / a.g).toFixed(2)}${dd > 0 ? ` · ${Math.round((b.g - a.g) / dd)} g/day` : ''}</div>`; })()
-    : A.length === 1 ? '<div class="side" style="grid-column:span 2">Tap one more to compare</div>' : '';
-}
-
-/* ═════════════ render ═════════════ */
-function renderTab() {
-  if (S.tab === 'chart') drawBig(); else if (S.tab === 'log') renderLog(); else if (S.tab === 'stats') renderStats();
-  else if (S.tab === 'compare') renderCompare(); else if (S.tab === 'play') { renderTM(); renderWhatIf(); renderGhost(); } else if (S.tab === 'pics') renderPics();
-}
-function renderAll() { renderQK(); qHint(); renderTab(); }
-$('#syncpill').onclick = () => toast('Pair phones from the original or v2 — this app uses the same pairing');
+/* ═════════════════════ render + boot ═════════════════════ */
+function renderAll() { renderHeads(); renderKPick(); drawScale(); drawChart(); renderRace(); renderTray(); drawBal(); renderSpiral(); renderNums(); renderLog(); renderFilm(); }
+$('#syncpill').onclick = () => toast('Pair phones from the original or v2 — this app shares the same pairing');
 $('#exportBtn').onclick = exportBackup;
 $('#qDate').value = todayYmd(); $('#qTime').value = new Date().toTimeString().slice(0, 5);
-renderMe(); setTab(S.tab || 'chart'); renderAll();
+renderMe(); renderAll(); ticker(true); balTarget();
 let dayNow = todayYmd(); setInterval(() => { if (todayYmd() !== dayNow) { dayNow = todayYmd(); $('#qDate').value = dayNow; renderAll(); } }, 30000);
+let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { drawChart(); }, 150); });
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {});
 initSync();
 </script>
