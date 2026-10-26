@@ -70,3 +70,23 @@ Misato ~700g, Pen Pen ~600g).
 gh-pages worktree: copy `kittens/` (minus this file) onto `gh-pages` —
 including `manifest.webmanifest`, `sw.js` and the icons —
 commit `Deploy kittens: <desc>`, push.
+
+## Versions (all share ONE dataset — this is the priority)
+- `kittens/` = v1 (the full original), `kittens/v2/` = streamlined v2,
+  `kittens/weight/` = the weight app. Same origin → same localStorage keys
+  (`kittens.state.v1`, `kittens.img.*`, `kittens.secret`, `kittens.me`) →
+  same data with no import step, and the same encrypted sync topic.
+- v2 + weight app load `shared/core.js` (v1's data/sync code extracted
+  verbatim) and `shared/theme.css` (v1's stylesheet). v1 keeps its inline copy.
+- **Forward-compat rules (don't break):** `merge()` keeps collections it
+  doesn't know (v1 was patched to do this too), and `save()` merges with
+  what's on disk first (stale tabs of any version can't clobber). New
+  versions may ADD collections/fields, never rename or remove. Extra fields
+  on weight records (`time`, `note`, `fed`, `photo`, `guess`) are preserved
+  by every version because records are merged whole.
+- v2 adds the `bond` collection ({k, by, date, at, score 1–5, tags, text}).
+- Weight-app view prefs are per phone under `kittens.wapp.*` (not synced).
+- Growth model for long-range dates: `refCurve`/`projCurve`/`whenReaches`
+  in core (typical curve scaled to the kitten's latest weight).
+- Tested: cross-version (v1 → v2 → weight app → v1, stale v1 tab) and
+  3-phone sync over a local aedes broker (`window.KT_BROKERS`).

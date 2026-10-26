@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ffca3a">
+<title>Misato &amp; Pen Pen</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="../icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kittens">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%90%BE%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+/* v2 — the same look, fewer things */
+.wrap{max-width:860px}
+header .toprow{margin-top:8px}
+.ages{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:-4px 0 16px}
+.ages span{background:rgba(255,253,245,.96);border:3px solid #000;border-radius:999px;padding:.3em .9em;font-weight:900;font-size:.88rem;box-shadow:var(--pop-sm)}
+.ages b{color:var(--i)}
+.wapp{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:12px}
+.wapp a{text-decoration:none}
+.qadd{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end}
+.qadd .seg button{min-width:3.4em}
+/* coming up */
+.hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:12px;margin-bottom:12px}
+.hero .mini{text-align:center}
+.mult{font-size:clamp(2.2rem,9vw,3.2rem);font-weight:900;line-height:1;color:var(--i);text-shadow:3px 3px 0 var(--gold)}
+.penpen .mult{color:var(--gold);text-shadow:3px 3px 0 #000}
+.up{list-style:none;display:flex;flex-direction:column;gap:8px}
+.up li{display:flex;gap:10px;align-items:center;background:var(--soft);border:3px solid #000;border-radius:16px;padding:9px 12px;box-shadow:var(--pop-sm)}
+.up li.next{background:linear-gradient(90deg,#fff6c9,#ffe9f3);border-width:4px}
+.up li.past{opacity:.55}
+.up .emo{font-size:1.7rem}
+.up .cd{margin-left:auto;text-align:right;font-weight:900;color:var(--i);white-space:nowrap;line-height:1.15}
+.up .cd small{display:block;color:var(--faint);font-size:.72rem}
+.est{font-size:.72rem;font-weight:800;color:var(--faint);border:2px dashed #bbb;border-radius:999px;padding:0 .5em;margin-left:4px;white-space:nowrap}
+/* bond */
+.pairs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr));gap:10px;margin-bottom:12px}
+.pair{background:var(--soft);border:3px solid #000;border-radius:18px;padding:10px 12px;box-shadow:var(--pop-sm)}
+.pair .who{font-weight:900}
+.pair .hearts5{font-size:1.25rem;letter-spacing:1px;margin:4px 0}
+.pair .hearts5 .off{filter:grayscale(1);opacity:.25}
+.pair svg{width:100%;height:34px;display:block}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.tag2{font-weight:800;font-size:.82rem;border:2.5px solid #000;border-radius:999px;padding:.2em .7em;background:#fff;cursor:pointer;user-select:none;min-height:34px;display:inline-flex;align-items:center}
+.tag2.on{background:var(--gold)}
+.score{display:flex;gap:4px}
+.score button{font-size:1.4rem;background:none;border:none;cursor:pointer;filter:grayscale(1);opacity:.3;min-width:36px;min-height:44px;padding:0}
+#bond .field{flex:1 1 210px}
+.score button.on{filter:none;opacity:1}
+.seg{flex-wrap:wrap}
+.crown{font-size:clamp(1.05rem,4vw,1.3rem);font-weight:900;text-align:center;margin:4px 0 12px}
+footer a{color:#fff}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Misato <span class="amp">&amp;</span> Pen Pen</h1>
+  <div class="toprow">
+    <button class="pill" id="mepill">🍋 I'm the lemon</button>
+    <button class="pill" id="syncpill"><span class="dot"></span><span id="synctext">saving…</span></button>
+  </div>
+</header>
+
+<!-- everybody, to scale -->
+<div class="stage" id="stage" style="margin-top:26px"></div>
+<div class="ages" id="ages"></div>
+
+<!-- weight -->
+<section class="card" id="weight">
+  <h2>⚖️ Weight</h2>
+  <div class="qadd">
+    <div class="seg" id="wKseg"><button data-k="misato" class="on">🤍 Misato</button><button data-k="penpen">🖤 Pen Pen</button></div>
+    <div class="field" style="flex:0 1 150px"><label>Date</label><input type="date" id="wDate"></div>
+    <div class="field" style="flex:0 1 120px"><label>Grams</label><input type="number" id="wG" inputmode="decimal" min="50" max="12000" placeholder="e.g. 1020"></div>
+    <button class="btn go" id="wAdd">⚖️ Add</button>
+  </div>
+  <div id="chartwrap"><svg id="chart" viewBox="0 0 640 320" role="img" aria-label="Weight chart"></svg><div id="tip"></div></div>
+  <div class="legend">
+    <span><i style="background:#fff"></i>Misato</span><span><i style="background:#2b2b30"></i>Pen Pen</span>
+    <span><i style="background:rgba(138,201,38,.35);border-style:dashed"></i>typical range</span>
+    <span><i style="background:none;border:none;border-top:3px dotted #6a4c93;height:0"></i>projection</span>
+  </div>
+  <div class="wapp"><a class="btn go" href="../weight/">📊 Open the weight app</a><span class="muted" id="wsum"></span></div>
+</section>
+
+<!-- to-do -->
+<section class="card" id="todo">
+  <h2>✅ Vet &amp; to-do</h2>
+  <div class="form">
+    <div class="field wide"><label>Job</label><input type="text" id="tTitle" placeholder="Book the 2nd vaccination"></div>
+    <div class="field"><label>Who</label><select id="tK"><option value="both">🐾 Both</option><option value="misato">🤍 Misato</option><option value="penpen">🖤 Pen Pen</option></select></div>
+    <div class="field"><label>Due</label><input type="date" id="tDue"></div>
+    <div class="field"><label>Repeat</label><select id="tRep"><option value="0">once</option><option value="7">weekly</option><option value="14">every 2 wks</option><option value="30">monthly</option><option value="90">3-monthly</option><option value="365">yearly</option></select></div>
+    <button class="btn go" id="tAdd">➕ Add</button>
+  </div>
+  <div class="filters"><div class="seg" id="tView"><button data-v="open" class="on">To do</button><button data-v="done">Done</button><button data-v="all">All</button></div></div>
+  <ul class="list" id="tlist"></ul>
+</section>
+
+<!-- coming up -->
+<section class="card" id="coming">
+  <h2>🔮 Coming up</h2>
+  <div class="sub">How much they've grown, and the big moments ahead — size milestones and the next stages of growing up.</div>
+  <div class="hero" id="hero"></div>
+  <div class="filters" style="margin-bottom:10px"><div class="seg" id="upView"><button data-v="all" class="on">Everything</button><button data-v="weight">⚖️ Size</button><button data-v="dev">🌱 Growing up</button></div></div>
+  <ul class="up" id="up"></ul>
+  <div style="text-align:center;margin-top:10px"><button class="btn sm" id="upMore">show more</button></div>
+  <p class="muted" style="margin-top:10px">Size dates follow a typical kitten growth curve scaled to each of them, and firm up with every weigh-in. Stage ages are typical — every kitten runs on their own clock.</p>
+</section>
+
+<!-- bond -->
+<section class="card" id="bond">
+  <h2>💞 Winning them over</h2>
+  <div class="sub">How each of you is getting on with each of them. Log the little wins — and the hisses.</div>
+  <div class="crown" id="crown"></div>
+  <div class="pairs" id="pairs"></div>
+  <div class="mini">
+    <div class="form">
+      <div class="field"><label>With</label><div class="seg" id="bKseg"><button data-k="misato" class="on">🤍 Misato</button><button data-k="penpen">🖤 Pen Pen</button></div></div>
+      <div class="field"><label>How close today</label><div class="score" id="bScore"></div></div>
+    </div>
+    <div class="tags" id="bTags"></div>
+    <div class="form" style="margin-top:10px">
+      <div class="field wide"><label>Note</label><input type="text" id="bText" placeholder="Pen Pen fell asleep on my chest for an hour"></div>
+      <div class="field" style="flex:0 1 150px"><label>Date</label><input type="date" id="bDate"></div>
+      <button class="btn go" id="bAdd">💞 Save</button>
+    </div>
+  </div>
+  <div class="filters"><div class="seg" id="bView"><button data-v="all" class="on">All</button><button data-v="lemon">🍋</button><button data-v="girl">🌙</button><button data-v="misato">Misato</button><button data-v="penpen">Pen Pen</button></div></div>
+  <ul class="list" id="blist"></ul>
+</section>
+
+<footer>
+  <button class="btn sm" id="pairbtn">📲 Pair the other phone</button>
+  <button class="btn sm" id="exportBtn">💾 Backup</button><br>
+  <a href="../">← the full original version</a> · <a href="../weight/">📊 weight app</a><br>
+  everything is shared between versions · 🍋💛🌙
+</footer>
+</div>
+
+<dialog id="pairdlg"><div class="in"><h2>📲 Pair the other phone</h2>
+  <p style="font-weight:700;line-height:1.5">Open this link once on the other phone. Same pairing as the original — if you already paired, you're done.</p>
+  <input type="text" id="pairLink" readonly style="margin:12px 0" onclick="this.select()">
+  <div class="actions"><a class="btn" id="pairWa" target="_blank" rel="noopener" style="text-decoration:none">💬 WhatsApp it</a><button class="btn" id="pairCopy">📋 Copy</button><button class="btn go" id="pairClose">Done</button></div>
+</div></dialog>
+<div id="toast"></div>
+
+<script src="../vendor/mqtt.min.js"></script>
+<script src="../shared/core.js"></script>
+<script>
+'use strict';
+/* ═════ who ═════ */
+function renderMe() { $('#mepill').textContent = me === 'lemon' ? "🍋 I'm the lemon" : "🌙 I'm the girl"; }
+$('#mepill').onclick = () => { setMe(me === 'lemon' ? 'girl' : 'lemon'); renderMe(); renderBond(); toast(me === 'lemon' ? '🍋 logging as the lemon' : '🌙 logging as the girl'); };
+
+/* ═════ stage — everybody, kittens to scale ═════ */
+function renderStage() {
+  const vw = Math.min(window.innerWidth, 860);
+  const unit = vw < 380 ? 0.46 : vw < 440 ? 0.52 : vw < 700 ? 0.8 : 1;
+  const big = Math.max(...KIDS.map(id => estNow(id) || 600));
+  const kw = id => Math.round(160 * unit * Math.cbrt((estNow(id) || 600) / big));
+  const tag = id => { const g = estNow(id); return `${esc(K(id).name)} <small>${g ? (g >= 1000 ? (g / 1000).toFixed(2) + 'kg' : g + 'g') : ''}</small>`; };
+  $('#stage').innerHTML = `
+    <div class="char bob" data-who="girl">${girlSVG(Math.round(108 * unit))}<div class="tag">the girl 🌙</div></div>
+    <div class="char bob2" data-who="misato">${kittenSVG('misato', { w: kw('misato') })}<div class="tag">${tag('misato')}</div></div>
+    <div class="char bob3" data-who="penpen">${kittenSVG('penpen', { w: kw('penpen') })}<div class="tag">${tag('penpen')}</div></div>
+    <div class="char bob" data-who="sol" style="animation-delay:.8s"><img src="../sol-lemon.png" alt="Sol the lemon" width="${Math.round(118 * unit)}"><div class="tag">the lemon 🍋</div></div>`;
+  $('#stage').querySelectorAll('.char').forEach(c => c.onclick = () => {
+    const L = { girl: ['hi babies 🌙', 'SO big now', 'stop biting toes'], sol: ['🍋 squeeze?', 'I am the lemon', '🍋💛'],
+      misato: ['mew!', 'mrrp?', '*slow blink*', 'purrrr'], penpen: ['MEW', 'mrrrow', '*slow blink*', 'zoomies!'] }[c.dataset.who];
+    c.dataset.mew = L[Math.floor(Math.random() * L.length)];
+    c.classList.remove('mew', 'slow'); void c.offsetWidth; c.classList.add('mew'); if (c.dataset.mew.includes('blink')) c.classList.add('slow');
+  });
+  $('#ages').innerHTML = KIDS.map(id => `<span>${esc(K(id).name)} · <b>${ageStr(ageDays(id))}</b></span>`).join('');
+}
+
+/* ═════ weight ═════ */
+let wK = 'misato';
+$('#wKseg').querySelectorAll('button').forEach(b => b.onclick = () => { wK = b.dataset.k; $('#wKseg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+$('#wAdd').onclick = () => {
+  const date = $('#wDate').value || todayYmd(), g = Math.round(parseFloat($('#wG').value));
+  if (!g || g < 50 || g > 12000) { toast('grams please — e.g. 1020'); return; }
+  const prev = latest(wK); put('weights', uid(), { k: wK, date, g, approx: false, by: me }); $('#wG').value = '';
+  const diff = prev ? g - prev.g : null; toast(`⚖️ ${K(wK).name}: ${g}g${diff != null ? ` (${diff >= 0 ? '+' : ''}${diff}g)` : ''}`);
+  if (diff == null || diff > 0) rain(['🍋', '🐾', '⚖️', '💛']);
+};
+function drawChart() {
+  const svg = $('#chart'), W = 640, H = 320, L = 48, R = 16, T = 16, B = 40;
+  const dob = KIDS.map(id => K(id).dob).filter(Boolean).sort()[0] || todayYmd();
+  const pts = KIDS.flatMap(id => weightsOf(id));
+  const lastD = pts.length ? pts.map(p => p.date).sort().pop() : todayYmd();
+  const x0 = Math.min(daysBetween(dob, (pts.map(p => p.date).sort()[0] || todayYmd())) - 7, 35);
+  const x1 = Math.max(daysBetween(dob, lastD), daysBetween(dob, todayYmd())) + 21;
+  const yMax = Math.max(500, ...pts.map(p => p.g), ...KIDS.map(id => projectAt(id, addDays(dob, x1)) || 0), guide(x1)[1]) * 1.08;
+  const X = d => L + (d - x0) / (x1 - x0) * (W - L - R), Y = g => T + (1 - g / yMax) * (H - T - B);
+  let s = '';
+  const stepY = yMax > 3000 ? 1000 : yMax > 1500 ? 500 : 200;
+  for (let g = 0; g <= yMax; g += stepY) s += `<line x1="${L}" x2="${W - R}" y1="${Y(g)}" y2="${Y(g)}" stroke="#eee" stroke-width="1.5"/><text x="${L - 6}" y="${Y(g) + 4}" text-anchor="end">${g >= 1000 ? g / 1000 + 'kg' : g + 'g'}</text>`;
+  const stepX = x1 - x0 > 200 ? 28 : x1 - x0 > 100 ? 14 : 7;
+  for (let d = Math.ceil(x0 / stepX) * stepX; d <= x1; d += stepX) s += `<line x1="${X(d)}" x2="${X(d)}" y1="${T}" y2="${H - B}" stroke="#f4f0fa" stroke-width="1.5"/><text x="${X(d)}" y="${H - B + 15}" text-anchor="middle">${Math.round(d / 7)}w</text><text x="${X(d)}" y="${H - B + 29}" text-anchor="middle" style="font-size:9.5px">${parseYmd(addDays(dob, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`;
+  let top = '', bot = ''; for (let d = x0; d <= x1; d += 2) { const [lo, hi] = guide(d); top += `${X(d)},${Y(hi)} `; bot = `${X(d)},${Y(lo)} ` + bot; }
+  s += `<polygon points="${top}${bot}" fill="rgba(138,201,38,.22)" stroke="rgba(95,151,24,.55)" stroke-dasharray="5 4" stroke-width="1.5"/>`;
+  const td = daysBetween(dob, todayYmd()); s += `<line x1="${X(td)}" x2="${X(td)}" y1="${T}" y2="${H - B}" stroke="#ffca3a" stroke-width="3"/><text x="${X(td)}" y="${T + 10}" text-anchor="middle" style="font-weight:900;fill:#6a4c93">today</text>`;
+  const dots = [];
+  KIDS.forEach(id => {
+    const w = weightsOf(id); if (!w.length) return; const kd = K(id).dob || dob, off = daysBetween(dob, kd);
+    const P = w.map(p => [X(daysBetween(kd, p.date) + off), Y(p.g), p]); const black = id === 'penpen';
+    const pe = projectAt(id, addDays(dob, x1));
+    if (pe != null) s += `<line x1="${P[P.length - 1][0]}" y1="${P[P.length - 1][1]}" x2="${X(x1)}" y2="${Y(pe)}" stroke="#6a4c93" stroke-width="2.5" stroke-dasharray="3 5" stroke-linecap="round"/>`;
+    const path = P.map(p => p[0] + ',' + p[1]).join(' ');
+    if (P.length > 1) { s += `<polyline points="${path}" fill="none" stroke="#000" stroke-width="${black ? 5 : 7}" stroke-linejoin="round" stroke-linecap="round"/>`; s += black ? `<polyline points="${path}" fill="none" stroke="#2b2b30" stroke-width="4" stroke-linejoin="round"/>` : `<polyline points="${path}" fill="none" stroke="#fff" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>`; }
+    P.forEach(([x, y, p]) => { s += `<circle cx="${x}" cy="${y}" r="7" fill="${black ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="3"/>`; dots.push({ x, y, txt: `${K(id).name}: ${p.approx ? '~' : ''}${p.g}g · ${nice(p.date)}` }); });
+    s += `<text x="${P[P.length - 1][0] + 10}" y="${P[P.length - 1][1] + (black ? 16 : -10)}" style="font-weight:900;font-size:12px;fill:#1a1a1a">${esc(K(id).name)}</text>`;
+  });
+  svg.innerHTML = s;
+  const tip = $('#tip');
+  svg.onpointermove = e => { const r = svg.getBoundingClientRect(), sx = (e.clientX - r.left) * W / r.width, sy = (e.clientY - r.top) * H / r.height;
+    let best = null, bd = 900; dots.forEach(d => { const dd = (d.x - sx) ** 2 + (d.y - sy) ** 2; if (dd < bd) { bd = dd; best = d; } });
+    if (best) { tip.textContent = best.txt; tip.style.left = best.x * r.width / W + 'px'; tip.style.top = best.y * r.height / H + 'px'; tip.classList.add('on'); } else tip.classList.remove('on'); };
+  svg.onpointerleave = () => tip.classList.remove('on');
+  $('#wsum').textContent = KIDS.map(id => { const l = latest(id), r = rate(id); return l ? `${K(id).name} ${l.g}g${r != null ? ` (${r >= 0 ? '+' : ''}${Math.round(r)}g/day)` : ''}` : ''; }).filter(Boolean).join(' · ');
+}
+
+/* ═════ to-do ═════ */
+let tView = 'open';
+$('#tAdd').onclick = () => {
+  const title = $('#tTitle').value.trim(); if (!title) { toast('what needs doing?'); return; }
+  put('todos', uid(), { title, k: $('#tK').value, due: $('#tDue').value || '', rep: +$('#tRep').value, cat: 'health', done: false, by: me });
+  $('#tTitle').value = ''; $('#tDue').value = ''; toast('✅ added');
+};
+$('#tView').querySelectorAll('button').forEach(b => b.onclick = () => { tView = b.dataset.v; $('#tView').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderTodos(); });
+function renderTodos() {
+  const t = todayYmd();
+  const L = todos().filter(x => tView === 'all' || (tView === 'done' ? x.done : !x.done)).sort((a, b) => (a.done - b.done) || (a.due || '9999').localeCompare(b.due || '9999'));
+  $('#tlist').innerHTML = L.length ? L.map(x => {
+    const dd = x.due ? daysBetween(t, x.due) : null;
+    const cls = x.done ? 'done' : dd != null && dd < 0 ? 'over' : dd != null && dd <= 7 ? 'soon' : '';
+    const when = x.done ? `done ${x.doneAt ? nice(x.doneAt) : ''} ${WHO[x.doneBy] || ''}` : x.due ? (dd < 0 ? `⚠️ ${-dd} day${dd === -1 ? '' : 's'} overdue` : dd === 0 ? '📍 today' : `in ${dd} day${dd === 1 ? '' : 's'}`) + ' · ' + nice(x.due) : 'no date';
+    return `<li class="row ${cls}"><input type="checkbox" class="chk" data-id="${x.id}" ${x.done ? 'checked' : ''}><div class="grow">
+      <div class="t"><span class="kdot ${x.k}">${esc(kname(x.k))}</span>${esc(x.title)}</div><div class="m">${when}${x.rep ? ' · 🔁 every ' + x.rep + ' days' : ''}</div></div>
+      <input type="date" value="${x.due || ''}" data-due="${x.id}" style="width:auto;min-height:36px;padding:4px 6px;font-size:.8rem" title="Change date">
+      <button class="x" data-del="${x.id}">✕</button></li>`;
+  }).join('') : `<li class="empty">${tView === 'done' ? 'Nothing ticked yet.' : 'All done 🎉'}</li>`;
+  $('#tlist').querySelectorAll('.chk').forEach(c => c.onchange = () => {
+    const x = todos().find(y => y.id === c.dataset.id);
+    put('todos', x.id, { done: c.checked, doneAt: todayYmd(), doneBy: me });
+    if (c.checked && x.rep) { put('todos', uid(), { title: x.title, k: x.k, due: addDays(todayYmd(), x.rep), rep: x.rep, cat: x.cat, done: false, by: me }); toast(`🔁 next one: ${nice(addDays(todayYmd(), x.rep))}`); }
+    else if (c.checked) { toast('✅ done!'); rain(['✅', '🐾', '🍋'], 12); }
+  });
+  $('#tlist').querySelectorAll('[data-due]').forEach(i => i.onchange = () => put('todos', i.dataset.due, { due: i.value }));
+  $('#tlist').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { if (confirm('Delete this job?')) del('todos', b.dataset.del); });
+}
+
+/* ═════ 🔮 coming up ═════ */
+let upView = 'all', upAll = false;
+$('#upView').querySelectorAll('button').forEach(b => b.onclick = () => { upView = b.dataset.v; $('#upView').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderComing(); });
+$('#upMore').onclick = () => { upAll = !upAll; renderComing(); };
+// typical ages (days) — stages to look forward to
+const DEV = [
+  [70, '👀', 'Eye colour starts settling', 'kitten blue gives way to their real colour'],
+  [84, '🎂', '3 months old', 'roughly "4" in human years'],
+  [91, '🚪', 'Vaccinations fully kick in', '~a week after the 2nd jab — more of the world opens up'],
+  [100, '💯', '100 days old', ''],
+  [105, '🦷', 'Baby teeth start falling out', 'you might find tiny teeth — chew toys help sore gums'],
+  [120, '🧸', '4 months — neutering age', 'and the microchip deadline (20 weeks, England)'],
+  [150, '🌳', 'First supervised garden adventures', 'once vaccinated, neutered and chipped'],
+  [182, '🎉', 'Half birthday — 6 months', 'adult teeth all in; teenage zoomies peak'],
+  [240, '🛹', 'Proper teenagers (~13 in human years)', 'the cheekiest stretch'],
+  [270, '📏', 'Nearly adult height', 'filling out from here'],
+  [365, '🎂', 'First birthday!', 'grown-ups — time for adult food'],
+  [456, '💉', 'First annual booster', ''],
+];
+function upcoming() {
+  const T = todayYmd(), items = [];
+  KIDS.forEach(id => {
+    const f = firstWeigh(id), l = latest(id), k = K(id); if (!l) return;
+    // size multiples of their arrival weight
+    if (f) [1.5, 2, 2.5, 3, 4, 5, 6].forEach(m => { const tg = Math.round(f.g * m); if (l.g >= tg) { const when = weightsOf(id).find(w => w.g >= tg); items.push({ t: 'weight', k: id, emo: '📈', date: when.date, past: true, title: `${k.name} hit ${m}× arrival size`, sub: `${tg}g — they started at ${f.g}g` }); }
+      else { const d = whenReaches(id, tg); if (d) items.push({ t: 'weight', k: id, emo: m >= 4 ? '🦁' : m >= 3 ? '🐯' : '📈', date: d, est: true, title: `${k.name} reaches ${m}× arrival size`, sub: `${tg >= 1000 ? (tg / 1000).toFixed(2) + ' kg' : tg + 'g'} — from ${f.g}g on ${nice(f.date)}` }); } });
+    // round-number weights
+    [1000, 1500, 2000, 2500, 3000, 3500, 4000].forEach(tg => { if (l.g >= tg) { const when = weightsOf(id).find(w => w.g >= tg); items.push({ t: 'weight', k: id, emo: '⚖️', date: when.date, past: true, title: `${k.name} passed ${tg / 1000} kg`, sub: '' }); }
+      else { const d = whenReaches(id, tg); if (d) items.push({ t: 'weight', k: id, emo: tg >= 3000 ? '🐈' : '⚖️', date: d, est: true, title: `${k.name} passes ${tg / 1000} kg`, sub: `${(tg / LEMON_G).toFixed(0)} lemons' worth 🍋` }); } });
+    // as heavy as…
+    [[415, '🥫', 'a tin of beans'], [568, '🥛', 'a pint of milk'], [1000, '🍚', 'a bag of sugar'], [1500, '🍍', 'a big pineapple'], [3400, '👶', 'a newborn baby']].forEach(([g, e, what]) => {
+      if (l.g < g) { const d = whenReaches(id, g); if (d) items.push({ t: 'weight', k: id, emo: e, date: d, est: true, title: `${k.name} outweighs ${what}`, sub: `${g}g` }); } });
+  });
+  // the two of them: one overtaking / gap
+  // development stages (from the earlier birthday of the two; they're littermates)
+  const dob = KIDS.map(id => K(id).dob).filter(Boolean).sort()[0];
+  if (dob) DEV.forEach(([age, emo, title, sub]) => { const d = addDays(dob, age); items.push({ t: 'dev', k: 'both', emo, date: d, past: d < T, title, sub, est: !!K('misato').dobEst }); });
+  const xmas = (new Date().getMonth() === 11 && new Date().getDate() > 25 ? new Date().getFullYear() + 1 : new Date().getFullYear()) + '-12-25';
+  items.push({ t: 'dev', k: 'both', emo: '🎄', date: xmas, title: 'Their first Christmas', sub: dob ? `aged ${ageStr(daysBetween(dob, xmas))}` : '' });
+  // next to-do in the vet list
+  const nx = nextTodo(); if (nx && nx.due >= T) items.push({ t: 'dev', k: nx.k, emo: '🏥', date: nx.due, title: nx.title.split(' (')[0].split(' —')[0], sub: 'from your vet & to-do list' });
+  return items.sort((a, b) => a.date.localeCompare(b.date));
+}
+function renderComing() {
+  // hero: how far they've come
+  $('#hero').innerHTML = KIDS.map(id => { const f = firstWeigh(id), l = latest(id), g = estNow(id); if (!f || !l) return `<div class="mini ${id}"><b>${esc(K(id).name)}</b><div class="muted">no weigh-ins yet</div></div>`;
+    const m = g / f.g; return `<div class="mini ${id}"><div class="muted" style="font-weight:900">${esc(K(id).name)} is now</div><div class="mult">${m.toFixed(1)}×</div>
+      <div style="font-weight:800">the size they were on ${nice(f.date)}</div><div class="muted" style="margin-top:4px">${f.g}g → ${g}g${l.date !== todayYmd() ? ' (est. today)' : ''} · +${g - f.g}g</div></div>`; }).join('');
+  const T = todayYmd(), all = upcoming().filter(x => upView === 'all' || x.t === upView);
+  const fut = all.filter(x => !x.past && x.date >= T), past = all.filter(x => x.past || x.date < T).slice(-3);
+  const show = upAll ? fut : fut.slice(0, 8);
+  $('#up').innerHTML = past.map(x => `<li class="past"><span class="emo">✅</span><div class="grow"><div class="t" style="font-weight:900">${esc(x.title)}</div><div class="m">${nice(x.date)}${x.sub ? ' · ' + esc(x.sub) : ''}</div></div></li>`).join('')
+    + show.map((x, i) => { const dd = daysBetween(T, x.date);
+      return `<li class="${i === 0 ? 'next' : ''}"><span class="emo">${x.emo}</span><div class="grow" style="min-width:0"><div class="t" style="font-weight:900">${esc(x.title)}${x.est ? '<span class="est">estimate</span>' : ''}</div>
+        <div class="m">${esc(x.sub || '')}</div></div><div class="cd">${dd === 0 ? 'today!' : dd === 1 ? 'tomorrow' : dd < 60 ? 'in ' + dd + ' days' : 'in ~' + Math.round(dd / 30.4) + ' months'}<small>${nice(x.date)}</small></div></li>`; }).join('')
+    || '<li class="empty">Log a weigh-in to see what\'s coming 🔮</li>';
+  $('#upMore').hidden = fut.length <= 8; $('#upMore').textContent = upAll ? 'show fewer' : `show all ${fut.length}`;
+}
+
+/* ═════ 💞 bond ═════ */
+const BTAGS = [['purr', '😻 purred'], ['lap', '🛋 sat on me'], ['sleep', '😴 slept on me'], ['blink', '😌 slow blink'], ['knead', '🍞 made biscuits'], ['head', '🤗 head-bonk'],
+  ['call', '📣 came when called'], ['follow', '🐾 followed me'], ['pickup', '🫶 let me pick them up'], ['play', '🎾 played with me'], ['belly', '🙃 showed belly'], ['groom', '👅 licked me'],
+  ['hiss', '😾 hissed'], ['bite', '🦷 bit / scratched'], ['hide', '🙈 hid from me']];
+const BAD = new Set(['hiss', 'bite', 'hide']);
+let bK = 'misato', bScore = 0, bSel = new Set(), bView = 'all';
+$('#bKseg').querySelectorAll('button').forEach(b => b.onclick = () => { bK = b.dataset.k; $('#bKseg').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+function drawScoreInput() { $('#bScore').innerHTML = [1, 2, 3, 4, 5].map(n => `<button data-n="${n}" class="${n <= bScore ? 'on' : ''}" title="${n}/5">💗</button>`).join('');
+  $('#bScore').querySelectorAll('button').forEach(b => b.onclick = () => { bScore = +b.dataset.n === bScore ? 0 : +b.dataset.n; drawScoreInput(); }); }
+$('#bTags').innerHTML = BTAGS.map(([k, l]) => `<span class="tag2" data-t="${k}">${l}</span>`).join('');
+$('#bTags').querySelectorAll('.tag2').forEach(t => t.onclick = () => { const k = t.dataset.t; bSel.has(k) ? bSel.delete(k) : bSel.add(k); t.classList.toggle('on', bSel.has(k)); });
+$('#bView').querySelectorAll('button').forEach(b => b.onclick = () => { bView = b.dataset.v; $('#bView').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderBond(); });
+$('#bAdd').onclick = () => {
+  const text = $('#bText').value.trim(); if (!text && !bSel.size && !bScore) { toast('tap a heart, a tag or write a note 💞'); return; }
+  put('bond', uid(), { k: bK, by: me, date: $('#bDate').value || todayYmd(), at: Date.now(), score: bScore, tags: [...bSel], text });
+  const hadWins = [...bSel].some(t => !BAD.has(t)); $('#bText').value = ''; bSel.clear(); $('#bTags').querySelectorAll('.tag2').forEach(t => t.classList.remove('on')); const s = bScore; bScore = 0; drawScoreInput();
+  toast('💞 saved'); if (s >= 4 || hadWins) rain(['💞', '😻', '🐾'], 14);
+};
+function bonds() { return live('bond').map(([id, b]) => Object.assign({ id }, b)).sort((a, b) => b.date.localeCompare(a.date) || (b.at || b.u) - (a.at || a.u)); }
+// closeness 0–100 for one person × kitten: recent hearts weigh most, little wins add, hisses subtract
+function closeness(by, k) {
+  const B = bonds().filter(b => b.by === by && b.k === k); if (!B.length) return null;
+  let w = 0, s = 0; B.slice(0, 12).forEach((b, i) => { const wt = Math.pow(.82, i); if (b.score) { s += b.score * 20 * wt; w += wt; } });
+  const base = w ? s / w : 50;
+  const wins = B.filter(b => daysBetween(b.date, todayYmd()) <= 14).reduce((n, b) => n + (b.tags || []).filter(t => !BAD.has(t)).length * 2 - (b.tags || []).filter(t => BAD.has(t)).length * 4, 0);
+  return Math.max(0, Math.min(100, Math.round(base + Math.max(-20, Math.min(20, wins)))));
+}
+function renderBond() {
+  if (!$('#bDate').value) $('#bDate').value = todayYmd();
+  const B = bonds(), people = ['lemon', 'girl'];
+  const scores = {}; people.forEach(p => KIDS.forEach(k => scores[p + k] = closeness(p, k)));
+  $('#pairs').innerHTML = people.flatMap(p => KIDS.map(k => {
+    const c = scores[p + k], mine = B.filter(b => b.by === p && b.k === k), hearts = c == null ? 0 : Math.round(c / 20);
+    const series = mine.filter(b => b.score).slice(0, 14).reverse();
+    const spark = series.length > 1 ? `<svg viewBox="0 0 100 34" preserveAspectRatio="none"><polyline points="${series.map((b, i) => `${i / (series.length - 1) * 100},${32 - b.score * 6}`).join(' ')}" fill="none" stroke="#b15ee3" stroke-width="2.5" stroke-linejoin="round"/></svg>` : '';
+    const wins = mine.reduce((n, b) => n + (b.tags || []).filter(t => !BAD.has(t)).length, 0);
+    return `<div class="pair"><div class="who">${WHO[p]} + ${esc(K(k).name)}</div>
+      <div class="hearts5">${[1, 2, 3, 4, 5].map(n => `<span class="${n <= hearts ? '' : 'off'}">💗</span>`).join('')}</div>
+      <div class="muted" style="font-weight:800">${c == null ? 'nothing logged yet' : `${c}% close · ${wins} little win${wins === 1 ? '' : 's'}`}</div>${spark}</div>`; })).join('');
+  // who's winning each kitten
+  const lines = KIDS.map(k => { const a = scores['lemon' + k], b = scores['girl' + k]; if (a == null && b == null) return null;
+    if (a == null || b == null) return `${esc(K(k).name)}: only ${a == null ? '🌙' : '🍋'} has logged so far`;
+    return Math.abs(a - b) < 5 ? `${esc(K(k).name)} loves you both equally 💛` : `${esc(K(k).name)} is currently ${a > b ? '🍋 team lemon' : '🌙 team girl'} (${Math.max(a, b)}% vs ${Math.min(a, b)}%)`; }).filter(Boolean);
+  $('#crown').innerHTML = lines.length ? lines.join('<br>') : '👑 Log a moment to start the friendly competition';
+  const V = B.filter(b => bView === 'all' || b.by === bView || b.k === bView);
+  $('#blist').innerHTML = V.length ? V.map(b => `<li class="row"><span class="emo">${WHO[b.by] || '💞'}</span><div class="grow">
+      <div class="t"><span class="kdot ${b.k}">${esc(K(b.k).name)}</span>${b.score ? '💗'.repeat(b.score) + ' ' : ''}${esc(b.text || '')}</div>
+      ${(b.tags || []).length ? `<div class="m">${b.tags.map(t => (BTAGS.find(x => x[0] === t) || [, t])[1]).join(' · ')}</div>` : ''}
+      <div class="m">${nice(b.date)} · aged ${ageStr(ageDays(b.k, b.date))}</div></div>${b.by === me ? `<button class="x" data-del="${b.id}">✕</button>` : ''}</li>`).join('')
+    : '<li class="empty">First purr? First lap-sit? Log it here 💞</li>';
+  $('#blist').querySelectorAll('[data-del]').forEach(x => x.onclick = () => { if (confirm('Delete this note?')) del('bond', x.dataset.del); });
+}
+
+/* ═════ render + pairing + boot ═════ */
+function renderAll() { renderStage(); drawChart(); renderTodos(); renderComing(); renderBond(); }
+$('#pairbtn').onclick = $('#syncpill').onclick = () => { $('#pairLink').value = pairLink(); $('#pairWa').href = 'https://wa.me/?text=' + encodeURIComponent('🐾 Misato & Pen Pen — open this once to sync: ' + pairLink()); $('#pairdlg').showModal(); };
+$('#pairCopy').onclick = async () => { try { await navigator.clipboard.writeText(pairLink()); toast('📋 copied'); } catch (e) { $('#pairLink').select(); document.execCommand('copy'); toast('📋 copied'); } };
+$('#pairClose').onclick = () => $('#pairdlg').close();
+$('#exportBtn').onclick = exportBackup;
+[[5, 16], [92, 10], [10, 64], [88, 72], [48, 4], [72, 40]].forEach(([x, y], i) => { const s = document.createElement('span'); s.className = 'spark'; s.textContent = ['✨', '⭐', '🐾', '🍋'][i % 4]; s.style.left = x + 'vw'; s.style.top = y + 'vh'; s.style.animationDelay = i * .6 + 's'; document.body.appendChild(s); });
+$('#wDate').value = todayYmd();
+renderMe(); drawScoreInput(); renderAll();
+let dayNow = todayYmd(); setInterval(() => { if (todayYmd() !== dayNow) { dayNow = todayYmd(); renderAll(); } }, 30000);
+let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(renderStage, 200); });
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {});
+initSync();
+</script>
+</body>
+</html>

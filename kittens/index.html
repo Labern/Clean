@@ -377,7 +377,7 @@ body.sitter nav,body.sitter .toprow{display:none}
 
 <!-- weight -->
 <section class="card" id="weight">
-  <h2>⚖️ Weight <button class="btn sm" id="wzOpen" style="vertical-align:middle;margin-left:6px">🔍 Zoom in</button></h2>
+  <h2>⚖️ Weight <button class="btn sm" id="wzOpen" style="vertical-align:middle;margin-left:6px">🔍 Zoom in</button> <a class="btn sm go" href="weight/" style="vertical-align:middle;text-decoration:none">📊 Weight app</a></h2>
   <div class="sub">Log a weigh-in and the chart, the cartoons and the lemon-o-meter all update. Zoom in for the close-up tracker.</div>
   <div class="form">
     <div class="field"><label>Kitten</label><select id="wK"></select></div>
@@ -704,7 +704,7 @@ body.sitter nav,body.sitter .toprow{display:none}
   Saved on this phone instantly · synced to the other one end-to-end encrypted 🔒<br>
   <button class="btn sm" id="exportBtn">💾 Download backup</button>
   <label class="btn sm" style="display:inline-block">📂 Restore backup<input type="file" id="importFile" accept="application/json" hidden></label>
-  <br>🍋💛🌙
+  <br><a href="v2/" style="color:#fff">✨ try v2 — same data</a> · 🍋💛🌙
 </footer>
 </div>
 
@@ -820,19 +820,25 @@ function load() {
 }
 let doc = load();
 const SITTER = /sitter=/.test(location.hash);
-function save() { if (SITTER) return; lsSet(LS, JSON.stringify(doc)); }
+function save() { if (SITTER) return;
+  let disk = null; try { disk = JSON.parse(lsGet(LS)); } catch (e) {}
+  if (disk && typeof disk === 'object') doc = merge(doc, disk).out;   // never clobber another tab / version (v2, weight app)
+  lsSet(LS, JSON.stringify(doc)); }
 
 function put(col, id, rec) { doc[col][id] = Object.assign({}, doc[col][id] || {}, rec, { u: Date.now() }); save(); changed(); }
 function del(col, id) { doc[col][id] = { del: true, u: Date.now() }; save(); changed(); }
 const live = col => Object.entries(doc[col]).filter(([, r]) => r && !r.del);
 
-function merge(a, b) {
+function merge(a, b) {   // per record, newest u wins — over every collection either side has, known or not (future versions' data is never dropped)
   const out = {}; let changedA = false;
-  COLS.forEach(c => {
-    out[c] = Object.assign({}, a[c] || {});
-    for (const [id, r] of Object.entries((b && b[c]) || {})) {
+  const keys = new Set([...COLS, ...Object.keys(a || {}), ...Object.keys(b || {})]);
+  keys.forEach(c => {
+    const A = a && a[c], B = b && b[c];
+    if ((A && typeof A !== 'object') || (B && typeof B !== 'object')) { out[c] = A !== undefined ? A : B; return; }
+    out[c] = Object.assign({}, A || {});
+    for (const [id, r] of Object.entries(B || {})) {
       const mine = out[c][id];
-      if (!mine || (r && (r.u || 0) > (mine.u || 0))) { out[c][id] = r; changedA = true; }
+      if (!mine || (r && (r.u || 0) > (mine.u || 0))) { out[c][id] = r; if (a) changedA = true; }
     }
   });
   return { out, changedA };
