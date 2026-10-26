@@ -11,6 +11,7 @@ import { trackById } from '../data/tracks.js';
 import * as direct from './direct.js';
 import { probe, bridgeBase } from './telemetry.js';
 import { sampleSession } from './cesample.js';
+import { openCornerSheet, cornerChips, wireChips } from './cornersheet.js';
 
 const MEDAL = { gold: ['#ffc531', 'Gold'], silver: ['#c9d1e0', 'Silver'], bronze: ['#d08a4c', 'Bronze'], none: ['#5d6b8f', 'No medal'] };
 const medalChip = (m) => (m ? `<span class="medal ${m}">${MEDAL[m][1]}</span>` : '');
@@ -29,8 +30,9 @@ export function wireFeed() {
     const x = res.sec, nm = `${trackById[res.track].short} ${sectionName(res.track, res.n)}`;
     if (res.role === 'demo') { toast(`${nm}: demo recorded`); speak('Demo recorded.'); return; }
     const md = CE.medal(x, res.entry.ms), tip = res.entry.top;
+    const mine = tip && CE.notesFor(x, tip.n).find((no) => no.status === 'trying');
     toast(`${nm}: ${CE.fmt(res.entry.ms)} · ${CE.fmtGap(res.entry.gap)} to the demo`);
-    speak(`${md && md !== 'none' ? md + '. ' : ''}${spokenGap(res.entry.gap)} to the demo.${tip ? ` Corner ${tip.n}: ${tip.tip || 'lost ' + tip.lost.toFixed(2)}.` : ''}`);
+    speak(`${md && md !== 'none' ? md + '. ' : ''}${spokenGap(res.entry.gap)} to the demo.${tip ? ` Corner ${tip.n}: ${tip.tip || 'lost ' + tip.lost.toFixed(2)}.` : ''}${mine ? ` Your note: ${mine.text}` : ''}`);
   });
 }
 const spokenGap = (g) => (Math.abs(g) < 0.0005 ? 'Dead level' : `${g > 0 ? 'Plus' : 'Minus'} ${Math.abs(g).toFixed(2)}`);
@@ -109,6 +111,7 @@ export function ceTrack(tid) {
         ${isAct ? raw('<span class="chip red">● Training</span>') : html`<button class="btn sm" data-train="${o.n}">Train this</button>`}
       </div>
       <div class="medals">${['gold', 'silver', 'bronze'].map((m) => html`<label class="f"><span><i class="pip ${m}"></i> ${MEDAL[m][1]}</span><input type="text" inputmode="decimal" placeholder="0:00.000" data-medal="${m}" data-n="${o.n}" value="${x[m] ? CE.fmt(x[m]) : ''}"></label>`)}</div>
+      ${raw(cornerChips(tid, o.n))}
       ${id ? html`<div class="ideal"><b>Theoretical best ${CE.fmt(id.ms)}</b> ${raw(medalChip(CE.medal(x, id.ms)))}<span class="muted small">your best corner-to-corner pieces, stitched together. Least consistent: corner ${id.wobbly}.</span></div>` : ''}
       ${attempts.length ? html`<div class="runs">${attempts.slice(0, 8).map((r) => html`<a class="run" href="#/cerun/${tid}.${o.n}.${encodeURIComponent(r.id)}"><b>${r.complete ? CE.fmt(r.ms) : 'aborted'}</b><span class="${r.gap > 0 ? 'lose' : 'gain'}">${CE.fmtGap(r.gap)}</span>${raw(medalChip(r.complete ? CE.medal(x, r.ms) : null))}<span class="muted small">${r.top ? `C${r.top.n} −${r.top.lost.toFixed(2)}s` : ''}</span></a>`)}</div>` : ''}
       ${last && last.complete ? html`<a class="btn sm red" style="margin-top:10px" href="#/cerun/${tid}.${o.n}.${encodeURIComponent(last.id)}">Open the last attempt vs the demo →</a>` : ''}
@@ -132,6 +135,9 @@ export function ceTrack(tid) {
     async wire(root) {
       $$('[data-train]', root).forEach((b) => (b.onclick = () => { CE.setActive(tid, +b.dataset.train); rerender(); }));
       $$('[data-medal]', root).forEach((i) => (i.onchange = () => { const ms = CE.parseMs(i.value); if (i.value && ms == null) return toast('Type it like 1:02.345'); CE.setMedals(tid, +i.dataset.n, { [i.dataset.medal]: ms }); toast('Saved'); }));
+      wireChips(root);
+      const refreshChips = () => { if (!root.isConnected) return window.removeEventListener('gt7-notes-changed', refreshChips); $$('.cchips', root).forEach((w) => { const t = document.createElement('div'); t.innerHTML = cornerChips(w.dataset.tid, +w.dataset.n); w.replaceWith(t.firstElementChild); }); wireChips(root); paint(); };
+      window.addEventListener('gt7-notes-changed', refreshChips);
       $('#ce-voice', root).onchange = (e) => store.set((s) => { s.ceVoice = e.target.checked; });
       const live = $('#ce-live', root), mode = await bridgeFeed();
       let lastRes = null;
@@ -152,9 +158,11 @@ export function ceTrack(tid) {
             <div><div class="big" style="color:${e.gap > 0 ? '#ff6b73' : '#36d399'}">${CE.fmtGap(e.gap)}</div><div style="color:#9fb3e6;font-weight:600">to the demo</div></div>
             ${x.gold && e.complete ? `<div><div class="big" style="color:#ffc531">${CE.fmtGap((e.ms - x.gold) / 1000)}</div><div style="color:#9fb3e6;font-weight:600">to gold</div></div>` : ''}
           </div>
-          ${tip ? `<div class="fix"><b>Corner ${tip.n}</b> cost ${tip.lost.toFixed(3)} s${tip.tip ? ': ' + esc(tip.tip) : ''}</div>` : '<div class="fix">No corner cost more than a couple of hundredths. That\'s the demo\'s pace.</div>'}
+          ${tip ? `<div class="fix"><b>Corner ${tip.n}</b> cost ${tip.lost.toFixed(3)} s${tip.tip ? ': ' + esc(tip.tip) : ''}${liveNotes(x, tip.n)}<button class="btn sm light-solid" data-cn="${tip.n}" style="margin-top:10px">Corner ${tip.n} notes</button></div>` : '<div class="fix">No corner cost more than a couple of hundredths. That\'s the demo\'s pace.</div>'}
+          ${triedNotes(x, tip?.n)}
           <div class="row" style="margin-top:12px"><a class="btn sm red" href="#/cerun/${tid}.${a.n}.${encodeURIComponent(e.id)}">See it on the logger →</a><button class="btn sm ghost light" id="ce-isdemo">That was the demo</button></div>
           <div class="row" style="margin-top:10px"><label class="f" style="max-width:220px;color:#9fb3e6">GT7 said<input type="text" id="ce-cal" inputmode="decimal" placeholder="0:00.000"></label></div>`);
+        $$('[data-cn]', live).forEach((b) => (b.onclick = () => openCornerSheet(tid, a.n, +b.dataset.cn)));
         $('#ce-isdemo', live)?.addEventListener('click', async () => { const run = await L.getLap(e.id); await CE.useAsDemo(tid, a.n, run, L.getLap); toast('Demo set. Attempts re-measured'); rerender(); });
         $('#ce-cal', live)?.addEventListener('change', (ev) => { const ms = CE.parseMs(ev.target.value); if (ms == null) return toast('Type it like 1:02.345'); CE.calibrate(tid, a.n, e.id, ms); toast('Calibrated to GT7\'s clock'); rerender(); });
       };
@@ -167,6 +175,15 @@ export function ceTrack(tid) {
   };
 }
 const ideal = (x) => CE.ideal(x);
+// your notes at the corner that cost most, and how the ones you're trying are going
+function liveNotes(x, cn) {
+  const ns = CE.notesFor(x, cn).filter((no) => no.status !== 'nope').slice(0, 2);
+  return ns.length ? `<div class="live-notes">${ns.map((no) => `<div><span class="npill ${no.status === 'trying' ? 'try' : no.status === 'works' ? 'ok' : 'plain'}">${no.status === 'trying' ? 'Trying' : no.status === 'works' ? 'Works' : 'Note'}</span> ${esc(no.text)}</div>`).join('')}</div>` : '';
+}
+function triedNotes(x, skip) {
+  const rows = (x.notes || []).filter((no) => no.status === 'trying').map((no) => ({ no, c: CE.cornerOf(x, no.a), v: CE.verdict(x, no) })).filter((r) => r.c && r.c.n !== skip && r.v && r.v.state !== 'untested');
+  return rows.length ? `<div class="tried">${rows.slice(0, 3).map((r) => `<button class="tried-row ${r.v.state}" data-cn="${r.c.n}"><b>C${r.c.n}</b><span>${esc(r.no.text)}</span><i>${esc(r.v.text.split(':')[0])}${r.v.delta != null ? ` ${r.v.delta <= 0 ? '−' : '+'}${Math.abs(r.v.delta).toFixed(2)}s` : ''}</i></button>`).join('')}</div>` : '';
+}
 
 // ── #/cerun/<track>.<n>.<runId>: your run against the demo ──
 export function ceRun(arg) {
@@ -184,7 +201,10 @@ export function ceRun(arg) {
 }
 
 function renderCompare(el, { tid, n, x, run, demo, best }) {
-  let refRun = demo, refName = 'demo', zoom = null;
+  let refRun = demo, refName = 'demo', zoom = null, notesDirty = false;
+  // redraw once the notes sheet closes, so new notes show on the cards and pins
+  const mo = new MutationObserver(() => { if (!el.isConnected) return mo.disconnect(); if (notesDirty && !document.querySelector('.sheet-wrap')) { notesDirty = false; const y = window.scrollY; draw(); window.scrollTo(0, y); } });
+  mo.observe(document.body, { childList: true });
   const draw = () => {
     const cmp = compare(run, refRun, { from: x.gates[0], to: x.gates[1] });
     const entry = x.runs.find((r) => r.id === run.id), md = entry && CE.medal(x, entry.ms);
@@ -216,7 +236,7 @@ function renderCompare(el, { tid, n, x, run, demo, best }) {
       return `<line x1="${ref.x[i] - nx}" y1="${ref.z[i] - nz}" x2="${ref.x[i] + nx}" y2="${ref.z[i] + nz}" stroke="${col}" stroke-width="${sw * 1.1}"/>${label ? `<text x="${ref.x[i] + nx * 1.4}" y="${ref.z[i] + nz * 1.4}" fill="${col}" style="font-size:${sw * 4}px;font-weight:800" text-anchor="middle">${label}</text>` : ''}`; };
     const youPt = (s) => { let i = cmp.st.findIndex((v) => v >= s); if (i < 0) i = you.n - 1; return [you.x[i], you.z[i]]; };
     const marks = cmp.corners.map((c) => `${c.brakeAt != null ? tick(c.brakeAt, 'rgba(255,255,255,.85)') : ''}${c.brake != null ? tick(c.brakeAt + c.brake, '#ff6b73') : ''}
-      <g class="cpin" data-c="${c.n}" transform="translate(${refAt(c.apexD, ref.x)},${refAt(c.apexD, ref.z)})"><circle r="${sw * 4.4}" fill="${c.lost > 0.02 ? '#e1131f' : '#0b1f4b'}" stroke="#fff" stroke-width="${sw * 0.8}"/><text text-anchor="middle" dy="${sw * 1.5}" fill="#fff" style="font-size:${sw * 4.2}px;font-weight:800">${c.n}</text></g>`).join('');
+      <g class="cpin" data-c="${c.n}" transform="translate(${refAt(c.apexD, ref.x)},${refAt(c.apexD, ref.z)})"><circle r="${sw * 4.4}" fill="${c.lost > 0.02 ? '#e1131f' : '#0b1f4b'}" stroke="#fff" stroke-width="${sw * 0.8}"/><text text-anchor="middle" dy="${sw * 1.5}" fill="#fff" style="font-size:${sw * 4.2}px;font-weight:800">${c.n}</text>${(() => { const dc = CE.cornerOf(CE.sec(tid, n), c.apexD); const k = dc ? CE.notesFor(CE.sec(tid, n), dc.n).length : 0; return k ? `<circle cx="${sw * 3.6}" cy="${-sw * 3.6}" r="${sw * 2.2}" fill="#ffc531" stroke="#0b1f4b" stroke-width="${sw * 0.5}"/>` : ''; })()}</g>`).join('');
     const gates = `${tick(cmp.from, '#36d399', 'START')}${tick(cmp.to, '#ffc531', 'FINISH')}`;
 
     // traces against distance
@@ -229,6 +249,10 @@ function renderCompare(el, { tid, n, x, run, demo, best }) {
     const ph = (i) => `<line class="ph" x1="0" x2="0" y1="0" y2="${H}" stroke="#fff" stroke-width="2"/>`;
     const trace = (title, body, h = H) => `<div class="tr"><div class="kicker" style="color:#9fb3e6">${title}</div><svg class="trace" viewBox="0 0 ${W} ${h}" preserveAspectRatio="none" style="height:${Math.round(h * 0.8)}px">${cornerBands}${body}${ph()}</svg></div>`;
     const ranked = cmp.ranked.filter((c) => Math.abs(c.lost) > 0.005);
+    // notes belong to the demo's corners; against your best the corners still sit at the same places
+    const demoCorner = (c) => CE.cornerOf(CE.sec(tid, n), c.apexD);
+    const cardNotes = (c) => { const dc = demoCorner(c); if (!dc) return ''; const ns = CE.notesFor(CE.sec(tid, n), dc.n);
+      return `${ns.length ? `<div class="card-notes">${ns.slice(0, 3).map((no) => `<div><span class="npill ${no.status === 'trying' ? 'try' : no.status === 'works' ? 'ok' : no.status === 'nope' ? 'no' : 'plain'}">${{ trying: 'Trying', works: 'Works', nope: 'Didn\'t', note: 'Note' }[no.status]}</span> ${esc(no.text)}</div>`).join('')}</div>` : ''}<button class="btn sm ghost notes-btn" data-notes="${dc.n}">${ns.length ? `Notes · ${ns.length}` : '＋ Note for this corner'}</button>`; };
 
     el.innerHTML = String(html`
       <div class="row" style="justify-content:space-between;align-items:end">
@@ -242,6 +266,7 @@ function renderCompare(el, { tid, n, x, run, demo, best }) {
         <div><b>${ranked.filter((c) => c.lost > 0).length}</b><span>corners lost time</span></div>
         ${ranked[0] ? html`<div><b>C${ranked[0].n}</b><span>biggest loss, ${ranked[0].lost.toFixed(3)} s</span></div>` : ''}
       </div>
+      ${raw(cornerChips(tid, n))}
       <div class="t-hero" style="margin-top:16px">
         <div class="mapstage" style="padding-bottom:18px;min-height:0;align-self:start">
           <svg id="cmap" viewBox="${vb.join(' ')}" preserveAspectRatio="xMidYMid meet" style="max-height:min(620px,64vh)">
@@ -287,6 +312,7 @@ function renderCompare(el, { tid, n, x, run, demo, best }) {
             <tr><td>Full throttle</td><td>${c.throttle == null ? '—' : c.throttle === 0 ? 'same' : `${Math.abs(c.throttle)} m ${c.throttle > 0 ? 'later' : 'sooner'}`}</td><td></td></tr>
             <tr><td>Line at apex</td><td colspan="2">${Math.abs(c.line) < 0.6 ? 'on the line' : `${Math.abs(c.line)} m ${c.line > 0 ? 'left' : 'right'}`}</td></tr></table>
           ${c.tips.length ? html`<ul class="tips">${c.tips.map((t) => html`<li>${t}</li>`)}</ul>` : html`<p class="muted small" style="margin-top:8px">Matches the ${refName} within what the telemetry can resolve.</p>`}
+          ${raw(cardNotes(c))}
         </div>`)}</div>
       </section>
       <section class="section card pad"><details><summary><b>Timing gates</b> <span class="muted small">start ${Math.round(cmp.from)} m · finish ${Math.round(cmp.to)} m along the demo</span></summary>
@@ -332,7 +358,11 @@ function renderCompare(el, { tid, n, x, run, demo, best }) {
       zoom = [cx - r, cz - r, cx + r, cz + r];
       draw(); show(c.brakeAt ?? c.zone[0]); el.querySelector('#cmap').scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
-    $$('.corner-card', el).forEach((c) => (c.onclick = () => focus(+c.dataset.c)));
+    $$('.corner-card', el).forEach((c) => (c.onclick = (e) => { if (e.target.closest('.notes-btn')) return; focus(+c.dataset.c); }));
+    wireChips(el);
+    $$('.notes-btn', el).forEach((b) => (b.onclick = () => openCornerSheet(tid, n, +b.dataset.notes)));
+    const onNotes = () => { if (!el.isConnected) return window.removeEventListener('gt7-notes-changed', onNotes); notesDirty = true; };
+    window.addEventListener('gt7-notes-changed', onNotes);
     $$('#cmap .cpin', el).forEach((p) => (p.onclick = () => focus(+p.dataset.c)));
     el.querySelector('#unzoom')?.addEventListener('click', () => { zoom = null; draw(); });
     $$('[data-ref]', el).forEach((b) => (b.onclick = () => { refRun = b.dataset.ref === 'best' ? best : demo; refName = b.dataset.ref === 'best' ? 'your best' : 'demo'; zoom = null; draw(); }));

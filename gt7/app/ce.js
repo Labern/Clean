@@ -66,9 +66,14 @@ export async function file(run, getRun, where = match(run)) {
     cmp = compare(run, demo, { from: x.gates[0], to: x.gates[1] });
     entry = { id: run.id, t0: run.t0, complete: cmp.complete, raw: Math.round(demoRaw + cmp.total * 1000), gap: +cmp.total.toFixed(3),
       top: cmp.ranked[0] && cmp.ranked[0].lost > 0.03 ? { n: cmp.ranked[0].n, lost: +cmp.ranked[0].lost.toFixed(3), tip: cmp.ranked[0].tips[0] || null } : null,
-      minis: cmp.minis.map((m) => +m.lost.toFixed(3)) };
+      minis: cmp.minis.map((m) => +m.lost.toFixed(3)),
+      // compact per-corner record: what the notes and the corner history read
+      cs: cmp.corners.map((c) => ({ n: c.n, a: c.apexD, lost: +c.lost.toFixed(3), mini: +(cmp.minis[c.n - 1]?.lost ?? c.lost).toFixed(3), brake: c.brake, min: c.min, you: c.yourMin, line: c.line, thr: c.throttle, g: c.yourGear, rg: c.refGear, res: c.res, tips: c.tips })) };
     entry.ms = Math.round(entry.raw + (x.offset || 0));
   } else {
+    // the demo's own corners: the reference card for every corner's notes
+    const self = compare(demo, demo, { from: x.gates[0], to: x.gates[1] });
+    put(tid, n, (y) => { y.corners = self.corners.map((c) => ({ n: c.n, a: c.apexD, brakeAt: c.brakeAt, min: c.min, gear: c.refGear, zone: c.zone })); });
     entry.raw = demoRaw; entry.ms = Math.round(entry.raw + (x.offset || 0)); entry.demo = true;
   }
   put(tid, n, (y) => { y.runs = [entry, ...y.runs.filter((r) => r.id !== run.id)].slice(0, 80); y.best = bestOf(y); });
@@ -80,7 +85,8 @@ export async function useAsDemo(tid, n, run, getRun) {
   setDemo(tid, n, run);
   const ids = sec(tid, n).runs.map((r) => r.id);
   put(tid, n, (y) => { y.runs = []; y.best = null; });
-  for (const id of ids.reverse()) { const r = id === run.id ? run : await getRun(id); if (r) await file(r, getRun, { track: tid, n, role: 'attempt' }); }
+  await file(run, getRun, { track: tid, n, role: 'attempt' });   // the demo first: it defines the corners
+  for (const id of ids.reverse().filter((i) => i !== run.id)) { const r = id === run.id ? run : await getRun(id); if (r) await file(r, getRun, { track: tid, n, role: 'attempt' }); }
 }
 
 // Your theoretical best: the best of each mini-sector (corner to corner) across
@@ -112,3 +118,75 @@ export const fmt = (ms) => { if (ms == null) return '—'; const s = Math.abs(ms
 export const fmtGap = (s) => (s == null ? '—' : (s > 0 ? '+' : s < 0 ? '−' : '±') + Math.abs(s).toFixed(3));
 // "1:02.345" / "62.345" → ms
 export const parseMs = (t) => { const m = String(t).trim().match(/^(?:(\d+):)?(\d+(?:\.\d+)?)$/); return m ? Math.round(((+(m[1] || 0)) * 60 + +m[2]) * 1000) : null; };
+
+// ── corner notes ────────────────────────────────────────
+// Notes hang off a corner by where its apex is on the demo (metres), so they
+// survive a new demo or new gates renumbering the corners. A note can be
+// "trying": the attempts driven after it was written are compared with the ones
+// before, at that corner only, and the note gets a verdict.
+export const corners = (x) => x?.corners || [];
+export const cornerOf = (x, apexD) => { let b = null, bd = 70; for (const c of corners(x)) { const d = Math.abs(c.a - apexD); if (d < bd) { bd = d; b = c; } } return b; };
+export const notesFor = (x, cn) => { const c = corners(x).find((y) => y.n === cn); return c ? (x.notes || []).filter((no) => cornerOf(x, no.a)?.n === cn).sort((a, b) => b.t - a.t) : []; };
+export function addNote(tid, n, cn, text, status = 'trying') {
+  const c = corners(sec(tid, n)).find((y) => y.n === cn); if (!c || !text.trim()) return null;
+  const no = { id: 'n' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), a: c.a, text: text.trim(), status, t: Date.now() };
+  put(tid, n, (x) => { x.notes = [...(x.notes || []), no]; });
+  return no;
+}
+export const editNote = (tid, n, id, patch) => put(tid, n, (x) => { const no = (x.notes || []).find((y) => y.id === id); if (no) Object.assign(no, patch, patch.status && patch.status !== no.status ? { decided: Date.now() } : {}); });
+export const delNote = (tid, n, id) => put(tid, n, (x) => { x.notes = (x.notes || []).filter((y) => y.id !== id); });
+
+// every complete attempt's record at one corner, oldest first
+export function history(x, cn) {
+  const c = corners(x).find((y) => y.n === cn); if (!c) return [];
+  return (x.runs || []).filter((r) => r.complete && !r.demo && r.cs).map((r) => {
+    const k = r.cs.reduce((b, y) => (Math.abs(y.a - c.a) < Math.abs((b?.a ?? 1e9) - c.a) ? y : b), null);
+    return k && Math.abs(k.a - c.a) < 70 ? { id: r.id, t0: r.t0, ...k } : null;
+  }).filter(Boolean).sort((a, b) => a.t0 - b.t0);
+}
+const mean = (v) => v.reduce((a, b) => a + b, 0) / v.length;
+const sd = (v) => { const m = mean(v); return Math.sqrt(mean(v.map((x) => (x - m) ** 2))); };
+// did trying this note help at its corner? (time against the demo, per attempt)
+export function verdict(x, note) {
+  const c = cornerOf(x, note.a); if (!c) return null;
+  const h = history(x, c.n), before = h.filter((r) => r.t0 < note.t).slice(-6), after = h.filter((r) => r.t0 >= note.t && (!note.decided || r.t0 <= note.decided));
+  if (!after.length) return { state: 'untested', after: 0, text: 'Not driven since you wrote it' };
+  if (!before.length) return { state: 'nobase', after: after.length, text: `${after.length} attempt${after.length > 1 ? 's' : ''} since, nothing before to compare` };
+  const b = mean(before.map((r) => r.mini)), a = mean(after.map((r) => r.mini)), d = a - b;
+  const state = after.length < 2 ? 'early' : d < -0.02 ? 'better' : d > 0.02 ? 'worse' : 'same';
+  const words = { early: 'One attempt so far', better: 'Working', worse: 'Costing time', same: 'No real change' }[state];
+  return { state, before: b, after: a, delta: d, n: after.length, text: `${words}: ${d <= 0 ? '−' : '+'}${Math.abs(d).toFixed(3)} s at this corner (${after.length} since vs ${before.length} before)` };
+}
+
+// What the data says about you at this corner, across attempts: ready-made notes.
+export function suggest(x, cn) {
+  const c = corners(x).find((y) => y.n === cn), h = history(x, cn).slice(-8), out = [];
+  if (!c) return out;
+  if (c.brakeAt != null) out.push({ kind: 'demo', text: `Demo: brakes ${Math.round(c.a - c.brakeAt)} m before the apex, ${c.min} km/h at the apex, gear ${c.gear}.` });
+  else out.push({ kind: 'demo', text: `Demo: no braking here, ${c.min} km/h at the slowest point, gear ${c.gear}.` });
+  if (!h.length) return out;
+  const br = h.filter((r) => r.brake != null).map((r) => r.brake), res = Math.max(...h.map((r) => r.res || 6));
+  if (br.length >= 2 && mean(br) < -res) out.push({ kind: 'brake', text: `You brake ${Math.round(-mean(br))} m earlier than the demo here (${br.length} attempts). Move your marker later.` });
+  if (br.length >= 2 && mean(br) > res) out.push({ kind: 'brake', text: `You brake ${Math.round(mean(br))} m later than the demo here. Brake earlier, carry more speed out.` });
+  const ap = h.map((r) => r.you - r.min);
+  if (ap.length >= 2 && mean(ap) < -3) out.push({ kind: 'apex', text: `${Math.round(-mean(ap))} km/h slower than the demo at the apex on average. Release the brake earlier and let it roll in.` });
+  if (ap.length >= 2 && mean(ap) > 4) out.push({ kind: 'apex', text: `${Math.round(mean(ap))} km/h faster at the apex than the demo: overdriving the entry costs your exit.` });
+  const ln = h.map((r) => r.line);
+  if (ln.length >= 2 && Math.abs(mean(ln)) > 1.2) out.push({ kind: 'line', text: `Your apex is ${Math.abs(mean(ln)).toFixed(1)} m ${mean(ln) > 0 ? 'left' : 'right'} of the demo's on average. Aim for the demo's apex.` });
+  const th = h.filter((r) => r.thr != null).map((r) => r.thr);
+  if (th.length >= 2 && mean(th) > 10) out.push({ kind: 'throttle', text: `Full throttle ${Math.round(mean(th))} m later than the demo on exit.` });
+  const gw = h.filter((r) => r.g && r.rg && r.g !== r.rg);
+  if (gw.length >= Math.max(2, h.length / 2)) out.push({ kind: 'gear', text: `You're in gear ${gw.at(-1).g} at the apex, the demo uses ${gw.at(-1).rg}.` });
+  if (br.length >= 3 && sd(br) > 2 * res) out.push({ kind: 'consistency', text: `Your braking point moves around by ±${Math.round(sd(br))} m here. Pick one marker and hit it every time.` });
+  const mn = h.map((r) => r.mini);
+  if (mn.length >= 3 && sd(mn) > 0.06) out.push({ kind: 'consistency', text: `This corner swings ±${sd(mn).toFixed(2)} s between attempts: consistency here is free time.` });
+  return out;
+}
+// per-corner summary for the chip strip: last and average time against the demo, notes count
+export function cornerStrip(x) {
+  return corners(x).map((c) => {
+    const h = history(x, c.n), last = h.at(-1), avg = h.length ? mean(h.slice(-5).map((r) => r.mini)) : null;
+    const ns = notesFor(x, c.n);
+    return { ...c, last: last?.mini ?? null, avg, notes: ns.length, trying: ns.filter((no) => no.status === 'trying').length };
+  });
+}
