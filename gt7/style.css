@@ -538,3 +538,17 @@ button.chip, a.chip { min-height: 44px; padding: 8px 16px; cursor: pointer; }
 @media (max-width: 860px) { .sim-top { grid-template-columns: 1fr; } .sim-trace { height: 220px; } }
 @media (max-width: 480px) { .sim-mini { display: none; } .sim { padding: 10px; border-radius: 16px; } .sim-ctrl { grid-template-columns: auto 1fr; } .sim-rate { grid-column: 1 / -1; } .sim-hud { grid-template-columns: auto auto 1fr 1fr; } .sim-speed b, .sim-gear b { font-size: 36px; } }
 .steps { margin: 10px 0 0; padding-left: 22px; display: grid; gap: 8px; } .steps li { padding-left: 4px; }
+
+/* PSN connect wizard */
+.wz { display: grid; gap: 12px; margin-top: 14px; }
+.wz-step { display: grid; grid-template-columns: 44px 1fr; gap: 14px; padding: 16px; border-radius: 16px; border: 2px solid var(--line); background: #fff; }
+.wz-step.now { border-color: var(--blue-hi); box-shadow: 0 0 0 4px rgba(31,91,255,.1); }
+.wz-step.wait { opacity: .5; }
+.wz-step.done { border-color: rgba(16,163,90,.35); background: #f3fbf6; }
+.wz-n { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font: 900 italic 22px var(--display); background: var(--navy); color: #fff; }
+.wz-step.done .wz-n { background: var(--ok); } .wz-step.now .wz-n { background: var(--red); }
+.wz-b h3 { font-size: 22px; margin-bottom: 6px; } .wz-b p { margin: 0 0 10px; }
+.wz-cmd { display: flex; gap: 10px; align-items: center; background: #0b1f4b; border-radius: 12px; padding: 10px 10px 10px 14px; margin: 6px 0 8px; }
+.wz-cmd code { flex: 1; color: #dfe6f7; font-size: 13px; word-break: break-all; background: none; }
+.wz-err { color: var(--red); font-weight: 700; margin: 10px 0 0; }
+.ok-t { color: var(--ok); font-weight: 700; }

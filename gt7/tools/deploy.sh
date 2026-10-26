@@ -10,6 +10,7 @@ cd "$WT"
 git checkout -q -B gh-pages origin/gh-pages
 rm -rf gt7 && mkdir gt7
 cp -r "$ROOT"/gt7/index.html "$ROOT"/gt7/style.css "$ROOT"/gt7/sw.js "$ROOT"/gt7/manifest.webmanifest "$ROOT"/gt7/app "$ROOT"/gt7/data "$ROOT"/gt7/img "$ROOT"/gt7/vendor gt7/
+mkdir -p gt7/bridge && cp "$ROOT"/gt7/bridge/gt7-bridge.mjs "$ROOT"/gt7/bridge/protocol.mjs "$ROOT"/gt7/bridge/install.sh "$ROOT"/gt7/bridge/README.md gt7/bridge/
 git add -A gt7
 git commit -q -m "Deploy gt7: ${1:-update}" || echo "nothing to deploy"
 git push -q origin gh-pages

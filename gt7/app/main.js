@@ -23,6 +23,7 @@ import { apexForTrack } from '../data/apex.js';
 import { videosSection, wireVideos } from './videos.js';
 import { mountSim, simBlock } from './simview.js';
 import { systemsIndex, systemView } from './systems.js';
+import { psnWizard, wireWizard } from './psnwizard.js';
 import { SCENARIOS } from './scenarios.js';
 import * as connect from './connect.js';
 import { isNative } from './platform.js';
@@ -764,14 +765,7 @@ views.connect = () => {
           <p class="muted small" style="margin-top:12px">Updated ${ago(p.fetchedAt)}${p.errors?.length ? ' · some parts unavailable: ' + p.errors.join('; ') : ''}</p>
           <div class="row" style="margin-top:12px"><button class="btn" id="psn-refresh">Refresh</button><button class="btn ghost" id="psn-off">Disconnect</button></div>`
         : html`
-          <ol class="steps">
-            <li>Sign in at <a href="https://www.playstation.com" target="_blank" rel="noopener">playstation.com</a> in this browser.</li>
-            <li>Open <a href="${connect.NPSSO_URL}" target="_blank" rel="noopener">this Sony page</a>. It shows <code>{"npsso":"…"}</code>. Copy the long value between the quotes.</li>
-            <li>Paste it here and connect. You do this once; it stays connected for about two months.</li>
-          </ol>
-          <label class="f" style="margin-top:8px">NPSSO token<input type="password" id="npsso" placeholder="64-character token" autocomplete="off"></label>
-          <div class="row" style="margin-top:14px"><button class="btn red xl" id="psn-go">Connect PlayStation</button></div>
-          <p class="muted small" style="margin-top:12px">${isNative() ? 'The token stays on this device.' : 'Sony blocks web pages from calling PSN, so this runs through your Mac bridge: open the app from the bridge address to connect. The token stays on the Mac, never in the cloud; your phone gets the results through your synced save.'} It's the same sign-in the PlayStation App uses. Treat the NPSSO like a password.</p>`}
+          ${psnWizard()}`}
       </div>
 
       <div class="card pad acct">
@@ -808,7 +802,7 @@ views.connect = () => {
       const busy = (b, label) => { b.disabled = true; b.dataset.l = b.textContent; b.textContent = label; };
       const done = (b) => { b.disabled = false; b.textContent = b.dataset.l; };
       const run = (id, label, fn) => { const b = $(id, root); if (b) b.onclick = async () => { busy(b, label); try { await fn(); render(); } catch (e) { toast(e.message); done(b); } }; };
-      run('#psn-go', 'Connecting…', async () => { const v = $('#npsso', root).value.trim().replace(/^.*"npsso"\s*:\s*"([^"]+)".*$/, '$1'); await connect.connectPSN(v); toast('PlayStation connected'); });
+      wireWizard(root, render);
       run('#psn-refresh', 'Refreshing…', async () => { await connect.refreshPSN(); toast('PSN refreshed'); });
       run('#psn-off', '…', async () => { await connect.disconnectPSN(); });
       run('#gt-go', 'Fetching…', async () => { await connect.fetchGT($('#gt-id', root).value, $('#gt-tok', root).value.trim()); toast('GT7 stats connected'); });

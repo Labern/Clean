@@ -28,6 +28,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
 const args = Object.fromEntries(process.argv.slice(2).map((a, i, all) => a.startsWith('--') ? [a.slice(2), all[i + 1] && !all[i + 1].startsWith('--') ? all[i + 1] : true] : null).filter(Boolean));
 const PORT = +(args.port || 8787);
+const LIVE = 'https://labern.github.io/Clean/gt7/';
+const HAS_APP = fs.existsSync(path.join(APP, 'index.html'));
+const ORIGINS = ['https://labern.github.io', /^http:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:\d+)?$/, ...(args.origin ? [args.origin] : [])];
 const LAPS = path.resolve(args.laps || path.join(os.homedir(), 'GT7Laps'));
 const TYPE = args.type || '~';
 const SEND_PORT = 33739, RECV_PORT = 33740;
@@ -133,9 +136,18 @@ async function accounts(req, res, u) {
 
 http.createServer(async (req, res) => {
   const u = new URL(req.url, 'http://x');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-GG-Token');
+  // Only this app may call the bridge from a browser: the live site, or pages it serves itself.
+  // (It holds your PSN token, so no wildcard.) Chrome's Private Network Access needs the extra header.
+  const origin = req.headers.origin || '';
+  if (ORIGINS.some((o) => (o instanceof RegExp ? o.test(origin) : o === origin))) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-GG-Token');
+    res.setHeader('Access-Control-Allow-Private-Network', 'true');
+  } else if (origin && u.pathname.startsWith('/api/')) { res.writeHead(403); return res.end(); }
   if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+  // installed on its own (install.sh): there are no app files, so send people to the live app
+  if (!HAS_APP && !u.pathname.startsWith('/api/')) { res.writeHead(302, { Location: LIVE + (u.pathname === '/' ? '#/connect' : '') }); return res.end(); }
   if (u.pathname.startsWith('/api/psn/') || u.pathname.startsWith('/api/proxy/')) { if ((await accounts(req, res, u)) !== false) return; }
   if (u.pathname === '/api/status') return json(res, { ok: true, ps5, packets, lastPacket, type: TYPE, laps: LAPS, demo: !!args.demo });
   if (u.pathname === '/api/laps') return json(res, listLaps());
@@ -157,7 +169,7 @@ http.createServer(async (req, res) => {
   fs.createReadStream(p).pipe(res);
 }).listen(PORT, () => {
   const ips = Object.values(os.networkInterfaces()).flat().filter((i) => i && i.family === 'IPv4' && !i.internal).map((i) => i.address);
-  console.log(`GT7 Endgame bridge\n  app:   http://localhost:${PORT}` + ips.map((ip) => `\n  phone: http://${ip}:${PORT}`).join('') + `\n  laps → ${LAPS}`);
+  console.log(`GT7 Endgame bridge running.\n  Connect PlayStation: open ${LIVE}#/connect on this Mac (Chrome, Edge or Firefox)\n  app:   http://localhost:${PORT}` + ips.map((ip) => `\n  phone: http://${ip}:${PORT}`).join('') + `\n  laps → ${LAPS}`);
 });
 function json(res, o, code = 200) { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(o)); }
 
