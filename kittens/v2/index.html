@@ -52,6 +52,7 @@ header .toprow{margin-top:8px}
 .seg{flex-wrap:wrap}
 .crown{font-size:clamp(1.05rem,4vw,1.3rem);font-weight:900;text-align:center;margin:4px 0 12px}
 footer a{color:#fff}
+.arch{background:rgba(255,253,245,.96);color:#111;text-shadow:none;border:3px solid #000;border-radius:18px;padding:10px 14px;margin:10px auto;max-width:560px;box-shadow:var(--pop-sm);font-weight:800;line-height:1.7}
 </style>
 </head>
 <body>
@@ -136,7 +137,9 @@ footer a{color:#fff}
 
 <footer>
   <button class="btn sm" id="pairbtn">📲 Pair the other phone</button>
-  <button class="btn sm" id="exportBtn">💾 Backup</button><br>
+  <div class="arch"><b>💾 Keep a copy of everything</b> — every record and every photo, in one file you can save anywhere.<br>
+    <button class="btn sm" id="arcJson">⬇️ Save .json</button> <button class="btn sm" id="arcHtml">🖼 Save viewable .html</button>
+    <label class="btn sm" style="display:inline-block">📂 Restore from a file<input type="file" id="arcIn" accept=".json,.html,application/json,text/html" hidden></label></div>
   <a href="../">← the full original version</a> · <a href="../weight/">📊 weight app</a><br>
   everything is shared between versions · 🍋💛🌙
 </footer>
@@ -372,7 +375,8 @@ function renderAll() { renderStage(); drawChart(); renderTodos(); renderComing()
 $('#pairbtn').onclick = $('#syncpill').onclick = () => { $('#pairLink').value = pairLink(); $('#pairWa').href = 'https://wa.me/?text=' + encodeURIComponent('🐾 Misato & Pen Pen — open this once to sync: ' + pairLink()); $('#pairdlg').showModal(); };
 $('#pairCopy').onclick = async () => { try { await navigator.clipboard.writeText(pairLink()); toast('📋 copied'); } catch (e) { $('#pairLink').select(); document.execCommand('copy'); toast('📋 copied'); } };
 $('#pairClose').onclick = () => $('#pairdlg').close();
-$('#exportBtn').onclick = exportBackup;
+$('#arcJson').onclick = () => exportArchive('json'); $('#arcHtml').onclick = () => exportArchive('html');
+$('#arcIn').onchange = async e => { const f = e.target.files[0]; if (f) { try { await importArchive(f); } catch (err) { toast('📂 ' + err.message); } } e.target.value = ''; };
 [[5, 16], [92, 10], [10, 64], [88, 72], [48, 4], [72, 40]].forEach(([x, y], i) => { const s = document.createElement('span'); s.className = 'spark'; s.textContent = ['✨', '⭐', '🐾', '🍋'][i % 4]; s.style.left = x + 'vw'; s.style.top = y + 'vh'; s.style.animationDelay = i * .6 + 's'; document.body.appendChild(s); });
 $('#wDate').value = todayYmd();
 renderMe(); drawScoreInput(); renderAll();
