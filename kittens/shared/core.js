@@ -392,3 +392,89 @@ function whenReaches(id, target, maxDays = 900) {
   return null;
 }
 function firstWeigh(id) { return weightsOf(id)[0] || null; }
+
+/* ═════════════ the archive — everything in one plain-text file ═════════════
+   An OPTION for keeping a copy outside the phone; nothing depends on it.
+   Format "misato-penpen-archive" v1 (JSON, UTF-8):
+     { format, version, exportedAt, exportedBy, from,
+       doc,            ← the complete dataset, every collection, tombstones too
+       imgs,           ← { photoId: "data:image/jpeg;base64,…" } every photo on this phone
+       counts, summary,← human-readable overview (ignored on restore)
+       check }         ← SHA-256 of JSON.stringify({doc, imgs}) — detects damage
+   `doc` + `imgs` keep the same names as the original backup, so v1's own
+   Restore button reads these files too. The .html variant is a self-contained
+   viewer page with the identical JSON inside <script id="kittens-archive">. */
+const ARCHIVE_FORMAT = 'misato-penpen-archive';
+async function sha256hex(str) { try { return [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str)))].map(b => b.toString(16).padStart(2, '0')).join(''); } catch (e) { return null; } }
+function allImages() {
+  const imgs = {}; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(LS_IMG)) { const v = localStorage.getItem(k); if (v) imgs[k.slice(LS_IMG.length)] = v; } } } catch (e) {}
+  return imgs;
+}
+async function buildArchive() {
+  save();                                                    // pull in anything another tab wrote
+  const imgs = allImages(), d = JSON.parse(JSON.stringify(doc));
+  const liveOf = c => Object.values(d[c] || {}).filter(r => r && !r.del);
+  const wanted = Object.keys(d.photos || {}).filter(id => d.photos[id] && !d.photos[id].del);
+  const counts = {}; Object.keys(d).forEach(c => { if (d[c] && typeof d[c] === 'object') counts[c] = liveOf(c).length; });
+  counts.images = Object.keys(imgs).length; counts.imagesMissingOnThisPhone = wanted.filter(id => !imgs[id]).length;
+  const summary = {
+    kittens: KIDS.map(id => ({ id, name: (d.kittens[id] || {}).name, born: (d.kittens[id] || {}).dob, coat: (d.kittens[id] || {}).coat })),
+    weights: liveOf('weights').sort((a, b) => a.date.localeCompare(b.date)).map(w => `${w.date}${w.time ? ' ' + w.time : ''}  ${((d.kittens[w.k] || {}).name || w.k).padEnd(8)} ${w.g} g${w.note ? '  — ' + w.note : ''}`),
+  };
+  const check = await sha256hex(JSON.stringify({ doc: d, imgs }));
+  return { format: ARCHIVE_FORMAT, version: 1, exportedAt: new Date().toISOString(), exportedBy: me, from: location.pathname, kittensBackup: 1, counts, summary, doc: d, imgs, check };
+}
+function downloadText(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000); }
+async function exportArchive(kind = 'json') {
+  const A = await buildArchive(), json = JSON.stringify(A), stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  const mb = (json.length / 1048576).toFixed(1);
+  if (kind === 'html') downloadText(`misato-penpen-archive-${stamp}.html`, archiveHTML(A, json), 'text/html');
+  else downloadText(`misato-penpen-archive-${stamp}.json`, json, 'application/json');
+  toast(`💾 saved ${A.counts.weights || 0} weigh-ins, ${A.counts.images} photos, everything else · ${mb} MB${A.counts.imagesMissingOnThisPhone ? ` · ⚠️ ${A.counts.imagesMissingOnThisPhone} photos still syncing` : ''}`);
+  return A;
+}
+function exportBackup() { return exportArchive('json'); }   // old name, kept for callers
+// read either file kind (or v1's older backups) → append-only merge; never deletes or overwrites newer data
+async function importArchive(file) {
+  let text = await file.text(), j;
+  if (/^\s*</.test(text)) { const m = text.match(/<script type="application\/json" id="kittens-archive">([\s\S]*?)<\/script>/); if (!m) throw new Error('no archive inside this page'); text = m[1].replace(/<\\\//g, '</'); }
+  j = JSON.parse(text); if (!j || !j.doc) throw new Error("that isn't a Misato & Pen Pen archive");
+  let damaged = false; if (j.check) { const c = await sha256hex(JSON.stringify({ doc: j.doc, imgs: j.imgs || {} })); damaged = c && c !== j.check; }
+  if (damaged && !confirm('This file looks damaged or edited (its checksum doesn\'t match). Merge what can be read anyway?')) return null;
+  let newImgs = 0; Object.entries(j.imgs || {}).forEach(([id, d]) => { if (!lsGet(LS_IMG + id) && typeof d === 'string' && d.startsWith('data:image')) { if (lsSet(LS_IMG + id, d)) { newImgs++; publishImg(id, d); } } });
+  const before = JSON.stringify(doc); doc = merge(doc, j.doc).out; save(); changed();
+  const res = { newImgs, changed: before !== JSON.stringify(doc), damaged, exportedAt: j.exportedAt };
+  toast(`📂 restored — ${newImgs} new photos${res.changed ? ', new data merged in' : ', nothing new in the data'}${damaged ? ' (file was damaged)' : ''}`);
+  return res;
+}
+// the self-contained, browser-viewable archive page
+function archiveHTML(A, json) {
+  const e = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const d = A.doc, name = id => (d.kittens[id] || {}).name || id, L = c => Object.entries(d[c] || {}).filter(([, r]) => r && !r.del).map(([id, r]) => Object.assign({ id }, r));
+  const W = L('weights').sort((a, b) => a.date.localeCompare(b.date));
+  const P = L('photos').sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+  const rows = W.map(w => `<tr><td>${e(w.date)}${w.time ? ' ' + e(w.time) : ''}</td><td>${e(name(w.k))}</td><td><b>${e(w.g)} g</b>${w.approx ? ' ~' : ''}</td><td>${e(w.note || '')}</td>${w.photo && A.imgs[w.photo] ? `<td><img src="${A.imgs[w.photo]}" style="width:56px;height:56px;object-fit:cover;border-radius:50%;border:2px solid #000"></td>` : '<td></td>'}</tr>`).join('');
+  const gal = P.filter(p => A.imgs[p.id]).map(p => `<figure><img src="${A.imgs[p.id]}" alt=""><figcaption>${e(p.k === 'both' ? 'Both' : name(p.k))} · ${e(p.date || '')}${p.caption ? ' · ' + e(p.caption) : ''}</figcaption></figure>`).join('');
+  const list = (c, f) => L(c).sort((a, b) => (b.date || '').localeCompare(a.date || '')).map(f).join('');
+  const ev = list('events', x => `<li><b>${e(x.date)}</b> ${e(x.text)}</li>`), td = list('todos', x => `<li>${x.done ? '✅' : '⬜'} ${e(x.title)}${x.due ? ' · ' + e(x.due) : ''}</li>`), bd = list('bond', x => `<li><b>${e(x.date)}</b> ${x.by === 'girl' ? '🌙' : '🍋'} + ${e(name(x.k))} ${'💗'.repeat(x.score || 0)} ${e(x.text || '')}</li>`);
+  const kit = A.summary.kittens.map(k => `<div class="k"><b>${e(k.name)}</b><br>born ${e(k.born || '?')}<br>${e(k.coat || '')}</div>`).join('');
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Misato &amp; Pen Pen — archive ${e(A.exportedAt.slice(0, 10))}</title>
+<style>html{min-height:100%;background:linear-gradient(180deg,#ff595e,#ff924c 16%,#ffca3a 33%,#8ac926 50%,#1982c4 67%,#6a4c93 84%,#b15ee3) fixed}body{font-family:"Comic Sans MS","Chalkboard SE",system-ui,sans-serif;margin:0;padding:20px 16px 60px;color:#111}
+main{max-width:980px;margin:0 auto}h1{color:#fff;text-shadow:3px 3px 0 #6a4c93;text-align:center;font-size:clamp(2rem,8vw,3.4rem);margin:0}
+.sub{color:#fff;text-align:center;font-weight:900;text-shadow:1px 1px 0 rgba(0,0,0,.3)}section{background:#fffdf5;border:4px solid #000;border-radius:24px;box-shadow:6px 7px 0 #000;padding:16px 18px;margin:22px 0}
+h2{margin:0 0 10px;color:#6a4c93}.ks{display:flex;gap:10px;flex-wrap:wrap}.k{background:#fff;border:3px solid #000;border-radius:16px;padding:8px 14px}
+table{border-collapse:collapse;width:100%;font-size:.92rem}td{border-bottom:2px dashed #ddd;padding:6px}.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+figure{margin:0;background:#fff;border:3px solid #000;border-radius:12px;padding:6px}figure img{width:100%;border-radius:8px;display:block;cursor:zoom-in}figcaption{font-size:.78rem;font-weight:700;margin-top:4px}
+li{margin:4px 0}button{font:inherit;font-weight:900;border:3px solid #000;border-radius:999px;background:#ffca3a;padding:.4em 1em;cursor:pointer}code{background:#eee;padding:1px 5px;border-radius:5px}</style></head>
+<body><main><h1>Misato &amp; Pen Pen</h1><div class="sub">🍋 archive saved ${e(new Date(A.exportedAt).toLocaleString('en-GB'))} 🌙</div>
+<section><h2>📦 What's in here</h2><p><b>${W.length}</b> weigh-ins · <b>${Object.keys(A.imgs).length}</b> photos · <b>${L('events').length}</b> moments · <b>${L('todos').length}</b> to-dos · <b>${L('bond').length}</b> bond notes · and every other record the app has, in full.</p>
+<p>This page needs no internet and no app. The complete data lives inside it as JSON — open it in any version of the tracker and use <b>📂 Restore</b> to put it all back.</p>
+<button onclick="const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([document.getElementById('kittens-archive').textContent],{type:'application/json'}));a.download='misato-penpen-archive.json';a.click()">⬇️ Download the JSON inside</button>
+<p style="font-size:.8rem">Checksum (SHA-256): <code>${e(A.check || 'n/a')}</code></p><div class="ks">${kit}</div></section>
+<section><h2>⚖️ Every weigh-in</h2><table>${rows || '<tr><td>none yet</td></tr>'}</table></section>
+<section><h2>📸 Every photo</h2><div class="g">${gal || 'none yet'}</div></section>
+${ev ? `<section><h2>📅 Moments</h2><ul>${ev}</ul></section>` : ''}${bd ? `<section><h2>💞 Winning them over</h2><ul>${bd}</ul></section>` : ''}${td ? `<section><h2>✅ To-do</h2><ul>${td}</ul></section>` : ''}
+</main><script>document.querySelectorAll('figure img').forEach(i=>i.onclick=()=>window.open().document.write('<img src="'+i.src+'" style="max-width:100%">'))<\/script>
+<script type="application/json" id="kittens-archive">${json.replace(/<\//g, '<\\/')}</script></body></html>`;
+}

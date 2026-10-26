@@ -115,3 +115,17 @@ zoom window, sliders = future pace / look-ahead / smoothness; monotone-cubic
 - Gotcha: `shared/theme.css` is v1's stylesheet and contains `#chart text
   {fill;font-size}` which overrides SVG attributes — that's why the weight
   app's chart is `#gchart`. Don't reuse v1 ids (#chart, #tip, #week…) in new SVGs.
+
+## Archive files (optional copy — nothing depends on them)
+`exportArchive('json'|'html')` / `importArchive(file)` in `shared/core.js`,
+buttons in the v2 and weight-app footers. Format `misato-penpen-archive` v1:
+`{format, version, exportedAt, exportedBy, from, counts, summary, doc, imgs, check}`
+— `doc` is the whole dataset incl. tombstones and unknown collections,
+`imgs` every `kittens.img.*` on the phone (JPEG data URLs, as stored ≈900px),
+`check` = SHA-256 of `JSON.stringify({doc, imgs})`. `doc`/`imgs` keep v1's
+backup key names so v1's own Restore reads these files. The `.html` variant is
+a self-contained offline viewer with the same JSON in
+`<script type="application/json" id="kittens-archive">` (`</` escaped as `<\/`,
+still valid JSON). Restore = append-only merge, never deletes; a checksum
+mismatch asks before merging. Tested: save → restore into blank v2, weight
+app and v1; restore twice is a no-op; tampering is detected; html opens offline.
