@@ -109,8 +109,10 @@ jobs:
           xcrun simctl install "$UDID" "$APP"
           xcrun simctl launch "$UDID" com.labern.gt7endgame | tee -a out/ci.txt
           sleep 12; xcrun simctl io "$UDID" screenshot out/home.png
-          xcrun simctl openurl "$UDID" "capacitor://localhost/#/ce" 2>/dev/null || true
-          sleep 6; xcrun simctl io "$UDID" screenshot out/ce.png
+          for r in telemetry ce; do
+            xcrun simctl launch --terminate-running-process "$UDID" com.labern.gt7endgame -route "#/$r" >/dev/null
+            sleep 10; xcrun simctl io "$UDID" screenshot "out/$r.png"
+          done
           sips -Z 1300 out/*.png >/dev/null
           xcrun simctl spawn "$UDID" log show --last 2m --style compact \
             --predicate 'process == "App" AND (messageType >= 16 OR eventMessage CONTAINS "Gt7")' > out/console.log 2>/dev/null || true
