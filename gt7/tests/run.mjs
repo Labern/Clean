@@ -16,6 +16,8 @@ import { APEX, APEX_PARTS, apexUrl, apexForTrack } from '../data/apex.js';
 import { VIDEOS, VIDEO_KINDS } from '../data/videos.js';
 import { SCENARIOS, runScenario } from '../app/scenarios.js';
 import { SYSTEMS } from '../data/systems.js';
+import { REFLAPS } from '../data/reflaps.js';
+import { parseChapters, cornerMoments } from '../app/ytchapters.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 let pass = 0, fail = 0;
@@ -206,6 +208,23 @@ console.log('race systems');
     (x.related || []).forEach((r) => ok(ids.has(r), `${x.id}: related ${r} exists`));
     ok(!/—/.test(JSON.stringify(x)), `${x.id}: no em dashes`);
   }
+}
+
+console.log('reference laps + track studio');
+{
+  for (const t of TRACKS) {
+    const r = REFLAPS[t.id];
+    ok(r, `${t.id}: has a reference lap`);
+    if (!r) continue;
+    ok(r.v.length === 500 && r.v.every((v) => v > 20 && v < 340), `${t.id}: speed trace sane`);
+    ok(r.corners.length === t.corners.length, `${t.id}: reference stats for every corner`);
+    r.corners.forEach((c, i) => ok(c.gear >= 1 && c.gear <= 6 && c.min > 20 && c.min <= c.entry + 1, `${t.id} corner ${i}: gear/min/entry consistent`));
+    if (r.bench && t.country !== 'GT original') ok(Math.abs(r.lap / r.bench - 1) < 0.1, `${t.id}: reference lap within 10% of the Gr.3 benchmark (${r.lap}s vs ${r.bench}s)`);
+  }
+  const ch = parseChapters('Intro\n0:00 Intro\n1:12 Turn 1 La Source\n(2:05) - Eau Rouge / Raidillon\n10:01 Outro');
+  ok(ch.length === 4 && ch[1][0] === 72 && ch[2][0] === 125, 'chapter timestamps parse');
+  const m = cornerMoments(trackById.spa.corners[1], [{ id: 'x', channel: 'c' }], { x: { ch } });
+  ok(m.length === 1 && m[0].sec === 125, 'chapters match corners by name');
 }
 
 console.log('lap alignment');

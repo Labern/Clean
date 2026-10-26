@@ -44,12 +44,26 @@ function stripThumb(track) {
 // Full interactive map. `sel` = selected corner index, `sector` = highlighted sector index or -1.
 // Drawn as a road (shadow, kerb-white edges, asphalt), sectors as a glowing centre
 // stripe, a chequered start line, direction chevrons and raised corner pins.
-export function fullMap(track, sel = -1, sector = -1) {
+export const pointAt = (track, f) => { const m = track.map && MAPS[track.map]; return m ? at(m, ((f % 1) + 1) % 1) : null; };
+
+export function fullMap(track, sel = -1, sector = -1, opts = {}) {
   const m = track.map && MAPS[track.map];
   if (!m) return null;
   const b = box(m, 70);
   const all = m.pts.map((p) => p.join(',')).join(' ');
-  const glow = track.sectors.map((s, i) => {
+  const heat = (v) => { const u = Math.max(0, Math.min(1, (v - 60) / 220)); return `hsl(${Math.round(u * 140)} 90% ${Math.round(50 + u * 6)}%)`; };
+  const speedLine = opts.speed ? opts.speed.map((v, i, arr) => { const f0 = i / arr.length, f1 = (i + 1.6) / arr.length; return `<polyline points="${polyline(m, f0, Math.min(f1, 0.9999))}" fill="none" stroke="${heat(v)}" stroke-width="9" stroke-linecap="round"/>`; }).join('') : '';
+  // the selected corner: a glowing stretch either side of its marker, the reference car's slowest point and braking point
+  const c0 = sel >= 0 ? track.corners[sel] : null;
+  const focus = c0 ? (() => {
+    const w = 0.022, f0 = c0.at - w, f1 = c0.at + w;
+    const seg = f0 < 0 ? [[f0 + 1, 0.9999], [0, f1]] : f1 > 1 ? [[f0, 0.9999], [0, f1 - 1]] : [[f0, f1]];
+    let g = seg.map(([a2, b2]) => `<polyline points="${polyline(m, a2, b2)}" fill="none" stroke="#ffffff" stroke-width="46" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/><polyline points="${polyline(m, a2, b2)}" fill="none" stroke="#ffffff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round"/>`).join('');
+    if (opts.brakeAt != null) { const p = at(m, opts.brakeAt); g += `<g transform="translate(${p[0]},${p[1]})"><rect x="-26" y="-14" width="52" height="28" rx="6" fill="#e1131f" stroke="#fff" stroke-width="4"/><text text-anchor="middle" dy="7" fill="#fff" style="font-size:19px">BRAKE</text></g>`; }
+    if (opts.apexAt != null) { const p = at(m, opts.apexAt); g += `<g transform="translate(${p[0]},${p[1]})"><circle r="16" fill="#ffc531" stroke="#0b1f4b" stroke-width="5"/><circle r="5" fill="#0b1f4b"/></g>`; }
+    return g;
+  })() : '';
+  const glow = opts.speed ? '' : track.sectors.map((s, i) => {
     const dim = sector >= 0 && sector !== i;
     const pl = polyline(m, s.from, s.to);
     return `<polyline points="${pl}" fill="none" stroke="${SECTOR_COLORS[i]}" stroke-width="${sector === i ? 30 : 22}" stroke-linejoin="round" stroke-linecap="round" opacity="${dim ? 0.06 : 0.28}"/>
@@ -82,9 +96,12 @@ export function fullMap(track, sel = -1, sector = -1) {
     <polygon points="${all}" fill="none" stroke="#3d4452" stroke-width="42" stroke-linejoin="round"/>
     <polygon points="${all}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="2" stroke-dasharray="14 18" stroke-linejoin="round"/>
     ${glow}
+    ${speedLine}
     ${chev}
+    ${focus}
     <g transform="translate(${p0[0]},${p0[1]}) rotate(${ang0.toFixed(1)})">${cheq}</g>
     ${pins}
+    <g id="aidot" style="display:none"><circle r="22" fill="rgba(31,91,255,.35)"/><circle r="12" fill="#1f5bff" stroke="#fff" stroke-width="5"/></g>
   </svg>`;
 }
 
