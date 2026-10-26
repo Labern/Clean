@@ -317,6 +317,28 @@ console.log('sector trainer (runs, compare, filing)');
   await CE.useAsDemo('spa', 3, attempts[3], get);
   ok(CE.sec('spa', 3).demo === attempts[3].id && CE.sec('spa', 3).runs.length === 5, 'a different demo re-measures every run');
   ok(CE.summary('spa').next && CE.parseMs('1:02.345') === 62345 && CE.fmt(62345) === '1:02.345', 'summary + time parsing');
+  // corner notes: anchored by apex position, verdict from attempts before/after, data-driven suggestions
+  {
+    const x3 = () => CE.sec('spa', 3), cs = CE.corners(x3());
+    ok(cs.length >= 3 && cs.every((c) => c.a > 0 && c.min > 0 && c.gear), `the demo defines the corners (${cs.length})`);
+    const cn = a0.ranked[0].n, k = CE.corners(x3()).find((c) => Math.abs(c.a - a0.ranked[0].apexD) < 10)?.n;
+    const no = CE.addNote('spa', 3, k, 'Brake at the 150 board');
+    ok(no && CE.notesFor(x3(), k).length === 1 && CE.notesFor(x3(), k === 1 ? 2 : 1).length === 0, 'a note sits on its own corner');
+    const runs = x3().runs.filter((r) => !r.demo).sort((a, b) => a.t0 - b.t0), early = runs.find((r) => r.id === attempts[0].id);
+    CE.editNote('spa', 3, no.id, { t: early.t0 - 1 });   // written just before the early-braking attempt
+    const v = CE.verdict(x3(), CE.notesFor(x3(), k)[0]);
+    ok(v && v.state !== 'untested' && typeof v.text === 'string', `trying a note gets a verdict (${v?.text})`);
+    CE.editNote('spa', 3, no.id, { t: Date.now() + 1e6 });
+    ok(CE.verdict(x3(), CE.notesFor(x3(), k)[0]).state === 'untested', 'not driven since the note: untested');
+    const sug = CE.suggest(x3(), k);
+    ok(sug[0]?.kind === 'demo' && /before the apex|no braking/.test(sug[0].text), 'first suggestion is the demo\'s reference for the corner');
+    ok(CE.history(x3(), k).length === 4, 'corner history covers every complete attempt');
+    ok(CE.cornerStrip(x3()).find((c) => c.n === k).notes === 1, 'corner chip shows the note count');
+    await CE.useAsDemo('spa', 3, demo, get);
+    ok(CE.notesFor(CE.sec('spa', 3), k).length === 1, 'notes survive a new demo (anchored by where the apex is)');
+    CE.delNote('spa', 3, no.id);
+    ok(!CE.notesFor(CE.sec('spa', 3), k).length, 'delete a note');
+  }
   const { nextSteps } = await import('../app/engine.js');
   const store = await import('../app/state.js');
   ok(nextSteps(store.get(), 5).some((st) => st.kind === 'ce'), 'the section in training is a next move');

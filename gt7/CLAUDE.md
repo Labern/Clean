@@ -148,6 +148,14 @@ Mini-sectors (cut halfway between corners) give the theoretical best and the
 least consistent corner. Results are spoken (speechSynthesis, `s.ceVoice`).
 `cesample.js` builds a sample session with known mistakes (UI button + tests);
 `bridge --demo sector` streams one stretch of Spa with resets for end-to-end checks.
+Corner notes (`app/cornersheet.js`, notes API in `ce.js`): a bottom sheet (side
+drawer ≥900px) per corner: the corner drawn from the demo with your last attempt,
+the demo's numbers, every attempt's time there, notes, and suggestions mined from
+your attempts (`suggest`). Notes are anchored by apex metres on the demo, not
+corner number, so a new demo or gates don't scramble them. A "trying" note gets a
+`verdict`: that corner's mini-sector time in attempts after it vs the 6 before.
+Each filed attempt keeps a compact per-corner record (`entry.cs`) for this.
+Notes for the worst corner show on the live card and are spoken.
 
 ## Native (`native/`)
 Capacitor shells around this same code (`npm run ios|android` on the Mac).

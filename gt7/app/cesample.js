@@ -7,7 +7,7 @@ const MISTAKES = [
   { label: 'carries too much speed in and overshoots', dip: 3, early: -26, slow: -7, exitSlow: 14 },
   { label: 'close: a touch slow at the last corner', dip: 4, slow: 4 },
 ];
-export function sampleSession(lap, t0 = Date.now()) {
+export function sampleSession(lap, t0 = Date.now() - 10 * 60e3) {
   const c = Object.fromEntries(lap.cols.map((k, i) => [k, i]));
   const seg = lap.pts.slice(Math.round(lap.pts.length * 0.02), Math.round(lap.pts.length * 0.34));
   const dist = [0];
