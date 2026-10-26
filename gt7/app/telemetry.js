@@ -62,7 +62,7 @@ export function telemetryView() {
   return {
     html: html`
     <div class="kicker">Data Logger</div><h1>Your Real Laps</h1>
-    <p class="muted" style="max-width:72ch;margin-top:10px">GT7 broadcasts live telemetry from your PS5: position, speed, revs, gear, throttle, brake, steering, tyres. The bridge on your Mac records every lap. Here you replay your actual racing line on the real circuit, corner by corner.</p>
+    <p class="muted" style="max-width:72ch;margin-top:10px">GT7 broadcasts live telemetry from your PS5: position, speed, revs, gear, throttle, brake, steering, tyres. ${direct.available() ? 'This phone records every lap straight from the PS5.' : 'The bridge on your Mac records every lap.'} Here you replay your actual racing line on the real circuit, corner by corner.</p>
     <section class="section grid g2" style="margin-top:20px;align-items:start">
       <div class="card pad" id="conn"><div class="kicker">Bridge</div><h3 style="margin:6px 0">Checking…</h3></div>
       <div class="card pad" id="hud" style="background:linear-gradient(135deg,#0b1f4b,#13306e);color:#fff;min-height:200px">
@@ -75,10 +75,10 @@ export function telemetryView() {
         <div class="row"><label class="btn sm ghost" style="cursor:pointer">Import lap file<input type="file" id="lapfile" accept=".json,application/json" multiple hidden></label><button class="btn sm" id="demo">Open demo lap (Spa)</button></div></div>
       <div class="grid" style="gap:8px" id="laplist"><p class="muted">Loading…</p></div>
     </section>
-    <section class="section card pad direct-card">
+    ${direct.available() ? '' : html`<section class="section card pad direct-card">
       <div class="kicker">No bridge</div><h3 style="margin:6px 0">The app connects your phone straight to the PS5</h3>
       <p style="margin:8px 0 0">The iOS/Android app reads GT7's telemetry over Wi-Fi directly: live speed, gear, pedals, and every lap recorded with its official time, best per track. No Mac in between.</p>
-      <div class="row" style="margin-top:12px"><a class="btn red" href="download/GT7Endgame.apk" download>Android: download the app</a><a class="btn ghost" href="#/connect">iPhone: how to build it</a></div>
+      <div class="row" style="margin-top:12px"><a class="btn red" href="download/GT7Endgame.ipa" download>iPhone: get the app</a><a class="btn ghost" href="download/GT7-Endgame-Install.pdf" target="_blank">Install guide (PDF)</a><a class="btn ghost" href="download/GT7Endgame.apk" download>Android</a></div>
     </section>
     <section class="section card pad">
       <h3>In a browser: set up the bridge (once)</h3>
@@ -91,7 +91,7 @@ export function telemetryView() {
       </ol>
       <p class="muted small" style="margin-top:12px">Why a bridge: GT7 sends telemetry as encrypted UDP on your home network. Browsers can't receive UDP, so a small script on the Mac decodes it (no installs beyond Node). Your Mac and PS5 must be on the same network.</p>
       <label class="f" style="margin-top:12px;max-width:420px">Bridge address (only if this page isn't opened from the bridge)<input type="text" id="burl" placeholder="http://192.168.1.20:8787" value="${s.bridgeUrl || ''}"></label>
-    </section>`,
+    </section>`}`,
     async wire(root) {
       const conn = $('#conn', root), hud = $('#hud', root);
       const paintLaps = async () => {
