@@ -96,6 +96,17 @@ function load() {
   return merge(d, s).out;   // a newer seed revision (higher u) updates untouched seed records; user edits always win
 }
 // per record, newest u wins — over EVERY collection either side has, known or not
+// one record from each side → the kept record. Newest u wins each field it has;
+// fields only the older side has are KEPT (a newer version's additions are never
+// dropped by an older version's edit). Deletes are whole: a tombstone stays a
+// tombstone, and a record revived after a delete starts clean.
+function mergeRec(A, B) {
+  if (!B) return A; if (!A) return B;
+  const bNewer = (B.u || 0) > (A.u || 0), newer = bNewer ? B : A, older = bNewer ? A : B;
+  const res = (newer.del || older.del) ? newer : Object.assign({}, older, newer);
+  const ka = Object.keys(A), kr = Object.keys(res);
+  return ka.length === kr.length && kr.every(k => k in A && JSON.stringify(res[k]) === JSON.stringify(A[k])) ? A : res;
+}
 function merge(a, b) {
   const out = {}; let changedA = false;
   const keys = new Set([...COLS, ...Object.keys(a || {}), ...Object.keys(b || {})]);
@@ -104,8 +115,8 @@ function merge(a, b) {
     if ((A && typeof A !== 'object') || (B && typeof B !== 'object')) { out[c] = A !== undefined ? A : B; return; }
     out[c] = Object.assign({}, A || {});
     for (const [id, rec] of Object.entries(B || {})) {
-      const mine = out[c][id];
-      if (!mine || (rec && (rec.u || 0) > (mine.u || 0))) { out[c][id] = rec; if (a) changedA = true; }
+      const res = mergeRec(out[c][id], rec);
+      if (res !== out[c][id]) { out[c][id] = res; if (a) changedA = true; }
     }
   });
   return { out, changedA };

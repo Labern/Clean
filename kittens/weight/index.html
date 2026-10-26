@@ -300,7 +300,10 @@ function wput(id, rec) { undoStack.push({ id, prev: doc.weights[id] ? Object.ass
 function wdel(id) { undoStack.push({ id, prev: Object.assign({}, doc.weights[id]) }); del('weights', id); showUndo(); }
 function showUndo() { $('#undo').classList.toggle('on', undoStack.length > 0); clearTimeout(showUndo.t); showUndo.t = setTimeout(() => $('#undo').classList.remove('on'), 12000); }
 $('#undo').onclick = () => { const x = undoStack.pop(); if (!x) return;
-  if (!x.prev) del('weights', x.id); else { doc.weights[x.id] = Object.assign({}, x.prev, { del: false, u: Date.now() }); if (!x.prev.del) delete doc.weights[x.id].del; save(); changed(); }
+  if (!x.prev) del('weights', x.id); else {
+    // fields added since are blanked explicitly — merges keep any field that's simply missing
+    const cur = doc.weights[x.id] || {}, blank = {}; Object.keys(cur).forEach(k => { if (!(k in x.prev) && k !== 'u') blank[k] = k === 'del' ? false : null; });
+    doc.weights[x.id] = Object.assign(blank, x.prev, { u: Date.now() }); if (!x.prev.del) delete doc.weights[x.id].del; save(); changed(); }
   toast('↩︎ undone'); showUndo(); };
 
 /* ═════════════ who ═════════════ */
