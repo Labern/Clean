@@ -51,7 +51,7 @@ function seed() {
   const d = {}; COLS.forEach(c => d[c] = {});
   // ~6 weeks old when weighed on Wed 30 Sep 2026 → born ~19 Aug (estimate, editable)
   d.kittens.misato = { name: 'Misato', coat: 'white with black patches', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: 'black ears, patch over one eye, black tail · peach collar', photo: '', u: 2 };
-  d.kittens.penpen = { name: 'Pen Pen', coat: 'black tuxedo', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: 'white blaze, moustache spot, white bib + paws · blue collar', photo: '', u: 2 };
+  d.kittens.penpen = { name: 'Pen Pen', coat: 'black tuxedo', sex: 'f', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: 'white blaze, moustache spot, white bib + paws · blue collar', photo: '', u: 3 };
   d.weights['w-seed-misato'] = { k: 'misato', date: '2026-09-30', g: 700, approx: true, by: 'lemon', u: 1 };
   d.weights['w-seed-penpen'] = { k: 'penpen', date: '2026-09-30', g: 600, approx: true, by: 'lemon', u: 1 };
   d.events['e-seed-weigh'] = { date: '2026-09-30', k: 'both', type: 'milestone', text: 'First weigh-in — Misato ~700g, Pen Pen ~600g. About six weeks old.', by: 'lemon', u: 1 };
@@ -321,7 +321,7 @@ async function initSync() {
   if (SITTER) { setSync('', 'read-only sitter view'); return; }
   // adopt a pairing key from the link
   const m = location.hash.match(/pair=([A-Za-z0-9_-]{16,})/);
-  if (m) { secret = m[1]; lsSet(LS_SECRET, secret); history.replaceState(null, '', location.pathname); setTimeout(() => { toast('📲 paired! syncing with the other phone…'); rain(['💛', '📲', '🐾']); }, 600); }
+  if (m) { const isNew = m[1] !== secret; secret = m[1]; lsSet(LS_SECRET, secret); history.replaceState(null, '', location.pathname); if (isNew) setTimeout(() => { toast('📲 paired! syncing with your data…'); rain(['💛', '📲', '🐾']); }, 600); }
   if (!secret) { const r = crypto.getRandomValues(new Uint8Array(18)); secret = b64(r).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); lsSet(LS_SECRET, secret); }
   if (!window.crypto || !crypto.subtle || typeof mqtt === 'undefined') { syncLabel(); return; }
   cryptoKey = await crypto.subtle.importKey('raw', await sha('kittens-key:' + secret), 'AES-GCM', false, ['encrypt', 'decrypt']);
@@ -478,3 +478,25 @@ ${ev ? `<section><h2>📅 Moments</h2><ul>${ev}</ul></section>` : ''}${bd ? `<se
 </main><script>document.querySelectorAll('figure img').forEach(i=>i.onclick=()=>window.open().document.write('<img src="'+i.src+'" style="max-width:100%">'))<\/script>
 <script type="application/json" id="kittens-archive">${json.replace(/<\//g, '<\\/')}</script></body></html>`;
 }
+
+/* ═════════════ honesty about what this browser actually holds ═════════════
+   Each browser keeps its own copy (on iPhone, Safari and a home-screen app are
+   separate). A page that has none of your entries must SAY so instead of
+   quietly estimating from the 30 Sept starting weights. */
+function hasYourData() { return live('weights').some(([id]) => !String(id).startsWith('w-seed-')) || live('photos').length > 0; }
+function pron(id) { const s = (K(id) || {}).sex; return s === 'f' ? 'she' : s === 'm' ? 'he' : 'they'; }
+function dataWarningHTML() {
+  if (hasYourData()) {
+    const last = KIDS.map(id => latest(id)).filter(Boolean).map(w => w.date).sort().pop(), dd = last ? daysBetween(last, todayYmd()) : null;
+    if (dd != null && dd > 7) return `<div class="nodata small">⚠️ The newest weigh-in this browser has is from <b>${nice(last)}</b> (${dd} days ago). If you've weighed since on another phone or in the home-screen app, this browser isn't synced with it yet — open the 📲 Pair link from there.</div>`;
+    return '';
+  }
+  return `<div class="nodata"><b>⚠️ This browser doesn't have your weigh-ins or photos.</b><br>
+    It's only showing the 30 Sept starting weights, so every number here is a guess. Your data is wherever you've been logging it (on iPhone, the home-screen app and Safari keep separate copies).<br>
+    <b>To bring it here:</b> open the app where you log weights → tap <b>📲 Pair the other phone</b> → open that link in this browser. Or restore a saved archive:
+    <label class="btn sm" style="display:inline-block;margin-top:6px">📂 Restore from a file<input type="file" accept=".json,.html,application/json,text/html" hidden onchange="(async f=>{if(f){try{await importArchive(f)}catch(e){toast('📂 '+e.message)}}})(this.files[0]);this.value=''"></label></div>`;
+}
+function renderDataWarning() { const el = document.getElementById('nodata'); if (el) el.innerHTML = dataWarningHTML(); }
+// links between versions carry the pairing key, so another browser joins the same data
+document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('a[href]'); if (!a || !secret) return; const h = a.getAttribute('href') || ''; if (/^(https?:|mailto:|#|tel:)/i.test(h)) return;
+  try { const u = new URL(h, location.href); if (u.origin === location.origin && u.pathname.includes('/kittens/')) { u.hash = 'pair=' + secret; a.href = u.toString(); } } catch (err) {} }, true);

@@ -129,3 +129,16 @@ a self-contained offline viewer with the same JSON in
 still valid JSON). Restore = append-only merge, never deletes; a checksum
 mismatch asks before merging. Tested: save → restore into blank v2, weight
 app and v1; restore twice is a no-op; tampering is detected; html opens offline.
+
+## Separate browsers = separate data (the "Pen Pen is 910 g" bug)
+Each browser has its own storage; on iPhone, Safari, the home-screen app and
+in-app browsers (WhatsApp, the Claude app) are all separate, each with its own
+sync key, so they don't sync with each other. A cold browser only has the seed,
+and 600 g on 30 Sept extrapolates to ~910 g by 26 Oct.
+Defences: links between versions append `#pair=<secret>` (v1 inline + core
+click handler), so whichever browser opens them joins the same data;
+re-pairing with the same key is silent; `renderDataWarning()` shows a loud
+banner when this browser holds no real entries (or nothing in 7+ days); the
+headlines show the last REAL weigh-in, with the estimate only as small print.
+Pen Pen is a girl (seed revision u:3 sets `sex:'f'`); use `pron(id)`, never
+hard-code pronouns.

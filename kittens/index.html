@@ -781,7 +781,7 @@ function seed() {
   const d = {}; COLS.forEach(c => d[c] = {});
   // ~6 weeks old when weighed on Wed 30 Sep 2026 → born ~19 Aug (estimate, editable)
   d.kittens.misato = { name: 'Misato', coat: 'white with black patches', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: 'black ears, patch over one eye, black tail · peach collar', photo: '', u: 2 };
-  d.kittens.penpen = { name: 'Pen Pen', coat: 'black tuxedo', sex: '', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: 'white blaze, moustache spot, white bib + paws · blue collar', photo: '', u: 2 };
+  d.kittens.penpen = { name: 'Pen Pen', coat: 'black tuxedo', sex: 'f', dob: '2026-08-19', dobEst: true, eye: '#8ec5ea', bio: '', chip: '', vet: '', ins: '', marks: 'white blaze, moustache spot, white bib + paws · blue collar', photo: '', u: 3 };
   d.weights['w-seed-misato'] = { k: 'misato', date: '2026-09-30', g: 700, approx: true, by: 'lemon', u: 1 };
   d.weights['w-seed-penpen'] = { k: 'penpen', date: '2026-09-30', g: 600, approx: true, by: 'lemon', u: 1 };
   d.events['e-seed-weigh'] = { date: '2026-09-30', k: 'both', type: 'milestone', text: 'First weigh-in — Misato ~700g, Pen Pen ~600g. About six weeks old.', by: 'lemon', u: 1 };
@@ -1457,7 +1457,7 @@ async function initSync() {
   if (SITTER) { setSync('', 'read-only sitter view'); return; }
   // adopt a pairing key from the link
   const m = location.hash.match(/pair=([A-Za-z0-9_-]{16,})/);
-  if (m) { secret = m[1]; lsSet(LS_SECRET, secret); history.replaceState(null, '', location.pathname); setTimeout(() => { toast('📲 paired! syncing with the other phone…'); rain(['💛', '📲', '🐾']); }, 600); }
+  if (m) { const isNew = m[1] !== secret; secret = m[1]; lsSet(LS_SECRET, secret); history.replaceState(null, '', location.pathname); if (isNew) setTimeout(() => { toast('📲 paired! syncing with your data…'); rain(['💛', '📲', '🐾']); }, 600); }
   if (!secret) { const r = crypto.getRandomValues(new Uint8Array(18)); secret = b64(r).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''); lsSet(LS_SECRET, secret); }
   if (!window.crypto || !crypto.subtle || typeof mqtt === 'undefined') { syncLabel(); return; }
   cryptoKey = await crypto.subtle.importKey('raw', await sha('kittens-key:' + secret), 'AES-GCM', false, ['encrypt', 'decrypt']);
@@ -1983,6 +1983,9 @@ let rz; window.addEventListener('resize', () => { clearTimeout(rz); rz = setTime
 window.addEventListener('storage', e => { if (e.key === LS) { doc = load(); renderAll(); } });   // another tab
 $('#wzOpen').onclick = openZoom;
 initSync();
+// links to the other versions carry the pairing key, so a different browser (Safari vs the home-screen app) joins this data
+document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('a[href]'); if (!a || !secret) return; const h = a.getAttribute('href') || ''; if (/^(https?:|mailto:|#|tel:)/i.test(h)) return;
+  try { const u = new URL(h, location.href); if (u.origin === location.origin && u.pathname.includes('/kittens/')) { u.hash = 'pair=' + secret; a.href = u.toString(); } } catch (err) {} }, true);
 }
 </script>
 </body>

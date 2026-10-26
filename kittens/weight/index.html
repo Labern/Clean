@@ -182,6 +182,9 @@ table.log .thumb{width:42px;height:42px;border-radius:50%;border:3px solid #000;
 #undo.on{display:inline-flex;align-items:center}
 footer a{color:#fff}
 .arch{background:var(--paperA);color:#111;text-shadow:none;border:4px solid #000;border-radius:20px;padding:12px 16px;margin:10px auto;max-width:600px;box-shadow:5px 6px 0 #000;font-weight:800;line-height:1.9}
+.nodata{background:#fff1e6;border:4px solid #e63946;border-radius:20px;padding:12px 16px;margin:12px auto;max-width:860px;font-weight:800;line-height:1.55;box-shadow:5px 6px 0 #000;color:#111;text-shadow:none;text-align:left}
+.nodata.small{border-width:3px;background:#fffbe0;font-size:.9rem}
+.nodata:empty{display:none}
 </style>
 </head>
 <body>
@@ -198,6 +201,7 @@ footer a{color:#fff}
   </div>
 </div>
 
+<div id="nodata"></div>
 <nav class="snav">
   <a href="#s-scale">⚖️ Weigh</a><a href="#s-chart">📈 Chart</a><a href="#s-race">🏁 Race</a><a href="#s-bal">🎢 Balance</a>
   <a href="#s-spiral">🌀 Spiral</a><a href="#s-nums">🔢 Numbers</a><a href="#s-log">📋 Log</a><a href="#s-film">🎞 Photos</a>
@@ -304,8 +308,8 @@ footer a{color:#fff}
 </section>
 
 <!-- ═══════════ FILM ═══════════ -->
-<section class="scene" id="s-film"><div class="label p">🎞 On the scales</div>
-  <div class="intro">Every weigh-in photo on one roll of film. Tap two frames to put them side by side.</div>
+<section class="scene" id="s-film"><div class="label p">🎞 Every photo</div>
+  <div class="intro">Every photo of them from every version, on one roll of film, stamped with their weight that day (~ = worked out from the weigh-ins either side). Tap two frames to put them side by side.</div>
   <div class="film" id="film"></div>
   <div id="vs"></div>
 </section>
@@ -409,8 +413,8 @@ $('#eSave').onclick = () => { const g = Math.round(+$('#eG').value); if (!(g >= 
 /* ═════════════════════ title + heads ═════════════════════ */
 $('#ttl').innerHTML = [...'THE WEIGHT APP'].map((c, i) => c === ' ' ? '&nbsp;' : `<span style="animation-delay:${i * .12}s">${c}</span>`).join('');
 function renderHeads() {
-  $('#heads').innerHTML = KIDS.map(id => { const g = estNow(id), l = latest(id);
-    return `<div class="head"><div class="av">${kittenSVG(id, { w: 58, still: true })}</div><div><small>${esc(K(id).name)} · ${ageStr(ageDays(id))}</small><b>${g ? fmt(g) : '—'}</b><small>${l ? (l.date === todayYmd() ? 'weighed today' : 'est. today · last ' + nice(l.date)) : 'not weighed yet'}</small></div></div>`; }).join('');
+  $('#heads').innerHTML = KIDS.map(id => { const g = estNow(id), l = latest(id), dd = l ? daysBetween(l.date, todayYmd()) : null;
+    return `<div class="head"><div class="av">${kittenSVG(id, { w: 58, still: true })}</div><div><small>${esc(K(id).name)} · ${ageStr(ageDays(id))}</small><b>${l ? fmt(l.g) : '—'}</b><small>${l ? (dd === 0 ? 'weighed today' : `weighed ${nice(l.date)}${dd > 1 ? ` · ~${fmt(g)} by now?` : ''}`) : 'not weighed yet'}</small></div></div>`; }).join('');
 }
 function renderMe() { $('#mepill').textContent = me === 'lemon' ? "🍋 I'm the lemon" : "🌙 I'm the girl"; }
 $('#mepill').onclick = () => { setMe(me === 'lemon' ? 'girl' : 'lemon'); renderMe(); toast(me === 'lemon' ? '🍋 logging as the lemon' : '🌙 logging as the girl'); };
@@ -581,6 +585,10 @@ function drawChartInner() {
       if (x > CL && x < CW - CR && (lastOne || (room && visN <= 6))) fg += `<text x="${lastOne ? x - 14 : x}" y="${y + (b ? (src ? 34 : 26) : (src ? -24 : -16))}" text-anchor="${lastOne ? 'end' : 'middle'}" font-size="12.5" font-weight="900" fill="#111" paint-order="stroke" stroke="#fff" stroke-width="4">${short(p.g)}</text>`;
       pts.push({ x, y, id: p.id });
     });
+    // every other photo of this kitten rides the line at its date
+    if (S.show.photos) allKittenPhotos().filter(ph => ph.k === id && !ph.exact && ph.g != null).forEach(ph => { const d = daysBetween(dob, ph.date); if (d < x0 || d > x1) return; const x = X(d), y = Y(ph.g);
+      fg += `<g class="${drawn ? '' : 'pop'}"><clipPath id="cq-${ph.pid}"><circle cx="${x}" cy="${y}" r="13"/></clipPath><circle cx="${x}" cy="${y}" r="15.5" fill="#fff" stroke="${b ? '#ffb703' : '#b15ee3'}" stroke-width="3.5"/><image href="${photoURL(ph.pid)}" x="${x - 13}" y="${y - 13}" width="26" height="26" clip-path="url(#cq-${ph.pid})" preserveAspectRatio="xMidYMid slice"/></g>`;
+      pts.push({ x, y, photo: ph.pid }); });
     // the kitten riding the end of its line
     const lp = P.filter(p => !p[2].ghost).pop(); if (lp && lp[0] > CL && lp[0] < CW - CR) fg += nestSVG(kittenSVG(id, { w: 44, still: true }), lp[0] + 6, lp[1] - (b ? -6 : 52), 44);
   });
@@ -632,7 +640,7 @@ function drawParade() {
   });
   const up = e => { const p = toSvg(e); ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
     if (!moved && downAt) { const hit = (drawChart.ctx.pts || []).map(d => [d, (d.x - p[0]) ** 2 + (d.y - p[1]) ** 2]).sort((a, b) => a[1] - b[1])[0];
-      if (hit && hit[1] < 700) showCard(hit[0]); else { closeCard(); scrub = toDay(clamp(p[0], CL, CW - CR)); drawPlayhead(); } } downAt = null; };
+      if (hit && hit[1] < 700) { if (hit[0].photo) view(photoURL(hit[0].photo)); else showCard(hit[0]); } else { closeCard(); scrub = toDay(clamp(p[0], CL, CW - CR)); drawPlayhead(); } } downAt = null; };
   svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', e => { ptrs.delete(e.pointerId); pinch = null; downAt = null; });
   svg.addEventListener('dblclick', () => { win = null; drawChart(); });
 })();
@@ -694,7 +702,7 @@ function insights() {
   const L = [];
   KIDS.forEach(id => { const w = weightsOf(id), n = K(id).name; if (!w.length) return; const f = w[0], l = w[w.length - 1];
     if (w.length > 1) L.push(`${n} has gained ${l.g - f.g}g since ${nice(f.date)} — ${equiv(l.g - f.g)}.`);
-    L.push(`${n} is ${(estNow(id) / f.g).toFixed(1)}× the size she was on ${nice(f.date)}.`.replace('she', pen(id) ? 'he' : K(id).sex === 'm' ? 'he' : 'she'));
+    L.push(`${n} is ${(l.g / f.g).toFixed(1)}× the size ${pron(id)} was on ${nice(f.date)} (at ${nice(l.date)}'s weigh-in).`);
     let best = null; for (let i = 1; i < w.length; i++) { const dd = daysBetween(w[i - 1].date, w[i].date); if (dd > 0) { const r = (w[i].g - w[i - 1].g) / dd; if (!best || r > best.r) best = { r, to: w[i].date }; } }
     if (best) L.push(`${n}'s fastest growth: ${Math.round(best.r)} g/day, up to ${nice(best.to)}.`);
     [1000, 1500, 2000, 3000].forEach(t => { const d = whenPaced(id, t); if (d) L.push(`At ${S.pace === 100 ? 'a typical pace' : S.pace + '% pace'}, ${n} reaches ${fmt(t, 'kg')} around ${nice(d)} (${daysBetween(todayYmd(), d)} days).`); });
@@ -883,21 +891,30 @@ $('#csv').onclick = () => { const R = rowsFor('all').sort((a, b) => a.date.local
 $('#json').onclick = () => download(`weights-${todayYmd()}.json`, JSON.stringify(rowsFor('all'), null, 1), 'application/json');
 
 /* ═════════════════════ 🎞 FILM ═════════════════════ */
+// every photo of the kittens from any version (weigh-ins, moments, photo wall, profiles, chat) with their weight at that moment
+function allKittenPhotos() {
+  const byPhoto = {}; live('weights').forEach(([wid, w]) => { if (w.photo) byPhoto[w.photo] = Object.assign({ wid }, w); });
+  const out = live('photos').map(([pid, p]) => { const w = byPhoto[pid] || (p.weigh && doc.weights[p.weigh] && !doc.weights[p.weigh].del ? Object.assign({ wid: p.weigh }, doc.weights[p.weigh]) : null);
+    const k = w ? w.k : p.k, date = w ? w.date : (p.date || todayYmd()), g = w ? w.g : (KIDS.includes(k) && date <= todayYmd() ? wAt(k, date) : null);
+    return { pid, k, date, g, exact: !!w, wid: w && w.wid, caption: p.caption || '' }; });
+  Object.entries(byPhoto).forEach(([pid, w]) => { if (!doc.photos[pid]) out.push({ pid, k: w.k, date: w.date, g: w.g, exact: true, wid: w.wid, caption: '' }); });
+  return out.filter(x => photoURL(x.pid)).sort((a, b) => a.date.localeCompare(b.date));
+}
 const fSel = [];
 function renderFilm() {
-  const P = live('weights').map(([id, w]) => Object.assign({ id }, w)).filter(w => w.photo && photoURL(w.photo)).sort((a, b) => a.date.localeCompare(b.date));
-  $('#film').innerHTML = P.length ? P.map(w => `<div class="frame ${fSel.includes(w.id) ? 'sel' : ''}" data-id="${w.id}"><img src="${photoURL(w.photo)}" alt=""><span class="st">${short(w.g)}</span><div class="c">${esc(K(w.k).name)} · ${nice(w.date)}</div></div>`).join('')
-    : '<div style="color:#fff;font-weight:900;padding:30px 20px">No weigh-in photos yet — add one under "📷 photo" on the scale, from a chart dot, or in the log.</div>';
+  const P = allKittenPhotos(), nm = k => k === 'both' ? 'Both' : esc(K(k) ? K(k).name : k);
+  $('#film').innerHTML = P.length ? P.map(p => `<div class="frame ${fSel.includes(p.pid) ? 'sel' : ''}" data-id="${p.pid}"><img src="${photoURL(p.pid)}" alt="" loading="lazy">${p.g ? `<span class="st">${p.exact ? '' : '~'}${short(p.g)}</span>` : ''}<div class="c">${nm(p.k)} · ${nice(p.date)}${p.caption && !p.exact ? ' · ' + esc(p.caption).slice(0, 24) : ''}</div></div>`).join('')
+    : '<div style="color:#fff;font-weight:900;padding:30px 20px">No photos in this browser yet — add them on the scale, from a chart dot, in the log, or anywhere in the original app.</div>';
   $('#film').querySelectorAll('.frame').forEach(f => f.onclick = () => { const i = fSel.indexOf(f.dataset.id); if (i >= 0) fSel.splice(i, 1); else { fSel.push(f.dataset.id); if (fSel.length > 2) fSel.shift(); } renderFilm(); });
-  const A = fSel.map(id => doc.weights[id]).filter(w => w && !w.del).sort((a, b) => a.date.localeCompare(b.date));
-  $('#vs').innerHTML = A.length === 2 ? (() => { const [a, b] = A, dd = daysBetween(a.date, b.date);
-    return `<div class="vs"><div class="side"><img src="${photoURL(a.photo)}" onclick="view(this.src)">${esc(K(a.k).name)} · ${fmt(a.g)}<br><span class="muted">${nice(a.date)}</span></div>
-      <div class="mid">${sign(b.g - a.g)}g<br><span style="font-size:.8rem">×${(b.g / a.g).toFixed(2)} in ${dd}d</span></div>
-      <div class="side"><img src="${photoURL(b.photo)}" onclick="view(this.src)">${esc(K(b.k).name)} · ${fmt(b.g)}<br><span class="muted">${nice(b.date)}</span></div></div>`; })() : A.length === 1 ? '<p class="muted" style="text-align:center;font-weight:900;margin-top:10px">Tap one more frame to compare</p>' : '';
+  const A = fSel.map(id => P.find(p => p.pid === id)).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date));
+  $('#vs').innerHTML = A.length === 2 ? (() => { const [a, b] = A, dd = daysBetween(a.date, b.date), both = a.g && b.g;
+    return `<div class="vs"><div class="side"><img src="${photoURL(a.pid)}" onclick="view(this.src)">${nm(a.k)}${a.g ? ' · ' + (a.exact ? '' : '~') + fmt(a.g) : ''}<br><span class="muted">${nice(a.date)}</span></div>
+      <div class="mid">${both ? sign(b.g - a.g) + 'g' : '↔'}<br><span style="font-size:.8rem">${both ? '×' + (b.g / a.g).toFixed(2) + ' · ' : ''}${dd} days</span></div>
+      <div class="side"><img src="${photoURL(b.pid)}" onclick="view(this.src)">${nm(b.k)}${b.g ? ' · ' + (b.exact ? '' : '~') + fmt(b.g) : ''}<br><span class="muted">${nice(b.date)}</span></div></div>`; })() : A.length === 1 ? '<p class="muted" style="text-align:center;font-weight:900;margin-top:10px">Tap one more frame to compare</p>' : '';
 }
 
 /* ═════════════════════ render + boot ═════════════════════ */
-function renderAll() { renderHeads(); renderKPick(); drawScale(); drawChart(); renderRace(); renderTray(); drawBal(); renderSpiral(); renderNums(); renderLog(); renderFilm(); }
+function renderAll() { renderDataWarning(); renderHeads(); renderKPick(); drawScale(); drawChart(); renderRace(); renderTray(); drawBal(); renderSpiral(); renderNums(); renderLog(); renderFilm(); }
 $('#syncpill').onclick = () => toast('Pair phones from the original or v2 — this app shares the same pairing');
 $('#arcJson').onclick = () => exportArchive('json'); $('#arcHtml').onclick = () => exportArchive('html');
 $('#arcIn').onchange = async e => { const f = e.target.files[0]; if (f) { try { await importArchive(f); } catch (err) { toast('📂 ' + err.message); } } e.target.value = ''; };
