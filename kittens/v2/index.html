@@ -53,6 +53,9 @@ header .toprow{margin-top:8px}
 .crown{font-size:clamp(1.05rem,4vw,1.3rem);font-weight:900;text-align:center;margin:4px 0 12px}
 footer a{color:#fff}
 .arch{background:rgba(255,253,245,.96);color:#111;text-shadow:none;border:3px solid #000;border-radius:18px;padding:10px 14px;margin:10px auto;max-width:560px;box-shadow:var(--pop-sm);font-weight:800;line-height:1.7}
+.nodata{background:#fff1e6;border:4px solid #e63946;border-radius:20px;padding:12px 16px;margin:12px auto;max-width:860px;font-weight:800;line-height:1.55;box-shadow:5px 6px 0 #000;color:#111;text-shadow:none;text-align:left}
+.nodata.small{border-width:3px;background:#fffbe0;font-size:.9rem}
+.nodata:empty{display:none}
 </style>
 </head>
 <body>
@@ -66,6 +69,7 @@ footer a{color:#fff}
   </div>
 </header>
 
+<div id="nodata"></div>
 <!-- everybody, to scale -->
 <div class="stage" id="stage" style="margin-top:26px"></div>
 <div class="ages" id="ages"></div>
@@ -166,7 +170,7 @@ function renderStage() {
   const unit = vw < 380 ? 0.46 : vw < 440 ? 0.52 : vw < 700 ? 0.8 : 1;
   const big = Math.max(...KIDS.map(id => estNow(id) || 600));
   const kw = id => Math.round(160 * unit * Math.cbrt((estNow(id) || 600) / big));
-  const tag = id => { const g = estNow(id); return `${esc(K(id).name)} <small>${g ? (g >= 1000 ? (g / 1000).toFixed(2) + 'kg' : g + 'g') : ''}</small>`; };
+  const tag = id => { const l = latest(id); if (!l) return esc(K(id).name); const dd = daysBetween(l.date, todayYmd()); return `${esc(K(id).name)} <small>${l.g >= 1000 ? (l.g / 1000).toFixed(2) + 'kg' : l.g + 'g'} · ${dd === 0 ? 'today' : dd === 1 ? 'yesterday' : dd + 'd ago'}</small>`; };
   $('#stage').innerHTML = `
     <div class="char bob" data-who="girl">${girlSVG(Math.round(108 * unit))}<div class="tag">the girl 🌙</div></div>
     <div class="char bob2" data-who="misato">${kittenSVG('misato', { w: kw('misato') })}<div class="tag">${tag('misato')}</div></div>
@@ -371,7 +375,7 @@ function renderBond() {
 }
 
 /* ═════ render + pairing + boot ═════ */
-function renderAll() { renderStage(); drawChart(); renderTodos(); renderComing(); renderBond(); }
+function renderAll() { renderDataWarning(); renderStage(); drawChart(); renderTodos(); renderComing(); renderBond(); }
 $('#pairbtn').onclick = $('#syncpill').onclick = () => { $('#pairLink').value = pairLink(); $('#pairWa').href = 'https://wa.me/?text=' + encodeURIComponent('🐾 Misato & Pen Pen — open this once to sync: ' + pairLink()); $('#pairdlg').showModal(); };
 $('#pairCopy').onclick = async () => { try { await navigator.clipboard.writeText(pairLink()); toast('📋 copied'); } catch (e) { $('#pairLink').select(); document.execCommand('copy'); toast('📋 copied'); } };
 $('#pairClose').onclick = () => $('#pairdlg').close();
