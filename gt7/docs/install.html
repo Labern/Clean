@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>GT7 Endgame: install guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Barlow+Condensed:ital,wght@1,700;1,800;1,900&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm; }
+  :root { --navy: #0b1f4b; --red: #e1131f; --ink: #1a2238; --ink3: #5d6b8f; --line: #e1e6f0; }
+  * { box-sizing: border-box; }
+  body { font: 500 11pt/1.5 Archivo, sans-serif; color: var(--ink); margin: 0; }
+  h1, h2, h3, .k { font-family: 'Barlow Condensed', sans-serif; font-style: italic; text-transform: uppercase; margin: 0; line-height: .95; }
+  h1 { font-size: 44pt; font-weight: 900; color: var(--navy); }
+  h2 { font-size: 22pt; font-weight: 800; color: var(--navy); margin: 0 0 8pt; padding-top: 4pt; }
+  h3 { font-size: 14pt; font-weight: 800; color: var(--navy); margin: 12pt 0 4pt; }
+  .k { color: var(--red); font-weight: 700; letter-spacing: .14em; font-size: 11pt; }
+  .stripe { height: 6pt; background: linear-gradient(90deg, #0a2a8a 0 50%, var(--red) 50% 100%); width: 90pt; margin: 10pt 0 16pt; border-radius: 3pt; }
+  .cover { break-after: page; }
+  h2, h3, .k { break-after: avoid; }
+  .part { break-inside: avoid-page; }
+  p { margin: 0 0 7pt; }
+  .lead { font-size: 13pt; color: var(--ink3); max-width: 150mm; }
+  .card { border: 1.5pt solid var(--line); border-radius: 10pt; padding: 10pt 12pt; margin: 8pt 0; break-inside: avoid; }
+  .card.best { border-color: var(--red); background: #fff6f6; }
+  .card h3 { margin-top: 0; }
+  .tag { display: inline-block; font: 800 8pt Archivo; text-transform: uppercase; letter-spacing: .08em; padding: 2pt 7pt; border-radius: 99pt; background: var(--navy); color: #fff; margin-left: 6pt; vertical-align: middle; font-style: normal; }
+  .tag.red { background: var(--red); }
+  ol.steps { counter-reset: s; list-style: none; padding: 0; margin: 6pt 0; }
+  ol.steps > li { counter-increment: s; position: relative; padding: 0 0 8pt 30pt; break-inside: avoid; }
+  ol.steps > li::before { content: counter(s); position: absolute; left: 0; top: -1pt; width: 21pt; height: 21pt; border-radius: 50%; background: var(--navy); color: #fff; font: 800 10pt/21pt Archivo; text-align: center; }
+  code, .path { font: 600 9.5pt ui-monospace, Menlo, monospace; background: #eef1f7; padding: 1pt 5pt; border-radius: 4pt; }
+  pre { font: 600 9.5pt/1.45 ui-monospace, Menlo, monospace; background: var(--navy); color: #fff; padding: 9pt 11pt; border-radius: 8pt; margin: 5pt 0 8pt; white-space: pre-wrap; }
+  .note { border-left: 4pt solid #e8b923; background: #fffaeb; padding: 7pt 10pt; border-radius: 0 8pt 8pt 0; margin: 8pt 0; break-inside: avoid; font-size: 10pt; }
+  .note.red { border-color: var(--red); background: #fff2f3; }
+  table { width: 100%; border-collapse: collapse; margin: 6pt 0; font-size: 10pt; }
+  th, td { text-align: left; padding: 6pt 7pt; border-bottom: 1pt solid var(--line); vertical-align: top; }
+  th { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .06em; color: var(--ink3); }
+  td b { color: var(--navy); }
+  .yes { color: #0b7a43; font-weight: 800; } .no { color: var(--red); font-weight: 800; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10pt; }
+  a { color: #0a2a8a; font-weight: 700; }
+  .foot { color: var(--ink3); font-size: 9pt; margin-top: 14pt; }
+  .cover { display: flex; flex-direction: column; min-height: 255mm; }
+  .cover .grow { flex: 1; }
+  .big-links div { margin: 4pt 0; font-size: 12pt; }
+</style></head><body>
+
+<section class="cover"><div>
+  <div class="k">Gran Turismo 7 companion</div>
+  <h1 style="margin-top:6pt">GT7 Endgame</h1>
+  <h2 style="color:var(--red);margin-top:4pt">Install guide</h2>
+  <div class="stripe"></div>
+  <p class="lead">How to get the app on your iPhone talking straight to your PS5: live telemetry, every lap recorded, and the Sector Trainer comparing every attempt with the Circuit Experience demo.</p>
+  <h3>Which way should I install it?</h3>
+  <table>
+    <tr><th></th><th>iPhone app</th><th>Mac bridge + Safari</th><th>Website only</th></tr>
+    <tr><td><b>Live data from the PS5</b></td><td class="yes">Yes, direct</td><td class="yes">Yes, via the Mac</td><td class="no">No</td></tr>
+    <tr><td><b>Mac on while you play</b></td><td class="yes">No</td><td class="no">Yes</td><td>n/a</td></tr>
+    <tr><td><b>GT7 account sign-in</b></td><td class="yes">Yes</td><td>PSN via the bridge</td><td>No</td></tr>
+    <tr><td><b>Setup</b></td><td>15 minutes, once</td><td>5 minutes</td><td>None</td></tr>
+    <tr><td><b>Best for</b></td><td><b>Playing with the phone in your lap</b></td><td>Trying it today</td><td>Notes, guides, looking back</td></tr>
+  </table>
+  <div class="card best"><h3>Recommended: the iPhone app <span class="tag red">Part 2</span></h3>
+  <p>Built for you in the cloud on every update. You install it from your Mac with a free tool called Sideloadly and your own Apple ID. No Xcode, no developer account needed.</p></div>
+  <div class="grow"></div>
+  <div class="big-links">
+    <div>App (website): <a href="https://labern.github.io/Clean/gt7/">labern.github.io/Clean/gt7</a></div>
+    <div>iPhone app file: <a href="https://labern.github.io/Clean/gt7/download/GT7Endgame.ipa">labern.github.io/Clean/gt7/download/GT7Endgame.ipa</a></div>
+    <div>Sector Trainer: <a href="https://labern.github.io/Clean/gt7/#/ce">labern.github.io/Clean/gt7/#/ce</a></div>
+  </div>
+</div></section>
+
+<section>
+  </div><div class="part"><div class="k">Part 1</div><h2>Before you start: the PS5</h2>
+  <p>GT7 broadcasts its telemetry on your home network all the time. There's no setting to switch on in the game. You only need three things right:</p>
+  <ol class="steps">
+    <li><b>Same Wi-Fi.</b> The PS5 and your iPhone (or Mac) must be on the same home network. A guest network or a "client isolation" setting on the router blocks it. If your phone has a VPN on, turn it off while playing.</li>
+    <li><b>Find the PS5's address.</b> On the PS5: <span class="path">Settings → Network → Connection Status → View Connection Status</span>. Note the <b>IPv4 address</b>, e.g. <code>192.168.1.23</code>. The app can also find it by itself ("auto"), but typing it is fastest and most reliable.</li>
+    <li><b>Be on track.</b> GT7 sends data while you drive and during replays (including the Circuit Experience demo). Menus and loading screens send nothing.</li>
+  </ol>
+  <div class="note">Tip: give the PS5 a fixed address in your router (DHCP reservation) so you never have to look it up again.</div>
+
+  </div><div class="part"><div class="k" style="margin-top:16pt">Part 2</div><h2>The iPhone app, with Sideloadly</h2>
+  <p>Apple only lets App Store apps install by themselves, so the app is signed on your Mac with your own Apple ID. Sideloadly does that in one click.</p>
+  <h3>You need</h3>
+  <p>Your Mac, your iPhone, its USB cable, and your Apple ID (a free one works).</p>
+  <ol class="steps">
+    <li><b>Get Sideloadly.</b> On the Mac, download it from <a href="https://sideloadly.io">sideloadly.io</a> and drag it into Applications. Open it once (if macOS warns, right-click → Open).</li>
+    <li><b>Get the app file.</b> Download <a href="https://labern.github.io/Clean/gt7/download/GT7Endgame.ipa">GT7Endgame.ipa</a>. It's rebuilt automatically every time the app changes.</li>
+    <li><b>Connect the iPhone</b> with the cable. Unlock it and tap <b>Trust</b> when it asks about this computer.</li>
+    <li><b>Install.</b> In Sideloadly: drag <code>GT7Endgame.ipa</code> into the window, check your iPhone is selected, type your Apple ID email, press <b>Start</b>. Enter your Apple ID password and the 6-digit code if asked. Wait for "Done".</li>
+    <li><b>Developer Mode</b> (iOS 16 and later). On the iPhone: <span class="path">Settings → Privacy &amp; Security → Developer Mode</span> → On. The phone restarts; confirm <b>Turn On</b> afterwards. If the option isn't there yet, open the app once and iOS adds it.</li>
+    <li><b>Trust yourself as the developer.</b> <span class="path">Settings → General → VPN &amp; Device Management</span> → your Apple ID → <b>Trust</b>.</li>
+    <li><b>Open GT7 Endgame.</b> When it asks to find devices on your local network, tap <b>Allow</b>. This is how it reaches the PS5.</li>
+  </ol>
+  <div class="note red"><b>Free Apple ID: the app stops opening after 7 days.</b> That's Apple's rule for free accounts, not the app. Plug in and press Start in Sideloadly again (your notes and laps stay on the phone). Or turn on Sideloadly's <b>automatic refresh</b> so it renews over Wi-Fi when the Mac is on. A paid Apple Developer account ($99 / £79 a year) makes it last a year.</div>
+</div></section>
+
+<section>
+  </div><div class="part"><div class="k">Part 3</div><h2>Connect to the PS5</h2>
+  <ol class="steps">
+    <li>Turn on the PS5 and start GT7.</li>
+    <li>In the app, open <b>Logger</b> (or the <b>Sectors</b> tab, which connects by itself once you've done this once).</li>
+    <li>Type the PS5 address from Part 1, or leave it empty for auto. Tap <b>Connect to PS5</b>.</li>
+    <li>Drive. The live panel shows speed, gear, revs, throttle and brake. Every finished lap is saved with GT7's official time; every run between resets (a sector attempt, a demo replay) is saved for the Sector Trainer.</li>
+  </ol>
+  <h3>Your GT7 account (optional)</h3>
+  <p><span class="path">More → PlayStation + GT7 → Sign in to Gran Turismo</span>. Sony's own sign-in page opens inside the app. Afterwards your credits come from the game itself and drive the app's next-move suggestions.</p>
+
+  </div><div class="part"><div class="k" style="margin-top:16pt">Part 4</div><h2>The Sector Trainer</h2>
+  <ol class="steps">
+    <li><b>Pick the section.</b> Sectors tab → the track → <b>Train this</b> on the section you're doing. Type the gold time GT7 shows (silver and bronze if you want them).</li>
+    <li><b>Watch the demo in GT7.</b> The app records it. The first run in a section becomes the demo; if you drove first, tap <b>That was the demo</b> on the right run later.</li>
+    <li><b>Drive.</b> Each time you hit retry you get your time, the gap to the demo and to gold, and the corner that cost you most, read out loud.</li>
+    <li><b>Calibrate once.</b> Type the time GT7 gave you for one attempt in <b>GT7 said</b>. Every time after that matches GT7's clock.</li>
+    <li><b>Look at the data.</b> <b>See it on the logger</b> lays your run over the demo: the map coloured where you gain and lose, both brake points, play both cars together, and speed, gap, brake, throttle, steering and gear traces. Corners are ranked by the time they cost.</li>
+    <li><b>Corner notes.</b> Tap a numbered corner chip. You see that corner drawn from the demo with your last attempt, the demo's numbers and every attempt there. Write a note and choose <b>Try it</b>: the app compares that corner in the attempts after your note with the ones before, and tells you whether it worked. <b>The data says</b> suggests notes from patterns in your driving.</li>
+  </ol>
+
+  </div><div class="part"><div class="k" style="margin-top:16pt">Part 5</div><h2>Without the app: the Mac bridge</h2>
+  <p>Works today from Safari on the phone, as long as the Mac stays on and on the same Wi-Fi.</p>
+  <ol class="steps">
+    <li>Install Node.js on the Mac: <a href="https://nodejs.org">nodejs.org</a> (LTS), or <code>brew install node</code>.</li>
+    <li>In Terminal:<pre>git clone https://github.com/Labern/Clean
+node Clean/gt7/bridge/gt7-bridge.mjs --ps5 192.168.1.23</pre>Use your PS5's address, or <code>--ps5 auto</code>. To test with no PS5: <code>--demo sector</code>.</li>
+    <li>It prints <code>phone: http://192.168.x.x:8787</code>. Open that address on the iPhone in Safari, add <code>/#/ce</code> for the Sector Trainer. Leave Terminal open while you play.</li>
+  </ol>
+</div></section>
+
+<section>
+  </div><div class="part"><div class="k">Part 6</div><h2>If something doesn't work</h2>
+  <table>
+    <tr><th style="width:38%">What you see</th><th>Fix</th></tr>
+    <tr><td><b>"Looking for your PS5…" forever</b></td><td>Type the PS5's address instead of auto. Check both are on the same Wi-Fi (not guest), VPN off. GT7 must be running and you must be on track.</td></tr>
+    <tr><td><b>Connected, but no data</b></td><td>iPhone: <span class="path">Settings → GT7 Endgame → Local Network</span> must be on. Drive out of the pits: menus send nothing.</td></tr>
+    <tr><td><b>"Untrusted Developer"</b></td><td><span class="path">Settings → General → VPN &amp; Device Management</span> → your Apple ID → Trust.</td></tr>
+    <tr><td><b>"Developer Mode required"</b></td><td><span class="path">Settings → Privacy &amp; Security → Developer Mode</span> → On, restart.</td></tr>
+    <tr><td><b>App won't open any more</b></td><td>7 days passed on a free Apple ID. Run Sideloadly again (Part 2, step 4). Your data stays.</td></tr>
+    <tr><td><b>Sideloadly: "maximum number of apps"</b></td><td>Free accounts can have 3 sideloaded apps. Delete one you don't use from the phone.</td></tr>
+    <tr><td><b>Sideloadly asks for a password repeatedly</b></td><td>Use the normal Apple ID password and approve the sign-in on another Apple device; type the 6-digit code.</td></tr>
+    <tr><td><b>Times don't match GT7</b></td><td>Type GT7's time for one attempt into <b>GT7 said</b> on the live card (Part 4, step 4).</td></tr>
+    <tr><td><b>Runs aren't filed to my section</b></td><td>Tap <b>Train this</b> on the section before you drive. A run is matched by where it starts on track.</td></tr>
+    <tr><td><b>Website shows "not connected"</b></td><td>Expected in Safari: a website can't receive the PS5's data. Use the app (Part 2) or the bridge (Part 5).</td></tr>
+  </table>
+  <h3>Your data</h3>
+  <p>Laps, runs and notes are stored on the device. Sign in to the cloud save (<span class="path">More → Cloud save</span>, your PSN ID and a passphrase) to have the same save on the iPhone, the Mac and anywhere else. It's encrypted with your passphrase before it leaves the device.</p>
+  <h3>Updates</h3>
+  <p>The website updates by itself. The iPhone app file is rebuilt automatically whenever the app changes: download it again and press Start in Sideloadly to update (it installs over the top, data kept).</p>
+  <div class="foot">GT7 Endgame is an unofficial companion. Gran Turismo is a trademark of Sony Interactive Entertainment. Telemetry decoding follows the community's published GT7 protocol notes.</div>
+</div></section>
+</body></html>

@@ -132,6 +132,7 @@ public class Gt7DirectPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc private func cancelSignIn() { finish(nil, error: "cancelled") }
     fileprivate func tryToken() {
         guard let w = web, w.url?.host == "www.gran-turismo.com" else { return }
+        guard #available(iOS 14.0, *) else { finish(nil, error: "GT7 sign-in needs iOS 14 or newer"); return }
         w.callAsyncJavaScript("return await \(Gt7DirectPlugin.tokenJS)", arguments: [:], in: nil, in: .page) { [weak self] r in
             if case let .success(v) = r, let d = v as? [String: Any], d["access_token"] != nil { self?.finish(d, error: nil) }
             else if self?.shown == nil { self?.finish(nil, error: "signin") }   // silent and no session

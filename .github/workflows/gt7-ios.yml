@@ -126,6 +126,16 @@ jobs:
           git -c user.name="gt7-ci" -c user.email="ci@users.noreply.github.com" commit -qm "CI ${GITHUB_SHA::7}"
           git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci/gt7
 
+      - name: Publish the .ipa on the site
+        if: steps.device.outcome == 'success'
+        run: |
+          cp out/GT7Endgame.ipa "$RUNNER_TEMP/GT7Endgame.ipa"
+          cd "$RUNNER_TEMP" && rm -rf pages
+          git clone -q --depth 1 -b gh-pages "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" pages
+          mkdir -p pages/gt7/download && cp GT7Endgame.ipa pages/gt7/download/
+          cd pages && git add gt7/download/GT7Endgame.ipa
+          git -c user.name="gt7-ci" -c user.email="ci@users.noreply.github.com" commit -qm "gt7: iPhone app ${GITHUB_SHA::7}" && git push -q origin gh-pages || echo "ipa unchanged"
+
       - name: Fail if a build failed
         if: steps.sim.outcome == 'failure' || steps.device.outcome == 'failure'
         run: exit 1
