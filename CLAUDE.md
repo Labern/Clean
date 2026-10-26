@@ -1,5 +1,16 @@
 # CLAUDE.md
 
+## ALWAYS — end every reply with the live links
+Every reply to the user, without exception, must END with clickable links to
+everything that has been built and deployed (the live GitHub Pages URLs, plus
+the code branch). For the kittens project that is:
+- The weight app: https://labern.github.io/Clean/kittens/weight/
+- v2: https://labern.github.io/Clean/kittens/v2/
+- Original (v1): https://labern.github.io/Clean/kittens/
+- Classic weight app: https://labern.github.io/Clean/kittens/weight/classic.html
+- Code branch: https://github.com/Labern/Clean/tree/kittens-v2
+Add any new page to this list the moment it ships. Never omit the list.
+
 ## Project
 A sandbox directory, not a formal app. Currently contains a single static
 demo page (`index.html`) built during a Claude Code session — a hero
