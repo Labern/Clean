@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ffca3a">
+<title>Data check</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%85%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+.wrap{max-width:900px}
+.big{font-size:clamp(1.6rem,7vw,2.6rem);font-weight:900;line-height:1.1}
+.ok{color:#2e8b13}.warn{color:#c9900a}.bad{color:#c62828}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+.kv div{background:#fff;border:3px solid #000;border-radius:14px;padding:8px 10px;box-shadow:var(--pop-sm)}
+.kv small{display:block;font-size:.7rem;font-weight:900;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+.kv b{font-size:1.25rem}
+.fp{font-family:ui-monospace,Menlo,monospace;font-size:1.6rem;font-weight:900;background:#000;color:#ffca3a;border-radius:12px;padding:2px 12px;letter-spacing:.12em}
+table{width:100%;border-collapse:collapse;font-size:.92rem}td,th{padding:5px 6px;border-bottom:2px dashed #ddd;text-align:left}
+.bin li{display:flex;gap:8px;align-items:center;background:#fff;border:3px solid #000;border-radius:14px;padding:6px 10px;margin:6px 0;list-style:none}
+.bin li .grow{flex:1;min-width:0;overflow-wrap:anywhere}
+.thumbs{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.thumbs img{width:64px;height:64px;object-fit:cover;border-radius:10px;border:2px solid #000}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>✅ Data check</h1><div class="tagline">everything this browser holds for Misato &amp; Pen Pen</div>
+  <div class="toprow"><button class="pill" id="syncpill"><span class="dot"></span><span id="synctext">saving…</span></button>
+  <a class="pill" href="../" style="text-decoration:none">← original</a><a class="pill" href="../v2/" style="text-decoration:none">← v2</a><a class="pill" href="../weight/" style="text-decoration:none">← weight app</a></div></header>
+
+<section class="card"><h2>🔑 Which data is this?</h2>
+  <p style="font-weight:800">Open this page on each phone (and in the home-screen app). If <b>any</b> of the codes below match between two of them, those two share one dataset and sync with each other.</p>
+  <p style="margin:10px 0"><span class="fp" id="fp">……</span> <span class="muted" id="fpMore"></span></p>
+  <div id="verdict" class="big"></div>
+</section>
+
+<section class="card"><h2>📊 What's stored here</h2><div class="kv" id="counts"></div></section>
+<section class="card"><h2>⚖️ Newest weigh-ins in this browser</h2><div id="weighs"></div></section>
+<section class="card"><h2>📸 Photos</h2><div id="photos"></div></section>
+<section class="card"><h2>💽 Storage</h2><div id="storage"></div></section>
+<section class="card"><h2>🗑 The bin</h2><p class="muted" style="font-weight:800">Anything deleted in any version since this update. Nothing in here is ever thrown away.</p><ul class="bin" id="bin"></ul></section>
+<section class="card"><h2>🕰 Daily snapshots</h2><p class="muted" style="font-weight:800">One automatic copy of all the data (text, without photos) per day, last 7 kept. Merging one back only ADDS what's missing — it never removes or overwrites anything newer.</p><ul class="bin" id="snaps"></ul></section>
+<section class="card"><h2>💾 Keep a copy</h2><p style="font-weight:800">Everything incl. photos in one file.</p>
+  <button class="btn" id="arcJson">⬇️ Save .json</button> <button class="btn" id="arcHtml">🖼 Save viewable .html</button>
+  <label class="btn" style="display:inline-block">📂 Restore from a file<input type="file" id="arcIn" accept=".json,.html,application/json,text/html" hidden></label></section>
+<footer>🍋💛🌙</footer>
+</div>
+<div id="toast"></div>
+<script src="../vendor/mqtt.min.js"></script>
+<script src="../shared/core.js"></script>
+<script>
+'use strict';
+const COLL = { weights: '⚖️ weigh-ins', photos: '📸 photo records', events: '📅 moments', bond: '💞 bond notes', todos: '✅ to-dos', foods: '🍽 foods', shop: '🛒 shopping', msgs: '💬 messages', costs: '💷 costs', health: '🩺 health checks', care: '☀️ care days', skills: '🎓 skills', cams: '📹 cameras', kittens: '🐾 kitten profiles', meta: '⚙️ settings' };
+const kb = n => n > 1048576 ? (n / 1048576).toFixed(2) + ' MB' : Math.round(n / 1024) + ' KB';
+async function fingerprint(sec) { if (!sec || !crypto.subtle) return '—'; return [...(await sha('kittens-topic:' + sec))].slice(0, 3).map(x => x.toString(16).padStart(2, '0')).join('').toUpperCase(); }
+async function renderAll() {
+  // which dataset
+  const keys = knownSecrets(), fps = await Promise.all(keys.map(fingerprint)); $('#fp').textContent = fps.join(' · ') || '—';
+  $('#fpMore').textContent = keys.length > 1 ? `(syncing on all ${keys.length})` : '';
+  const real = hasYourData();
+  $('#verdict').innerHTML = real ? '<span class="ok">✅ Your data is here.</span>' : '<span class="bad">⚠️ This browser has none of your entries — only the starting values. Your data is on the phone/app where you log it.</span>';
+  // counts
+  $('#counts').innerHTML = Object.keys(doc).filter(c => doc[c] && typeof doc[c] === 'object').sort((a, b) => (COLL[a] ? 0 : 1) - (COLL[b] ? 0 : 1)).map(c => { const all = Object.values(doc[c]), liveN = all.filter(r => r && !r.del).length, binN = all.filter(r => r && r.del).length;
+    return `<div><small>${COLL[c] || '🧩 ' + esc(c)}</small><b>${liveN}</b>${binN ? ` <span class="muted">· ${binN} deleted</span>` : ''}</div>`; }).join('');
+  // weigh-ins
+  $('#weighs').innerHTML = KIDS.map(id => { const w = weightsOf(id), last = w.slice(-6).reverse();
+    return `<h3>${esc(K(id).name)} — ${w.length} weigh-in${w.length === 1 ? '' : 's'}</h3><table>${last.map(x => `<tr><td>${nice(x.date)}${x.time ? ' ' + esc(x.time) : ''}</td><td><b>${x.g} g</b>${x.approx ? ' ~' : ''}</td><td>${String(x.id).startsWith('w-seed-') ? '<span class="muted">starting value</span>' : (WHO[x.by] || '')}</td><td>${x.photo ? '📷' : ''}</td></tr>`).join('') || '<tr><td>none</td></tr>'}</table>`; }).join('');
+  // photos
+  const recs = live('photos').map(([pid]) => pid), have = recs.filter(pid => photoURL(pid)), missing = recs.length - have.length;
+  const imgKeys = Object.keys(allImages()), orphans = imgKeys.filter(k => !doc.photos[k]).length;
+  $('#photos').innerHTML = `<div class="kv"><div><small>photos</small><b>${recs.length}</b></div><div><small>images on this phone</small><b class="${missing ? 'warn' : 'ok'}">${have.length}</b></div>
+    <div><small>still syncing</small><b class="${missing ? 'warn' : ''}">${missing}</b></div><div><small>kept images (incl. bin)</small><b>${imgKeys.length}</b></div></div>
+    ${missing ? '<p class="warn" style="font-weight:800;margin-top:8px">Some photos are known but their images haven\'t arrived on this phone yet — they come across when both phones are online.</p>' : ''}
+    <div class="thumbs">${have.slice(-24).reverse().map(pid => `<img src="${photoURL(pid)}" alt="">`).join('')}</div>`;
+  // storage
+  let used = 0; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k.startsWith('kittens.')) used += (k.length + (localStorage.getItem(k) || '').length) * 2; } } catch (e) {}
+  let persisted = null; try { persisted = navigator.storage && navigator.storage.persisted ? await navigator.storage.persisted() : null; } catch (e) {}
+  const pct = used / (5 * 1048576 * 2) * 100;   // ~5M characters is the usual limit
+  $('#storage').innerHTML = `<div class="kv"><div><small>used by the app</small><b>${kb(used / 2)}</b></div><div><small>of roughly</small><b>5 MB</b></div><div><small>full</small><b class="${pct > 80 ? 'bad' : pct > 60 ? 'warn' : 'ok'}">${pct.toFixed(0)}%</b></div>
+    <div><small>kept permanently</small><b class="${persisted ? 'ok' : 'warn'}">${persisted === null ? '?' : persisted ? 'yes' : 'not yet'}</b></div></div>
+    ${persisted === false ? '<p class="warn" style="font-weight:800;margin-top:8px">The browser hasn\'t promised to keep this storage. Adding the app to your Home Screen (Share → Add to Home Screen) makes it permanent on iPhone.</p>' : ''}
+    ${pct > 80 ? '<p class="bad" style="font-weight:800">Storage is nearly full — save an archive now, then remove a few photos.</p>' : ''}`;
+  // bin
+  const B = []; Object.keys(doc).forEach(c => { if (doc[c] && typeof doc[c] === 'object') Object.entries(doc[c]).forEach(([id, r]) => { if (r && r.del && r.was) B.push({ c, id, r }); }); });
+  B.sort((a, b) => b.r.u - a.r.u);
+  $('#bin').innerHTML = B.length ? B.map(({ c, id, r }) => { const w = r.was, img = c === 'photos' && photoURL(id);
+    const label = w.g ? `${esc(K(w.k) ? K(w.k).name : w.k)} ${w.g} g on ${esc(w.date)}` : esc(w.text || w.title || w.name || w.caption || id);
+    return `<li>${img ? `<img src="${img}" style="width:48px;height:48px;object-fit:cover;border-radius:8px;border:2px solid #000">` : ''}<div class="grow"><b>${COLL[c] || c}</b> · ${label}<div class="muted">deleted ${new Date(r.u).toLocaleString('en-GB')}</div></div><button class="btn sm" data-c="${c}" data-id="${esc(id)}">↩︎ restore</button></li>`; }).join('')
+    : '<li class="muted">Empty.</li>';
+  $('#bin').querySelectorAll('button[data-c]').forEach(b => b.onclick = () => { const r = doc[b.dataset.c][b.dataset.id]; if (!r || !r.was) return;
+    doc[b.dataset.c][b.dataset.id] = Object.assign({}, r.was, { u: Date.now() }); save(); changed(); toast('↩︎ restored'); });
+  // snapshots
+  const S = snapshots().reverse();
+  $('#snaps').innerHTML = S.length ? S.map(d => { let n = 0; try { n = Object.values(JSON.parse(lsGet(LS_SNAP + d)).weights || {}).filter(w => w && !w.del).length; } catch (e) {}
+    return `<li><div class="grow"><b>${nice(d)}</b> <span class="muted">· ${n} weigh-ins</span></div><button class="btn sm" data-snap="${d}">⤵︎ merge back in</button></li>`; }).join('') : '<li class="muted">The first one is taken a few seconds after you open any version.</li>';
+  $('#snaps').querySelectorAll('[data-snap]').forEach(b => b.onclick = () => { try { const sn = JSON.parse(lsGet(LS_SNAP + b.dataset.snap)); const before = JSON.stringify(doc); doc = merge(doc, sn).out; save(); changed(); toast(before === JSON.stringify(doc) ? 'nothing was missing — all already here ✅' : '⤵︎ merged back in'); } catch (e) { toast('that snapshot is unreadable'); } });
+}
+$('#syncpill').onclick = () => toast('Pair from the original or v2');
+$('#arcJson').onclick = () => exportArchive('json'); $('#arcHtml').onclick = () => exportArchive('html');
+$('#arcIn').onchange = async e => { const f = e.target.files[0]; if (f) { try { await importArchive(f); } catch (err) { toast('📂 ' + err.message); } } e.target.value = ''; };
+renderAll(); setInterval(renderAll, 15000);
+initSync();
+</script>
+</body>
+</html>
