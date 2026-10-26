@@ -21,8 +21,10 @@ import { startView, chapterView } from './start.js';
 import { apexIndex, apexView, apexOnTrack, nextApex } from './apex.js';
 import { apexForTrack } from '../data/apex.js';
 import { videosSection, wireVideos } from './videos.js';
+import { studioHtml, wireStudio } from './trackstudio.js';
 import { mountSim, simBlock } from './simview.js';
 import { systemsIndex, systemView } from './systems.js';
+import { psnWizard, wireWizard } from './psnwizard.js';
 import { SCENARIOS } from './scenarios.js';
 import * as connect from './connect.js';
 import { isNative } from './platform.js';
@@ -247,8 +249,6 @@ views.track = (id) => {
   const car = carById[t.car];
   const pb = s.pbs[t.id] || {};
   const classes = Object.keys(t.laps);
-  let sel = -1, sector = -1;
-  const mapHtml = () => fullMap(t, sel, sector) || `<div style="padding:30px 10px 10px"><div class="kicker" style="color:#ff8a90">GT original · no real-world geometry</div><h3 style="color:#fff;margin:6px 0 4px">Lap strip</h3><p style="color:#9fb3e6;font-size:14px;margin-bottom:6px">Corners placed by estimated distance round the lap. Tap a marker.</p>${lapStrip(t, sel)}</div>`;
   return {
     html: html`
     ${back('#/tracks', 'Tracks')}
@@ -258,13 +258,10 @@ views.track = (id) => {
     </div>
     <p class="muted" style="max-width:80ch;margin:12px 0 22px;font-size:17px">${t.blurb}</p>
 
-    <div class="t-hero">
-      <div class="mapstage" id="mapstage">
-        <div class="note">${t.country === 'GT original' ? 'Layout traced from the in-game course map' : t.map ? 'Geometry © OpenStreetMap contributors' : ''}</div>
-        <div id="mapsvg">${raw(mapHtml())}</div>
-        <div class="legend">${t.sectors.map((x, i) => html`<button data-sec="${i}" style="border-left:4px solid ${SECTOR_COLORS[i]}">S${i + 1}</button>`)}</div>
-      </div>
-      <div class="grid" style="gap:16px;align-content:start">
+    ${studioHtml(t)}
+
+    <section class="section grid g2 ts-below">
+      <div class="grid" style="gap:16px;align-content:start;grid-column:1/-1;grid-template-columns:repeat(auto-fit,minmax(320px,1fr))">
         <div class="card pad laps">
           <div class="row" style="justify-content:space-between"><h3>Benchmark Laps</h3><span class="chip gold">estimates · dry</span></div>
           <table style="margin-top:8px"><tr><th>Class</th><th>Alien</th><th>Fast</th><th>Solid</th><th>Your PB</th></tr>
@@ -284,7 +281,7 @@ views.track = (id) => {
         </a>
         <div class="row">${t.alt.map((cid) => carById[cid] ? html`<a class="chip" href="#/car/${cid}">Alt: ${carById[cid].name.split(' (')[0]}</a>` : '')}</div>
       </div>
-    </div>
+    </section>
 
     <section class="section">
       <div class="head"><h2>Sectors</h2></div>
@@ -321,22 +318,7 @@ views.track = (id) => {
     </section>`,
     wire(root) {
       wireVideos(root);
-      const select = (i, scroll) => {
-        sel = sel === i ? -1 : i;
-        $('#mapsvg', root).innerHTML = mapHtml();
-        bindPins();
-        $$('.corner', root).forEach((c) => c.classList.toggle('on', +c.dataset.i === sel));
-        if (scroll && sel >= 0) $(`.corner[data-i="${sel}"]`, root).scrollIntoView({ behavior: 'smooth', block: 'center' });
-      };
-      const bindPins = () => $$('#mapsvg .pin', root).forEach((p) => (p.onclick = () => select(+p.dataset.i, true)));
-      bindPins();
-      $$('.corner', root).forEach((c) => (c.onclick = () => select(+c.dataset.i, false)));
-      $$('[data-sec]', root).forEach((b) => (b.onclick = () => {
-        sector = sector === +b.dataset.sec ? -1 : +b.dataset.sec;
-        $('#mapsvg', root).innerHTML = mapHtml(); bindPins();
-        $$('.legend [data-sec]', root).forEach((x) => x.classList.toggle('on', +x.dataset.sec === sector));
-        if (b.classList.contains('sector')) $('#mapstage', root).scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }));
+      wireStudio(root, t);
       $$('[data-pb]', root).forEach((i) => (i.onchange = () => {
         const v = i.value.trim();
         if (v && toSec(v) == null) { toast('Use m:ss.s, e.g. 2:18.4'); return; }
@@ -706,8 +688,13 @@ views.account = () => {
     <section class="section card pad">
       <div class="kicker">Why not "Sign in with PlayStation"?</div>
       <p style="margin-top:8px;max-width:80ch">Sony doesn't offer PSN sign-in to third-party apps, and GT7 has no public API for your garage, credits or results. Nothing outside the game can read them, so here you type credits once and tick cars off. The real live data GT7 does publish is its <b>telemetry</b> stream from the PS5 (speed, revs, throttle, brake, gear, tyres, position on track). The Data Logger reads that: it records your laps and replays your actual racing line. <a href="#/telemetry" style="text-decoration:underline">Open the Data Logger →</a></p>
-    </section>`,
+    </section>
+    <section class="section card pad">
+      <div class="kicker">Optional · per-corner video moments</div><h3 style="margin:6px 0 8px">YouTube API key</h3>
+      <p class="muted" style="max-width:72ch">With a free key, track pages read each video's chapter list straight from YouTube and link every corner to the exact second it's explained. The key stays on this device. Get one at <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener" style="text-decoration:underline">Google Cloud → YouTube Data API v3</a> → Credentials → Create API key.</p>
+      <label class="f" style="max-width:520px;margin-top:10px">API key<input type="password" id="ytkey" autocomplete="off" placeholder="AIza…" value="${S().ytKey || ''}"></label>    </section>`,
     wire(root) {
+      $('#ytkey', root).onchange = (e) => { store.set((s) => { s.ytKey = e.target.value.trim(); }); toast(e.target.value.trim() ? 'YouTube key saved' : 'YouTube key removed'); };
       const ain = $('#ain', root);
       if (ain) ain.onclick = async () => {
         const u = $('#au', root).value.trim(), p = $('#ap', root).value;
@@ -764,14 +751,7 @@ views.connect = () => {
           <p class="muted small" style="margin-top:12px">Updated ${ago(p.fetchedAt)}${p.errors?.length ? ' · some parts unavailable: ' + p.errors.join('; ') : ''}</p>
           <div class="row" style="margin-top:12px"><button class="btn" id="psn-refresh">Refresh</button><button class="btn ghost" id="psn-off">Disconnect</button></div>`
         : html`
-          <ol class="steps">
-            <li>Sign in at <a href="https://www.playstation.com" target="_blank" rel="noopener">playstation.com</a> in this browser.</li>
-            <li>Open <a href="${connect.NPSSO_URL}" target="_blank" rel="noopener">this Sony page</a>. It shows <code>{"npsso":"…"}</code>. Copy the long value between the quotes.</li>
-            <li>Paste it here and connect. You do this once; it stays connected for about two months.</li>
-          </ol>
-          <label class="f" style="margin-top:8px">NPSSO token<input type="password" id="npsso" placeholder="64-character token" autocomplete="off"></label>
-          <div class="row" style="margin-top:14px"><button class="btn red xl" id="psn-go">Connect PlayStation</button></div>
-          <p class="muted small" style="margin-top:12px">${isNative() ? 'The token stays on this device.' : 'Sony blocks web pages from calling PSN, so this runs through your Mac bridge: open the app from the bridge address to connect. The token stays on the Mac, never in the cloud; your phone gets the results through your synced save.'} It's the same sign-in the PlayStation App uses. Treat the NPSSO like a password.</p>`}
+          ${psnWizard()}`}
       </div>
 
       <div class="card pad acct">
@@ -808,7 +788,7 @@ views.connect = () => {
       const busy = (b, label) => { b.disabled = true; b.dataset.l = b.textContent; b.textContent = label; };
       const done = (b) => { b.disabled = false; b.textContent = b.dataset.l; };
       const run = (id, label, fn) => { const b = $(id, root); if (b) b.onclick = async () => { busy(b, label); try { await fn(); render(); } catch (e) { toast(e.message); done(b); } }; };
-      run('#psn-go', 'Connecting…', async () => { const v = $('#npsso', root).value.trim().replace(/^.*"npsso"\s*:\s*"([^"]+)".*$/, '$1'); await connect.connectPSN(v); toast('PlayStation connected'); });
+      wireWizard(root, render);
       run('#psn-refresh', 'Refreshing…', async () => { await connect.refreshPSN(); toast('PSN refreshed'); });
       run('#psn-off', '…', async () => { await connect.disconnectPSN(); });
       run('#gt-go', 'Fetching…', async () => { await connect.fetchGT($('#gt-id', root).value, $('#gt-tok', root).value.trim()); toast('GT7 stats connected'); });

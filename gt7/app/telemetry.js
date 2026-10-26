@@ -10,17 +10,27 @@ const DEMO_URL = 'data/demo-lap.json';
 let live = null, es = null, bridgeOk = null;
 
 // The bridge serves the app itself, so when we're on it the API is same-origin.
+let found = '';
 export function bridgeBase() {
   const s = store.get();
   if (bridgeOk === 'same') return '';
+  if (found) return found;
   return (s.bridgeUrl || '').replace(/\/$/, '');
 }
+export const bridgeState = () => bridgeOk;
 export async function probe() {
   // GitHub Pages can never be the bridge: skip the same-origin check there (it only 404s)
   if (!/\.github\.io$/.test(location.hostname)) try { const r = await fetch('api/status', { cache: 'no-store' }); if (r.ok && (await r.json()).ok) { bridgeOk = 'same'; return true; } } catch { /* not on the bridge */ }
-  const b = (store.get().bridgeUrl || '').replace(/\/$/, '');
-  if (b) { try { const r = await fetch(b + '/api/status', { cache: 'no-store' }); if (r.ok) { bridgeOk = 'remote'; return true; } } catch { /* unreachable or mixed content */ } }
-  bridgeOk = false; return false;
+  // then a saved address, then the bridge on this computer (the live site can reach localhost)
+  const tries = [(store.get().bridgeUrl || '').replace(/\/$/, ''), 'http://localhost:8787', 'http://127.0.0.1:8787'].filter(Boolean);
+  for (const b of tries) {
+    try {
+      const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 1500);
+      const r = await fetch(b + '/api/status', { cache: 'no-store', signal: ctl.signal }); clearTimeout(t);
+      if (r.ok && (await r.json()).ok) { found = b; bridgeOk = 'remote'; return true; }
+    } catch { /* not running, or blocked as mixed content */ }
+  }
+  found = ''; bridgeOk = false; return false;
 }
 function openLive(onFrame) {
   es?.close();
