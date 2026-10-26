@@ -6,6 +6,7 @@
 //   node gt7-bridge.mjs --ps5 192.168.1.23     # your PS5's IP (Settings → Network)
 //   node gt7-bridge.mjs --ps5 auto             # broadcast; works on most home networks
 //   node gt7-bridge.mjs --demo                 # no PS5: replays a synthetic Spa lap
+//   node gt7-bridge.mjs --demo sector          # no PS5: the same stretch of Spa again and again (sector trainer)
 //
 // Then open http://localhost:8787 on the Mac, or http://<mac-ip>:8787 on your phone.
 //
@@ -22,6 +23,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { SIZE, decrypt as dec, encrypt as enc, parse } from './protocol.mjs';
+import { createRecorder } from '../app/gt7proto.js';
 import * as psn from '../app/psn-core.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -36,35 +38,21 @@ const TYPE = args.type || '~';
 const SEND_PORT = 33739, RECV_PORT = 33740;
 fs.mkdirSync(LAPS, { recursive: true });
 
-// ── lap recorder ──────────────────────────────────────────────────────────
-// Samples at 20 Hz (every 3rd packet) while the car is on track and moving.
-// A lap closes when the lap counter increments; GT7 reports its official time
-// in `last` a moment later, so we wait for it before writing the file.
-let cur = null, pending = null, live = null, lastPacket = 0, packets = 0, sinceBeat = 0;
+// ── recorder (shared with the phone app: ../app/gt7proto.js) ──────────────
+// Laps close on the lap counter with GT7's official time. Runs are any drive
+// between resets (a Circuit Experience sector, a licence test): the sector
+// trainer compares those against the demo.
+const RUNS = path.join(LAPS, 'runs');
+fs.mkdirSync(RUNS, { recursive: true });
+let live = null, lastPacket = 0, packets = 0, sinceBeat = 0;
 const clients = new Set();
-function lapId(meta) { return new Date(meta.t0).toISOString().replace(/[:.]/g, '-').slice(0, 19) + `-car${meta.car}-L${meta.lap}`; }
-function onFrame(fr) {
-  live = fr; packets++; lastPacket = Date.now();
-  if (fr.paused || fr.loading || !fr.onTrack) return;
-  if (!cur || fr.lap !== cur.lap) {
-    if (cur && fr.lap === cur.lap + 1 && cur.pts.length > 100) pending = { ...cur, closedAt: Date.now(), bestBefore: fr.best };
-    cur = { lap: fr.lap, car: fr.car, t0: Date.now(), pts: [] };
-  }
-  if (pending && (fr.last > 0 && Date.now() - pending.closedAt > 300 || Date.now() - pending.closedAt > 4000)) {
-    saveLap(pending, fr.last > 0 ? fr.last : null); pending = null;
-  }
-  if (packets % 3 === 0) {
-    const t = (Date.now() - cur.t0) / 1000;
-    cur.pts.push([+t.toFixed(3), +fr.x.toFixed(2), +fr.z.toFixed(2), +fr.y.toFixed(2), +fr.v.toFixed(1), Math.round(fr.thr * 100), Math.round(fr.brk * 100), fr.gear, Math.round(fr.rpm), fr.steer == null ? 0 : +fr.steer.toFixed(3)]);
-  }
-}
-function saveLap(l, ms) {
-  const meta = { id: lapId(l), car: l.car, lap: l.lap, t0: l.t0, time: ms ?? Math.round(l.pts.at(-1)[0] * 1000), timeSource: ms ? 'gt7' : 'measured', n: l.pts.length };
-  const doc = { ...meta, cols: ['t', 'x', 'z', 'y', 'kmh', 'thr', 'brk', 'gear', 'rpm', 'steer'], pts: l.pts };
-  fs.writeFileSync(path.join(LAPS, meta.id + '.json'), JSON.stringify(doc));
-  console.log(`lap ${meta.lap} saved  ${(meta.time / 1000).toFixed(3)} s  car ${meta.car}  → ${meta.id}.json`);
-  broadcast('lap', meta);
-}
+const meta = ({ pts, ...m }) => m;
+const record = createRecorder({
+  onLap: (l) => { fs.writeFileSync(path.join(LAPS, l.id + '.json'), JSON.stringify(l)); console.log(`lap ${l.lap} saved  ${(l.time / 1000).toFixed(3)} s  car ${l.car}  → ${l.id}.json`); broadcast('lap', meta(l)); },
+  onRun: (r) => { fs.writeFileSync(path.join(RUNS, r.id + '.json'), JSON.stringify(r)); console.log(`run saved  ${(r.time / 1000).toFixed(2)} s  ${r.dist} m  → runs/${r.id}.json`); broadcast('run', meta(r)); },
+});
+function onFrame(fr) { live = fr; packets++; lastPacket = Date.now(); record(fr); }
+setInterval(() => { if (lastPacket && Date.now() - lastPacket > 3000) { record.flush(); lastPacket = 0; } }, 1000);   // stream stopped: keep the run
 
 // ── UDP ───────────────────────────────────────────────────────────────────
 const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
@@ -94,12 +82,12 @@ const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/jav
 function broadcast(ev, data) { const s = `event: ${ev}\ndata: ${JSON.stringify(data)}\n\n`; clients.forEach((r) => r.write(s)); }
 setInterval(() => {
   if (!clients.size) return;
-  const age = Date.now() - lastPacket;
-  broadcast('live', live && age < 2000 ? { ...live, recording: !!cur, lapPts: cur?.pts.length || 0 } : { offline: true, ps5, age });
+  const age = lastPacket ? Date.now() - lastPacket : 1e9;
+  broadcast('live', live && age < 2000 ? { ...live, recording: live.onTrack && !live.paused } : { offline: true, ps5, age });
 }, 100);
-function listLaps() {
-  return fs.readdirSync(LAPS).filter((f) => f.endsWith('.json')).map((f) => {
-    try { const d = JSON.parse(fs.readFileSync(path.join(LAPS, f), 'utf8')); delete d.pts; return d; } catch { return null; }
+function listLaps(dir = LAPS) {
+  return fs.readdirSync(dir).filter((f) => f.endsWith('.json')).map((f) => {
+    try { const d = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8')); delete d.pts; return d; } catch { return null; }
   }).filter(Boolean).sort((a, b) => b.t0 - a.t0);
 }
 // ── PSN + GT-Gridstats (accounts) ─────────────────────────────────────────
@@ -151,9 +139,10 @@ http.createServer(async (req, res) => {
   if (u.pathname.startsWith('/api/psn/') || u.pathname.startsWith('/api/proxy/')) { if ((await accounts(req, res, u)) !== false) return; }
   if (u.pathname === '/api/status') return json(res, { ok: true, ps5, packets, lastPacket, type: TYPE, laps: LAPS, demo: !!args.demo });
   if (u.pathname === '/api/laps') return json(res, listLaps());
-  if (u.pathname.startsWith('/api/laps/')) {
-    const id = path.basename(decodeURIComponent(u.pathname.slice(10)));
-    const p = path.join(LAPS, id + '.json');
+  if (u.pathname === '/api/runs') return json(res, listLaps(RUNS));
+  if (u.pathname.startsWith('/api/laps/') || u.pathname.startsWith('/api/runs/')) {
+    const runs = u.pathname.startsWith('/api/runs/'), id = path.basename(decodeURIComponent(u.pathname.slice(10)));
+    const p = path.join(runs ? RUNS : LAPS, id + '.json');
     if (!fs.existsSync(p)) { res.writeHead(404); return res.end(); }
     res.writeHead(200, { 'Content-Type': 'application/json' }); return fs.createReadStream(p).pipe(res);
   }
@@ -183,6 +172,7 @@ if (args.demo) {
   let lap = 1, t = 0, iv = 0x1234, pid = 0, best = -1, last = -1;
   setInterval(() => {
     t += 1 / 60;
+    if (args.demo === 'sector' && (t > total * 0.34 || t < total * 0.02)) t = total * 0.02;   // GT7 resetting you to the sector start
     if (t > total) { t -= total; last = Math.round(total * 1000); best = best < 0 ? last : Math.min(best, last); lap++; }
     let i = demo.pts.findIndex((p) => p[C.t] >= t); if (i < 1) i = 1;
     const a = demo.pts[i - 1], b = demo.pts[i], k = (t - a[C.t]) / ((b[C.t] - a[C.t]) || 1);
@@ -202,5 +192,5 @@ if (args.demo) {
     if (pk.length >= 0x13C) pk.writeFloatLE(L('steer'), 0x128);
     sock.send(enc(pk, iv++, TYPE), RECV_PORT, '127.0.0.1');
   }, 1000 / 60);
-  console.log(`demo: streaming a synthetic ${total.toFixed(1)} s Spa lap, looping`);
+  console.log(args.demo === 'sector' ? 'demo: driving one stretch of Spa, reset after each run' : `demo: streaming a synthetic ${total.toFixed(1)} s Spa lap, looping`);
 }

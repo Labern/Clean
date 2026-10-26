@@ -22,7 +22,7 @@ function db() {
 }
 const tx = async (mode, fn) => { const d = await db(); return new Promise((res, rej) => { const t = d.transaction('laps', mode); const out = fn(t.objectStore('laps')); t.oncomplete = () => res(out instanceof IDBRequest ? out.result : out); t.onerror = () => rej(t.error); }); };
 export const putLap = (lap) => {
-  if (lap.pts && !lap.track && !lap.demo) { const a = align(lap); if (a) lap.track = a.track.id; } // identify once, on save
+  if (lap.pts && !lap.track && !lap.demo && lap.kind !== 'run') { const a = align(lap); if (a) lap.track = a.track.id; } // identify once, on save
   return tx('readwrite', (s) => s.put(lap));
 };
 export const getLap = (id) => tx('readonly', (s) => s.get(id));

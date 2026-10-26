@@ -93,7 +93,7 @@ export function telemetryView() {
       const conn = $('#conn', root), hud = $('#hud', root);
       const paintLaps = async () => {
         if (!root.isConnected || !$('#laplist', root)) { window.removeEventListener('gt7-lap-saved', paintLaps); return; }
-        const laps = await L.allLaps();
+        const laps = (await L.allLaps()).filter((l) => l.kind !== 'run');
         if (!$('#laplist', root)) return;
         $('#laplist', root).innerHTML = laps.length ? laps.map((l) => {
           const al = l.track ? { track: trackById[l.track] } : null;
@@ -183,7 +183,7 @@ export function lapView(id) {
       if (!lap) { $('#lapwrap', root).innerHTML = '<h1>Lap not found</h1>'; return; }
       const al = L.align(lap);
       if (al && lap.track !== al.track.id) { lap.track = al.track.id; await L.putLap(lap); }
-      const others = (await L.allLaps()).filter((l) => l.id !== lap.id && (!al || l.track === al.track.id));
+      const others = (await L.allLaps()).filter((l) => l.kind !== 'run' && l.id !== lap.id && (!al || l.track === al.track.id));
       const wrap = $('#lapwrap', root);
       if (wrap && root.isConnected) renderReplay(wrap, lap, al, others); // user may have navigated away meanwhile
     },

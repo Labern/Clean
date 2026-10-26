@@ -1,8 +1,9 @@
 // The "what do I do next" brain, plus credit maths.
+import { CE } from '../data/ce.js';
 import { PHASES } from '../data/roadmap.js';
 import { GRINDS, CLEAN_BONUS } from '../data/grinds.js';
 import { carById } from '../data/cars.js';
-import { TRACKS } from '../data/tracks.js';
+import { TRACKS, trackById } from '../data/tracks.js';
 import { APEX } from '../data/apex.js';
 
 export const priceOf = (s, id) => s.prices[id] ?? carById[id]?.price ?? null;
@@ -49,6 +50,17 @@ export function nextSteps(s, n = 3) {
     push({ id: 'setup', kind: 'setup', title: 'Tell the app where you are', why: 'Credits, the cars you own and what you\'re chasing. Every recommendation adapts to it.', href: '#/setup', cta: 'Set up' });
   }
   const credits = s.credits ?? 0;
+
+  // The section you're training in Circuit Experience: the gap to gold is the next move.
+  const act = s.ceActive, ce = act && CE[act.track], x = act && s.ce?.[act.track]?.[act.n];
+  if (ce && !(x?.best?.medal === 'gold')) {
+    const nm = `${trackById[act.track]?.short || act.track} ${act.n === ce.sections ? 'full lap' : 'sector ' + act.n}`;
+    const last = x?.runs?.find((r) => !r.demo && r.complete);
+    const gap = x?.gold && x?.best ? ((x.best.ms - x.gold) / 1000).toFixed(3) : null;
+    push({ id: 'ce:' + act.track + act.n, kind: 'ce', title: gap ? `Gold on ${nm}: ${gap} s to find` : `Gold on ${nm}`,
+      why: !x?.demo ? 'Watch the demo in GT7 so the app can record it, then drive.' : last?.top ? `Last attempt, corner ${last.top.n} cost ${last.top.lost.toFixed(2)} s${last.top.tip ? ': ' + last.top.tip : ''}.` : `${ce.prize.gold.toLocaleString()} credits for gold on every section here.`,
+      href: '#/ce/' + act.track, cta: 'Train' });
+  }
 
   // Real data beats typed data: connecting PSN + GT7 makes every suggestion sharper.
   if (s.onboarded && !s.gt && !s.psn) {

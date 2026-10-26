@@ -26,6 +26,7 @@ import { mountSim, simBlock } from './simview.js';
 import { systemsIndex, systemView } from './systems.js';
 import { psnWizard, wireWizard } from './psnwizard.js';
 import * as direct from './direct.js';
+import { ceIndex, ceTrack, ceRun, wireFeed } from './ceview.js';
 import { SCENARIOS } from './scenarios.js';
 import * as connect from './connect.js';
 import { isNative } from './platform.js';
@@ -152,7 +153,7 @@ views.home = () => {
     <section class="section">
       <div class="head"><h2>Explore</h2></div>
       <div class="grid g3">
-        ${[['#/telemetry', 'Data Logger', 'Record your real laps from the PS5 and scrub through your racing line.'],
+        ${[['#/ce', 'Sector Trainer', 'Gold on every Circuit Experience sector: each attempt laid over the demo, corner by corner.'], ['#/telemetry', 'Data Logger', 'Record your real laps from the PS5 and scrub through your racing line.'],
           ['#/academy', 'Racecraft Academy', 'From the racing line to alien technique, with interactive diagrams.'],
           ['#/apex', 'Beyond the Apex', 'Polyphony\'s official manual, demonstrated corner by corner on real tracks.'],
           ['#/systems', 'Race Systems', 'Pits, fuel maps, tyres, TCS, ABS, brake balance, the MFD, weather, penalties.'],
@@ -608,7 +609,7 @@ views.wheel = () => {
 views.more = () => html`
   <div class="kicker">More</div><h1>Everything Else</h1>
   <div class="grid g3" style="margin-top:22px">
-    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/apex', 'Beyond the Apex', 'The official manual, on specific corners'], ['#/systems', 'Race Systems', 'Pits, fuel, tyres, TCS, ABS, MFD'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/start', 'Start Here', 'How to play GT from zero'], ['#/roadmap', 'Roadmap', 'Post-Café to alien pace'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals'], ['#/connect', 'PlayStation + GT7', 'Your real credits, licence, DR/SR, trophies'], ['#/account', 'Cloud save', 'Sign in once, same save everywhere'], ['#/telemetry', 'Data Logger', 'Record laps, replay your racing line'], ['#/status', 'Build status', 'What\'s done and what\'s next']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
+    ${[['#/academy', 'Racecraft Academy', 'Lessons + interactive diagrams'], ['#/apex', 'Beyond the Apex', 'The official manual, on specific corners'], ['#/systems', 'Race Systems', 'Pits, fuel, tyres, TCS, ABS, MFD'], ['#/wheel', 'Wheel Lab', 'FFB, pedals, seating'], ['#/tuning', 'Tuning Lab', 'Settings + solver'], ['#/sport', 'Sport Mode', 'DR, SR and how to climb'], ['#/start', 'Start Here', 'How to play GT from zero'], ['#/roadmap', 'Roadmap', 'Post-Café to alien pace'], ['#/heritage', 'Heritage', '30 years of GT: the cars and the story'], ['#/setup', 'Setup', 'Credits, owned cars, goals'], ['#/connect', 'PlayStation + GT7', 'Your real credits, licence, DR/SR, trophies'], ['#/account', 'Cloud save', 'Sign in once, same save everywhere'], ['#/ce', 'Sector Trainer', 'Circuit Experience: you vs the demo'], ['#/telemetry', 'Data Logger', 'Record laps, replay your racing line'], ['#/status', 'Build status', 'What\'s done and what\'s next']].map(([h, t, d]) => html`<a class="card pad gloss" href="${h}"><h3>${t}</h3><div class="muted small" style="margin-top:6px">${d}</div></a>`)}
   </div>
   <section class="section card pad">
     <h3>Your data</h3>
@@ -828,6 +829,8 @@ views.connect = () => {
 };
 
 views.telemetry = telemetryView;
+views.ce = (arg) => (arg ? ceTrack(arg) : ceIndex());
+views.cerun = ceRun;
 views.lap = lapView;
 
 views.notfound = () => html`<h1>Off track</h1><p class="muted">That page doesn't exist. <a href="#/" style="text-decoration:underline">Back to the Command Centre</a>.</p>`;
@@ -848,7 +851,7 @@ function render() {
   const res = out && out.html !== undefined && !(out instanceof Object && out.s) ? out : { html: out };
   root.innerHTML = String(res.html);
   (res.wire || WIRES[name])?.(root);
-  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', apex: 'academy', systems: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more', account: 'more', status: 'more', connect: 'more', telemetry: 'telemetry', lap: 'telemetry', start: 'start' }[name] || name;
+  const navKey = { track: 'tracks', car: 'garage', lesson: 'academy', apex: 'academy', systems: 'academy', setup: 'home', wheel: 'more', tuning: 'more', sport: 'more', heritage: 'more', account: 'more', status: 'more', connect: 'more', telemetry: 'telemetry', lap: 'telemetry', ce: 'ce', cerun: 'ce', start: 'start' }[name] || name;
   $$('#nav a').forEach((a) => a.classList.toggle('on', a.dataset.r === navKey));
   paintNextBar(name);
   const s = S();
@@ -860,7 +863,7 @@ let lastName = null;
 window.addEventListener('hashchange', () => {
   const { name } = route();
   render();
-  if (name !== lastName || ['track', 'car', 'lesson', 'lap', 'start', 'apex', 'systems'].includes(name)) window.scrollTo({ top: 0 });
+  if (name !== lastName || ['ce', 'cerun', 'track', 'car', 'lesson', 'lap', 'start', 'apex', 'systems'].includes(name)) window.scrollTo({ top: 0 });
   lastName = name;
 });
 function paintSync() {
@@ -874,5 +877,6 @@ render();
 lastName = route().name;
 sync.start();
 connect.autoRefresh();
+wireFeed();
 
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});

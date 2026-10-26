@@ -15,7 +15,7 @@ const plugin = () => (isNative() ? window.Capacitor?.Plugins?.Gt7Direct || windo
 export const available = () => !!plugin();
 
 const b64 = (s) => { const bin = atob(s), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); return u; };
-let listeners = [], live = null, state = { status: 'off' }, subs = new Set();
+let listeners = [], flush = null, live = null, state = { status: 'off' }, subs = new Set();
 const emit = () => subs.forEach((f) => f(live, state));
 export const onLive = (f) => (subs.add(f), () => subs.delete(f));
 export const status = () => state;
@@ -33,10 +33,17 @@ async function saveLap(lap) {
   window.dispatchEvent(new CustomEvent('gt7-lap-saved', { detail: lap }));
 }
 
+// Every run between resets (a Circuit Experience sector, the demo replay, a licence test).
+async function saveRun(run) {
+  await L.putLap(run);
+  window.dispatchEvent(new CustomEvent('gt7-run-saved', { detail: run }));
+}
+
 export async function startTelemetry(ps5 = store.get().ps5Ip || 'auto') {
   const P = plugin(); if (!P) throw new Error('The direct connection needs the iOS or Android app.');
   await stopTelemetry();
-  const rec = createRecorder({ onLap: saveLap, onLive: (fr) => { live = fr; } });
+  const rec = createRecorder({ onLap: saveLap, onRun: saveRun, onLive: (fr) => { live = fr; } });
+  flush = rec.flush;
   let last = 0;
   listeners.push(await P.addListener('packet', (e) => {
     const d = decrypt(b64(e.data), '~'); if (!d) return;
@@ -49,6 +56,7 @@ export async function startTelemetry(ps5 = store.get().ps5Ip || 'auto') {
   await P.startTelemetry({ ps5 });
 }
 export async function stopTelemetry() {
+  flush?.(); flush = null;
   for (const l of listeners) await l.remove?.();
   listeners = []; await plugin()?.stopTelemetry?.(); state = { status: 'off' }; emit();
 }
