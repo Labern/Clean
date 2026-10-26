@@ -592,3 +592,40 @@ button.chip, a.chip { min-height: 44px; padding: 8px 16px; cursor: pointer; }
 .ts-stats .ts-stat.long b, .ts-stats.sm .ts-stat.long b { font: 700 13px/1.3 var(--body); font-style: normal; }
 .direct-card { border: 2px solid var(--blue-hi); }
 .rawjson { max-height: 260px; overflow: auto; background: #0b1f4b; color: #dfe6f7; padding: 10px; border-radius: 10px; font-size: 11px; }
+
+/* ── Sector Trainer ── */
+.medal { display: inline-flex; align-items: center; min-height: 30px; padding: 4px 12px; border-radius: 999px; font: 800 italic 15px var(--display); letter-spacing: .1em; text-transform: uppercase; vertical-align: middle; }
+.medal.gold { background: linear-gradient(135deg, #ffe17a, #e8b923); color: #5a4300; }
+.medal.silver { background: linear-gradient(135deg, #f1f4f9, #b9c3d6); color: #3a4560; }
+.medal.bronze { background: linear-gradient(135deg, #f0b98a, #c47a3e); color: #4b2606; }
+.medal.none { background: #e7ebf3; color: var(--ink-3); }
+.pip { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-left: 3px; background: #dfe4ee; vertical-align: middle; }
+.pip.gold { background: #e8b923; } .pip.silver { background: #b9c3d6; } .pip.bronze { background: #c47a3e; }
+.now-card, .live-card, .hudcmp { background: linear-gradient(135deg, #0b1f4b, #13306e); color: #fff; }
+.live-card { min-height: 230px; }
+.live-card .big, .cmp-sum b { font-family: var(--display); font-style: italic; font-weight: 900; font-size: 58px; line-height: .9; }
+.live-card .fix { margin-top: 14px; padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,.08); font-size: 18px; }
+.live-card .f input { background: rgba(255,255,255,.1); color: #fff; border-color: rgba(255,255,255,.2); }
+.btn.ghost.light { color: #fff; box-shadow: inset 0 0 0 2px rgba(255,255,255,.6); }
+.steps { margin: 10px 0 0; padding-left: 22px; display: grid; gap: 8px; }
+.ce-sec.on { border: 2px solid var(--red); }
+.ce-sec .medals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+.ce-sec .medals input { font-variant-numeric: tabular-nums; }
+.ce-sec .ideal { margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: #f4f6fb; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.ce-sec .runs { display: flex; gap: 8px; overflow-x: auto; margin-top: 12px; padding-bottom: 4px; }
+.ce-sec .run { flex: none; display: grid; gap: 2px; min-width: 128px; padding: 10px 12px; border-radius: 14px; border: 2px solid var(--line); background: #fff; font-variant-numeric: tabular-nums; }
+.lose { color: var(--red); } .gain { color: var(--ok); }
+.cmp-sum { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 14px; }
+.cmp-sum div { display: grid; } .cmp-sum b { font-size: 46px; } .cmp-sum span { color: var(--ink-3); font-weight: 600; }
+.maplegend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin-top: 10px; color: #c9d5f2; font-size: 14px; font-weight: 600; }
+.maplegend i { display: inline-block; width: 18px; height: 5px; border-radius: 3px; margin-right: 6px; vertical-align: middle; }
+#cmap .cpin { cursor: pointer; }
+.hudcmp table { width: 100%; margin-top: 8px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.hudcmp th { text-align: left; color: #9fb3e6; font-size: 14px; } .hudcmp td { padding: 5px 4px; font-weight: 700; font-size: 18px; }
+.hudcmp td:first-child { color: #9fb3e6; font-weight: 600; font-size: 15px; width: 80px; }
+.hudcmp .bar { background: rgba(255,255,255,.12); margin-top: 0; }
+.trace { width: 100%; display: block; margin: 4px 0 10px; cursor: pointer; }
+.corner-card { cursor: pointer; border-left: 6px solid #dfe4ee; }
+.corner-card.bad { border-left-color: var(--red); } .corner-card.good { border-left-color: var(--ok); }
+.corner-card .tips { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 4px; font-weight: 600; }
+@media (max-width: 759px) { .live-card .big { font-size: 44px; } .cmp-sum b { font-size: 36px; } .ce-sec .medals { grid-template-columns: 1fr; } }

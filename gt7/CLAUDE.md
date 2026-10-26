@@ -127,6 +127,28 @@ stats are measured at the corner's own tightest point (a wide window catches the
 next braking zone). Video chapters come from YouTube's Data API with the player's
 own key (`app/ytchapters.js`); scraping watch pages is blocked and off-limits.
 
+## Sector Trainer (`app/ce.js`, `app/ceview.js`, `app/compare.js`, `data/ce.js`)
+Gold on every Circuit Experience section. The recorder (`gt7proto.js`, shared by
+the phone and the bridge) emits *runs* besides laps: any drive between resets
+(loading, a >25 m jump, a car change), with a cumulative distance column. GT7
+streams telemetry during replays, so watching the demo records it too.
+`ce.match` files a run under the section whose demo starts within 45 m of it
+(the active section first); the first run in an empty section becomes a
+provisional demo ("That was the demo" re-measures everything against another).
+`compare.js` projects your samples onto the demo's line (common station axis):
+time gap, and per corner (demo speed dips) braking onset, apex speed, line
+offset, full-throttle point, gear, ranked by time lost. Both sides are measured
+the same way on the same 2 m grid. Measuring the demo from raw samples and you
+from the grid gave a fake ~10 m braking bias, so don't "simplify" that. Braking
+onset tolerates releases under 30 m (the demo releases mid-zone at Spa).
+Timing gates default to where the car is dropped → where the demo's coast after
+the line begins; typing GT7's time for one attempt sets `offset`, calibrating
+every time. Medal targets are typed by the player (GT7 publishes none).
+Mini-sectors (cut halfway between corners) give the theoretical best and the
+least consistent corner. Results are spoken (speechSynthesis, `s.ceVoice`).
+`cesample.js` builds a sample session with known mistakes (UI button + tests);
+`bridge --demo sector` streams one stretch of Spa with resets for end-to-end checks.
+
 ## Native (`native/`)
 Capacitor shells around this same code (`npm run ios|android` on the Mac).
 UI is touch-first: `--tap` 52 px minimum, hover only under `@media (hover: hover)`,

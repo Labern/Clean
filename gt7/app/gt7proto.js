@@ -63,27 +63,48 @@ export function parse(d) {
   };
 }
 
-// Lap recorder (same rules as the bridge): 20 Hz samples while on track; a lap
-// closes when the counter increments, and waits briefly for GT7's official time.
-export function createRecorder({ onLap, onLive }) {
-  let cur = null, pending = null, n = 0;
-  return (fr) => {
+// Recorder shared by the phone and the bridge. Two outputs:
+//  - laps: a lap closes when the lap counter increments, with GT7's official time;
+//  - runs: any continuous drive between resets. A Circuit Experience sector, a
+//    licence test or a time-trial attempt never completes a lap, so a run starts
+//    when the car moves off and ends when GT7 teleports or reloads it (or the
+//    stream stops). Runs are what the sector trainer compares against the demo.
+export const COLS = ['t', 'x', 'z', 'y', 'kmh', 'thr', 'brk', 'gear', 'rpm', 'steer', 'd'];
+export function createRecorder({ onLap, onRun, onLive }) {
+  let cur = null, pending = null, n = 0, run = null, prev = null;
+  const id = (t0, car, tag) => new Date(t0).toISOString().replace(/[:.]/g, '-').slice(0, 19) + `-car${car}-${tag}`;
+  const closeRun = () => {
+    const r = run; run = null;
+    if (!r || !onRun || r.pts.length < 40) return;
+    const last = r.pts.at(-1), dist = last[10], time = Math.round(last[0] * 1000);
+    if (dist < 150 || time < 4000) return;
+    onRun({ id: id(r.t0, r.car, 'run'), kind: 'run', car: r.car, t0: r.t0, time, dist: Math.round(dist), n: r.pts.length, cols: COLS, pts: r.pts,
+      start: [r.pts[0][1], r.pts[0][2]], end: [last[1], last[2]] });
+  };
+  const rec = (fr) => {
     n++; onLive?.(fr);
-    if (fr.paused || fr.loading || !fr.onTrack) return;
     const now = Date.now();
+    // a reset: loading, a different car, or a jump no car could make between packets
+    const jump = prev && Math.hypot(fr.x - prev.x, fr.z - prev.z) > 25;
+    if (fr.loading || jump || (prev && fr.car !== prev.car)) closeRun();
+    prev = fr;
+    if (fr.paused || fr.loading || !fr.onTrack) return;
     if (!cur || fr.lap !== cur.lap) {
       if (cur && fr.lap === cur.lap + 1 && cur.pts.length > 100) pending = { ...cur, closedAt: now };
       cur = { lap: fr.lap, car: fr.car, t0: now, pts: [] };
     }
     if (pending && ((fr.last > 0 && now - pending.closedAt > 300) || now - pending.closedAt > 4000)) {
       const ms = fr.last > 0 ? fr.last : null, l = pending; pending = null;
-      const id = new Date(l.t0).toISOString().replace(/[:.]/g, '-').slice(0, 19) + `-car${l.car}-L${l.lap}`;
-      onLap({ id, car: l.car, lap: l.lap, t0: l.t0, time: ms ?? Math.round(l.pts.at(-1)[0] * 1000), timeSource: ms ? 'gt7' : 'measured', n: l.pts.length,
-        cols: ['t', 'x', 'z', 'y', 'kmh', 'thr', 'brk', 'gear', 'rpm', 'steer'], pts: l.pts });
+      onLap?.({ id: id(l.t0, l.car, 'L' + l.lap), car: l.car, lap: l.lap, t0: l.t0, time: ms ?? Math.round(l.pts.at(-1)[0] * 1000), timeSource: ms ? 'gt7' : 'measured', n: l.pts.length,
+        cols: COLS.slice(0, 10), pts: l.pts });
     }
+    if (!run && fr.v > 5) run = { car: fr.car, t0: now, pts: [], d: 0, lx: fr.x, lz: fr.z };
     if (n % 3 === 0) {
-      const t = (now - cur.t0) / 1000;
-      cur.pts.push([+t.toFixed(3), +fr.x.toFixed(2), +fr.z.toFixed(2), +fr.y.toFixed(2), +fr.v.toFixed(1), Math.round(fr.thr * 100), Math.round(fr.brk * 100), fr.gear, Math.round(fr.rpm), fr.steer == null ? 0 : +fr.steer.toFixed(3)]);
+      const sample = (t) => [+t.toFixed(3), +fr.x.toFixed(2), +fr.z.toFixed(2), +fr.y.toFixed(2), +fr.v.toFixed(1), Math.round(fr.thr * 100), Math.round(fr.brk * 100), fr.gear, Math.round(fr.rpm), fr.steer == null ? 0 : +fr.steer.toFixed(3)];
+      cur.pts.push(sample((now - cur.t0) / 1000));
+      if (run) { run.d += Math.hypot(fr.x - run.lx, fr.z - run.lz); run.lx = fr.x; run.lz = fr.z; run.pts.push([...sample((now - run.t0) / 1000), +run.d.toFixed(1)]); }
     }
   };
+  rec.flush = closeRun;   // the stream stopped: keep the run in progress
+  return rec;
 }

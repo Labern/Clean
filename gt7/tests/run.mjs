@@ -263,5 +263,64 @@ console.log('lap alignment');
   ok(back && Math.hypot(back[0] - a.map.pts[0][0] * a.map.mPerUnit, back[1] - a.map.pts[0][1] * a.map.mPerUnit) < 60, 'lap start maps back to near the start line');
 }
 
+console.log('sector trainer (runs, compare, filing)');
+{
+  const { CE: INFO } = await import('../data/ce.js');
+  for (const [tid, x] of Object.entries(INFO)) {
+    ok(trackById[tid], `ce ${tid}: track exists`);
+    ok(x.sections >= 4 && x.car && x.prize.gold > x.prize.bronze, `ce ${tid}: sections, car, prizes`);
+  }
+  // recorder: a run closes when GT7 teleports the car back to the start
+  const runs = []; const rec = P2.createRecorder({ onRun: (r) => runs.push(r) });
+  const base = { y: 0, rpm: 5000, thr: 1, brk: 0, gear: 3, steer: 0, onTrack: true, paused: false, loading: false, car: 7, best: -1, last: -1, lap: 0 };
+  const realNow = Date.now; let clock = 2e12; Date.now = () => clock;
+  for (let k = 0; k < 2; k++) for (let i = 0; i < 600; i++) { clock += 16; rec({ ...base, x: i * 0.8, z: 0, v: 160 }); }   // drive 480 m, reset, drive again
+  rec.flush(); Date.now = realNow;
+  ok(runs.length === 2, `recorder splits runs at the reset (${runs.length})`);
+  ok(runs[0] && Math.abs(runs[0].dist - 479) < 5 && runs[0].cols.includes('d') && runs[0].start[0] < 5, 'run has distance, start point and cumulative-distance column');
+  ok(runs[0] && Math.abs(runs[0].time - 9584) < 100, `run time measured (${runs[0]?.time} ms)`);
+
+  const { compare } = await import('../app/compare.js');
+  const { sampleSession } = await import('../app/cesample.js');
+  const lap = JSON.parse(fs.readFileSync(path.join(ROOT, 'data/demo-lap.json'), 'utf8'));
+  const { demo, attempts } = sampleSession(lap, 1e12);
+  const self = compare(demo, demo);
+  ok(Math.abs(self.total) < 1e-6 && self.ranked.every((c) => !c.tips.length), 'a run against itself: zero gap, no tips');
+  const { autoGates } = await import('../app/ce.js'), [g0, g1] = autoGates(demo);
+  const a0 = compare(attempts[0], demo, { from: g0, to: g1 });
+  ok(a0.ranked[0].brake <= -24 && a0.ranked[0].brake >= -36, `30 m early braking is found at the right corner (${a0.ranked[0].brake} m)`);
+  ok(a0.total > 0.05 && a0.complete, `early braking costs time (${a0.total.toFixed(3)} s)`);
+  const a1 = compare(attempts[1], demo), c1 = a1.ranked[0];
+  ok(Math.abs(Math.abs(c1.line) - 2.2) < 0.4 && c1.tips.some((t) => /of the demo's line/.test(t)), `running 2.2 m wide is measured (${c1.line} m)`);
+  const a2 = compare(attempts[2], demo);
+  ok(a2.corners.some((c) => c.brake >= 18 && c.brake <= 34), 'overshooting: the late braking point is found');
+  ok(Math.abs(a0.minis.reduce((s, m) => s + m.lost, 0) - a0.total) < 0.01, 'mini-sectors add up to the total gap');
+
+  const CE = await import('../app/ce.js');
+  const db = new Map([demo, ...attempts].map((r) => [r.id, r])), get = async (id) => db.get(id);
+  CE.setActive('spa', 3); CE.setMedals('spa', 3, { gold: 39800, silver: 40000, bronze: 41000 });
+  ok(CE.match(demo)?.role === 'first', 'first run in an empty section becomes the demo');
+  const d = await CE.file(demo, get);
+  ok(d.role === 'demo' && CE.sec('spa', 3).gates[1] < demo.dist - 100, `gates trim the coast after the finish (${CE.sec('spa', 3).gates[1]} of ${demo.dist} m)`);
+  const res = []; for (const a of attempts) res.push(await CE.file(a, get));
+  ok(res.every((r) => r.role === 'attempt' && r.entry.complete), 'attempts are matched by their start point');
+  ok(res.every((r) => r.entry.ms > d.entry.ms), 'every flawed attempt is slower than the demo');
+  ok(res[0].entry.top?.n === a0.ranked[0].n && /earlier/.test(res[0].entry.top.tip), 'the post-attempt fix names the corner and the braking');
+  const x = CE.sec('spa', 3), best = res.reduce((b, r) => (r.entry.ms < b.entry.ms ? r : b));
+  ok(x.best.id === best.entry.id && x.best.medal === CE.medal(x, best.entry.ms), 'best attempt and its medal tracked');
+  const id = CE.ideal(x);
+  ok(id && id.ms <= x.best.ms, `theoretical best is no slower than the best attempt (${id?.ms} vs ${x.best.ms})`);
+  CE.calibrate('spa', 3, res[0].entry.id, res[0].entry.raw + 1234);
+  ok(CE.sec('spa', 3).offset === 1234 && CE.sec('spa', 3).runs.every((r) => r.ms === r.raw + 1234), 'calibrating one attempt shifts every time to GT7\'s clock');
+  const far = { ...attempts[0], id: 'elsewhere', start: [attempts[0].start[0] + 500, attempts[0].start[1]] };
+  ok(CE.match(far) === null, 'a run that starts somewhere else is not filed');
+  await CE.useAsDemo('spa', 3, attempts[3], get);
+  ok(CE.sec('spa', 3).demo === attempts[3].id && CE.sec('spa', 3).runs.length === 5, 'a different demo re-measures every run');
+  ok(CE.summary('spa').next && CE.parseMs('1:02.345') === 62345 && CE.fmt(62345) === '1:02.345', 'summary + time parsing');
+  const { nextSteps } = await import('../app/engine.js');
+  const store = await import('../app/state.js');
+  ok(nextSteps(store.get(), 5).some((st) => st.kind === 'ce'), 'the section in training is a next move');
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
