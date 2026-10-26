@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#ffca3a">
+<title>The Weight App</title>
+<link rel="apple-touch-icon" href="../icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Weight">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%96%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="../shared/theme.css">
+<style>
+.wrap{max-width:1100px}
+h1{font-size:clamp(2.1rem,8vw,4rem)}
+.backs{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.backs a{text-decoration:none}
+/* quick add */
+.qa{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:10px;align-items:end}
+.gbox{display:flex;align-items:center;gap:4px}
+.gbox input{font-size:1.5rem;font-weight:900;text-align:center;min-height:52px}
+.step{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.step button{font-weight:900;border:2.5px solid #000;border-radius:10px;background:#fff;min-width:44px;min-height:36px;cursor:pointer}
+.bigk{display:flex;gap:8px}
+.bigk button{flex:1;display:flex;align-items:center;gap:6px;justify-content:center;font-weight:900;font-size:1rem;border:3px solid #000;border-radius:16px;background:#fff;padding:4px 8px;cursor:pointer;min-height:56px}
+.bigk button.on{background:var(--gold);box-shadow:var(--pop-sm)}
+.bigk svg{width:40px;height:40px}
+details.more{margin-top:10px}
+details.more summary{font-weight:900;color:var(--purple);cursor:pointer}
+/* tabs */
+.tabs{position:sticky;top:6px;z-index:20;display:flex;gap:6px;overflow-x:auto;padding:6px;margin:14px -6px 0;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;font-weight:900;font-size:.92rem;color:var(--purple);background:rgba(255,253,245,.97);border:3px solid #000;border-radius:999px;padding:.45em 1em;box-shadow:var(--pop-sm);cursor:pointer}
+.tabs button.on{background:var(--i);color:#fff;border-color:var(--gold)}
+.pane[hidden]{display:none}
+/* chart */
+.ctl{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.ctl .lbl{font-size:.72rem;font-weight:900;color:var(--purple);text-transform:uppercase;letter-spacing:.04em;margin-left:4px}
+.tg{font-weight:900;font-size:.82rem;border:2.5px solid #000;border-radius:999px;padding:.25em .75em;cursor:pointer;background:#fff;min-height:36px}
+.tg.on{background:var(--i);color:#fff}
+#big{width:100%;height:auto;display:block;background:#fff;border:3px solid #000;border-radius:18px;box-shadow:var(--pop-sm);touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+#big:active{cursor:grabbing}
+#big text,.svgc text{font-family:var(--font);font-size:11px;fill:#5b5266}
+.readout{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;font-weight:900}
+.readout span{background:var(--soft);border:2.5px solid #000;border-radius:999px;padding:.2em .8em}
+.hint{font-size:.8rem;color:var(--faint);font-weight:800;margin-top:6px}
+.svgc{width:100%;height:auto;display:block;background:#fff;border:3px solid #000;border-radius:18px;box-shadow:var(--pop-sm)}
+/* tables */
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table.log{border-collapse:separate;border-spacing:0 6px;width:100%;min-width:820px;font-size:.88rem}
+table.log th{text-align:left;font-size:.7rem;color:var(--purple);text-transform:uppercase;letter-spacing:.04em;padding:0 6px;white-space:nowrap}
+table.log td{background:var(--soft);border-top:3px solid #000;border-bottom:3px solid #000;padding:5px 6px;font-weight:700;white-space:nowrap}
+table.log td:first-child{border-left:3px solid #000;border-radius:12px 0 0 12px}
+table.log td:last-child{border-right:3px solid #000;border-radius:0 12px 12px 0}
+table.log input,table.log select{min-height:34px;padding:3px 6px;font-size:.85rem;box-shadow:none;border-width:2px;border-radius:9px}
+table.log .thumb{width:40px;height:40px;border-radius:8px;border:2px solid #000;object-fit:cover;cursor:zoom-in;display:block}
+.pos{color:#3d8b1f}.neg{color:#c62828}
+/* stats */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:8px}
+.m1{background:rgba(255,255,255,.6);border:2.5px dashed currentColor;border-radius:14px;padding:7px 9px}
+.penpen .m1{background:rgba(255,255,255,.07)}
+.m1 small{display:block;font-size:.68rem;font-weight:900;text-transform:uppercase;letter-spacing:.04em;opacity:.75}
+.m1 b{font-size:1.1rem}
+.heat{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;max-width:360px}
+.heat span{aspect-ratio:1;border-radius:5px;border:1.5px solid #000;font-size:.6rem;display:grid;place-content:center;font-weight:900}
+/* compare */
+.objs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:8px}
+.obj{background:#fff;border:3px solid #000;border-radius:16px;padding:8px 10px;cursor:pointer;box-shadow:var(--pop-sm)}
+.obj.on{background:var(--gold)}
+.obj .e{font-size:1.8rem;line-height:1}
+.obj b{display:block;font-size:1.2rem;color:var(--i)}
+.scene{display:flex;align-items:flex-end;justify-content:center;gap:clamp(10px,4vw,40px);background:linear-gradient(180deg,#fffdf5,#f0ffe6);border:3px solid #000;border-radius:20px;padding:20px 10px 14px;min-height:240px;margin-top:12px;position:relative;overflow:hidden}
+.scene::after{content:"";position:absolute;left:0;right:0;bottom:0;height:14px;background:#8ac926;border-top:3px solid #000}
+.scene .it{display:flex;flex-direction:column;align-items:center;z-index:1;margin-bottom:14px}
+.scene .it .lab{font-weight:900;font-size:.8rem;background:#fff;border:2px solid #000;border-radius:999px;padding:0 .6em;margin-top:3px;white-space:nowrap}
+.scene .em{line-height:1;filter:drop-shadow(0 6px 6px rgba(0,0,0,.25))}
+.prog{height:22px;border:3px solid #000;border-radius:999px;background:#fff;overflow:hidden;position:relative}
+.prog i{position:absolute;inset:0 auto 0 0;background:var(--rainbow,linear-gradient(90deg,#ff595e,#ff924c,#ffca3a,#8ac926,#1982c4,#6a4c93))}
+.prog span{position:absolute;inset:0;display:grid;place-content:center;font-weight:900;font-size:.8rem}
+/* play */
+.tm{display:flex;align-items:flex-end;justify-content:center;gap:clamp(16px,6vw,60px);min-height:260px;background:linear-gradient(180deg,#fffdf5,#f6f0ff);border:3px solid #000;border-radius:20px;padding:16px 10px 10px;position:relative}
+.tm.future{background:repeating-linear-gradient(45deg,#f6f0ff 0 14px,#efe4ff 14px 28px)}
+.tm .it{display:flex;flex-direction:column;align-items:center}
+.tm .it svg{transition:width .25s ease}
+.tm .lab{font-weight:900;background:#fff;border:2.5px solid #000;border-radius:999px;padding:.1em .8em;margin-top:4px;white-space:nowrap}
+.tmdate{text-align:center;font-weight:900;font-size:1.2rem;margin:10px 0 4px}
+.tmdate small{display:block;color:var(--faint);font-size:.8rem}
+input[type=range].fat{width:100%;accent-color:var(--i);height:30px}
+/* pics */
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
+.pc{background:#fff;border:3px solid #000;border-radius:14px;padding:6px;box-shadow:var(--pop-sm);position:relative;cursor:pointer}
+.pc.sel{outline:4px solid var(--i);outline-offset:2px}
+.pc img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block}
+.pc .cap{font-weight:900;font-size:.82rem;margin-top:4px}
+.sbs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.sbs .side{background:#fff;border:3px solid #000;border-radius:16px;padding:8px;text-align:center;font-weight:900}
+.sbs img{width:100%;border-radius:10px;display:block;margin-bottom:6px}
+/* edit sheet */
+#edlg .form{gap:10px}
+#edlg img{max-width:100%;max-height:220px;border:3px solid #000;border-radius:12px;display:block;margin:6px auto}
+#undo{position:fixed;right:14px;bottom:calc(76px + env(safe-area-inset-bottom));z-index:45;display:none}
+#undo.on{display:inline-block}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>⚖️ The Weight App</h1>
+  <div class="tagline">Misato &amp; Pen Pen, gram by gram 🍋🌙</div>
+  <div class="toprow">
+    <button class="pill" id="mepill">🍋 I'm the lemon</button>
+    <button class="pill" id="syncpill"><span class="dot"></span><span id="synctext">saving…</span></button>
+  </div>
+  <div class="backs"><a class="pill" href="./">✨ the new weight app</a><a class="pill" href="../v2/">← v2</a><a class="pill" href="../">← original</a></div>
+</header>
+
+<!-- quick add -->
+<section class="card" id="add">
+  <h2>➕ New weigh-in</h2>
+  <div class="bigk" id="qK"></div>
+  <div class="qa" style="margin-top:12px">
+    <div class="field" style="grid-column:span 2"><label>Grams</label>
+      <div class="gbox"><input type="number" id="qG" inputmode="decimal" min="50" max="12000" placeholder="grams"></div>
+      <div class="step"><button data-s="-50">−50</button><button data-s="-10">−10</button><button data-s="-5">−5</button><button data-s="-1">−1</button><button data-s="1">+1</button><button data-s="5">+5</button><button data-s="10">+10</button><button data-s="50">+50</button></div>
+      <div class="hint" id="qHint"></div></div>
+    <div class="field"><label>Date</label><input type="date" id="qDate"></div>
+    <div class="field"><label>Time</label><input type="time" id="qTime"></div>
+    <div class="field"><label>Fed?</label><select id="qFed"><option value="">—</option><option value="before">before food</option><option value="after">after food</option></select></div>
+  </div>
+  <details class="more"><summary>📷 photo · ✏️ note · 🎯 guesses</summary>
+    <div class="qa" style="margin-top:8px">
+      <div class="field"><label>Photo on the scales</label><input type="file" id="qPhoto" accept="image/*" style="font-size:.8rem"></div>
+      <div class="field" style="grid-column:span 2"><label>Note</label><input type="text" id="qNote" placeholder="wriggly, kept stepping off"></div>
+      <div class="field"><label>🍋 guessed</label><input type="number" id="qGl" inputmode="decimal" placeholder="g"></div>
+      <div class="field"><label>🌙 guessed</label><input type="number" id="qGg" inputmode="decimal" placeholder="g"></div>
+      <div class="field"><label><input type="checkbox" id="qApprox"> roughly</label></div>
+    </div>
+  </details>
+  <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn go" id="qSave" style="font-size:1.15rem">⚖️ Save weigh-in</button></div>
+</section>
+
+<nav class="tabs" id="tabs">
+  <button data-t="chart" class="on">📈 Chart</button><button data-t="log">📋 Log</button><button data-t="stats">🔬 Stats</button>
+  <button data-t="compare">⚖️ Compare</button><button data-t="play">🧪 Play</button><button data-t="pics">📸 Pics</button>
+</nav>
+
+<!-- chart -->
+<section class="card pane" id="p-chart">
+  <h2>📈 The chart</h2>
+  <div class="ctl">
+    <span class="lbl">show</span><button class="tg on" data-o="misato">🤍 Misato</button><button class="tg on" data-o="penpen">🖤 Pen Pen</button>
+    <button class="tg on" data-o="band">typical range</button><button class="tg on" data-o="ms">milestones</button><button class="tg" data-o="events">moments</button><button class="tg on" data-o="photos">📷</button><button class="tg" data-o="labels">values</button>
+  </div>
+  <div class="ctl">
+    <span class="lbl">range</span><div class="seg" id="cRange"><button data-r="7">1w</button><button data-r="14">2w</button><button data-r="30">1m</button><button data-r="90">3m</button><button data-r="0" class="on">all</button><button data-r="-1">future</button></div>
+    <span class="lbl">x</span><div class="seg" id="cX"><button data-x="date" class="on">date</button><button data-x="age">age</button></div>
+  </div>
+  <div class="ctl">
+    <span class="lbl">units</span><div class="seg" id="cU"><button data-u="g" class="on">g</button><button data-u="kg">kg</button><button data-u="lb">lb</button><button data-u="lemon">🍋</button></div>
+    <span class="lbl">projection</span><div class="seg" id="cP"><button data-p="none">off</button><button data-p="rate">recent pace</button><button data-p="curve" class="on">growth curve</button></div>
+  </div>
+  <svg id="big" viewBox="0 0 1000 520"></svg>
+  <div class="readout" id="readout"></div>
+  <div class="hint">Drag to pan · pinch or scroll to zoom · double-tap to reset · tap a dot to edit that weigh-in.</div>
+</section>
+
+<!-- log -->
+<section class="card pane" id="p-log" hidden>
+  <h2>📋 Every weigh-in</h2>
+  <div class="sub">Edit anything in place — it saves as you go, on both phones. Mistake? Hit ↩︎ Undo.</div>
+  <div class="filters" style="margin-bottom:8px"><div class="seg" id="lK"><button data-k="all" class="on">Both</button><button data-k="misato">Misato</button><button data-k="penpen">Pen Pen</button></div>
+    <div class="seg" id="lSort"><button data-s="desc" class="on">newest first</button><button data-s="asc">oldest first</button></div></div>
+  <div class="tw"><table class="log" id="logt"></table></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px"><button class="btn" id="csv">⬇️ CSV</button><button class="btn" id="json">⬇️ JSON</button></div>
+</section>
+
+<!-- stats -->
+<section class="card pane" id="p-stats" hidden>
+  <h2>🔬 In immense detail</h2>
+  <div class="grid2" id="sCards"></div>
+  <h3>📈 Growth speed — g per day between weigh-ins</h3>
+  <svg class="svgc" id="vel" viewBox="0 0 1000 240"></svg>
+  <h3>↔️ The gap between them</h3>
+  <svg class="svgc" id="gap" viewBox="0 0 1000 220"></svg>
+  <h3>🗓 Week by week</h3>
+  <div class="tw"><table class="log" id="weeks" style="min-width:560px"></table></div>
+  <h3>🔥 Weigh-in calendar (last 12 weeks)</h3>
+  <div class="grid2" id="heats"></div>
+  <h3>🎯 Guess-the-weight leaderboard</h3>
+  <div id="guess"></div>
+</section>
+
+<!-- compare -->
+<section class="card pane" id="p-compare" hidden>
+  <h2>⚖️ Compare</h2>
+  <div class="sub">Tap something to stand it next to them — drawn to scale by weight.</div>
+  <div class="filters" style="margin-bottom:8px"><div class="seg" id="cmK"><button data-k="misato" class="on">Misato</button><button data-k="penpen">Pen Pen</button></div></div>
+  <div class="scene" id="scene"></div>
+  <div class="objs" id="objs"></div>
+  <h3>🌱 How grown-up are they?</h3>
+  <div id="adult"></div>
+  <h3>📏 Against a typical kitten</h3>
+  <div id="vsTypical"></div>
+  <h3>⏪ Against their younger selves</h3>
+  <div class="scene" id="selves"></div>
+</section>
+
+<!-- play -->
+<section class="card pane" id="p-play" hidden>
+  <h2>🧪 Play</h2>
+  <h3>⏳ Time machine</h3>
+  <div class="tm" id="tm"></div>
+  <div class="tmdate" id="tmDate"></div>
+  <input type="range" class="fat" id="tmS" min="0" max="100" value="0">
+  <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:6px"><button class="btn" id="tmPlay">▶ Play</button><button class="btn sm" id="tmToday">today</button><button class="btn sm" id="tmBday">first birthday</button></div>
+  <h3>🎛 What if…</h3>
+  <div class="sub">Drag the daily gain and see when they'd hit each size.</div>
+  <div class="grid2" id="whatif"></div>
+  <h3>👻 Ghost weigh-in</h3>
+  <div class="sub">Try a number without saving it — see how it would change things.</div>
+  <div class="form">
+    <div class="field"><label>Kitten</label><select id="ghK"><option value="misato">🤍 Misato</option><option value="penpen">🖤 Pen Pen</option></select></div>
+    <div class="field"><label>Date</label><input type="date" id="ghD"></div>
+    <div class="field"><label>Grams</label><input type="number" id="ghG" inputmode="decimal"></div>
+    <button class="btn" id="ghKeep">💾 keep it for real</button>
+  </div>
+  <div id="ghOut" style="margin-top:10px"></div>
+</section>
+
+<!-- pics -->
+<section class="card pane" id="p-pics" hidden>
+  <h2>📸 On the scales</h2>
+  <div class="sub">Every weigh-in photo. Tap two to compare them side by side.</div>
+  <div class="filters"><div class="seg" id="pK"><button data-k="all" class="on">Both</button><button data-k="misato">Misato</button><button data-k="penpen">Pen Pen</button></div></div>
+  <div class="sbs" id="sbs"></div>
+  <div class="pgrid" id="pgrid"></div>
+</section>
+
+<footer><button class="btn sm" id="exportBtn">💾 Backup everything</button><br>same data as the original and v2 · 🍋💛🌙</footer>
+</div>
+
+<!-- edit sheet -->
+<dialog id="edlg"><div class="in"><h2 id="edT">Edit weigh-in</h2>
+  <div class="form">
+    <div class="field"><label>Kitten</label><select id="eK"><option value="misato">🤍 Misato</option><option value="penpen">🖤 Pen Pen</option></select></div>
+    <div class="field"><label>Date</label><input type="date" id="eD"></div>
+    <div class="field"><label>Time</label><input type="time" id="eTm"></div>
+    <div class="field"><label>Grams</label><input type="number" id="eG" inputmode="decimal"></div>
+    <div class="field"><label>Fed?</label><select id="eF"><option value="">—</option><option value="before">before food</option><option value="after">after food</option></select></div>
+    <div class="field"><label><input type="checkbox" id="eA"> roughly</label></div>
+    <div class="field wide"><label>Note</label><input type="text" id="eN"></div>
+    <div class="field wide"><label>Photo</label><input type="file" id="eP" accept="image/*" style="font-size:.85rem"></div>
+  </div>
+  <div id="ePrev"></div>
+  <div class="actions"><button class="btn ghost" id="eDel">🗑 Delete</button><button class="btn" id="eCancel">Cancel</button><button class="btn go" id="eSave">Save</button></div>
+</div></dialog>
+<dialog id="viewer"><img id="viewerImg" alt=""></dialog>
+<button class="btn go" id="undo">↩︎ Undo</button>
+<div id="toast"></div>
+
+<script src="../vendor/mqtt.min.js"></script>
+<script src="../shared/core.js"></script>
+<script>
+'use strict';
+/* ═════════════ helpers ═════════════ */
+const pen = id => id === 'penpen';
+const DOB = () => KIDS.map(id => K(id).dob).filter(Boolean).sort()[0] || todayYmd();
+const ls = (k, v) => v === undefined ? lsGet('kittens.wapp.' + k) : lsSet('kittens.wapp.' + k, v);   // per-phone view prefs only
+const S = Object.assign({ tab: 'chart', unit: 'g', proj: 'curve', x: 'date', range: 0, show: { misato: true, penpen: true, band: true, ms: true, events: false, photos: true, labels: false } }, (() => { try { return JSON.parse(ls('prefs')) || {}; } catch (e) { return {}; } })());
+const saveS = () => ls('prefs', JSON.stringify(S));
+function fmt(g, u = S.unit) {
+  if (g == null || isNaN(g)) return '—';
+  if (u === 'kg') return (g / 1000).toFixed(g >= 10000 ? 1 : 2) + ' kg';
+  if (u === 'lb') { const oz = g / 28.3495, lb = Math.floor(oz / 16); return lb ? `${lb} lb ${(oz - lb * 16).toFixed(1)} oz` : `${oz.toFixed(1)} oz`; }
+  if (u === 'lemon') return (g / LEMON_G).toFixed(1) + ' 🍋';
+  return Math.round(g) + ' g';
+}
+function axisFmt(g) { if (S.unit === 'kg') return (g / 1000).toFixed(g % 1000 ? 1 : 0) + 'kg'; if (S.unit === 'lb') return (g / 453.592).toFixed(1) + 'lb'; if (S.unit === 'lemon') return (g / LEMON_G).toFixed(0) + '🍋'; return g >= 1000 ? (g / 1000).toFixed(g % 1000 ? 1 : 0) + 'kg' : g + 'g'; }
+const sign = n => (n >= 0 ? '+' : '−') + Math.abs(Math.round(n));
+const W8 = id => weightsOf(id);
+// weight at a date: interpolate between weigh-ins; before the first → null; after the last → projection (model)
+function wAt(id, date, model = S.proj) {
+  const w = W8(id); if (!w.length) return null;
+  if (date < w[0].date) return null;
+  for (let i = 1; i < w.length; i++) if (date <= w[i].date) { const a = w[i - 1], b = w[i], span = daysBetween(a.date, b.date); return span ? a.g + (b.g - a.g) * daysBetween(a.date, date) / span : b.g; }
+  const l = w[w.length - 1]; if (date === l.date) return l.g;
+  if (model === 'none') return null;
+  return model === 'rate' ? projectAt(id, date) : projCurve(id, date);
+}
+function when(id, target, model = S.proj) {
+  if (model === 'rate') return projectDate(id, target);
+  return whenReaches(id, target);
+}
+function view(src) { $('#viewerImg').src = src; $('#viewer').showModal(); }
+$('#viewer').onclick = () => $('#viewer').close();
+
+/* ═════════════ undo ═════════════ */
+const undoStack = [];
+function wput(id, rec) { undoStack.push({ id, prev: doc.weights[id] ? Object.assign({}, doc.weights[id]) : null }); put('weights', id, rec); showUndo(); }
+function wdel(id) { undoStack.push({ id, prev: Object.assign({}, doc.weights[id]) }); del('weights', id); showUndo(); }
+function showUndo() { $('#undo').classList.toggle('on', undoStack.length > 0); clearTimeout(showUndo.t); showUndo.t = setTimeout(() => $('#undo').classList.remove('on'), 12000); }
+$('#undo').onclick = () => { const x = undoStack.pop(); if (!x) return;
+  if (!x.prev) del('weights', x.id); else {
+    // fields added since are blanked explicitly — merges keep any field that's simply missing
+    const cur = doc.weights[x.id] || {}, blank = {}; Object.keys(cur).forEach(k => { if (!(k in x.prev) && k !== 'u') blank[k] = k === 'del' ? false : null; });
+    doc.weights[x.id] = Object.assign(blank, x.prev, { u: Date.now() }); if (!x.prev.del) delete doc.weights[x.id].del; save(); changed(); }
+  toast('↩︎ undone'); showUndo(); };
+
+/* ═════════════ who ═════════════ */
+function renderMe() { $('#mepill').textContent = me === 'lemon' ? "🍋 I'm the lemon" : "🌙 I'm the girl"; }
+$('#mepill').onclick = () => { setMe(me === 'lemon' ? 'girl' : 'lemon'); renderMe(); toast(me === 'lemon' ? '🍋 logging as the lemon' : '🌙 logging as the girl'); };
+
+/* ═════════════ quick add ═════════════ */
+let qK = ls('qK') || 'misato';
+function renderQK() {
+  $('#qK').innerHTML = KIDS.map(id => `<button data-k="${id}" class="${qK === id ? 'on' : ''}">${kittenSVG(id, { w: 40, still: true })}${esc(K(id).name)}</button>`).join('');
+  $('#qK').querySelectorAll('button').forEach(b => b.onclick = () => { qK = b.dataset.k; ls('qK', qK); renderQK(); qHint(); });
+}
+function qHint() {
+  const l = latest(qK), est = estNow(qK), ex = projCurve(qK, $('#qDate').value || todayYmd());
+  $('#qG').placeholder = ex ? '≈ ' + ex : 'grams';
+  $('#qHint').textContent = l ? `last: ${l.g}g on ${nice(l.date)} · expecting about ${ex || est}g` : 'first weigh-in!';
+}
+$('#add').querySelectorAll('.step button').forEach(b => b.onclick = () => { const cur = +$('#qG').value || projCurve(qK, $('#qDate').value || todayYmd()) || latest(qK)?.g || 0; $('#qG').value = Math.max(0, Math.round(cur + +b.dataset.s)); });
+$('#qDate').onchange = qHint;
+$('#qSave').onclick = async () => {
+  const g = Math.round(parseFloat($('#qG').value)); if (!g || g < 50 || g > 12000) { toast('grams please'); return; }
+  const date = $('#qDate').value || todayYmd(), id = uid(), prev = latest(qK);
+  const rec = { k: qK, date, g, approx: $('#qApprox').checked, by: me, time: $('#qTime').value || '', fed: $('#qFed').value, note: $('#qNote').value.trim() };
+  const gl = +$('#qGl').value, gg = +$('#qGg').value; if (gl || gg) rec.guess = Object.assign({}, gl ? { lemon: gl } : {}, gg ? { girl: gg } : {});
+  const f = $('#qPhoto').files[0];
+  if (f) { try { const d = await shrink(f, 900); rec.photo = addPhoto(d, { k: qK, caption: `⚖️ ${g}g`, date, weigh: id }); } catch (e) {} }
+  wput(id, rec);
+  ['#qG', '#qNote', '#qGl', '#qGg'].forEach(s => $(s).value = ''); $('#qPhoto').value = ''; $('#qApprox').checked = false; $('#qTime').value = new Date().toTimeString().slice(0, 5);
+  let msg = `⚖️ ${K(qK).name}: ${g}g`; if (prev) msg += ` (${sign(g - prev.g)}g)`;
+  if (rec.guess) { const e = Object.entries(rec.guess).map(([p, v]) => [p, Math.abs(v - g)]).sort((a, b) => a[1] - b[1]); msg += ` · 🎯 ${WHO[e[0][0]]} closest (${e[0][1]}g off)`; }
+  toast(msg); if (!prev || g > prev.g) rain(['⚖️', '🐾', '🍋', '💛']);
+};
+
+/* ═════════════ tabs ═════════════ */
+function setTab(t) { S.tab = t; saveS(); $('#tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === t)); document.querySelectorAll('.pane').forEach(p => p.hidden = p.id !== 'p-' + t); renderTab(); }
+$('#tabs').querySelectorAll('button').forEach(b => b.onclick = () => setTab(b.dataset.t));
+
+/* ═════════════ 📈 big chart ═════════════ */
+const CW = 1000, CH = 520, CL = 64, CR = 24, CT = 22, CB = 56;
+let vp = null;            // {x0,x1,y0,y1} in days-since-DOB and grams — null = auto
+function autoVP() {
+  const dob = DOB(), td = daysBetween(dob, todayYmd());
+  const ids = KIDS.filter(id => S.show[id]), all = ids.flatMap(W8);
+  const first = all.length ? Math.min(...all.map(p => daysBetween(dob, p.date))) : td - 14;
+  const last = all.length ? Math.max(...all.map(p => daysBetween(dob, p.date))) : td;
+  let x0, x1;
+  if (S.range === -1) { x0 = Math.max(0, td - 14); x1 = td + 120; }
+  else if (S.range > 0) { x1 = Math.max(td, last) + Math.max(3, Math.round(S.range / 5)); x0 = x1 - S.range - Math.max(3, Math.round(S.range / 5)); }
+  else { x0 = Math.max(0, first - 5); x1 = Math.max(td, last) + (S.proj !== 'none' ? 21 : 5); }
+  return Object.assign({ x0, x1 }, fitY(x0, x1));
+}
+function fitY(x0, x1) {
+  const dob = DOB(), vals = [];
+  KIDS.filter(id => S.show[id]).forEach(id => { W8(id).forEach(p => { const d = daysBetween(dob, p.date); if (d >= x0 - 2 && d <= x1 + 2) vals.push(p.g); });
+    [x0, (x0 + x1) / 2, x1].forEach(d => { const v = wAt(id, addDays(dob, Math.round(d))); if (v != null) vals.push(v); }); });
+  if (S.show.band) { vals.push(guide(Math.max(0, x0))[0], guide(Math.max(0, x1))[1]); }
+  if (!vals.length) vals.push(400, 1200);
+  let y0 = Math.min(...vals), y1 = Math.max(...vals); const pad = Math.max(30, (y1 - y0) * .1);
+  return { y0: Math.max(0, y0 - pad), y1: y1 + pad };
+}
+function drawBig() {
+  const v = vp || autoVP(), dob = DOB(), svg = $('#big');
+  const X = d => CL + (d - v.x0) / (v.x1 - v.x0) * (CW - CL - CR), Y = g => CT + (1 - (g - v.y0) / (v.y1 - v.y0)) * (CH - CT - CB);
+  const iX = px => v.x0 + (px - CL) / (CW - CL - CR) * (v.x1 - v.x0);
+  let g = '', ax = '';
+  // y grid
+  const span = v.y1 - v.y0, unitG = S.unit === 'lb' ? 453.592 : S.unit === 'lemon' ? LEMON_G : 1;
+  const raw = span / unitG / 6, mag = Math.pow(10, Math.floor(Math.log10(raw))), stepU = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => s >= raw), step = stepU * unitG;
+  for (let y = Math.ceil(v.y0 / step) * step; y <= v.y1; y += step) { g += `<line x1="${CL}" x2="${CW - CR}" y1="${Y(y)}" y2="${Y(y)}" stroke="#eee" stroke-width="1.5"/>`; ax += `<text x="${CL - 8}" y="${Y(y) + 4}" text-anchor="end">${axisFmt(Math.round(y))}</text>`; }
+  // x grid: choose step by visible span
+  const xs = v.x1 - v.x0, xstep = xs > 240 ? 28 : xs > 90 ? 7 : xs > 30 ? 3 : xs > 12 ? 1 : 1;
+  for (let d = Math.ceil(v.x0 / xstep) * xstep; d <= v.x1; d += xstep) { const wk = d % 7 === 0;
+    g += `<line x1="${X(d)}" x2="${X(d)}" y1="${CT}" y2="${CH - CB}" stroke="${wk ? '#e6dcff' : '#f6f3fb'}" stroke-width="${wk ? 2 : 1}"/>`;
+    const date = addDays(dob, d), lbl = S.x === 'age' ? (wk ? Math.round(d / 7) + ' wk' : (xs <= 30 ? Math.floor(d / 7) + 'w' + (d % 7) + 'd' : '')) : parseYmd(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const sub = S.x === 'age' ? (xs <= 60 ? parseYmd(date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '') : (wk ? Math.round(d / 7) + 'w' : '');
+    if (lbl) ax += `<text x="${X(d)}" y="${CH - CB + 17}" text-anchor="middle" style="font-weight:${wk ? 900 : 400}">${lbl}</text>`;
+    if (sub) ax += `<text x="${X(d)}" y="${CH - CB + 33}" text-anchor="middle" style="font-size:9.5px">${sub}</text>`; }
+  // band
+  if (S.show.band) { let top = '', bot = ''; const st = Math.max(.5, xs / 120); for (let d = Math.max(0, v.x0); d <= v.x1 + st; d += st) { const [lo, hi] = guide(d); top += `${X(d)},${Y(hi)} `; bot = `${X(d)},${Y(lo)} ` + bot; }
+    g += `<polygon points="${top}${bot}" fill="rgba(138,201,38,.18)" stroke="rgba(95,151,24,.5)" stroke-dasharray="5 4" stroke-width="1.5"/>`; }
+  // milestones
+  if (S.show.ms) { [500, 750, 1000, 1500, 2000, 2500, 3000, 4000].filter(m => m > v.y0 && m < v.y1).forEach(m => g += `<line x1="${CL}" x2="${CW - CR}" y1="${Y(m)}" y2="${Y(m)}" stroke="#b15ee3" stroke-width="1.2" stroke-dasharray="2 6"/><text x="${CW - CR - 6}" y="${Y(m) - 5}" text-anchor="end" style="fill:#b15ee3;font-weight:900">${fmt(m)}</text>`);
+    [[56, '8 wk'], [63, '1st jab'], [84, '12 wk'], [120, '4 mo'], [182, '6 mo'], [365, '1 yr']].filter(([d]) => d > v.x0 && d < v.x1).forEach(([d, l]) => g += `<text x="${X(d) + 4}" y="${CH - CB - 6}" style="fill:#b15ee3;font-weight:900;font-size:10px">${l}</text>`); }
+  // today
+  const td = daysBetween(dob, todayYmd()); if (td >= v.x0 && td <= v.x1) g += `<line x1="${X(td)}" x2="${X(td)}" y1="${CT}" y2="${CH - CB}" stroke="#ffca3a" stroke-width="3"/><text x="${X(td)}" y="${CT - 6}" text-anchor="middle" style="font-weight:900;fill:#6a4c93">today</text>`;
+  // moments
+  if (S.show.events) live('events').map(([, e]) => e).forEach(e => { const d = daysBetween(dob, e.date); if (d >= v.x0 && d <= v.x1) g += `<text x="${X(d)}" y="${CT + 14}" text-anchor="middle" style="font-size:13px">🚩</text><title>${esc(e.text)}</title>`; });
+  // series
+  const dots = [], visible = KIDS.filter(id => S.show[id]).flatMap(id => W8(id).filter(p => { const d = daysBetween(dob, p.date); return d >= v.x0 && d <= v.x1; })).length;
+  KIDS.filter(id => S.show[id]).forEach(id => {
+    const w = W8(id); if (!w.length) return; const P = w.map(p => [X(daysBetween(dob, p.date)), Y(p.g), p]), b = pen(id);
+    // projection path
+    if (S.proj !== 'none') { const l = w[w.length - 1], ld = daysBetween(dob, l.date); let pp = `${X(ld)},${Y(l.g)}`; const st = Math.max(1, Math.round(xs / 60));
+      for (let d = ld + st; d <= v.x1 + st; d += st) { const val = wAt(id, addDays(dob, d)); if (val != null) pp += ` ${X(d)},${Y(val)}`; }
+      g += `<polyline points="${pp}" fill="none" stroke="${b ? '#2b2b30' : '#6a4c93'}" stroke-width="2.5" stroke-dasharray="3 6" stroke-linecap="round" opacity=".8"/>`; }
+    const path = P.map(p => p[0] + ',' + p[1]).join(' ');
+    if (P.length > 1) g += `<polyline points="${path}" fill="none" stroke="#000" stroke-width="${b ? 5.5 : 7.5}" stroke-linejoin="round" stroke-linecap="round"/><polyline points="${path}" fill="none" stroke="${b ? '#2b2b30' : '#fff'}" stroke-width="${b ? 4 : 4}" stroke-linejoin="round" stroke-linecap="round"/>`;
+    P.forEach(([x, y, p], i) => {
+      const hasPh = p.photo && photoURL(p.photo);
+      g += `<circle cx="${x}" cy="${y}" r="${p.approx ? 6 : 8}" fill="${b ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="3" ${p.approx ? 'stroke-dasharray="3 2"' : ''} data-w="${p.id}" style="cursor:pointer"/>`;
+      if (S.show.photos && hasPh) g += `<text x="${x}" y="${y - 13}" text-anchor="middle" style="font-size:13px">📷</text>`;
+      if ((S.show.labels || visible <= 16) && x >= CL && x <= CW - CR) g += `<text x="${x}" y="${y + (b ? 24 : -14 - (S.show.photos && hasPh ? 14 : 0))}" text-anchor="middle" style="font-weight:900;fill:#1a1a1a;font-size:12px">${fmt(p.g).replace(' ', '')}</text>`;
+      dots.push({ x, y, id: p.id });
+    });
+  });
+  svg.innerHTML = `<defs><clipPath id="cc"><rect x="${CL}" y="0" width="${CW - CL - CR}" height="${CH - CB + 2}"/></clipPath></defs><g clip-path="url(#cc)">${g}<line id="xh" x1="0" x2="0" y1="${CT}" y2="${CH - CB}" stroke="#6a4c93" stroke-width="1.5" opacity="0"/></g>${ax}`;
+  drawBig.ctx = { X, Y, iX, dots, v };
+  readout(addDays(dob, Math.min(td, Math.round(v.x1))));
+}
+function readout(date) {
+  const r = KIDS.filter(id => S.show[id]).map(id => { const val = wAt(id, date); const real = W8(id).find(p => p.date === date);
+    return `<span>${pen(id) ? '🖤' : '🤍'} ${esc(K(id).name)}: ${val == null ? '—' : fmt(val)}${real ? ' ✓' : val != null && date > (latest(id) || {}).date ? ' (proj.)' : val != null ? ' (interp.)' : ''}</span>`; });
+  const a = ageDays('misato', date);
+  $('#readout').innerHTML = `<span>📅 ${nice(date)} · ${ageStr(a)}</span>` + r.join('') + (KIDS.every(id => S.show[id] && wAt(id, date) != null) ? `<span>gap ${Math.round(Math.abs(wAt('misato', date) - wAt('penpen', date)))}g</span>` : '');
+}
+// interaction: drag pan, wheel & pinch zoom, tap dot → edit, double-tap reset
+(function () {
+  const svg = $('#big'), ptrs = new Map(); let start = null, moved = false, lastTap = 0;
+  const toSvg = e => { const r = svg.getBoundingClientRect(); return [(e.clientX - r.left) * CW / r.width, (e.clientY - r.top) * CH / r.height]; };
+  function zoomAt(px, f) { const v = vp || autoVP(), c = drawBig.ctx.iX(px); const x0 = c - (c - v.x0) * f, x1 = c + (v.x1 - c) * f;
+    if (x1 - x0 < 3 || x1 - x0 > 900) return; vp = Object.assign({ x0, x1 }, fitY(x0, x1)); drawBig(); }
+  svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(toSvg(e)[0], e.deltaY > 0 ? 1.15 : 1 / 1.15); }, { passive: false });
+  svg.addEventListener('pointerdown', e => { svg.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, toSvg(e)); moved = false;
+    start = { v: Object.assign({}, vp || autoVP()), p: toSvg(e), d: ptrs.size === 2 ? Math.abs([...ptrs.values()][0][0] - [...ptrs.values()][1][0]) : null }; });
+  svg.addEventListener('pointermove', e => {
+    const p = toSvg(e), ctx = drawBig.ctx; if (!ctx) return;
+    const xh = $('#xh'); if (xh && p[0] >= CL && p[0] <= CW - CR) { xh.setAttribute('x1', p[0]); xh.setAttribute('x2', p[0]); xh.setAttribute('opacity', .6); readout(addDays(DOB(), Math.round(ctx.iX(p[0])))); }
+    if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, p);
+    if (ptrs.size === 2 && start && start.d) { const [a, b] = [...ptrs.values()], d = Math.abs(a[0] - b[0]); if (d > 10) { const f = start.d / d, c = (a[0] + b[0]) / 2;
+      const cd = start.v.x0 + (c - CL) / (CW - CL - CR) * (start.v.x1 - start.v.x0); const x0 = cd - (cd - start.v.x0) * f, x1 = cd + (start.v.x1 - cd) * f;
+      if (x1 - x0 >= 3 && x1 - x0 <= 900) { vp = Object.assign({ x0, x1 }, fitY(x0, x1)); drawBig(); moved = true; } } return; }
+    if (ptrs.size === 1 && start) { const dx = p[0] - start.p[0]; if (Math.abs(dx) > 4) moved = true; if (!moved) return;
+      const dd = -dx / (CW - CL - CR) * (start.v.x1 - start.v.x0), x0 = start.v.x0 + dd, x1 = start.v.x1 + dd; vp = Object.assign({ x0, x1 }, fitY(x0, x1)); drawBig(); }
+  });
+  const up = e => { const p = toSvg(e); ptrs.delete(e.pointerId);
+    if (!moved && ptrs.size === 0) { const now = Date.now();
+      if (now - lastTap < 320) { vp = null; drawBig(); lastTap = 0; return; } lastTap = now;
+      const hit = drawBig.ctx.dots.map(d => [d, (d.x - p[0]) ** 2 + (d.y - p[1]) ** 2]).sort((a, b) => a[1] - b[1])[0]; if (hit && hit[1] < 500) setTimeout(() => { if (Date.now() - lastTap >= 300) openEdit(hit[0].id); }, 330); }
+    if (ptrs.size < 2) start = ptrs.size ? { v: Object.assign({}, vp || autoVP()), p: [...ptrs.values()][0], d: null } : null; };
+  svg.addEventListener('pointerup', up); svg.addEventListener('pointercancel', up);
+  svg.addEventListener('pointerleave', () => { const xh = $('#xh'); if (xh) xh.setAttribute('opacity', 0); });
+})();
+// chart controls
+document.querySelectorAll('#p-chart .tg').forEach(b => { b.classList.toggle('on', !!S.show[b.dataset.o]); b.onclick = () => { S.show[b.dataset.o] = !S.show[b.dataset.o]; b.classList.toggle('on'); saveS(); vp = null; renderAll(); }; });
+function segBind(sel, key, attr, conv = v => v) { const box = $(sel); box.querySelectorAll('button').forEach(b => { b.classList.toggle('on', String(S[key]) === b.dataset[attr]);
+  b.onclick = () => { S[key] = conv(b.dataset[attr]); saveS(); box.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); vp = null; renderAll(); }; }); }
+segBind('#cRange', 'range', 'r', Number); segBind('#cX', 'x', 'x'); segBind('#cU', 'unit', 'u'); segBind('#cP', 'proj', 'p');
+
+/* ═════════════ edit sheet ═════════════ */
+let editId = null, editPhoto;
+function openEdit(id) {
+  const w = doc.weights[id]; if (!w || w.del) return; editId = id; editPhoto = undefined;
+  $('#edT').textContent = `⚖️ ${K(w.k).name} · ${nice(w.date)}`;
+  $('#eK').value = w.k; $('#eD').value = w.date; $('#eTm').value = w.time || ''; $('#eG').value = w.g; $('#eF').value = w.fed || ''; $('#eA').checked = !!w.approx; $('#eN').value = w.note || ''; $('#eP').value = '';
+  const src = w.photo && photoURL(w.photo); $('#ePrev').innerHTML = src ? `<img src="${src}" alt="">` : '';
+  $('#edlg').showModal();
+}
+$('#eP').onchange = async e => { const f = e.target.files[0]; if (f) { editPhoto = await shrink(f, 900); $('#ePrev').innerHTML = `<img src="${editPhoto}" alt="">`; } };
+$('#eCancel').onclick = () => $('#edlg').close();
+$('#eDel').onclick = () => { if (confirm('Delete this weigh-in?')) { wdel(editId); $('#edlg').close(); toast('🗑 deleted — undo is bottom right'); } };
+$('#eSave').onclick = () => { const g = Math.round(+$('#eG').value); if (!(g >= 50)) { toast('grams please'); return; }
+  const rec = { k: $('#eK').value, date: $('#eD').value, time: $('#eTm').value, g, fed: $('#eF').value, approx: $('#eA').checked, note: $('#eN').value.trim() };
+  if (editPhoto) rec.photo = addPhoto(editPhoto, { k: rec.k, caption: `⚖️ ${g}g`, date: rec.date, weigh: editId });
+  wput(editId, rec); $('#edlg').close(); toast('✏️ saved'); };
+
+/* ═════════════ 📋 log ═════════════ */
+let lK = 'all', lSort = 'desc';
+$('#lK').querySelectorAll('button').forEach(b => b.onclick = () => { lK = b.dataset.k; $('#lK').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderLog(); });
+$('#lSort').querySelectorAll('button').forEach(b => b.onclick = () => { lSort = b.dataset.s; $('#lSort').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderLog(); });
+function rowsFor(k) { return KIDS.filter(id => k === 'all' || id === k).flatMap(id => { const w = W8(id); return w.map((p, i) => { const prev = w[i - 1], dd = prev ? daysBetween(prev.date, p.date) : 0;
+  return Object.assign({}, p, { d: prev ? p.g - prev.g : null, r: prev && dd > 0 ? (p.g - prev.g) / dd : null, pct: prev ? (p.g / prev.g - 1) * 100 : null, age: ageDays(id, p.date) }); }); }); }
+function renderLog() {
+  const R = rowsFor(lK).sort((a, b) => (lSort === 'asc' ? 1 : -1) * (a.date.localeCompare(b.date) || (a.time || '').localeCompare(b.time || '') || a.u - b.u));
+  $('#logt').innerHTML = `<tr><th>Kitten</th><th>Date</th><th>Time</th><th>Grams</th><th>~</th><th>Fed</th><th>Change</th><th>g/day</th><th>%</th><th>Age</th><th>Note</th><th>📷</th><th>By</th><th></th></tr>` + (R.length ? R.map(p => {
+    const src = p.photo && photoURL(p.photo);
+    return `<tr><td><span class="kdot ${p.k}">${esc(K(p.k).name)}</span></td>
+      <td><input type="date" value="${p.date}" data-f="date" data-id="${p.id}"></td><td><input type="time" value="${p.time || ''}" data-f="time" data-id="${p.id}" style="width:6.5em"></td>
+      <td><input type="number" value="${p.g}" data-f="g" data-id="${p.id}" style="width:5.5em;font-weight:900"></td>
+      <td><input type="checkbox" ${p.approx ? 'checked' : ''} data-f="approx" data-id="${p.id}" style="width:20px;height:20px;min-height:0"></td>
+      <td><select data-f="fed" data-id="${p.id}"><option value="" ${!p.fed ? 'selected' : ''}>—</option><option value="before" ${p.fed === 'before' ? 'selected' : ''}>before</option><option value="after" ${p.fed === 'after' ? 'selected' : ''}>after</option></select></td>
+      <td class="${p.d > 0 ? 'pos' : p.d < 0 ? 'neg' : ''}">${p.d == null ? '—' : sign(p.d) + 'g'}</td><td>${p.r == null ? '—' : Math.round(p.r)}</td><td>${p.pct == null ? '—' : (p.pct >= 0 ? '+' : '') + p.pct.toFixed(1) + '%'}</td>
+      <td>${ageStr(p.age)}</td><td><input type="text" value="${esc(p.note || '')}" data-f="note" data-id="${p.id}" style="width:11em" placeholder="…"></td>
+      <td>${src ? `<img class="thumb" src="${src}" data-view>` : `<label class="btn sm" style="min-height:30px">＋<input type="file" accept="image/*" hidden data-ph="${p.id}"></label>`}</td>
+      <td>${WHO[p.by] || ''}</td><td><button class="x" data-ed="${p.id}" title="Open">✏️</button><button class="x" data-del="${p.id}" title="Delete">✕</button></td></tr>`; }).join('') : '<tr><td colspan="14">No weigh-ins yet.</td></tr>');
+  $('#logt').querySelectorAll('[data-f]').forEach(i => i.onchange = () => { const f = i.dataset.f; let v = i.type === 'checkbox' ? i.checked : i.value; if (f === 'g') { v = Math.round(+v); if (!(v >= 50)) return; } if (f === 'date' && !v) return; wput(i.dataset.id, { [f]: v }); });
+  $('#logt').querySelectorAll('[data-ph]').forEach(i => i.onchange = async () => { const f = i.files[0]; if (!f) return; const w = doc.weights[i.dataset.ph]; const d = await shrink(f, 900); wput(i.dataset.ph, { photo: addPhoto(d, { k: w.k, caption: `⚖️ ${w.g}g`, date: w.date, weigh: i.dataset.ph }) }); });
+  $('#logt').querySelectorAll('[data-view]').forEach(i => i.onclick = () => view(i.src));
+  $('#logt').querySelectorAll('[data-ed]').forEach(b => b.onclick = () => openEdit(b.dataset.ed));
+  $('#logt').querySelectorAll('[data-del]').forEach(b => b.onclick = () => { wdel(b.dataset.del); toast('🗑 deleted — undo is bottom right'); });
+}
+function download(name, text, type) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); }
+$('#csv').onclick = () => { const R = rowsFor('all').sort((a, b) => a.date.localeCompare(b.date));
+  download(`weights-${todayYmd()}.csv`, [['kitten', 'date', 'time', 'grams', 'approx', 'fed', 'change_g', 'g_per_day', 'age_days', 'note', 'by'], ...R.map(p => [K(p.k).name, p.date, p.time || '', p.g, p.approx ? 'yes' : '', p.fed || '', p.d ?? '', p.r != null ? p.r.toFixed(1) : '', p.age ?? '', '"' + String(p.note || '').replace(/"/g, '""') + '"', p.by || ''])].map(r => r.join(',')).join('\n'), 'text/csv'); };
+$('#json').onclick = () => download(`weights-${todayYmd()}.json`, JSON.stringify(rowsFor('all'), null, 1), 'application/json');
+
+/* ═════════════ 🔬 stats ═════════════ */
+function statsFor(id) {
+  const w = W8(id); if (!w.length) return null; const f = w[0], l = w[w.length - 1], days = daysBetween(f.date, l.date);
+  const segs = []; for (let i = 1; i < w.length; i++) { const dd = daysBetween(w[i - 1].date, w[i].date); if (dd > 0) segs.push({ r: (w[i].g - w[i - 1].g) / dd, to: w[i].date, from: w[i - 1].date }); }
+  const rs = segs.map(s => s.r), mean = rs.length ? rs.reduce((a, b) => a + b, 0) / rs.length : null, sd = rs.length > 1 ? Math.sqrt(rs.reduce((a, b) => a + (b - mean) ** 2, 0) / (rs.length - 1)) : null;
+  const best = segs.slice().sort((a, b) => b.r - a.r)[0], worst = segs.slice().sort((a, b) => a.r - b.r)[0];
+  const at = a => { const d = K(id).dob ? addDays(K(id).dob, a) : null; return d ? wAt(id, d, 'none') : null; };
+  const a = ageDays(id, l.date), [lo, hi] = a != null ? guide(a) : [0, 0], mid = (lo + hi) / 2;
+  const double = (() => { const half = l.g / 2; const p = w.slice().reverse().find(x => x.g <= half); return p ? daysBetween(p.date, l.date) : null; })();
+  return { n: w.length, f, l, days, gain: l.g - f.g, avg: days > 0 ? (l.g - f.g) / days : null, mean, sd, best, worst, since: daysBetween(l.date, todayYmd()),
+    mn: Math.min(...w.map(x => x.g)), mx: Math.max(...w.map(x => x.g)), at8: at(56), at12: at(84), at16: at(112), vsMid: a != null ? (l.g / mid - 1) * 100 : null, double, mult: l.g / f.g,
+    photos: w.filter(x => x.photo).length, approx: w.filter(x => x.approx).length };
+}
+function renderStats() {
+  $('#sCards').innerHTML = KIDS.map(id => { const s = statsFor(id); if (!s) return `<div class="mini ${id}"><b>${esc(K(id).name)}</b><div class="muted">No weigh-ins yet</div></div>`;
+    const M = [['Weigh-ins', s.n], ['Latest', fmt(s.l.g)], ['Est. today', fmt(estNow(id))], ['Since first', sign(s.gain) + 'g'], ['× arrival', s.mult.toFixed(2) + '×'], ['Days tracked', s.days],
+      ['Avg gain', s.avg != null ? Math.round(s.avg) + ' g/day' : '—'], ['Avg per week', s.avg != null ? Math.round(s.avg * 7) + ' g' : '—'], ['Pace now', rate(id) != null ? Math.round(rate(id)) + ' g/day' : '—'],
+      ['Steadiness (±)', s.sd != null ? Math.round(s.sd) + ' g/day' : '—'], ['Best stretch', s.best ? Math.round(s.best.r) + ' g/day' : '—'], ['Slowest stretch', s.worst ? Math.round(s.worst.r) + ' g/day' : '—'],
+      ['Lightest', fmt(s.mn)], ['Heaviest', fmt(s.mx)], ['Vs typical mid', s.vsMid != null ? (s.vsMid >= 0 ? '+' : '') + s.vsMid.toFixed(0) + '%' : '—'], ['Doubled in', s.double != null ? s.double + ' days' : 'not yet'],
+      ['At 8 wks', s.at8 ? fmt(s.at8) : '—'], ['At 12 wks', s.at12 ? fmt(s.at12) : '—'], ['At 16 wks', s.at16 ? fmt(s.at16) : '—'], ['Last weighed', s.since === 0 ? 'today' : s.since + 'd ago'],
+      ['1 kg', s.l.g >= 1000 ? '✅' : (when(id, 1000) ? nice(when(id, 1000)) : '—')], ['2 kg', s.l.g >= 2000 ? '✅' : (when(id, 2000) ? nice(when(id, 2000)) : '—')], ['📷 photos', s.photos], ['~ rough', s.approx]];
+    return `<div class="mini ${id}"><b style="font-size:1.15rem">${esc(K(id).name)}</b> <span class="muted">${ageStr(ageDays(id))}</span><div class="mgrid">${M.map(([k, v]) => `<div class="m1"><small>${k}</small><b>${v}</b></div>`).join('')}</div></div>`; }).join('');
+  // velocity bars
+  const segs = []; KIDS.forEach(id => { const w = W8(id); for (let i = 1; i < w.length; i++) { const dd = daysBetween(w[i - 1].date, w[i].date); if (dd > 0) segs.push({ id, to: w[i].date, r: (w[i].g - w[i - 1].g) / dd }); } });
+  segs.sort((a, b) => a.to.localeCompare(b.to) || a.id.localeCompare(b.id));
+  const VW = 1000, VH = 240, L = 56, B = 32, T = 16, vmax = Math.max(25, ...segs.map(s => s.r)) * 1.15, vmin = Math.min(0, ...segs.map(s => s.r)) * 1.15, vy = v => T + (1 - (v - vmin) / (vmax - vmin)) * (VH - T - B);
+  let v = `<rect x="${L}" y="${vy(17)}" width="${VW - L - 16}" height="${vy(10) - vy(17)}" fill="rgba(138,201,38,.15)"/><text x="${VW - 20}" y="${vy(17) - 4}" text-anchor="end" style="fill:#5f9718;font-weight:900">typical 10–17 g/day</text><line x1="${L}" x2="${VW - 16}" y1="${vy(0)}" y2="${vy(0)}" stroke="#000" stroke-width="2"/>`;
+  for (let gg = 0; gg <= vmax; gg += vmax > 60 ? 20 : 10) v += `<text x="${L - 6}" y="${vy(gg) + 4}" text-anchor="end">${gg}</text>`;
+  if (!segs.length) v += `<text x="${VW / 2}" y="${VH / 2}" text-anchor="middle" style="font-size:15px;font-weight:900">Needs two weigh-ins of the same kitten</text>`;
+  else { const bw = Math.min(60, (VW - L - 30) / segs.length - 6); segs.forEach((s, i) => { const x = L + 10 + i * (bw + 6);
+    v += `<rect x="${x}" y="${Math.min(vy(s.r), vy(0))}" width="${bw}" height="${Math.abs(vy(s.r) - vy(0))}" rx="6" fill="${pen(s.id) ? '#2b2b30' : '#fff'}" stroke="#000" stroke-width="2.5"/><text x="${x + bw / 2}" y="${vy(s.r) - 5}" text-anchor="middle" style="font-weight:900;fill:#1a1a1a">${Math.round(s.r)}</text><text x="${x + bw / 2}" y="${VH - 10}" text-anchor="middle" style="font-size:9.5px">${parseYmd(s.to).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`; }); }
+  $('#vel').innerHTML = v;
+  // gap chart (Misato − Pen Pen, interpolated at every weigh-in date of either)
+  const dates = [...new Set(KIDS.flatMap(id => W8(id).map(p => p.date)))].sort().filter(d => KIDS.every(id => wAt(id, d, 'none') != null));
+  const gaps = dates.map(d => [d, wAt('misato', d, 'none') - wAt('penpen', d, 'none')]);
+  let gs = ''; if (gaps.length < 1) gs = `<text x="500" y="110" text-anchor="middle" style="font-size:15px;font-weight:900">Needs weigh-ins of both on overlapping dates</text>`;
+  else { const GH = 220, gm = Math.max(50, ...gaps.map(x => Math.abs(x[1]))) * 1.2, gy = val => 16 + (1 - (val + gm) / (2 * gm)) * (GH - 48), d0 = dates[0], dn = Math.max(1, daysBetween(d0, dates[dates.length - 1])), gx = d => 60 + daysBetween(d0, d) / dn * (1000 - 90);
+    gs = `<line x1="60" x2="980" y1="${gy(0)}" y2="${gy(0)}" stroke="#000" stroke-width="2"/><text x="56" y="${gy(gm * .6)}" text-anchor="end">🤍 ahead</text><text x="56" y="${gy(-gm * .6)}" text-anchor="end">🖤 ahead</text>`;
+    gs += `<polyline points="${gaps.map(([d, val]) => gx(d) + ',' + gy(val)).join(' ')}" fill="none" stroke="#b15ee3" stroke-width="4" stroke-linejoin="round"/>`;
+    gaps.forEach(([d, val]) => gs += `<circle cx="${gx(d)}" cy="${gy(val)}" r="6" fill="#fff" stroke="#000" stroke-width="2.5"/><text x="${gx(d)}" y="${gy(val) - 10}" text-anchor="middle" style="font-weight:900;fill:#1a1a1a">${Math.round(Math.abs(val))}g</text><text x="${gx(d)}" y="${GH - 12}" text-anchor="middle" style="font-size:9.5px">${parseYmd(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</text>`); }
+  $('#gap').innerHTML = gs;
+  // week by week (age weeks)
+  const rowsW = []; KIDS.forEach(id => { const w = W8(id); const byW = {}; w.forEach(p => { const a = ageDays(id, p.date); if (a == null) return; const wk = Math.floor(a / 7); (byW[wk] = byW[wk] || []).push(p); });
+    Object.keys(byW).map(Number).sort((a, b) => a - b).forEach((wk, i, arr) => { const ps = byW[wk], avg = ps.reduce((s, p) => s + p.g, 0) / ps.length, prevW = arr[i - 1] != null ? byW[arr[i - 1]] : null;
+      const pavg = prevW ? prevW.reduce((s, p) => s + p.g, 0) / prevW.length : null; rowsW.push({ id, wk, n: ps.length, avg, hi: Math.max(...ps.map(p => p.g)), d: pavg != null ? (avg - pavg) / (wk - arr[i - 1]) : null }); }); });
+  rowsW.sort((a, b) => a.wk - b.wk || a.id.localeCompare(b.id));
+  $('#weeks').innerHTML = `<tr><th>Week of life</th><th>Kitten</th><th>Weigh-ins</th><th>Average</th><th>Heaviest</th><th>vs last week</th></tr>` + rowsW.map(r => `<tr><td>wk ${r.wk}</td><td><span class="kdot ${r.id}">${esc(K(r.id).name)}</span></td><td>${r.n}</td><td>${fmt(r.avg)}</td><td>${fmt(r.hi)}</td><td class="${r.d > 0 ? 'pos' : r.d < 0 ? 'neg' : ''}">${r.d == null ? '—' : sign(r.d) + 'g'}</td></tr>`).join('');
+  // heatmaps
+  $('#heats').innerHTML = KIDS.map(id => { const set = new Set(W8(id).map(p => p.date)), start = addDays(todayYmd(), -83 - ((new Date().getDay() + 6) % 7) + 6); let h = '';
+    ['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach(d => h += `<span style="border:none;font-size:.7rem">${d}</span>`);
+    for (let i = 0; i < 84; i++) { const d = addDays(start, i), has = set.has(d), fut = d > todayYmd(); h += `<span title="${nice(d)}" style="background:${fut ? 'transparent' : has ? (pen(id) ? '#2b2b30' : '#ffca3a') : '#fff'};color:${has && pen(id) ? '#fff' : '#000'};${fut ? 'border-style:dashed;opacity:.3' : ''}">${has ? '⚖' : ''}</span>`; }
+    return `<div class="mini ${id}"><b>${esc(K(id).name)}</b> <span class="muted">${set.size} weigh-in days</span><div class="heat" style="margin-top:6px">${h}</div></div>`; }).join('');
+  // guesses
+  const G = { lemon: [], girl: [] }; live('weights').forEach(([, w]) => { if (w.guess) Object.entries(w.guess).forEach(([p, v]) => G[p] && G[p].push(Math.abs(v - w.g))); });
+  const avg = a => a.length ? Math.round(a.reduce((s, x) => s + x, 0) / a.length) : null;
+  $('#guess').innerHTML = (G.lemon.length || G.girl.length) ? `<div class="grid2">${['lemon', 'girl'].map(p => `<div class="mini"><b>${WHO[p]} ${p === 'lemon' ? 'the lemon' : 'the girl'}</b><p style="font-weight:800;margin-top:6px">${G[p].length ? `${G[p].length} guesses · on average ${avg(G[p])}g off` : 'no guesses yet'}</p></div>`).join('')}</div>
+    <p style="font-weight:900;text-align:center;margin-top:8px">${avg(G.lemon) != null && avg(G.girl) != null ? (avg(G.lemon) === avg(G.girl) ? '🤝 dead heat' : `👑 ${avg(G.lemon) < avg(G.girl) ? '🍋 the lemon' : '🌙 the girl'} has the better eye`) : ''}</p>`
+    : '<div class="empty">Before you weigh, both write a guess in "🎯 guesses" — the closest wins bragging rights.</div>';
+}
+
+/* ═════════════ ⚖️ compare ═════════════ */
+const OBJ = [['🥚', 'eggs', 60, 'an egg'], ['🎾', 'tennis balls', 58, 'a tennis ball'], ['🍋', 'lemons', LEMON_G, 'a lemon'], ['🍌', 'bananas', 120, 'a banana'], ['🐹', 'hamsters', 120, 'a hamster'], ['🍎', 'apples', 180, 'an apple'], ['📱', 'phones', 190, 'a phone'],
+  ['🥫', 'tins of beans', 415, 'a tin of beans'], ['⚽', 'footballs', 430, 'a football'], ['🥛', 'pints of milk', 568, 'a pint of milk'], ['🦔', 'hedgehogs', 800, 'a hedgehog'], ['🍚', 'bags of sugar', 1000, 'a bag of sugar'], ['🐹', 'guinea pigs', 1000, 'a guinea pig'],
+  ['🍍', 'pineapples', 1500, 'a pineapple'], ['🐇', 'rabbits', 2000, 'a rabbit'], ['🐕', 'chihuahuas', 2500, 'a chihuahua'], ['👶', 'newborn babies', 3400, 'a newborn baby'], ['🐈', 'grown-up cats', 4200, 'a grown-up cat'], ['🦊', 'foxes', 6000, 'a fox']];
+let cmK = 'misato', cmO = 2;
+$('#cmK').querySelectorAll('button').forEach(b => b.onclick = () => { cmK = b.dataset.k; $('#cmK').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderCompare(); });
+function renderCompare() {
+  const g = estNow(cmK); if (!g) { $('#scene').innerHTML = '<div class="empty" style="margin:auto">No weigh-ins yet</div>'; return; }
+  const o = OBJ[cmO], n = g / o[2];
+  // to scale by weight: linear size ∝ ∛mass
+  const base = 170, kS = base, oS = base * Math.cbrt(o[2] / g), cnt = Math.min(12, Math.max(1, Math.round(n)));
+  $('#scene').innerHTML = `<div class="it">${kittenSVG(cmK, { w: kS })}<span class="lab">${esc(K(cmK).name)} · ${fmt(g)}</span></div>
+    <div class="it"><div style="display:flex;flex-wrap:wrap-reverse;max-width:${Math.max(oS * 1.4, oS * Math.min(cnt, Math.ceil(Math.sqrt(cnt * 2.5))) * .95)}px;justify-content:center;align-items:flex-end;line-height:.85">${Array.from({ length: n >= 1 ? cnt : 1 }, () => `<span class="em" style="font-size:${oS}px">${o[0]}</span>`).join('')}</div>
+    <span class="lab">${n >= 1 ? `${n.toFixed(1)} ${o[1]}` : `${o[3]} = ${(1 / n).toFixed(1)}× ${esc(K(cmK).name)}`}</span></div>`;
+  $('#objs').innerHTML = OBJ.map(([e, name, w, one], i) => { const r = g / w; return `<div class="obj ${i === cmO ? 'on' : ''}" data-i="${i}"><span class="e">${e}</span><b>${r >= 1 ? r.toFixed(1) + '×' : (r * 100).toFixed(0) + '%'}</b><span class="muted">${r >= 1 ? name : 'of ' + one}</span></div>`; }).join('');
+  $('#objs').querySelectorAll('.obj').forEach(x => x.onclick = () => { cmO = +x.dataset.i; renderCompare(); });
+  // adult progress (typical adult ~4 kg; boys usually a bit more)
+  $('#adult').innerHTML = KIDS.map(id => { const v = estNow(id); if (!v) return ''; const adult = K(id).sex === 'm' ? 4500 : K(id).sex === 'f' ? 3800 : 4200, p = Math.min(100, v / adult * 100);
+    return `<div style="margin:8px 0"><b>${esc(K(id).name)}</b> <span class="muted">${fmt(v)} of a typical grown-up ~${fmt(adult)}</span><div class="prog"><i style="width:${p}%"></i><span>${p.toFixed(0)}% grown</span></div></div>`; }).join('');
+  // vs typical band
+  $('#vsTypical').innerHTML = KIDS.map(id => { const v = estNow(id), a = ageDays(id); if (!v || a == null) return ''; const [lo, hi] = guide(a), pos = Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
+    return `<div style="margin:8px 0"><b>${esc(K(id).name)}</b> <span class="muted">at ${ageStr(a)} the typical range is ${lo}–${hi}g</span><div class="prog" style="background:linear-gradient(90deg,#ffe1e1,#e9fbe0 20%,#e9fbe0 80%,#fff6c9)"><i style="width:6px;left:calc(${pos}% - 3px);background:#000"></i><span>${pos < 15 ? 'on the small side' : pos > 85 ? 'a big one 💪' : 'right in the middle'} (${pos.toFixed(0)}%)</span></div></div>`; }).join('');
+  // younger selves
+  const w = W8(cmK), picks = w.length ? [w[0], w[Math.floor((w.length - 1) / 2)], w[w.length - 1]].filter((p, i, a) => a.findIndex(q => q.id === p.id) === i) : [], gmx = Math.max(...picks.map(p => p.g), 1);
+  $('#selves').innerHTML = picks.map(p => `<div class="it">${kittenSVG(cmK, { w: Math.round(160 * Math.cbrt(p.g / gmx)), still: true })}<span class="lab">${nice(p.date)} · ${fmt(p.g)}</span></div>`).join('') || '<div class="empty" style="margin:auto">No weigh-ins yet</div>';
+}
+
+/* ═════════════ 🧪 play ═════════════ */
+let tmI = null, tmTimer = null;
+function tmRange() { const all = KIDS.flatMap(W8); const start = all.length ? all.map(p => p.date).sort()[0] : todayYmd(); const end = addDays(DOB(), 400); return { start, end, n: daysBetween(start, end) }; }
+function renderTM() {
+  const R = tmRange(); $('#tmS').max = R.n; if (tmI == null) tmI = Math.min(R.n, daysBetween(R.start, todayYmd()));
+  $('#tmS').value = tmI; const d = addDays(R.start, tmI), fut = d > todayYmd();
+  const vals = KIDS.map(id => wAt(id, d, 'curve')), mx = Math.max(...KIDS.map(id => wAt(id, R.end, 'curve') || 1), 1);
+  $('#tm').classList.toggle('future', fut);
+  $('#tm').innerHTML = KIDS.map((id, i) => `<div class="it">${vals[i] ? kittenSVG(id, { w: Math.max(30, Math.round(230 * Math.cbrt(vals[i] / mx))), still: true }) : '<div class="empty">not weighed yet</div>'}<span class="lab">${esc(K(id).name)} · ${vals[i] ? fmt(vals[i]) : '—'}</span></div>`).join('')
+    + `<div class="it"><img src="../sol-lemon.png" alt="" width="${Math.round(230 * Math.cbrt(LEMON_G / mx) * 1.6)}"><span class="lab">🍋 for scale</span></div>`;
+  $('#tmDate').innerHTML = `${nice(d)} ${fut ? '🔮' : d === todayYmd() ? '📍' : '⏪'}<small>${ageStr(ageDays('misato', d))} old · ${fut ? 'predicted' : 'from your weigh-ins'}</small>`;
+}
+$('#tmS').oninput = e => { tmI = +e.target.value; renderTM(); };
+$('#tmPlay').onclick = () => { if (tmTimer) { clearInterval(tmTimer); tmTimer = null; $('#tmPlay').textContent = '▶ Play'; return; }
+  const R = tmRange(); if (tmI >= R.n) tmI = 0; $('#tmPlay').textContent = '⏸ Pause';
+  tmTimer = setInterval(() => { tmI = Math.min(R.n, tmI + Math.max(1, Math.round(R.n / 160))); renderTM(); if (tmI >= R.n) { clearInterval(tmTimer); tmTimer = null; $('#tmPlay').textContent = '▶ Play'; } }, 60); };
+$('#tmToday').onclick = () => { tmI = daysBetween(tmRange().start, todayYmd()); renderTM(); };
+$('#tmBday').onclick = () => { tmI = daysBetween(tmRange().start, addDays(DOB(), 365)); renderTM(); };
+const WIF = { misato: null, penpen: null };
+function renderWhatIf() {
+  $('#whatif').innerHTML = KIDS.map(id => { const l = latest(id); if (!l) return `<div class="mini ${id}"><b>${esc(K(id).name)}</b><div class="muted">no weigh-ins</div></div>`;
+    if (WIF[id] == null) WIF[id] = Math.max(1, Math.round(rate(id) || 12)); const r = WIF[id];
+    const T = [1000, 1500, 2000, 3000, 4000].filter(t => t > l.g).map(t => { const dd = Math.ceil((t - l.g) / r), d = addDays(l.date, dd), m = whenReaches(id, t);
+      return `<div class="m1"><small>${fmt(t)}</small><b>${nice(d)}</b><small style="text-transform:none">curve says ${m ? nice(m) : '—'}</small></div>`; }).join('');
+    return `<div class="mini ${id}"><b>${esc(K(id).name)}</b> <span class="muted">from ${fmt(l.g)} on ${nice(l.date)}</span>
+      <div style="margin:8px 0;font-weight:900">if gaining <span style="color:var(--i)">${r} g/day</span> (${Math.round(r * 7)} g/week)</div>
+      <input type="range" class="fat" min="1" max="40" value="${r}" data-wi="${id}"><div class="mgrid">${T || '<div class="m1"><b>past every milestone 🎉</b></div>'}</div></div>`; }).join('');
+  $('#whatif').querySelectorAll('[data-wi]').forEach(i => i.oninput = () => { WIF[i.dataset.wi] = +i.value; renderWhatIf(); const n = $(`[data-wi="${i.dataset.wi}"]`); n.focus(); });
+}
+function renderGhost() {
+  const k = $('#ghK').value, d = $('#ghD').value || todayYmd(), g = +$('#ghG').value; if (!$('#ghD').value) $('#ghD').value = todayYmd();
+  if (!g) { $('#ghOut').innerHTML = '<div class="muted">Type a weight to see what it would do.</div>'; return; }
+  const before = { rate: rate(k), kg: whenReaches(k, 1000), exp: wAt(k, d, 'curve') };
+  const realW = doc.weights; const tmp = '__ghost'; doc.weights = Object.assign({}, realW, { [tmp]: { k, date: d, g, u: Date.now() } });
+  const after = { rate: rate(k), kg: whenReaches(k, 1000), k2: whenReaches(k, 2000) }; doc.weights = realW;
+  const diff = before.exp ? g - before.exp : null;
+  $('#ghOut').innerHTML = `<div class="mini ${k}"><b>👻 ${esc(K(k).name)} at ${fmt(g)} on ${nice(d)}</b>
+    <div class="mgrid"><div class="m1"><small>vs expected</small><b>${diff == null ? '—' : sign(diff) + 'g'}</b><small style="text-transform:none">expected ${before.exp ? fmt(before.exp) : '—'}</small></div>
+    <div class="m1"><small>pace</small><b>${after.rate != null ? Math.round(after.rate) + ' g/day' : '—'}</b><small style="text-transform:none">now ${before.rate != null ? Math.round(before.rate) : '—'}</small></div>
+    <div class="m1"><small>1 kg</small><b>${after.kg ? nice(after.kg) : g >= 1000 ? '✅' : '—'}</b><small style="text-transform:none">now ${before.kg ? nice(before.kg) : '—'}</small></div>
+    <div class="m1"><small>2 kg</small><b>${after.k2 ? nice(after.k2) : '—'}</b></div></div></div>`;
+}
+['#ghK', '#ghD', '#ghG'].forEach(s => $(s).oninput = renderGhost);
+$('#ghKeep').onclick = () => { const g = Math.round(+$('#ghG').value); if (!(g >= 50)) { toast('type a weight first'); return; } wput(uid(), { k: $('#ghK').value, date: $('#ghD').value || todayYmd(), g, by: me }); $('#ghG').value = ''; renderGhost(); toast('💾 saved for real'); };
+
+/* ═════════════ 📸 pics ═════════════ */
+let pK = 'all'; const pSel = [];
+$('#pK').querySelectorAll('button').forEach(b => b.onclick = () => { pK = b.dataset.k; $('#pK').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); renderPics(); });
+function weighPics() { return live('weights').map(([id, w]) => Object.assign({ id }, w)).filter(w => w.photo && photoURL(w.photo) && (pK === 'all' || w.k === pK)).sort((a, b) => b.date.localeCompare(a.date)); }
+function renderPics() {
+  const P = weighPics();
+  $('#pgrid').innerHTML = P.length ? P.map(w => `<div class="pc ${pSel.includes(w.id) ? 'sel' : ''}" data-id="${w.id}"><img src="${photoURL(w.photo)}" alt=""><div class="cap"><span class="kdot ${w.k}">${esc(K(w.k).name)}</span>${fmt(w.g)}</div><div class="muted" style="font-size:.75rem">${nice(w.date)} · ${ageStr(ageDays(w.k, w.date))}</div></div>`).join('')
+    : '<div class="empty">No weigh-in photos yet — add one with "📷 photo" when you weigh, or from the Log.</div>';
+  $('#pgrid').querySelectorAll('.pc').forEach(c => c.onclick = () => { const i = pSel.indexOf(c.dataset.id); if (i >= 0) pSel.splice(i, 1); else { pSel.push(c.dataset.id); if (pSel.length > 2) pSel.shift(); } renderPics(); });
+  const A = pSel.map(id => doc.weights[id]).filter(w => w && !w.del);
+  $('#sbs').innerHTML = A.length === 2 ? (() => { const [a, b] = A.slice().sort((x, y) => x.date.localeCompare(y.date)); const dd = daysBetween(a.date, b.date);
+    return [a, b].map(w => `<div class="side"><img src="${photoURL(w.photo)}" alt="" style="cursor:zoom-in" onclick="view(this.src)">${esc(K(w.k).name)} · ${fmt(w.g)}<br><span class="muted">${nice(w.date)}</span></div>`).join('')
+      + `<div class="side" style="grid-column:span 2">${sign(b.g - a.g)}g in ${dd} day${dd === 1 ? '' : 's'} · ×${(b.g / a.g).toFixed(2)}${dd > 0 ? ` · ${Math.round((b.g - a.g) / dd)} g/day` : ''}</div>`; })()
+    : A.length === 1 ? '<div class="side" style="grid-column:span 2">Tap one more to compare</div>' : '';
+}
+
+/* ═════════════ render ═════════════ */
+function renderTab() {
+  if (S.tab === 'chart') drawBig(); else if (S.tab === 'log') renderLog(); else if (S.tab === 'stats') renderStats();
+  else if (S.tab === 'compare') renderCompare(); else if (S.tab === 'play') { renderTM(); renderWhatIf(); renderGhost(); } else if (S.tab === 'pics') renderPics();
+}
+function renderAll() { renderQK(); qHint(); renderTab(); }
+$('#syncpill').onclick = () => toast('Pair phones from the original or v2 — this app uses the same pairing');
+$('#exportBtn').onclick = exportBackup;
+$('#qDate').value = todayYmd(); $('#qTime').value = new Date().toTimeString().slice(0, 5);
+renderMe(); setTab(S.tab || 'chart'); renderAll();
+let dayNow = todayYmd(); setInterval(() => { if (todayYmd() !== dayNow) { dayNow = todayYmd(); $('#qDate').value = dayNow; renderAll(); } }, 30000);
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('../sw.js', { scope: '../' }).catch(() => {});
+initSync();
+</script>
+</body>
+</html>

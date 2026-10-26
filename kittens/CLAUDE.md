@@ -102,3 +102,16 @@ when the user opens an older version — always present, forever.
   in core (typical curve scaled to the kitten's latest weight).
 - Tested: cross-version (v1 → v2 → weight app → v1, stale v1 tab) and
   3-phone sync over a local aedes broker (`window.KT_BROKERS`).
+
+## The weight app (kittens/weight/)
+Rebuilt as scenes: ⚖️ drum scale (drag to spin, 1 turn = 500 g; the dialled
+value is a live "ghost" weigh-in on the chart via `withGhost()`), 📈 chart
+(SVG re-measured to real pixel width each draw; drag = time playhead, brush =
+zoom window, sliders = future pace / look-ahead / smoothness; monotone-cubic
+`smoothPath`), 🏁 race, 🎢 damped-spring seesaw, 🌀 Archimedean growth spiral
+(constant day spacing — a 7-days-per-lap angle makes spokes, not a spiral),
+🔢 numbers, 📋 editable log + undo, 🎞 photo film strip.
+`weight/classic.html` = the previous tabbed version, kept.
+- Gotcha: `shared/theme.css` is v1's stylesheet and contains `#chart text
+  {fill;font-size}` which overrides SVG attributes — that's why the weight
+  app's chart is `#gchart`. Don't reuse v1 ids (#chart, #tip, #week…) in new SVGs.
