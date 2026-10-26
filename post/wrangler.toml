@@ -1,0 +1,9 @@
+# npx wrangler deploy   (from post/) — app + bridge on one free Worker.
+name = "post"
+main = "bridge/worker.js"
+compatibility_date = "2025-06-01"
+
+[assets]
+directory = "."
+binding = "ASSETS"
+run_worker_first = ["/api/*"]

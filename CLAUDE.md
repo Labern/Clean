@@ -51,6 +51,12 @@ no build step, no dependencies.
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
   live at `labern.github.io/Clean/ribbit/`. See `ribbit/CLAUDE.md`.
 
+- `post/` — Post: a proper iCloud Mail client. Single-file app (`index.html`)
+  + a stateless IMAP/SMTP bridge (`bridge/`, Cloudflare Worker or Node) because
+  browsers can't open sockets. Live at `labern.github.io/Clean/post/`; full
+  app+bridge via `cd post && npx wrangler deploy`. Suites: `node post/tests/run.mjs`
+  and `node post/tests/ui.mjs`. See `post/CLAUDE.md`.
+
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
   Simulator, test, install on a phone, upload to TestFlight. New iPhone apps live at

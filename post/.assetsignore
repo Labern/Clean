@@ -1,0 +1,8 @@
+bridge
+tests
+wrangler.toml
+CLAUDE.md
+README.md
+.assetsignore
+node_modules
+.wrangler
