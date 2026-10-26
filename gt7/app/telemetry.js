@@ -5,6 +5,7 @@ import * as store from './state.js';
 import * as L from './laps.js';
 import { SECTOR_COLORS } from './map.js';
 import { trackById } from '../data/tracks.js';
+import * as direct from './direct.js';
 
 const DEMO_URL = 'data/demo-lap.json';
 let live = null, es = null, bridgeOk = null;
@@ -71,8 +72,13 @@ export function telemetryView() {
         <div class="row"><label class="btn sm ghost" style="cursor:pointer">Import lap file<input type="file" id="lapfile" accept=".json,application/json" multiple hidden></label><button class="btn sm" id="demo">Open demo lap (Spa)</button></div></div>
       <div class="grid" style="gap:8px" id="laplist"><p class="muted">Loading…</p></div>
     </section>
+    <section class="section card pad direct-card">
+      <div class="kicker">No bridge</div><h3 style="margin:6px 0">The app connects your phone straight to the PS5</h3>
+      <p style="margin:8px 0 0">The iOS/Android app reads GT7's telemetry over Wi-Fi directly: live speed, gear, pedals, and every lap recorded with its official time, best per track. No Mac in between.</p>
+      <div class="row" style="margin-top:12px"><a class="btn red" href="download/GT7Endgame.apk" download>Android: download the app</a><a class="btn ghost" href="#/connect">iPhone: how to build it</a></div>
+    </section>
     <section class="section card pad">
-      <h3>Set up the bridge (once)</h3>
+      <h3>In a browser: set up the bridge (once)</h3>
       <ol style="margin:12px 0 0;padding-left:22px;display:grid;gap:8px;max-width:80ch">
         <li>On the Mac: install Node.js (nodejs.org, LTS). Open Terminal.</li>
         <li>Get the app: <code>git clone https://github.com/Labern/Clean</code> (or download the repo zip).</li>
@@ -106,6 +112,22 @@ export function telemetryView() {
       };
       $('#burl', root).onchange = (e) => { store.set((s) => { s.bridgeUrl = e.target.value.trim(); }); location.reload(); };
 
+      if (direct.available()) {   // the app: straight to the PS5, no bridge
+        const paint = () => {
+          const st = direct.status();
+          conn.innerHTML = `<div class="kicker">PS5 · direct</div><h3 style="margin:6px 0;color:${st.status === 'live' ? 'var(--ok)' : 'inherit'}">${st.status === 'live' ? 'Connected to ' + esc(st.ps5) : st.status === 'searching' ? 'Looking for your PS5…' : st.status === 'connecting' ? 'Calling ' + esc(st.ps5 || '') + '…' : 'Not connected'}</h3>
+            <p class="muted small">This phone talks to the PS5 over your Wi-Fi. No Mac, no bridge. Start GT7 and drive; every lap records here with GT7's official time.</p>
+            <label class="f" style="margin-top:8px">PS5 address (optional)<input type="text" id="ps5ip" inputmode="decimal" placeholder="auto: find it on this Wi-Fi" value="${esc(store.get().ps5Ip || '')}"></label>
+            <div class="row" style="margin-top:10px">${st.status === 'off' ? '<button class="btn red" id="dgo">Connect to PS5</button>' : '<button class="btn ghost" id="dstop">Disconnect</button>'}</div>
+            <p class="muted small" style="margin-top:8px">PS5 address: Settings → Network → Connection Status. Same Wi-Fi as this phone.</p>`;
+          $('#dgo', root)?.addEventListener('click', async () => { const ip = $('#ps5ip', root).value.trim(); store.set((s) => { s.ps5Ip = ip; }); try { await direct.startTelemetry(ip || 'auto'); } catch (e) { toast(e.message); } paint(); });
+          $('#dstop', root)?.addEventListener('click', async () => { await direct.stopTelemetry(); paint(); });
+        };
+        paint();
+        const off = direct.onLive((f, st) => { if (!root.isConnected) return off(); paintHud(hud, f ? { ...f, recording: f.onTrack && !f.paused } : null); if (st.status !== conn.dataset.st) { conn.dataset.st = st.status; paint(); } });
+        if (direct.status().status === 'off' && store.get().ps5Ip) direct.startTelemetry(store.get().ps5Ip).catch(() => {});
+        return;
+      }
       const ok = await probe();
       if (!ok) {
         conn.innerHTML = `<div class="kicker">Bridge</div><h3 style="margin:6px 0">Not connected</h3><p class="muted small">Run the bridge on your Mac (steps below) and open this app from the address it prints${location.protocol === 'https:' ? '. A secure (https) page can\'t talk to a local http bridge, so use the bridge\'s own address while driving' : ''}. Your laps sync back to this device afterwards.</p>`;
@@ -119,8 +141,12 @@ export function telemetryView() {
         let n = 0; for (const m of list) if (!have.has(m.id)) { await importFromBridge(m.id); n++; }
         toast(`${n} new lap${n === 1 ? '' : 's'}`); paintLaps();
       };
-      openLive((f) => {
-        if (!root.isConnected) { es?.close(); return; }
+      openLive((f) => { if (!root.isConnected) { es?.close(); return; } paintHud(hud, f); });
+    },
+  };
+}
+
+function paintHud(hud, f) {
         if (!f || f.offline) { hud.innerHTML = `<div class="kicker" style="color:#ff8a90">Live</div><h3 style="color:#fff;margin:8px 0">No telemetry</h3><p style="color:#9fb3e6">Start GT7 and drive. Data flows once you're on track.</p>`; return; }
         hud.innerHTML = `<div class="row" style="justify-content:space-between"><div class="kicker" style="color:#ff8a90">● Live · lap ${f.lap}${f.recording ? ' · recording' : ''}</div><div style="color:#9fb3e6;font-weight:600">best ${L.fmtLap(f.best)} · last ${L.fmtLap(f.last)}</div></div>
           <div class="row" style="gap:26px;margin-top:10px;align-items:end">
@@ -133,9 +159,6 @@ export function telemetryView() {
               <div style="color:#9fb3e6;font-size:13px">rpm ${Math.round(f.rpm)} · fuel ${f.fuel.toFixed(1)} L · tyres ${f.tyre.map((t) => Math.round(t)).join('/')}°C</div>
             </div>
           </div>`;
-      });
-    },
-  };
 }
 
 // ── #/lap/<id>: the replay ──────────────────────────────

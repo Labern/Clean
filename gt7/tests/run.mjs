@@ -17,6 +17,7 @@ import { VIDEOS, VIDEO_KINDS } from '../data/videos.js';
 import { SCENARIOS, runScenario } from '../app/scenarios.js';
 import { SYSTEMS } from '../data/systems.js';
 import { REFLAPS } from '../data/reflaps.js';
+import * as P2 from '../app/gt7proto.js';
 import { parseChapters, cornerMoments } from '../app/ytchapters.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -225,6 +226,29 @@ console.log('reference laps + track studio');
   ok(ch.length === 4 && ch[1][0] === 72 && ch[2][0] === 125, 'chapter timestamps parse');
   const m = cornerMoments(trackById.spa.corners[1], [{ id: 'x', channel: 'c' }], { x: { ch } });
   ok(m.length === 1 && m[0].sec === 125, 'chapters match corners by name');
+}
+
+console.log('direct telemetry (on-device protocol)');
+{
+  const proto = await import('../bridge/protocol.mjs');
+  for (const type of ['A', 'B', '~']) {
+    const plain = Buffer.alloc(proto.SIZE[type]); plain.writeUInt32LE(0x47375330, 0);
+    for (let i = 4; i < plain.length; i++) plain[i] = (i * 37 + 11) & 255;
+    plain.writeUInt32LE(0x47375330, 0);
+    const a = proto.encrypt(Buffer.from(plain), 0xBEEF1234, type), b = P2.encrypt(new Uint8Array(plain), 0xBEEF1234, type);
+    ok(Buffer.compare(a, Buffer.from(b)) === 0, `${type}: phone encryption matches the bridge byte for byte`);
+    const d1 = proto.decrypt(a, type), d2 = P2.decrypt(new Uint8Array(a), type);
+    ok(d1 && d2 && Buffer.compare(d1, Buffer.from(d2)) === 0, `${type}: phone decryption matches the bridge`);
+    if (type === '~') { const f1 = proto.parse(d1), f2 = P2.parse(d2); ok(JSON.stringify(f1) === JSON.stringify(f2), '~: phone parser matches the bridge field for field'); }
+  }
+  // recorder: a lap closes on the counter tick and takes GT7's official time
+  let saved = null; const rec = P2.createRecorder({ onLap: (l) => { saved = l; } });
+  const base = { x: 0, y: 0, z: 0, v: 100, rpm: 5000, thr: 1, brk: 0, gear: 3, steer: 0, onTrack: true, paused: false, loading: false, car: 42, best: -1, last: -1 };
+  const realNow = Date.now; let clock = 1e12; Date.now = () => clock;
+  for (let i = 0; i < 400; i++) { clock += 16; rec({ ...base, lap: 1, x: i }); }
+  for (let i = 0; i < 40; i++) { clock += 16; rec({ ...base, lap: 2, last: i > 25 ? 83456 : -1 }); }
+  Date.now = realNow;
+  ok(saved && saved.lap === 1 && saved.time === 83456 && saved.timeSource === 'gt7' && saved.pts.length > 100, 'recorder closes the lap with GT7\'s official time');
 }
 
 console.log('lap alignment');

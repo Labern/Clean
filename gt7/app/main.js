@@ -25,6 +25,7 @@ import { studioHtml, wireStudio } from './trackstudio.js';
 import { mountSim, simBlock } from './simview.js';
 import { systemsIndex, systemView } from './systems.js';
 import { psnWizard, wireWizard } from './psnwizard.js';
+import * as direct from './direct.js';
 import { SCENARIOS } from './scenarios.js';
 import * as connect from './connect.js';
 import { isNative } from './platform.js';
@@ -273,6 +274,7 @@ views.track = (id) => {
                 <td><input type="text" data-pb="${k}" value="${pb[k] || ''}" placeholder="m:ss.s" style="width:92px;padding:6px 8px;font-weight:700" class="${tier}"></td></tr>`;
             })}
           </table>
+          ${S().logged?.[t.id] ? html`<p style="margin:10px 0 0"><b>Your best, logged from the PS5:</b> ${fmtSec(S().logged[t.id].ms / 1000)} <span class="muted small">(car #${S().logged[t.id].car}, ${new Date(S().logged[t.id].t).toLocaleDateString()})</span></p>` : ''}
           <p class="muted small" style="margin:10px 0 0">Your PB turns purple, blue or green as you pass each tier. Benchmarks are calibrated estimates for BoP cars in the dry. Your own times are the real measure.</p>
         </div>
         <a class="card car-card gloss" href="#/car/${car.id}" style="display:grid;grid-template-columns:150px 1fr">
@@ -724,6 +726,30 @@ views.start = (arg) => (arg ? chapterView(arg) : startView());
 views.apex = (arg) => (arg ? apexView(arg) : apexIndex());
 views.systems = (arg) => (arg ? systemView(arg) : systemsIndex());
 
+
+// Your Gran Turismo account, read straight from GT7's own site (app only: native
+// HTTP + a sign-in web view; browsers are blocked by CORS).
+const gt7Card = () => {
+  const w = S().gt7web;
+  if (!direct.available()) return html`<section class="section card pad acct direct-card">
+    <div class="acct-h"><span class="acct-logo gt">GT</span><div><div class="kicker">Direct connection · no bridge</div><h2 style="font-size:30px">Get the app for a one-to-one link</h2></div></div>
+    <p style="margin-top:12px">The iOS/Android app connects straight to Gran Turismo: it signs in to <b>gran-turismo.com</b> with your PlayStation account and reads your credits and Driver Rating from GT7's own site, and it talks to your <b>PS5</b> over Wi-Fi for live telemetry and every lap time. Nothing in between.</p>
+    <div class="row" style="margin-top:12px"><a class="btn red" href="download/GT7Endgame.apk" download>Android: download the app</a><a class="btn ghost" href="#/status">iPhone: build it on your Mac</a></div>
+    <p class="muted small" style="margin-top:10px">iPhone: <code>cd gt7/native &amp;&amp; npm install &amp;&amp; npm run ios</code>, then press Run in Xcode with your phone plugged in (free Apple ID signing works). Android: open the download on the phone and allow the install. A web page can't do either job (browsers can't open UDP sockets or call Sony's servers), so the browser version keeps the bridge as a fallback.</p></section>`;
+  return html`<section class="section card pad acct direct-card">
+    <div class="acct-h"><span class="acct-logo gt">GT</span><div><div class="kicker">Gran Turismo 7 · official site</div><h2 style="font-size:32px">${w?.user ? 'Connected' : 'Not connected'}</h2></div></div>
+    ${w?.user ? html`<div class="grid g3" style="gap:10px;margin-top:16px">
+        <div class="mini"><b>${w.credits != null ? crShort(w.credits) : '—'}</b><span>Credits</span></div>
+        <div class="mini"><b>${w.dr != null ? direct.DR[w.dr] || w.dr : '—'}</b><span>Driver Rating${w.drRatio != null ? ' · ' + Math.round(w.drRatio * 100) + '%' : ''}</span></div>
+        <div class="mini"><b>${w.garage ?? '—'}</b><span>Garage</span></div></div>
+      <p class="muted small" style="margin-top:10px">Read from gran-turismo.com ${w.fetchedAt ? new Date(w.fetchedAt).toLocaleString() : ''}. ${Object.entries(w.raw || {}).map(([k, v]) => `${k}: ${v && v.error ? 'unavailable' : 'ok'}`).join(' · ')}</p>
+      <details style="margin-top:8px"><summary class="muted small">Everything GT7 returned</summary><pre class="rawjson">${JSON.stringify(w.raw, null, 1).slice(0, 6000)}</pre></details>
+      <div class="row" style="margin-top:12px"><button class="btn" id="gt7-sync">Refresh</button></div>`
+    : html`<p style="margin-top:12px">Sign in on Gran Turismo's own site with your PlayStation account. The app then reads your credits and Driver Rating straight from GT7's web API, and refreshes them by itself.</p>
+      <div class="row" style="margin-top:12px"><button class="btn red xl" id="gt7-signin">Sign in to Gran Turismo</button></div>`}
+  </section>`;
+};
+
 views.connect = () => {
   const s = S(), p = s.psn, g = s.gt, st = g?.stats || {};
   const ago = (t) => { if (!t) return 'never'; const m = Math.round((Date.now() - t) / 60000); return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' days ago'; };
@@ -735,7 +761,8 @@ views.connect = () => {
     html: html`
     ${back('#/more', 'More')}
     <div class="kicker">Accounts</div><h1>Connect Your Game</h1>
-    <p class="muted" style="max-width:72ch;margin-top:10px">Two connections. Once they're in, the app reads where you really are (credits, licence, garage, ratings, trophies) and every next move is built on it.</p>
+    <p class="muted" style="max-width:72ch;margin-top:10px">Once you're connected, the app reads where you really are (credits, licence, garage, ratings, trophies) and every next move is built on it.</p>
+    ${gt7Card()}
 
     <section class="section grid g2" style="align-items:start">
       <div class="card pad acct">
@@ -789,6 +816,8 @@ views.connect = () => {
       const done = (b) => { b.disabled = false; b.textContent = b.dataset.l; };
       const run = (id, label, fn) => { const b = $(id, root); if (b) b.onclick = async () => { busy(b, label); try { await fn(); render(); } catch (e) { toast(e.message); done(b); } }; };
       wireWizard(root, render);
+      run('#gt7-signin', 'Opening Gran Turismo…', async () => { await direct.syncGT7(true); toast('Gran Turismo connected'); });
+      run('#gt7-sync', 'Refreshing…', async () => { await direct.syncGT7(false).catch((e) => (e.message === 'signin' ? direct.syncGT7(true) : Promise.reject(e))); toast('Refreshed'); });
       run('#psn-refresh', 'Refreshing…', async () => { await connect.refreshPSN(); toast('PSN refreshed'); });
       run('#psn-off', '…', async () => { await connect.disconnectPSN(); });
       run('#gt-go', 'Fetching…', async () => { await connect.fetchGT($('#gt-id', root).value, $('#gt-tok', root).value.trim()); toast('GT7 stats connected'); });

@@ -56,8 +56,7 @@ topic id. The save is published *retained* on three public MQTT brokers
 (same pattern as `kittens/`, `cycle/`; mqtt.js vendored in `vendor/`). Newest
 `updatedAt` wins. A pristine device (updatedAt 0) never publishes, so it can't
 clobber the cloud copy. Laps go on `<topic>/laps/<hash>`, thinned to ~10 Hz.
-Real PSN sign-in / GT7 garage data is impossible: no third-party PSN OAuth,
-no GT7 data API. The UI says so. Local test broker: aedes over ws, pages
+Local test broker: aedes over ws, pages
 pick it up via `window.GT7_BROKERS`.
 
 ## Data Logger (`bridge/`, `app/telemetry.js`, `app/laps.js`)
@@ -102,6 +101,31 @@ track guides list the concepts demonstrated there.
   credits replace typed credits and ticks licence/Sport steps; `applyPSN`
   ticks steps from trophy names. PSN lists the game as "Gran Turismo™ 7".
 - `platform.js` is the only place that knows web vs native.
+
+## Direct connection, no bridge (`app/direct.js`, `app/gt7proto.js`, `native/plugin/`)
+The iOS/Android app talks to Gran Turismo itself. `native/plugin/{ios,android}`
+is the app's own Capacitor plugin `Gt7Direct`: UDP heartbeat to the PS5 (33739,
+"~"), packets from 33740 handed to JS as base64 (`packet` events); "auto" sweeps
+the Wi-Fi /24 with unicast heartbeats (no iOS multicast entitlement needed).
+`gt7proto.js` is the bridge protocol without Node Buffer (tests check it matches
+byte for byte) plus the lap recorder; laps are identified by shape and the best
+per track lands in `s.logged`. GT7 account: `gt7SignIn` shows gran-turismo.com in a
+web view (Sony's PSN login), reads `/us/gt7/info/api/token/`, then JS calls
+`web-api.gt7.game.gran-turismo.com/stats/get` with native HTTP; credits/DR found
+by key search and applied (`creditsSource: 'gt7'`). Other endpoint names are
+tentative; the Connect page shows which ones answered. `native/install-plugin.sh`
+wires the plugin into generated projects (npm run ios|android call it). Android
+builds here with the SDK (debug APK published at `/gt7/download/` by deploy.sh);
+iOS needs Xcode on the Mac. Browsers keep the bridge as a fallback.
+
+## Track studio + reference laps (`app/trackstudio.js`, `tools/reflap.mjs`)
+`reflap.mjs` drives a Gr.3-class point mass round each circuit's real geometry on
+a minimum-curvature line (14 m track, solved coarse to fine; a Laplacian pull gives
+the *shortest* path, not the racing line, so don't swap the update back). Laps sit
+within ~1% of Gr.3 benchmarks on average; traced originals run quick. Per-corner
+stats are measured at the corner's own tightest point (a wide window catches the
+next braking zone). Video chapters come from YouTube's Data API with the player's
+own key (`app/ytchapters.js`); scraping watch pages is blocked and off-limits.
 
 ## Native (`native/`)
 Capacitor shells around this same code (`npm run ios|android` on the Mac).
