@@ -31,7 +31,10 @@ no build step, no dependencies.
     bugs that presented as "it does nothing", and on the do-no-harm gate.
 - `kittens/` — Misato & Pen Pen tracker (age, weight chart, moments, food,
   to-dos, shopping, Ring cam framework, photos), encrypted two-phone sync.
-  Live at `labern.github.io/Clean/kittens/`. See `kittens/CLAUDE.md`.
+  Live at `labern.github.io/Clean/kittens/` (v1), `/kittens/v2/` and the
+  weight app `/kittens/weight/` — one shared dataset. **Append-only data rule**:
+  new data must survive older versions; `node kittens/tests/compat.mjs` must
+  pass. See `kittens/CLAUDE.md`.
 - `Raven/` — a dashboard for the Tesla's own browser (2019 Model S Raven):
   Google Maps → send to nav, WhatsApp names on screen, Spotify control, drive
   stats, live-location sharing. OEM Tesla look (Universal Sans/Inter, Tesla

@@ -71,6 +71,18 @@ gh-pages worktree: copy `kittens/` (minus this file) onto `gh-pages` —
 including `manifest.webmanifest`, `sw.js` and the icons —
 commit `Deploy kittens: <desc>`, push.
 
+## ⛔ THE RULE — append only, never lose anything (user's standing instruction)
+Anything any version adds must be **appended**, and must be **silently kept**
+when the user opens an older version — always present, forever.
+- Add collections and fields; never rename, repurpose or remove them.
+- `mergeRec()` (identical in v1 and `shared/core.js`) keeps every field that
+  only the older side has, so an old version's edit can't drop a newer
+  version's field. Deletes are whole tombstones.
+- To clear a field, set it to `null`/`''` explicitly — a merely *missing*
+  field is always refilled from the other copy (the weight app's Undo does this).
+- `node kittens/tests/compat.mjs` (31 checks) must pass on every change; it
+  also fails if v1's and core's merge code ever differ.
+
 ## Versions (all share ONE dataset — this is the priority)
 - `kittens/` = v1 (the full original), `kittens/v2/` = streamlined v2,
   `kittens/weight/` = the weight app. Same origin → same localStorage keys
