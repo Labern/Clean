@@ -115,8 +115,16 @@ web view (Sony's PSN login), reads `/us/gt7/info/api/token/`, then JS calls
 by key search and applied (`creditsSource: 'gt7'`). Other endpoint names are
 tentative; the Connect page shows which ones answered. `native/install-plugin.sh`
 wires the plugin into generated projects (npm run ios|android call it). Android
-builds here with the SDK (debug APK published at `/gt7/download/` by deploy.sh);
-iOS needs Xcode on the Mac. Browsers keep the bridge as a fallback.
+builds here with the SDK (debug APK published at `/gt7/download/` by deploy.sh).
+iOS builds in the cloud: `.github/workflows/gt7-ios.yml` (macos-26) generates the
+Capacitor project, wires the plugin, builds for the Simulator (launches it and
+screenshots `#/telemetry` + `#/ce` via the CI-only `-route` launch argument) and
+for devices unsigned → `GT7Endgame.ipa`, published to gh-pages `/gt7/download/`
+and to the `ci/gt7` branch with logs (`git show origin/ci/gt7:ci.txt`). The player
+installs the IPA with Sideloadly + their Apple ID (no Xcode); the guide is
+`docs/install.html` → `docs/GT7-Endgame-Install.pdf` (`node tools/make_install_pdf.cjs`).
+Capacitor's iOS target is 13, so iOS 14+ APIs need `#available` guards (CI caught
+`callAsyncJavaScript`). Browsers keep the bridge as a fallback.
 
 ## Track studio + reference laps (`app/trackstudio.js`, `tools/reflap.mjs`)
 `reflap.mjs` drives a Gr.3-class point mass round each circuit's real geometry on
