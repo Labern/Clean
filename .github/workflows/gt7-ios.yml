@@ -1,0 +1,131 @@
+name: gt7 iOS
+
+# Builds the GT7 Endgame iPhone app (Capacitor shell + the Gt7Direct plugin)
+# on a cloud Mac, so nobody needs Xcode to get it:
+#  - compiles for the iPhone Simulator, launches it and screenshots the
+#    Sector Trainer (proves the Swift plugin builds and the app boots);
+#  - builds an unsigned device app and packs it as GT7Endgame.ipa, which
+#    Sideloadly / AltStore sign with the player's own Apple ID on install.
+# Results are force-pushed to the ci/gt7 branch so a cloud session can read
+# them with plain git (and deploy.sh can publish the .ipa).
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'gt7/**'
+      - '.github/workflows/gt7-ios.yml'
+      - '!gt7/tests/**'
+      - '!gt7/tools/**'
+      - '!gt7/CLAUDE.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: gt7-ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: gt7/native
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Toolchain
+        run: |
+          mkdir -p out
+          { echo "commit ${GITHUB_SHA}"; xcodebuild -version; pod --version 2>/dev/null | sed 's/^/cocoapods /'; } | tee out/ci.txt
+          gem list -i xcodeproj >/dev/null || sudo gem install xcodeproj --no-document >/dev/null
+          UDID="$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          devs=[(k,x) for k,v in d["devices"].items() if "iOS" in k for x in v if x["name"].startswith("iPhone")]
+          devs.sort(key=lambda t: t[0])
+          pref=[t for t in devs if t[1]["name"]=="iPhone 17 Pro"] or devs
+          print(pref[-1][1]["udid"])')"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+
+      - name: Generate the iOS project
+        run: |
+          npm ci --no-audit --no-fund
+          sh build-web.sh
+          npx cap add ios
+          npx cap sync ios
+          sh install-plugin.sh | tee -a out/ci.txt
+          grep -c Gt7DirectPlugin.swift ios/App/App.xcodeproj/project.pbxproj | sed 's/^/plugin refs in project: /' | tee -a out/ci.txt
+          /usr/libexec/PlistBuddy -c 'Print :NSLocalNetworkUsageDescription' ios/App/App/Info.plist | sed 's/^/local network: /' | tee -a out/ci.txt
+
+      - name: Build for the Simulator
+        id: sim
+        continue-on-error: true
+        run: |
+          set +e
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
+            -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath DD-sim \
+            CODE_SIGNING_ALLOWED=NO build > out/sim.log 2>&1
+          status=$?
+          grep -E "error:|warning: .*Gt7|\*\* BUILD" out/sim.log | sort -u | head -150 > out/sim-result.txt
+          tail -n 60 out/sim.log > out/sim-tail.txt; rm out/sim.log
+          echo "simulator build exit $status" | tee -a out/ci.txt
+          exit $status
+
+      - name: Build the device app (.ipa, unsigned)
+        id: device
+        continue-on-error: true
+        run: |
+          set +e
+          xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath DD-dev \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build > out/device.log 2>&1
+          status=$?
+          grep -E "error:|\*\* BUILD" out/device.log | sort -u | head -150 > out/device-result.txt
+          tail -n 40 out/device.log > out/device-tail.txt; rm out/device.log
+          echo "device build exit $status" | tee -a out/ci.txt
+          if [ $status -eq 0 ]; then
+            mkdir -p ipa/Payload && cp -R DD-dev/Build/Products/Release-iphoneos/App.app ipa/Payload/
+            (cd ipa && zip -qry ../out/GT7Endgame.ipa Payload)
+            ls -l out/GT7Endgame.ipa | tee -a out/ci.txt
+          fi
+          exit $status
+
+      - name: Launch in the Simulator and screenshot
+        if: steps.sim.outcome == 'success'
+        continue-on-error: true
+        run: |
+          APP="DD-sim/Build/Products/Debug-iphonesimulator/App.app"
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" com.labern.gt7endgame | tee -a out/ci.txt
+          sleep 12; xcrun simctl io "$UDID" screenshot out/home.png
+          xcrun simctl openurl "$UDID" "capacitor://localhost/#/ce" 2>/dev/null || true
+          sleep 6; xcrun simctl io "$UDID" screenshot out/ce.png
+          sips -Z 1300 out/*.png >/dev/null
+          xcrun simctl spawn "$UDID" log show --last 2m --style compact \
+            --predicate 'process == "App" AND (messageType >= 16 OR eventMessage CONTAINS "Gt7")' > out/console.log 2>/dev/null || true
+          grep -c . out/console.log | sed 's/^/console lines: /' | tee -a out/ci.txt
+
+      - name: Publish results
+        if: always()
+        run: |
+          cd out
+          git init -q
+          git checkout -q -b ci/gt7
+          git add -A
+          git -c user.name="gt7-ci" -c user.email="ci@users.noreply.github.com" commit -qm "CI ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci/gt7
+
+      - name: Fail if a build failed
+        if: steps.sim.outcome == 'failure' || steps.device.outcome == 'failure'
+        run: exit 1
