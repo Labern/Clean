@@ -9,6 +9,10 @@ the code branch). For the kittens project that is:
 - Original (v1): https://labern.github.io/Clean/kittens/
 - Classic weight app: https://labern.github.io/Clean/kittens/weight/classic.html
 - Code branch: https://github.com/Labern/Clean/tree/kittens-v2
+For GT7 Endgame:
+- The app: https://labern.github.io/Clean/gt7/
+- Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
+- Code branch: https://github.com/Labern/Clean/tree/master/gt7
 Add any new page to this list the moment it ships. Never omit the list.
 
 ## Project
