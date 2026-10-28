@@ -1,9 +1,14 @@
 # CLAUDE.md
 
-## ALWAYS — end every reply with the live links
-Every reply to the user, without exception, must END with clickable links to
-everything that has been built and deployed (the live GitHub Pages URLs, plus
-the code branch). For the kittens project that is:
+## ALWAYS — end every reply with the live link(s)
+Every reply must END with clickable links to the thing currently being worked
+on ONLY (its live GitHub Pages URL, plus its code location) — NOT every
+project. The user corrected this: "the link of the thing we're working on,
+not all the links." Reference list, pick the relevant one(s):
+Flap Guard (cat flap chip lock):
+- https://labern.github.io/Clean/catflap/
+- Code: https://github.com/Labern/Clean/tree/master/catflap
+For the kittens project:
 - The weight app: https://labern.github.io/Clean/kittens/weight/
 - v2: https://labern.github.io/Clean/kittens/v2/
 - Original (v1): https://labern.github.io/Clean/kittens/
@@ -14,7 +19,7 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
-Add any new page to this list the moment it ships. Never omit the list.
+Add any new page to this list the moment it ships.
 
 ## Project
 A sandbox directory, not a formal app. Currently contains a single static
@@ -62,6 +67,12 @@ no build step, no dependencies.
   guides on real OSM geometry, garage + credit engine, academy, wheel lab,
   heritage). ES modules, no build; `node gt7/tests/run.mjs`. Deployed via the
   `gh-pages` branch to `labern.github.io/Clean/gt7/`. See `gt7/CLAUDE.md`.
+
+- `catflap/` — Flap Guard: spec/mock-up page for a ~£22 ESP32 + WL-134 FDX-B
+  reader + servo add-on that keeps the kittens (Misato, Pen Pen) from exiting
+  via the existing 4-clip cat flap. Rule: exit locked by default, any non-kitten
+  chip unlocks 4 s, a kitten read locks + vetoes 15 s. Single file, deployed to
+  gh-pages `/catflap/`.
 
 - `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,

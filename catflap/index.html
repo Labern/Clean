@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flap Guard</title>
+<meta name="description" content="A £22 add-on that turns a standard cat flap into one the big cats can use and the kittens can't.">
+<style>
+:root{
+  --bg:#f6f4ef; --card:#ffffff; --ink:#1d1f22; --mute:#5f646b; --line:#dedad2;
+  --accent:#0f9d8a; --accent-soft:#d9f2ee; --warn:#d1495b; --warn-soft:#fbe3e6;
+  --wood:#c9a27a; --wood2:#b38a60; --frame:#e9e6df; --flap:#bfe3f0; --copper:#d9822b;
+  --box:#2f3338; --code:#f0ede6;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#121417; --card:#1b1e22; --ink:#ecebe7; --mute:#9aa0a8; --line:#2c3036;
+    --accent:#3cc9b4; --accent-soft:#163b36; --warn:#ff6b7d; --warn-soft:#3d1d23;
+    --wood:#7a5f43; --wood2:#664e36; --frame:#3a3e44; --flap:#2f5866; --copper:#f09a45;
+    --box:#0b0c0e; --code:#23272c;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121417; --card:#1b1e22; --ink:#ecebe7; --mute:#9aa0a8; --line:#2c3036;
+  --accent:#3cc9b4; --accent-soft:#163b36; --warn:#ff6b7d; --warn-soft:#3d1d23;
+  --wood:#7a5f43; --wood2:#664e36; --frame:#3a3e44; --flap:#2f5866; --copper:#f09a45;
+  --box:#0b0c0e; --code:#23272c;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+main{max-width:860px;margin:0 auto;padding:32px 16px 80px}
+h1{font-size:clamp(34px,7vw,52px);line-height:1.05;margin:0 0 10px;letter-spacing:-.02em}
+h2{font-size:24px;margin:56px 0 12px;letter-spacing:-.01em}
+h3{font-size:17px;margin:0 0 6px}
+p{margin:0 0 12px}
+.kicker{font:600 12px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:14px}
+.lede{font-size:19px;color:var(--mute);max-width:640px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px}
+.fig{margin:24px 0 8px}
+.fig svg{width:100%;height:auto;display:block}
+.cap{font-size:13px;color:var(--mute);margin-top:8px}
+.answer{border-left:4px solid var(--accent);background:var(--accent-soft);border-radius:10px;padding:16px 18px;margin:18px 0}
+.answer b{color:var(--ink)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.part .cost{float:right;font:600 13px ui-monospace,Menlo,monospace;color:var(--accent)}
+.part p{font-size:14.5px;color:var(--mute);margin:0}
+.part .tag{display:inline-block;font:600 11px ui-monospace,Menlo,monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);border:1px solid var(--line);border-radius:6px;padding:2px 6px;margin-bottom:8px}
+table{width:100%;border-collapse:collapse;font-size:14.5px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mute);font-weight:600}
+.lock{color:var(--warn);font-weight:600}.open{color:var(--accent);font-weight:600}
+pre{background:var(--code);border-radius:10px;padding:14px 16px;overflow:auto;font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;margin:12px 0}
+ol.steps{padding-left:22px}ol.steps li{margin-bottom:10px}
+.sim{display:grid;grid-template-columns:1fr;gap:14px}
+@media(min-width:720px){.sim{grid-template-columns:1.1fr 1fr}}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+button{font:inherit;font-size:14px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+.state{font:700 22px ui-monospace,Menlo,monospace;padding:12px 14px;border-radius:10px;margin-bottom:10px;transition:background .2s}
+.state.L{background:var(--warn-soft);color:var(--warn)}.state.O{background:var(--accent-soft);color:var(--accent)}
+.log{font:12.5px/1.6 ui-monospace,Menlo,monospace;color:var(--mute);min-height:150px;max-height:190px;overflow:auto}
+.log div:first-child{color:var(--ink)}
+.note{font-size:14px;color:var(--mute)}
+.pill{display:inline-block;font:600 12px ui-monospace,Menlo,monospace;padding:3px 8px;border-radius:6px;background:var(--accent-soft);color:var(--accent)}
+.pill.r{background:var(--warn-soft);color:var(--warn)}
+svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif}
+#flapSim{transform-origin:200px 52px;transition:transform .5s ease}
+footer{margin-top:64px;font-size:13px;color:var(--mute)}
+</style>
+</head>
+<body>
+<main>
+
+<div class="kicker">Prototype · Misato &amp; Pen Pen</div>
+<h1>Flap Guard</h1>
+<p class="lede">An add-on for the cat flap you already have, about £22 in parts. Any chipped cat can go out except the two kittens. Coming in is never blocked.</p>
+
+<!-- ============ MOCK-UP ============ -->
+<div class="card fig">
+<svg viewBox="0 0 800 520" role="img" aria-label="Mock-up: the existing cat flap seen from inside the house, with a copper coil around the tunnel, a small control box beside it and a servo under it">
+  <defs>
+    <linearGradient id="door" x1="0" x2="1"><stop offset="0" stop-color="var(--wood)"/><stop offset="1" stop-color="var(--wood2)"/></linearGradient>
+    <pattern id="coil" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="var(--copper)"/><rect width="8" height="2" fill="#00000030"/></pattern>
+  </defs>
+  <!-- door -->
+  <rect x="40" y="10" width="440" height="500" rx="6" fill="url(#door)"/>
+  <rect x="70" y="40" width="380" height="190" rx="4" fill="none" stroke="#00000022" stroke-width="3"/>
+  <!-- flap frame -->
+  <rect x="140" y="270" width="240" height="220" rx="26" fill="var(--frame)" stroke="#00000030"/>
+  <!-- coil ring around tunnel -->
+  <rect x="160" y="290" width="200" height="180" rx="18" fill="none" stroke="url(#coil)" stroke-width="12"/>
+  <!-- tunnel + flap -->
+  <rect x="176" y="306" width="168" height="148" rx="10" fill="#00000035"/>
+  <rect x="182" y="312" width="156" height="136" rx="8" fill="var(--flap)" opacity=".85"/>
+  <line x1="182" y1="318" x2="338" y2="318" stroke="#00000040" stroke-width="3"/>
+  <!-- existing clips -->
+  <rect x="150" y="372" width="10" height="24" rx="3" fill="#888"/>
+  <rect x="360" y="372" width="10" height="24" rx="3" fill="#888"/>
+  <!-- servo under frame -->
+  <rect x="236" y="492" width="48" height="16" rx="3" fill="#2a6fdb"/>
+  <rect x="244" y="484" width="12" height="8" fill="#2a6fdb"/>
+  <line x1="250" y1="488" x2="250" y2="452" stroke="#e8e8e8" stroke-width="4" stroke-linecap="round"/>
+  <!-- control box -->
+  <rect x="408" y="300" width="58" height="96" rx="8" fill="var(--box)"/>
+  <circle cx="437" cy="320" r="5" fill="#3cc9b4"/>
+  <rect x="418" y="338" width="38" height="8" rx="2" fill="#ffffff22"/>
+  <rect x="418" y="352" width="38" height="8" rx="2" fill="#ffffff22"/>
+  <rect x="418" y="366" width="24" height="8" rx="2" fill="#ffffff22"/>
+  <!-- wires -->
+  <path d="M366 330 C390 330 392 320 408 320" fill="none" stroke="var(--copper)" stroke-width="3"/>
+  <path d="M284 500 C360 500 420 470 430 396" fill="none" stroke="#666" stroke-width="3"/>
+  <path d="M437 396 C437 450 470 470 470 510" fill="none" stroke="#222" stroke-width="4"/>
+  <!-- labels -->
+  <g font-size="15" fill="var(--ink)">
+    <line x1="160" y1="300" x2="560" y2="70" stroke="var(--mute)" stroke-width="1"/>
+    <circle cx="160" cy="300" r="3" fill="var(--ink)"/>
+    <text x="566" y="66" font-weight="700">① Antenna coil</text>
+    <text x="566" y="86" fill="var(--mute)" font-size="13">around the tunnel, reads chips</text>
+    <text x="566" y="102" fill="var(--mute)" font-size="13">passing through it</text>
+
+    <line x1="466" y1="330" x2="560" y2="170" stroke="var(--mute)" stroke-width="1"/>
+    <circle cx="466" cy="330" r="3" fill="var(--ink)"/>
+    <text x="566" y="166" font-weight="700">② Control box</text>
+    <text x="566" y="186" fill="var(--mute)" font-size="13">chip reader + ESP32 + learn button</text>
+    <text x="566" y="202" fill="var(--mute)" font-size="13">(matchbox size)</text>
+
+    <line x1="284" y1="500" x2="560" y2="280" stroke="var(--mute)" stroke-width="1"/>
+    <circle cx="284" cy="500" r="3" fill="var(--ink)"/>
+    <text x="566" y="276" font-weight="700">③ Servo + bolt</text>
+    <text x="566" y="296" fill="var(--mute)" font-size="13">moves the "no exit" stop</text>
+    <text x="566" y="312" fill="var(--mute)" font-size="13">in and out of the flap's path</text>
+
+    <line x1="370" y1="384" x2="560" y2="380" stroke="var(--mute)" stroke-width="1"/>
+    <circle cx="370" cy="384" r="3" fill="var(--ink)"/>
+    <text x="566" y="376" font-weight="700">④ Your existing clips</text>
+    <text x="566" y="396" fill="var(--mute)" font-size="13">"block in" pair left open,</text>
+    <text x="566" y="412" fill="var(--mute)" font-size="13">"block out" pair handed to the servo</text>
+
+    <line x1="470" y1="505" x2="560" y2="470" stroke="var(--mute)" stroke-width="1"/>
+    <text x="566" y="466" font-weight="700">⑤ USB power</text>
+    <text x="566" y="486" fill="var(--mute)" font-size="13">any phone charger</text>
+  </g>
+</svg>
+<div class="cap">Mock-up: the flap seen from inside the house. Everything is on the inside face, and nothing goes outside where the weather is.</div>
+</div>
+
+<!-- ============ THE ANSWER ============ -->
+<h2>Do we need the big cats' chip numbers?</h2>
+<div class="answer">
+<p><b>No.</b> The system only needs to know the two kittens. The rule is:</p>
+<p style="margin:0"><b>The flap is locked for going out by default. Any chip it reads unlocks it, unless that chip is Misato's or Pen Pen's.</b></p>
+</div>
+<p>So the big cats never get enrolled. Their chips work as keys just because they aren't kittens. A neighbour's cat that wandered in can also get back out. The kittens are learned the way SureFlap does it: press the button, hold the kitten at the tunnel, and the reader stores the ID. The number on the vet card is the same number the reader outputs, so you can also type it in.</p>
+<p class="note">Cat microchipping has been compulsory in England since June 2024, so the big cats are very likely chipped. A vet scans them for free if you want to be sure. An <i>unchipped</i> cat is the one case this design locks in.</p>
+
+<p>This works because of the point you made: big cats go out head-first. The head enters the tunnel, the shoulders follow, and the chip between the shoulder blades passes through the coil. The flap only needs to unlock when the cat <i>pushes</i>, and by then the chip has been read. SureFlap uses the same principle.</p>
+<p>If a read is missed, the flap stays locked. The worst outcome is a big cat waiting a second and pushing again. A kitten can never get out because a read failed.</p>
+
+<!-- ============ SIMULATOR ============ -->
+<h2>How it behaves</h2>
+<p>This runs the same logic the firmware will. Try each case.</p>
+<div class="card sim">
+  <div>
+    <svg viewBox="0 0 400 300" role="img" aria-label="Side section of the flap showing the bolt">
+      <text x="70" y="22" font-size="13" fill="var(--mute)" text-anchor="middle">INSIDE</text>
+      <text x="330" y="22" font-size="13" fill="var(--mute)" text-anchor="middle">OUTSIDE</text>
+      <rect x="170" y="30" width="60" height="260" fill="var(--wood)"/>
+      <rect x="170" y="48" width="60" height="200" fill="var(--bg)"/>
+      <rect x="164" y="40" width="72" height="14" rx="3" fill="var(--frame)" stroke="#00000030"/>
+      <rect x="164" y="244" width="72" height="14" rx="3" fill="var(--frame)" stroke="#00000030"/>
+      <!-- coil on the inside edge -->
+      <rect x="156" y="36" width="10" height="226" rx="3" fill="var(--copper)"/>
+      <!-- flap -->
+      <g id="flapSim"><rect x="196" y="52" width="8" height="190" rx="3" fill="var(--flap)" stroke="#00000040"/></g>
+      <circle cx="200" cy="52" r="4" fill="var(--ink)"/>
+      <!-- bolt -->
+      <rect id="bolt" x="206" y="226" width="12" height="18" rx="2" fill="var(--warn)"/>
+      <path d="M40 150 h90 m-12 -8 l12 8 -12 8" stroke="var(--accent)" stroke-width="2.5" fill="none" id="outArrow"/>
+      <text x="85" y="138" font-size="12" text-anchor="middle" fill="var(--mute)">push to exit</text>
+      <path d="M360 200 h-90 m12 -8 l-12 8 12 8" stroke="var(--accent)" stroke-width="2.5" fill="none"/>
+      <text x="315" y="226" font-size="12" text-anchor="middle" fill="var(--mute)">coming in: always free</text>
+      <text x="212" y="282" font-size="12" fill="var(--mute)" text-anchor="middle">bolt</text>
+    </svg>
+  </div>
+  <div>
+    <div class="btns">
+      <button data-ev="big">Big cat heads out</button>
+      <button data-ev="misato">Misato at the flap</button>
+      <button data-ev="penpen">Pen Pen at the flap</button>
+      <button data-ev="both">Big cat + kitten together</button>
+      <button data-ev="miss">Chip not read</button>
+    </div>
+    <div id="state" class="state L">EXIT LOCKED</div>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<!-- ============ PARTS ============ -->
+<h2>What's in it, and what each part does</h2>
+<div class="grid">
+  <div class="card part"><span class="cost">£0</span><span class="tag">already in the cats</span>
+    <h3>The microchip</h3>
+    <p>A grain-of-rice glass capsule under the skin between the shoulder blades. It has no battery. When a 134.2 kHz magnetic field passes over it, the field powers it for a moment and it sends back its 15-digit ID (standard: ISO FDX-B).</p></div>
+  <div class="card part"><span class="cost">incl.</span><span class="tag">the antenna</span>
+    <h3>The coil</h3>
+    <p>A loop of copper wire. The reader drives a current through it, and that makes the magnetic field that wakes the chip. Range is short, about 3–8 cm with the cheap module, so the coil sits at the tunnel where every cat has to pass within reach.</p></div>
+  <div class="card part"><span class="cost">£8</span><span class="tag">WL-134 module</span>
+    <h3>The chip reader</h3>
+    <p>A small board that drives the coil, listens for the chip's reply and decodes it. It sends the ID out over two wires as plain text (serial). It doesn't decide anything. It just reports which chip it saw.</p></div>
+  <div class="card part"><span class="cost">£4</span><span class="tag">ESP32-C3 SuperMini</span>
+    <h3>The brain</h3>
+    <p>A thumbnail-sized computer with Wi-Fi and Bluetooth. It reads the IDs, applies the rule, tells the servo where to go, and remembers the kittens' IDs when power is lost. Over Wi-Fi it can send your phone a ping and later talk to Ring or Home Assistant.</p></div>
+  <div class="card part"><span class="cost">£3</span><span class="tag">MG90S</span>
+    <h3>The servo</h3>
+    <p>A tiny motor with a gearbox, a position sensor and its own control chip, all in one block. It takes a pulse every 20 ms. The length of the pulse (1–2 ms) sets the angle (0–180°). It turns to that angle and holds it there. Ours only uses two angles: <span class="pill r">bolt in</span> and <span class="pill">bolt out</span>.</p></div>
+  <div class="card part"><span class="cost">£5</span><span class="tag">USB plug + 470 µF cap</span>
+    <h3>Power</h3>
+    <p>5 V from any phone charger runs everything. The capacitor is a small reservoir. The servo pulls a spike of current when it moves, and without the capacitor that spike can reset the ESP32.</p></div>
+</div>
+<p class="note" style="margin-top:12px">Plus wires, a small project box and hot glue (≈£2). <b>Total ≈ £22.</b></p>
+
+<!-- ============ THE CLIPS ============ -->
+<h2>Using your four clips</h2>
+<p>Your flap has two clips that block <i>in</i> and two that block <i>out</i>. The design keeps that mechanism, because it's already shaped to stop the flap:</p>
+<table>
+  <tr><th>Clips</th><th>Today</th><th>With Flap Guard</th></tr>
+  <tr><td>"Block in" pair</td><td>Manual</td><td><span class="open">Left open for good.</span> Coming in is never restricted.</td></tr>
+  <tr><td>"Block out" pair</td><td>Manual</td><td><span class="lock">Moved by the servo.</span> A stiff wire pushrod from the servo arm to one clip slides it shut or open. If that's awkward, the servo carries its own bolt into the same spot.</td></tr>
+</table>
+<p style="margin-top:12px">One engineering rule: <b>the servo moves the bolt, and the frame takes the push.</b> The clip or bolt has to sit in a slot, so a cat leaning on the flap pushes against plastic, not against the servo's gears. The clips already work this way, which is another reason to reuse them.</p>
+
+<!-- ============ LOGIC ============ -->
+<h2>The rule, exactly</h2>
+<table>
+  <tr><th>Reader sees</th><th>Flap does</th></tr>
+  <tr><td>Nothing</td><td><span class="lock">Exit locked</span> (default)</td></tr>
+  <tr><td>Any chip that isn't a kitten</td><td><span class="open">Unlocks exit for 4 s</span>, then relocks</td></tr>
+  <tr><td>Misato or Pen Pen</td><td><span class="lock">Locks immediately</span>, ignores unlocks for 15 s, and pings your phone</td></tr>
+  <tr><td>Big cat and kitten together</td><td><span class="lock">Kitten wins.</span> Stays locked.</td></tr>
+  <tr><td>Power cut</td><td>Servo stays where it was (almost always locked). Coming in still works.</td></tr>
+</table>
+<pre>on chip(id):
+  if id in kittens:            lock(); vetoUntil = now + 15s; notify(name)
+  else if now &gt;= vetoUntil:    unlock(); relockAt = now + 4s
+every 50ms:
+  if unlocked and now &gt;= relockAt: lock()
+button held 2s → learn mode: next chip read is saved as a kitten</pre>
+
+<!-- ============ BUILD ============ -->
+<h2>Build order</h2>
+<ol class="steps">
+  <li><b>Bench test the reader.</b> Wire the WL-134 to the ESP32 and print what it reads. Hold each cat near the coil and see the 15-digit IDs come out. This also tells you the real range with your cats' chips. Kittens often have mini chips, which read a little shorter.</li>
+  <li><b>Bench test the servo.</b> Two angles, bolt in and bolt out. Find them by hand on the clip.</li>
+  <li><b>Fit the coil.</b> For the first version, tape the stock coil to the roof of the tunnel on the inside face, since heads and shoulders pass right under it. Upgrade: wind a loop around the whole tunnel, as in the mock-up.</li>
+  <li><b>Fit the servo</b> under the tunnel on the inside, with the pushrod to the "block out" clip.</li>
+  <li><b>Enrol the kittens.</b> Hold the button, present Misato, then repeat for Pen Pen. The LED flashes to confirm each one.</li>
+  <li><b>Watch a day of traffic.</b> Every read is logged and every kitten attempt pings your phone through ntfy (the same app the kittens tracker already uses).</li>
+</ol>
+
+<h2>Later</h2>
+<p>A magnet and reed switch on the flap (£1) tells it when a cat actually went through. That gives you "big cat out 14:02 / in 16:40" logs and lets it relock the instant the flap closes instead of after 4 s. From there, Ring and Home Assistant are just more messages from the ESP32.</p>
+
+<footer>Flap Guard · prototype spec · made for Misato &amp; Pen Pen</footer>
+</main>
+
+<script>
+(function(){
+  const KITTENS = {misato:'Misato', penpen:'Pen Pen'};
+  const UNLOCK_MS = 4000, VETO_MS = 15000;
+  let locked = true, relockAt = 0, vetoUntil = 0;
+  const st = document.getElementById('state'), log = document.getElementById('log');
+  const bolt = document.getElementById('bolt'), flap = document.getElementById('flapSim');
+  const t0 = Date.now();
+  function stamp(){ return ((Date.now()-t0)/1000).toFixed(1).padStart(5,' ')+'s'; }
+  function say(m){ const d=document.createElement('div'); d.textContent=stamp()+'  '+m; log.prepend(d); }
+  function draw(){
+    st.className = 'state '+(locked?'L':'O');
+    st.textContent = locked ? 'EXIT LOCKED' : 'EXIT OPEN · '+Math.max(0,Math.ceil((relockAt-Date.now())/1000))+'s';
+    bolt.setAttribute('y', locked ? 226 : 246);
+    bolt.style.opacity = locked ? 1 : .35;
+  }
+  function lock(){ locked = true; draw(); }
+  function push(who){
+    if(locked){ flap.style.transform='rotate(-4deg)'; setTimeout(()=>flap.style.transform='',250); say(who+' pushes: flap won’t open'); }
+    else { flap.style.transform='rotate(-55deg)'; setTimeout(()=>flap.style.transform='',900); say(who+' pushes: goes out'); }
+  }
+  function chip(id){
+    const now = Date.now();
+    if(KITTENS[id]){ lock(); vetoUntil = now+VETO_MS; say('chip: '+KITTENS[id]+' → locked, phone pinged'); }
+    else if(now >= vetoUntil){ locked=false; relockAt=now+UNLOCK_MS; say('chip: not a kitten → unlock 4s'); draw(); }
+    else say('chip: not a kitten, but a kitten was here → stays locked');
+  }
+  const ev = {
+    big(){ chip('bigcat'); setTimeout(()=>push('Big cat'),400); },
+    misato(){ chip('misato'); setTimeout(()=>push('Misato'),400); },
+    penpen(){ chip('penpen'); setTimeout(()=>push('Pen Pen'),400); },
+    both(){ chip('bigcat'); setTimeout(()=>chip('misato'),150); setTimeout(()=>push('Kitten'),450); },
+    miss(){ say('no chip read'); setTimeout(()=>push('Cat'),300); }
+  };
+  document.querySelectorAll('[data-ev]').forEach(b=>b.addEventListener('click',()=>ev[b.dataset.ev]()));
+  setInterval(()=>{ if(!locked && Date.now()>=relockAt){ lock(); say('4s up → relocked'); } else if(!locked) draw(); },100);
+  say('idle: exit locked, coming in free'); draw();
+})();
+</script>
+</body>
+</html>
