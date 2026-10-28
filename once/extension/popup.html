@@ -1,0 +1,23 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  :root{--bg:#0b0f14;--fg:#e6edf3;--mut:#8b98a5;--line:#1f2a36;--acc:#5eead4}
+  body{margin:0;width:300px;background:var(--bg);color:var(--fg);font:13px/1.4 -apple-system,system-ui,sans-serif}
+  main{padding:14px}
+  h1{font-size:15px;margin:0 0 10px;letter-spacing:.02em}
+  h1 b{color:var(--acc)}
+  .host{color:var(--mut);font-size:12px;margin-bottom:8px;word-break:break-all}
+  label{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;margin:6px 0;cursor:pointer}
+  label:has(input:checked){border-color:var(--acc)}
+  input[type=radio],input[type=checkbox]{accent-color:var(--acc);margin:0}
+  button{width:100%;margin-top:8px;padding:9px;border:0;border-radius:8px;background:var(--acc);color:#0b0f14;font:600 13px system-ui;cursor:pointer}
+  .row{display:flex;justify-content:space-between;color:var(--mut);font-size:12px;margin-top:12px}
+  a{color:var(--mut)}
+  .empty{color:var(--mut)}
+  kbd{font:11px ui-monospace,monospace;border:1px solid var(--line);border-radius:4px;padding:1px 4px}
+</style>
+<main>
+  <h1><b>Once</b></h1>
+  <div id="app"></div>
+</main>
+<script src="popup.js"></script>

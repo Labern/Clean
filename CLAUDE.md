@@ -14,6 +14,9 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
+For Once (form autofill everywhere):
+- The app: https://labern.github.io/Clean/once/
+- Code branch: https://github.com/Labern/Clean/tree/claude/confident-carson-xklhln/once
 Add any new page to this list the moment it ships. Never omit the list.
 
 ## Project
@@ -66,6 +69,12 @@ no build step, no dependencies.
 - `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
   live at `labern.github.io/Clean/ribbit/`. See `ribbit/CLAUDE.md`.
+
+- `once/` — Once: never type your name/email/address into a form again, on any
+  site. One engine (`extension/engine.js`) shipped as an MV3 extension (fills on
+  sight) and a bookmarklet (iPhone/Safari). Live at `labern.github.io/Clean/once/`.
+  The owner's details are NEVER committed — see `once/CLAUDE.md`.
+  `node once/tests/run.mjs` must stay green.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the

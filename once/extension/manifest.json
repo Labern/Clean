@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Once",
+  "version": "1.0.0",
+  "description": "Never type your name, email or address into a form again. Works on every site, including ones you've never visited.",
+  "permissions": ["storage", "activeTab"],
+  "background": { "service_worker": "background.js", "scripts": ["background.js"] },
+  "content_scripts": [{
+    "matches": ["<all_urls>"],
+    "js": ["engine.js", "content.js"],
+    "all_frames": true,
+    "match_about_blank": true,
+    "run_at": "document_idle"
+  }],
+  "action": { "default_popup": "popup.html", "default_title": "Once" },
+  "commands": {
+    "fill":  { "suggested_key": { "default": "Alt+Shift+F" }, "description": "Fill this page now" },
+    "swap":  { "suggested_key": { "default": "Alt+Shift+E" }, "description": "Swap to your other email on this site" }
+  },
+  "icons": { "48": "icon-48.png", "128": "icon-128.png" },
+  "browser_specific_settings": { "gecko": { "id": "once@labern.github.io", "strict_min_version": "121.0" } }
+}

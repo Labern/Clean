@@ -1,0 +1,117 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Once fixtures</title>
+<!-- Each field states what it must end up holding (data-x). data-x="" = must stay empty.
+     Forms with data-eager="no" must NOT fill unprompted (extension), only on click/bookmarklet. -->
+<style>body{font:14px system-ui;padding:20px}form,section{border:1px solid #ccc;padding:10px;margin:10px 0}input,select,textarea{display:block;margin:4px 0}</style>
+<body>
+
+<form id="gov"> <!-- GOV.UK design system address pattern -->
+  <label for="a1">Building and street <span>line 1 of 2</span></label><input id="a1" name="address-line-1" data-x="line1">
+  <label for="a2">Building and street line 2 of 2</label><input id="a2" name="address-line-2" data-x="">
+  <label for="at">Town or city</label><input id="at" name="address-town" data-x="city">
+  <label for="ac">County</label><input id="ac" name="address-county" data-x="county">
+  <label for="ap">Postcode</label><input id="ap" name="address-postcode" data-x="postcode">
+</form>
+
+<form id="shopify"> <!-- autocomplete-attribute checkout -->
+  <select name="countryCode" autocomplete="shipping country" data-x="GB"><option value="">Select</option><option value="FR">France</option><option value="GB">United Kingdom</option><option value="US">United States</option></select>
+  <input name="firstName" autocomplete="shipping given-name" placeholder="First name (optional)" data-x="first">
+  <input name="lastName" autocomplete="shipping family-name" placeholder="Last name" data-x="last">
+  <input name="company" autocomplete="shipping organization" placeholder="Company (optional)" data-x="">
+  <input name="address1" autocomplete="shipping address-line1" placeholder="Address" data-x="line1">
+  <input name="address2" autocomplete="shipping address-line2" placeholder="Apartment, suite, etc." data-x="">
+  <input name="city" autocomplete="shipping address-level2" placeholder="City" data-x="city">
+  <input name="postalCode" autocomplete="shipping postal-code" placeholder="Postcode" data-x="postcode">
+  <input name="phone" autocomplete="shipping tel" type="tel" placeholder="Phone" data-x="">
+  <input name="email" autocomplete="email" placeholder="Email or mobile phone number" data-x="email">
+</form>
+
+<form id="signup">
+  <label>Full name <input name="full_name" data-x="name"></label>
+  <label>Email address <input type="email" name="email" data-x="email"></label>
+  <label>Confirm email <input type="email" name="email_confirm" data-x="email"></label>
+  <label>Password <input type="password" name="pw" data-x=""></label>
+  <label>Username <input name="username" data-x=""></label>
+  <input name="email2" type="text" style="position:absolute;left:-9999px" tabindex="-1" data-x=""> <!-- honeypot -->
+  <input name="website" style="display:none" data-x="">
+  <div style="opacity:0;height:0;overflow:hidden"><input name="name_hp" data-x=""></div>
+  <label><input type="checkbox" name="news"> News</label>
+</form>
+
+<form id="login">
+  <label for="u">Email or username</label><input id="u" name="login" data-x="email">
+  <label for="p">Password</label><input id="p" type="password" name="password">
+</form>
+
+<form id="split"> <!-- house number + street, German/Dutch-style but in English -->
+  <label>House number <input name="house_no" data-x="houseNo"></label>
+  <label>Street <input name="street" data-x="street"></label>
+  <label>Town <input name="town" data-x="city"></label>
+  <label>Postcode <input name="pc" data-x="postcode"></label>
+</form>
+
+<section id="formless"> <!-- no <form>, placeholders only, random ids -->
+  <input id=":r1:" placeholder="First name" data-x="first">
+  <input id=":r2:" placeholder="Last name" data-x="last">
+  <input id=":r3:" placeholder="Your email" data-x="email">
+  <input id=":r4:" placeholder="Postcode" data-x="postcode">
+</section>
+
+<form id="others" data-eager="no"> <!-- someone else's details: never ours -->
+  <label>Friend's name <input name="friend_name" data-x=""></label>
+  <label>Friend's email <input type="email" name="friend_email" data-x=""></label>
+  <label>Recipient address <input name="recipient_address" data-x=""></label>
+  <label>Name on card <input name="ccname" data-x=""></label>
+  <label>Card number <input name="cardnumber" data-x=""></label>
+  <label>Company name <input name="company_name" data-x=""></label>
+  <label>Promo code <input name="promo" data-x=""></label>
+</form>
+
+<form id="search" role="search" data-eager="no">
+  <input type="search" name="q" placeholder="Search" data-x="">
+</form>
+
+<form id="news" data-eager="no"> <!-- lone email: fills on click, not on sight -->
+  <input type="email" name="subscribe" placeholder="Get our newsletter" data-x="email">
+</form>
+
+<form id="billing">
+  <label>Name <input name="billing[name]" data-x="name"></label>
+  <label>Address <textarea name="billing[address]" data-x="fulladdress"></textarea></label>
+  <label>Country <select name="billing[country]" data-x="United Kingdom"><option>Choose…</option><option>Ireland</option><option>United Kingdom</option></select></label>
+  <label>County <select name="billing[county]" data-x="Surrey"><option value="">--</option><option>Kent</option><option>Surrey</option></select></label>
+  <label>Message <textarea name="msg" data-x=""></textarea></label>
+</form>
+
+<form id="react"> <!-- React-style controlled inputs: only real setter + input event registers -->
+  <input name="firstname" data-react data-x="first">
+  <input name="lastname" data-react data-x="last">
+  <input name="emailaddress" data-react data-x="email">
+</form>
+
+<form id="prefilled">
+  <input name="first_name" value="Already" data-x="Already">
+  <input name="last_name" data-x="last">
+</form>
+
+<form id="mine" data-once-off><input type="email" name="saved_other" value="ada@example.org" data-x="ada@example.org"></form>
+
+<form id="shadow"><my-field></my-field><input name="lname" data-x="last"></form>
+
+<script>
+  // a tiny React-style value tracker: state only updates through onChange-like input events
+  window.reactState = {};
+  for (const el of document.querySelectorAll('[data-react]')) {
+    const proto = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+    let tracked = '';
+    Object.defineProperty(el, 'value', { configurable: true,
+      get() { return proto.get.call(this); },
+      set(v) { tracked = v; proto.set.call(this, v); } });
+    el.addEventListener('input', () => { const real = proto.get.call(el); if (real !== tracked) { tracked = real; reactState[el.name] = real; } });
+  }
+  customElements.define('my-field', class extends HTMLElement {
+    connectedCallback() { const r = this.attachShadow({ mode: 'open' }); r.innerHTML = '<input name="fname" data-x="first">'; }
+  });
+</script>
+</body>

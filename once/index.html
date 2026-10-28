@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Once</title>
+<meta name="description" content="Never type your name, email or address into a form again.">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="theme-color" content="#0b0f14">
+<style>
+  :root{--bg:#0b0f14;--card:#10161d;--fg:#e6edf3;--mut:#8b98a5;--line:#1f2a36;--acc:#5eead4;--r:12px}
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif}
+  main{max-width:680px;margin:0 auto;padding:56px 16px 96px}
+  h1{font-size:56px;line-height:1;margin:0;letter-spacing:-.03em}
+  h1 b{color:var(--acc)}
+  .lede{font-size:20px;color:var(--mut);margin:14px 0 40px}
+  .lede strong{color:var(--fg);font-weight:600}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--mut);margin:48px 0 14px;font-weight:600}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid .w{grid-column:1/-1}
+  label.f{display:block;font-size:12px;color:var(--mut)}
+  label.f input{display:block;width:100%;margin-top:4px;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--fg);font:inherit;font-size:16px}
+  label.f input:focus{outline:none;border-color:var(--acc)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 18px;border-radius:10px;border:0;background:var(--acc);color:#0b0f14;font:600 15px/1 inherit;font-family:inherit;cursor:pointer;text-decoration:none;min-height:44px}
+  .btn.ghost{background:transparent;color:var(--fg);border:1px solid var(--line)}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px}
+  .status{font-size:14px;color:var(--mut)}
+  .status.ok{color:var(--acc)}
+  .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .tabs button{flex:1;min-width:120px;padding:10px;border-radius:10px;border:1px solid var(--line);background:transparent;color:var(--mut);font:600 14px inherit;font-family:inherit;cursor:pointer}
+  .tabs button[aria-selected=true]{color:var(--fg);border-color:var(--acc)}
+  ol{margin:0;padding-left:20px}
+  ol li{margin:8px 0}
+  ol li::marker{color:var(--acc)}
+  code,kbd{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--bg);border:1px solid var(--line);border-radius:5px;padding:1px 6px}
+  .bm{display:inline-flex;padding:10px 16px;border-radius:999px;border:1px dashed var(--acc);color:var(--acc);text-decoration:none;font-weight:600;cursor:grab}
+  .note{font-size:14px;color:var(--mut);margin-top:12px}
+  .try input{display:block;width:100%;margin:6px 0;padding:10px 12px;background:#fff;color:#111;border:1px solid #ccc;border-radius:8px;font:inherit;font-size:16px}
+  .try .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .how{display:grid;gap:10px}
+  .how div{display:flex;gap:12px}
+  .how b{color:var(--acc);min-width:20px}
+  [hidden]{display:none!important}
+  @media (max-width:520px){h1{font-size:44px}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<main>
+  <h1><b>Once.</b></h1>
+  <p class="lede">You type your details once. <strong>Then never again</strong> — on every site, including ones you've never been to. Signups, logins, checkouts, address forms.</p>
+
+  <div class="how">
+    <div><b>→</b><span>Reads any form by what each box <em>means</em> — no site list, no per-site setup.</span></div>
+    <div><b>→</b><span>Fills on sight. Only empty boxes, never ones you've changed, never hidden traps.</span></div>
+    <div><b>→</b><span>Two emails: tap <code>⇄</code> to switch, and that site remembers which one you use there — so logins get the right one.</span></div>
+    <div><b>→</b><span>Your details never leave your device. No server, no account, no tracking.</span></div>
+  </div>
+
+  <h2>1 · Your details</h2>
+  <form class="card" id="me" data-once-off autocomplete="off">
+    <div class="grid">
+      <label class="f">First name<input name="first"></label>
+      <label class="f">Last name<input name="last"></label>
+      <label class="f w">Address line 1<input name="line1"></label>
+      <label class="f w">Address line 2<input name="line2"></label>
+      <label class="f">Town<input name="city"></label>
+      <label class="f">County<input name="county"></label>
+      <label class="f">Postcode<input name="postcode"></label>
+      <label class="f">Country<input name="country" placeholder="United Kingdom"></label>
+      <label class="f w">Main email<input name="email0" type="email"></label>
+      <label class="f w">Other email<input name="email1" type="email"></label>
+    </div>
+    <div class="row">
+      <button class="btn" type="submit">Save</button>
+      <span class="status" id="status"></span>
+    </div>
+  </form>
+
+  <h2>2 · Install</h2>
+  <div class="card">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-t="ios">iPhone / iPad</button>
+      <button role="tab" data-t="chrome">Chrome · Edge · Brave · Arc</button>
+      <button role="tab" data-t="safari">Safari Mac · Firefox</button>
+    </div>
+
+    <div data-p="ios">
+      <ol>
+        <li><button class="btn" id="copy" type="button">Copy your Once bookmark</button></li>
+        <li>Bookmark this page: <b>Share</b> → <b>Add Bookmark</b> → name it <b>Once</b> → Save.</li>
+        <li>Open <b>Bookmarks</b> → <b>Edit</b> → tap <b>Once</b> → clear the address and paste.</li>
+        <li>On any form: tap the address bar, type <b>once</b>, tap the bookmark. Done.</li>
+      </ol>
+      <p class="note">Tap it again on the same page to switch to your other email.</p>
+    </div>
+
+    <div data-p="chrome" hidden>
+      <ol>
+        <li><a class="btn" href="once-extension.zip" download>Download Once</a> and unzip it.</li>
+        <li>Open <code>chrome://extensions</code> and turn on <b>Developer mode</b> (top right).</li>
+        <li><b>Load unpacked</b> → pick the unzipped <code>once-extension</code> folder.</li>
+        <li>Reload this page. Your details pass straight into the extension.</li>
+      </ol>
+      <p class="note">Then forget it exists. Forms fill on sight. Shortcuts: <kbd>⌥⇧F</kbd> fill now, <kbd>⌥⇧E</kbd> swap email. Pin it for per-site email and an off switch.</p>
+      <p class="status" id="extStatus"></p>
+    </div>
+
+    <div data-p="safari" hidden>
+      <ol>
+        <li>Show the bookmarks bar (<kbd>⇧⌘B</kbd>).</li>
+        <li>Drag this onto it: <a class="bm" id="bmLink" href="#">Once</a></li>
+        <li>On any form, click it. Click again to switch email.</li>
+      </ol>
+      <p class="note">Firefox can also run the extension: <code>about:debugging</code> → This Firefox → Load Temporary Add-on → pick <code>manifest.json</code> from the zip.</p>
+    </div>
+  </div>
+
+  <h2>3 · Try it</h2>
+  <form class="card try" id="try" onsubmit="return false">
+    <div class="two"><input name="given" autocomplete="given-name" placeholder="First name"><input name="family" autocomplete="family-name" placeholder="Last name"></div>
+    <input type="email" name="email" placeholder="Email">
+    <input name="address1" placeholder="Address line 1">
+    <div class="two"><input name="town" placeholder="Town / city"><input name="postcode" placeholder="Postcode"></div>
+    <div class="row"><button class="btn" id="run" type="button">Run the bookmark here</button><button class="btn ghost" type="reset">Clear</button></div>
+  </form>
+</main>
+
+<script>
+(() => {
+  const KEY = 'once.profile';
+  const $ = s => document.querySelector(s);
+  const me = $('#me');
+  let profile = null, ext = false, bm = '';
+
+  const read = () => { try { return JSON.parse(localStorage.getItem(KEY)); } catch (e) { return null; } };
+  const write = p => { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) {} };
+
+  // a private setup link carries your details in the #fragment — never sent to any server
+  if (location.hash.startsWith('#p=')) {
+    try {
+      const b = location.hash.slice(3).replace(/-/g, '+').replace(/_/g, '/');
+      const p = JSON.parse(decodeURIComponent(escape(atob(b))));
+      if (p && p.emails) write(p);
+    } catch (e) {}
+    history.replaceState(null, '', location.pathname);
+  }
+
+  function toForm(p) {
+    for (const k of ['first', 'last', 'line1', 'line2', 'city', 'county', 'postcode', 'country']) me.elements[k].value = p[k] || '';
+    me.elements.email0.value = (p.emails || [])[0] || '';
+    me.elements.email1.value = (p.emails || [])[1] || '';
+  }
+  function fromForm() {
+    const f = me.elements, p = {};
+    for (const k of ['first', 'last', 'line1', 'line2', 'city', 'county', 'postcode', 'country']) p[k] = f[k].value.trim();
+    if (!p.country) p.country = 'United Kingdom';
+    p.emails = [f.email0.value.trim(), f.email1.value.trim()].filter(Boolean);
+    return p;
+  }
+
+  const bookmark = () => profile && bm ? 'javascript:' + encodeURIComponent('(' + bm + ')(' + JSON.stringify(profile) + ')') : '';
+
+  function refresh() {
+    $('#bmLink').href = bookmark() || '#';
+    const s = $('#status');
+    s.textContent = profile ? 'Saved on this device.' : '';
+    s.className = 'status' + (profile ? ' ok' : '');
+    if (ext && profile) window.postMessage({ type: 'once-profile', profile }, location.origin);
+  }
+
+  profile = read();
+  if (profile) toForm(profile);
+
+  me.addEventListener('submit', e => {
+    e.preventDefault();
+    profile = fromForm();
+    write(profile);
+    refresh();
+  });
+
+  fetch('bookmarklet.min.js').then(r => r.text()).then(t => { bm = t.trim(); refresh(); });
+
+  // extension handshake
+  window.addEventListener('message', e => {
+    if (e.source !== window || !e.data) return;
+    if (e.data.type === 'once-ready') { ext = true; refresh(); }
+    if (e.data.type === 'once-ack') {
+      const s = $('#extStatus'); s.textContent = 'Extension connected — your details are in.'; s.className = 'status ok';
+      $('#status').textContent = 'Saved here and in the extension.';
+    }
+  });
+
+  $('#copy').onclick = async () => {
+    const b = bookmark();
+    if (!b) { $('#status').textContent = 'Save your details first.'; me.scrollIntoView({ behavior: 'smooth' }); return; }
+    try { await navigator.clipboard.writeText(b); $('#copy').textContent = 'Copied ✓'; }
+    catch (e) { prompt('Copy this:', b); }
+  };
+  $('#bmLink').onclick = e => { e.preventDefault(); alert('Drag this to your bookmarks bar.'); };
+  $('#run').onclick = () => { if (!profile || !bm) return; (0, eval)('(' + bm + ')(' + JSON.stringify(profile) + ')'); };
+
+  // tabs: open the one for this device
+  const tabs = document.querySelectorAll('[role=tab]');
+  const show = t => {
+    tabs.forEach(b => b.setAttribute('aria-selected', b.dataset.t === t));
+    document.querySelectorAll('[data-p]').forEach(p => p.hidden = p.dataset.p !== t);
+  };
+  tabs.forEach(b => b.onclick = () => show(b.dataset.t));
+  const ua = navigator.userAgent;
+  show(/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1) ? 'ios'
+     : /Chrome|Chromium|Edg\//.test(ua) ? 'chrome' : 'safari');
+})();
+</script>
+</body>
+</html>
