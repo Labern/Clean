@@ -23,7 +23,7 @@ For Paradoxica Hub (paradoxica.uk, source in private repo Labern/paradoxica-hub)
 - Production: https://paradoxica.uk
 - Preview: https://labern.github.io/Clean/paradoxica/
 - Code: https://github.com/Labern/paradoxica-hub/tree/main/sites/paradoxica.uk
-When the user says "ship paradoxica": attach + clone Labern/paradoxica-hub, run its
+When the user says "push" (or "ship paradoxica"): attach + clone Labern/paradoxica-hub, run its
 `bin/ship` (needs env PARADOXICA_SHIP_KEY), report the live stamp. See that repo's CLAUDE.md.
 `paradoxica-ship/ship.php` here is a public copy of the receiver for the one-time install.
 Add any new page to this list the moment it ships.
