@@ -15,6 +15,9 @@ For the kittens project:
 - Classic weight app: https://labern.github.io/Clean/kittens/weight/classic.html
 - Data check: https://labern.github.io/Clean/kittens/check/
 - Code branch: https://github.com/Labern/Clean/tree/kittens-v2
+paradoxica.uk (★★★★★ × PARADOX company site):
+- Live: https://paradoxica.uk
+- Code: https://github.com/Labern/Clean/tree/master/paradoxica
 For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
@@ -73,6 +76,11 @@ no build step, no dependencies.
   via the existing 4-clip cat flap. Rule: exit locked by default, any non-kitten
   chip unlocks 4 s, a kitten read locks + vetoes 15 s. Single file, deployed to
   gh-pages `/catflap/`.
+
+- `paradoxica/` — paradoxica.uk, the ★★★★★ × PARADOX company site (Fasthosts).
+  `site/` mirrors to `htdocs`. **"upload" means ship it to production now** —
+  `paradoxica/bin/upload` on the Mac, or push (Action deploys over SFTP). See
+  `paradoxica/CLAUDE.md`.
 
 - `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,

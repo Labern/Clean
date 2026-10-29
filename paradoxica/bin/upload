@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Push paradoxica/site straight to htdocs over SSH, then check the live site serves this build.
+set -euo pipefail
+
+SITE="$(cd "$(dirname "$0")/../site" && pwd)"
+STAMP="$(git -C "$SITE" rev-parse --short HEAD 2>/dev/null || echo local)-$(date +%s)"
+
+tar -C "$SITE" -cf - . | ssh paradoxica "mkdir -p htdocs && tar -xf - -C htdocs && echo '$STAMP' > htdocs/deploy.txt"
+
+for scheme in https http; do
+  live="$(curl -fsS --max-time 15 "$scheme://paradoxica.uk/deploy.txt" 2>/dev/null || true)"
+  if [ "$live" = "$STAMP" ]; then echo "live on $scheme://paradoxica.uk ($STAMP)"; exit 0; fi
+done
+echo "uploaded, but paradoxica.uk/deploy.txt doesn't show $STAMP yet (DNS/SSL/cache?)" >&2
+exit 1

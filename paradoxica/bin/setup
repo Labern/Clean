@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# One-time Mac setup: adds `ssh paradoxica` and installs a key so no password is asked again.
+set -euo pipefail
+
+KEY="$HOME/.ssh/paradoxica_ed25519"
+CONF="$HOME/.ssh/config"
+mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+
+[ -f "$KEY" ] || ssh-keygen -t ed25519 -N "" -C "paradoxica" -f "$KEY"
+
+if ! grep -q "^Host paradoxica$" "$CONF" 2>/dev/null; then
+  cat >> "$CONF" <<EOF
+
+Host paradoxica
+  HostName ssh.paradoxica.uk
+  User csh3485222
+  Port 22
+  IdentityFile $KEY
+  IdentitiesOnly yes
+  ServerAliveInterval 30
+EOF
+  chmod 600 "$CONF"
+fi
+
+# Asks for the Fasthosts SSH password once, then never again.
+ssh-copy-id -i "$KEY.pub" paradoxica
+ssh paradoxica 'echo "connected: $(pwd)"; ls htdocs | head'

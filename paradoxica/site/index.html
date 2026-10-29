@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>★★★★★ × PARADOX</title>
+<meta name="description" content="★★★★★ × PARADOX. A trading name of PARADOXICA Ltd.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+@font-face{font-family:"Graphik";src:local("Graphik Regular"),local("Graphik-Regular"),url(fonts/Graphik-Regular.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Graphik";src:local("Graphik Medium"),local("Graphik-Medium"),url(fonts/Graphik-Medium.woff2) format("woff2");font-weight:500;font-display:swap}
+@font-face{font-family:"Canela";src:local("Canela Regular"),local("Canela-Regular"),url(fonts/Canela-Regular.woff2) format("woff2");font-weight:400;font-display:swap}
+:root{
+  --bg:#000;--fg:#fff;--dim:rgba(255,255,255,.42);--line:rgba(255,255,255,.14);
+  --yellow:#FFE500;--ease:cubic-bezier(.22,.61,.36,1);
+  --sans:"Graphik","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:"Canela",Georgia,"Times New Roman",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--fg)}
+body{font-family:var(--sans);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+main{min-height:100svh;display:grid;grid-template-rows:1fr auto;padding:max(24px,env(safe-area-inset-top)) 16px max(20px,env(safe-area-inset-bottom))}
+.centre{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(56px,10vh,104px)}
+
+/* Mark */
+.mark{width:min(640px,86vw);color:var(--fg);position:relative}
+.mark svg{display:block;width:100%;height:auto;overflow:visible}
+.mark use{opacity:0}
+.m-stars use{animation:star .9s var(--ease) forwards,twinkle 6s ease-in-out 3s infinite}
+.m-stars use:nth-child(1){animation-delay:.15s,3.18s}
+.m-stars use:nth-child(2){animation-delay:.27s,3.36s}
+.m-stars use:nth-child(3){animation-delay:.39s,3.54s}
+.m-stars use:nth-child(4){animation-delay:.51s,3.72s}
+.m-stars use:nth-child(5){animation-delay:.63s,3.90s}
+.m-x use{animation:fade .8s var(--ease) .95s forwards}
+.m-word use{animation:fade 1.1s var(--ease) forwards}
+.m-word use:nth-child(1){animation-delay:1.10s}
+.m-word use:nth-child(2){animation-delay:1.16s}
+.m-word use:nth-child(3){animation-delay:1.22s}
+.m-word use:nth-child(4){animation-delay:1.28s}
+.m-word use:nth-child(5){animation-delay:1.34s}
+.m-word use:nth-child(6){animation-delay:1.40s}
+.m-word use:nth-child(7){animation-delay:1.46s}
+@keyframes star{0%{opacity:0;filter:blur(6px)}60%{opacity:1;filter:blur(0)}100%{opacity:1}}
+@keyframes twinkle{0%,100%{opacity:1}8%{opacity:.35}16%{opacity:1}}
+@keyframes fade{from{opacity:0;filter:blur(4px)}to{opacity:1;filter:blur(0)}}
+
+/* Projects */
+.projects{display:flex;flex-direction:column;align-items:center;gap:36px;opacity:0;transform:translateY(10px);animation:rise 1s var(--ease) 1.9s forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+.group{display:flex;flex-direction:column;align-items:center;gap:18px}
+.rule{width:min(320px,70vw);height:0;border:0;border-top:1px solid #fff}
+.label{font:500 11px/1 var(--sans);letter-spacing:.32em;text-transform:uppercase;color:var(--dim)}
+.btns{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:20px 28px}
+.item{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:180px}
+.btn{white-space:nowrap}
+.desc{font:400 11px/1.5 var(--sans);color:var(--dim);letter-spacing:.01em;text-align:center;text-wrap:balance;max-width:26ch}
+.btn{
+  --c:var(--fg);
+  display:inline-flex;align-items:center;gap:10px;min-height:44px;padding:0 22px;
+  border:1px solid var(--line);border-radius:999px;color:var(--c);text-decoration:none;
+  font:400 15px/1 var(--sans);letter-spacing:.01em;
+  transition:border-color .35s var(--ease),background-color .35s var(--ease),color .35s var(--ease),box-shadow .5s var(--ease),transform .35s var(--ease);
+}
+.btn:hover{border-color:var(--c);transform:translateY(-1px)}
+.btn:focus-visible{outline:2px solid var(--c);outline-offset:3px}
+.btn .dot{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.btn.cats{--c:var(--yellow);background:var(--yellow);color:#000;border-color:var(--yellow);font-weight:500}
+.btn.cats .dot{background:#000}
+.btn.cats:hover{box-shadow:0 0 0 6px rgba(255,229,0,.12),0 0 48px rgba(255,229,0,.35)}
+.btn.soon{color:var(--dim);cursor:default}
+.btn.soon:hover{border-color:var(--line);transform:none}
+
+/* Footer */
+footer{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;opacity:0;animation:rise 1s var(--ease) 2.3s forwards}
+footer a{color:var(--fg);text-decoration:none;font:400 13px/1 var(--sans);letter-spacing:.04em;border-bottom:1px solid transparent;transition:border-color .3s}
+footer a:hover{border-color:var(--fg)}
+footer small{display:block;max-width:34em;font:400 9px/1.6 var(--sans);color:var(--dim);letter-spacing:.03em;text-wrap:balance}
+
+@media (prefers-reduced-motion:reduce){
+  .mark use,.projects,footer{animation:none!important;opacity:1!important;transform:none!important;filter:none!important}
+}
+</style>
+</head>
+<body>
+<main>
+  <div class="centre">
+    <h1 class="mark" aria-label="★★★★★ × PARADOX">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="420 488 1080 112" fill="currentColor" role="img" aria-label="★★★★★ × PARADOX"><defs><path id="font_2_722" d="M.5 .8593445 .3829956 .49899293H.01399231L.31098939 .2757721 .19699097-.078567508 .5 .14064026 .8019867-.078567508 .68899539 .2757721 .9850006 .49899293H.6159973L.5 .8593445Z"/><path id="font_4_1" d="M.07998657 .13085938 .23399353 .28585816 .3880005 .13085938 .43598939 .17884827 .28199769 .33285523 .43598939 .48684693 .3880005 .5348511 .23399353 .3798523 .07998657 .5348511 .032989503 .48684693 .18699646 .33285523 .032989503 .17884827 .07998657 .13085938Z"/><path id="font_6_8" d="M.04899597 0H.24398804V.0019989014C.21099854 .0640564 .20399475 .098098758 .20399475 .18118286V.30030824H.269989C.46499635 .30030824 .56799319 .3973236 .56799319 .530365 .56799319 .63739016 .5029907 .7324219 .2849884 .7324219H.04899597V.7304077C.08099365 .66841128 .08898926 .6343994 .08898926 .55137637V.18118286C.08898926 .099090579 .08099365 .0640564 .04899597 .0019989014V0M.2679901 .7124176C.36999513 .7124176 .45199586 .6734009 .45199586 .5283661 .45199586 .42134095 .39898683 .3203125 .2659912 .3203125H.20399475V.7104187C.23599243 .7124176 .2539978 .7124176 .2679901 .7124176Z"/><path id="font_6_26" d="M.3789978 .29589845H.1599884L.269989 .5851135 .3789978 .29589845M.1329956 .0019989014C.11199951 .034973146 .085998538 .10295105 .1309967 .21990967L.1519928 .27589417H.3869934L.42799378 .16792298C.45599366 .09396362 .45599366 .030975342 .43899537 .0019989014V0H.6380005V.0019989014C.6029968 .037979127 .5799866 .07595825 .5469971 .16293335L.32798768 .7402344H.30799867L.09298706 .17393494C.06399536 .096954349 .04598999 .051971437-.0020141602 .0019989014V0H.1329956V.0019989014Z"/><path id="font_6_9" d="M.28199769 .7124176C.4039917 .7124176 .43998719 .64933779 .43998719 .5582428 .43998719 .46012879 .4079895 .37304688 .28199769 .37304688H.20399475V.7114105C.24299622 .7124176 .2689972 .7124176 .28199769 .7124176M.04899597 0H.24398804V.0019989014C.21099854 .06399536 .20399475 .0980072 .20399475 .18101502V.3530426H.29100038L.47099305 0H.6469879V.0069885256C.59498599 .032989503 .57398989 .054992677 .5309906 .13900757L.4119873 .3720398C.5119934 .404068 .5569916 .4741516 .5569916 .5572357 .5569916 .6623535 .4850006 .7324219 .3039856 .7324219H.04899597V.7304077C.08099365 .6683655 .08898926 .6343231 .08898926 .551239V.18101502C.08898926 .09899902 .08099365 .06399536 .04899597 .0019989014V0Z"/><path id="font_6_3" d="M.04899597 0H.32299806C.57899478 0 .72299197 .13204956 .72299197 .36915589 .72299197 .6062622 .57199099 .7363281 .32299806 .7363281 .19099427 .7363281 .17399597 .73231509 .04899597 .73231509V.73031619C.08099365 .67729189 .08898926 .6482849 .08898926 .5782471V.15405274C.08898926 .08403015 .08099365 .055007936 .04899597 .0019989014V0M.31399537 .71632388C.5029907 .71632388 .59599307 .6022644 .59599307 .35514833 .59599307 .13804627 .519989 .024993897 .31498719 .019989014L.20399475 .016998291V.71632388H.31399537Z"/><path id="font_6_7" d="M.4059906-.0146484379C.59399417-.0146484379 .7839966 .1532898 .7839966 .36520387 .7839966 .5771179 .59399417 .7470703 .4059906 .7470703 .21798706 .7470703 .02999878 .5771179 .02999878 .36520387 .02999878 .1532898 .21798706-.0146484379 .4059906-.0146484379M.4059906 .005340576C.23399353 .005340576 .15699768 .1592865 .15699768 .36520387 .15699768 .5711212 .23399353 .72706606 .4059906 .72706606 .57899478 .72706606 .6569977 .5711212 .6569977 .36520387 .6569977 .15827942 .57899478 .005340576 .4059906 .005340576Z"/><path id="font_6_11" d="M.17799378 .0019989014C.1599884 .053024293 .13999939 .095047 .19898987 .18009949L.30999757 .34118653 .43598939 .13206482C.46699525 .08003235 .47200013 .023010254 .45298768 .0019989014V0H.6859894V.0019989014C.6380005 .03100586 .60598757 .074035648 .5669861 .1390686L.3929901 .426239 .49899293 .57533267C.5469971 .6433716 .59199526 .6893921 .6559906 .730423V.7324219H.48599244V.730423C.5119934 .6793823 .5119934 .6333618 .45498658 .5523071L.3809967 .44625855 .28799439 .6003418C.25698854 .65237429 .2519989 .7094116 .2709961 .730423V.7324219H.037994386V.730423C.085998538 .70140078 .11898804 .65737918 .15699768 .5943451L.29699708 .36120606 .15499878 .15708924C.10598755 .08703613 .067993167 .043014528 .0079956059 .0019989014V0H.17799378V.0019989014Z"/></defs><g class="m-stars"><use href="#font_2_722" transform="matrix(100,0,0,-100,430.85,584.9999)"/><use href="#font_2_722" transform="matrix(100,0,0,-100,530.85,584.9999)"/><use href="#font_2_722" transform="matrix(100,0,0,-100,630.85,584.9999)"/><use href="#font_2_722" transform="matrix(100,0,0,-100,730.85,584.9999)"/><use href="#font_2_722" transform="matrix(100,0,0,-100,830.85,584.9999)"/></g><g class="m-x"><use href="#font_4_1" transform="matrix(100,0,0,-100,957.35,584.9999)"/></g><g class="m-word"><use href="#font_6_8" transform="matrix(100,0,0,-100,1027.95,584.9999)"/><use href="#font_6_26" transform="matrix(100,0,0,-100,1078.75,584.9999)"/><use href="#font_6_9" transform="matrix(100,0,0,-100,1142.35,584.9999)"/><use href="#font_6_26" transform="matrix(100,0,0,-100,1205.95,584.9999)"/><use href="#font_6_3" transform="matrix(100,0,0,-100,1269.5499,584.9999)"/><use href="#font_6_7" transform="matrix(100,0,0,-100,1344.85,584.9999)"/><use href="#font_6_11" transform="matrix(100,0,0,-100,1419.75,584.9999)"/></g></svg>
+    </h1>
+    <nav class="projects" aria-label="Projects">
+      <div class="group">
+        <span class="label">Charity / Non-Profit</span>
+        <div class="btns">
+          <div class="item"><a class="btn cats" href="cats/index.html"><span class="dot"></span>Slow Down for Cats</a><p class="desc">A charity dedicated to reducing cat fatalities on the road</p></div>
+        </div>
+      </div>
+      <hr class="rule">
+      <div class="group">
+        <span class="label">Products</span>
+        <div class="btns">
+          <div class="item"><a class="btn" href="https://labern.github.io/logos/"><span class="dot"></span>Logos</a><p class="desc">A logo designer to create your own clothes</p></div>
+          <div class="item"><a class="btn" href="https://github.com/Labern/Combray"><span class="dot"></span>Combray</a><p class="desc">A transcription model that reads handwriting</p></div>
+          <div class="item"><span class="btn soon"><span class="dot"></span>INT./EXT.</span><p class="desc">A screenwriting app. The film, in text</p></div>
+        </div>
+      </div>
+    </nav>
+  </div>
+  <footer>
+    <small>★★★★★ × PARADOX™ is a trademark of PARADOXICA Ltd. Registered in England and Wales, company no. 17145296</small>
+  </footer>
+</main>
+</body>
+</html>
