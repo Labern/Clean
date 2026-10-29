@@ -24,7 +24,7 @@ main{min-height:100svh;display:grid;grid-template-rows:1fr auto;row-gap:64px;pad
 .centre{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:clamp(48px,9vh,96px)}
 
 /* Mark */
-.mark{width:min(1060px,92vw);color:var(--fg);position:relative}
+.mark{width:min(900px,90vw);color:var(--fg);position:relative}
 .mark svg{display:block;width:100%;height:auto;overflow:visible}
 .mark use{opacity:0;animation:fade .3s var(--ease) forwards}
 .m-stars use{animation:fade .3s var(--ease) forwards,twinkle 6s ease-in-out 2s infinite}
@@ -41,22 +41,22 @@ main{min-height:100svh;display:grid;grid-template-rows:1fr auto;row-gap:64px;pad
 /* Projects */
 .projects{display:flex;flex-direction:column;align-items:center;gap:48px}
 .group{display:flex;flex-direction:column;align-items:center;gap:24px}
-.rule{width:min(500px,80vw);height:0;border:0;border-top:1px solid #fff}
-.label{font:500 clamp(14px,1.3vw,19px)/1 var(--sans);letter-spacing:.28em;text-transform:uppercase;color:var(--dim)}
-.btns{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:40px 56px}
-.item{display:flex;flex-direction:column;align-items:center;gap:16px;min-width:clamp(240px,20vw,300px)}
+.rule{width:min(440px,80vw);height:0;border:0;border-top:1px solid #fff}
+.label{font:500 clamp(12px,1.1vw,16px)/1 var(--sans);letter-spacing:.28em;text-transform:uppercase;color:var(--dim)}
+.btns{display:flex;flex-wrap:wrap;justify-content:center;align-items:flex-start;gap:32px 48px}
+.item{display:flex;flex-direction:column;align-items:center;gap:16px;min-width:clamp(200px,17vw,260px)}
 .btn{white-space:nowrap}
-.desc{font:400 clamp(16px,1.55vw,22px)/1.45 var(--sans);color:rgba(255,255,255,.6);letter-spacing:.005em;text-align:center;text-wrap:balance;max-width:24ch}
+.desc{font:400 clamp(14px,1.3vw,19px)/1.45 var(--sans);color:rgba(255,255,255,.6);letter-spacing:.005em;text-align:center;text-wrap:balance;max-width:24ch}
 .btn{
   --c:var(--fg);
-  display:inline-flex;align-items:center;gap:14px;min-height:clamp(60px,5vw,74px);padding:0 clamp(30px,2.5vw,38px);
+  display:inline-flex;align-items:center;gap:14px;min-height:clamp(50px,4.2vw,62px);padding:0 clamp(24px,2.1vw,32px);
   border:1px solid var(--line);border-radius:999px;color:var(--c);text-decoration:none;
-  font:400 clamp(19px,2vw,29px)/1 var(--sans);letter-spacing:.01em;
+  font:400 clamp(16px,1.7vw,24px)/1 var(--sans);letter-spacing:.01em;
   transition:border-color .35s var(--ease),background-color .35s var(--ease),color .35s var(--ease),box-shadow .5s var(--ease),transform .35s var(--ease);
 }
 .btn:hover{border-color:var(--c);transform:translateY(-1px)}
 .btn:focus-visible{outline:2px solid var(--c);outline-offset:3px}
-.btn .dot{width:9px;height:9px;border-radius:50%;background:var(--c)}
+.btn .dot{width:7px;height:7px;border-radius:50%;background:var(--c)}
 .btn.cats{--c:var(--yellow);background:var(--yellow);color:#000;border-color:var(--yellow);font-weight:500}
 .btn.cats .dot{background:#000}
 .btn.cats:hover{box-shadow:0 0 0 6px rgba(255,229,0,.12),0 0 48px rgba(255,229,0,.35)}
@@ -70,9 +70,9 @@ main{min-height:100svh;display:grid;grid-template-rows:1fr auto;row-gap:64px;pad
 
 /* Footer */
 footer{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
-footer a{color:var(--fg);text-decoration:none;font:400 16px/1 var(--sans);letter-spacing:.04em;border-bottom:1px solid transparent;transition:border-color .3s}
+footer a{color:var(--fg);text-decoration:none;font:400 14px/1 var(--sans);letter-spacing:.04em;border-bottom:1px solid transparent;transition:border-color .3s}
 footer a:hover{border-color:var(--fg)}
-footer small{display:block;max-width:44em;font:400 clamp(12px,1.05vw,15px)/1.6 var(--sans);color:var(--dim);letter-spacing:.03em;text-wrap:balance}
+footer small{display:block;max-width:44em;font:400 clamp(11px,.9vw,13px)/1.6 var(--sans);color:var(--dim);letter-spacing:.03em;text-wrap:balance}
 
 @media (prefers-reduced-motion:reduce){
   .mark use,.m-tm{animation:none!important;opacity:1!important}

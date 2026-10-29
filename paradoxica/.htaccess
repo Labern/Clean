@@ -1,6 +1,4 @@
 # Clean addresses: never show .html. Pages live at / and /whatever (or /whatever/).
-Options -MultiViews
-DirectoryIndex index.html
 RewriteEngine On
 # /cats/index.html (or any …/index.html) -> /cats/
 RewriteCond %{THE_REQUEST} \s/+(.*/)?index\.html?[\s?] [NC]
