@@ -19,6 +19,10 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
+For cats.org (Slow Down for Cats; "done"/"deploy" = `bin/deploy`, ships both):
+- https://slowdownforcats.org
+- https://paradoxica.uk/cats
+- Code: https://github.com/Labern/slowdownforcats
 Add any new page to this list the moment it ships.
 
 ## Project
