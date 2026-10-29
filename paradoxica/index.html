@@ -62,6 +62,11 @@ main{min-height:100svh;display:grid;grid-template-rows:1fr auto;row-gap:64px;pad
 .btn.cats:hover{box-shadow:0 0 0 6px rgba(255,229,0,.12),0 0 48px rgba(255,229,0,.35)}
 .btn.soon{color:var(--dim);cursor:default}
 .btn.soon:hover{border-color:var(--line);transform:none}
+.swap{display:grid;justify-items:center}
+.swap>span{grid-area:1/1;transition:opacity .2s var(--ease)}
+.swap>span+span{opacity:0}
+.soon:hover .swap>span:first-child,.soon:focus-visible .swap>span:first-child{opacity:0}
+.soon:hover .swap>span+span,.soon:focus-visible .swap>span+span{opacity:1}
 
 /* Footer */
 footer{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
@@ -84,7 +89,7 @@ footer small{display:block;max-width:44em;font:400 clamp(12px,1.05vw,15px)/1.6 v
       <div class="group">
         <span class="label">Charity / Non-Profit</span>
         <div class="btns">
-          <div class="item"><a class="btn cats" href="cats/index.html"><span class="dot"></span>Slow Down for Cats</a><p class="desc">A charity dedicated to reducing cat fatalities on the road</p></div>
+          <div class="item"><a class="btn cats" href="cats/"><span class="dot"></span>Slow Down for Cats</a><p class="desc">A charity dedicated to reducing cat fatalities on the road</p></div>
         </div>
       </div>
       <hr class="rule">
@@ -92,8 +97,8 @@ footer small{display:block;max-width:44em;font:400 clamp(12px,1.05vw,15px)/1.6 v
         <span class="label">Products</span>
         <div class="btns">
           <div class="item"><a class="btn" href="https://labern.github.io/logos/"><span class="dot"></span>Logos</a><p class="desc">A logo designer to create your own clothes</p></div>
-          <div class="item"><a class="btn" href="https://github.com/Labern/Combray"><span class="dot"></span>Combray</a><p class="desc">A transcription model that reads handwriting</p></div>
-          <div class="item"><span class="btn soon"><span class="dot"></span>INT./EXT.</span><p class="desc">A screenwriting app. The film, in text</p></div>
+          <div class="item"><a class="btn" href="https://labern.github.io/Combray/"><span class="dot"></span>Combray</a><p class="desc">A transcription model that reads handwriting</p></div>
+          <div class="item"><span class="btn soon" tabindex="0" aria-label="INT./EXT., coming soon"><span class="dot"></span><span class="swap" aria-hidden="true"><span>INT./EXT.</span><span>Coming soon</span></span></span><p class="desc">A screenwriting app. The film, in text</p></div>
         </div>
       </div>
     </nav>
