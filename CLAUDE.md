@@ -74,11 +74,10 @@ no build step, no dependencies.
   chip unlocks 4 s, a kitten read locks + vetoes 15 s. Single file, deployed to
   gh-pages `/catflap/`.
 
-- `slowdownforcats/` — campaign landing page for slowdownforcats.org (drivers:
-  slow down; what to do if you hit a cat; owners: odds). Single file + `CNAME`.
-  Source lives here; it is served from its own repo `Labern/slowdownforcats`
-  (a custom domain on `Clean` would move every project onto that domain).
-  Contact: labern@slowdownforcats.org. The user calls it "cats.org".
+- `slowdownforcats/` — superseded. cats.org (slowdownforcats.org, the user's name for
+  it) now lives in its own repo `Labern/slowdownforcats`: `site/` is the web root on
+  Fasthosts, shipped like paradoxica.uk (`bin/upload` on the Mac via `ssh cats`,
+  `bin/ship` over HTTPS from cloud/phone). See that repo's CLAUDE.md.
 
 - `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
