@@ -60,6 +60,10 @@ main{min-height:100svh;display:grid;grid-template-rows:1fr auto;row-gap:64px;pad
 .btn.cats{--c:var(--yellow);background:var(--yellow);color:#000;border-color:var(--yellow);font-weight:500}
 .btn.cats .dot{background:#000}
 .btn.cats:hover{box-shadow:0 0 0 6px rgba(255,229,0,.12),0 0 48px rgba(255,229,0,.35)}
+.sign{display:block;width:clamp(240px,24vw,340px);border-radius:12px;transition:transform .35s var(--ease),filter .35s var(--ease)}
+.sign img{display:block;width:100%;height:auto}
+.sign:hover{transform:translateY(-2px);filter:drop-shadow(0 0 28px rgba(242,255,107,.3))}
+.sign:focus-visible{outline:2px solid #F2FF6B;outline-offset:4px}
 .btn.soon{color:var(--dim);cursor:default}
 .btn.soon:hover{border-color:var(--line);transform:none}
 .swap{display:grid;justify-items:center}
@@ -89,7 +93,7 @@ footer small{display:block;max-width:44em;font:400 clamp(11px,.9vw,13px)/1.6 var
       <div class="group">
         <span class="label">Charity / Non-Profit</span>
         <div class="btns">
-          <div class="item"><a class="btn cats" href="cats/"><span class="dot"></span>Slow Down for Cats</a><p class="desc">A charity dedicated to reducing cat fatalities on the road</p></div>
+          <div class="item"><a class="sign" href="cats/"><img src="cats-sign.svg" width="380" height="180" alt="Slow Down for Cats"></a><p class="desc">A charity dedicated to reducing cat fatalities on the road</p></div>
         </div>
       </div>
       <hr class="rule">
