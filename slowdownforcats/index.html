@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slow Down for Cats</title>
+<meta name="description" content="Around 630 cats are hit on UK roads every day, most of them after dark on the street they live on. Slow down, and know what to do if it happens.">
+<meta property="og:title" content="Slow down for cats.">
+<meta property="og:description" content="Around 630 cats are hit on UK roads every day. Most of it happens after dark, on residential streets, at speeds where a second would have saved them.">
+<meta property="og:url" content="https://slowdownforcats.org/">
+<meta name="theme-color" content="#121316">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M50 8 96 90H4z' fill='%23ffb81c'/%3E%3Cpath d='M50 20 85 82H15z' fill='%23121316'/%3E%3Cellipse cx='40' cy='62' rx='6' ry='7' fill='%23ffb81c'/%3E%3Cellipse cx='60' cy='62' rx='6' ry='7' fill='%23ffb81c'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --asphalt: #121316;
+    --asphalt-2: #1b1d21;
+    --line: #2a2d33;
+    --text: #f2f0ea;
+    --muted: #a3a29c;
+    --amber: #ffb81c;
+    --amber-soft: rgba(255, 184, 28, .14);
+    --white-line: #e9e7e0;
+    --red: #e5484d;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--asphalt);
+    color: var(--text);
+    font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  a { color: var(--amber); }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px; }
+
+  /* Hero: night road, a pair of eyes in the headlights */
+  .hero {
+    min-height: 92vh;
+    display: grid;
+    place-items: center;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 60% 40% at 50% 100%, rgba(255, 236, 190, .10), transparent 70%),
+      var(--asphalt);
+    padding: 72px 0 120px;
+  }
+  .eyes { display: flex; gap: 34px; justify-content: center; margin-bottom: 36px; }
+  .eye {
+    width: 26px; height: 30px; border-radius: 50%;
+    background: radial-gradient(circle at 50% 50%, #fff6d6 0 18%, var(--amber) 45%, rgba(255, 184, 28, 0) 72%);
+    box-shadow: 0 0 28px 8px rgba(255, 184, 28, .35);
+    animation: blink 6s infinite;
+  }
+  @keyframes blink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(.08); }
+  }
+  h1 {
+    font-size: clamp(44px, 10vw, 104px);
+    line-height: .95;
+    letter-spacing: -.035em;
+    margin: 0 0 22px;
+    font-weight: 850;
+  }
+  h1 span { color: var(--amber); }
+  .lede { font-size: clamp(18px, 2.4vw, 22px); color: var(--muted); max-width: 34ch; margin: 0 auto; }
+  .lede strong { color: var(--text); }
+  .road {
+    position: absolute; left: 0; right: 0; bottom: 44px; height: 6px;
+    background: repeating-linear-gradient(90deg, var(--white-line) 0 64px, transparent 64px 112px);
+    opacity: .55;
+    animation: drive 2.4s linear infinite;
+  }
+  @keyframes drive { to { background-position: -112px 0; } }
+  @media (prefers-reduced-motion: reduce) { .road, .eye { animation: none; } }
+
+  section { padding: 84px 0; border-top: 1px solid var(--line); }
+  h2 { font-size: clamp(28px, 4.4vw, 42px); letter-spacing: -.02em; line-height: 1.1; margin: 0 0 14px; }
+  .kicker { color: var(--amber); font-weight: 700; letter-spacing: .14em; text-transform: uppercase; font-size: 13px; margin: 0 0 12px; }
+  .sub { color: var(--muted); max-width: 60ch; margin: 0 0 36px; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .stat { background: var(--asphalt-2); border: 1px solid var(--line); border-radius: 14px; padding: 26px 22px; }
+  .stat b { display: block; font-size: clamp(40px, 6vw, 58px); line-height: 1; letter-spacing: -.03em; color: var(--amber); margin-bottom: 12px; }
+  .stat p { margin: 0; color: var(--muted); font-size: 15.5px; }
+  .stat p strong { color: var(--text); }
+
+  .rules { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; counter-reset: r; list-style: none; padding: 0; margin: 0; }
+  .rules li {
+    counter-increment: r;
+    background: var(--asphalt-2); border: 1px solid var(--line); border-radius: 14px;
+    padding: 22px 22px 22px 70px; position: relative;
+  }
+  .rules li::before {
+    content: counter(r);
+    position: absolute; left: 20px; top: 20px;
+    width: 34px; height: 34px; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--amber); color: var(--asphalt); font-weight: 800;
+  }
+  .rules h3 { margin: 0 0 4px; font-size: 18px; }
+  .rules p { margin: 0; color: var(--muted); font-size: 15.5px; }
+
+  /* "If you hit a cat" reads like a card you'd keep in the glovebox */
+  .card {
+    background: var(--amber); color: var(--asphalt);
+    border-radius: 18px; padding: 34px clamp(22px, 4vw, 44px);
+  }
+  .card .kicker { color: var(--asphalt); opacity: .7; }
+  .card h2 { color: var(--asphalt); }
+  .card ol { margin: 18px 0 0; padding-left: 22px; }
+  .card li { margin: 0 0 12px; padding-left: 4px; }
+  .card li strong { font-weight: 800; }
+  .card .note { margin: 22px 0 0; font-size: 14.5px; opacity: .8; }
+  .card a { color: var(--asphalt); }
+
+  .contact { text-align: center; }
+  .contact .mail {
+    display: inline-block; margin-top: 8px;
+    font-size: clamp(20px, 3.4vw, 30px); font-weight: 800; text-decoration: none;
+    border-bottom: 3px solid var(--amber); padding-bottom: 2px; word-break: break-all;
+  }
+
+  footer { border-top: 1px solid var(--line); padding: 40px 0 56px; color: var(--muted); font-size: 14px; }
+  footer ol { padding-left: 20px; margin: 10px 0 0; }
+  footer li { margin-bottom: 6px; }
+  footer a { color: var(--muted); }
+
+  @media (max-width: 760px) {
+    body { font-size: 16px; }
+    .wrap { padding: 0 16px; }
+    .stats, .rules { grid-template-columns: 1fr; }
+    section { padding: 64px 0; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyes" aria-hidden="true"><div class="eye"></div><div class="eye"></div></div>
+    <h1>Slow down<br>for <span>cats.</span></h1>
+    <p class="lede">Around <strong>630 cats a day</strong> are hit on UK roads. Most of it happens after dark, on the street they live on.</p>
+  </div>
+  <div class="road" aria-hidden="true"></div>
+</header>
+
+<main>
+  <section>
+    <div class="wrap">
+      <p class="kicker">The numbers</p>
+      <h2>Somebody's cat, every two and a half minutes.</h2>
+      <p class="sub">Nobody officially counts them, which is part of the problem. These are the best figures there are.</p>
+      <div class="stats">
+        <div class="stat"><b>230,000</b><p>cats estimated to be hit by cars in the UK <strong>every year</strong>.<sup><a href="#s1">1</a></sup></p></div>
+        <div class="stat"><b>0</b><p>legal duty to stop. The Road Traffic Act covers dogs, horses and livestock, <strong>but not cats</strong>.<sup><a href="#s2">2</a></sup></p></div>
+        <div class="stat"><b>2024</b><p>the year microchips became <strong>compulsory</strong> for cats in England. A vet's scan can tell a family what happened.<sup><a href="#s3">3</a></sup></p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="kicker">If you drive</p>
+      <h2>Four habits. No extra time.</h2>
+      <p class="sub">Cats don't read traffic. They freeze in headlights, then bolt. Speed decides whether you can react.</p>
+      <ul class="rules">
+        <li><h3>Ease off on residential streets</h3><p>That's where cats live and cross. Going 20 instead of 30 roughly halves the distance you need to stop.</p></li>
+        <li><h3>Dusk to dawn is peak time</h3><p>Cats hunt and roam most in low light, which is exactly when drivers see least.</p></li>
+        <li><h3>Watch for eyeshine</h3><p>Two small green-gold dots at kerb height are a cat looking at you. Expect it to move.</p></li>
+        <li><h3>Brake, don't swerve</h3><p>Slow down in a straight line. A swerve into oncoming traffic or a pavement helps nobody.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="card">
+        <p class="kicker">If it happens</p>
+        <h2>Stop. It matters to someone.</h2>
+        <ol>
+          <li><strong>Pull over where it's safe</strong> and put your hazards on. Don't put yourself in the road.</li>
+          <li><strong>Approach slowly.</strong> An injured cat may lash out, so wrap it in a coat or towel before you lift it.</li>
+          <li><strong>Get it to the nearest vet,</strong> even if it isn't yours. They'll stabilise it and scan for a microchip, and most won't charge you.</li>
+          <li><strong>If it hasn't survived,</strong> move it off the road if it's safe to, check for a collar tag, and report it to the local council so it can be scanned and the owner told.</li>
+          <li><strong>Knock on a few doors.</strong> Nearly every cat on a street belongs to someone on that street.</li>
+        </ol>
+        <p class="note">The Highway Code (Rule 286) asks drivers to report any collision with an animal and to try to find the owner of a pet.<sup><a href="#s4">4</a></sup> It isn't the law for cats yet. It's still the right thing to do.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <p class="kicker">If you have a cat</p>
+      <h2>Give them the odds.</h2>
+      <ul class="rules">
+        <li><h3>In at night</h3><p>Feed in the evening and keep them in until morning. It cuts out the most dangerous hours.</p></li>
+        <li><h3>Chip, then check the details</h3><p>A chip only helps if the database has your current phone number.</p></li>
+        <li><h3>Reflective, quick-release collar</h3><p>Headlights pick it up, and it snaps open if it ever catches on something.</p></li>
+        <li><h3>Neuter</h3><p>Neutered cats roam far less, so they cross far fewer roads.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="contact">
+    <div class="wrap">
+      <p class="kicker">Get in touch</p>
+      <h2>Lost a cat to the road? Want a sign on your street?</h2>
+      <p class="sub" style="margin: 0 auto 10px;">We'd like to hear from you.</p>
+      <a class="mail" href="mailto:meow@slowdownforcats.org">meow@slowdownforcats.org</a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <strong>Sources</strong>
+    <ol>
+      <li id="s1">Petplan estimate of about 230,000 cats a year (about 630 a day), as reported by <a href="https://carbuyer.co.uk/news/162554/drivers-call-for-equal-rights-for-cats-and-dogs">Carbuyer</a>. There is no official count.</li>
+      <li id="s2">Road Traffic Act 1988, s.170. See <a href="https://www.motoringresearch.com/car-news/road-traffic-act-collisions-with-cats/">Motoring Research</a> and the government's response to <a href="https://petition.parliament.uk/petitions/566080">petition 566080</a>.</li>
+      <li id="s3">The Microchipping of Cats and Dogs (England) Regulations 2023, in force from 10 June 2024.</li>
+      <li id="s4">The Highway Code, Rule 286.</li>
+    </ol>
+  </div>
+</footer>
+
+</body>
+</html>
