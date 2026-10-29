@@ -19,6 +19,10 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
+For Paradoxica Hub (paradoxica.uk, source in private repo Labern/paradoxica-hub):
+- Production: https://paradoxica.uk
+- Preview: https://labern.github.io/Clean/paradoxica/
+- Code: https://github.com/Labern/paradoxica-hub/tree/main/sites/paradoxica.uk
 Add any new page to this list the moment it ships.
 
 ## Project
