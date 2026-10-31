@@ -22,7 +22,23 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
+Slow Down for Cats (★★★★★ × PARADOX charity, the reference project):
+- Live: https://slowdownforcats.org (mirror: https://paradoxica.uk/cats)
+- Code: https://github.com/Labern/slowdownforcats
 Add any new page to this list the moment it ships.
+
+## ★★★★★ × PARADOX: what the user makes (read before any PARADOX work)
+PARADOXICA Ltd. ships real solutions: a sourced problem, a self-evident fix, a product you can buy,
+a brand, often a charity, live on its own domain. **Slow Down for Cats** is the user's reference
+example of a perfect project. The full write-up (idea, range, brand, colour, layout, flourishes, voice,
+how to work with the user) is `PARADOX.md` in `Labern/paradoxica-hub` (copies in `Labern/slowdownforcats`
+and `Labern/cats`). The short version:
+- One unmistakable mark used everywhere (the yellow sign, black bar, line-drawn cat); a fixed palette;
+  Figtree; black bar with yellow text for emphasis; animated SVG with cute, purposeful motion.
+- Order for a stranger: what it is → why it matters → buy one → detail. Wide, big, even, aligned;
+  one call to action; no full stops on headings or buttons.
+- The user's own words, grammar tidied only; facts carry linked sources.
+- "Deploy" = live now, verified, from the cloud. Do everything asked, skip nothing, fix root causes.
 
 ## Project
 A sandbox directory, not a formal app. Currently contains a single static
