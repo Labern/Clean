@@ -19,6 +19,9 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
+iCloud connector (personal assistant):
+- Setup: https://github.com/Labern/Clean/blob/claude/youthful-wozniak-y3hqdc/assistant/README.md
+- Code: https://github.com/Labern/Clean/tree/claude/youthful-wozniak-y3hqdc/assistant/icloud-mcp
 Add any new page to this list the moment it ships.
 
 ## Project
@@ -77,6 +80,11 @@ no build step, no dependencies.
 - `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
   live at `labern.github.io/Clean/ribbit/`. See `ribbit/CLAUDE.md`.
+
+- `assistant/` — iCloud connector: hosted remote MCP server (IMAP/SMTP/CalDAV)
+  so Claude on any device, phone included, reads/sends iCloud mail and manages
+  the calendar. Deployed via root `render.yaml`. Must never depend on the Mac
+  being on. Tests: `python3 assistant/icloud-mcp/tests/test_mail.py`.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the

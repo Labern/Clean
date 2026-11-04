@@ -1,0 +1,19 @@
+# One-tap deploy of the iCloud connector (assistant/icloud-mcp).
+# Starter plan: always on, and outbound SMTP (port 587) is allowed (free tier blocks it).
+services:
+  - type: web
+    name: icloud-connector
+    runtime: docker
+    rootDir: assistant/icloud-mcp
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /
+    envVars:
+      - key: ICLOUD_EMAIL
+        sync: false
+      - key: ICLOUD_APP_PASSWORD
+        sync: false
+      - key: ICLOUD_MCP_TOKEN
+        sync: false
