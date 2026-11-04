@@ -83,7 +83,7 @@ no build step, no dependencies.
 
 - `assistant/` — iCloud connector: hosted remote MCP server (IMAP/SMTP/CalDAV)
   so Claude on any device, phone included, reads/sends iCloud mail and manages
-  the calendar. Deployed via root `render.yaml`. Must never depend on the Mac
+  the calendar. Deployed free on Vercel (`assistant/icloud-mcp/vercel.json`, `api/index.py`). Never propose paid hosting. Must never depend on the Mac
   being on. Tests: `python3 assistant/icloud-mcp/tests/test_mail.py`.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,

@@ -5,28 +5,25 @@ on every device, including the Claude app on iPhone. Nothing runs on your Mac.
 
 ```
 iPhone Claude app ─┐
-claude.ai (web)    ├─► claude.ai connector ─► https://<you>.onrender.com/<token>/mcp
+claude.ai (web)    ├─► claude.ai connector ─► https://<project>.vercel.app/<token>/mcp
 Claude desktop     ┘                             │
                                                   ├─ IMAP  imap.mail.me.com:993  (read, search, move, flag, drafts)
                                                   ├─ SMTP  smtp.mail.me.com:587  (send, reply in-thread)
                                                   └─ CalDAV caldav.icloud.com    (events)
 ```
 
-## Setup (about 5 minutes, all doable from a phone)
+## Setup (free, no card, about 5 minutes on a phone)
 
-1. **App-specific password.** Go to appleid.apple.com → Sign-In and Security →
-   App-Specific Passwords → Generate. Name it "Claude". Copy the 16 characters.
-2. **Deploy.** Open
-   `https://render.com/deploy?repo=https://github.com/Labern/Clean/tree/claude/youthful-wozniak-y3hqdc`
-   and fill in three values:
-   - `ICLOUD_EMAIL`: your iCloud address
-   - `ICLOUD_APP_PASSWORD`: the password from step 1
-   - `ICLOUD_MCP_TOKEN`: a long random string (letters/digits/-/_ only, 24+ chars).
-     This is the key to your mailbox, so never share the URL.
+1. **App-specific password.** appleid.apple.com → Sign-In and Security →
+   App-Specific Passwords → **+** → name it "Claude" → copy the code.
+2. **Deploy to Vercel (free Hobby plan).** Open
+   `https://vercel.com/new/clone?repository-url=https://github.com/Labern/Clean/tree/claude/youthful-wozniak-y3hqdc/assistant/icloud-mcp&env=ICLOUD_EMAIL,ICLOUD_APP_PASSWORD,ICLOUD_MCP_TOKEN&project-name=icloud-connector`
+   → sign in with GitHub → fill the three values → Deploy.
+   - `ICLOUD_MCP_TOKEN`: 24+ letters/digits/-/_. It is the key to your mailbox.
 3. **Connect.** claude.ai → Settings → Connectors → Add custom connector →
-   URL `https://<service>.onrender.com/<ICLOUD_MCP_TOKEN>/mcp`. Then enable it
-   in a chat (the "+" / tools menu). It syncs to the iPhone app automatically.
-4. Say: **"brief me"**.
+   `https://<project>.vercel.app/<ICLOUD_MCP_TOKEN>/mcp`. It appears in the
+   iPhone app automatically.
+4. Say **"brief me"**.
 
 ## What it does
 
@@ -47,7 +44,7 @@ that connects gets the assistant, not just the tools.
 
 - Sent copies: the server appends each sent message to "Sent Messages" so the
   chase list sees it. If you ever see duplicates in Sent, set `ICLOUD_SAVE_SENT=0`.
-- Render Starter (~$7/mo) is used because the free tier sleeps and blocks SMTP.
+- Runs as a stateless serverless function: no server to keep alive, nothing on your Mac.
 - Local use in Claude Code also works: `pip install ./assistant/icloud-mcp`, then
   `claude mcp add icloud -e ICLOUD_EMAIL=… -e ICLOUD_APP_PASSWORD=… -- icloud-mcp`.
 - Tests: `python3 assistant/icloud-mcp/tests/test_mail.py`.

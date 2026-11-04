@@ -232,28 +232,58 @@ def create_event(title: str, start: str, end: str, calendar: str = "",
 
 # ---------------- entry point ----------------
 
-def main():
-    if "--http" not in sys.argv and not os.environ.get("PORT"):
-        mcp.run()  # stdio
-        return
-    import uvicorn
-    from starlette.responses import PlainTextResponse
-
+def _token() -> str:
     token = os.environ.get("ICLOUD_MCP_TOKEN", "").strip()
     if len(token) < 24 or not re.fullmatch(r"[A-Za-z0-9_-]+", token):
-        sys.exit("Set ICLOUD_MCP_TOKEN to a long random string (≥24 chars, letters, "
-                 "digits, - and _ only). It is the only thing standing between the "
-                 "internet and your mailbox.")
-    mcp.settings.host = "0.0.0.0"
-    mcp.settings.port = int(os.environ.get("PORT", "8000"))
-    mcp.settings.stateless_http = True
-    mcp.settings.streamable_http_path = f"/{token}/mcp"
+        raise RuntimeError("Set ICLOUD_MCP_TOKEN to a long random string (24+ chars, "
+                           "letters, digits, - and _ only). It is the only thing "
+                           "standing between the internet and your mailbox.")
+    return token
 
-    @mcp.custom_route("/", methods=["GET"])
-    async def health(_req):
-        return PlainTextResponse("ok")
 
-    uvicorn.run(mcp.streamable_http_app(), host="0.0.0.0", port=mcp.settings.port,
+async def _plain(send, status: int, text: str):
+    await send({"type": "http.response.start", "status": status,
+                "headers": [(b"content-type", b"text/plain")]})
+    await send({"type": "http.response.body", "body": text.encode()})
+
+
+async def app(scope, receive, send):
+    """ASGI app that works on serverless hosts (Vercel) and long-running ones.
+
+    Each MCP request gets its own stateless session manager, so it never relies
+    on ASGI lifespan events, which serverless runtimes may not deliver."""
+    if scope["type"] == "lifespan":
+        while True:
+            msg = await receive()
+            if msg["type"] == "lifespan.startup":
+                await send({"type": "lifespan.startup.complete"})
+            elif msg["type"] == "lifespan.shutdown":
+                await send({"type": "lifespan.shutdown.complete"})
+                return
+    if scope["type"] != "http":
+        return
+    path = scope.get("path", "")
+    if path in ("/", "/api", "/api/index"):
+        return await _plain(send, 200, "ok")
+    try:
+        token = _token()
+    except RuntimeError as e:
+        return await _plain(send, 500, str(e))
+    if path.rstrip("/") != f"/{token}/mcp":
+        return await _plain(send, 404, "not found")
+    from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
+    mgr = StreamableHTTPSessionManager(app=mcp._mcp_server, stateless=True, json_response=True)
+    async with mgr.run():
+        await mgr.handle_request(scope, receive, send)
+
+
+def main():
+    if "--http" not in sys.argv and not os.environ.get("PORT"):
+        mcp.run()  # stdio, for local Claude Code
+        return
+    import uvicorn
+    _token()
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8000")),
                 proxy_headers=True, forwarded_allow_ips="*")
 
 
