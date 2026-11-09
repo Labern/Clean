@@ -21,6 +21,14 @@ For GT7 Endgame:
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
 Add any new page to this list the moment it ships.
 
+## North star (the user's own words, 2026-11-09)
+> What I very clearly want is an Ocarina of Time, a Neon Genesis Evangelion,
+> and a Metal Gear Solid by me. That's what this company is here to do. It's
+> that simple. That's my goal.
+
+Every project in this repo is weighed against that. Tools that build toward
+authored, medium-defining work (story, game, world) come first.
+
 ## Project
 A sandbox directory, not a formal app. Currently contains a single static
 demo page (`index.html`) built during a Claude Code session — a hero
