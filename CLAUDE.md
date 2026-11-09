@@ -21,7 +21,7 @@ For GT7 Endgame:
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
 Add any new page to this list the moment it ships.
 
-## North star (the user's own words, 2026-11-09)
+## CURRENT GOAL (set 2026-11-09, the user's own words)
 > What I very clearly want is an Ocarina of Time, a Neon Genesis Evangelion,
 > and a Metal Gear Solid by me. That's what this company is here to do. It's
 > that simple. That's my goal.
