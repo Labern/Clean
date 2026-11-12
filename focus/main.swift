@@ -42,7 +42,7 @@ func glyph(focused: Bool) -> NSImage {
 
 typealias Session = [String: Any]                              // "date": Date, "apps": [["path": String, "hidden": Bool]]
 
-@MainActor final class Focus: NSObject, NSMenuDelegate {
+final class Focus: NSObject, NSMenuDelegate {
     let ws = NSWorkspace.shared, store = UserDefaults.standard
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     var tabKeys: [EventHotKeyRef?] = []                         // our ⌘⇥ / ⌘⇧⇥, registered only while focused
