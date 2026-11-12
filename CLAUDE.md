@@ -98,6 +98,12 @@ no build step, no dependencies.
   Any terminal running Claude Code is ALWAYS protected (claudeHosts: ancestors of the `claude`
   process, matched by proc_name/path — p_comm is the version string). Process lists come from sysctl
   KERN_PROC_ALL: proc_listallpids silently skipped processes.
+  Snapshot: screencapture of the main display at session start → ~/Library/Application Support/Focus;
+  rule (user's): keep the newest + one spare, delete older. Thumbnail tops the menu while in session.
+  Main list shows EVERY Dock app; protected ones carry a lock + reason (click → Never Close window).
+  Single instance: a second launch exits. `Focus.app/Contents/MacOS/Focus --selftest` runs the real
+  session path on TextEdit only (own defaults suite + folder; aborts if anything else would quit).
+  build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the

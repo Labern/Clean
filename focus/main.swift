@@ -183,10 +183,29 @@ final class BigButton: HoverView {
     }
 }
 
+/// The session snapshot as a rounded thumbnail; click to open it full size.
+final class Thumb: HoverView {
+    let img: NSImage, action: () -> Void
+    init(_ img: NSImage, _ size: NSSize, action: @escaping () -> Void) {
+        self.img = img; self.action = action
+        super.init(height: size.height + 8)
+    }
+    required init?(coder: NSCoder) { nil }
+    override func mouseUp(with e: NSEvent) { enclosingMenuItem?.menu?.cancelTracking(); DispatchQueue.main.async(execute: action) }
+    override func draw(_ r: NSRect) {
+        let rect = NSRect(x: 14, y: 4, width: bounds.width - 28, height: bounds.height - 8)
+        let clip = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
+        NSGraphicsContext.saveGraphicsState(); clip.addClip()
+        img.draw(in: rect, from: .zero, operation: .sourceOver, fraction: hover ? 1 : 0.92)
+        NSGraphicsContext.restoreGraphicsState()
+        theme.dropped.setStroke(); clip.lineWidth = 1; clip.stroke()
+    }
+}
+
 typealias Session = [String: Any]                              // "date": Date, "apps": [["path": String, "hidden": Bool]]
 
 final class Focus: NSObject, NSMenuDelegate {
-    let ws = NSWorkspace.shared, store = UserDefaults.standard
+    let ws = NSWorkspace.shared, store: UserDefaults
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     weak var button: BigButton?                                 // redrawn as rows change, so its caption is live
     var mem: [pid_t: UInt64] = [:]                              // refreshed each time the menu opens
@@ -211,6 +230,17 @@ final class Focus: NSObject, NSMenuDelegate {
         get { store.stringArray(forKey: "neverClose") ?? [] }
         set { store.set(newValue, forKey: "neverClose") }
     }
+    var snapshots: Bool {                                       // screenshot at session start, deleted on restore
+        get { store.object(forKey: "snapshots") as? Bool ?? true }
+        set { store.set(newValue, forKey: "snapshots") }
+    }
+    /// ~/Library/Application Support/Focus — snapshots live here and nowhere else.
+    lazy var folder: URL = {                                    // the self-test gets its own, so it can never prune a real snapshot
+        let u = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent(store == .standard ? "Focus" : "Focus-selftest", isDirectory: true)
+        try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
+        return u
+    }()
     var hideMode: Bool {                                        // hide instead of quit: instant, but keeps the memory
         get { store.bool(forKey: "hideMode") }
         set { store.set(newValue, forKey: "hideMode") }
@@ -229,7 +259,8 @@ final class Focus: NSObject, NSMenuDelegate {
         }
     }
 
-    override init() {
+    init(store: UserDefaults = .standard) {
+        self.store = store
         super.init()
         let menu = NSMenu(); menu.delegate = self; menu.minimumWidth = menuWidth; item.menu = menu
         if !store.bool(forKey: "setUp") { keepWindows = true; store.set(true, forKey: "setUp") }
@@ -243,6 +274,7 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         healSystemSwitcher()
         item.button?.image = glyph(focused: focused)
+        pruneSnapshots()
     }
 
     /// System apps (Finder & co. live in CoreServices), Focus itself, and the user's Never close list.
@@ -264,7 +296,10 @@ final class Focus: NSObject, NSMenuDelegate {
         hosts = claudeHosts()
         let out = leaving()
         guard !out.isEmpty else { return }
-        sessions.insert(["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }], at: 0)
+        var session: Session = ["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }]
+        if snapshots, let shot = snapshot() { session["shot"] = shot }   // before anything moves
+        sessions.insert(session, at: 0)
+        pruneSnapshots()
         focused = true
         if !quit { out.forEach { $0.hide() }; return }
         queue = out.sorted { memory($0) > memory($1) }; total = queue.count   // biggest first: memory comes back soonest
@@ -296,6 +331,20 @@ final class Focus: NSObject, NSMenuDelegate {
     func open(_ s: Session) {
         queue = []; status = nil; focused = false
         relaunch(ArraySlice(s["apps"] as? [[String: Any]] ?? []))
+    }
+
+    /// The whole main display, silently, via the system's own screencapture. Needs Screen Recording once.
+    func snapshot() -> String? {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd'T'HH.mm.ss"
+        let path = folder.appendingPathComponent("session-\(f.string(from: Date())).png").path
+        let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture"); p.arguments = ["-x", "-t", "png", path]
+        do { try p.run(); p.waitUntilExit() } catch { return nil }
+        return FileManager.default.fileExists(atPath: path) ? path : nil
+    }
+    /// Keeps the newest snapshot and one spare; anything older goes. (Names are timestamps, so they sort by age.)
+    func pruneSnapshots() {
+        let names = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.hasPrefix("session-") }.sorted()
+        for name in names.dropLast(2) { try? FileManager.default.removeItem(at: folder.appendingPathComponent(name)) }
     }
     func relaunch(_ rest: ArraySlice<[String: Any]>) {
         guard let e = rest.first else { return }
@@ -343,6 +392,8 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     @objc func reopen(_ s: NSMenuItem) { open(sessions[s.tag]) }
     @objc func forget(_ s: NSMenuItem) { sessions.remove(at: s.tag) }
+    @objc func snaps() { snapshots.toggle() }
+    @objc func viewShot(_ s: NSMenuItem) { if let p = s.representedObject as? String { ws.open(URL(fileURLWithPath: p)) } }
     @objc func hiding() { hideMode.toggle() }
     @objc func windows() { keepWindows.toggle() }
     @objc func look() { stragglers().first?.activate() }       // bring the save prompt forward; never force
@@ -383,6 +434,12 @@ final class Focus: NSObject, NSMenuDelegate {
 
         mem = memoryByPid(); hosts = claudeHosts()
         if let status { header(status) }
+        if focused, let shot = sessions.first?["shot"] as? String, let img = NSImage(contentsOfFile: shot) {
+            header("What you were doing — click to open")
+            let w = menuWidth - 28, h = (w * img.size.height / max(img.size.width, 1)).rounded()
+            view(Thumb(img, NSSize(width: w, height: h)) { [unowned self] in self.ws.open(URL(fileURLWithPath: shot)) })
+            m.addItem(.separator())
+        }
 
         // Never close — the user's permanent list, edited in its own window.
         let terminals = ws.runningApplications.filter { $0.activationPolicy == .regular && hosts.contains($0.processIdentifier) }.compactMap(\.localizedName)
@@ -392,6 +449,15 @@ final class Focus: NSObject, NSMenuDelegate {
 
         // Keep open — this session's picks.
         header(focused ? "In session · kept open" : "Keep open this session — click to choose")
+        // Every Dock app that isn't a system app, protected ones included, so nothing open is hidden from view.
+        let dock = ws.runningApplications.filter { $0.activationPolicy == .regular && !system($0) }
+        for a in dock where protected(a) {
+            guard let p = a.bundleURL?.path else { continue }
+            let why = hosts.contains(a.processIdentifier) ? "Claude is here" : "Never close"
+            view(AppRow(appName(p), appIcon(p), detail: why, on: true, onMark: "lock.circle.fill") { [unowned self] in
+                self.item.menu?.cancelTracking(); DispatchQueue.main.async { self.showNever() }; return true
+            })
+        }
         let running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
         let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
         for (id, p) in running + idle {
@@ -415,6 +481,7 @@ final class Focus: NSObject, NSMenuDelegate {
                 let i = add("\(date) · \(apps(list.count))", nil, to: sub), one = NSMenu()
                 for p in list.compactMap({ $0["path"] as? String }) { add(appName(p), nil, image: appIcon(p), to: one) }
                 one.addItem(.separator())
+                if let shot = s["shot"] as? String, FileManager.default.fileExists(atPath: shot) { add("View snapshot", #selector(viewShot), image: symbol("photo"), to: one).representedObject = shot }
                 add("Open all", #selector(reopen), image: symbol("arrow.up.forward.app"), to: one).tag = n
                 add("Delete", #selector(forget), image: symbol("trash"), to: one).tag = n
                 i.submenu = one
@@ -423,6 +490,7 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         let settings = add("Settings", nil, image: symbol("gearshape")), sub = NSMenu()
         add("Hide apps instead of quitting", #selector(hiding), to: sub).state = hideMode ? .on : .off
+        add("Take a snapshot when a session starts", #selector(snaps), to: sub).state = snapshots ? .on : .off
         add("Reopen windows as they were", #selector(windows), to: sub).state = keepWindows ? .on : .off
         add("Open at login", #selector(login), to: sub).state = SMAppService.mainApp.status == .enabled ? .on : .off
         sub.addItem(.separator())
@@ -435,7 +503,8 @@ final class Focus: NSObject, NSMenuDelegate {
             title: { [unowned self] in self.focused ? "Bring Back \(self.apps((self.sessions.first?["apps"] as? [Any])?.count ?? 0))" : "Start Session Now" },
             caption: { [unowned self] in
                 if self.focused { return self.queue.isEmpty ? "Reopens everything as it was" : "Stops quitting and reopens everything" }
-                let out = self.leaving(), kept = self.apps().count - out.count
+                let out = self.leaving()
+                let kept = self.ws.runningApplications.filter { $0.activationPolicy == .regular && !self.system($0) }.count - out.count
                 if out.isEmpty { return "Nothing to \(self.hideMode ? "hide" : "quit") — everything is kept" }
                 if self.hideMode { return "Hides \(self.apps(out.count)) · keeps \(kept)" }
                 return "Saves and quits \(self.apps(out.count)) · frees ~\(gb(out.reduce(0) { $0 + self.memory($1) })) · keeps \(kept)"
@@ -502,6 +571,47 @@ struct NeverView: View {
 
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)                             // no Dock icon, not in Cmd-Tab
+
+// One Focus at a time: a second copy (double launch, login item + manual open…) quits at once.
+let others = NSRunningApplication.runningApplications(withBundleIdentifier: "com.labern.focus").filter { $0 != .current }
+if !others.isEmpty && !CommandLine.arguments.contains("--selftest") { print("Focus is already running (pid \(others[0].processIdentifier))"); exit(0) }
+
+/// `Focus --selftest`: the real session path, on TextEdit only, with its own settings store. Aborts before
+/// touching anything if the session would include any other app.
+if CommandLine.arguments.contains("--selftest") {
+    let suite = "com.labern.focus.selftest"
+    UserDefaults.standard.removePersistentDomain(forName: suite)
+    let t = Focus(store: UserDefaults(suiteName: suite)!)
+    func say(_ s: String) { print("selftest:", s); fflush(stdout) }
+    func later(_ s: Double, _ f: @escaping () -> Void) { DispatchQueue.main.asyncAfter(deadline: .now() + s, execute: f) }
+    let edit = "com.apple.TextEdit"
+    later(0.5) {
+        t.excluded = t.apps().compactMap(\.bundleIdentifier).filter { $0 != edit }
+        let out = t.leaving().compactMap(\.bundleIdentifier)
+        guard out == [edit] else { say("ABORT — would quit \(out)"); exit(1) }
+        say("session would quit only TextEdit ✓  (protected: \(t.ws.runningApplications.filter(t.protected).compactMap(\.localizedName)))")
+        t.park(quit: true)
+        let shot = t.sessions.first?["shot"] as? String
+        say("snapshot: \(shot.map { "\($0) (\((try? FileManager.default.attributesOfItem(atPath: $0)[.size]) ?? 0) bytes)" } ?? "NONE")")
+        later(6) {
+            let gone = !t.ws.runningApplications.contains { $0.bundleIdentifier == edit }
+            say("TextEdit quit: \(gone ? "✓" : "✗ still running")  in session: \(t.focused)")
+            t.toggle()
+            later(4) {
+                let back = t.ws.runningApplications.contains { $0.bundleIdentifier == edit }
+                say("TextEdit back: \(back ? "✓" : "✗")  in session: \(t.focused)")
+                say("snapshot kept after restore: \(shot.map { FileManager.default.fileExists(atPath: $0) ? "✓" : "✗ gone" } ?? "n/a")")
+                for _ in 0..<3 { _ = t.snapshot(); Thread.sleep(forTimeInterval: 1.1); t.pruneSnapshots() }
+                let left = (try? FileManager.default.contentsOfDirectory(atPath: t.folder.path))?.filter { $0.hasPrefix("session-") }.count ?? -1
+                say("after 4 snapshots, kept: \(left) \(left == 2 ? "✓ (newest + one spare)" : "✗")")
+                try? FileManager.default.removeItem(at: t.folder)
+                UserDefaults.standard.removePersistentDomain(forName: suite)
+                exit(0)
+            }
+        }
+    }
+    app.run()
+}
 let focus = Focus()
 
 // Global hotkeys via Carbon: the only route that needs no Accessibility permission.
