@@ -19,8 +19,8 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
-For Later (macOS menu bar app, no web page):
-- Code: https://github.com/Labern/Clean/tree/claude/quirky-dirac-h70tbn/later
+For Focus (macOS menu bar app, no web page):
+- Code: https://github.com/Labern/Clean/tree/claude/quirky-dirac-h70tbn/focus
 Add any new page to this list the moment it ships.
 
 ## Project
@@ -80,12 +80,14 @@ no build step, no dependencies.
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
   live at `labern.github.io/Clean/ribbit/`. See `ribbit/CLAUDE.md`.
 
-- `later/` — Later: macOS menu bar app that quits or hides every app except the
-  two in use (or the pinned ones) and brings them back on one key. One Swift file
-  (`main.swift`, AppKit + Carbon hotkeys, no dependencies, no permissions);
-  `./later/build.sh` builds and launches `Later.app`. ⌃⌥⌘L quit/restore,
-  ⌃⌥⌘H hide/restore. Only quitting removes an app from Cmd-Tab — macOS has no
-  public way to drop a running app from the switcher. Can only be compiled on a Mac.
+- `focus/` — Focus: macOS menu bar app. Saves every open app as a session and
+  quits or hides it; apps the user excludes stay open. While focused, ⌘⇥ only
+  cycles what's still open (native switcher disabled via private
+  `CGSSetSymbolicHotKeyEnabled`, same as AltTab — re-enabled on every launch/quit/
+  signal). Past sessions reopen from the menu. One Swift file, Carbon hotkeys, no
+  permissions; `./focus/build.sh` builds and launches `Focus.app` (Mac only).
+  ⌃⌥⌘L quit/restore, ⌃⌥⌘H hide/restore, ⌃⌥⌘K exclude the front app. Nothing is
+  hardcoded to stay open — the user's example of Claude was only an example.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
