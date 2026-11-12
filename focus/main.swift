@@ -541,9 +541,12 @@ final class Focus: NSObject, NSMenuDelegate {
 
         m.addItem(.separator())
         let b = BigButton(
-            title: { [unowned self] in self.focused ? "Bring Back \(self.apps((self.sessions.first?["apps"] as? [Any])?.count ?? 0))" : "Start Session Now" },
+            title: { [unowned self] in self.focused ? "End Session" : "Start Session Now" },
             caption: { [unowned self] in
-                if self.focused { return self.queue.isEmpty ? "Reopens everything as it was" : "Stops quitting and reopens everything" }
+                if self.focused {
+                    let n = self.apps((self.sessions.first?["apps"] as? [Any])?.count ?? 0)
+                    return self.queue.isEmpty ? "Reopens \(n) as they were" : "Stops quitting and reopens \(n) as they were"
+                }
                 let out = self.leaving()
                 let kept = self.ws.runningApplications.filter { $0.activationPolicy == .regular && !self.system($0) }.count - out.count
                 if out.isEmpty { return "Nothing to \(self.hideMode ? "hide" : "quit") — everything is kept" }
