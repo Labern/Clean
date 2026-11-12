@@ -965,6 +965,9 @@ final class Focus: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ m: NSMenu) {
+        // Submenus share this delegate only so they open dark (menuWillOpen). They build themselves; rebuilding one
+        // here would fill it with a copy of the whole menu.
+        guard m.supermenu == nil else { return }
         m.removeAllItems()
         @discardableResult
         func add(_ title: String, _ action: Selector?, image: NSImage? = nil, to menu: NSMenu? = nil) -> NSMenuItem {
@@ -1462,6 +1465,18 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
                 }
             }
         }
+    }))
+    steps.append(("18. submenus keep their own items when they open (Settings must not become a copy of the menu)", { done in
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        var ok = true, notes: [String] = []
+        for name in ["Settings", "Tools", "Past sessions"] {
+            guard let sub = m.items.first(where: { $0.title == name })?.submenu else { continue }
+            let before = sub.items.map(\.title)
+            t.menuWillOpen(sub); t.menuNeedsUpdate(sub)          // what macOS does when the submenu opens
+            let after = sub.items.map(\.title)
+            if before != after || after.contains("Start New Session") { ok = false; notes.append("\(name) changed") }
+        }
+        done(ok, notes.isEmpty ? "Settings, Tools, Past sessions unchanged on open" : notes.joined(separator: ", "))
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }

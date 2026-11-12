@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.1.1 — 2026-11-12 (branch focus/feat-modes)
+
+- Fix: hovering Settings (or any submenu) showed a copy of the whole menu instead of its own items — a side effect
+  of 0.1.0's dark menu. Covered by a new stress scenario.
+
 ## 0.1.0 — 2026-11-12 (branch focus/feat-modes)
 
 - **Modes:** named sets of apps — tick some apps, "New Mode from Ticked Apps…", name it (say, Writing). Starting a mode
