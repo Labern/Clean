@@ -89,18 +89,18 @@ no build step, no dependencies.
   ⌘⇧F start session / bring back; ⌘⇧E opens the menu (user's picks, 2026-11-12). Sessions quit apps
   ONE AT A TIME, biggest first, normal quit (state saved, prompts honoured), wait until gone, never
   forced; restore relaunches one at a time (Chrome with --restore-last-session). Menu rows show memory;
-  big button caption shows quits/frees/keeps live. "Never close" is a separate window (SwiftUI) — seeded
+  big button caption shows quits/frees/keeps live. "Critical System Processes" (was "Never close" — user found that name cringe) is a window (SwiftUI) + a menu section BELOW the app list — seeded
   with Wispr Flow; system apps (/System/Library/CoreServices), menu-bar-only apps and Focus are always safe.
   NEVER touch the system ⌘⇥ again: an earlier build disabled it via CGSSetSymbolicHotKeyEnabled and the
   user lost ⌘⇥; launch now only re-enables it. Hiding OTHER apps from Dock/⌘⇥ is not possible cleanly:
   _LSSetApplicationInformationItem returns 0 but is ignored for foreign pids (tested 2026-11-12); editing
   Info.plist + re-sign would wipe the app's TCC grants. Claude is kept by default (seeded once).
-  Any terminal running Claude Code is ALWAYS protected (claudeHosts: ancestors of the `claude`
+  Claude's terminal is a normal toggleable row, auto-ticked once per app (claudeAutoKept) — user wants to be able to untick it (claudeHosts: ancestors of the `claude`
   process, matched by proc_name/path — p_comm is the version string). Process lists come from sysctl
   KERN_PROC_ALL: proc_listallpids silently skipped processes.
   Snapshot: screencapture of the main display at session start → ~/Library/Application Support/Focus;
   rule (user's): keep the newest + one spare, delete older. Thumbnail tops the menu while in session.
-  Main list shows EVERY Dock app; protected ones carry a lock + reason (click → Never Close window).
+  Main list shows every Dock app except critical ones; every row toggles on click and the menu stays open.
   Single instance: a second launch exits. `Focus.app/Contents/MacOS/Focus --selftest` runs the real
   session path on TextEdit only (own defaults suite + folder; aborts if anything else would quit).
   build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.

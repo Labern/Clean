@@ -6,7 +6,7 @@
 //   ⌘⇧F   start a session (quit everything not kept) · again: bring it all back
 //   ⌘⇧E   open the Focus menu: click apps to keep them for this session, then Start Session Now
 // Never touched, ever: system apps (/System/Library/CoreServices), menu bar apps, Focus itself, and the
-// user's "Never close" list (seeded with Wispr Flow). The system ⌘⇥ is never altered.
+// user's Critical System Processes (seeded with Wispr Flow). The system ⌘⇥ is never altered.
 import AppKit
 import Carbon.HIToolbox
 import ServiceManagement
@@ -305,7 +305,17 @@ final class Focus: NSObject, NSMenuDelegate {
     func system(_ a: NSRunningApplication) -> Bool {
         a.bundleURL?.path.hasPrefix("/System/Library/CoreServices/") ?? true || a.bundleIdentifier == Bundle.main.bundleIdentifier
     }
-    func protected(_ a: NSRunningApplication) -> Bool { system(a) || hosts.contains(a.processIdentifier) || neverClose.contains(a.bundleIdentifier ?? "") }
+    func protected(_ a: NSRunningApplication) -> Bool { system(a) || neverClose.contains(a.bundleIdentifier ?? "") }
+    /// The terminal Claude Code runs in starts out ticked to keep, once per app; after that the user decides.
+    func autoKeepClaudeHosts() {
+        var seen = store.stringArray(forKey: "claudeAutoKept") ?? []
+        for a in ws.runningApplications where hosts.contains(a.processIdentifier) && a.activationPolicy == .regular {
+            guard let id = a.bundleIdentifier, !seen.contains(id) else { continue }
+            if !excluded.contains(id) { excluded.append(id) }
+            seen.append(id)
+        }
+        store.set(seen, forKey: "claudeAutoKept")
+    }
 
     /// Dock / ⌘⇥ apps Focus may touch. Menu bar apps are `.accessory`: never listed, never touched.
     func apps() -> [NSRunningApplication] { ws.runningApplications.filter { $0.activationPolicy == .regular && !protected($0) } }
@@ -317,7 +327,7 @@ final class Focus: NSObject, NSMenuDelegate {
     // MARK: session
 
     func park(quit: Bool) {
-        hosts = claudeHosts()
+        hosts = claudeHosts(); autoKeepClaudeHosts()
         let out = leaving()
         guard !out.isEmpty else { return }
         var session: Session = ["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }]
@@ -334,8 +344,7 @@ final class Focus: NSObject, NSMenuDelegate {
     /// has really gone, pause, then the next. An app still open after 60 s is left alone — never forced.
     func quitNext() {
         guard focused, let a = queue.first else { queue = []; status = nil; return }
-        hosts = claudeHosts()
-        if protected(a) { queue.removeFirst(); return quitNext() }   // became Claude's terminal (or Never close) since the session began
+        if protected(a) || excluded.contains(a.bundleIdentifier ?? "") { queue.removeFirst(); return quitNext() }   // marked keep / critical since the session began
         status = "Saving and quitting \(a.localizedName ?? "app") · \(total - queue.count + 1) of \(total)"
         a.terminate()
         let started = Date()
@@ -421,7 +430,7 @@ final class Focus: NSObject, NSMenuDelegate {
     @objc func pick() {
         let p = NSOpenPanel()
         p.directoryURL = URL(fileURLWithPath: "/Applications"); p.allowedContentTypes = [.applicationBundle]
-        p.allowsMultipleSelection = true; p.prompt = "Never Close"; p.message = "Choose apps Focus must never close"
+        p.allowsMultipleSelection = true; p.prompt = "Add"; p.message = "Choose apps Focus must never quit"
         NSApp.activate(ignoringOtherApps: true)
         guard p.runModal() == .OK else { return }
         for url in p.urls { if let id = Bundle(url: url)?.bundleIdentifier, !neverClose.contains(id) { neverClose.append(id) } }
@@ -437,7 +446,7 @@ final class Focus: NSObject, NSMenuDelegate {
         never.reload()
         if neverWindow == nil {
             let w = NSWindow(contentViewController: NSHostingController(rootView: NeverView(m: never)))
-            w.title = "Never Close"; w.styleMask = [.titled, .closable]; w.isReleasedWhenClosed = false; w.center()
+            w.title = "Critical System Processes"; w.styleMask = [.titled, .closable]; w.isReleasedWhenClosed = false; w.center()
             neverWindow = w
         }
         NSApp.activate(ignoringOtherApps: true); neverWindow?.makeKeyAndOrderFront(nil)
@@ -468,7 +477,7 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
-        mem = memoryByPid(); hosts = claudeHosts()
+        mem = memoryByPid(); hosts = claudeHosts(); autoKeepClaudeHosts()
         if let status { header(status) }
         if focused, let shot = sessions.first?["shot"] as? String, let img = NSImage(contentsOfFile: shot) {
             header("What you were doing — click to open")
@@ -477,27 +486,25 @@ final class Focus: NSObject, NSMenuDelegate {
             m.addItem(.separator())
         }
 
-        // Never close — the user's permanent list, edited in its own window.
-        let terminals = ws.runningApplications.filter { $0.activationPolicy == .regular && hosts.contains($0.processIdentifier) }.compactMap(\.localizedName)
-        let names = neverClose.compactMap(path).map(appName) + terminals.map { "\($0) (Claude)" }
-        add("Never close" + (names.isEmpty ? "…" : " · " + names.joined(separator: ", ")), #selector(showNever), image: symbol("lock.fill"))
-        m.addItem(.separator())
-
         // Keep open — this session's picks.
         header(focused ? "In session · kept open" : "Keep open this session — click to choose")
-        // Every Dock app that isn't a system app, protected ones included, so nothing open is hidden from view.
-        let dock = ws.runningApplications.filter { $0.activationPolicy == .regular && !system($0) }
-        for a in dock where protected(a) {
-            guard let p = a.bundleURL?.path else { continue }
-            let why = hosts.contains(a.processIdentifier) ? "Claude is here" : "Never close"
-            view(AppRow(appName(p), appIcon(p), detail: why, on: true, onMark: "lock.circle.fill") { true })   // locked: a click changes nothing
-        }
         let running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
         let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
         for (id, p) in running + idle {
             let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
-            view(AppRow(appName(p), appIcon(p), detail: size > 0 ? gb(size) : "", on: excluded.contains(id)) { [unowned self] in self.flip(\.excluded, id) })
+            let claudeHere = ws.runningApplications.contains { $0.bundleIdentifier == id && hosts.contains($0.processIdentifier) }
+            let detail = [claudeHere ? "Claude is here" : nil, size > 0 ? gb(size) : nil].compactMap { $0 }.joined(separator: " · ")
+            view(AppRow(appName(p), appIcon(p), detail: detail, on: excluded.contains(id)) { [unowned self] in self.flip(\.excluded, id) })
         }
+
+        // Critical system processes — never quit or hidden by Focus. Click to take one off; it moves up next time.
+        m.addItem(.separator())
+        header("Critical System Processes — never quit")
+        for id in neverClose {
+            guard let p = path(id) else { continue }
+            view(AppRow(appName(p), appIcon(p), on: true, onMark: "lock.circle.fill") { [unowned self] in self.flip(\.neverClose, id) })
+        }
+        add("Add or remove…", #selector(showNever), image: symbol("plus.circle"))
 
         let left = stragglers()
         if !left.isEmpty {                                      // shown only when something is still eating memory
@@ -575,8 +582,8 @@ struct NeverView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                Text("Never close").font(.system(size: 20, weight: .semibold))
-                Text("Focus will never quit or hide the apps switched on here. System apps, menu bar–only apps, Focus itself and any terminal running Claude Code are always safe.")
+                Text("Critical System Processes").font(.system(size: 20, weight: .semibold))
+                Text("Focus never quits or hides the apps switched on here — things that must always run, like Wispr Flow or Mu. macOS's own apps, menu bar–only apps and Focus itself are always safe.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             List(m.entries) { e in
