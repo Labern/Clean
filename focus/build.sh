@@ -5,6 +5,7 @@
 set -e
 trap 'echo "✗ build.sh failed at line $LINENO (if replacing /Applications/Focus.app: allow your terminal in Privacy & Security ▸ App Management)" >&2' ERR
 cd "$(dirname "$0")"
+VERSION="$(tr -d '[:space:]' < VERSION)"                 # semantic version, single source of truth
 # Built and signed outside the iCloud-synced Desktop: iCloud re-adds file attributes mid-build, and codesign
 # rejects them ("resource fork, Finder information, or similar detritus not allowed") — intermittently.
 OUT="${TMPDIR:-/tmp}/focus-build"; rm -rf "$OUT"; mkdir -p "$OUT"
@@ -13,7 +14,7 @@ mkdir -p "$C/MacOS"
 swiftc -O -swift-version 5 main.swift -o "$C/MacOS/Focus"
 mkdir -p "$C/Resources"                                  # app icon, drawn by the app's own glyph()
 "$C/MacOS/Focus" --make-icon "$OUT/Focus.iconset" && iconutil -c icns "$OUT/Focus.iconset" -o "$C/Resources/Focus.icns"
-cat > "$C/Info.plist" <<'EOF'
+cat > "$C/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -21,7 +22,8 @@ cat > "$C/Info.plist" <<'EOF'
   <key>CFBundleIdentifier</key><string>com.labern.focus</string>
   <key>CFBundleName</key><string>Focus</string>
   <key>CFBundleIconFile</key><string>Focus</string>
-  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>LSUIElement</key><true/>

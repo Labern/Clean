@@ -130,6 +130,8 @@ no build step, no dependencies.
   Customised Logo (Settings ▸ Icon Colour): the app's own icon in the user's colours (logoBg/logoMark), drawn by
   appIconRep() — same code as the standard icon — and set with NSWorkspace.setIcon on the installed bundle;
   re-applied at launch because a reinstall replaces the bundle. Signature still verifies with it attached.
+  VERSIONING: semver in focus/VERSION (build.sh stamps it into Info.plist; menu shows it). CHANGELOG.md per release;
+  tags focus-vX.Y.Z. Features on focus/feat-<name> branches cut from focus/main; fixes bump PATCH, features MINOR.
   build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,

@@ -963,6 +963,7 @@ final class Focus: NSObject, NSMenuDelegate {
         add("Open at login", #selector(login), to: sub).state = SMAppService.mainApp.status == .enabled ? .on : .off
         sub.addItem(.separator())
         add("⌘⇧E opens this menu", nil, to: sub).isEnabled = false
+        add("Focus " + ((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"), nil, to: sub).isEnabled = false
         add("Quit Focus", #selector(bye), image: symbol("power"), to: sub)
         settings.submenu = sub
 
