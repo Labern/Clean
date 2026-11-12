@@ -1,7 +1,7 @@
 # Focus — things for you to read
 
-Everything I've raised that you haven't answered or may have missed, in one place. Current version: **0.0.3**
-(`focus/main`, tag `focus-v0.0.3`).
+Everything I've raised that you haven't answered or may have missed, in one place. Current version: **0.0.4**
+(`focus/main`, tag `focus-v0.0.4`).
 
 ---
 
@@ -16,9 +16,7 @@ Everything I've raised that you haven't answered or may have missed, in one plac
 3. **Merging feature branches.** New features go on `focus/feat-<name>` branches. I'm not allowed to merge
    branches myself. When a feature is done, will you merge it into `focus/main`, or do you want a different
    arrangement?
-4. **The Wispr Flow bug report** went to `support@wisprflow.ai`, an address from a third-party guide (Wispr
-   doesn't publish one). If it bounces, do you want to resend it through Wispr's in-app form (Help → Get in
-   touch → Talk to support)?
+4. ~~The Wispr Flow bug report~~ — **resolved**: Wispr replied straight away, confirmed the fault and will fix it.
 
 ---
 
@@ -84,15 +82,15 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - Named sessions (waiting for your go — section 3).
 - Release polish: strip any AI-sounding wording from every string in the app before shipping.
 - Your window design (the fuller settings window, later).
-- **Last:** a thorough failure-mode list and a stress test against every item — in progress now; results will be
-  added to this folder as `STRESS-TEST.md`.
+- ~~Stress test~~ — **done**: see `STRESS-TEST.md` in this folder. Every scenario passes; two bugs found and fixed.
+  It ends with four recommendations before release (choosable shortcuts first).
 
 ---
 
 ## 7. Notes worth knowing
 
 - **Wispr Flow in ⌘⇥** is Wispr's own bug: its invisible "Status" window counts as an open window, so its "Hide
-  app in Dock" setting can never engage. Reported to Wispr. It's no longer part of this project.
+  app in Dock" setting can never engage. Wispr confirmed it and will fix it. It's no longer part of this project.
 - **Nothing about your own apps is built into Focus.** Wispr Flow and Terminal are in *your* Critical System
   Processes list; Claude is ticked "keep open" in *your* settings. A new user starts with none of that.
 - **The product page** (paradoxica.uk/focus) mirrors the real menu. The Hub session updates it whenever the menu

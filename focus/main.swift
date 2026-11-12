@@ -587,7 +587,7 @@ final class Focus: NSObject, NSMenuDelegate {
         // Instant: the pill plays the moment the key goes down. The snapshot is grabbed in the background in the
         // same instant (the pill is still invisible then) and the quitting starts once it's on disk.
         pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Focus")
-        sessions.insert(["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }], at: 0)
+        sessions.insert(["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
         focused = true
         let go = { [self] in
             if !quit { out.forEach { $0.hide() }; return }
@@ -675,7 +675,7 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         guard !out.isEmpty else { if restart { restartMac() }; return }
         sessions.insert(["date": Date(), "kind": "quit all",
-                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }], at: 0)
+                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
         pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear")
         clearing = true; restartAfter = restart; refused = []
         queue = out.sorted { memory($0) > memory($1) }; total = queue.count
@@ -709,7 +709,7 @@ final class Focus: NSObject, NSMenuDelegate {
             guard a.runModal() == .alertFirstButtonReturn else { return }
         }
         sessions.insert(["date": Date(), "kind": "force quit",
-                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }], at: 0)
+                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
         pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear")
         out.forEach { $0.forceTerminate() }
     }
@@ -773,6 +773,14 @@ final class Focus: NSObject, NSMenuDelegate {
         let paths = Set((sessions.first?["apps"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String })
         return ws.runningApplications.filter { paths.contains($0.bundleURL?.path ?? "") && !$0.isHidden && !protected($0) && !waiting.contains($0.processIdentifier) }
     }
+    /// Session apps running under a different process than the one Focus quit: something reopened them
+    /// (a login item, a helper, an updater). Different from a save prompt, and worth a different line.
+    func reopened() -> [NSRunningApplication] {
+        let quitPids = Set((sessions.first?["apps"] as? [[String: Any]] ?? []).compactMap { $0["pid"] as? Int })
+        guard !quitPids.isEmpty else { return [] }
+        return stragglers().filter { !quitPids.contains(Int($0.processIdentifier)) }
+    }
+    @objc func quitAgain() { reopened().forEach { $0.terminate() } }
 
     func toggle() {
         item.menu?.cancelTracking()
@@ -883,8 +891,15 @@ final class Focus: NSObject, NSMenuDelegate {
         let left = stragglers()
         if !left.isEmpty {                                      // shown only when something is still eating memory
             m.addItem(.separator())
-            add("Still open — probably a save prompt: " + left.compactMap(\.localizedName).joined(separator: ", "),
-                #selector(look), image: symbol("exclamationmark.bubble"))
+            let back = reopened(), stuck = left.filter { a in !back.contains(a) }
+            if !back.isEmpty {
+                add("Reopened by itself: " + back.compactMap(\.localizedName).joined(separator: ", ") + " — quit again",
+                    #selector(quitAgain), image: symbol("arrow.triangle.2.circlepath"))
+            }
+            if !stuck.isEmpty {
+                add("Still open — probably a save prompt: " + stuck.compactMap(\.localizedName).joined(separator: ", "),
+                    #selector(look), image: symbol("exclamationmark.bubble"))
+            }
         }
 
         m.addItem(.separator())
@@ -1089,7 +1104,15 @@ let app = NSApplication.shared
 app.setActivationPolicy(.accessory)                             // no Dock icon, not in Cmd-Tab
 
 // One Focus at a time: a second copy (double launch, login item + manual open…) quits at once.
-let others = NSRunningApplication.runningApplications(withBundleIdentifier: "com.labern.focus").filter { $0 != .current }
+// One Focus at a time. When copies see each other, the OLDEST survives (launch time, then process number) — a total
+// order, so two copies launched at the same instant can't both quit (that left no Focus at all) or both stay.
+func olderFocus() -> NSRunningApplication? {
+    let me = NSRunningApplication.current, mine = (me.launchDate ?? Date(), me.processIdentifier)
+    return NSRunningApplication.runningApplications(withBundleIdentifier: "com.labern.focus")
+        .filter { $0 != me && !$0.isTerminated }
+        .first { a in let d = a.launchDate ?? .distantPast; return d < mine.0 || (d == mine.0 && a.processIdentifier < mine.1) }
+}
+let others = olderFocus().map { [$0] } ?? []
 if CommandLine.arguments.contains("--pill-demo") {          // watch the start and end shows without a session
     let p = SessionPill(), ws = NSWorkspace.shared
     let icons = ["com.google.Chrome", "md.obsidian", "com.apple.iWork.Keynote", "com.apple.Preview", "com.readdle.SparkDesktop", "com.openai.chat"]
@@ -1103,10 +1126,201 @@ if CommandLine.arguments.contains("--pill-demo") {          // watch the start a
     DispatchQueue.main.asyncAfter(deadline: .now() + 4.4) { exit(0) }
     app.run()
 }
-if !others.isEmpty && !CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest") }) { print("Focus is already running (pid \(others[0].processIdentifier))"); exit(0) }
+let testing = CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest") })
+if !others.isEmpty && !testing { print("Focus is already running (pid \(others[0].processIdentifier))"); exit(0) }
+if !testing {                                                   // launched too close together to see each other yet
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { if olderFocus() != nil { exit(0) } }
+}
 
 /// `Focus --selftest`: the real session path, on TextEdit only, with its own settings store. Aborts before
 /// touching anything if the session would include any other app.
+/// `Focus --selftest-stress`: the stress scenarios, one after another, on Focus's real code paths. Own settings
+/// store; only TextEdit, Calculator and stand-in apps are ever touched (each scenario asserts its scope first).
+/// `--selftest-crash-a` / `--selftest-crash-b`: start a session then die with SIGKILL; a fresh Focus must restore it.
+if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || $0.hasPrefix("--selftest-crash") }) {
+    let suite = "com.labern.focus.selftest"
+    let crashB = CommandLine.arguments.contains("--selftest-crash-b")
+    if !crashB { UserDefaults.standard.removePersistentDomain(forName: suite) }
+    let t = Focus(store: UserDefaults(suiteName: suite)!)
+    t.snapshots = false
+    let ws = NSWorkspace.shared, edit = "com.apple.TextEdit", calc = "com.apple.calculator", slow = "com.labern.focus.slowquit"
+    let front = ws.frontmostApplication
+    var results: [(String, Bool, String)] = []
+    func say(_ s: String) { print("stress:", s); fflush(stdout) }
+    func running(_ id: String) -> [NSRunningApplication] { ws.runningApplications.filter { $0.bundleIdentifier == id && !$0.isTerminated } }
+    func scope(_ ids: Set<String>) -> Bool {
+        t.excluded = t.apps().compactMap(\.bundleIdentifier).filter { !ids.contains($0) }
+        return Set(t.leaving().compactMap(\.bundleIdentifier)) == ids
+    }
+    func waitUntil(_ secs: Double, _ cond: @escaping () -> Bool, _ done: @escaping (Bool) -> Void) {
+        let end = Date().addingTimeInterval(secs)
+        func poll() { if cond() { return done(true) }; if Date() > end { return done(false) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: poll) }
+        poll()
+    }
+    func launch(_ id: String, _ done: @escaping () -> Void) {
+        guard running(id).isEmpty, let url = ws.urlForApplication(withBundleIdentifier: id) else { return done() }
+        let c = NSWorkspace.OpenConfiguration(); c.activates = false; c.hides = true
+        ws.openApplication(at: url, configuration: c); waitUntil(10, { !running(id).isEmpty }) { _ in done() }
+    }
+    typealias Step = (String, (@escaping (Bool, String) -> Void) -> Void)
+    var steps: [Step] = []
+
+    if CommandLine.arguments.contains("--selftest-crash-a") {
+        launch(edit) {
+            guard scope([edit]) else { say("ABORT scope"); exit(1) }
+            t.park(quit: true)
+            waitUntil(10, { running(edit).isEmpty }) { gone in
+                say("crash-a: session started, TextEdit quit: \(gone ? "✓" : "✗") — now dying with SIGKILL")
+                kill(getpid(), SIGKILL)
+            }
+        }
+        app.run()
+    }
+    if crashB {
+        say("crash-b: fresh Focus sees the session it didn't start: in session = \(t.focused) \(t.focused ? "✓" : "✗")")
+        t.toggle()
+        waitUntil(10, { !running(edit).isEmpty }) { back in
+            say("crash-b: End Session after the crash brings TextEdit back: \(back ? "✓" : "✗"), in session now = \(t.focused)")
+            UserDefaults.standard.removePersistentDomain(forName: suite); exit(back && !t.focused ? 0 : 1)
+        }
+        app.run()
+    }
+
+    steps.append(("1. ⌘⇧F twice fast — End while the quit queue is still running", { done in
+        launch(edit) { launch(calc) {
+            guard scope([edit, calc]) else { return done(false, "scope") }
+            t.park(quit: true)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                t.toggle()                                        // End, mid-queue
+                waitUntil(12, { !t.focused && t.queue.isEmpty && !running(edit).isEmpty && !running(calc).isEmpty }) { ok in
+                    done(ok, "in session \(t.focused), queue \(t.queue.count), TextEdit \(running(edit).count), Calculator \(running(calc).count)")
+                }
+            }
+        } }
+    }))
+    steps.append(("3. a parked app was deleted before restore", { done in
+        launch(calc) {
+            for a in running(calc) { a.terminate() }
+            waitUntil(8, { running(calc).isEmpty }) { _ in
+                t.sessions = [["date": Date(), "apps": [["path": "/Applications/NoSuchApp-Focus-Test.app", "hidden": false],
+                                                       ["path": ws.urlForApplication(withBundleIdentifier: calc)!.path, "hidden": false]]]]
+                t.focused = true; t.toggle()
+                waitUntil(10, { !running(calc).isEmpty }) { ok in done(ok && !t.focused, "missing app skipped, Calculator back: \(ok)") }
+            }
+        }
+    }))
+    steps.append(("4. corrupted / odd saved settings", { done in
+        let d = UserDefaults(suiteName: suite)!
+        d.set("not-an-array", forKey: "sessions"); d.set([1, 2, 3], forKey: "excluded"); d.set(["com.nobody.ghost"], forKey: "neverClose")
+        d.set("ZZZZZZ", forKey: "iconColor"); d.set(true, forKey: "focused")
+        let m = NSMenu(); t.menuNeedsUpdate(m)                    // must build without crashing
+        t.toggle()                                                // End with no valid session: must not crash
+        let ok = m.items.count > 5 && !t.focused
+        d.removeObject(forKey: "iconColor"); d.set([String](), forKey: "neverClose"); d.set([[String: Any]](), forKey: "sessions")
+        done(ok, "menu built with \(m.items.count) items; session state reset to \(t.focused)")
+    }))
+    let relaunch = "com.labern.focus.relauncher"
+    steps.append(("5. an app that relaunches itself after quitting (login-item helper style)", { done in
+        guard !running(relaunch).isEmpty else { return done(true, "skipped — Relauncher stand-in not running") }
+        guard scope([relaunch]) else { return done(false, "scope") }
+        let firstPid = running(relaunch).first?.processIdentifier
+        t.park(quit: true)
+        waitUntil(15, { t.queue.isEmpty && running(relaunch).first.map { $0.processIdentifier != firstPid } == true }) { cameBack in
+            let label = t.reopened().map { $0.localizedName ?? "?" }
+            t.toggle()                                            // End: it's already running, so no duplicate
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                let n = running(relaunch).count
+                done(cameBack && label == ["Relauncher"] && n == 1 && !t.focused,
+                     "relaunched itself: \(cameBack); listed as 'Reopened by itself': \(label); instances after End: \(n)")
+            }
+        }
+    }))
+    steps.append(("6. reopening a parked app mid-session, then End — no duplicate", { done in
+        launch(edit) {
+            guard scope([edit]) else { return done(false, "scope") }
+            t.park(quit: true)
+            waitUntil(10, { running(edit).isEmpty && t.queue.isEmpty }) { _ in
+                launch(edit) {                                    // the user opens it again during the session
+                    t.toggle()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                        done(running(edit).count == 1 && !t.focused, "TextEdit instances after End: \(running(edit).count)")
+                    }
+                }
+            }
+        }
+    }))
+    steps.append(("7. Tools ▸ Quit All during a session is refused", { done in
+        launch(edit) {
+            guard scope([edit]) else { return done(false, "scope") }
+            t.park(quit: true)
+            waitUntil(10, { t.queue.isEmpty }) { _ in
+                launch(calc) {
+                    t.quitAll(restart: false, only: [calc], confirm: false)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        let ok = !running(calc).isEmpty && !t.clearing
+                        t.toggle()
+                        waitUntil(10, { !running(edit).isEmpty }) { _ in done(ok, "Calculator untouched: \(!running(calc).isEmpty)") }
+                    }
+                }
+            }
+        }
+    }))
+    steps.append(("8. hide mode instead of quit", { done in
+        launch(edit) {
+            guard scope([edit]) else { return done(false, "scope") }
+            for a in running(edit) { a.unhide() }
+            waitUntil(5, { running(edit).first?.isHidden == false }) { _ in   // visible before the session starts
+            t.hideMode = true; t.park(quit: false)
+            waitUntil(5, { running(edit).first?.isHidden == true }) { hid in
+                t.toggle(); t.hideMode = false
+                waitUntil(5, { running(edit).first?.isHidden == false }) { shown in done(hid && shown, "hidden \(hid), unhidden \(shown)") }
+            }
+            }
+        }
+    }))
+    steps.append(("9. session history is capped at 12", { done in
+        t.sessions = []
+        for _ in 0..<15 { t.sessions.insert(["date": Date(), "apps": [[String: Any]]()], at: 0) }
+        done(t.sessions.count == 12, "\(t.sessions.count) kept of 15")
+    }))
+    steps.append(("10. an app that's merely slow to quit (12 s) — waiting list, then clears itself", { done in
+        guard !running(slow).isEmpty else { return done(false, "SlowQuit stand-in not running") }
+        guard scope([slow]) else { return done(false, "scope") }
+        t.park(quit: true)
+        waitUntil(12, { t.queue.isEmpty && t.waiting.contains { $0.bundleIdentifier == slow } }) { listed in
+            waitUntil(20, { running(slow).isEmpty && t.status == nil }) { cleared in
+                t.toggle()
+                done(listed && cleared, "on waiting list \(listed), status cleared after it quit \(cleared)")
+            }
+        }
+    }))
+    steps.append(("16. menu speed with every process on the Mac", { done in
+        let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }
+        let ms = Int(Date().timeIntervalSince(t0) * 1000 / 5)
+        done(ms < 250, "\(ms) ms per menu open")
+    }))
+
+    if let only = CommandLine.arguments.first(where: { $0.hasPrefix("--only=") })?.dropFirst(7) {   // e.g. --only=5,8
+        let keep = only.split(separator: ",").map { String($0) + "." }
+        steps = steps.filter { st in keep.contains { st.0.hasPrefix($0) } }
+    }
+    func run(_ i: Int) {
+        guard i < steps.count else {
+            say("———"); for (n, ok, note) in results { say("\(ok ? "PASS" : "FAIL")  \(n) — \(note)") }
+            for id in [calc, slow] { running(id).forEach { $0.terminate() } }
+            front?.activate()
+            UserDefaults.standard.removePersistentDomain(forName: suite)
+            exit(results.allSatisfy { $0.1 } ? 0 : 1)
+        }
+        let (name, f) = steps[i]
+        say("▶ \(name)")
+        t.hideMode = false
+        f { ok, note in results.append((name, ok, note)); say("  \(ok ? "PASS" : "FAIL") — \(note)"); DispatchQueue.main.asyncAfter(deadline: .now() + 1) { run(i + 1) } }
+    }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { run(0) }
+    app.run()
+}
 /// `Focus --selftest-unsaved`: an app stuck on a save prompt (a stand-in that refuses to quit) must not stall
 /// the queue: it goes on the waiting list after `patience`, the rest quits, and it is brought forward.
 if CommandLine.arguments.contains("--selftest-unsaved") {

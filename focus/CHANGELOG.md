@@ -4,6 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.0.4 — 2026-11-12
+
+Stress-tested (see `docs/STRESS-TEST.md`). Two fixes:
+- **Two Focuses launched at the same instant could leave none running.** The oldest copy now always survives,
+  with a re-check after launch.
+- **Apps that reopen themselves** (login items, helpers) now get their own line in the menu — "Reopened by itself:
+  … — quit again" — instead of being described as a save prompt.
+
 ## 0.0.3 — 2026-11-12
 
 - Monochrome menu, matching the product page: the Start New Session pill and the kept/locked marks are white with
