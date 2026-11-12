@@ -103,19 +103,36 @@ func claudeHosts() -> Set<pid_t> {
 }
 func gb(_ b: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(b), countStyle: .memory) }
 
-/// The menu bar mark: a viewfinder ring with a centre dot. Open brackets at rest; a closed ring and a
-/// bigger dot while focused. Template image, so it follows light / dark menu bars.
-func glyph(focused: Bool) -> NSImage {
+/// The menu bar mark: a viewfinder ring with a centre dot. `t` is linear progress, 0 (at rest: four open
+/// brackets, gaps at the compass points, small dot) to 1 (focused: one closed ring, bigger dot). With `hunt`
+/// the ring first pulls in and comes back out — a lens finding focus — then the gaps close in place and the
+/// dot swells. Each phase has its own eased slice of the timeline. Template image: follows light / dark bars.
+func glyph(_ t: CGFloat, hunt: Bool = false) -> NSImage {
+    func phase(_ a: CGFloat, _ b: CGFloat) -> CGFloat {          // 0…1 across [a, b], smoothstep-eased
+        let x = min(max((t - a) / (b - a), 0), 1); return x * x * (3 - 2 * x)
+    }
+    let pull = hunt ? sin(.pi * phase(0, 0.55)) * 2.0 : 0
+    let close = hunt ? phase(0.35, 0.85) : t                     // gap fraction closed
+    let swell = hunt ? phase(0.45, 1) : t
     let img = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { r in
-        let ring = NSBezierPath(ovalIn: r.insetBy(dx: 2.5, dy: 2.5)); ring.lineWidth = 1.6
-        if !focused { ring.setLineDash([7.4, 2.6], count: 2, phase: 2.6) }   // four gaps → viewfinder brackets
+        let c = NSPoint(x: r.midX, y: r.midY), radius = 6.5 - pull
+        let gap = 23.4 * (1 - close)                                 // degrees; 0 = a closed ring
+        let ring = NSBezierPath(); ring.lineWidth = 1.6
+        if gap < 0.5 { ring.appendOval(in: NSRect(x: c.x - radius, y: c.y - radius, width: radius * 2, height: radius * 2)) }
+        else { for k in 0..<4 {                                       // arcs centred on 45°, 135°… so gaps sit on the axes
+            let mid = 45 + 90 * CGFloat(k)
+            ring.move(to: NSPoint(x: c.x + radius * cos((mid - 45 + gap / 2) * .pi / 180), y: c.y + radius * sin((mid - 45 + gap / 2) * .pi / 180)))
+            ring.appendArc(withCenter: c, radius: radius, startAngle: mid - 45 + gap / 2, endAngle: mid + 45 - gap / 2)
+        } }
         ring.stroke()
-        NSBezierPath(ovalIn: r.insetBy(dx: focused ? 6 : 7.25, dy: focused ? 6 : 7.25)).fill()
+        let dot = 1.75 + 1.25 * swell - (hunt ? pull * 0.3 : 0)      // radius: 1.75 at rest, 3 focused
+        NSBezierPath(ovalIn: NSRect(x: c.x - dot, y: c.y - dot, width: dot * 2, height: dot * 2)).fill()
         return true
     }
     img.isTemplate = true
     return img
 }
+func glyph(focused: Bool) -> NSImage { glyph(focused ? 1 : 0) }
 
 /// A menu view that highlights under the pointer and stretches to the menu's width.
 class HoverView: NSView {
@@ -128,6 +145,9 @@ class HoverView: NSView {
     required init?(coder: NSCoder) { nil }
     override func mouseEntered(with e: NSEvent) { hover = true }
     override func mouseExited(with e: NSEvent) { hover = false }
+    // Take the whole click. Unhandled, mouseDown falls through to the menu, which can read it as a click-away and close.
+    override func mouseDown(with e: NSEvent) {}
+    override func acceptsFirstMouse(for e: NSEvent?) -> Bool { true }
 }
 
 /// One app: icon, name, and a mark on the right. Clicking flips it without closing the menu, so several
@@ -247,7 +267,11 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     var focused: Bool {
         get { store.bool(forKey: "focused") }
-        set { store.set(newValue, forKey: "focused"); item.button?.image = glyph(focused: newValue) }
+        set {
+            let was = store.bool(forKey: "focused")
+            store.set(newValue, forKey: "focused")
+            if newValue != was { animateIcon(to: newValue) } else { item.button?.image = glyph(focused: newValue) }
+        }
     }
     /// The system's "reopen windows when an app relaunches" (System Settings ▸ Desktop & Dock ▸
     /// "Close windows when quitting an application", inverted). Without it a quit app comes back empty.
@@ -374,6 +398,18 @@ final class Focus: NSObject, NSMenuDelegate {
         if !focused { return park(quit: !hideMode) }
         if let s = sessions.first { open(s) } else { focused = false }
     }
+    /// ~0.7 s at 60 fps, ease-out; runs in common modes so it plays even with the menu open.
+    var anim: Timer?
+    func animateIcon(to on: Bool) {
+        anim?.invalidate()
+        let start = Date(), duration = on ? 0.75 : 0.45
+        let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] tm in
+            let p = min(1, Date().timeIntervalSince(start) / duration), e = 1 - pow(1 - p, 3)
+            self?.item.button?.image = on ? glyph(p, hunt: true) : glyph(1 - e)   // in: phased timeline · out: ease back
+            if p >= 1 { tm.invalidate() }
+        }
+        RunLoop.main.add(t, forMode: .common); anim = t
+    }
     func showMenu() { item.button?.performClick(nil) }
 
     func flip(_ list: ReferenceWritableKeyPath<Focus, [String]>, _ id: String) -> Bool {
@@ -454,9 +490,7 @@ final class Focus: NSObject, NSMenuDelegate {
         for a in dock where protected(a) {
             guard let p = a.bundleURL?.path else { continue }
             let why = hosts.contains(a.processIdentifier) ? "Claude is here" : "Never close"
-            view(AppRow(appName(p), appIcon(p), detail: why, on: true, onMark: "lock.circle.fill") { [unowned self] in
-                self.item.menu?.cancelTracking(); DispatchQueue.main.async { self.showNever() }; return true
-            })
+            view(AppRow(appName(p), appIcon(p), detail: why, on: true, onMark: "lock.circle.fill") { true })   // locked: a click changes nothing
         }
         let running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
         let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
