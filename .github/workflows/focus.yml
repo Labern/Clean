@@ -1,0 +1,23 @@
+name: Focus (macOS build)
+on:
+  push:
+    paths: ["focus/**", ".github/workflows/focus.yml"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: ./focus/build.sh --ci
+      - name: Package
+        run: cd focus && ditto -c -k --keepParent Focus.app Focus.zip
+      - name: Publish to the focus-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete focus-latest --cleanup-tag -y || true
+          gh release create focus-latest focus/Focus.zip --target "$GITHUB_SHA" --prerelease \
+            --title "Focus (latest build)" --notes "Built from $GITHUB_SHA on $GITHUB_REF_NAME."

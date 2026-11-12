@@ -1,11 +1,13 @@
-// Focus — save every open app as a session and clear them away; excluded apps stay. Bring the session back exactly as it was.
+// Focus — quit every Dock / ⌘⇥ app except the ones you keep, so their RAM, CPU and GPU go to the work.
+// Same key again brings them all back exactly as they were. Menu bar apps (Wispr Flow etc.) are never touched.
 // Menu bar only. One file, no dependencies, no permissions. Build: ./build.sh
-//   ⌃⌥⌘L      quit everything not excluded     (again: bring it all back)
-//   ⌃⌥⌘H      hide everything not excluded     (again: bring it all back)
+//   ⌃⌥⌘F      quit everything not kept         (again: bring it all back)
+//   ⌃⌥⌘H      hide everything not kept         (again: bring it all back)
 //   ⌃⌥⌘K      exclude / include the app you're in
 //   ⌘⇥ ⌘⇧⇥   while focused: cycle only what's still open — the system switcher is off until you come back
 import AppKit
 import Carbon.HIToolbox
+import ServiceManagement
 
 // Private SkyLight call, the same one AltTab uses: switches the Dock's ⌘⇥ (id 1) and ⌘⇧⇥ (id 2) off or on.
 // The setting outlives the process, so it is switched back on at every launch, quit and signal.
@@ -23,6 +25,20 @@ func hotkey(_ id: UInt32, _ key: Int, _ mods: Int) -> EventHotKeyRef? {
     return ref
 }
 func symbol(_ name: String) -> NSImage? { NSImage(systemSymbolName: name, accessibilityDescription: nil) }
+
+/// The menu bar mark: a viewfinder ring with a centre dot. Open brackets at rest; a closed ring and a
+/// bigger dot while focused. Template image, so it follows light / dark menu bars.
+func glyph(focused: Bool) -> NSImage {
+    let img = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { r in
+        let ring = NSBezierPath(ovalIn: r.insetBy(dx: 2.5, dy: 2.5)); ring.lineWidth = 1.6
+        if !focused { ring.setLineDash([7.4, 2.6], count: 2, phase: 2.6) }   // four gaps → viewfinder brackets
+        ring.stroke()
+        NSBezierPath(ovalIn: r.insetBy(dx: focused ? 6 : 7.25, dy: focused ? 6 : 7.25)).fill()
+        return true
+    }
+    img.isTemplate = true
+    return img
+}
 
 typealias Session = [String: Any]                              // "date": Date, "apps": [["path": String, "hidden": Bool]]
 
@@ -65,14 +81,14 @@ final class Focus: NSObject, NSMenuDelegate {
     }
 
     func refresh() {
-        item.button?.image = symbol(focused ? "scope" : "circle.dashed")
+        item.button?.image = glyph(focused: focused)
         guard focused == tabKeys.isEmpty else { return }
         systemSwitcher(!focused)
         if focused { tabKeys = [hotkey(4, kVK_Tab, cmdKey), hotkey(5, kVK_Tab, cmdKey | shiftKey)] }
         else { tabKeys.forEach { if let k = $0 { UnregisterEventHotKey(k) } }; tabKeys = [] }
     }
 
-    /// Everything in Cmd-Tab except Finder (which can't leave it).
+    /// Everything in the Dock / ⌘⇥ except Finder (which can't leave). Menu bar apps are `.accessory`: never listed, never touched.
     func apps() -> [NSRunningApplication] {
         ws.runningApplications.filter { $0.activationPolicy == .regular && $0.bundleIdentifier != "com.apple.finder" }
     }
@@ -100,6 +116,13 @@ final class Focus: NSObject, NSMenuDelegate {
             }
         }
         focused = false
+    }
+
+    /// Session apps that didn't quit: an unsaved-changes prompt, a hang, or an app that drops to the menu bar instead of quitting.
+    func stragglers() -> [NSRunningApplication] {
+        guard focused else { return [] }
+        let paths = Set((sessions.first?["apps"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String })
+        return ws.runningApplications.filter { paths.contains($0.bundleURL?.path ?? "") && !$0.isHidden }
     }
 
     func toggle(quit: Bool) {
@@ -131,6 +154,11 @@ final class Focus: NSObject, NSMenuDelegate {
     @objc func reopen(_ s: NSMenuItem) { open(sessions[s.tag]) }
     @objc func forget(_ s: NSMenuItem) { sessions.remove(at: s.tag) }
     @objc func windows() { keepWindows.toggle() }
+    @objc func kill() { stragglers().forEach { $0.forceTerminate() } }
+    @objc func login() {
+        let s = SMAppService.mainApp
+        try? (s.status == .enabled ? s.unregister() : s.register())
+    }
     @objc func bye() { NSApp.terminate(nil) }
 
     // MARK: menu (rebuilt each time it opens, so it never goes stale)
@@ -150,14 +178,19 @@ final class Focus: NSObject, NSMenuDelegate {
         }
 
         if focused, let n = (sessions.first?["apps"] as? [Any])?.count {
-            add("Bring back \(n) apps", #selector(quitRest), key: "l", image: symbol("arrow.uturn.backward.circle"))
+            add("Bring back \(n) apps", #selector(quitRest), key: "f", image: symbol("arrow.uturn.backward.circle"))
+            let left = stragglers()
+            if !left.isEmpty {                                  // shown only when something is still eating memory
+                add("Force quit \(left.count) still running: " + left.compactMap(\.localizedName).joined(separator: ", "),
+                    #selector(kill), image: symbol("exclamationmark.triangle"))
+            }
         } else {
-            add("Focus — quit the rest", #selector(quitRest), key: "l", image: symbol("scope"))
+            add("Focus — quit the rest", #selector(quitRest), key: "f", image: glyph(focused: true))
             add("Focus — hide the rest", #selector(hideRest), key: "h", image: symbol("eye.slash"))
         }
 
         m.addItem(.separator())
-        header("Stay open")
+        header("Keep open · menu bar apps are never touched")
         var rows = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
         rows += excluded.filter { id in !rows.contains { $0.0 == id } }    // excluded but not running: still listed, so it can be un-excluded
             .compactMap { id in ws.urlForApplication(withBundleIdentifier: id).map { (id, $0.path) } }
@@ -187,6 +220,7 @@ final class Focus: NSObject, NSMenuDelegate {
 
         m.addItem(.separator())
         add("Reopen windows as they were", #selector(windows)).state = keepWindows ? .on : .off
+        add("Open at login", #selector(login)).state = SMAppService.mainApp.status == .enabled ? .on : .off
         add("Quit Focus", #selector(bye), image: symbol("power"))
     }
 }
@@ -211,6 +245,6 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
     }
     return noErr
 }, 1, &spec, nil, nil)
-for (id, key) in [(1, kVK_ANSI_L), (2, kVK_ANSI_H), (3, kVK_ANSI_K)] { _ = hotkey(UInt32(id), key, controlKey | optionKey | cmdKey) }
+for (id, key) in [(1, kVK_ANSI_F), (2, kVK_ANSI_H), (3, kVK_ANSI_K)] { _ = hotkey(UInt32(id), key, controlKey | optionKey | cmdKey) }
 for sig in [SIGTERM, SIGINT, SIGHUP] { signal(sig) { _ in systemSwitcher(true); exit(0) } }   // never leave ⌘⇥ dead
 app.run()
