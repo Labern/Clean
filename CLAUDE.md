@@ -17,6 +17,9 @@ For the kittens project:
 - Code branch: https://github.com/Labern/Clean/tree/kittens-v2
 For PARADOXICA (the hub website):
 - https://paradoxica.uk (also https://paradoxica.co.uk)
+- The hub for everything new Labern ships. Each project gets /<name>/ here
+  (live: /cats/ /logos/ /combray/ /focus/) and may also get its own site.
+  .uk is canonical; .co.uk is the second domain bought, same site.
 For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
