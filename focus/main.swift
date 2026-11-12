@@ -357,6 +357,13 @@ final class Focus: NSObject, NSMenuDelegate {
     var mem: [pid_t: UInt64] = [:]                              // refreshed each time the menu opens
     var hosts = claudeHosts()                                   // terminals running Claude Code: refreshed before every decision
     var queue: [NSRunningApplication] = [], total = 0           // the slow, one-at-a-time quit in progress
+    var clearing = false, restartAfter = false, refused: [String] = []   // Tools ▸ Quit All (and Restart)
+    var waiting: [NSRunningApplication] = []                    // asked to quit, still open after `patience`: a save prompt
+    var patience: TimeInterval = 8
+    var restartMac: () -> Void = {                              // the --selftest swaps this for a print
+        let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        p.arguments = ["-e", "tell application \"loginwindow\" to «event aevtrrst»"]; try? p.run()
+    }
     var status: String? { didSet { item.button?.toolTip = status ?? "Focus" } }
     lazy var never = NeverModel(self)
     let pill = SessionPill()
@@ -418,6 +425,10 @@ final class Focus: NSObject, NSMenuDelegate {
     init(store: UserDefaults = .standard) {
         self.store = store
         super.init()
+        // macOS saves a status item's visibility under its autosave name in the app's defaults. A --selftest copy
+        // hides its icon under its own name (so it never shows a second icon, and never hides the real one);
+        // the real Focus always shows its icon.
+        if store != .standard { item.autosaveName = "focus-selftest"; item.isVisible = false } else { item.isVisible = true }
         let menu = NSMenu(); menu.delegate = self; menu.minimumWidth = menuWidth; item.menu = menu
         if !store.bool(forKey: "setUp") { keepWindows = true; store.set(true, forKey: "setUp") }
         if !store.bool(forKey: "keepClaude") {                  // Claude starts kept (user's default for now); untick to drop it
@@ -482,16 +493,18 @@ final class Focus: NSObject, NSMenuDelegate {
     }
 
     /// One app at a time: ask it to quit the normal way (it saves its state; unsaved work prompts), wait until it
-    /// has really gone, pause, then the next. An app still open after 60 s is left alone — never forced.
+    /// has really gone, pause, then the next. Never forced. An app still open after `patience` is almost always
+    /// sitting on a "Save changes?" prompt: it goes on the waiting list and the queue moves on without it.
     func quitNext() {
-        guard focused, let a = queue.first else { queue = []; status = nil; return }
-        if protected(a) || excluded.contains(a.bundleIdentifier ?? "") { queue.removeFirst(); return quitNext() }   // marked keep / critical since the session began
+        guard focused || clearing, let a = queue.first else { return finishQueue() }
+        if protected(a) || (!clearing && excluded.contains(a.bundleIdentifier ?? "")) { queue.removeFirst(); return quitNext() }   // marked keep / critical since it began
         status = "Saving and quitting \(a.localizedName ?? "app") · \(total - queue.count + 1) of \(total)"
         a.terminate()
         let started = Date()
         func check() {
             guard queue.first === a else { return }             // cancelled by Bring Back
-            if a.isTerminated || Date().timeIntervalSince(started) > 60 {
+            if a.isTerminated || Date().timeIntervalSince(started) > patience {
+                if !a.isTerminated { waiting.append(a) }
                 queue.removeFirst()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.quitNext() }
             } else {
@@ -500,6 +513,103 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         check()
     }
+
+    /// The queue is done. Anything on the waiting list is brought forward so its save prompt is in front of you,
+    /// not buried. A restart waits (up to 2 min) for those prompts to be answered; if one isn't, it's cancelled.
+    func finishQueue() {
+        queue = []; status = nil
+        let wasClearing = clearing, restart = restartAfter
+        clearing = false; restartAfter = false
+        waiting = waiting.filter { !$0.isTerminated }
+        if let first = waiting.first {
+            status = "Waiting for you to save in " + waiting.compactMap(\.localizedName).joined(separator: ", ")
+            first.unhide(); first.activate(options: [.activateAllWindows])
+        }
+        guard wasClearing && restart else { return watchWaiting() }
+        let deadline = Date().addingTimeInterval(120)
+        func check() {
+            waiting = waiting.filter { !$0.isTerminated }
+            if waiting.isEmpty { status = nil; return restartMac() }
+            if Date() > deadline {
+                refused = waiting.compactMap(\.localizedName); status = nil
+                return tell("Restart cancelled", "\(refused.joined(separator: ", ")) didn't quit — still waiting for you to save something.")
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: check)
+        }
+        check()
+    }
+    /// Clears the "waiting for you to save" status once those apps have gone (saved, or Don't Save).
+    func watchWaiting() {
+        waiting = waiting.filter { !$0.isTerminated }
+        if waiting.isEmpty { if status?.hasPrefix("Waiting") == true { status = nil }; return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.watchWaiting() }
+    }
+
+    /// Tools ▸ Quit All Apps (and optionally restart): everything goes except Critical System Processes, Focus and
+    /// the terminal Claude is in — "keep open" ticks don't apply. Same slow, safe quit; saved as a Past session.
+    func quitAll(restart: Bool, only: Set<String>? = nil, confirm: Bool = true) {
+        guard !focused, !clearing else { return }
+        hosts = claudeHosts()
+        let out: [NSRunningApplication] = ws.runningApplications.filter { app in
+            app.activationPolicy == .regular && !protected(app) && !hosts.contains(app.processIdentifier)
+                && (only?.contains(app.bundleIdentifier ?? "") ?? true)
+        }
+        if confirm {
+            let a = NSAlert()
+            a.messageText = out.isEmpty ? (restart ? "Restart your Mac?" : "Nothing to quit") : "Quit \(apps(out.count))\(restart ? " and restart?" : "?")"
+            a.informativeText = (out.isEmpty ? "" : out.compactMap(\.localizedName).joined(separator: ", ") + ".\n\n")
+                + "Critical System Processes and the terminal Claude is running in stay open. Apps with unsaved work ask first; nothing is forced."
+                + (restart ? " Your Mac restarts once everything has quit." : " You can reopen them all from Past sessions.")
+            if out.isEmpty && !restart { a.addButton(withTitle: "OK"); NSApp.activate(ignoringOtherApps: true); a.runModal(); return }
+            a.addButton(withTitle: restart ? "Quit All & Restart" : "Quit All"); a.addButton(withTitle: "Cancel")
+            NSApp.activate(ignoringOtherApps: true)
+            guard a.runModal() == .alertFirstButtonReturn else { return }
+        }
+        guard !out.isEmpty else { if restart { restartMac() }; return }
+        sessions.insert(["date": Date(), "kind": "quit all",
+                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }], at: 0)
+        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear")
+        clearing = true; restartAfter = restart; refused = []
+        queue = out.sorted { memory($0) > memory($1) }; total = queue.count
+        quitNext()
+    }
+    func tell(_ title: String, _ text: String) {
+        let a = NSAlert(); a.messageText = title; a.informativeText = text; a.addButton(withTitle: "OK")
+        NSApp.activate(ignoringOtherApps: true); a.runModal()
+    }
+    /// Tools ▸ Force Quit All: the blunt one. Same spared set; unsaved work is lost, so it asks first, in red.
+    func forceQuitAll(only: Set<String>? = nil, confirm: Bool = true) {
+        guard !focused, !clearing else { return }
+        hosts = claudeHosts()
+        let out: [NSRunningApplication] = ws.runningApplications.filter { app in
+            app.activationPolicy == .regular && !protected(app) && !hosts.contains(app.processIdentifier)
+                && (only?.contains(app.bundleIdentifier ?? "") ?? true)
+        }
+        guard !out.isEmpty else { if confirm { tell("Nothing to force quit", "Only Critical System Processes and Claude's terminal are open.") }; return }
+        if confirm {
+            let a = NSAlert(); a.alertStyle = .critical
+            a.messageText = "Force quit \(apps(out.count))?"
+            a.informativeText = out.compactMap(\.localizedName).joined(separator: ", ")
+                + ".\n\nUnsaved work in these apps will be lost. Critical System Processes and Claude's terminal stay open. You can reopen them all from Past sessions."
+            a.addButton(withTitle: "Force Quit All"); a.addButton(withTitle: "Cancel")
+            a.buttons[0].hasDestructiveAction = true
+            NSApp.activate(ignoringOtherApps: true)
+            guard a.runModal() == .alertFirstButtonReturn else { return }
+        }
+        sessions.insert(["date": Date(), "kind": "force quit",
+                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }], at: 0)
+        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear")
+        out.forEach { $0.forceTerminate() }
+    }
+    @objc func forceQuitAllApps() { forceQuitAll() }
+    @objc func openActivityMonitor() { openApp("com.apple.ActivityMonitor") }
+    @objc func openSystemSettings() { openApp("com.apple.systempreferences") }
+    func openApp(_ id: String) {
+        guard let url = ws.urlForApplication(withBundleIdentifier: id) else { return }
+        ws.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
+    @objc func quitAllApps() { quitAll(restart: false) }
+    @objc func quitAllRestart() { quitAll(restart: true) }
 
     /// Relaunch or unhide every app in the session, one at a time, windows restored; hidden ones stay hidden.
     func open(_ s: Session) {
@@ -535,7 +645,9 @@ final class Focus: NSObject, NSMenuDelegate {
                 if !hidden { a.unhide() }
             } else {
                 let cfg = NSWorkspace.OpenConfiguration(); cfg.activates = false; cfg.hides = hidden
-                if Bundle(path: path)?.bundleIdentifier == chrome { cfg.arguments = ["--restore-last-session"] }   // tabs back even if Chrome's own setting is off
+                // Tabs back even though Chrome's own setting is "New Tab page" — but nothing plays until you click:
+                // a restored YouTube tab must not start blaring (user's rule).
+                if Bundle(path: path)?.bundleIdentifier == chrome { cfg.arguments = ["--restore-last-session", "--autoplay-policy=user-gesture-required"] }
                 ws.openApplication(at: URL(fileURLWithPath: path), configuration: cfg)
             }
         }
@@ -670,7 +782,7 @@ final class Focus: NSObject, NSMenuDelegate {
             for (n, s) in sessions.enumerated() {
                 let list = s["apps"] as? [[String: Any]] ?? []
                 let date = (s["date"] as? Date).map { when.string(from: $0) } ?? "?"
-                let i = add("\(date) · \(apps(list.count))", nil, to: sub), one = NSMenu()
+                let i = add("\(date) · \(apps(list.count))" + ((s["kind"] as? String).map { " · " + $0 } ?? ""), nil, to: sub), one = NSMenu()
                 for p in list.compactMap({ $0["path"] as? String }) { add(appName(p), nil, image: appIcon(p), to: one) }
                 one.addItem(.separator())
                 if let shot = s["shot"] as? String, FileManager.default.fileExists(atPath: shot) { add("View snapshot", #selector(viewShot), image: symbol("photo"), to: one).representedObject = shot }
@@ -680,6 +792,18 @@ final class Focus: NSObject, NSMenuDelegate {
             }
             past.submenu = sub
         }
+        let tools = add("Tools", nil, image: symbol("wrench.and.screwdriver")), tm = NSMenu()
+        tm.autoenablesItems = false
+        let busy = focused || clearing
+        add("Quit All Apps…", #selector(quitAllApps), image: symbol("xmark.circle"), to: tm).isEnabled = !busy
+        add("Quit All Apps & Restart Mac…", #selector(quitAllRestart), image: symbol("arrow.clockwise.circle"), to: tm).isEnabled = !busy
+        add("Force Quit All Apps…", #selector(forceQuitAllApps), image: symbol("bolt.circle"), to: tm).isEnabled = !busy
+        tm.addItem(.separator())
+        add("Open Activity Monitor", #selector(openActivityMonitor), image: symbol("waveform.path.ecg"), to: tm)
+        add("Open System Settings", #selector(openSystemSettings), image: symbol("gearshape.2"), to: tm)
+        tm.addItem(.separator())
+        add(busy ? "End the session first" : "Keeps Critical System Processes and Claude's terminal", nil, to: tm).isEnabled = false
+        tools.submenu = tm
         let settings = add("Settings", nil, image: symbol("gearshape")), sub = NSMenu()
         add("Hide apps instead of quitting", #selector(hiding), to: sub).state = hideMode ? .on : .off
         if CGPreflightScreenCaptureAccess() {
@@ -813,10 +937,46 @@ if CommandLine.arguments.contains("--pill-demo") {          // watch the start a
     DispatchQueue.main.asyncAfter(deadline: .now() + 4.4) { exit(0) }
     app.run()
 }
-if !others.isEmpty && !CommandLine.arguments.contains("--selftest") { print("Focus is already running (pid \(others[0].processIdentifier))"); exit(0) }
+if !others.isEmpty && !CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest") }) { print("Focus is already running (pid \(others[0].processIdentifier))"); exit(0) }
 
 /// `Focus --selftest`: the real session path, on TextEdit only, with its own settings store. Aborts before
 /// touching anything if the session would include any other app.
+/// `Focus --selftest-unsaved`: an app stuck on a save prompt (a stand-in that refuses to quit) must not stall
+/// the queue: it goes on the waiting list after `patience`, the rest quits, and it is brought forward.
+if CommandLine.arguments.contains("--selftest-unsaved") {
+    let suite = "com.labern.focus.selftest"
+    UserDefaults.standard.removePersistentDomain(forName: suite)
+    let t = Focus(store: UserDefaults(suiteName: suite)!)
+    t.patience = 3
+    func say(_ s: String) { print("selftest:", s); fflush(stdout) }
+    let edit = "com.labern.focus.savepromptstandin", preview = "com.apple.calculator"
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        let ids = t.apps().compactMap(\.bundleIdentifier)
+        guard ids.contains(edit), ids.contains(preview) else { say("ABORT — needs the stand-in and Calculator running"); exit(1) }
+        t.excluded = ids.filter { $0 != edit && $0 != preview }
+        guard Set(t.leaving().compactMap(\.bundleIdentifier)) == [edit, preview] else { say("ABORT — would quit \(t.leaving().compactMap(\.bundleIdentifier))"); exit(1) }
+        t.snapshots = false
+        let started = Date()
+        t.park(quit: true)
+        func poll() {
+            if t.queue.isEmpty && !(t.status ?? "").hasPrefix("Saving") {
+                let secs = Int(Date().timeIntervalSince(started))
+                say("queue finished in \(secs) s (must not wait 60 s on a save prompt): \(secs < 15 ? "✓" : "✗")")
+                say("Calculator (the other app) quit: \(t.ws.runningApplications.contains { $0.bundleIdentifier == preview } ? "✗" : "✓")")
+                say("stuck app on the waiting list: \(t.waiting.contains { $0.bundleIdentifier == edit } ? "✓" : "✗")  status: \(t.status ?? "nil")")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    say("stuck app brought forward (its prompt in front): \(t.ws.frontmostApplication?.bundleIdentifier == edit ? "✓" : "✗")")
+                    UserDefaults.standard.removePersistentDomain(forName: suite)
+                    exit(0)
+                }
+                return
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: poll)
+        }
+        poll()
+    }
+    app.run()
+}
 if CommandLine.arguments.contains("--selftest") {
     let suite = "com.labern.focus.selftest"
     UserDefaults.standard.removePersistentDomain(forName: suite)
@@ -847,9 +1007,25 @@ if CommandLine.arguments.contains("--selftest") {
                     guard k > 0 else {
                         let left = (try? FileManager.default.contentsOfDirectory(atPath: t.folder.path))?.filter { $0.hasPrefix("session-") }.count ?? -1
                         say("after 4 snapshots, kept: \(left) \(left == 2 ? "✓ (newest + one spare)" : "✗")")
-                        try? FileManager.default.removeItem(at: t.folder)
-                        UserDefaults.standard.removePersistentDomain(forName: suite)
-                        exit(0)
+                        // Tools ▸ Quit All & Restart, scoped to TextEdit, restart stubbed
+                        var restarted = false
+                        t.restartMac = { restarted = true }
+                        t.excluded = [edit]                     // a "keep open" tick must NOT spare it from Quit All
+                        let n0 = t.sessions.count
+                        t.quitAll(restart: true, only: [edit], confirm: false)
+                        say("quit-all: in session = \(t.focused) (must be false), saved as past session: \(t.sessions.count == n0 + 1 && t.sessions.first?["kind"] as? String == "quit all" ? "✓" : "✗")")
+                        later(6) {
+                            let gone = !t.ws.runningApplications.contains { $0.bundleIdentifier == edit }
+                            say("quit-all: TextEdit quit despite keep-open tick: \(gone ? "✓" : "✗")  restart requested after: \(restarted ? "✓" : "✗")")
+                            t.open(t.sessions[0])
+                            later(4) {
+                                say("quit-all: reopened from Past sessions: \(t.ws.runningApplications.contains { $0.bundleIdentifier == edit } ? "✓" : "✗")")
+                                try? FileManager.default.removeItem(at: t.folder)
+                                UserDefaults.standard.removePersistentDomain(forName: suite)
+                                exit(0)
+                            }
+                        }
+                        return
                     }
                     later(1.1) { t.snapshot { _ in t.pruneSnapshots(); more(k - 1) } }
                 }

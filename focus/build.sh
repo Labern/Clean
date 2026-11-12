@@ -29,10 +29,14 @@ cat > "$C/Info.plist" <<'EOF'
 EOF
 APP="$OUT/Focus.app"; BUNDLE_ID=com.labern.focus; IDENTITY="${IDENTITY:-Focus Local Signing}"
 DEV_ID="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -1)"
+# Apple Development: not for distribution, but a stable identity — macOS keeps Focus's permissions across rebuilds.
+APPLE_DEV="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development:[^"]*\)".*/\1/p' | head -1)"
 
 if [ -n "$DEV_ID" ]; then
   codesign --force --options runtime --timestamp --sign "$DEV_ID" --identifier "$BUNDLE_ID" "$APP"
   echo "› signed with Apple Developer ID ($DEV_ID) — trusted, notarizable"
+elif [ -n "$APPLE_DEV" ] && codesign --force --sign "$APPLE_DEV" --identifier "$BUNDLE_ID" "$APP" 2>/dev/null; then
+  echo "› signed with Apple Development (stable on this Mac; Developer ID needed to share it)"
 elif codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" "$APP" 2>/dev/null; then
   echo "› signed with stable local identity ($IDENTITY)"
 else

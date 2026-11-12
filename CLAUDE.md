@@ -113,6 +113,16 @@ no build step, no dependencies.
   'regular' whenever any non-excluded window is visible, and its always-shown "Status" window isn't excluded —
   even with hideFlowBarPermanently. Electron fuses: inspect args OFF, asar integrity ON → no outside fix short of
   patching Wispr (breaks its signature → TCC mic/accessibility re-grant; undone by every update).
+  Tools submenu: Quit All Apps, Quit All & Restart Mac (restarts only once every app has quit), Force Quit All
+  (red confirm), Open Activity Monitor, Open System Settings. All spare Critical + Claude's terminal; "keep open"
+  ticks don't apply; each is saved to Past sessions (kind: quit all / force quit). Disabled during a session.
+  Save prompts never stall a queue: after `patience` (8 s) the app goes on `waiting`, the queue moves on, and at
+  the end the waiting app is brought forward with its prompt. `--selftest-unsaved` proves it with a stand-in app
+  that refuses to quit (build it in a temp dir — see git log).
+  Chrome is relaunched with --restore-last-session (user's Chrome is set to New Tab page) AND
+  --autoplay-policy=user-gesture-required — restored YouTube must not autoplay.
+  Signing order: Developer ID → Apple Development (stable TCC on this Mac) → local → ad-hoc. Self-test copies
+  hide their status item under autosaveName "focus-selftest" — hiding under the default name hid the REAL icon.
   build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
