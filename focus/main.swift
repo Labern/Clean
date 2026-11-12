@@ -1,9 +1,7 @@
 // Focus — quit every Dock / ⌘⇥ app except the ones you keep, so their RAM, CPU and GPU go to the work.
 // Same key again brings them all back exactly as they were. Menu bar apps (Wispr Flow etc.) are never touched.
 // Menu bar only. One file, no dependencies, no permissions. Build: ./build.sh
-//   ⌃⌥⌘F      quit everything not kept         (again: bring it all back)
-//   ⌃⌥⌘H      hide everything not kept         (again: bring it all back)
-//   ⌃⌥⌘K      exclude / include the app you're in
+//   ⌘E        quit everything not kept         (again: bring it all back). Hide / keep live in the menu.
 //   ⌘⇥ ⌘⇧⇥   while focused: cycle only what's still open — the system switcher is off until you come back
 import AppKit
 import Carbon.HIToolbox
@@ -170,7 +168,7 @@ final class Focus: NSObject, NSMenuDelegate {
         @discardableResult
         func add(_ title: String, _ action: Selector?, key: String = "", image: NSImage? = nil, to menu: NSMenu? = nil) -> NSMenuItem {
             let i = (menu ?? m).addItem(withTitle: title, action: action, keyEquivalent: key)
-            i.target = self; i.image = image; i.keyEquivalentModifierMask = [.control, .option, .command]
+            i.target = self; i.image = image; i.keyEquivalentModifierMask = [.command]
             return i
         }
         func header(_ t: String) {
@@ -178,15 +176,15 @@ final class Focus: NSObject, NSMenuDelegate {
         }
 
         if focused, let n = (sessions.first?["apps"] as? [Any])?.count {
-            add("Bring back \(n) apps", #selector(quitRest), key: "f", image: symbol("arrow.uturn.backward.circle"))
+            add("Bring back \(n) apps", #selector(quitRest), key: "e", image: symbol("arrow.uturn.backward.circle"))
             let left = stragglers()
             if !left.isEmpty {                                  // shown only when something is still eating memory
                 add("Force quit \(left.count) still running: " + left.compactMap(\.localizedName).joined(separator: ", "),
                     #selector(kill), image: symbol("exclamationmark.triangle"))
             }
         } else {
-            add("Focus — quit the rest", #selector(quitRest), key: "f", image: glyph(focused: true))
-            add("Focus — hide the rest", #selector(hideRest), key: "h", image: symbol("eye.slash"))
+            add("Focus — quit the rest", #selector(quitRest), key: "e", image: glyph(focused: true))
+            add("Focus — hide the rest", #selector(hideRest), image: symbol("eye.slash"))
         }
 
         m.addItem(.separator())
@@ -198,7 +196,6 @@ final class Focus: NSObject, NSMenuDelegate {
             let i = add(FileManager.default.displayName(atPath: path).replacingOccurrences(of: ".app", with: ""), #selector(flip), image: appIcon(path))
             i.representedObject = id; i.state = excluded.contains(id) ? .on : .off
         }
-        add("Toggle the app you're in", nil, key: "k").isEnabled = false
 
         if !sessions.isEmpty {
             m.addItem(.separator())
@@ -245,6 +242,6 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
     }
     return noErr
 }, 1, &spec, nil, nil)
-for (id, key) in [(1, kVK_ANSI_F), (2, kVK_ANSI_H), (3, kVK_ANSI_K)] { _ = hotkey(UInt32(id), key, controlKey | optionKey | cmdKey) }
+_ = hotkey(1, kVK_ANSI_E, cmdKey)                               // ⌘E: focus / bring back
 for sig in [SIGTERM, SIGINT, SIGHUP] { signal(sig) { _ in systemSwitcher(true); exit(0) } }   // never leave ⌘⇥ dead
 app.run()
