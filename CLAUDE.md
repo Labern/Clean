@@ -86,8 +86,15 @@ no build step, no dependencies.
   `CGSSetSymbolicHotKeyEnabled`, same as AltTab — re-enabled on every launch/quit/
   signal). Past sessions reopen from the menu. One Swift file, Carbon hotkeys, no
   permissions; `./focus/build.sh` builds and launches `Focus.app` (Mac only).
-  ⌘E quit/restore (user's pick, 2026-11-12); hide and keep-open are menu-only. Nothing is
-  hardcoded to stay open — the user's example of Claude was only an example.
+  ⌘⇧F start session / bring back; ⌘⇧E opens the menu (user's picks, 2026-11-12). Sessions quit apps
+  ONE AT A TIME, biggest first, normal quit (state saved, prompts honoured), wait until gone, never
+  forced; restore relaunches one at a time (Chrome with --restore-last-session). Menu rows show memory;
+  big button caption shows quits/frees/keeps live. "Never close" is a separate window (SwiftUI) — seeded
+  with Wispr Flow; system apps (/System/Library/CoreServices), menu-bar-only apps and Focus are always safe.
+  NEVER touch the system ⌘⇥ again: an earlier build disabled it via CGSSetSymbolicHotKeyEnabled and the
+  user lost ⌘⇥; launch now only re-enables it. Hiding OTHER apps from Dock/⌘⇥ is not possible cleanly:
+  _LSSetApplicationInformationItem returns 0 but is ignored for foreign pids (tested 2026-11-12); editing
+  Info.plist + re-sign would wipe the app's TCC grants. Claude is kept by default (seeded once).
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the

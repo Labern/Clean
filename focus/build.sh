@@ -34,6 +34,7 @@ else
   codesign --force --sign - "$APP"
 fi
 [ "$1" = "--ci" ] && exit 0
-pkill -x Focus || true
+pkill -x Focus || true; sleep 1; pkill -9 -x Focus || true   # an old build can hang on quit
 rm -rf /Applications/Focus.app && cp -R Focus.app /Applications/   # fixed location, so "Open at login" sticks
+cmp -s Focus.app/Contents/MacOS/Focus /Applications/Focus.app/Contents/MacOS/Focus || { echo "✗ install failed — /Applications/Focus.app is not this build"; exit 1; }
 open /Applications/Focus.app
