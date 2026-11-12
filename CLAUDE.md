@@ -132,6 +132,9 @@ no build step, no dependencies.
   re-applied at launch because a reinstall replaces the bundle. Signature still verifies with it attached.
   VERSIONING: semver in focus/VERSION (build.sh stamps it into Info.plist; menu shows it). CHANGELOG.md per release;
   tags focus-vX.Y.Z. Features on focus/feat-<name> branches cut from focus/main; fixes bump PATCH, features MINOR.
+  TESTS (user's rule): `focus/test.sh` = quick (~15 s, no apps touched) after EVERY major change; `focus/test.sh full`
+  (~7 min, all scenarios, restarts Focus once) only when needed — don't waste time/tokens. Human-readable report in
+  focus/docs/TEST-REPORT.md. Add a stress scenario for every bug fixed. Apps are matched by bundle id, not path.
   build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,

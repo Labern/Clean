@@ -635,7 +635,7 @@ final class Focus: NSObject, NSMenuDelegate {
         // Instant: the pill plays the moment the key goes down. The snapshot is grabbed in the background in the
         // same instant (the pill is still invisible then) and the quitting starts once it's on disk.
         pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: name ?? "Focus")
-        var record: Session = ["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }]
+        var record: Session = ["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "id": a.bundleIdentifier ?? "", "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }]
         // Started mid-restore: the apps that restore hadn't reached join this session, so End brings them back too.
         let have = Set(out.compactMap { $0.bundleURL?.path })
         let unreached = pendingRestore.filter { e in (e["path"] as? String).map { p in !have.contains(p) && !ws.runningApplications.contains { $0.bundleURL?.path == p } } ?? false }
@@ -731,7 +731,7 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         guard !out.isEmpty else { if restart { restartMac() }; return }
         sessions.insert(["date": Date(), "kind": "quit all",
-                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
+                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "id": a.bundleIdentifier ?? "", "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
         pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear")
         clearing = true; restartAfter = restart; refused = []
         queue = out.sorted { memory($0) > memory($1) }; total = queue.count
@@ -770,7 +770,7 @@ final class Focus: NSObject, NSMenuDelegate {
             guard run(a) == .alertFirstButtonReturn else { return }
         }
         sessions.insert(["date": Date(), "kind": "force quit",
-                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
+                         "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "id": a.bundleIdentifier ?? "", "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
         pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear")
         out.forEach { $0.forceTerminate() }
     }
@@ -823,7 +823,7 @@ final class Focus: NSObject, NSMenuDelegate {
         // open a missing app puts up a "can't be found" dialog.
         if let path = e["path"] as? String, FileManager.default.fileExists(atPath: path) {
             let hidden = e["hidden"] as? Bool ?? false
-            if let a = ws.runningApplications.first(where: { $0.bundleURL?.path == path }) {
+            if let a = ws.runningApplications.first(where: matches([e])) {
                 if !hidden { a.unhide() }
             } else {
                 let cfg = NSWorkspace.OpenConfiguration(); cfg.activates = false; cfg.hides = hidden
@@ -838,24 +838,33 @@ final class Focus: NSObject, NSMenuDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + (launched ? 0.7 : 0.05)) { self.relaunch(rest.dropFirst(), gen) }
     }
 
+    /// Is this running app one of a session's entries? By bundle id — paths have several spellings (/var vs
+    /// /private/var, moved or translocated apps) — falling back to the path for sessions saved before ids were kept.
+    func matches(_ entries: [[String: Any]]) -> (NSRunningApplication) -> Bool {
+        let ids = Set(entries.compactMap { $0["id"] as? String }.filter { !$0.isEmpty })
+        let paths = Set(entries.compactMap { $0["path"] as? String }.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path })
+        return { a in
+            if let id = a.bundleIdentifier, ids.contains(id) { return true }
+            return a.bundleURL.map { paths.contains($0.resolvingSymlinksInPath().path) } ?? false
+        }
+    }
     /// Session apps still open after their turn: usually a save prompt waiting for you.
     func stragglers() -> [NSRunningApplication] {
         guard focused, !hideMode else { return [] }
-        let waiting = Set(queue.map(\.processIdentifier))
-        let paths = Set((sessions.first?["apps"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String })
-        return ws.runningApplications.filter { paths.contains($0.bundleURL?.path ?? "") && !$0.isHidden && !protected($0) && !waiting.contains($0.processIdentifier) }
+        let waiting = Set(queue.map(\.processIdentifier)), inSession = matches(sessions.first?["apps"] as? [[String: Any]] ?? [])
+        return ws.runningApplications.filter { inSession($0) && !$0.isHidden && !protected($0) && !waiting.contains($0.processIdentifier) }
     }
     /// Session apps running under a different process than the one Focus quit: something reopened them
     /// (a login item, a helper, an updater). Different from a save prompt, and worth a different line.
     func reopened() -> [NSRunningApplication] {
         guard focused, !hideMode else { return [] }
         let entries = sessions.first?["apps"] as? [[String: Any]] ?? []
-        let quitPids = Set(entries.compactMap { $0["pid"] as? Int }), paths = Set(entries.compactMap { $0["path"] as? String })
+        let quitPids = Set(entries.compactMap { $0["pid"] as? Int }), inSession = matches(entries)
         guard !quitPids.isEmpty else { return [] }
         let waiting = Set(queue.map(\.processIdentifier))
         // Hidden or not: a relaunched app is using memory either way.
         return ws.runningApplications.filter {
-            paths.contains($0.bundleURL?.path ?? "") && !protected($0) && !waiting.contains($0.processIdentifier) && !quitPids.contains(Int($0.processIdentifier))
+            inSession($0) && !protected($0) && !waiting.contains($0.processIdentifier) && !quitPids.contains(Int($0.processIdentifier))
         }
     }
     @objc func quitAgain() { reopened().forEach { $0.terminate() } }

@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.2.1 — 2026-11-12 (branch focus/feat-shortcuts)
+
+- **Test suite:** `./test.sh` (quick, ~15 s, touches no apps — run after every major change) and `./test.sh full`
+  (~7 min, every scenario — run when needed). Both print a plain-English table and save docs/TEST-REPORT.md.
+  Stand-in app source now lives in tests/standins.swift.
+- Fix (found by the full suite): Focus recognised a session's apps by file path, which has several spellings
+  (/var vs /private/var, moved or translocated apps), so an app could be missed — e.g. one that reopened itself.
+  It now recognises apps by bundle ID, falling back to the path for older saved sessions.
+
 ## 0.2.0 — 2026-11-12 (branch focus/feat-shortcuts)
 
 - **Settings ▸ Shortcuts:** choose the keys. Start/End Session: ⌘⇧F (default), ⌃⌥F, ⌃⇧F, ⌃⌥⌘F; open the menu: ⌘⇧E
