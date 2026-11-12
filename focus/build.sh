@@ -20,7 +20,19 @@ cat > "$C/Info.plist" <<'EOF'
   <key>LSUIElement</key><true/>
 </dict></plist>
 EOF
-codesign --force -s - Focus.app
+xattr -cr Focus.app                     # iCloud-synced folders leave detritus codesign rejects
+APP=Focus.app; BUNDLE_ID=com.labern.focus; IDENTITY="${IDENTITY:-Focus Local Signing}"
+DEV_ID="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -1)"
+
+if [ -n "$DEV_ID" ]; then
+  codesign --force --options runtime --timestamp --sign "$DEV_ID" --identifier "$BUNDLE_ID" "$APP"
+  echo "› signed with Apple Developer ID ($DEV_ID) — trusted, notarizable"
+elif codesign --force --sign "$IDENTITY" --identifier "$BUNDLE_ID" "$APP" 2>/dev/null; then
+  echo "› signed with stable local identity ($IDENTITY)"
+else
+  echo "› ad-hoc signing (run setup-signing.sh for a stable identity)"
+  codesign --force --sign - "$APP"
+fi
 [ "$1" = "--ci" ] && exit 0
 pkill -x Focus || true
 rm -rf /Applications/Focus.app && cp -R Focus.app /Applications/   # fixed location, so "Open at login" sticks

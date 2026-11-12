@@ -86,7 +86,7 @@ no build step, no dependencies.
   `CGSSetSymbolicHotKeyEnabled`, same as AltTab — re-enabled on every launch/quit/
   signal). Past sessions reopen from the menu. One Swift file, Carbon hotkeys, no
   permissions; `./focus/build.sh` builds and launches `Focus.app` (Mac only).
-  ⌃⌥⌘L quit/restore, ⌃⌥⌘H hide/restore, ⌃⌥⌘K exclude the front app. Nothing is
+  ⌃⌥⌘F quit/restore, ⌃⌥⌘H hide/restore, ⌃⌥⌘K exclude the front app. Nothing is
   hardcoded to stay open — the user's example of Claude was only an example.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
