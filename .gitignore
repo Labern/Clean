@@ -43,3 +43,6 @@ paradokkusu/**/xcuserdata/
 paradokkusu/**/*.xcuserstate
 paradokkusu/build/
 gt7/tools/.osm-cache/
+
+# Later: local build output
+later/Later.app/
