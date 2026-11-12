@@ -94,8 +94,8 @@ no build step, no dependencies.
   NEVER touch the system ⌘⇥ again: an earlier build disabled it via CGSSetSymbolicHotKeyEnabled and the
   user lost ⌘⇥; launch now only re-enables it. Hiding OTHER apps from Dock/⌘⇥ is not possible cleanly:
   _LSSetApplicationInformationItem returns 0 but is ignored for foreign pids (tested 2026-11-12); editing
-  Info.plist + re-sign would wipe the app's TCC grants. Claude is kept by default (seeded once).
-  Claude's terminal is a normal toggleable row, auto-ticked once per app (claudeAutoKept) — user wants to be able to untick it (claudeHosts: ancestors of the `claude`
+  Info.plist + re-sign would wipe the app's TCC grants. (No seeds: Claude/Wispr defaults removed 2026-11-12.)
+  (Superseded 2026-11-12: Claude-terminal detection REMOVED — see "No user-specific hard-coding" below.) (claudeHosts: ancestors of the `claude`
   process, matched by proc_name/path — p_comm is the version string). Process lists come from sysctl
   KERN_PROC_ALL: proc_listallpids silently skipped processes.
   Snapshot: screencapture of the main display at session start → ~/Library/Application Support/Focus;
@@ -126,6 +126,11 @@ no build step, no dependencies.
   Icon colour: default for everyone is WHITE (template image); the user's own purple ring + green dot
   (A78BFA / 5FD7AF) is HIS saved setting, not the default. New users get one hint row ("Make the icon yours…")
   until any colour is picked (colourTipSeen).
+  NO USER-SPECIFIC HARD-CODING (user's rule): Focus is being built to sell/release. Nothing about the user's own
+  apps (Claude, Terminal, Wispr Flow, Mu…) lives in code, seeds or wording — protection comes only from saved
+  lists (Critical System Processes / keep-open) plus built-in safety for macOS system apps, menu-bar-only apps and
+  Focus. UI copy names apps from those lists (staysOpen()). His own setup lives in his defaults only.
+  Release polish: strip any stock-AI wording from every UI string before shipping.
   build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,

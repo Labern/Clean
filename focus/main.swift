@@ -6,7 +6,7 @@
 //   ⌘⇧F   start a session (quit everything not kept) · again: bring it all back
 //   ⌘⇧E   open the Focus menu: click apps to keep them for this session, then Start Session Now
 // Never touched, ever: system apps (/System/Library/CoreServices), menu bar apps, Focus itself, and the
-// user's Critical System Processes (seeded with Wispr Flow).
+// user's own saved Critical System Processes. Nothing about any particular user's apps is built in.
 // The system ⌘⇥ is never replaced or altered (user's rule: native only).
 import AppKit
 import Carbon.HIToolbox
@@ -56,10 +56,10 @@ struct Theme {
 let theme = Theme()
 let menuWidth: CGFloat = 320
 let sessionKey = "⌘⇧F"
-let claude = "com.anthropic.claudefordesktop", wispr = "com.electron.wispr-flow", chrome = "com.google.Chrome"
+let chrome = "com.google.Chrome"
 
 /// Every process with its parent and short name, read the way `ps` reads them (sysctl KERN_PROC_ALL).
-/// (proc_listallpids silently skipped processes, Claude's own among them.)
+/// (proc_listallpids silently skipped processes.)
 struct Proc { let pid: pid_t, ppid: pid_t, name: String }
 func processes() -> [Proc] {
     var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0], size = 0
@@ -95,23 +95,6 @@ func memoryByPid() -> [pid_t: UInt64] {
     return total
 }
 
-/// Every ancestor of a running Claude Code process (`claude` → shell → login → Terminal / iTerm / Ghostty…).
-/// The app among them is the terminal Claude is working in, and Focus must never close it.
-func claudeHosts() -> Set<pid_t> {
-    let all = processes()
-    var parent: [pid_t: pid_t] = [:], hosts = Set<pid_t>()
-    for p in all { parent[p.pid] = p.ppid }
-    var name = [CChar](repeating: 0, count: 256), path = [CChar](repeating: 0, count: 4096)
-    func isClaude(_ pid: pid_t) -> Bool {               // its full name, or its binary under …/claude/ (versions/2.1.x)
-        if proc_name(pid, &name, UInt32(name.count)) > 0, String(cString: name) == "claude" { return true }
-        return proc_pidpath(pid, &path, UInt32(path.count)) > 0 && String(cString: path).contains("/.local/share/claude/")
-    }
-    for p in all where p.name == "claude" || isClaude(p.pid) {
-        var up = p.ppid, hops = 0
-        while up > 1 && hops < 32 { hosts.insert(up); up = parent[up] ?? 1; hops += 1 }
-    }
-    return hosts
-}
 func gb(_ b: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(b), countStyle: .memory) }
 
 func hexColor(_ h: String) -> NSColor? {
@@ -430,7 +413,6 @@ final class Focus: NSObject, NSMenuDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     weak var button: BigButton?                                 // redrawn as rows change, so its caption is live
     var mem: [pid_t: UInt64] = [:]                              // refreshed each time the menu opens
-    var hosts = claudeHosts()                                   // terminals running Claude Code: refreshed before every decision
     var queue: [NSRunningApplication] = [], total = 0           // the slow, one-at-a-time quit in progress
     var clearing = false, restartAfter = false, refused: [String] = []   // Tools ▸ Quit All (and Restart)
     var waiting: [NSRunningApplication] = []                    // asked to quit, still open after `patience`: a save prompt
@@ -553,14 +535,6 @@ final class Focus: NSObject, NSMenuDelegate {
         if store != .standard { item.autosaveName = "focus-selftest"; item.isVisible = false } else { item.isVisible = true }
         let menu = NSMenu(); menu.delegate = self; menu.minimumWidth = menuWidth; item.menu = menu
         if !store.bool(forKey: "setUp") { keepWindows = true; store.set(true, forKey: "setUp") }
-        if !store.bool(forKey: "keepClaude") {                  // Claude starts kept (user's default for now); untick to drop it
-            if !excluded.contains(claude) { excluded.append(claude) }
-            store.set(true, forKey: "keepClaude")
-        }
-        if !store.bool(forKey: "neverCloseSeeded") {            // Wispr Flow must never be closed (user's rule)
-            if !neverClose.contains(wispr) { neverClose.append(wispr) }
-            store.set(true, forKey: "neverCloseSeeded")
-        }
         if store == .standard {                                 // the real Focus only — never a --selftest instance
             healSystemSwitcher()
         }
@@ -573,16 +547,6 @@ final class Focus: NSObject, NSMenuDelegate {
         a.bundleURL?.path.hasPrefix("/System/Library/CoreServices/") ?? true || a.bundleIdentifier == Bundle.main.bundleIdentifier
     }
     func protected(_ a: NSRunningApplication) -> Bool { system(a) || neverClose.contains(a.bundleIdentifier ?? "") }
-    /// The terminal Claude Code runs in starts out ticked to keep, once per app; after that the user decides.
-    func autoKeepClaudeHosts() {
-        var seen = store.stringArray(forKey: "claudeAutoKept") ?? []
-        for a in ws.runningApplications where hosts.contains(a.processIdentifier) && a.activationPolicy == .regular {
-            guard let id = a.bundleIdentifier, !seen.contains(id) else { continue }
-            if !excluded.contains(id) { excluded.append(id) }
-            seen.append(id)
-        }
-        store.set(seen, forKey: "claudeAutoKept")
-    }
 
     /// Dock / ⌘⇥ apps Focus may touch. Menu bar apps are `.accessory`: never listed, never touched.
     func apps() -> [NSRunningApplication] { ws.runningApplications.filter { $0.activationPolicy == .regular && !protected($0) } }
@@ -594,7 +558,6 @@ final class Focus: NSObject, NSMenuDelegate {
     // MARK: session
 
     func park(quit: Bool) {
-        hosts = claudeHosts(); autoKeepClaudeHosts()
         let out = leaving()
         guard !out.isEmpty else { return }
         // Instant: the pill plays the moment the key goes down. The snapshot is grabbed in the background in the
@@ -668,19 +631,18 @@ final class Focus: NSObject, NSMenuDelegate {
     }
 
     /// Tools ▸ Quit All Apps (and optionally restart): everything goes except Critical System Processes, Focus and
-    /// the terminal Claude is in — "keep open" ticks don't apply. Same slow, safe quit; saved as a Past session.
+    /// nothing else — "keep open" ticks don't apply. Same slow, safe quit; saved as a Past session.
     func quitAll(restart: Bool, only: Set<String>? = nil, confirm: Bool = true) {
         guard !focused, !clearing else { return }
-        hosts = claudeHosts()
         let out: [NSRunningApplication] = ws.runningApplications.filter { app in
-            app.activationPolicy == .regular && !protected(app) && !hosts.contains(app.processIdentifier)
+            app.activationPolicy == .regular && !protected(app)
                 && (only?.contains(app.bundleIdentifier ?? "") ?? true)
         }
         if confirm {
             let a = NSAlert()
             a.messageText = out.isEmpty ? (restart ? "Restart your Mac?" : "Nothing to quit") : "Quit \(apps(out.count))\(restart ? " and restart?" : "?")"
             a.informativeText = (out.isEmpty ? "" : out.compactMap(\.localizedName).joined(separator: ", ") + ".\n\n")
-                + "Critical System Processes and the terminal Claude is running in stay open. Apps with unsaved work ask first; nothing is forced."
+                + staysOpen() + "Apps with unsaved work ask first; nothing is forced."
                 + (restart ? " Your Mac restarts once everything has quit." : " You can reopen them all from Past sessions.")
             if out.isEmpty && !restart { a.addButton(withTitle: "OK"); NSApp.activate(ignoringOtherApps: true); a.runModal(); return }
             a.addButton(withTitle: restart ? "Quit All & Restart" : "Quit All"); a.addButton(withTitle: "Cancel")
@@ -695,6 +657,11 @@ final class Focus: NSObject, NSMenuDelegate {
         queue = out.sorted { memory($0) > memory($1) }; total = queue.count
         quitNext()
     }
+    /// Says which of the user's own Critical System Processes are open and will stay — named from their list, never assumed.
+    func staysOpen() -> String {
+        let names = ws.runningApplications.filter { $0.activationPolicy == .regular && neverClose.contains($0.bundleIdentifier ?? "") }.compactMap(\.localizedName)
+        return names.isEmpty ? "" : names.joined(separator: ", ") + (names.count == 1 ? " stays" : " stay") + " open (Critical System Processes). "
+    }
     func tell(_ title: String, _ text: String) {
         let a = NSAlert(); a.messageText = title; a.informativeText = text; a.addButton(withTitle: "OK")
         NSApp.activate(ignoringOtherApps: true); a.runModal()
@@ -702,17 +669,16 @@ final class Focus: NSObject, NSMenuDelegate {
     /// Tools ▸ Force Quit All: the blunt one. Same spared set; unsaved work is lost, so it asks first, in red.
     func forceQuitAll(only: Set<String>? = nil, confirm: Bool = true) {
         guard !focused, !clearing else { return }
-        hosts = claudeHosts()
         let out: [NSRunningApplication] = ws.runningApplications.filter { app in
-            app.activationPolicy == .regular && !protected(app) && !hosts.contains(app.processIdentifier)
+            app.activationPolicy == .regular && !protected(app)
                 && (only?.contains(app.bundleIdentifier ?? "") ?? true)
         }
-        guard !out.isEmpty else { if confirm { tell("Nothing to force quit", "Only Critical System Processes and Claude's terminal are open.") }; return }
+        guard !out.isEmpty else { if confirm { tell("Nothing to force quit", "Only macOS's own apps and your Critical System Processes are open.") }; return }
         if confirm {
             let a = NSAlert(); a.alertStyle = .critical
             a.messageText = "Force quit \(apps(out.count))?"
             a.informativeText = out.compactMap(\.localizedName).joined(separator: ", ")
-                + ".\n\nUnsaved work in these apps will be lost. Critical System Processes and Claude's terminal stay open. You can reopen them all from Past sessions."
+                + ".\n\nUnsaved work in these apps will be lost. " + staysOpen() + "You can reopen them all from Past sessions."
             a.addButton(withTitle: "Force Quit All"); a.addButton(withTitle: "Cancel")
             a.buttons[0].hasDestructiveAction = true
             NSApp.activate(ignoringOtherApps: true)
@@ -862,7 +828,7 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
-        mem = memoryByPid(); hosts = claudeHosts(); autoKeepClaudeHosts()
+        mem = memoryByPid()
         if let status { header(status) }
         if focused, let shot = sessions.first?["shot"] as? String, let img = NSImage(contentsOfFile: shot) {
             header("What you were doing — click to open")
@@ -877,8 +843,7 @@ final class Focus: NSObject, NSMenuDelegate {
         let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
         for (id, p) in running + idle {
             let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
-            let claudeHere = ws.runningApplications.contains { $0.bundleIdentifier == id && hosts.contains($0.processIdentifier) }
-            let detail = [claudeHere ? "Claude is here" : nil, size > 0 ? gb(size) : nil].compactMap { $0 }.joined(separator: " · ")
+            let detail = size > 0 ? gb(size) : ""
             view(AppRow(appName(p), appIcon(p), detail: detail, on: excluded.contains(id)) { [unowned self] in self.flip(\.excluded, id) })
         }
 
@@ -928,7 +893,8 @@ final class Focus: NSObject, NSMenuDelegate {
         add("Open Activity Monitor", #selector(openActivityMonitor), image: symbol("waveform.path.ecg"), to: tm)
         add("Open System Settings", #selector(openSystemSettings), image: symbol("gearshape.2"), to: tm)
         tm.addItem(.separator())
-        add(busy ? "End the session first" : "Keeps Critical System Processes and Claude's terminal", nil, to: tm).isEnabled = false
+        let kept = neverClose.compactMap(path).map(appName)
+        add(busy ? "End the session first" : kept.isEmpty ? "Add apps to Critical System Processes to keep them" : "Keeps " + kept.joined(separator: ", "), nil, to: tm).isEnabled = false
         tools.submenu = tm
         let settings = add("Settings", nil, image: symbol("gearshape")), sub = NSMenu()
         let two = { (a: NSColor?, b: NSColor?) -> NSImage in      // a mini icon in two colours, for menu rows
@@ -1018,7 +984,7 @@ struct NeverView: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Critical System Processes").font(.system(size: 20, weight: .semibold))
-                Text("Focus never quits or hides the apps switched on here — things that must always run, like Wispr Flow or Mu. macOS's own apps, menu bar–only apps and Focus itself are always safe.")
+                Text("Focus never quits or hides the apps switched on here — the ones that must always run. macOS's own apps, menu bar–only apps and Focus itself are always safe.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             List(m.entries) { e in
