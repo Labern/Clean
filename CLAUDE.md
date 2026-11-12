@@ -17,7 +17,6 @@ For the kittens project:
 - Code branch: https://github.com/Labern/Clean/tree/kittens-v2
 For PARADOXICA (the hub website):
 - https://paradoxica.uk (also https://paradoxica.co.uk)
-- Source: https://github.com/Labern/Clean/tree/gh-pages/paradoxica
 For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
