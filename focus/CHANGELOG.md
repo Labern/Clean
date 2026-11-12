@@ -4,6 +4,22 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.1.2 — 2026-11-12 (branch focus/feat-modes)
+
+Bug hunt — the whole of main.swift read through; eight real defects fixed, each with a stress scenario (19–22):
+- Deleting the live session from Past sessions made End Session reopen an older session's apps. Delete is now
+  disabled for it; it's marked "· now", and its Open item reads "End Session and Reopen".
+- "Open all" on an old session silently ended the live one. It now just opens that session's apps.
+- ⌘⇧F during Quit All & Restart started a session mid-quit, and the Mac could then restart mid-session. Now ignored.
+- Ending a Mode's session early left the mode's app list active, so the next ordinary session quit the wrong apps;
+  the "waiting for you to save" note lingered too. End Session now clears both.
+- A session started while the last one was still being restored had apps reopened into it — and the apps that
+  restore hadn't reached were lost. Restores now stop when a new session starts, and their unreached apps join it.
+- Ending a session within the first second (before the snapshot finished) could hide apps afterwards. Fixed.
+- No display (lid shut, screens off) would crash Focus when placing the pop-up. Fixed.
+- Confirmation dialogs could open behind other windows. They float in front now.
+- Restoring no longer waits 0.7 s on apps that are already open.
+
 ## 0.1.1 — 2026-11-12 (branch focus/feat-modes)
 
 - Fix: hovering Settings (or any submenu) showed a copy of the whole menu instead of its own items — a side effect

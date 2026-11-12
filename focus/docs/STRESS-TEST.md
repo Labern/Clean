@@ -1,4 +1,4 @@
-# Focus — stress test (0.0.4, 2026-11-12)
+# Focus — stress test (0.0.4, updated for 0.1.2, 2026-11-12)
 
 How it was run: `Focus --selftest-stress` drives Focus's real code paths through each scenario, one after
 another, with its own settings store. Only TextEdit, Calculator and throwaway stand-in apps were ever quit or
@@ -38,6 +38,12 @@ quiet first. Run a subset with `--only=5,8`.
 | 11 | Two or three Focus launches at once | PASS after fix — always exactly one |
 | 12 | Open at login on → off → on | PASS — macOS registers it; your setting is back where it was (on) |
 | 16 | Menu speed, every process on the Mac | PASS — 26–28 ms per open |
+| 17 | Modes: start, rename, End | PASS |
+| 18 | Submenus keep their own items when they open | PASS (0.1.1 regression guard) |
+| 19 | Ending a mode early leaves nothing behind | PASS (0.1.2 fix) |
+| 20 | ⌘⇧F during Quit All & Restart is ignored | PASS (0.1.2 fix) |
+| 21 | Live session can't be deleted; old Open all doesn't end it | PASS (0.1.2 fix) |
+| 22 | New session mid-restore: nothing reopened into it, nothing lost | PASS (0.1.2 fix) |
 | — | App stuck on a save prompt (earlier test) | PASS — queue moves on after 8 s, app brought forward |
 
 ---

@@ -315,7 +315,7 @@ final class SessionPill {
 
     func play(start: Bool, icons: [NSImage], target: NSPoint, label: String) {
         timer?.invalidate(); win?.orderOut(nil)
-        let screen = NSScreen.screens.first { $0.frame.contains(target) } ?? NSScreen.main!
+        guard let screen = NSScreen.screens.first(where: { $0.frame.contains(target) }) ?? NSScreen.main ?? NSScreen.screens.first else { return }   // no display: skip the show
         let w = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         w.isOpaque = false; w.backgroundColor = .clear; w.hasShadow = false; w.ignoresMouseEvents = true
         w.level = .statusBar; w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
@@ -424,7 +424,9 @@ final class Focus: NSObject, NSMenuDelegate {
     var queue: [NSRunningApplication] = [], total = 0           // the slow, one-at-a-time quit in progress
     var clearing = false, restartAfter = false, refused: [String] = []   // Tools ▸ Quit All (and Restart)
     var waiting: [NSRunningApplication] = []
-    var modeKeep: Set<String>?                                  // while a mode's session is quitting: the mode's apps                    // asked to quit, still open after `patience`: a save prompt
+    var modeKeep: Set<String>?                                  // while a mode's session is quitting: the mode's apps
+    var generation = 0                                          // bumped by every start and end: stale restores / snapshots stop
+    var pendingRestore: [[String: Any]] = []                    // apps an in-progress restore hasn't reopened yet
     var patience: TimeInterval = 8
     var restartMac: () -> Void = {                              // the --selftest swaps this for a print
         let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -436,7 +438,8 @@ final class Focus: NSObject, NSMenuDelegate {
     /// Where Focus's own menu bar icon is on screen: the apps fly into it and back out of it.
     var iconPoint: NSPoint {
         if let f = item.button?.window?.frame, f.width > 0 { return NSPoint(x: f.midX, y: f.midY) }
-        let s = NSScreen.main!.frame; return NSPoint(x: s.maxX - 60, y: s.maxY - 12)
+        guard let s = (NSScreen.main ?? NSScreen.screens.first)?.frame else { return .zero }   // no display (lid shut): no crash
+        return NSPoint(x: s.maxX - 60, y: s.maxY - 12)
     }
     var neverWindow: NSWindow?
     let when: DateFormatter = {
@@ -598,16 +601,23 @@ final class Focus: NSObject, NSMenuDelegate {
             }
         }
         guard !out.isEmpty else { return }
+        generation += 1; let gen = generation
         modeKeep = keep
         let name = mode?["name"] as? String
         // Instant: the pill plays the moment the key goes down. The snapshot is grabbed in the background in the
         // same instant (the pill is still invisible then) and the quitting starts once it's on disk.
         pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: name ?? "Focus")
         var record: Session = ["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }]
+        // Started mid-restore: the apps that restore hadn't reached join this session, so End brings them back too.
+        let have = Set(out.compactMap { $0.bundleURL?.path })
+        let unreached = pendingRestore.filter { e in (e["path"] as? String).map { p in !have.contains(p) && !ws.runningApplications.contains { $0.bundleURL?.path == p } } ?? false }
+        if !unreached.isEmpty { record["apps"] = (record["apps"] as? [[String: Any]] ?? []) + unreached }
+        pendingRestore = []
         if let name { record["mode"] = name; record["name"] = name }
         sessions.insert(record, at: 0)
         focused = true
         let go = { [self] in
+            guard generation == gen, focused else { return }     // ended (or restarted) before the snapshot finished
             if !quit { out.forEach { $0.hide() }; return }
             queue = out.sorted { memory($0) > memory($1) }; total = queue.count   // biggest first: memory comes back soonest
             quitNext()
@@ -687,10 +697,9 @@ final class Focus: NSObject, NSMenuDelegate {
             a.informativeText = (out.isEmpty ? "" : out.compactMap(\.localizedName).joined(separator: ", ") + ".\n\n")
                 + staysOpen() + "Apps with unsaved work ask first; nothing is forced."
                 + (restart ? " Your Mac restarts once everything has quit." : " You can reopen them all from Past sessions.")
-            if out.isEmpty && !restart { a.addButton(withTitle: "OK"); NSApp.activate(ignoringOtherApps: true); a.runModal(); return }
+            if out.isEmpty && !restart { a.addButton(withTitle: "OK"); _ = run(a); return }
             a.addButton(withTitle: restart ? "Quit All & Restart" : "Quit All"); a.addButton(withTitle: "Cancel")
-            NSApp.activate(ignoringOtherApps: true)
-            guard a.runModal() == .alertFirstButtonReturn else { return }
+            guard run(a) == .alertFirstButtonReturn else { return }
         }
         guard !out.isEmpty else { if restart { restartMac() }; return }
         sessions.insert(["date": Date(), "kind": "quit all",
@@ -707,7 +716,13 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     func tell(_ title: String, _ text: String) {
         let a = NSAlert(); a.messageText = title; a.informativeText = text; a.addButton(withTitle: "OK")
-        NSApp.activate(ignoringOtherApps: true); a.runModal()
+        _ = run(a)
+    }
+    /// Every dialog goes through here: a menu bar app is often refused activation, so it floats in front regardless.
+    func run(_ a: NSAlert) -> NSApplication.ModalResponse {
+        a.window.level = .floating
+        NSApp.activate(ignoringOtherApps: true)
+        return a.runModal()
     }
     /// Tools ▸ Force Quit All: the blunt one. Same spared set; unsaved work is lost, so it asks first, in red.
     func forceQuitAll(only: Set<String>? = nil, confirm: Bool = true) {
@@ -724,8 +739,7 @@ final class Focus: NSObject, NSMenuDelegate {
                 + ".\n\nUnsaved work in these apps will be lost. " + staysOpen() + "You can reopen them all from Past sessions."
             a.addButton(withTitle: "Force Quit All"); a.addButton(withTitle: "Cancel")
             a.buttons[0].hasDestructiveAction = true
-            NSApp.activate(ignoringOtherApps: true)
-            guard a.runModal() == .alertFirstButtonReturn else { return }
+            guard run(a) == .alertFirstButtonReturn else { return }
         }
         sessions.insert(["date": Date(), "kind": "force quit",
                          "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
@@ -744,11 +758,15 @@ final class Focus: NSObject, NSMenuDelegate {
 
     /// Relaunch or unhide every app in the session, one at a time, windows restored; hidden ones stay hidden.
     func open(_ s: Session) {
-        queue = []; status = nil; focused = false
+        generation += 1
+        queue = []; total = 0; status = nil; modeKeep = nil; waiting = []   // nothing from the ended session lingers
+        focused = false
         pill.play(start: false, icons: (s["apps"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String }.map { ws.icon(forFile: $0) },
                   target: iconPoint, label: "Back")
-        relaunch(ArraySlice(s["apps"] as? [[String: Any]] ?? []))
+        relaunch(ArraySlice(s["apps"] as? [[String: Any]] ?? []), generation)
     }
+    /// Past sessions ▸ Open all on an OLD session just opens its apps; the live session (if any) carries on.
+    func openApps(_ s: Session) { relaunch(ArraySlice(s["apps"] as? [[String: Any]] ?? []), generation) }
 
     /// The whole main display, silently, via the system's own screencapture — off the main thread, so nothing
     /// waits on it. Only called once Screen Recording is already granted (it would prompt otherwise).
@@ -768,8 +786,11 @@ final class Focus: NSObject, NSMenuDelegate {
         let names = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { $0.hasPrefix("session-") }.sorted()
         for name in names.dropLast(2) { try? FileManager.default.removeItem(at: folder.appendingPathComponent(name)) }
     }
-    func relaunch(_ rest: ArraySlice<[String: Any]>) {
-        guard let e = rest.first else { return }
+    func relaunch(_ rest: ArraySlice<[String: Any]>, _ gen: Int) {
+        guard gen == generation else { return }                 // a new session started: stop reopening into it
+        guard let e = rest.first else { pendingRestore = []; return }
+        pendingRestore = Array(rest.dropFirst())
+        var launched = false
         // An app deleted or moved since it was parked (or on an ejected drive) is skipped quietly: asking macOS to
         // open a missing app puts up a "can't be found" dialog.
         if let path = e["path"] as? String, FileManager.default.fileExists(atPath: path) {
@@ -782,9 +803,11 @@ final class Focus: NSObject, NSMenuDelegate {
                 // a restored YouTube tab must not start blaring (user's rule).
                 if Bundle(path: path)?.bundleIdentifier == chrome { cfg.arguments = ["--restore-last-session", "--autoplay-policy=user-gesture-required"] }
                 ws.openApplication(at: URL(fileURLWithPath: path), configuration: cfg)
+                launched = true
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { self.relaunch(rest.dropFirst()) }
+        // Space out real launches; an app that was already open costs no wait.
+        DispatchQueue.main.asyncAfter(deadline: .now() + (launched ? 0.7 : 0.05)) { self.relaunch(rest.dropFirst(), gen) }
     }
 
     /// Session apps still open after their turn: usually a save prompt waiting for you.
@@ -811,6 +834,7 @@ final class Focus: NSObject, NSMenuDelegate {
 
     func toggle() {
         item.menu?.cancelTracking()
+        if clearing { NSSound.beep(); return }                  // Quit All (& Restart) in progress: never start a session inside it
         if !focused { return park(quit: !hideMode) }
         if let s = sessions.first { open(s) } else { focused = false }
     }
@@ -856,9 +880,8 @@ final class Focus: NSObject, NSMenuDelegate {
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
         field.stringValue = value; field.placeholderString = placeholder; a.accessoryView = field
         a.addButton(withTitle: "Save"); a.addButton(withTitle: "Cancel")
-        a.window.level = .floating; a.window.initialFirstResponder = field
-        NSApp.activate(ignoringOtherApps: true)
-        guard a.runModal() == .alertFirstButtonReturn else { return nil }
+        a.window.initialFirstResponder = field
+        guard run(a) == .alertFirstButtonReturn else { return nil }
         let v = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         return v.isEmpty ? nil : v
     }
@@ -908,8 +931,16 @@ final class Focus: NSObject, NSMenuDelegate {
         return img
     }
 
-    @objc func reopen(_ s: NSMenuItem) { open(sessions[s.tag]) }
-    @objc func forget(_ s: NSMenuItem) { sessions.remove(at: s.tag) }
+    /// The live session is sessions[0] while focused: opening it = End Session; it can't be deleted mid-session.
+    func isLive(_ n: Int) -> Bool { focused && n == 0 }
+    @objc func reopen(_ s: NSMenuItem) {
+        guard sessions.indices.contains(s.tag) else { return }
+        if isLive(s.tag) { open(sessions[0]) } else { openApps(sessions[s.tag]) }
+    }
+    @objc func forget(_ s: NSMenuItem) {
+        guard sessions.indices.contains(s.tag), !isLive(s.tag) else { return }
+        sessions.remove(at: s.tag)
+    }
     @objc func snaps() {
         if !CGPreflightScreenCaptureAccess() { snapshots = true; CGRequestScreenCaptureAccess(); return }   // the one deliberate ask
         snapshots.toggle()
@@ -1054,7 +1085,8 @@ final class Focus: NSObject, NSMenuDelegate {
                 let list = s["apps"] as? [[String: Any]] ?? []
                 let date = (s["date"] as? Date).map { when.string(from: $0) } ?? "?"
                 let title = (s["name"] as? String).map { "\($0) · \(date)" } ?? "\(date) · \(apps(list.count))" + ((s["kind"] as? String).map { " · " + $0 } ?? "")
-                let i = add(title, nil, to: sub), one = NSMenu()
+                let i = add(title + (isLive(n) ? " · now" : ""), nil, to: sub), one = NSMenu()
+                one.autoenablesItems = false
                 // Hovering a session opens this: its snapshot first, so you see where you were.
                 if let shot = s["shot"] as? String, FileManager.default.fileExists(atPath: shot), let img = NSImage(contentsOfFile: shot) {
                     let w = menuWidth - 28, h = (w * img.size.height / max(img.size.width, 1)).rounded()
@@ -1063,10 +1095,11 @@ final class Focus: NSObject, NSMenuDelegate {
                 }
                 for p in list.compactMap({ $0["path"] as? String }) { add(appName(p), nil, image: appIcon(p), to: one) }
                 one.addItem(.separator())
-                add("Open all", #selector(reopen), image: symbol("arrow.up.forward.app"), to: one).tag = n
+                add(isLive(n) ? "End Session and Reopen" : "Open all", #selector(reopen), image: symbol("arrow.up.forward.app"), to: one).tag = n
                 add("Rename…", #selector(renameSession(_:)), image: symbol("pencil"), to: one).tag = n
                 add("Save as Mode…", #selector(sessionToMode(_:)), image: symbol("square.stack"), to: one).tag = n
-                add("Delete", #selector(forget), image: symbol("trash"), to: one).tag = n
+                let del = add("Delete", #selector(forget), image: symbol("trash"), to: one)
+                del.tag = n; del.isEnabled = !isLive(n)                 // deleting the live session would lose its restore
                 i.submenu = one
             }
             past.submenu = sub
@@ -1267,7 +1300,7 @@ if CommandLine.arguments.contains("--pill-demo") {          // watch the start a
     let icons = ["com.google.Chrome", "md.obsidian", "com.apple.iWork.Keynote", "com.apple.Preview", "com.readdle.SparkDesktop", "com.openai.chat"]
         .compactMap { ws.urlForApplication(withBundleIdentifier: $0) }.map { ws.icon(forFile: $0.path) }
     // `--pill-demo X Y`: the menu bar icon's centre in top-left screen points (as Accessibility reports it).
-    let a = CommandLine.arguments, i = a.firstIndex(of: "--pill-demo")!, s = NSScreen.main!.frame
+    let a = CommandLine.arguments, i = a.firstIndex(of: "--pill-demo")!, s = (NSScreen.main ?? NSScreen.screens[0]).frame
     let x = a.count > i + 2 ? Double(a[i + 1]) ?? Double(s.maxX - 560) : Double(s.maxX - 560), y = a.count > i + 2 ? Double(a[i + 2]) ?? 12 : 12
     let target = NSPoint(x: x, y: Double(s.maxY) - y)
     p.play(start: true, icons: icons, target: target, label: "Focus")
@@ -1477,6 +1510,71 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
             if before != after || after.contains("Start New Session") { ok = false; notes.append("\(name) changed") }
         }
         done(ok, notes.isEmpty ? "Settings, Tools, Past sessions unchanged on open" : notes.joined(separator: ", "))
+    }))
+    steps.append(("19. ending a mode early leaves nothing behind (next session uses the ticks, no stale save-prompt note)", { done in
+        launch(edit) { launch(calc) {
+            t.park(quit: true, mode: ["name": "Test", "apps": [String]()], limit: [edit, calc])
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                t.toggle()                                        // End, mid-queue
+                let clean = t.modeKeep == nil && t.waiting.isEmpty && t.queue.isEmpty && t.status == nil
+                waitUntil(12, { !running(edit).isEmpty && !running(calc).isEmpty }) { back in
+                    done(clean && back, "mode list cleared: \(t.modeKeep == nil), waiting cleared: \(t.waiting.isEmpty), apps back: \(back)")
+                }
+            }
+        } }
+    }))
+    steps.append(("20. ⌘⇧F during Quit All & Restart is ignored; restart only after the clear-out", { done in
+        launch(calc) {
+            var restarted = false
+            t.restartMac = { restarted = true }
+            t.quitAll(restart: true, only: [calc], confirm: false)
+            t.toggle()                                            // ⌘⇧F mid clear-out
+            let ignored = !t.focused
+            waitUntil(15, { restarted }) { r in
+                t.restartMac = {}
+                launch(calc) { done(ignored && r && !t.focused, "⌘⇧F ignored: \(ignored); restart after clear-out: \(r); in session: \(t.focused)") }
+            }
+        }
+    }))
+    steps.append(("21. the live session can't be deleted; Open all on an old one doesn't end it", { done in
+        launch(calc) {
+            t.sessions = [["date": Date(), "apps": [[String: Any]]()]]  // an older session
+            guard scope([calc]) else { return done(false, "scope") }
+            t.park(quit: true)
+            waitUntil(10, { t.queue.isEmpty && running(calc).isEmpty }) { _ in
+                let m = NSMenu(); t.menuNeedsUpdate(m)
+                let live = m.items.first { $0.title == "Past sessions" }?.submenu?.items.first?.submenu
+                let delOff = live?.items.first { $0.title == "Delete" }?.isEnabled == false
+                let before = t.sessions.count
+                let fake = NSMenuItem(); fake.tag = 0; t.forget(fake)    // try to delete the live one anyway
+                fake.tag = 1; t.reopen(fake)                           // Open all on the old one
+                let stillLive = t.focused && t.sessions.count == before
+                t.toggle()
+                waitUntil(10, { !running(calc).isEmpty }) { back in
+                    done(delOff && stillLive && back, "Delete disabled on live: \(delOff); live session survives delete + old Open all: \(stillLive); End restores: \(back)")
+                }
+            }
+        }
+    }))
+    steps.append(("22. a new session started mid-restore doesn't get apps reopened into it", { done in
+        launch(edit) { launch(calc) {
+            guard scope([edit, calc]) else { return done(false, "scope") }
+            t.park(quit: true)
+            waitUntil(15, { t.queue.isEmpty && running(edit).isEmpty && running(calc).isEmpty }) { _ in
+                t.toggle()                                        // End: restore begins
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    _ = scope([edit, calc])
+                    t.park(quit: true, limit: [edit, calc])       // new session, mid-restore
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 6) {
+                        let clean = t.focused && running(edit).isEmpty && running(calc).isEmpty
+                        t.toggle()
+                        waitUntil(12, { !running(edit).isEmpty && !running(calc).isEmpty }) { back in
+                            done(clean && back, "nothing reopened into the new session: \(clean); End restores both: \(back)")
+                        }
+                    }
+                }
+            }
+        } }
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }
