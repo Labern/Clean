@@ -3,6 +3,7 @@
 #   ./build.sh            build + install + launch
 #   ./build.sh --ci       build only (used by GitHub Actions)
 set -e
+trap 'echo "✗ build.sh failed at line $LINENO (if replacing /Applications/Focus.app: allow your terminal in Privacy & Security ▸ App Management)" >&2' ERR
 cd "$(dirname "$0")"
 C=Focus.app/Contents
 rm -rf Focus.app && mkdir -p "$C/MacOS"
