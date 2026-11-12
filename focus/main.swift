@@ -479,11 +479,19 @@ final class Focus: NSObject, NSMenuDelegate {
     /// Both "" = default (a template image, black/white like every other menu bar icon).
     var iconColor: String {
         get { store.string(forKey: "iconColor") ?? "" }
-        set { store.set(newValue, forKey: "iconColor"); redrawIcon() }
+        set { store.set(newValue, forKey: "iconColor"); store.set(true, forKey: "colourTipSeen"); redrawIcon() }
     }
     var iconColor2: String {
         get { store.string(forKey: "iconColor2") ?? "" }
-        set { store.set(newValue, forKey: "iconColor2"); redrawIcon() }
+        set { store.set(newValue, forKey: "iconColor2"); store.set(true, forKey: "colourTipSeen"); redrawIcon() }
+    }
+    /// A new user sees the default (white) icon and one quiet hint that it can be theirs; gone once any colour is picked.
+    var showColourTip: Bool { !store.bool(forKey: "colourTipSeen") && iconColor.isEmpty && iconColor2.isEmpty }
+    @objc func colourTip() { store.set(true, forKey: "colourTipSeen"); openWheel(dot: false) }
+    static let rainbow: NSImage = NSImage(size: NSSize(width: 14, height: 14), flipped: false) { r in
+        let dot = NSBezierPath(ovalIn: r.insetBy(dx: 1, dy: 1)); dot.addClip()
+        NSGradient(colors: ["FF5F5F", "FFD75F", "5FD7AF", "5FAFFF", "A78BFA", "FF87FF"].compactMap(hexColor))?.draw(in: r, angle: 0)
+        return true
     }
     var ringColor: NSColor? { hexColor(iconColor) }
     var dotColor: NSColor? { hexColor(iconColor2) ?? ringColor }
@@ -891,6 +899,10 @@ final class Focus: NSObject, NSMenuDelegate {
         }
 
         m.addItem(.separator())
+        if showColourTip {
+            add("Make the icon yours — pick its colours…", #selector(colourTip), image: Focus.rainbow)
+            m.addItem(.separator())
+        }
         if !sessions.isEmpty {
             let past = add("Past sessions", nil, image: symbol("clock.arrow.circlepath")), sub = NSMenu()
             for (n, s) in sessions.enumerated() {
@@ -926,7 +938,7 @@ final class Focus: NSObject, NSMenuDelegate {
         cm.minimumWidth = 300
         func hdr(_ t: String) { if #available(macOS 14, *) { cm.addItem(.sectionHeader(title: t)) } else { add(t, nil, to: cm).isEnabled = false } }
         hdr("Presets")
-        let def = add("Default", #selector(pickPreset(_:)), image: swatch(nil), to: cm); def.representedObject = ["", ""]
+        let def = add("Default (white)", #selector(pickPreset(_:)), image: swatch(nil), to: cm); def.representedObject = ["", ""]
         def.state = iconColor.isEmpty && iconColor2.isEmpty ? .on : .off
         let acc = hexString(.controlAccentColor)
         let sys = add("System Accent", #selector(pickPreset(_:)), image: two(.controlAccentColor, .controlAccentColor), to: cm)

@@ -123,6 +123,9 @@ no build step, no dependencies.
   --autoplay-policy=user-gesture-required — restored YouTube must not autoplay.
   Signing order: Developer ID → Apple Development (stable TCC on this Mac) → local → ad-hoc. Self-test copies
   hide their status item under autosaveName "focus-selftest" — hiding under the default name hid the REAL icon.
+  Icon colour: default for everyone is WHITE (template image); the user's own purple ring + green dot
+  (A78BFA / 5FD7AF) is HIS saved setting, not the default. New users get one hint row ("Make the icon yours…")
+  until any colour is picked (colourTipSeen).
   build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
