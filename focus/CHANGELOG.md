@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.0.3 — 2026-11-12
+
+- Monochrome menu, matching the product page: the Start New Session pill and the kept/locked marks are white with
+  black in dark mode (near-black #171A20 with white in light mode). Colour now belongs to the icon you choose.
+- Force Quit All Apps… is red — the only red in the menu, because it's the only hazard.
+
 ## 0.0.2 — 2026-11-12
 
 - The big button now reads **Start New Session**, and underneath it says in plain English what will happen:

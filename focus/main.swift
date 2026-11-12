@@ -37,8 +37,10 @@ func symbol(_ name: String, _ colors: [NSColor]? = nil) -> NSImage? {
 
 /// Every colour the custom menu views use. One token set: swap it to re-theme the whole menu.
 struct Theme {
-    var accent = NSColor.controlAccentColor
-    var onAccent = NSColor.white
+    // Monochrome, like the drawing on the product page: colour belongs to the icon the user picks, not the menu.
+    var accent = NSColor(name: "focusAccent") { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .white : hexColor("171A20")! }
+    var onAccent = NSColor(name: "focusOnAccent") { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .black : .white }
+    var hazard = NSColor.systemRed                                  // red only for the destructive action
     var hover = NSColor.labelColor.withAlphaComponent(0.08)
     var text = NSColor.labelColor
     var faint = NSColor.secondaryLabelColor
@@ -253,11 +255,11 @@ final class BigButton: HoverView {
     }
     override func draw(_ r: NSRect) {
         let pill = NSRect(x: 12, y: bounds.height - 46, width: bounds.width - 24, height: 38)
-        (down ? theme.accent.blended(withFraction: 0.2, of: .black) : hover ? theme.accent.blended(withFraction: 0.1, of: .white) : theme.accent)?.setFill()
+        (down ? theme.accent.withAlphaComponent(0.7) : hover ? theme.accent.withAlphaComponent(0.88) : theme.accent).setFill()
         NSBezierPath(roundedRect: pill, xRadius: 9, yRadius: 9).fill()
         let big: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: theme.onAccent]
         (title() as NSString).draw(at: NSPoint(x: pill.minX + 14, y: pill.midY - 9), withAttributes: big)
-        let key: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: theme.onAccent.withAlphaComponent(0.75)]
+        let key: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: theme.onAccent.withAlphaComponent(0.6)]
         let k = sessionKey as NSString
         k.draw(at: NSPoint(x: pill.maxX - 14 - k.size(withAttributes: key).width, y: pill.midY - 8.5), withAttributes: key)
         let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: theme.faint]
@@ -910,7 +912,9 @@ final class Focus: NSObject, NSMenuDelegate {
         let busy = focused || clearing
         add("Quit All Apps…", #selector(quitAllApps), image: symbol("xmark.circle"), to: tm).isEnabled = !busy
         add("Quit All Apps & Restart Mac…", #selector(quitAllRestart), image: symbol("arrow.clockwise.circle"), to: tm).isEnabled = !busy
-        add("Force Quit All Apps…", #selector(forceQuitAllApps), image: symbol("bolt.circle"), to: tm).isEnabled = !busy
+        let fq = add("Force Quit All Apps…", #selector(forceQuitAllApps), image: symbol("bolt.circle", [theme.hazard]), to: tm)
+        fq.isEnabled = !busy
+        if !busy { fq.attributedTitle = NSAttributedString(string: fq.title, attributes: [.foregroundColor: theme.hazard, .font: NSFont.menuFont(ofSize: 0)]) }
         tm.addItem(.separator())
         add("Open Activity Monitor", #selector(openActivityMonitor), image: symbol("waveform.path.ecg"), to: tm)
         add("Open System Settings", #selector(openSystemSettings), image: symbol("gearshape.2"), to: tm)
