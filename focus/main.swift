@@ -42,7 +42,7 @@ func glyph(focused: Bool) -> NSImage {
 
 typealias Session = [String: Any]                              // "date": Date, "apps": [["path": String, "hidden": Bool]]
 
-final class Focus: NSObject, NSMenuDelegate {
+@MainActor final class Focus: NSObject, NSMenuDelegate {
     let ws = NSWorkspace.shared, store = UserDefaults.standard
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     var tabKeys: [EventHotKeyRef?] = []                         // our ⌘⇥ / ⌘⇧⇥, registered only while focused
@@ -98,7 +98,7 @@ final class Focus: NSObject, NSMenuDelegate {
     func park(quit: Bool) {
         let out = apps().filter { !excluded.contains($0.bundleIdentifier ?? "") }
         guard !out.isEmpty else { return }
-        sessions.insert(["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] } }], at: 0)
+        sessions.insert(["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }], at: 0)
         for a in out { if quit { a.terminate() } else { a.hide() } }   // polite quit: unsaved work still prompts
         focused = true
     }
@@ -191,10 +191,10 @@ final class Focus: NSObject, NSMenuDelegate {
 
         m.addItem(.separator())
         header("Keep open · menu bar apps are never touched")
-        var rows = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
-        rows += excluded.filter { id in !rows.contains { $0.0 == id } }    // excluded but not running: still listed, so it can be un-excluded
+        let running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
+        let idle = excluded.filter { id in !running.contains { $0.0 == id } }   // excluded but not running: still listed, so it can be un-excluded
             .compactMap { id in ws.urlForApplication(withBundleIdentifier: id).map { (id, $0.path) } }
-        for (id, path) in rows {
+        for (id, path) in running + idle {
             let i = add(FileManager.default.displayName(atPath: path).replacingOccurrences(of: ".app", with: ""), #selector(flip), image: appIcon(path))
             i.representedObject = id; i.state = excluded.contains(id) ? .on : .off
         }
@@ -205,7 +205,7 @@ final class Focus: NSObject, NSMenuDelegate {
             header("Sessions")
             for (n, s) in sessions.enumerated() {
                 let list = s["apps"] as? [[String: Any]] ?? []
-                let date = (s["date"] as? Date).map(when.string) ?? "?"
+                let date = (s["date"] as? Date).map { when.string(from: $0) } ?? "?"
                 let i = add("\(date) · \(list.count) apps", nil, image: symbol("clock.arrow.circlepath"))
                 let sub = NSMenu()
                 for path in list.compactMap({ $0["path"] as? String }) {
