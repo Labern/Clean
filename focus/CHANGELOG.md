@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.2.0 — 2026-11-12 (branch focus/feat-shortcuts)
+
+- **Settings ▸ Shortcuts:** choose the keys. Start/End Session: ⌘⇧F (default), ⌃⌥F, ⌃⇧F, ⌃⌥⌘F; open the menu: ⌘⇧E
+  (default), ⌃⌥E, ⌃⇧E, ⌃⌥⌘E. Each choice says what it clashes with; a change takes effect at once; a combination
+  another app already holds is flagged instead of failing silently. The Start button shows the current key.
+
 ## 0.1.2 — 2026-11-12 (branch focus/feat-modes)
 
 Bug hunt — the whole of main.swift read through; eight real defects fixed, each with a stress scenario (19–22):

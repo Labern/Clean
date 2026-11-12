@@ -24,11 +24,22 @@ func systemSwitcher(_ on: Bool) {
 }
 func healSystemSwitcher() { systemSwitcher(true) }
 
+/// A global shortcut via Carbon (needs no Accessibility permission). nil = macOS refused it: another app has it.
 func hotkey(_ id: UInt32, _ key: Int, _ mods: Int) -> EventHotKeyRef? {
     var ref: EventHotKeyRef?
-    RegisterEventHotKey(UInt32(key), UInt32(mods), EventHotKeyID(signature: 0x464F_4355, id: id), GetEventDispatcherTarget(), 0, &ref)
-    return ref
+    let err = RegisterEventHotKey(UInt32(key), UInt32(mods), EventHotKeyID(signature: 0x464F_4355, id: id), GetEventDispatcherTarget(), 0, &ref)
+    return err == noErr ? ref : nil
 }
+
+/// The shortcut choices offered in Settings ▸ Shortcuts. The first of each is the default. `clash` is honest about
+/// what each combination already does elsewhere on a Mac, so people can pick one that suits the apps they use.
+struct KeyChoice { let label: String, mods: Int, clash: String }
+let modifierChoices: [KeyChoice] = [
+    KeyChoice(label: "⌘⇧", mods: cmdKey | shiftKey, clash: "Find in Files in code editors; Recents in Finder"),
+    KeyChoice(label: "⌃⌥", mods: controlKey | optionKey, clash: "free, except while VoiceOver is on"),
+    KeyChoice(label: "⌃⇧", mods: controlKey | shiftKey, clash: "rarely used on a Mac"),
+    KeyChoice(label: "⌃⌥⌘", mods: controlKey | optionKey | cmdKey, clash: "free — three keys, nothing else uses it"),
+]
 func symbol(_ name: String, _ colors: [NSColor]? = nil) -> NSImage? {
     let i = NSImage(systemSymbolName: name, accessibilityDescription: nil)
     guard let colors else { return i }
@@ -59,7 +70,7 @@ struct Theme {
 }
 let theme = Theme()
 let menuWidth: CGFloat = 320
-let sessionKey = "⌘⇧F"
+var sessionKey = "⌘⇧F"                                         // what the Start button shows; follows Settings ▸ Shortcuts
 let chrome = "com.google.Chrome"
 
 /// Every process with its parent and short name, read the way `ps` reads them (sysctl KERN_PROC_ALL).
@@ -442,6 +453,23 @@ final class Focus: NSObject, NSMenuDelegate {
         return NSPoint(x: s.maxX - 60, y: s.maxY - 12)
     }
     var neverWindow: NSWindow?
+    // MARK: shortcuts
+    var sessionMods: Int { get { store.object(forKey: "sessionMods") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "sessionMods"); applyShortcuts() } }
+    var menuMods: Int { get { store.object(forKey: "menuMods") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "menuMods"); applyShortcuts() } }
+    var keyRefs: [EventHotKeyRef?] = []
+    var sessionKeyTaken = false, menuKeyTaken = false
+    func label(_ mods: Int) -> String { modifierChoices.first { $0.mods == mods }?.label ?? "⌘⇧" }
+    /// (Re)registers both shortcuts. Takes effect at once; reports a combination another app already holds.
+    func applyShortcuts() {
+        keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }
+        let s = hotkey(1, kVK_ANSI_F, sessionMods), m = hotkey(2, kVK_ANSI_E, menuMods)
+        keyRefs = [s, m]; sessionKeyTaken = s == nil; menuKeyTaken = m == nil
+        sessionKey = label(sessionMods) + "F"
+        button?.needsDisplay = true
+    }
+    func releaseShortcuts() { keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }; keyRefs = [] }
+    @objc func pickSessionKey(_ s: NSMenuItem) { sessionMods = s.tag }
+    @objc func pickMenuKey(_ s: NSMenuItem) { menuMods = s.tag }
     let when: DateFormatter = {
         let f = DateFormatter(); f.dateStyle = .short; f.timeStyle = .short; f.doesRelativeDateFormatting = true; return f
     }()
@@ -1156,6 +1184,20 @@ final class Focus: NSObject, NSMenuDelegate {
         hdr("Logo Mark")
         let lm = NSMenuItem(); lm.view = ColorGrid(grid, selected: logoMark) { [unowned self] h in self.logoMark = h }; cm.addItem(lm)
         colour.submenu = cm
+        let keys = add("Shortcuts", nil, image: symbol("keyboard"), to: sub), km = NSMenu()
+        km.autoenablesItems = false; km.minimumWidth = 300
+        if #available(macOS 14, *) { km.addItem(.sectionHeader(title: "Start / End Session")) }
+        for c in modifierChoices {
+            let i = add(c.label + "F  ·  " + c.clash, #selector(pickSessionKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == sessionMods ? .on : .off
+        }
+        if sessionKeyTaken { add("⚠︎ " + label(sessionMods) + "F is taken by another app — pick another", nil, to: km).isEnabled = false }
+        km.addItem(.separator())
+        if #available(macOS 14, *) { km.addItem(.sectionHeader(title: "Open This Menu")) }
+        for c in modifierChoices {
+            let i = add(c.label + "E", #selector(pickMenuKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == menuMods ? .on : .off
+        }
+        if menuKeyTaken { add("⚠︎ " + label(menuMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
+        keys.submenu = km
         sub.addItem(.separator())
         add("Hide apps instead of quitting", #selector(hiding), to: sub).state = hideMode ? .on : .off
         if CGPreflightScreenCaptureAccess() {
@@ -1166,7 +1208,7 @@ final class Focus: NSObject, NSMenuDelegate {
         add("Reopen windows as they were", #selector(windows), to: sub).state = keepWindows ? .on : .off
         add("Open at login", #selector(login), to: sub).state = SMAppService.mainApp.status == .enabled ? .on : .off
         sub.addItem(.separator())
-        add("⌘⇧E opens this menu", nil, to: sub).isEnabled = false
+        add(label(menuMods) + "E opens this menu", nil, to: sub).isEnabled = false
         add("Focus " + ((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"), nil, to: sub).isEnabled = false
         add("Quit Focus", #selector(bye), image: symbol("power"), to: sub)
         settings.submenu = sub
@@ -1576,6 +1618,17 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
             }
         } }
     }))
+    steps.append(("23. shortcuts: switching registers the new keys at once; the default is ⌘⇧F / ⌘⇧E", { done in
+        let defaultOK = t.label(t.sessionMods) == "⌘⇧" && t.label(t.menuMods) == "⌘⇧"
+        t.sessionMods = controlKey | shiftKey                  // ⌃⇧F (the real Focus keeps its own keys)
+        let s1 = !t.sessionKeyTaken && sessionKey == "⌃⇧F" && t.keyRefs.count == 2
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let keysMenu = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Shortcuts" }?.submenu
+        let ticked = keysMenu?.items.first { $0.state == .on }?.title.hasPrefix("⌃⇧F") == true
+        t.releaseShortcuts()
+        UserDefaults(suiteName: suite)!.removeObject(forKey: "sessionMods"); sessionKey = "⌘⇧F"
+        done(defaultOK && s1 && ticked, "default ⌘⇧F/⌘⇧E: \(defaultOK); ⌃⇧F registered live: \(s1); ticked in the menu: \(ticked)")
+    }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }
         let ms = Int(Date().timeIntervalSince(t0) * 1000 / 5)
@@ -1713,6 +1766,5 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
     }
     return noErr
 }, 1, &spec, nil, nil)
-_ = hotkey(1, kVK_ANSI_F, cmdKey | shiftKey)                    // ⌘⇧F: start a session / bring it all back
-_ = hotkey(2, kVK_ANSI_E, cmdKey | shiftKey)                    // ⌘⇧E: open the menu
+focus.applyShortcuts()                                          // ⌘⇧F / ⌘⇧E by default; Settings ▸ Shortcuts changes them
 app.run()
