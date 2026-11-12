@@ -46,9 +46,12 @@ struct Theme {
     var hudBg = NSColor(white: 0.07, alpha: 0.88)                // the session pill
     var hudInk = NSColor.white
     var hudEdge = NSColor(white: 1, alpha: 0.14)
-    /// Menu bar icon colours offered in Settings ▸ Icon Colour (the PARADOX four first). "" = default (template).
-    var iconSwatches: [(String, String)] = [("Teal", "87D7D7"), ("Violet", "AF87FF"), ("Pink", "FF87FF"), ("Gold", "FFD75F"),
-                                            ("Red", "FF5F5F"), ("Orange", "FFAF5F"), ("Green", "5FD787"), ("Blue", "5FAFFF")]
+    /// Icon colour grid: nine hues (columns) × four shades (rows: light → deep), and two-tone presets (ring, dot).
+    /// Mu's purple is #A78BFA (sampled off the menu bar); the green is PARADOX teal2.
+    var iconHues: [String] = ["FF5F5F", "FFAF5F", "FFD75F", "5FD787", "5FD7AF", "5FAFFF", "A78BFA", "FF87FF", "D0D0D0"]
+    var iconPresets: [(String, String, String)] = [("Purple & Green", "A78BFA", "5FD7AF"), ("Pink & Teal", "FF87FF", "87D7D7"),
+                                                   ("Violet & Gold", "AF87FF", "FFD75F"), ("Teal & Pink", "87D7D7", "FF87FF"),
+                                                   ("All Purple", "A78BFA", "A78BFA")]
 }
 let theme = Theme()
 let menuWidth: CGFloat = 320
@@ -137,11 +140,54 @@ func swatch(_ c: NSColor?) -> NSImage {                         // a dot for the
     }
 }
 
+/// Four shades of a hue: light, soft, true, deep.
+func shades(_ hex: String) -> [String] {
+    guard let c = hexColor(hex) else { return [] }
+    return [c.blended(withFraction: 0.5, of: .white), c.blended(withFraction: 0.22, of: .white), c, c.blended(withFraction: 0.35, of: .black)]
+        .compactMap { $0 }.map(hexString)
+}
+
+/// A click-to-pick grid of colour dots inside a menu (the menu stays open, so you can try a few).
+final class ColorGrid: NSView {
+    let colors: [[String]], pick: (String) -> Void
+    var selected: String, hover: String?
+    static let dot: CGFloat = 22, gap: CGFloat = 8, pad: CGFloat = 14
+    init(_ columns: [[String]], selected: String, pick: @escaping (String) -> Void) {
+        colors = columns; self.selected = selected; self.pick = pick
+        let rows = columns.map(\.count).max() ?? 0
+        super.init(frame: NSRect(x: 0, y: 0, width: Self.pad * 2 + CGFloat(columns.count) * (Self.dot + Self.gap) - Self.gap,
+                                 height: 8 + CGFloat(rows) * (Self.dot + Self.gap) - Self.gap + 8))
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+    required init?(coder: NSCoder) { nil }
+    func rect(_ col: Int, _ row: Int) -> NSRect {
+        NSRect(x: Self.pad + CGFloat(col) * (Self.dot + Self.gap), y: bounds.height - 8 - CGFloat(row + 1) * Self.dot - CGFloat(row) * Self.gap, width: Self.dot, height: Self.dot)
+    }
+    func hit(_ e: NSEvent) -> String? {
+        let p = convert(e.locationInWindow, from: nil)
+        for (c, col) in colors.enumerated() { for (r, hex) in col.enumerated() where rect(c, r).insetBy(dx: -3, dy: -3).contains(p) { return hex } }
+        return nil
+    }
+    override func mouseMoved(with e: NSEvent) { let h = hit(e); if h != hover { hover = h; needsDisplay = true } }
+    override func mouseExited(with e: NSEvent) { hover = nil; needsDisplay = true }
+    override func mouseDown(with e: NSEvent) {}
+    override func mouseUp(with e: NSEvent) { if let h = hit(e) { selected = h; pick(h); needsDisplay = true } }
+    override func draw(_ r: NSRect) {
+        for (c, col) in colors.enumerated() { for (row, hex) in col.enumerated() {
+            let d = rect(c, row), path = NSBezierPath(ovalIn: d.insetBy(dx: hover == hex ? 0 : 1.5, dy: hover == hex ? 0 : 1.5))
+            hexColor(hex)?.setFill(); path.fill()
+            if hex == selected {
+                theme.text.setStroke(); let ring = NSBezierPath(ovalIn: d.insetBy(dx: -2.5, dy: -2.5)); ring.lineWidth = 1.5; ring.stroke()
+            }
+        } }
+    }
+}
+
 /// The menu bar mark: a viewfinder ring with a centre dot. `t` is linear progress, 0 (at rest: four open
 /// brackets, gaps at the compass points, small dot) to 1 (focused: one closed ring, bigger dot). With `hunt`
 /// the ring first pulls in and comes back out — a lens finding focus — then the gaps close in place and the
 /// dot swells. Each phase has its own eased slice of the timeline. Template image: follows light / dark bars.
-func glyph(_ t: CGFloat, hunt: Bool = false) -> NSImage {
+func glyph(_ t: CGFloat, hunt: Bool = false, ring ringColor: NSColor? = nil, dot dotColor: NSColor? = nil) -> NSImage {
     func phase(_ a: CGFloat, _ b: CGFloat) -> CGFloat {          // 0…1 across [a, b], smoothstep-eased
         let x = min(max((t - a) / (b - a), 0), 1); return x * x * (3 - 2 * x)
     }
@@ -158,12 +204,12 @@ func glyph(_ t: CGFloat, hunt: Bool = false) -> NSImage {
             ring.move(to: NSPoint(x: c.x + radius * cos((mid - 45 + gap / 2) * .pi / 180), y: c.y + radius * sin((mid - 45 + gap / 2) * .pi / 180)))
             ring.appendArc(withCenter: c, radius: radius, startAngle: mid - 45 + gap / 2, endAngle: mid + 45 - gap / 2)
         } }
-        ring.stroke()
+        ringColor?.setStroke(); ring.stroke()
         let dot = 1.75 + 1.25 * swell - (hunt ? pull * 0.3 : 0)      // radius: 1.75 at rest, 3 focused
-        NSBezierPath(ovalIn: NSRect(x: c.x - dot, y: c.y - dot, width: dot * 2, height: dot * 2)).fill()
+        dotColor?.setFill(); NSBezierPath(ovalIn: NSRect(x: c.x - dot, y: c.y - dot, width: dot * 2, height: dot * 2)).fill()
         return true
     }
-    img.isTemplate = true
+    img.isTemplate = ringColor == nil && dotColor == nil
     return img
 }
 func glyph(focused: Bool) -> NSImage { glyph(focused ? 1 : 0) }
@@ -429,20 +475,45 @@ final class Focus: NSObject, NSMenuDelegate {
         try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
         return u
     }()
-    var iconColor: String {                                     // menu bar icon colour as hex; "" = default (template)
+    /// Menu bar icon colours as hex: primary = the ring, secondary = the dot ("" = same as the ring).
+    /// Both "" = default (a template image, black/white like every other menu bar icon).
+    var iconColor: String {
         get { store.string(forKey: "iconColor") ?? "" }
-        set { store.set(newValue, forKey: "iconColor"); setIcon(glyph(focused: focused)) }
+        set { store.set(newValue, forKey: "iconColor"); redrawIcon() }
     }
-    /// Every icon frame goes through here, so the chosen colour holds through the focus animation too.
-    func setIcon(_ img: NSImage) { item.button?.image = hexColor(iconColor).map { tinted(img, $0) } ?? img }
-    @objc func pickIconColor(_ s: NSMenuItem) { iconColor = s.representedObject as? String ?? "" }
-    @objc func customIconColor() {
+    var iconColor2: String {
+        get { store.string(forKey: "iconColor2") ?? "" }
+        set { store.set(newValue, forKey: "iconColor2"); redrawIcon() }
+    }
+    var ringColor: NSColor? { hexColor(iconColor) }
+    var dotColor: NSColor? { hexColor(iconColor2) ?? ringColor }
+    /// Every icon frame goes through here, so the chosen colours hold through the focus animation too.
+    func drawIcon(_ t: CGFloat, hunt: Bool = false) { item.button?.image = glyph(t, hunt: hunt, ring: ringColor, dot: dotColor) }
+    func redrawIcon() { drawIcon(focused ? 1 : 0) }
+    func setIcon(_ img: NSImage) { redrawIcon() }
+    @objc func pickPreset(_ s: NSMenuItem) {
+        let pair = s.representedObject as? [String] ?? ["", ""]
+        iconColor = pair[0]; iconColor2 = pair.count > 1 ? pair[1] : ""
+    }
+    var wheelForDot = false
+    @objc func wheelRing() { openWheel(dot: false) }
+    @objc func wheelDot() { openWheel(dot: true) }
+    @objc func dotSameAsRing() { iconColor2 = "" }
+    /// The 360° colour wheel (macOS colour panel opened on its wheel; its eyedropper picks any colour on screen).
+    func openWheel(dot: Bool) {
+        wheelForDot = dot
         let p = NSColorPanel.shared
-        p.showsAlpha = false; p.color = hexColor(iconColor) ?? .controlAccentColor
+        p.showsAlpha = false; p.mode = .wheel
+        p.color = (dot ? dotColor : ringColor) ?? .controlAccentColor
         p.setTarget(self); p.setAction(#selector(colorPanelChanged(_:)))
-        NSApp.activate(ignoringOtherApps: true); p.makeKeyAndOrderFront(nil)
+        // A menu bar app is often refused activation on macOS 14+, and the colour panel hides itself whenever its
+        // app isn't active — so it would vanish the instant it opened. Keep it up regardless, floating.
+        p.hidesOnDeactivate = false; p.level = .floating
+        NSApp.activate(ignoringOtherApps: true); p.makeKeyAndOrderFront(nil); p.orderFrontRegardless()
     }
-    @objc func colorPanelChanged(_ p: NSColorPanel) { iconColor = hexString(p.color) }   // live, as the wheel moves
+    @objc func colorPanelChanged(_ p: NSColorPanel) {            // live, as the wheel moves
+        if wheelForDot { iconColor2 = hexString(p.color) } else { iconColor = hexString(p.color) }
+    }
     var hideMode: Bool {                                        // hide instead of quit: instant, but keeps the memory
         get { store.bool(forKey: "hideMode") }
         set { store.set(newValue, forKey: "hideMode") }
@@ -717,7 +788,7 @@ final class Focus: NSObject, NSMenuDelegate {
         let start = Date(), duration = on ? 0.75 : 0.45
         let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] tm in
             let p = min(1, Date().timeIntervalSince(start) / duration), e = 1 - pow(1 - p, 3)
-            self?.setIcon(on ? glyph(p, hunt: true) : glyph(1 - e))   // in: phased timeline · out: ease back
+            if on { self?.drawIcon(p, hunt: true) } else { self?.drawIcon(1 - e) }   // in: phased timeline · out: ease back
             if p >= 1 { tm.invalidate() }
         }
         RunLoop.main.add(t, forMode: .common); anim = t
@@ -755,7 +826,7 @@ final class Focus: NSObject, NSMenuDelegate {
             w.title = "Critical System Processes"; w.styleMask = [.titled, .closable]; w.isReleasedWhenClosed = false; w.center()
             neverWindow = w
         }
-        NSApp.activate(ignoringOtherApps: true); neverWindow?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true); neverWindow?.makeKeyAndOrderFront(nil); neverWindow?.orderFrontRegardless()
     }
     @objc func login() {
         let s = SMAppService.mainApp
@@ -848,19 +919,31 @@ final class Focus: NSObject, NSMenuDelegate {
         add(busy ? "End the session first" : "Keeps Critical System Processes and Claude's terminal", nil, to: tm).isEnabled = false
         tools.submenu = tm
         let settings = add("Settings", nil, image: symbol("gearshape")), sub = NSMenu()
-        let colour = add("Icon Colour", nil, image: hexColor(iconColor).map { swatch($0) } ?? swatch(nil), to: sub), cm = NSMenu()
-        let def = add("Default", #selector(pickIconColor(_:)), image: swatch(nil), to: cm); def.representedObject = ""; def.state = iconColor.isEmpty ? .on : .off
-        let accent = hexString(.controlAccentColor)
-        let sys = add("System Accent", #selector(pickIconColor(_:)), image: swatch(.controlAccentColor), to: cm); sys.representedObject = accent
-        sys.state = iconColor == accent ? .on : .off
-        cm.addItem(.separator())
-        for (name, hex) in theme.iconSwatches {
-            let i = add(name, #selector(pickIconColor(_:)), image: swatch(hexColor(hex)), to: cm); i.representedObject = hex
-            i.state = iconColor == hex ? .on : .off
+        let two = { (a: NSColor?, b: NSColor?) -> NSImage in      // a mini icon in two colours, for menu rows
+            let g = glyph(0, ring: a ?? .labelColor, dot: b ?? a ?? .labelColor); g.size = NSSize(width: 16, height: 16); return g
         }
-        cm.addItem(.separator())
-        let known = [""] + [accent] + theme.iconSwatches.map(\.1)
-        add("Custom…", #selector(customIconColor), image: symbol("paintpalette"), to: cm).state = known.contains(iconColor) ? .off : .on
+        let colour = add("Icon Colour", nil, image: two(ringColor, dotColor), to: sub), cm = NSMenu()
+        cm.minimumWidth = 300
+        func hdr(_ t: String) { if #available(macOS 14, *) { cm.addItem(.sectionHeader(title: t)) } else { add(t, nil, to: cm).isEnabled = false } }
+        hdr("Presets")
+        let def = add("Default", #selector(pickPreset(_:)), image: swatch(nil), to: cm); def.representedObject = ["", ""]
+        def.state = iconColor.isEmpty && iconColor2.isEmpty ? .on : .off
+        let acc = hexString(.controlAccentColor)
+        let sys = add("System Accent", #selector(pickPreset(_:)), image: two(.controlAccentColor, .controlAccentColor), to: cm)
+        sys.representedObject = [acc, ""]; sys.state = iconColor == acc && iconColor2.isEmpty ? .on : .off
+        for (name, a, b) in theme.iconPresets {
+            let i = add(name, #selector(pickPreset(_:)), image: two(hexColor(a), hexColor(b)), to: cm)
+            i.representedObject = [a, a == b ? "" : b]
+            i.state = iconColor == a && (iconColor2 == b || (a == b && iconColor2.isEmpty)) ? .on : .off
+        }
+        let grid = theme.iconHues.map(shades)
+        hdr("Ring — primary")
+        let gi = NSMenuItem(); gi.view = ColorGrid(grid, selected: iconColor) { [unowned self] h in self.iconColor = h }; cm.addItem(gi)
+        add("Colour Wheel…", #selector(wheelRing), image: symbol("paintpalette"), to: cm)
+        hdr("Dot — secondary")
+        let gd = NSMenuItem(); gd.view = ColorGrid(grid, selected: iconColor2) { [unowned self] h in self.iconColor2 = h }; cm.addItem(gd)
+        add("Same as Ring", #selector(dotSameAsRing), image: symbol("link"), to: cm).state = iconColor2.isEmpty ? .on : .off
+        add("Colour Wheel…", #selector(wheelDot), image: symbol("paintpalette"), to: cm)
         colour.submenu = cm
         sub.addItem(.separator())
         add("Hide apps instead of quitting", #selector(hiding), to: sub).state = hideMode ? .on : .off
