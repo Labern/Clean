@@ -6,21 +6,23 @@
 //   ⌘⇧F   start a session (quit everything not kept) · again: bring it all back
 //   ⌘⇧E   open the Focus menu: click apps to keep them for this session, then Start Session Now
 // Never touched, ever: system apps (/System/Library/CoreServices), menu bar apps, Focus itself, and the
-// user's Critical System Processes (seeded with Wispr Flow). The system ⌘⇥ is never altered.
+// user's Critical System Processes (seeded with Wispr Flow).
+// The system ⌘⇥ is never replaced or altered (user's rule: native only).
 import AppKit
 import Carbon.HIToolbox
 import ServiceManagement
 import SwiftUI
 import Darwin
 
-// Earlier builds switched the system ⌘⇥ off during a session (private SkyLight call). That setting outlives
-// the process, so every launch switches it back on — heals any Mac left without ⌘⇥ by an old build.
-func healSystemSwitcher() {
+// Earlier builds switched the system ⌘⇥ off (private SkyLight call). That setting outlives the process, so every
+// launch switches it back on — heals any Mac left without ⌘⇥ by an old build. Focus never switches it off.
+func systemSwitcher(_ on: Bool) {
     guard let lib = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY),
           let fn = dlsym(lib, "CGSSetSymbolicHotKeyEnabled") else { return }
     let set = unsafeBitCast(fn, to: (@convention(c) (Int32, Bool) -> Int32).self)
-    _ = set(1, true); _ = set(2, true)
+    _ = set(1, on); _ = set(2, on)
 }
+func healSystemSwitcher() { systemSwitcher(true) }
 
 func hotkey(_ id: UInt32, _ key: Int, _ mods: Int) -> EventHotKeyRef? {
     var ref: EventHotKeyRef?
@@ -426,7 +428,9 @@ final class Focus: NSObject, NSMenuDelegate {
             if !neverClose.contains(wispr) { neverClose.append(wispr) }
             store.set(true, forKey: "neverCloseSeeded")
         }
-        healSystemSwitcher()
+        if store == .standard {                                 // the real Focus only — never a --selftest instance
+            healSystemSwitcher()
+        }
         item.button?.image = glyph(focused: focused)
         pruneSnapshots()
     }
@@ -764,6 +768,33 @@ struct NeverView: View {
     }
 }
 
+/// `Focus --make-icon DIR`: writes the app icon set (the menu bar mark at rest, white on the pill's near-black,
+/// on the macOS icon grid) so the icon is always drawn by the same glyph() as the menu bar and the pill.
+if let i = CommandLine.arguments.firstIndex(of: "--make-icon"), CommandLine.arguments.count > i + 1 {
+    let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    for (px, name) in [(16, "16x16"), (32, "16x16@2x"), (32, "32x32"), (64, "32x32@2x"), (128, "128x128"), (256, "128x128@2x"),
+                       (256, "256x256"), (512, "256x256@2x"), (512, "512x512"), (1024, "512x512@2x")] {
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px, bitsPerSample: 8, samplesPerPixel: 4,
+                                   hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        let u = CGFloat(px) / 1024                                     // 1024-pt grid: 824-pt tile, 100-pt margin
+        let tile = NSRect(x: 100 * u, y: 100 * u, width: 824 * u, height: 824 * u)
+        let shape = NSBezierPath(roundedRect: tile, xRadius: 185 * u, yRadius: 185 * u)
+        NSGraphicsContext.saveGraphicsState()
+        let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(0.35); shadow.shadowBlurRadius = 20 * u
+        shadow.shadowOffset = NSSize(width: 0, height: -8 * u); shadow.set()
+        NSGradient(starting: NSColor(white: 0.16, alpha: 1), ending: NSColor(white: 0.05, alpha: 1))!.draw(in: shape, angle: -90)
+        NSGraphicsContext.restoreGraphicsState()
+        theme.hudEdge.setStroke(); shape.lineWidth = max(1, 3 * u); shape.stroke()
+        let mark = painted(glyph(0), theme.hudInk, NSSize(width: 512, height: 512))!
+        NSGraphicsContext.current!.cgContext.draw(mark, in: tile.insetBy(dx: 120 * u, dy: 120 * u))
+        NSGraphicsContext.restoreGraphicsState()
+        try? rep.representation(using: .png, properties: [:])!.write(to: dir.appendingPathComponent("icon_\(name).png"))
+    }
+    exit(0)
+}
+
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)                             // no Dock icon, not in Cmd-Tab
 
@@ -836,7 +867,13 @@ var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UIn
 InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
     var hk = EventHotKeyID()
     GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &hk)
-    DispatchQueue.main.async { hk.id == 1 ? focus.toggle() : focus.showMenu() }
+    DispatchQueue.main.async {
+        switch hk.id {
+        case 1: focus.toggle()
+        case 2: focus.showMenu()
+        default: break
+        }
+    }
     return noErr
 }, 1, &spec, nil, nil)
 _ = hotkey(1, kVK_ANSI_F, cmdKey | shiftKey)                    // ⌘⇧F: start a session / bring it all back

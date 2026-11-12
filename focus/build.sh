@@ -11,6 +11,8 @@ OUT="${TMPDIR:-/tmp}/focus-build"; rm -rf "$OUT"; mkdir -p "$OUT"
 C="$OUT/Focus.app/Contents"
 mkdir -p "$C/MacOS"
 swiftc -O -swift-version 5 main.swift -o "$C/MacOS/Focus"
+mkdir -p "$C/Resources"                                  # app icon, drawn by the app's own glyph()
+"$C/MacOS/Focus" --make-icon "$OUT/Focus.iconset" && iconutil -c icns "$OUT/Focus.iconset" -o "$C/Resources/Focus.icns"
 cat > "$C/Info.plist" <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -18,6 +20,7 @@ cat > "$C/Info.plist" <<'EOF'
   <key>CFBundleExecutable</key><string>Focus</string>
   <key>CFBundleIdentifier</key><string>com.labern.focus</string>
   <key>CFBundleName</key><string>Focus</string>
+  <key>CFBundleIconFile</key><string>Focus</string>
   <key>CFBundleShortVersionString</key><string>1.0</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>

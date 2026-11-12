@@ -107,6 +107,12 @@ no build step, no dependencies.
   zip; reverse on End Session) plays at once; the snapshot runs async and only if
   CGPreflightScreenCaptureAccess() — NEVER let it prompt (user hit a prompt on every press). The one ask is
   Settings ▸ "Allow snapshots…". `--pill-demo X Y` plays both shows without a session.
+  App icon: generated at build by `Focus --make-icon` from the same glyph() (rest state, white on near-black).
+  NO custom ⌘⇥ switcher — user rejected it outright ("use the native Command-Tab"); built + removed 2026-11-12.
+  Wispr Flow in native ⌘⇥ is WISPR'S bug (v1.6.1457): Info.plist is LSUIElement, but its dock-policy sync makes it
+  'regular' whenever any non-excluded window is visible, and its always-shown "Status" window isn't excluded —
+  even with hideFlowBarPermanently. Electron fuses: inspect args OFF, asar integrity ON → no outside fix short of
+  patching Wispr (breaks its signature → TCC mic/accessibility re-grant; undone by every update).
   build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
