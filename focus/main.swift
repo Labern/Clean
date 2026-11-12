@@ -4,7 +4,7 @@
 // Restoring relaunches them one at a time with their windows (Chrome with its last session).
 // Menu bar only. One file, no dependencies, no permissions.
 //   ⌘⇧F   start a session (quit everything not kept) · again: bring it all back
-//   ⌘⇧E   open the Focus menu: click apps to keep them for this session, then Start Session Now
+//   ⌘⇧E   open the Focus menu: click apps to keep them for this session, then Start New Session
 // Never touched, ever: system apps (/System/Library/CoreServices), menu bar apps, Focus itself, and the
 // user's own saved Critical System Processes. Nothing about any particular user's apps is built in.
 // The system ⌘⇥ is never replaced or altered (user's rule: native only).
@@ -242,7 +242,7 @@ final class BigButton: HoverView {
     var down = false { didSet { needsDisplay = true } }
     init(title: @escaping () -> String, caption: @escaping () -> String, action: @escaping () -> Void) {
         self.title = title; self.caption = caption; self.action = action
-        super.init(height: 72)
+        super.init(height: 106)
     }
     required init?(coder: NSCoder) { nil }
     override func mouseDown(with e: NSEvent) { down = true }
@@ -252,7 +252,7 @@ final class BigButton: HoverView {
         DispatchQueue.main.async(execute: action)
     }
     override func draw(_ r: NSRect) {
-        let pill = NSRect(x: 12, y: 26, width: bounds.width - 24, height: 38)
+        let pill = NSRect(x: 12, y: bounds.height - 46, width: bounds.width - 24, height: 38)
         (down ? theme.accent.blended(withFraction: 0.2, of: .black) : hover ? theme.accent.blended(withFraction: 0.1, of: .white) : theme.accent)?.setFill()
         NSBezierPath(roundedRect: pill, xRadius: 9, yRadius: 9).fill()
         let big: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: theme.onAccent]
@@ -262,7 +262,10 @@ final class BigButton: HoverView {
         k.draw(at: NSPoint(x: pill.maxX - 14 - k.size(withAttributes: key).width, y: pill.midY - 8.5), withAttributes: key)
         let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: theme.faint]
         let c = caption() as NSString
-        c.draw(at: NSPoint(x: bounds.midX - c.size(withAttributes: small).width / 2, y: 6), withAttributes: small)
+        let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineBreakMode = .byWordWrapping
+        var wrapped = small; wrapped[.paragraphStyle] = para
+        c.draw(with: NSRect(x: 18, y: 6, width: bounds.width - 36, height: pill.minY - 10),
+               options: [.usesLineFragmentOrigin], attributes: wrapped)     // plain English, wraps to two lines
     }
 }
 
@@ -969,17 +972,18 @@ final class Focus: NSObject, NSMenuDelegate {
 
         m.addItem(.separator())
         let b = BigButton(
-            title: { [unowned self] in self.focused ? "End Session" : "Start Session Now" },
+            title: { [unowned self] in self.focused ? "End Session" : "Start New Session" },
             caption: { [unowned self] in
                 if self.focused {
                     let n = self.apps((self.sessions.first?["apps"] as? [Any])?.count ?? 0)
-                    return self.queue.isEmpty ? "Reopens \(n) as they were" : "Stops quitting and reopens \(n) as they were"
+                    return self.queue.isEmpty ? "Ending the session will reopen \(n) exactly as they were."
+                        : "Ending the session now stops the quitting and reopens \(n) as they were."
                 }
                 let out = self.leaving()
-                let kept = self.ws.runningApplications.filter { $0.activationPolicy == .regular && !self.system($0) }.count - out.count
-                if out.isEmpty { return "Nothing to \(self.hideMode ? "hide" : "quit") — everything is kept" }
-                if self.hideMode { return "Hides \(self.apps(out.count)) · keeps \(kept)" }
-                return "Saves and quits \(self.apps(out.count)) · frees ~\(gb(out.reduce(0) { $0 + self.memory($1) })) · keeps \(kept)"
+                if out.isEmpty { return "Every open app is kept, so there's nothing to \(self.hideMode ? "hide" : "quit")." }
+                if self.hideMode { return "Starting a new session will hide \(self.apps(out.count)). Click again to bring them back." }
+                let them = out.count == 1 ? "it" : "them"
+                return "Starting a new session will save and quit \(self.apps(out.count)), freeing about \(gb(out.reduce(0) { $0 + self.memory($1) })) of RAM. Click again to reopen \(them)."
             },
             action: { [unowned self] in self.toggle() })
         button = b; view(b)
