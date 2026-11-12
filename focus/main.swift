@@ -46,6 +46,9 @@ struct Theme {
     var hudBg = NSColor(white: 0.07, alpha: 0.88)                // the session pill
     var hudInk = NSColor.white
     var hudEdge = NSColor(white: 1, alpha: 0.14)
+    /// Menu bar icon colours offered in Settings ▸ Icon Colour (the PARADOX four first). "" = default (template).
+    var iconSwatches: [(String, String)] = [("Teal", "87D7D7"), ("Violet", "AF87FF"), ("Pink", "FF87FF"), ("Gold", "FFD75F"),
+                                            ("Red", "FF5F5F"), ("Orange", "FFAF5F"), ("Green", "5FD787"), ("Blue", "5FAFFF")]
 }
 let theme = Theme()
 let menuWidth: CGFloat = 320
@@ -107,6 +110,32 @@ func claudeHosts() -> Set<pid_t> {
     return hosts
 }
 func gb(_ b: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(b), countStyle: .memory) }
+
+func hexColor(_ h: String) -> NSColor? {
+    guard h.count == 6, let v = UInt32(h, radix: 16) else { return nil }
+    return NSColor(srgbRed: CGFloat(v >> 16 & 255) / 255, green: CGFloat(v >> 8 & 255) / 255, blue: CGFloat(v & 255) / 255, alpha: 1)
+}
+func hexString(_ c: NSColor) -> String {
+    let c = c.usingColorSpace(.sRGB) ?? c
+    return String(format: "%02X%02X%02X", Int(round(c.redComponent * 255)), Int(round(c.greenComponent * 255)), Int(round(c.blueComponent * 255)))
+}
+/// A copy of an image drawn in one colour, resolution-independent (so it stays sharp on Retina).
+func tinted(_ img: NSImage, _ c: NSColor) -> NSImage {
+    let o = NSImage(size: img.size, flipped: false) { r in img.draw(in: r); c.set(); r.fill(using: .sourceAtop); return true }
+    o.isTemplate = false; return o
+}
+func swatch(_ c: NSColor?) -> NSImage {                         // a dot for the colour menu; nil = the default (half dark/light)
+    NSImage(size: NSSize(width: 14, height: 14), flipped: false) { r in
+        let dot = NSBezierPath(ovalIn: r.insetBy(dx: 1, dy: 1))
+        if let c { c.setFill(); dot.fill() } else {
+            NSColor.labelColor.setFill(); dot.fill()
+            NSColor.textBackgroundColor.setFill(); NSBezierPath(rect: NSRect(x: r.midX, y: 0, width: r.width / 2, height: r.height)).setClip()
+            dot.fill()
+        }
+        NSColor.separatorColor.setStroke(); dot.lineWidth = 0.5; dot.stroke()
+        return true
+    }
+}
 
 /// The menu bar mark: a viewfinder ring with a centre dot. `t` is linear progress, 0 (at rest: four open
 /// brackets, gaps at the compass points, small dot) to 1 (focused: one closed ring, bigger dot). With `hunt`
@@ -400,6 +429,20 @@ final class Focus: NSObject, NSMenuDelegate {
         try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
         return u
     }()
+    var iconColor: String {                                     // menu bar icon colour as hex; "" = default (template)
+        get { store.string(forKey: "iconColor") ?? "" }
+        set { store.set(newValue, forKey: "iconColor"); setIcon(glyph(focused: focused)) }
+    }
+    /// Every icon frame goes through here, so the chosen colour holds through the focus animation too.
+    func setIcon(_ img: NSImage) { item.button?.image = hexColor(iconColor).map { tinted(img, $0) } ?? img }
+    @objc func pickIconColor(_ s: NSMenuItem) { iconColor = s.representedObject as? String ?? "" }
+    @objc func customIconColor() {
+        let p = NSColorPanel.shared
+        p.showsAlpha = false; p.color = hexColor(iconColor) ?? .controlAccentColor
+        p.setTarget(self); p.setAction(#selector(colorPanelChanged(_:)))
+        NSApp.activate(ignoringOtherApps: true); p.makeKeyAndOrderFront(nil)
+    }
+    @objc func colorPanelChanged(_ p: NSColorPanel) { iconColor = hexString(p.color) }   // live, as the wheel moves
     var hideMode: Bool {                                        // hide instead of quit: instant, but keeps the memory
         get { store.bool(forKey: "hideMode") }
         set { store.set(newValue, forKey: "hideMode") }
@@ -409,7 +452,7 @@ final class Focus: NSObject, NSMenuDelegate {
         set {
             let was = store.bool(forKey: "focused")
             store.set(newValue, forKey: "focused")
-            if newValue != was { animateIcon(to: newValue) } else { item.button?.image = glyph(focused: newValue) }
+            if newValue != was { animateIcon(to: newValue) } else { setIcon(glyph(focused: newValue)) }
         }
     }
     /// The system's "reopen windows when an app relaunches" (System Settings ▸ Desktop & Dock ▸
@@ -442,7 +485,7 @@ final class Focus: NSObject, NSMenuDelegate {
         if store == .standard {                                 // the real Focus only — never a --selftest instance
             healSystemSwitcher()
         }
-        item.button?.image = glyph(focused: focused)
+        setIcon(glyph(focused: focused))
         pruneSnapshots()
     }
 
@@ -674,7 +717,7 @@ final class Focus: NSObject, NSMenuDelegate {
         let start = Date(), duration = on ? 0.75 : 0.45
         let t = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] tm in
             let p = min(1, Date().timeIntervalSince(start) / duration), e = 1 - pow(1 - p, 3)
-            self?.item.button?.image = on ? glyph(p, hunt: true) : glyph(1 - e)   // in: phased timeline · out: ease back
+            self?.setIcon(on ? glyph(p, hunt: true) : glyph(1 - e))   // in: phased timeline · out: ease back
             if p >= 1 { tm.invalidate() }
         }
         RunLoop.main.add(t, forMode: .common); anim = t
@@ -805,6 +848,21 @@ final class Focus: NSObject, NSMenuDelegate {
         add(busy ? "End the session first" : "Keeps Critical System Processes and Claude's terminal", nil, to: tm).isEnabled = false
         tools.submenu = tm
         let settings = add("Settings", nil, image: symbol("gearshape")), sub = NSMenu()
+        let colour = add("Icon Colour", nil, image: hexColor(iconColor).map { swatch($0) } ?? swatch(nil), to: sub), cm = NSMenu()
+        let def = add("Default", #selector(pickIconColor(_:)), image: swatch(nil), to: cm); def.representedObject = ""; def.state = iconColor.isEmpty ? .on : .off
+        let accent = hexString(.controlAccentColor)
+        let sys = add("System Accent", #selector(pickIconColor(_:)), image: swatch(.controlAccentColor), to: cm); sys.representedObject = accent
+        sys.state = iconColor == accent ? .on : .off
+        cm.addItem(.separator())
+        for (name, hex) in theme.iconSwatches {
+            let i = add(name, #selector(pickIconColor(_:)), image: swatch(hexColor(hex)), to: cm); i.representedObject = hex
+            i.state = iconColor == hex ? .on : .off
+        }
+        cm.addItem(.separator())
+        let known = [""] + [accent] + theme.iconSwatches.map(\.1)
+        add("Custom…", #selector(customIconColor), image: symbol("paintpalette"), to: cm).state = known.contains(iconColor) ? .off : .on
+        colour.submenu = cm
+        sub.addItem(.separator())
         add("Hide apps instead of quitting", #selector(hiding), to: sub).state = hideMode ? .on : .off
         if CGPreflightScreenCaptureAccess() {
             add("Take a snapshot when a session starts", #selector(snaps), to: sub).state = snapshots ? .on : .off
