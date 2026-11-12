@@ -41,6 +41,9 @@ struct Theme {
     var text = NSColor.labelColor
     var faint = NSColor.secondaryLabelColor
     var dropped = NSColor.tertiaryLabelColor
+    var hudBg = NSColor(white: 0.07, alpha: 0.88)                // the session pill
+    var hudInk = NSColor.white
+    var hudEdge = NSColor(white: 1, alpha: 0.14)
 }
 let theme = Theme()
 let menuWidth: CGFloat = 320
@@ -222,6 +225,127 @@ final class Thumb: HoverView {
     }
 }
 
+// MARK: session pill — the little show when a session starts or ends
+
+func ease(_ x: CGFloat) -> CGFloat { min(max(x, 0), 1) }
+func easeOut(_ x: CGFloat) -> CGFloat { let t = ease(x); return 1 - pow(1 - t, 3) }
+func easeIn(_ x: CGFloat) -> CGFloat { let t = ease(x); return t * t * t }
+func easeBack(_ x: CGFloat) -> CGFloat { let t = ease(x) - 1, k: CGFloat = 1.9; return 1 + (k + 1) * t * t * t + k * t * t }   // overshoot
+
+/// An image drawn in one colour (for the template glyph on the dark pill).
+func painted(_ img: NSImage, _ color: NSColor, _ size: NSSize) -> CGImage? {
+    let out = NSImage(size: size, flipped: false) { r in img.draw(in: r); color.set(); r.fill(using: .sourceAtop); return true }
+    return out.cgImage(forProposedRect: nil, context: nil, hints: nil)
+}
+
+/// A click-through, full-screen, transparent overlay that plays one short timeline:
+///   start: pill pops (zop) → hit stop + flash, mark snaps shut → app icons fan out → sucked into the menu bar
+///          icon one by one → pill zips off sideways.
+///   end:   the same in reverse — icons stream out of the menu bar icon into the pill → hit stop, mark opens → zip.
+/// Driven frame by frame (120 Hz) rather than by CA animations, so the hit stop is an honest freeze.
+final class SessionPill {
+    var win: NSWindow?, timer: Timer?
+
+    func play(start: Bool, icons: [NSImage], target: NSPoint, label: String) {
+        timer?.invalidate(); win?.orderOut(nil)
+        let screen = NSScreen.screens.first { $0.frame.contains(target) } ?? NSScreen.main!
+        let w = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+        w.isOpaque = false; w.backgroundColor = .clear; w.hasShadow = false; w.ignoresMouseEvents = true
+        w.level = .statusBar; w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        let root = CALayer(); w.contentView!.wantsLayer = true; w.contentView!.layer = root
+        let s = screen.backingScaleFactor, origin = screen.frame.origin
+        let tgt = CGPoint(x: target.x - origin.x, y: target.y - origin.y)
+
+        // The pill: mark + one word, bottom centre — where the eye already is when the key goes down.
+        let pill = CALayer(), size = CGSize(width: 136, height: 44)
+        let home = CGPoint(x: screen.frame.width / 2, y: 96)
+        pill.bounds = CGRect(origin: .zero, size: size); pill.position = home
+        pill.backgroundColor = theme.hudBg.cgColor; pill.cornerRadius = 22
+        pill.borderColor = theme.hudEdge.cgColor; pill.borderWidth = 1
+        pill.shadowColor = NSColor.black.cgColor; pill.shadowOpacity = 0.45; pill.shadowRadius = 14; pill.shadowOffset = CGSize(width: 0, height: -4)
+        let mark = CALayer(); mark.frame = CGRect(x: 16, y: 10, width: 24, height: 24); mark.contentsScale = s
+        let word = CATextLayer(); word.string = label; word.font = NSFont.systemFont(ofSize: 15, weight: .semibold)
+        word.fontSize = 15; word.foregroundColor = theme.hudInk.cgColor; word.contentsScale = s
+        word.frame = CGRect(x: 50, y: 12, width: size.width - 62, height: 20)
+        let flash = CALayer(); flash.frame = pill.bounds; flash.cornerRadius = 22; flash.backgroundColor = theme.hudInk.cgColor; flash.opacity = 0
+        [mark, word, flash].forEach(pill.addSublayer)
+        root.addSublayer(pill)
+
+        // The apps: up to nine icons on an arc above the pill.
+        let shown = Array(icons.prefix(9)), n = shown.count
+        let tiles: [CALayer] = shown.map { img in
+            let l = CALayer(); l.bounds = CGRect(x: 0, y: 0, width: 44, height: 44); l.contentsScale = s
+            l.contents = img.cgImage(forProposedRect: nil, context: nil, hints: nil); l.opacity = 0
+            root.addSublayer(l); return l
+        }
+        let fan: [CGPoint] = (0..<n).map { i in
+            let a = n == 1 ? CGFloat.pi / 2 : CGFloat.pi * (0.78 - 0.56 * CGFloat(i) / CGFloat(n - 1))
+            return CGPoint(x: home.x + cos(a) * 150, y: home.y + 26 + sin(a) * 92)
+        }
+        func lerp(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint { CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t) }
+        func setMark(_ t: CGFloat) { mark.contents = painted(glyph(t), theme.hudInk, NSSize(width: 24, height: 24)) }
+
+        // Timeline (seconds). `stop` is the hit stop: nothing moves but the flash.
+        let popIn = 0.16, stop = 0.10, stagger = 0.035, fly = 0.34
+        let impact = start ? popIn : popIn + 0.10 + Double(max(n - 1, 0)) * stagger + fly + 0.12
+        let after = impact + stop
+        let flyDone = start ? after + 0.16 + 0.08 + Double(max(n - 1, 0)) * stagger + fly : impact
+        let zipAt = (start ? flyDone : after + 0.06), zipLen = 0.22, end = zipAt + zipLen + 0.05
+        setMark(start ? 0 : 1)
+
+        w.orderFrontRegardless(); win = w
+        let began = Date()
+        let t = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] tm in
+            let now = Date().timeIntervalSince(began)
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            // pill: zop in, shake during the stop, zip out sideways at the end
+            let inP = CGFloat(now / popIn)
+            var sc = 0.4 + 0.6 * easeBack(inP), x = home.x, op = Float(ease(inP * 1.5))
+            if now >= impact && now < after { x += CGFloat(sin(now * 260)) * 3 }
+            if now >= zipAt {
+                let z = CGFloat((now - zipAt) / zipLen)
+                x += easeIn(z) * 420; op = Float(1 - easeIn(z)); sc = 1
+                pill.transform = CATransform3DMakeScale(1 + 0.35 * easeIn(z), 1 - 0.18 * easeIn(z), 1)   // stretch as it goes
+            } else { pill.transform = CATransform3DMakeScale(sc, sc, 1) }
+            pill.position = CGPoint(x: x, y: home.y); pill.opacity = op
+            // impact: the mark snaps, the flash decays
+            if now >= impact && (mark.value(forKey: "snapped") as? Bool) != true { setMark(start ? 1 : 0); mark.setValue(true, forKey: "snapped") }
+            flash.opacity = now >= impact ? Float(0.85 * (1 - ease(CGFloat((now - impact) / 0.16)))) : 0
+            // icons
+            for (i, l) in tiles.enumerated() {
+                let d = Double(i) * stagger
+                if start {
+                    let burst = CGFloat((now - after - d * 0.5) / 0.16), suck = CGFloat((now - after - 0.24 - d) / fly)
+                    if now < after { l.opacity = 0; continue }
+                    if suck <= 0 {
+                        l.position = lerp(home, fan[i], easeBack(burst)); l.opacity = Float(ease(burst * 2))
+                        l.transform = CATransform3DMakeScale(0.5 + 0.5 * easeOut(burst), 0.5 + 0.5 * easeOut(burst), 1)
+                    } else {
+                        let k = easeIn(suck)
+                        l.position = lerp(fan[i], tgt, k); l.opacity = Float(1 - ease((suck - 0.6) / 0.4))
+                        l.transform = CATransform3DMakeScale(1 - 0.8 * k, 1 - 0.8 * k, 1)
+                    }
+                } else {
+                    let out = CGFloat((now - popIn - d) / fly), drop = CGFloat((now - popIn - Double(max(n - 1, 0)) * stagger - fly - 0.02) / 0.12)
+                    if out <= 0 { l.opacity = 0; continue }
+                    if drop <= 0 {
+                        let k = easeOut(out)
+                        l.position = lerp(tgt, fan[i], k); l.opacity = Float(ease(out * 3))
+                        l.transform = CATransform3DMakeScale(0.2 + 0.8 * k, 0.2 + 0.8 * k, 1)
+                    } else {
+                        let k = easeIn(drop)
+                        l.position = lerp(fan[i], home, k); l.opacity = Float(1 - k)
+                        l.transform = CATransform3DMakeScale(1 - 0.6 * k, 1 - 0.6 * k, 1)
+                    }
+                }
+            }
+            CATransaction.commit()
+            if now > end { tm.invalidate(); self?.win?.orderOut(nil); self?.win = nil }
+        }
+        RunLoop.main.add(t, forMode: .common); timer = t
+    }
+}
+
 typealias Session = [String: Any]                              // "date": Date, "apps": [["path": String, "hidden": Bool]]
 
 final class Focus: NSObject, NSMenuDelegate {
@@ -233,6 +357,12 @@ final class Focus: NSObject, NSMenuDelegate {
     var queue: [NSRunningApplication] = [], total = 0           // the slow, one-at-a-time quit in progress
     var status: String? { didSet { item.button?.toolTip = status ?? "Focus" } }
     lazy var never = NeverModel(self)
+    let pill = SessionPill()
+    /// Where Focus's own menu bar icon is on screen: the apps fly into it and back out of it.
+    var iconPoint: NSPoint {
+        if let f = item.button?.window?.frame, f.width > 0 { return NSPoint(x: f.midX, y: f.midY) }
+        let s = NSScreen.main!.frame; return NSPoint(x: s.maxX - 60, y: s.maxY - 12)
+    }
     var neverWindow: NSWindow?
     let when: DateFormatter = {
         let f = DateFormatter(); f.dateStyle = .short; f.timeStyle = .short; f.doesRelativeDateFormatting = true; return f
@@ -330,14 +460,21 @@ final class Focus: NSObject, NSMenuDelegate {
         hosts = claudeHosts(); autoKeepClaudeHosts()
         let out = leaving()
         guard !out.isEmpty else { return }
-        var session: Session = ["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }]
-        if snapshots, let shot = snapshot() { session["shot"] = shot }   // before anything moves
-        sessions.insert(session, at: 0)
-        pruneSnapshots()
+        // Instant: the pill plays the moment the key goes down. The snapshot is grabbed in the background in the
+        // same instant (the pill is still invisible then) and the quitting starts once it's on disk.
+        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Focus")
+        sessions.insert(["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }], at: 0)
         focused = true
-        if !quit { out.forEach { $0.hide() }; return }
-        queue = out.sorted { memory($0) > memory($1) }; total = queue.count   // biggest first: memory comes back soonest
-        quitNext()
+        let go = { [self] in
+            if !quit { out.forEach { $0.hide() }; return }
+            queue = out.sorted { memory($0) > memory($1) }; total = queue.count   // biggest first: memory comes back soonest
+            quitNext()
+        }
+        guard snapshots, CGPreflightScreenCaptureAccess() else { return go() }   // no permission: skip silently, never prompt
+        snapshot { [self] shot in
+            if let shot { sessions = sessions.enumerated().map { $0.offset == 0 ? $0.element.merging(["shot": shot]) { $1 } : $0.element } }
+            pruneSnapshots(); go()
+        }
     }
 
     /// One app at a time: ask it to quit the normal way (it saves its state; unsaved work prompts), wait until it
@@ -363,16 +500,23 @@ final class Focus: NSObject, NSMenuDelegate {
     /// Relaunch or unhide every app in the session, one at a time, windows restored; hidden ones stay hidden.
     func open(_ s: Session) {
         queue = []; status = nil; focused = false
+        pill.play(start: false, icons: (s["apps"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String }.map { ws.icon(forFile: $0) },
+                  target: iconPoint, label: "Back")
         relaunch(ArraySlice(s["apps"] as? [[String: Any]] ?? []))
     }
 
-    /// The whole main display, silently, via the system's own screencapture. Needs Screen Recording once.
-    func snapshot() -> String? {
+    /// The whole main display, silently, via the system's own screencapture — off the main thread, so nothing
+    /// waits on it. Only called once Screen Recording is already granted (it would prompt otherwise).
+    /// Gives up after 2 s so a session never stalls on it.
+    func snapshot(_ done: @escaping (String?) -> Void) {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd'T'HH.mm.ss"
-        let path = folder.appendingPathComponent("session-\(f.string(from: Date())).png").path
-        let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture"); p.arguments = ["-x", "-t", "png", path]
-        do { try p.run(); p.waitUntilExit() } catch { return nil }
-        return FileManager.default.fileExists(atPath: path) ? path : nil
+        let path = folder.appendingPathComponent("session-\(f.string(from: Date())).jpg").path
+        let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture"); p.arguments = ["-x", "-t", "jpg", path]
+        var finished = false
+        let finish = { (r: String?) in DispatchQueue.main.async { if !finished { finished = true; done(r) } } }
+        p.terminationHandler = { _ in finish(FileManager.default.fileExists(atPath: path) ? path : nil) }
+        do { try p.run() } catch { return finish(nil) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { if !finished { p.terminate(); finish(nil) } }
     }
     /// Keeps the newest snapshot and one spare; anything older goes. (Names are timestamps, so they sort by age.)
     func pruneSnapshots() {
@@ -437,7 +581,10 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     @objc func reopen(_ s: NSMenuItem) { open(sessions[s.tag]) }
     @objc func forget(_ s: NSMenuItem) { sessions.remove(at: s.tag) }
-    @objc func snaps() { snapshots.toggle() }
+    @objc func snaps() {
+        if !CGPreflightScreenCaptureAccess() { snapshots = true; CGRequestScreenCaptureAccess(); return }   // the one deliberate ask
+        snapshots.toggle()
+    }
     @objc func viewShot(_ s: NSMenuItem) { if let p = s.representedObject as? String { ws.open(URL(fileURLWithPath: p)) } }
     @objc func hiding() { hideMode.toggle() }
     @objc func windows() { keepWindows.toggle() }
@@ -531,7 +678,11 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         let settings = add("Settings", nil, image: symbol("gearshape")), sub = NSMenu()
         add("Hide apps instead of quitting", #selector(hiding), to: sub).state = hideMode ? .on : .off
-        add("Take a snapshot when a session starts", #selector(snaps), to: sub).state = snapshots ? .on : .off
+        if CGPreflightScreenCaptureAccess() {
+            add("Take a snapshot when a session starts", #selector(snaps), to: sub).state = snapshots ? .on : .off
+        } else {
+            add("Allow snapshots… (asks for Screen Recording once)", #selector(snaps), image: symbol("camera"), to: sub)
+        }
         add("Reopen windows as they were", #selector(windows), to: sub).state = keepWindows ? .on : .off
         add("Open at login", #selector(login), to: sub).state = SMAppService.mainApp.status == .enabled ? .on : .off
         sub.addItem(.separator())
@@ -618,6 +769,19 @@ app.setActivationPolicy(.accessory)                             // no Dock icon,
 
 // One Focus at a time: a second copy (double launch, login item + manual open…) quits at once.
 let others = NSRunningApplication.runningApplications(withBundleIdentifier: "com.labern.focus").filter { $0 != .current }
+if CommandLine.arguments.contains("--pill-demo") {          // watch the start and end shows without a session
+    let p = SessionPill(), ws = NSWorkspace.shared
+    let icons = ["com.google.Chrome", "md.obsidian", "com.apple.iWork.Keynote", "com.apple.Preview", "com.readdle.SparkDesktop", "com.openai.chat"]
+        .compactMap { ws.urlForApplication(withBundleIdentifier: $0) }.map { ws.icon(forFile: $0.path) }
+    // `--pill-demo X Y`: the menu bar icon's centre in top-left screen points (as Accessibility reports it).
+    let a = CommandLine.arguments, i = a.firstIndex(of: "--pill-demo")!, s = NSScreen.main!.frame
+    let x = a.count > i + 2 ? Double(a[i + 1]) ?? Double(s.maxX - 560) : Double(s.maxX - 560), y = a.count > i + 2 ? Double(a[i + 2]) ?? 12 : 12
+    let target = NSPoint(x: x, y: Double(s.maxY) - y)
+    p.play(start: true, icons: icons, target: target, label: "Focus")
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.2) { p.play(start: false, icons: icons, target: target, label: "Back") }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 4.4) { exit(0) }
+    app.run()
+}
 if !others.isEmpty && !CommandLine.arguments.contains("--selftest") { print("Focus is already running (pid \(others[0].processIdentifier))"); exit(0) }
 
 /// `Focus --selftest`: the real session path, on TextEdit only, with its own settings store. Aborts before
@@ -634,7 +798,10 @@ if CommandLine.arguments.contains("--selftest") {
         let out = t.leaving().compactMap(\.bundleIdentifier)
         guard out == [edit] else { say("ABORT — would quit \(out)"); exit(1) }
         say("session would quit only TextEdit ✓  (protected: \(t.ws.runningApplications.filter(t.protected).compactMap(\.localizedName)))")
+        let t0 = Date()
         t.park(quit: true)
+        say("park() returned in \(Int(Date().timeIntervalSince(t0) * 1000)) ms (must be instant)")
+        later(1.5) {
         let shot = t.sessions.first?["shot"] as? String
         say("snapshot: \(shot.map { "\($0) (\((try? FileManager.default.attributesOfItem(atPath: $0)[.size]) ?? 0) bytes)" } ?? "NONE")")
         later(6) {
@@ -645,13 +812,19 @@ if CommandLine.arguments.contains("--selftest") {
                 let back = t.ws.runningApplications.contains { $0.bundleIdentifier == edit }
                 say("TextEdit back: \(back ? "✓" : "✗")  in session: \(t.focused)")
                 say("snapshot kept after restore: \(shot.map { FileManager.default.fileExists(atPath: $0) ? "✓" : "✗ gone" } ?? "n/a")")
-                for _ in 0..<3 { _ = t.snapshot(); Thread.sleep(forTimeInterval: 1.1); t.pruneSnapshots() }
-                let left = (try? FileManager.default.contentsOfDirectory(atPath: t.folder.path))?.filter { $0.hasPrefix("session-") }.count ?? -1
-                say("after 4 snapshots, kept: \(left) \(left == 2 ? "✓ (newest + one spare)" : "✗")")
-                try? FileManager.default.removeItem(at: t.folder)
-                UserDefaults.standard.removePersistentDomain(forName: suite)
-                exit(0)
+                func more(_ k: Int) {                   // three more snapshots, 1.1 s apart (names are per-second)
+                    guard k > 0 else {
+                        let left = (try? FileManager.default.contentsOfDirectory(atPath: t.folder.path))?.filter { $0.hasPrefix("session-") }.count ?? -1
+                        say("after 4 snapshots, kept: \(left) \(left == 2 ? "✓ (newest + one spare)" : "✗")")
+                        try? FileManager.default.removeItem(at: t.folder)
+                        UserDefaults.standard.removePersistentDomain(forName: suite)
+                        exit(0)
+                    }
+                    later(1.1) { t.snapshot { _ in t.pruneSnapshots(); more(k - 1) } }
+                }
+                more(3)
             }
+        }
         }
     }
     app.run()

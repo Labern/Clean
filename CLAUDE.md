@@ -103,6 +103,10 @@ no build step, no dependencies.
   Main list shows every Dock app except critical ones; every row toggles on click and the menu stays open.
   Single instance: a second launch exits. `Focus.app/Contents/MacOS/Focus --selftest` runs the real
   session path on TextEdit only (own defaults suite + folder; aborts if anything else would quit).
+  ⌘⇧F must be INSTANT: the session pill (SessionPill — zop, hit stop, icons sucked into the menu bar icon,
+  zip; reverse on End Session) plays at once; the snapshot runs async and only if
+  CGPreflightScreenCaptureAccess() — NEVER let it prompt (user hit a prompt on every press). The one ask is
+  Settings ▸ "Allow snapshots…". `--pill-demo X Y` plays both shows without a session.
   build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
