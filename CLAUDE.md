@@ -95,6 +95,9 @@ no build step, no dependencies.
   user lost ⌘⇥; launch now only re-enables it. Hiding OTHER apps from Dock/⌘⇥ is not possible cleanly:
   _LSSetApplicationInformationItem returns 0 but is ignored for foreign pids (tested 2026-11-12); editing
   Info.plist + re-sign would wipe the app's TCC grants. Claude is kept by default (seeded once).
+  Any terminal running Claude Code is ALWAYS protected (claudeHosts: ancestors of the `claude`
+  process, matched by proc_name/path — p_comm is the version string). Process lists come from sysctl
+  KERN_PROC_ALL: proc_listallpids silently skipped processes.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the

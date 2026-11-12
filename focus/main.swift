@@ -47,18 +47,32 @@ let menuWidth: CGFloat = 320
 let sessionKey = "⌘⇧F"
 let claude = "com.anthropic.claudefordesktop", wispr = "com.electron.wispr-flow", chrome = "com.google.Chrome"
 
+/// Every process with its parent and short name, read the way `ps` reads them (sysctl KERN_PROC_ALL).
+/// (proc_listallpids silently skipped processes, Claude's own among them.)
+struct Proc { let pid: pid_t, ppid: pid_t, name: String }
+func processes() -> [Proc] {
+    var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0], size = 0
+    let stride = MemoryLayout<kinfo_proc>.stride
+    guard sysctl(&mib, 4, nil, &size, nil, 0) == 0 else { return [] }
+    var buf = [kinfo_proc](repeating: kinfo_proc(), count: size / stride + 64)
+    size = buf.count * stride
+    guard sysctl(&mib, 4, &buf, &size, nil, 0) == 0 else { return [] }
+    return buf.prefix(size / stride).map { k in
+        var comm = k.kp_proc.p_comm
+        let name = withUnsafeBytes(of: &comm) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
+        return Proc(pid: k.kp_proc.p_pid, ppid: k.kp_eproc.e_ppid, name: name)
+    }
+}
+
 /// Physical memory per process tree, the number Activity Monitor calls "Memory". An app's figure includes its
 /// helpers (Chrome's renderers, Electron's GPU process…), which are its child processes.
 func memoryByPid() -> [pid_t: UInt64] {
-    var pids = [pid_t](repeating: 0, count: 4096)
-    let n = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size)))
     var own: [pid_t: UInt64] = [:], kids: [pid_t: [pid_t]] = [:]
-    for pid in pids.prefix(max(0, n)) where pid > 0 {
-        var info = proc_bsdinfo()
-        if proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, Int32(MemoryLayout<proc_bsdinfo>.size)) > 0 { kids[pid_t(info.pbi_ppid), default: []].append(pid) }
+    for p in processes() where p.pid > 0 {
+        kids[p.ppid, default: []].append(p.pid)
         var ru = rusage_info_v4()
-        let ok = withUnsafeMutablePointer(to: &ru) { $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(pid, RUSAGE_INFO_V4, $0) } }
-        if ok == 0 { own[pid] = ru.ri_phys_footprint }
+        let ok = withUnsafeMutablePointer(to: &ru) { $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) { proc_pid_rusage(p.pid, RUSAGE_INFO_V4, $0) } }
+        if ok == 0 { own[p.pid] = ru.ri_phys_footprint }
     }
     var total: [pid_t: UInt64] = [:]
     func sum(_ p: pid_t, _ depth: Int) -> UInt64 {
@@ -68,6 +82,24 @@ func memoryByPid() -> [pid_t: UInt64] {
     }
     for p in own.keys where p > 1 { _ = sum(p, 0) }
     return total
+}
+
+/// Every ancestor of a running Claude Code process (`claude` → shell → login → Terminal / iTerm / Ghostty…).
+/// The app among them is the terminal Claude is working in, and Focus must never close it.
+func claudeHosts() -> Set<pid_t> {
+    let all = processes()
+    var parent: [pid_t: pid_t] = [:], hosts = Set<pid_t>()
+    for p in all { parent[p.pid] = p.ppid }
+    var name = [CChar](repeating: 0, count: 256), path = [CChar](repeating: 0, count: 4096)
+    func isClaude(_ pid: pid_t) -> Bool {               // its full name, or its binary under …/claude/ (versions/2.1.x)
+        if proc_name(pid, &name, UInt32(name.count)) > 0, String(cString: name) == "claude" { return true }
+        return proc_pidpath(pid, &path, UInt32(path.count)) > 0 && String(cString: path).contains("/.local/share/claude/")
+    }
+    for p in all where p.name == "claude" || isClaude(p.pid) {
+        var up = p.ppid, hops = 0
+        while up > 1 && hops < 32 { hosts.insert(up); up = parent[up] ?? 1; hops += 1 }
+    }
+    return hosts
 }
 func gb(_ b: UInt64) -> String { ByteCountFormatter.string(fromByteCount: Int64(b), countStyle: .memory) }
 
@@ -158,6 +190,7 @@ final class Focus: NSObject, NSMenuDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     weak var button: BigButton?                                 // redrawn as rows change, so its caption is live
     var mem: [pid_t: UInt64] = [:]                              // refreshed each time the menu opens
+    var hosts = claudeHosts()                                   // terminals running Claude Code: refreshed before every decision
     var queue: [NSRunningApplication] = [], total = 0           // the slow, one-at-a-time quit in progress
     var status: String? { didSet { item.button?.toolTip = status ?? "Focus" } }
     lazy var never = NeverModel(self)
@@ -216,7 +249,7 @@ final class Focus: NSObject, NSMenuDelegate {
     func system(_ a: NSRunningApplication) -> Bool {
         a.bundleURL?.path.hasPrefix("/System/Library/CoreServices/") ?? true || a.bundleIdentifier == Bundle.main.bundleIdentifier
     }
-    func protected(_ a: NSRunningApplication) -> Bool { system(a) || neverClose.contains(a.bundleIdentifier ?? "") }
+    func protected(_ a: NSRunningApplication) -> Bool { system(a) || hosts.contains(a.processIdentifier) || neverClose.contains(a.bundleIdentifier ?? "") }
 
     /// Dock / ⌘⇥ apps Focus may touch. Menu bar apps are `.accessory`: never listed, never touched.
     func apps() -> [NSRunningApplication] { ws.runningApplications.filter { $0.activationPolicy == .regular && !protected($0) } }
@@ -228,6 +261,7 @@ final class Focus: NSObject, NSMenuDelegate {
     // MARK: session
 
     func park(quit: Bool) {
+        hosts = claudeHosts()
         let out = leaving()
         guard !out.isEmpty else { return }
         sessions.insert(["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden] as [String: Any] } }], at: 0)
@@ -241,6 +275,8 @@ final class Focus: NSObject, NSMenuDelegate {
     /// has really gone, pause, then the next. An app still open after 60 s is left alone — never forced.
     func quitNext() {
         guard focused, let a = queue.first else { queue = []; status = nil; return }
+        hosts = claudeHosts()
+        if protected(a) { queue.removeFirst(); return quitNext() }   // became Claude's terminal (or Never close) since the session began
         status = "Saving and quitting \(a.localizedName ?? "app") · \(total - queue.count + 1) of \(total)"
         a.terminate()
         let started = Date()
@@ -345,11 +381,12 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
-        mem = memoryByPid()
+        mem = memoryByPid(); hosts = claudeHosts()
         if let status { header(status) }
 
         // Never close — the user's permanent list, edited in its own window.
-        let names = neverClose.compactMap(path).map(appName)
+        let terminals = ws.runningApplications.filter { $0.activationPolicy == .regular && hosts.contains($0.processIdentifier) }.compactMap(\.localizedName)
+        let names = neverClose.compactMap(path).map(appName) + terminals.map { "\($0) (Claude)" }
         add("Never close" + (names.isEmpty ? "…" : " · " + names.joined(separator: ", ")), #selector(showNever), image: symbol("lock.fill"))
         m.addItem(.separator())
 
@@ -436,7 +473,7 @@ struct NeverView: View {
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Never close").font(.system(size: 20, weight: .semibold))
-                Text("Focus will never quit or hide the apps switched on here. System apps, menu bar–only apps and Focus itself are always safe.")
+                Text("Focus will never quit or hide the apps switched on here. System apps, menu bar–only apps, Focus itself and any terminal running Claude Code are always safe.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             List(m.entries) { e in
