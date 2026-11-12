@@ -485,6 +485,24 @@ final class Focus: NSObject, NSMenuDelegate {
         let pair = s.representedObject as? [String] ?? ["", ""]
         iconColor = pair[0]; iconColor2 = pair.count > 1 ? pair[1] : ""
     }
+    /// Customised Logo: the app's own icon (Finder, Launchpad, Settings) in the user's colours. "" = standard.
+    var logoBg: String { get { store.string(forKey: "logoBg") ?? "" } set { store.set(newValue, forKey: "logoBg"); applyLogo() } }
+    var logoMark: String { get { store.string(forKey: "logoMark") ?? "" } set { store.set(newValue, forKey: "logoMark"); applyLogo() } }
+    var logoCustom: Bool { !logoBg.isEmpty || !logoMark.isEmpty }
+    func logoImage(_ px: Int) -> NSImage {
+        let rep = appIconRep(px, bg: hexColor(logoBg), mark: hexColor(logoMark))
+        let img = NSImage(size: NSSize(width: px, height: px)); img.addRepresentation(rep); return img
+    }
+    /// Sets (or clears) the custom icon on the installed app. Re-applied at launch, since a reinstall replaces it.
+    func applyLogo() {
+        guard store == .standard else { return }
+        NSWorkspace.shared.setIcon(logoCustom ? logoImage(1024) : nil, forFile: Bundle.main.bundlePath, options: [])
+    }
+    @objc func logoStandard() { store.set("", forKey: "logoBg"); logoMark = "" }
+    @objc func logoMatch() {
+        store.set(iconColor.isEmpty ? "A78BFA" : iconColor, forKey: "logoBg")
+        logoMark = iconColor2.isEmpty ? (iconColor.isEmpty ? "5FD7AF" : "FFFFFF") : iconColor2
+    }
     var wheelForDot = false
     @objc func wheelRing() { openWheel(dot: false) }
     @objc func wheelDot() { openWheel(dot: true) }
@@ -540,6 +558,7 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         setIcon(glyph(focused: focused))
         pruneSnapshots()
+        if store == .standard && logoCustom { DispatchQueue.main.async { self.applyLogo() } }
     }
 
     /// System apps (Finder & co. live in CoreServices), Focus itself, and the user's Never close list.
@@ -922,6 +941,16 @@ final class Focus: NSObject, NSMenuDelegate {
         let gd = NSMenuItem(); gd.view = ColorGrid(grid, selected: iconColor2) { [unowned self] h in self.iconColor2 = h }; cm.addItem(gd)
         add("Same as Ring", #selector(dotSameAsRing), image: symbol("link"), to: cm).state = iconColor2.isEmpty ? .on : .off
         add("Colour Wheel…", #selector(wheelDot), image: symbol("paintpalette"), to: cm)
+        cm.addItem(.separator())
+        let preview = logoImage(64); preview.size = NSSize(width: 28, height: 28)
+        hdr("Customised Logo — the app's own icon")
+        let lp = add(logoCustom ? "Your logo" : "Standard logo", nil, image: preview, to: cm); lp.isEnabled = false
+        add("Standard", #selector(logoStandard), to: cm).state = logoCustom ? .off : .on
+        add("Match Menu Bar Colours", #selector(logoMatch), image: two(ringColor, dotColor), to: cm)
+        hdr("Logo Background")
+        let lb = NSMenuItem(); lb.view = ColorGrid(grid, selected: logoBg) { [unowned self] h in self.logoBg = h }; cm.addItem(lb)
+        hdr("Logo Mark")
+        let lm = NSMenuItem(); lm.view = ColorGrid(grid, selected: logoMark) { [unowned self] h in self.logoMark = h }; cm.addItem(lm)
         colour.submenu = cm
         sub.addItem(.separator())
         add("Hide apps instead of quitting", #selector(hiding), to: sub).state = hideMode ? .on : .off
@@ -1011,13 +1040,9 @@ struct NeverView: View {
     }
 }
 
-/// `Focus --make-icon DIR`: writes the app icon set (the menu bar mark at rest, white on the pill's near-black,
-/// on the macOS icon grid) so the icon is always drawn by the same glyph() as the menu bar and the pill.
-if let i = CommandLine.arguments.firstIndex(of: "--make-icon"), CommandLine.arguments.count > i + 1 {
-    let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
-    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-    for (px, name) in [(16, "16x16"), (32, "16x16@2x"), (32, "32x32"), (64, "32x32@2x"), (128, "128x128"), (256, "128x128@2x"),
-                       (256, "256x256"), (512, "256x256@2x"), (512, "512x512"), (1024, "512x512@2x")] {
+/// The app icon at `px` pixels: the menu bar mark at rest on the macOS icon grid (824-pt tile, 100-pt margin).
+/// Standard: near-black gradient tile, white mark. A Customised Logo passes its own tile and mark colours.
+func appIconRep(_ px: Int, bg: NSColor?, mark markColor: NSColor?) -> NSBitmapImageRep {
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px, bitsPerSample: 8, samplesPerPixel: 4,
                                    hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
         NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
@@ -1027,12 +1052,25 @@ if let i = CommandLine.arguments.firstIndex(of: "--make-icon"), CommandLine.argu
         NSGraphicsContext.saveGraphicsState()
         let shadow = NSShadow(); shadow.shadowColor = NSColor.black.withAlphaComponent(0.35); shadow.shadowBlurRadius = 20 * u
         shadow.shadowOffset = NSSize(width: 0, height: -8 * u); shadow.set()
-        NSGradient(starting: NSColor(white: 0.16, alpha: 1), ending: NSColor(white: 0.05, alpha: 1))!.draw(in: shape, angle: -90)
+        let top = bg.map { $0.blended(withFraction: 0.18, of: .white) ?? $0 } ?? NSColor(white: 0.16, alpha: 1)
+        let bottom = bg.map { $0.blended(withFraction: 0.22, of: .black) ?? $0 } ?? NSColor(white: 0.05, alpha: 1)
+        NSGradient(starting: top, ending: bottom)!.draw(in: shape, angle: -90)
         NSGraphicsContext.restoreGraphicsState()
         theme.hudEdge.setStroke(); shape.lineWidth = max(1, 3 * u); shape.stroke()
-        let mark = painted(glyph(0), theme.hudInk, NSSize(width: 512, height: 512))!
+        let mark = painted(glyph(0), markColor ?? theme.hudInk, NSSize(width: 512, height: 512))!
         NSGraphicsContext.current!.cgContext.draw(mark, in: tile.insetBy(dx: 120 * u, dy: 120 * u))
         NSGraphicsContext.restoreGraphicsState()
+        return rep
+}
+
+/// `Focus --make-icon DIR`: writes the app icon set (the menu bar mark at rest, white on the pill's near-black,
+/// on the macOS icon grid) so the icon is always drawn by the same glyph() as the menu bar and the pill.
+if let i = CommandLine.arguments.firstIndex(of: "--make-icon"), CommandLine.arguments.count > i + 1 {
+    let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    for (px, name) in [(16, "16x16"), (32, "16x16@2x"), (32, "32x32"), (64, "32x32@2x"), (128, "128x128"), (256, "128x128@2x"),
+                       (256, "256x256"), (512, "256x256@2x"), (512, "512x512"), (1024, "512x512@2x")] {
+        let rep = appIconRep(px, bg: nil, mark: nil)
         try? rep.representation(using: .png, properties: [:])!.write(to: dir.appendingPathComponent("icon_\(name).png"))
     }
     exit(0)

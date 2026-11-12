@@ -89,12 +89,12 @@ no build step, no dependencies.
   ⌘⇧F start session / bring back; ⌘⇧E opens the menu (user's picks, 2026-11-12). Sessions quit apps
   ONE AT A TIME, biggest first, normal quit (state saved, prompts honoured), wait until gone, never
   forced; restore relaunches one at a time (Chrome with --restore-last-session). Menu rows show memory;
-  big button caption shows quits/frees/keeps live. "Critical System Processes" (was "Never close" — user found that name cringe) is a window (SwiftUI) + a menu section BELOW the app list — seeded
-  with Wispr Flow; system apps (/System/Library/CoreServices), menu-bar-only apps and Focus are always safe.
+  big button caption shows quits/frees/keeps live. "Critical System Processes" (was "Never close" — user found that name cringe) is a window (SwiftUI) + a menu section BELOW the app list
+  System apps (/System/Library/CoreServices), menu-bar-only apps and Focus are always safe.
   NEVER touch the system ⌘⇥ again: an earlier build disabled it via CGSSetSymbolicHotKeyEnabled and the
   user lost ⌘⇥; launch now only re-enables it. Hiding OTHER apps from Dock/⌘⇥ is not possible cleanly:
   _LSSetApplicationInformationItem returns 0 but is ignored for foreign pids (tested 2026-11-12); editing
-  Info.plist + re-sign would wipe the app's TCC grants. (No seeds: Claude/Wispr defaults removed 2026-11-12.)
+  Info.plist + re-sign would wipe the app's TCC grants. (No seeded apps.)
   (Superseded 2026-11-12: Claude-terminal detection REMOVED — see "No user-specific hard-coding" below.) (claudeHosts: ancestors of the `claude`
   process, matched by proc_name/path — p_comm is the version string). Process lists come from sysctl
   KERN_PROC_ALL: proc_listallpids silently skipped processes.
@@ -109,10 +109,6 @@ no build step, no dependencies.
   Settings ▸ "Allow snapshots…". `--pill-demo X Y` plays both shows without a session.
   App icon: generated at build by `Focus --make-icon` from the same glyph() (rest state, white on near-black).
   NO custom ⌘⇥ switcher — user rejected it outright ("use the native Command-Tab"); built + removed 2026-11-12.
-  Wispr Flow in native ⌘⇥ is WISPR'S bug (v1.6.1457): Info.plist is LSUIElement, but its dock-policy sync makes it
-  'regular' whenever any non-excluded window is visible, and its always-shown "Status" window isn't excluded —
-  even with hideFlowBarPermanently. Electron fuses: inspect args OFF, asar integrity ON → no outside fix short of
-  patching Wispr (breaks its signature → TCC mic/accessibility re-grant; undone by every update).
   Tools submenu: Quit All Apps, Quit All & Restart Mac (restarts only once every app has quit), Force Quit All
   (red confirm), Open Activity Monitor, Open System Settings. All spare Critical + Claude's terminal; "keep open"
   ticks don't apply; each is saved to Past sessions (kind: quit all / force quit). Disabled during a session.
@@ -131,6 +127,9 @@ no build step, no dependencies.
   lists (Critical System Processes / keep-open) plus built-in safety for macOS system apps, menu-bar-only apps and
   Focus. UI copy names apps from those lists (staysOpen()). His own setup lives in his defaults only.
   Release polish: strip any stock-AI wording from every UI string before shipping.
+  Customised Logo (Settings ▸ Icon Colour): the app's own icon in the user's colours (logoBg/logoMark), drawn by
+  appIconRep() — same code as the standard icon — and set with NSWorkspace.setIcon on the installed bundle;
+  re-applied at launch because a reinstall replaces the bundle. Signature still verifies with it attached.
   build.sh builds/signs in $TMPDIR — iCloud re-adds xattrs on ~/Desktop and codesign fails intermittently.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
