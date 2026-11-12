@@ -41,6 +41,8 @@ struct Theme {
     var accent = NSColor(name: "focusAccent") { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .white : hexColor("171A20")! }
     var onAccent = NSColor(name: "focusOnAccent") { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .black : .white }
     var hazard = NSColor.systemRed                                  // red only for the destructive action
+    var menuBackground = hexColor("1F1F21")!                       // the menu: opaque off-black, always dark (as on the product page)
+    var menuEdge = NSColor(white: 1, alpha: 0.12)
     var hover = NSColor.labelColor.withAlphaComponent(0.08)
     var text = NSColor.labelColor
     var faint = NSColor.secondaryLabelColor
@@ -322,7 +324,8 @@ final class SessionPill {
         let tgt = CGPoint(x: target.x - origin.x, y: target.y - origin.y)
 
         // The pill: mark + one word, bottom centre — where the eye already is when the key goes down.
-        let pill = CALayer(), size = CGSize(width: 136, height: 44)
+        let labelWidth = (label as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 15, weight: .semibold)]).width
+        let pill = CALayer(), size = CGSize(width: max(136, ceil(labelWidth) + 74), height: 44)   // a mode's name fits
         let home = CGPoint(x: screen.frame.width / 2, y: 96)
         pill.bounds = CGRect(origin: .zero, size: size); pill.position = home
         pill.backgroundColor = theme.hudBg.cgColor; pill.cornerRadius = 22
@@ -420,7 +423,8 @@ final class Focus: NSObject, NSMenuDelegate {
     var mem: [pid_t: UInt64] = [:]                              // refreshed each time the menu opens
     var queue: [NSRunningApplication] = [], total = 0           // the slow, one-at-a-time quit in progress
     var clearing = false, restartAfter = false, refused: [String] = []   // Tools ▸ Quit All (and Restart)
-    var waiting: [NSRunningApplication] = []                    // asked to quit, still open after `patience`: a save prompt
+    var waiting: [NSRunningApplication] = []
+    var modeKeep: Set<String>?                                  // while a mode's session is quitting: the mode's apps                    // asked to quit, still open after `patience`: a save prompt
     var patience: TimeInterval = 8
     var restartMac: () -> Void = {                              // the --selftest swaps this for a print
         let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -581,13 +585,27 @@ final class Focus: NSObject, NSMenuDelegate {
 
     // MARK: session
 
-    func park(quit: Bool) {
-        let out = leaving()
+    /// Starts a session. With a `mode`, the mode's apps are what stays (opened if they aren't running) and
+    /// everything else is parked — "keep open" ticks don't apply. `limit` scopes it for the self-tests.
+    func park(quit: Bool, mode: [String: Any]? = nil, limit: Set<String>? = nil) {
+        let keep: Set<String>? = mode.map { Set($0["apps"] as? [String] ?? []) }
+        var out = keep.map { k in apps().filter { !k.contains($0.bundleIdentifier ?? "") } } ?? leaving()
+        if let limit { out = out.filter { limit.contains($0.bundleIdentifier ?? "") } }
+        if let keep {                                           // the mode's apps come up first, in the background
+            for id in keep where !ws.runningApplications.contains(where: { $0.bundleIdentifier == id }) {
+                guard let url = ws.urlForApplication(withBundleIdentifier: id) else { continue }
+                let c = NSWorkspace.OpenConfiguration(); c.activates = false; ws.openApplication(at: url, configuration: c)
+            }
+        }
         guard !out.isEmpty else { return }
+        modeKeep = keep
+        let name = mode?["name"] as? String
         // Instant: the pill plays the moment the key goes down. The snapshot is grabbed in the background in the
         // same instant (the pill is still invisible then) and the quitting starts once it's on disk.
-        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Focus")
-        sessions.insert(["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
+        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: name ?? "Focus")
+        var record: Session = ["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }]
+        if let name { record["mode"] = name; record["name"] = name }
+        sessions.insert(record, at: 0)
         focused = true
         let go = { [self] in
             if !quit { out.forEach { $0.hide() }; return }
@@ -606,7 +624,8 @@ final class Focus: NSObject, NSMenuDelegate {
     /// sitting on a "Save changes?" prompt: it goes on the waiting list and the queue moves on without it.
     func quitNext() {
         guard focused || clearing, let a = queue.first else { return finishQueue() }
-        if protected(a) || (!clearing && excluded.contains(a.bundleIdentifier ?? "")) { queue.removeFirst(); return quitNext() }   // marked keep / critical since it began
+        let kept = modeKeep ?? Set(excluded)                     // a mode decides what stays; otherwise the ticks do
+        if protected(a) || (!clearing && kept.contains(a.bundleIdentifier ?? "")) { queue.removeFirst(); return quitNext() }   // marked keep / critical since it began
         status = "Saving and quitting \(a.localizedName ?? "app") · \(total - queue.count + 1) of \(total)"
         a.terminate()
         let started = Date()
@@ -626,7 +645,7 @@ final class Focus: NSObject, NSMenuDelegate {
     /// The queue is done. Anything on the waiting list is brought forward so its save prompt is in front of you,
     /// not buried. A restart waits (up to 2 min) for those prompts to be answered; if one isn't, it's cancelled.
     func finishQueue() {
-        queue = []; status = nil
+        queue = []; status = nil; modeKeep = nil
         let wasClearing = clearing, restart = restartAfter
         clearing = false; restartAfter = false
         waiting = waiting.filter { !$0.isTerminated }
@@ -751,7 +770,9 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     func relaunch(_ rest: ArraySlice<[String: Any]>) {
         guard let e = rest.first else { return }
-        if let path = e["path"] as? String {
+        // An app deleted or moved since it was parked (or on an ejected drive) is skipped quietly: asking macOS to
+        // open a missing app puts up a "can't be found" dialog.
+        if let path = e["path"] as? String, FileManager.default.fileExists(atPath: path) {
             let hidden = e["hidden"] as? Bool ?? false
             if let a = ws.runningApplications.first(where: { $0.bundleURL?.path == path }) {
                 if !hidden { a.unhide() }
@@ -776,9 +797,15 @@ final class Focus: NSObject, NSMenuDelegate {
     /// Session apps running under a different process than the one Focus quit: something reopened them
     /// (a login item, a helper, an updater). Different from a save prompt, and worth a different line.
     func reopened() -> [NSRunningApplication] {
-        let quitPids = Set((sessions.first?["apps"] as? [[String: Any]] ?? []).compactMap { $0["pid"] as? Int })
+        guard focused, !hideMode else { return [] }
+        let entries = sessions.first?["apps"] as? [[String: Any]] ?? []
+        let quitPids = Set(entries.compactMap { $0["pid"] as? Int }), paths = Set(entries.compactMap { $0["path"] as? String })
         guard !quitPids.isEmpty else { return [] }
-        return stragglers().filter { !quitPids.contains(Int($0.processIdentifier)) }
+        let waiting = Set(queue.map(\.processIdentifier))
+        // Hidden or not: a relaunched app is using memory either way.
+        return ws.runningApplications.filter {
+            paths.contains($0.bundleURL?.path ?? "") && !protected($0) && !waiting.contains($0.processIdentifier) && !quitPids.contains(Int($0.processIdentifier))
+        }
     }
     @objc func quitAgain() { reopened().forEach { $0.terminate() } }
 
@@ -815,6 +842,72 @@ final class Focus: NSObject, NSMenuDelegate {
         guard p.runModal() == .OK else { return }
         for url in p.urls { if let id = Bundle(url: url)?.bundleIdentifier, !neverClose.contains(id) { neverClose.append(id) } }
     }
+    // MARK: modes and named sessions
+
+    /// Modes: named sets of apps ("Writing" = a writing app + a browser). Starting one opens its apps and parks
+    /// everything else; End Session restores. Nothing is built in — every mode is the user's own.
+    var modes: [[String: Any]] {
+        get { store.array(forKey: "modes") as? [[String: Any]] ?? [] }
+        set { store.set(newValue, forKey: "modes") }
+    }
+    /// A one-line text prompt (kept in front: a menu bar app is often refused activation).
+    func ask(_ title: String, _ text: String, _ value: String = "", placeholder: String = "") -> String? {
+        let a = NSAlert(); a.messageText = title; a.informativeText = text
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 280, height: 24))
+        field.stringValue = value; field.placeholderString = placeholder; a.accessoryView = field
+        a.addButton(withTitle: "Save"); a.addButton(withTitle: "Cancel")
+        a.window.level = .floating; a.window.initialFirstResponder = field
+        NSApp.activate(ignoringOtherApps: true)
+        guard a.runModal() == .alertFirstButtonReturn else { return nil }
+        let v = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        return v.isEmpty ? nil : v
+    }
+    func names(_ ids: [String]) -> String { ids.compactMap(path).map(appName).joined(separator: ", ") }
+    @objc func newMode() {
+        let ids = excluded.filter { path($0) != nil }
+        guard !ids.isEmpty else {
+            return tell("Tick the apps for this mode first", "In the Focus menu, tick the apps you want in the mode — say, your writing app and your browser — then choose New Mode again.")
+        }
+        guard let name = ask("New Mode", "Starting this mode opens \(names(ids)) and parks everything else.", placeholder: "Writing") else { return }
+        modes.append(["name": name, "apps": ids])
+    }
+    @objc func startMode(_ s: NSMenuItem) {
+        guard !focused, !clearing, modes.indices.contains(s.tag) else { return }
+        item.menu?.cancelTracking(); park(quit: !hideMode, mode: modes[s.tag])
+    }
+    @objc func renameMode(_ s: NSMenuItem) {
+        guard modes.indices.contains(s.tag), let name = ask("Rename Mode", "", modes[s.tag]["name"] as? String ?? "") else { return }
+        modes[s.tag]["name"] = name
+    }
+    @objc func updateMode(_ s: NSMenuItem) {
+        let ids = excluded.filter { path($0) != nil }
+        guard modes.indices.contains(s.tag), !ids.isEmpty else { return }
+        modes[s.tag]["apps"] = ids
+    }
+    @objc func deleteMode(_ s: NSMenuItem) { if modes.indices.contains(s.tag) { modes.remove(at: s.tag) } }
+    @objc func renameSession(_ s: NSMenuItem) {
+        guard sessions.indices.contains(s.tag) else { return }
+        let current = sessions[s.tag]["name"] as? String ?? ""
+        guard let name = ask("Rename Session", "", current, placeholder: "Essay draft") else { return }
+        sessions[s.tag]["name"] = name
+    }
+    @objc func sessionToMode(_ s: NSMenuItem) {
+        guard sessions.indices.contains(s.tag) else { return }
+        let ids = (sessions[s.tag]["apps"] as? [[String: Any]] ?? []).compactMap { ($0["path"] as? String).flatMap { Bundle(path: $0)?.bundleIdentifier } }
+        guard !ids.isEmpty, let name = ask("Save as Mode", "Starting this mode opens \(names(ids)) and parks everything else.",
+                                             sessions[s.tag]["name"] as? String ?? "") else { return }
+        modes.append(["name": name, "apps": ids])
+    }
+    /// Up to three app icons, overlapped, for a mode's row.
+    func stack(_ ids: [String]) -> NSImage {
+        let icons = ids.prefix(3).compactMap(path).map { ws.icon(forFile: $0) }
+        let img = NSImage(size: NSSize(width: 16 + CGFloat(max(icons.count - 1, 0)) * 7, height: 16), flipped: false) { _ in
+            for (i, ic) in icons.enumerated().reversed() { ic.draw(in: NSRect(x: CGFloat(i) * 7, y: 0, width: 16, height: 16)) }
+            return true
+        }
+        return img
+    }
+
     @objc func reopen(_ s: NSMenuItem) { open(sessions[s.tag]) }
     @objc func forget(_ s: NSMenuItem) { sessions.remove(at: s.tag) }
     @objc func snaps() {
@@ -846,6 +939,30 @@ final class Focus: NSObject, NSMenuDelegate {
     func appName(_ path: String) -> String { FileManager.default.displayName(atPath: path).replacingOccurrences(of: ".app", with: "") }
     func apps(_ n: Int) -> String { n == 1 ? "1 app" : "\(n) apps" }
     func path(_ id: String) -> String? { ws.urlForApplication(withBundleIdentifier: id)?.path }
+
+    /// macOS gives menus no background colour, only its translucent material. So every Focus menu is forced dark,
+    /// and once its window exists an opaque off-black backing is slipped under the items.
+    func menuWillOpen(_ m: NSMenu) {
+        darken(m)
+        DispatchQueue.main.async { self.paintMenuWindows() }
+    }
+    func darken(_ m: NSMenu) {
+        m.appearance = NSAppearance(named: .darkAqua)
+        for i in m.items { if let sub = i.submenu { sub.delegate = sub.delegate ?? self; darken(sub) } }
+    }
+    func paintMenuWindows() {
+        for w in NSApp.windows where w.isVisible && NSStringFromClass(type(of: w)).contains("Menu") {
+            guard let host = w.contentView, host.subviews.first(where: { $0.identifier?.rawValue == "focusBacking" }) == nil else { continue }
+            let back = NSView(frame: host.bounds)
+            back.identifier = NSUserInterfaceItemIdentifier("focusBacking")
+            back.autoresizingMask = [.width, .height]
+            back.wantsLayer = true
+            back.layer?.backgroundColor = theme.menuBackground.cgColor
+            back.layer?.cornerRadius = 10; back.layer?.cornerCurve = .continuous
+            back.layer?.borderColor = theme.menuEdge.cgColor; back.layer?.borderWidth = 1
+            host.addSubview(back, positioned: .below, relativeTo: nil)
+        }
+    }
 
     func menuNeedsUpdate(_ m: NSMenu) {
         m.removeAllItems()
@@ -889,9 +1006,10 @@ final class Focus: NSObject, NSMenuDelegate {
         add("Add or remove…", #selector(showNever), image: symbol("plus.circle"))
 
         let left = stragglers()
-        if !left.isEmpty {                                      // shown only when something is still eating memory
+        let back = reopened()
+        if !left.isEmpty || !back.isEmpty {                     // shown only when something is still eating memory
             m.addItem(.separator())
-            let back = reopened(), stuck = left.filter { a in !back.contains(a) }
+            let stuck = left.filter { a in !back.contains(a) }
             if !back.isEmpty {
                 add("Reopened by itself: " + back.compactMap(\.localizedName).joined(separator: ", ") + " — quit again",
                     #selector(quitAgain), image: symbol("arrow.triangle.2.circlepath"))
@@ -907,16 +1025,44 @@ final class Focus: NSObject, NSMenuDelegate {
             add("Make the icon yours — pick its colours…", #selector(colourTip), image: Focus.rainbow)
             m.addItem(.separator())
         }
+        // Modes — the user's named sets of apps.
+        header(modes.isEmpty ? "Modes — tick some apps, then save them as one" : "Modes")
+        for (n, md) in modes.enumerated() {
+            let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode"
+            let row = add(name, nil, image: stack(ids)), sm = NSMenu()
+            sm.autoenablesItems = false
+            if #available(macOS 14, *) { sm.addItem(.sectionHeader(title: "Opens")) }
+            for id in ids { if let p = path(id) { add(appName(p), nil, image: appIcon(p), to: sm) } }
+            sm.addItem(.separator())
+            let go = add("Start \(name)", #selector(startMode(_:)), image: symbol("play.circle"), to: sm)
+            go.tag = n; go.isEnabled = !focused && !clearing
+            add("Rename…", #selector(renameMode(_:)), image: symbol("pencil"), to: sm).tag = n
+            let use = add("Use Ticked Apps", #selector(updateMode(_:)), image: symbol("checklist"), to: sm)
+            use.tag = n; use.isEnabled = !excluded.isEmpty
+            add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).tag = n
+            row.submenu = sm
+        }
+        add("New Mode from Ticked Apps…", #selector(newMode), image: symbol("plus.circle"))
+        m.addItem(.separator())
+
         if !sessions.isEmpty {
             let past = add("Past sessions", nil, image: symbol("clock.arrow.circlepath")), sub = NSMenu()
             for (n, s) in sessions.enumerated() {
                 let list = s["apps"] as? [[String: Any]] ?? []
                 let date = (s["date"] as? Date).map { when.string(from: $0) } ?? "?"
-                let i = add("\(date) · \(apps(list.count))" + ((s["kind"] as? String).map { " · " + $0 } ?? ""), nil, to: sub), one = NSMenu()
+                let title = (s["name"] as? String).map { "\($0) · \(date)" } ?? "\(date) · \(apps(list.count))" + ((s["kind"] as? String).map { " · " + $0 } ?? "")
+                let i = add(title, nil, to: sub), one = NSMenu()
+                // Hovering a session opens this: its snapshot first, so you see where you were.
+                if let shot = s["shot"] as? String, FileManager.default.fileExists(atPath: shot), let img = NSImage(contentsOfFile: shot) {
+                    let w = menuWidth - 28, h = (w * img.size.height / max(img.size.width, 1)).rounded()
+                    let v = NSMenuItem(); v.view = Thumb(img, NSSize(width: w, height: h)) { [unowned self] in self.ws.open(URL(fileURLWithPath: shot)) }
+                    one.addItem(v); one.addItem(.separator())
+                }
                 for p in list.compactMap({ $0["path"] as? String }) { add(appName(p), nil, image: appIcon(p), to: one) }
                 one.addItem(.separator())
-                if let shot = s["shot"] as? String, FileManager.default.fileExists(atPath: shot) { add("View snapshot", #selector(viewShot), image: symbol("photo"), to: one).representedObject = shot }
                 add("Open all", #selector(reopen), image: symbol("arrow.up.forward.app"), to: one).tag = n
+                add("Rename…", #selector(renameSession(_:)), image: symbol("pencil"), to: one).tag = n
+                add("Save as Mode…", #selector(sessionToMode(_:)), image: symbol("square.stack"), to: one).tag = n
                 add("Delete", #selector(forget), image: symbol("trash"), to: one).tag = n
                 i.submenu = one
             }
@@ -1292,6 +1438,28 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
             waitUntil(20, { running(slow).isEmpty && t.status == nil }) { cleared in
                 t.toggle()
                 done(listed && cleared, "on waiting list \(listed), status cleared after it quit \(cleared)")
+            }
+        }
+    }))
+    steps.append(("17. modes — start opens the mode's apps and parks the rest; End restores; rename shows in the menu", { done in
+        for a in running(edit) { a.terminate() }
+        waitUntil(8, { running(edit).isEmpty }) { _ in
+            launch(calc) {
+                t.modes = [["name": "Writing", "apps": [edit]]]
+                t.park(quit: true, mode: t.modes[0], limit: [calc])      // scoped: only Calculator may be parked
+                waitUntil(12, { !running(edit).isEmpty && running(calc).isEmpty && t.queue.isEmpty }) { started in
+                    let named = t.sessions.first?["mode"] as? String == "Writing"
+                    t.sessions[0]["name"] = "Essay draft"
+                    let m = NSMenu(); t.menuNeedsUpdate(m)
+                    let past = m.items.first { $0.title == "Past sessions" }?.submenu?.items.first?.title ?? ""
+                    let modeRow = m.items.contains { $0.title == "Writing" }
+                    t.toggle()
+                    waitUntil(10, { !running(calc).isEmpty }) { back in
+                        t.modes = []
+                        done(started && named && back && past.hasPrefix("Essay draft") && modeRow,
+                             "TextEdit opened + Calculator parked: \(started); recorded as mode: \(named); renamed row: '\(past)'; mode row in menu: \(modeRow); End restored: \(back)")
+                    }
+                }
             }
         }
     }))

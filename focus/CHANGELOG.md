@@ -4,6 +4,17 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.1.0 — 2026-11-12 (branch focus/feat-modes)
+
+- **Modes:** named sets of apps — tick some apps, "New Mode from Ticked Apps…", name it (say, Writing). Starting a mode
+  opens its apps and parks everything else; End Session brings it all back. Rename, update from ticks, or delete.
+  None are built in.
+- **Named sessions:** rename any past session; hovering one shows its snapshot first; "Save as Mode…" turns a session
+  into a mode.
+- **A true dark menu:** opaque off-black (#1F1F21) with white text, always — matching the product page.
+- Fixes: a parked app that's been deleted is skipped quietly (no "can't be found" dialog); an app that relaunches
+  itself is spotted even if it comes back hidden.
+
 ## 0.0.4 — 2026-11-12
 
 Stress-tested (see `docs/STRESS-TEST.md`). Two fixes:
