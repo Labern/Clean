@@ -1933,7 +1933,7 @@ final class Focus: NSObject, NSMenuDelegate {
             m.addItem(.separator())
         }
         // Modes — the user's named sets of apps.
-        header("Modes — the apps you keep open")
+        header("Modes — pre-defined app combinations")
         for md in modes {
             let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
             let row = add(name, nil, image: stack(ids)), sm = NSMenu()

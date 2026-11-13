@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.14.1 — 2026-11-13
+- The Modes heading reads "Modes — pre-defined app combinations".
+
 ## 0.14.0 — 2026-11-13
 - **Modes, built out.**
   - **Suggested Modes:** Game Design, Web Only, Writing, Coding, Design, Calls. Each is built only from apps this Mac has; Web Only uses your default browser. Click one to add it, then make it your own.

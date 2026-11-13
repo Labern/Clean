@@ -1,6 +1,6 @@
 # Focus — test report
 
-**quick** run · version 0.13.0 · 2026-11-13 21:01 · 31s · **17 passed, 0 failed**
+**quick** run · version 0.14.0 · 2026-11-13 21:08 · 29s · **17 passed, 0 failed**
 
 | Result | Check | Detail |
 |---|---|---|
@@ -18,8 +18,8 @@
 | PASS | 38. app rows: hovering shows + (will add) or × (will remove); after 2.5 s a popup says exactly what a click does | add: 'Click to add Chrome to your session.'; remove: 'Click to remove Chrome from your session.'; mode: 'Click to add Chrome to this mode.'; no popup where nothing is added: true; delay 2.5 s; popup shows: true |
 | PASS | 26. icon designs: Lens is the default; every design draws at rest and focused, in the user's colours; the picker is in Appearance | Lens default: true; designs that drew nothing: none; choice saved: true; picker in Appearance: true |
 | PASS | 27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration | migration true · create+dedupe true · dragged .app true · no duplicates true · reorder true · remove+rename true · found by id true · delete true |
-| PASS | 28. a live session says what it is: banner with the mode's name at the top, 'End <name>', renames show at once | first line 'Focus — in session (6 apps, since 21:01)': true; banner 'Game design' / 'Mode · started 21:01 · keeps TextEdit': true; button 'End Game design'; rename shows: true; unnamed says Focus session: true; no banner outside a session: true |
+| PASS | 28. a live session says what it is: banner with the mode's name at the top, 'End <name>', renames show at once | first line 'Focus — in session (6 apps, since 21:08)': true; banner 'Game design' / 'Mode · started 21:08 · keeps TextEdit': true; button 'End Game design'; rename shows: true; unnamed says Focus session: true; no banner outside a session: true |
 | PASS | 29. switching and hide-instead-of-quit settings; the Fewer icon | careful unless chosen: true; menu ticks Careful: true; per-app hide rows: true; Fewer icon: true |
-| PASS | 16. menu speed with every process on the Mac | 29 ms per menu open |
+| PASS | 16. menu speed with every process on the Mac | 30 ms per menu open |
 
 Quick: `./test.sh` (every major change). Full: `./test.sh full` (when needed).
