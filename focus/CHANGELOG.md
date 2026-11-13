@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.17.0 — 2026-11-13
+- **Modes start with one click:**
+  - Each mode is an item under the Modes heading, with its shortcut on the right.
+  - Click it to start it; during a session it moves the session to that mode.
+  - The live mode is ticked, and clicking it ends the session.
+- Renaming, apps, shortcut and delete are in the Edit Modes submenu.
+
 ## 0.16.2 — 2026-11-13
 - The menu bar always names the session: its own name, else the mode it matches, else "Focus".
   - A mode matches when the session kept at least half of that mode's apps.

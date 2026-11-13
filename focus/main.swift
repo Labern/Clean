@@ -2002,19 +2002,23 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         // Modes — the user's named sets of apps.
         header("Modes — pre-defined app combinations")
+        // Each mode is one click: start it (or move the live session to it); the live one is ticked and ends on click.
         for md in modes {
             let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
-            let row = add(name, nil, image: stack(ids)), sm = NSMenu()
+            let go = add(name, #selector(startMode(_:)), image: stack(ids))
+            go.representedObject = mid; go.isEnabled = !clearing
+            go.state = focused && sessions.first?["modeID"] as? String == mid ? .on : .off
+            go.toolTip = names(ids)
+            if let digit = md["key"] as? Int {                   // its shortcut, at the right like any Mac menu item
+                go.keyEquivalent = String(digit); go.keyEquivalentModifierMask = NSEvent.ModifierFlags(carbon: modeMods)
+            }
+        }
+        let editModes = modes.isEmpty ? nil : add("Edit Modes", nil, image: symbol("slider.horizontal.3")), em = NSMenu()
+        for md in modes {
+            let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
+            let row = add(name, nil, image: stack(ids), to: em), sm = NSMenu()
             sm.autoenablesItems = false
             let digit = md["key"] as? Int
-            if let digit {                                       // shown at the right of the row, like any Mac shortcut
-                // (a row that opens a submenu can't carry a real key equivalent, so it's drawn into the title)
-                let para = NSMutableParagraphStyle(); para.tabStops = [NSTextTab(textAlignment: .right, location: menuWidth - 58)]
-                let t = NSMutableAttributedString(string: name, attributes: [.font: NSFont.menuFont(ofSize: 0), .paragraphStyle: para])
-                t.append(NSAttributedString(string: "\t" + label(forMode: digit), attributes: [.font: NSFont.menuFont(ofSize: 0), .paragraphStyle: para,
-                                                                                                .foregroundColor: NSColor.secondaryLabelColor]))
-                row.attributedTitle = t
-            }
             let nameRow = NSMenuItem(); nameRow.view = InlineNameField(name, placeholder: "Mode name", symbolName: "pencil") { [unowned self] v in self.renameMode(mid, to: v) }
             sm.addItem(nameRow)
             // Its apps, ticked; apps open right now that aren't in it, unticked. Click to put one in or take it out.
@@ -2040,14 +2044,12 @@ final class Focus: NSObject, NSMenuDelegate {
             }
             if let digit, takenModeKeys.contains(digit) { add("⚠︎ " + label(forMode: digit) + " is taken by another app — pick another", nil, to: kMenu).isEnabled = false }
             kItem.submenu = kMenu
-            let live = focused && sessions.first?["modeID"] as? String == mid
-            let go = add(live ? "End \(name)" : "Start \(name)", #selector(startMode(_:)), image: symbol(live ? "stop.circle" : "play.circle"), to: sm)
-            go.representedObject = mid; go.isEnabled = !clearing && (!focused || live)
             let use = add("Use Ticked Apps", #selector(updateMode(_:)), image: symbol("checklist"), to: sm)
             use.representedObject = mid; use.isEnabled = !excluded.isEmpty
             add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).representedObject = mid
             row.submenu = sm
         }
+        editModes?.submenu = em
         let nm = add("New Mode", nil, image: symbol("plus.circle")), nmm = NSMenu()
         nmm.autoenablesItems = false
         let nameIt = NSMenuItem(); nameIt.view = InlineNameField("", placeholder: "Name it, then press Return", symbolName: "pencil") { [unowned self] v in
@@ -2783,7 +2785,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let apps = t.mode(mid)?["apps"] as? [String] ?? []
         let edited = added && apps == [edit]
         let m = NSMenu(); t.menuNeedsUpdate(m)
-        let row = m.items.first { $0.title == "Web Only" }?.submenu
+        let row = m.items.first { $0.title == "Edit Modes" }?.submenu?.items.first { $0.title == "Web Only" }?.submenu
         let rows = row?.items.contains { $0.view is AppRow } == true && row?.items.contains { $0.title == "Add App…" } == true
         let sugMenu = m.items.first { $0.title == "Suggested Modes" }
         t.modes = []
@@ -2799,9 +2801,9 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         t.setModeKey(b, 1)                                              // take Web's digit
         let moved = t.modeForKey(1)?["id"] as? String == b && t.mode(a)?["key"] == nil
         let m = NSMenu(); t.menuNeedsUpdate(m)
-        let row = m.items.first { $0.title.hasPrefix("Games") }
-        let shows = row?.attributedTitle?.string == "Games\t⌘1"
-        let picker = row?.submenu?.items.first { $0.title.hasPrefix("Shortcut: ") }?.submenu
+        let row = m.items.first { $0.title == "Games" && $0.submenu == nil }
+        let shows = row?.keyEquivalent == "1" && row?.keyEquivalentModifierMask == .command && row?.action != nil
+        let picker = m.items.first { $0.title == "Edit Modes" }?.submenu?.items.first { $0.title == "Games" }?.submenu?.items.first { $0.title.hasPrefix("Shortcut: ") }?.submenu
         let pickerOK = picker?.items.contains { $0.title == "None" } == true && picker?.items.filter { $0.state == .on }.count == 1
         let keys = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Shortcuts" }?.submenu
         let modsOK = keys?.items.contains { $0.title.hasPrefix("⌘1") } == true
@@ -2853,7 +2855,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         newField?.commit("AI")
         let made = t.modes.first { $0["name"] as? String == "AI" && ($0["apps"] as? [String]) == [edit] }
         let mid = made?["id"] as? String ?? ""
-        let sub = menu().items.first { $0.title == "AI" }?.submenu
+        let sub = menu().items.first { $0.title == "Edit Modes" }?.submenu?.items.first { $0.title == "AI" }?.submenu
         let renameField = sub?.items.first?.view as? InlineNameField
         renameField?.commit("Deep work")
         let renamed = t.mode(mid)?["name"] as? String == "Deep work"
