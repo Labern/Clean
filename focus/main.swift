@@ -1632,17 +1632,27 @@ final class Focus: NSObject, NSMenuDelegate {
     var defaultBrowser: String? {
         URL(string: "https://example.com").flatMap { ws.urlForApplication(toOpen: $0) }.flatMap { Bundle(url: $0)?.bundleIdentifier }
     }
-    /// The suggestions this Mac can use, with their apps, minus any the user already has a mode of that name for.
-    func suggestedModes() -> [(name: String, apps: [String])] {
+    /// When an app was last used: now if it's running, else what macOS's index recorded (nil = never / unknown).
+    func lastUsed(_ id: String) -> Date? {
+        if ws.runningApplications.contains(where: { $0.bundleIdentifier == id && !$0.isTerminated }) { return Date() }
+        guard let p = path(id), let item = MDItemCreate(nil, p as CFString) else { return nil }
+        return MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date
+    }
+    /// A few suggestions this Mac can use, each built from the apps of that kind the user actually uses (running or
+    /// most recently used, never a fixed favourite), minus any already saved as a mode. Most relevant first.
+    func suggestedModes(limit: Int = 3) -> [(name: String, apps: [String])] {
         let have = Set(modes.compactMap { ($0["name"] as? String)?.lowercased() })
-        return Focus.suggestions.compactMap { sg in
-            guard !have.contains(sg.name.lowercased()) else { return nil }
-            let first = sg.groups.first ?? []
-            let apps = sg.groups.compactMap { g in g.lazy.map { $0 == "browser" ? self.defaultBrowser : $0 }.compactMap { $0 }.first { self.path($0) != nil } }
-            // the mode's main kind must be installed (no Game Design without a game engine)
-            let core = first.map { $0 == "browser" ? defaultBrowser ?? "" : $0 }.contains { path($0) != nil }
-            return core ? (sg.name, apps) : nil
+        let browser = defaultBrowser
+        func resolve(_ g: [String]) -> [String] { g.compactMap { $0 == "browser" ? browser : $0 }.filter { path($0) != nil } }
+        func best(_ g: [String]) -> (String, Date)? {
+            resolve(g).map { ($0, lastUsed($0) ?? .distantPast) }.max { $0.1 < $1.1 }
         }
+        let scored: [(String, [String], Date)] = Focus.suggestions.compactMap { sg in
+            guard !have.contains(sg.name.lowercased()), let core = best(sg.groups.first ?? []) else { return nil }   // its main kind must be installed
+            let apps = sg.groups.compactMap { best($0)?.0 }
+            return (sg.name, apps, core.1)
+        }
+        return scored.sorted { $0.2 > $1.2 }.prefix(limit).map { ($0.0, $0.1) }
     }
     /// Gives a mode a digit (nil = none). A digit belongs to one mode: taking it moves it.
     func setModeKey(_ id: String, _ digit: Int?) {
@@ -1684,8 +1694,17 @@ final class Focus: NSObject, NSMenuDelegate {
         modeKeep = Set(want)
     }
     @objc func addSuggested(_ s: NSMenuItem) {
-        guard let name = s.representedObject as? String, let sg = suggestedModes().first(where: { $0.name == name }) else { return }
+        guard let name = s.representedObject as? String, let sg = suggestedModes(limit: 9).first(where: { $0.name == name }) else { return }
         createMode(sg.name, apps: sg.apps)
+    }
+    /// The mode being built in New Mode, before it's named.
+    var draftApps: [String] = []
+    @objc func addAppToDraft() {
+        let p = NSOpenPanel(); p.directoryURL = URL(fileURLWithPath: "/Applications"); p.allowedContentTypes = [.application]
+        p.allowsMultipleSelection = true; p.prompt = "Add to Mode"; p.message = "Choose apps for the new mode"
+        NSApp.activate(ignoringOtherApps: true)
+        guard p.runModal() == .OK else { return }
+        for url in p.urls { if let a = appID(at: url), !draftApps.contains(a) { draftApps.append(a) } }
     }
     /// Add any installed app to a mode, whether or not it's running.
     @objc func addAppToMode(_ s: NSMenuItem) {
@@ -2013,18 +2032,33 @@ final class Focus: NSObject, NSMenuDelegate {
             add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).representedObject = mid
             row.submenu = sm
         }
-        view(InlineNameField("", placeholder: "New mode — type a name, press Return", symbolName: "plus.circle") { [unowned self] v in
-            self.createMode(v, apps: self.excluded.filter { self.path($0) != nil })   // the ticked apps; edit it after
-        })
+        let nm = add("New Mode", nil, image: symbol("plus.circle")), nmm = NSMenu()
+        nmm.autoenablesItems = false
+        let nameIt = NSMenuItem(); nameIt.view = InlineNameField("", placeholder: "Name it, then press Return", symbolName: "pencil") { [unowned self] v in
+            self.createMode(v, apps: self.draftApps); self.draftApps = []
+        }
+        nmm.addItem(nameIt)
+        if #available(macOS 14, *) { nmm.addItem(.sectionHeader(title: "Its apps — click to add")) }
+        // open apps first, then apps your sessions kept, then anything already picked
+        var seenIDs = Set<String>()
+        let pool = (running.map(\.0) + sessions.flatMap { kept($0) } + draftApps).filter { seenIDs.insert($0).inserted }
+        for id in pool.prefix(14) {
+            guard let p = path(id) else { continue }
+            let v = NSMenuItem(); v.view = AppRow(appName(p), appIcon(p), on: draftApps.contains(id), target: "this mode") { [unowned self] in
+                if let i = self.draftApps.firstIndex(of: id) { self.draftApps.remove(at: i); return false }
+                self.draftApps.append(id); return true
+            }
+            nmm.addItem(v)
+        }
+        add("Add App…", #selector(addAppToDraft), image: symbol("plus.app"), to: nmm)
+        nm.submenu = nmm
         let ideas = suggestedModes()
         if !ideas.isEmpty {
             let sug = add("Suggested Modes", nil, image: symbol("sparkles")), sgm = NSMenu()
-            if #available(macOS 14, *) { sgm.addItem(.sectionHeader(title: "Click to add — built from apps on this Mac")) }
+            if #available(macOS 14, *) { sgm.addItem(.sectionHeader(title: "Click to add — from the apps you use")) }
             for idea in ideas {
                 let i = add(idea.name, #selector(addSuggested(_:)), image: stack(idea.apps), to: sgm)
                 i.representedObject = idea.name; i.toolTip = names(idea.apps)
-                let detail = NSMenuItem(title: "  " + names(idea.apps), action: nil, keyEquivalent: ""); detail.isEnabled = false
-                sgm.addItem(detail)
             }
             sug.submenu = sgm
         }
@@ -2721,13 +2755,13 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
     steps.append(("35. modes: suggestions use only installed apps (Web Only = the default browser); adding one makes a real mode and it leaves the list; a mode's apps can be added and removed; Temporarily Closed wording", { done in
         t.modes = []
         let ideas = t.suggestedModes()
-        let web = ideas.first { $0.name == "Web Only" }
+        let web = t.suggestedModes(limit: 9).first { $0.name == "Web Only" }
         let browser = t.defaultBrowser
         let webOK = browser != nil && web?.apps == [browser!]
-        let allInstalled = ideas.allSatisfy { $0.apps.allSatisfy { t.path($0) != nil } && !$0.apps.isEmpty }
+        let allInstalled = ideas.allSatisfy { $0.apps.allSatisfy { t.path($0) != nil } && !$0.apps.isEmpty } && ideas.count <= 3
         let it = NSMenuItem(); it.representedObject = "Web Only"; t.addSuggested(it)
         let made = t.modes.first { $0["name"] as? String == "Web Only" }
-        let gone = !t.suggestedModes().contains { $0.name == "Web Only" }
+        let gone = !t.suggestedModes(limit: 9).contains { $0.name == "Web Only" }
         let mid = made?["id"] as? String ?? ""
         let added = t.addApp(edit, toMode: mid); t.removeApp(browser ?? "", fromMode: mid)
         let apps = t.mode(mid)?["apps"] as? [String] ?? []
@@ -2738,7 +2772,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let sugMenu = m.items.first { $0.title == "Suggested Modes" }
         t.modes = []
         done(webOK && allInstalled && made != nil && gone && edited && rows && (ideas.count <= 1 || sugMenu != nil),
-             "suggestions \(ideas.map(\.name)); Web Only = default browser: \(webOK); all apps installed: \(allInstalled); added as a mode: \(made != nil), then leaves the list: \(gone); add/remove apps: \(edited); mode menu has app rows + Add App: \(rows)")
+             "suggestions \(ideas.map { "\($0.name): \(t.names($0.apps))" }); Web Only = default browser: \(webOK); all apps installed: \(allInstalled); added as a mode: \(made != nil), then leaves the list: \(gone); add/remove apps: \(edited); mode menu has app rows + Add App: \(rows)")
     }))
     steps.append(("36. mode shortcuts: none until the user sets one; a digit belongs to one mode; the row shows it; the modifier is a Setting; a self-test never takes the keys", { done in
         t.modes = []
@@ -2797,9 +2831,11 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
     steps.append(("39. naming is inline (no popups): new mode, rename mode, rename session, save as mode; the menu bar shows the session's name, or only the icon if turned off", { done in
         t.modes = []; t.store.removeObject(forKey: "showNameInMenuBar")
         func menu() -> NSMenu { let m = NSMenu(); t.menuNeedsUpdate(m); return m }
-        let newField = menu().items.compactMap { $0.view as? InlineNameField }.first
+        let builder = menu().items.first { $0.title == "New Mode" }?.submenu
+        let newField = builder?.items.first?.view as? InlineNameField
+        t.draftApps = [edit]
         newField?.commit("AI")
-        let made = t.modes.first { $0["name"] as? String == "AI" }
+        let made = t.modes.first { $0["name"] as? String == "AI" && ($0["apps"] as? [String]) == [edit] }
         let mid = made?["id"] as? String ?? ""
         let sub = menu().items.first { $0.title == "AI" }?.submenu
         let renameField = sub?.items.first?.view as? InlineNameField
