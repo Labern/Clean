@@ -4,6 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.4.0 — 2026-11-13 (branch focus/feat-kept-apps)
+
+- **A session is defined by the apps you keep open**, not the ones it parks (Unreal + Claude = game design). Every
+  session now records its kept apps. Past sessions are titled by them ("Kept Unreal, Claude · Today 21:48") and list
+  **Kept open** above **Parked**.
+- Fix: **Save as Mode…** built the mode from the *parked* apps — the wrong set. It now uses the kept apps (and is
+  greyed out for older sessions that didn't record them). Modes read "the apps you keep open".
+
 ## 0.3.0 — 2026-11-13 (branch focus/feat-animation-speed)
 
 - **Settings ▸ Appearance:** Icon Colour moves here, beside a new **Animation Speed** dial: a small clock with the hand

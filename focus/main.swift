@@ -704,7 +704,11 @@ final class Focus: NSObject, NSMenuDelegate {
         // Instant: the pill plays the moment the key goes down. The snapshot is grabbed in the background in the
         // same instant (the pill is still invisible then) and the quitting starts once it's on disk.
         pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: name ?? "Focus", hold: animSpeed.hold)
-        var record: Session = ["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "id": a.bundleIdentifier ?? "", "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }]
+        // What defines a session is what you KEEP (Unreal + Claude = game design); the parked list is just what to bring back.
+        let parkedIDs = Set(out.compactMap(\.bundleIdentifier))
+        let keptNow = ws.runningApplications.filter { $0.activationPolicy == .regular && !system($0) && !parkedIDs.contains($0.bundleIdentifier ?? "") && !neverClose.contains($0.bundleIdentifier ?? "") }
+        let keptIDs = keep.map { Array($0) } ?? keptNow.compactMap(\.bundleIdentifier)
+        var record: Session = ["date": Date(), "kept": keptIDs, "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "id": a.bundleIdentifier ?? "", "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }]
         // Started mid-restore: the apps that restore hadn't reached join this session, so End brings them back too.
         let have = Set(out.compactMap { $0.bundleURL?.path })
         let unreached = pendingRestore.filter { e in (e["path"] as? String).map { p in !have.contains(p) && !ws.runningApplications.contains { $0.bundleURL?.path == p } } ?? false }
@@ -997,7 +1001,7 @@ final class Focus: NSObject, NSMenuDelegate {
         guard !ids.isEmpty else {
             return tell("Tick the apps for this mode first", "In the Focus menu, tick the apps you want in the mode — say, your writing app and your browser — then choose New Mode again.")
         }
-        guard let name = ask("New Mode", "Starting this mode opens \(names(ids)) and parks everything else.", placeholder: "Writing") else { return }
+        guard let name = ask("New Mode", "Starting this mode keeps \(names(ids)) open (opening any that aren't running) and parks everything else.", placeholder: "Game design") else { return }
         modes.append(["name": name, "apps": ids])
     }
     @objc func startMode(_ s: NSMenuItem) {
@@ -1020,12 +1024,25 @@ final class Focus: NSObject, NSMenuDelegate {
         guard let name = ask("Rename Session", "", current, placeholder: "Essay draft") else { return }
         sessions[s.tag]["name"] = name
     }
+    /// The apps a session KEPT open (what defines it). Older sessions saved before this was recorded have none.
+    func kept(_ s: Session) -> [String] { (s["kept"] as? [String] ?? []).filter { path($0) != nil } }
+    func keptNames(_ s: Session) -> String { kept(s).compactMap(path).map(appName).joined(separator: ", ") }
+    /// For a title: three names at most, then "+N" ("Kept Unreal, Claude, Chrome +2").
+    func keptShort(_ s: Session) -> String {
+        let n = kept(s).compactMap(path).map(appName)
+        return n.prefix(3).joined(separator: ", ") + (n.count > 3 ? " +\(n.count - 3)" : "")
+    }
     @objc func sessionToMode(_ s: NSMenuItem) {
-        guard sessions.indices.contains(s.tag) else { return }
-        let ids = (sessions[s.tag]["apps"] as? [[String: Any]] ?? []).compactMap { ($0["path"] as? String).flatMap { Bundle(path: $0)?.bundleIdentifier } }
-        guard !ids.isEmpty, let name = ask("Save as Mode", "Starting this mode opens \(names(ids)) and parks everything else.",
-                                             sessions[s.tag]["name"] as? String ?? "") else { return }
-        modes.append(["name": name, "apps": ids])
+        guard sessions.indices.contains(s.tag), let name = ask("Save as Mode", "Starting this mode keeps \(keptNames(sessions[s.tag])) open and parks everything else.",
+                                                               sessions[s.tag]["name"] as? String ?? "") else { return }
+        modeFromSession(s.tag, name: name)
+    }
+    /// A mode = the apps that session kept open — never the ones it parked.
+    @discardableResult
+    func modeFromSession(_ n: Int, name: String) -> Bool {
+        guard sessions.indices.contains(n) else { return false }
+        let ids = kept(sessions[n]); guard !ids.isEmpty else { return false }
+        modes.append(["name": name, "apps": ids]); return true
     }
     /// Up to three app icons, overlapped, for a mode's row.
     func stack(_ ids: [String]) -> NSImage {
@@ -1166,12 +1183,12 @@ final class Focus: NSObject, NSMenuDelegate {
             m.addItem(.separator())
         }
         // Modes — the user's named sets of apps.
-        header(modes.isEmpty ? "Modes — tick some apps, then save them as one" : "Modes")
+        header(modes.isEmpty ? "Modes — tick the apps you keep open, then save them" : "Modes — the apps you keep open")
         for (n, md) in modes.enumerated() {
             let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode"
             let row = add(name, nil, image: stack(ids)), sm = NSMenu()
             sm.autoenablesItems = false
-            if #available(macOS 14, *) { sm.addItem(.sectionHeader(title: "Opens")) }
+            if #available(macOS 14, *) { sm.addItem(.sectionHeader(title: "Keeps open")) }
             for id in ids { if let p = path(id) { add(appName(p), nil, image: appIcon(p), to: sm) } }
             sm.addItem(.separator())
             let go = add("Start \(name)", #selector(startMode(_:)), image: symbol("play.circle"), to: sm)
@@ -1190,7 +1207,9 @@ final class Focus: NSObject, NSMenuDelegate {
             for (n, s) in sessions.enumerated() {
                 let list = s["apps"] as? [[String: Any]] ?? []
                 let date = (s["date"] as? Date).map { when.string(from: $0) } ?? "?"
-                let title = (s["name"] as? String).map { "\($0) · \(date)" } ?? "\(date) · \(apps(list.count))" + ((s["kind"] as? String).map { " · " + $0 } ?? "")
+                let keptList = keptShort(s)
+                let title = (s["name"] as? String).map { "\($0) · \(date)" }
+                    ?? (keptList.isEmpty ? "\(date) · \(apps(list.count))" + ((s["kind"] as? String).map { " · " + $0 } ?? "") : "Kept \(keptList) · \(date)")
                 let i = add(title + (isLive(n) ? " · now" : ""), nil, to: sub), one = NSMenu()
                 one.autoenablesItems = false
                 // Hovering a session opens this: its snapshot first, so you see where you were.
@@ -1199,11 +1218,17 @@ final class Focus: NSObject, NSMenuDelegate {
                     let v = NSMenuItem(); v.view = Thumb(img, NSSize(width: w, height: h)) { [unowned self] in self.ws.open(URL(fileURLWithPath: shot)) }
                     one.addItem(v); one.addItem(.separator())
                 }
+                if !kept(s).isEmpty {
+                    if #available(macOS 14, *) { one.addItem(.sectionHeader(title: "Kept open")) }
+                    for id in kept(s) { if let p = path(id) { add(appName(p), nil, image: appIcon(p), to: one) } }
+                    if #available(macOS 14, *) { one.addItem(.sectionHeader(title: "Parked")) }
+                }
                 for p in list.compactMap({ $0["path"] as? String }) { add(appName(p), nil, image: appIcon(p), to: one) }
                 one.addItem(.separator())
                 add(isLive(n) ? "End Session and Reopen" : "Open all", #selector(reopen), image: symbol("arrow.up.forward.app"), to: one).tag = n
                 add("Rename…", #selector(renameSession(_:)), image: symbol("pencil"), to: one).tag = n
-                add("Save as Mode…", #selector(sessionToMode(_:)), image: symbol("square.stack"), to: one).tag = n
+                let save = add("Save as Mode…", #selector(sessionToMode(_:)), image: symbol("square.stack"), to: one)
+                save.tag = n; save.isEnabled = !kept(s).isEmpty         // a mode is the kept apps; older sessions didn't record them
                 let del = add("Delete", #selector(forget), image: symbol("trash"), to: one)
                 del.tag = n; del.isEnabled = !isLive(n)                 // deleting the live session would lose its restore
                 i.submenu = one
@@ -1727,6 +1752,26 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         d.removeObject(forKey: "animSpeed")
         done(normalDefault && slow && fast && hasColour && hasDial,
              "default Normal with hold 0.24 s / 0.02 s: \(normalDefault); slow longer: \(slow); fast shorter: \(fast); Appearance has Icon Colour: \(hasColour) and the dial: \(hasDial)")
+    }))
+    steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
+        launch(edit) { launch(calc) {
+            guard scope([calc]) else { return done(false, "scope") }   // TextEdit ticked = kept, Calculator parked
+            t.park(quit: true)
+            waitUntil(10, { t.queue.isEmpty && running(calc).isEmpty }) { _ in
+                let rec = t.sessions[0]
+                let keptOK = t.kept(rec).contains(edit) && !t.kept(rec).contains(calc)
+                let m = NSMenu(); t.menuNeedsUpdate(m)
+                let title = m.items.first { $0.title == "Past sessions" }?.submenu?.items.first?.title ?? ""
+                let titled = title.hasPrefix("Kept ") && title.contains("TextEdit") && !title.contains("Calculator")
+                t.modes = []; t.modeFromSession(0, name: "Test")
+                let modeOK = (t.modes.first?["apps"] as? [String])?.contains(edit) == true && (t.modes.first?["apps"] as? [String])?.contains(calc) == false
+                t.modes = []
+                t.toggle()
+                waitUntil(10, { !running(calc).isEmpty }) { back in
+                    done(keptOK && titled && modeOK && back, "kept recorded: \(keptOK); title '\(title)'; mode = kept apps: \(modeOK); End restores: \(back)")
+                }
+            }
+        } }
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }
