@@ -254,8 +254,8 @@ final class SpeedDial: NSView {
 /// rest (t = 0) and focused (t = 1) and animates between them; the user's two colours apply to all of them —
 /// `ring` = the frame / the many, `dot` = the one thing kept. No colours = white, like every menu bar icon.
 enum IconStyle: String, CaseIterable {
-    case lens, lessMore, narrowing, framed, gathered, switcher
-    var name: String { ["Lens", "Less, more", "Narrowing", "Framed", "Gathered", "Switcher"][IconStyle.allCases.firstIndex(of: self)!] }
+    case lens, lessMore, narrowing, framed, gathered, switcher, fewer
+    var name: String { ["Lens", "Less, more", "Narrowing", "Framed", "Gathered", "Switcher", "Fewer"][IconStyle.allCases.firstIndex(of: self)!] }
 }
 var iconStyle: IconStyle = .lens                                  // set from Settings; read by every glyph() below
 
@@ -373,6 +373,18 @@ func styledGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?, do
             pill.lineWidth = 1.2; prim.withAlphaComponent(0.5 + 0.5 * e).setStroke(); pill.stroke()
             let dot = lerp(0.9, 2.2)
             sec.setFill(); NSBezierPath(ovalIn: NSRect(x: 9 - dot, y: 9 - dot, width: dot * 2, height: dot * 2)).fill()
+        case .fewer:                                                 // a wide row of apps narrows to the two you keep
+            let n = 5, size = lerp(2.6, 3.6), gapW: CGFloat = 0.8
+            for i in 0..<n {
+                let kept = i == 1 || i == 3                              // the pair that stays
+                let restX = 9 + (CGFloat(i) - 2) * (2.6 + gapW)
+                let focusX = 9 + (i == 1 ? -1 : 1) * (3.6 + 1.2) / 2
+                let x = kept ? lerp(restX, focusX) : restX, a = kept ? 1 : 0.4 * (1 - e)
+                let h = kept ? lerp(2.6, 3.6) : 2.6, w = kept ? size : 2.6
+                guard a > 0.01 else { continue }
+                (kept ? sec : prim.withAlphaComponent(a)).setFill()
+                NSBezierPath(roundedRect: NSRect(x: x - w / 2, y: 9 - h / 2, width: w, height: h), xRadius: 0.8, yRadius: 0.8).fill()
+            }
         case .lens: break
         }
         return true
@@ -803,6 +815,19 @@ final class Focus: NSObject, NSMenuDelegate {
     @objc func colorPanelChanged(_ p: NSColorPanel) {            // live, as the wheel moves
         if wheelForDot { iconColor2 = hexString(p.color) } else { iconColor = hexString(p.color) }
     }
+    /// Apps that are HIDDEN in a session instead of quit: they come back exactly as they were — the same chat, page,
+    /// scroll — because they never closed. They keep their memory. For apps that don't restore themselves after a quit.
+    var hideOnly: [String] {
+        get { store.stringArray(forKey: "hideOnly") ?? [] }
+        set { store.set(newValue, forKey: "hideOnly") }
+    }
+    /// Careful (one app at a time, each saving before the next) or fast (everything at once). Careful unless chosen.
+    var fastSwitching: Bool {
+        get { store.bool(forKey: "fastSwitching") }
+        set { store.set(newValue, forKey: "fastSwitching") }
+    }
+    @objc func switchingCareful() { fastSwitching = false }
+    @objc func switchingFast() { fastSwitching = true }
     var hideMode: Bool {                                        // hide instead of quit: instant, but keeps the memory
         get { store.bool(forKey: "hideMode") }
         set { store.set(newValue, forKey: "hideMode") }
@@ -894,7 +919,11 @@ final class Focus: NSObject, NSMenuDelegate {
         let go = { [self] in
             guard generation == gen, focused else { return }     // ended (or restarted) before the snapshot finished
             if !quit { out.forEach { $0.hide() }; return }
-            queue = out.sorted { memory($0) > memory($1) }; total = queue.count   // biggest first: memory comes back soonest
+            let hide = Set(hideOnly)                              // these stay exactly as they are: hidden, never quit
+            out.filter { hide.contains($0.bundleIdentifier ?? "") }.forEach { $0.hide() }
+            let toQuit = out.filter { !hide.contains($0.bundleIdentifier ?? "") }
+            if fastSwitching { return quitAllAtOnce(toQuit) }
+            queue = toQuit.sorted { memory($0) > memory($1) }; total = queue.count   // biggest first: memory comes back soonest
             quitNext()
         }
         guard snapshots, CGPreflightScreenCaptureAccess() else { return go() }   // no permission: skip silently, never prompt
@@ -923,6 +952,24 @@ final class Focus: NSObject, NSMenuDelegate {
             } else {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: check)
             }
+        }
+        check()
+    }
+
+    /// Fast switching: every app is asked to quit at the same moment (still the normal way — never forced), then
+    /// the usual waiting list for any that don't go within `patience`.
+    func quitAllAtOnce(_ apps: [NSRunningApplication]) {
+        queue = apps; total = apps.count
+        status = "Quitting \(self.apps(apps.count)) at once"
+        apps.forEach { $0.terminate() }
+        let started = Date(), gen = generation
+        func check() {
+            guard gen == generation, focused || clearing else { return }   // ended meanwhile
+            let left = queue.filter { !$0.isTerminated }
+            if left.isEmpty || Date().timeIntervalSince(started) > patience {
+                waiting.append(contentsOf: left); return finishQueue()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25, execute: check)
         }
         check()
     }
@@ -1082,7 +1129,8 @@ final class Focus: NSObject, NSMenuDelegate {
             }
         }
         // Space out real launches; an app that was already open costs no wait.
-        DispatchQueue.main.asyncAfter(deadline: .now() + (launched ? 0.7 : 0.05)) { self.relaunch(rest.dropFirst(), gen) }
+        let gap = fastSwitching ? 0 : (launched ? 0.7 : 0.05)     // fast: everything opens at once
+        DispatchQueue.main.asyncAfter(deadline: .now() + gap) { self.relaunch(rest.dropFirst(), gen) }
     }
 
     /// Is this running app one of a session's entries? By bundle id — paths have several spellings (/var vs
@@ -1506,7 +1554,7 @@ final class Focus: NSObject, NSMenuDelegate {
         cm.minimumWidth = 300
         func hdr(_ t: String) { if #available(macOS 14, *) { cm.addItem(.sectionHeader(title: t)) } else { add(t, nil, to: cm).isEnabled = false } }
         hdr("Presets")
-        let def = add("Default (white)", #selector(pickPreset(_:)), image: swatch(nil), to: cm); def.representedObject = ["", ""]
+        let def = add("White", #selector(pickPreset(_:)), image: swatch(nil), to: cm); def.representedObject = ["", ""]
         def.state = iconColor.isEmpty && iconColor2.isEmpty ? .on : .off
         let acc = hexString(.controlAccentColor)
         let sys = add("System Accent", #selector(pickPreset(_:)), image: two(.controlAccentColor, .controlAccentColor), to: cm)
@@ -1538,7 +1586,6 @@ final class Focus: NSObject, NSMenuDelegate {
         am.addItem(.separator())
         if #available(macOS 14, *) { am.addItem(.sectionHeader(title: "Animation Speed")) } else { add("Animation Speed", nil, to: am).isEnabled = false }
         let dial = NSMenuItem(); dial.view = SpeedDial(animSpeed) { [unowned self] s in self.animSpeed = s }; am.addItem(dial)
-        add("How long the apps stay on screen as a session starts or ends. Normal is the original.", nil, to: am).isEnabled = false
         look.submenu = am
         let keys = add("Shortcuts", nil, image: symbol("keyboard"), to: sub), km = NSMenu()
         km.autoenablesItems = false; km.minimumWidth = 300
@@ -1555,7 +1602,23 @@ final class Focus: NSObject, NSMenuDelegate {
         if menuKeyTaken { add("⚠︎ " + label(menuMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
         keys.submenu = km
         sub.addItem(.separator())
-        add("Hide apps instead of quitting", #selector(hiding), to: sub).state = hideMode ? .on : .off
+        let sw = add("Switching", nil, image: symbol("arrow.left.arrow.right"), to: sub), swm = NSMenu()
+        swm.autoenablesItems = false
+        add("Careful — one app at a time, everything saved", #selector(switchingCareful), to: swm).state = fastSwitching ? .off : .on
+        add("Fast — all apps at once", #selector(switchingFast), to: swm).state = fastSwitching ? .on : .off
+        sw.submenu = swm
+        let ho = add("Hide Instead of Quit", nil, image: symbol("eye.slash"), to: sub), hom = NSMenu()
+        hom.minimumWidth = menuWidth
+        if #available(macOS 14, *) { hom.addItem(.sectionHeader(title: "Ticked apps are hidden, not quit — back exactly as they were")) }
+        let dockApps = ws.runningApplications.filter { $0.activationPolicy == .regular && !system($0) }.compactMap(\.bundleIdentifier)
+        var listed = Set<String>()
+        for id in hideOnly + dockApps where listed.insert(id).inserted {
+            guard let p = path(id) else { continue }
+            view(AppRow(appName(p), appIcon(p), on: hideOnly.contains(id), onMark: "eye.slash.circle.fill") { [unowned self] in self.flip(\.hideOnly, id) }, in: hom)
+        }
+        hom.addItem(.separator())
+        add("Hide every app", #selector(hiding), to: hom).state = hideMode ? .on : .off
+        ho.submenu = hom
         if CGPreflightScreenCaptureAccess() {
             add("Take a snapshot when a session starts", #selector(snaps), to: sub).state = snapshots ? .on : .off
         } else {
@@ -2131,6 +2194,38 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let none = banner() == nil
         done(named && button == "End Game design" && renamed && plain && none,
              "banner '\(first?.title ?? "-")' / '\(first?.detail ?? "-")': \(named); button '\(button)'; rename shows: \(renamed); unnamed says Focus session: \(plain); no banner outside a session: \(none)")
+    }))
+    steps.append(("29. switching and hide-instead-of-quit settings; the Fewer icon", { done in
+        let d = UserDefaults(suiteName: suite)!
+        d.removeObject(forKey: "fastSwitching"); d.removeObject(forKey: "hideOnly")
+        let careful = !t.fastSwitching
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let settings = m.items.first { $0.title == "Settings" }?.submenu
+        let sw = settings?.items.first { $0.title == "Switching" }?.submenu
+        let carefulTicked = sw?.items.first?.state == .on && sw?.items.last?.state == .off
+        let hideMenu = settings?.items.first { $0.title == "Hide Instead of Quit" }?.submenu
+        let rows = hideMenu?.items.contains { $0.view is AppRow } == true
+        let fewer = IconStyle.allCases.contains(.fewer)
+        done(careful && carefulTicked && rows && fewer, "careful unless chosen: \(careful); menu ticks Careful: \(carefulTicked); per-app hide rows: \(rows); Fewer icon: \(fewer)")
+    }))
+    steps.append(("30. fast switching quits and reopens all at once; a hide-only app is hidden (never quit) and comes back as it was", { done in
+        launch(edit) { launch(calc) {
+            for a in running(edit) { a.unhide() }
+            waitUntil(5, { running(edit).first?.isHidden == false }) { _ in   // visible before the session starts
+            guard scope([edit, calc]) else { return done(false, "scope") }
+            t.fastSwitching = true; t.hideOnly = [edit]
+            let pid = running(edit).first?.processIdentifier
+            t.park(quit: true)
+            waitUntil(12, { running(calc).isEmpty && running(edit).first?.isHidden == true && t.queue.isEmpty }) { parked in
+                let samePid = running(edit).first?.processIdentifier == pid     // hidden, not quit: the very same process
+                t.toggle()
+                waitUntil(10, { !running(calc).isEmpty && running(edit).first?.isHidden == false }) { back in
+                    t.fastSwitching = false; t.hideOnly = []
+                    done(parked && samePid && back, "Calculator quit + TextEdit hidden: \(parked); TextEdit never quit (same process): \(samePid); both back: \(back)")
+                }
+            }
+            }
+        } }
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }

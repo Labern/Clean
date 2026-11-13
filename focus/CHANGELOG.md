@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.8.0 — 2026-11-13 (branch focus/feat-switching)
+
+- **Settings ▸ Switching:** Careful (one app at a time, each saving before the next) or Fast (every app quits and
+  reopens at once — still never forced).
+- **Settings ▸ Hide Instead of Quit:** tick any app to have it hidden, never quit, so it comes back exactly as it was —
+  the same Claude chat, the same page. For apps that don't restore themselves after quitting. ("Hide every app" moved here.)
+- **New icon: Fewer** — a wide row of apps narrows to the two you keep.
+- Wording: dropped the "Normal is the original" line; "Default (white)" is now "White". Scenarios 29, 30.
+
 ## 0.7.0 — 2026-11-13 (branch focus/feat-session-banner)
 
 - **A session says what it is.** During a session the menu opens with a banner: the mode's name (or the name you
