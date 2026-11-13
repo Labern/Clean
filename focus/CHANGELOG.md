@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.16.2 — 2026-11-13
+- The menu bar always names the session: its own name, else the mode it matches, else "Focus".
+  - A mode matches when the session kept at least half of that mode's apps.
+  - The menu's first line uses the same name.
+- "Switch to" is removed from the mode menu: a mode offers Start, or End when it's the live one.
+
 ## 0.16.1 — 2026-11-13
 - During a session a mode's menu offers "Switch to <mode>" instead of a greyed-out Start, or "End <mode>" if it's the live one, the same as its key.
 - The menu's first line names the mode: "Focus — AI (4 apps, since 21:40)".

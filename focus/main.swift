@@ -1000,9 +1000,21 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     /// In a session the menu bar reads: icon, then the mode's or session's name. Settings can make it icon only.
     var showNameInMenuBar: Bool { get { store.object(forKey: "showNameInMenuBar") as? Bool ?? true } set { store.set(newValue, forKey: "showNameInMenuBar"); updateTitle() } }
+    /// What the live session is called: its own name, else the mode whose apps it mostly kept (at least half of
+    /// the mode's apps), else "Focus". nil out of a session.
+    var displayName: String? {
+        guard focused, let live = sessions.first else { return nil }
+        if let n = sessionName { return n }
+        let kept = Set(self.kept(live))
+        let best = modes.compactMap { m -> (String, Double)? in
+            let apps = Set(m["apps"] as? [String] ?? []); guard !apps.isEmpty, let name = m["name"] as? String else { return nil }
+            return (name, Double(apps.intersection(kept).count) / Double(apps.count))
+        }.max { $0.1 < $1.1 }
+        return best.flatMap { $0.1 >= 0.5 ? $0.0 : nil } ?? "Focus"
+    }
     func updateTitle() {
         guard let b = item.button else { return }
-        let t = showNameInMenuBar ? (sessionName.map { " " + $0 } ?? "") : ""
+        let t = showNameInMenuBar ? (displayName.map { " " + $0 } ?? "") : ""
         if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }
     }
     @objc func toggleNameInMenuBar() { showNameInMenuBar.toggle() }
@@ -1878,7 +1890,7 @@ final class Focus: NSObject, NSMenuDelegate {
         guard focused, let live = sessions.first else { return "Focus" }
         let n = apps().filter { !isParked($0.bundleIdentifier ?? "") }.count
         let since = (live["date"] as? Date).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) }
-        return "Focus — \(sessionName ?? "in session") (\(n) app\(n == 1 ? "" : "s")" + (since.map { ", since \($0)" } ?? "") + ")"
+        return "Focus — \(displayName ?? "in session") (\(n) app\(n == 1 ? "" : "s")" + (since.map { ", since \($0)" } ?? "") + ")"
     }
     func menuNeedsUpdate(_ m: NSMenu) {
         // Submenus share this delegate only so they open dark (menuWillOpen). They build themselves; rebuilding one
@@ -2029,9 +2041,8 @@ final class Focus: NSObject, NSMenuDelegate {
             if let digit, takenModeKeys.contains(digit) { add("⚠︎ " + label(forMode: digit) + " is taken by another app — pick another", nil, to: kMenu).isEnabled = false }
             kItem.submenu = kMenu
             let live = focused && sessions.first?["modeID"] as? String == mid
-            let go = add(live ? "End \(name)" : focused ? "Switch to \(name)" : "Start \(name)", #selector(startMode(_:)),
-                         image: symbol(live ? "stop.circle" : focused ? "arrow.triangle.swap" : "play.circle"), to: sm)
-            go.representedObject = mid; go.isEnabled = !clearing
+            let go = add(live ? "End \(name)" : "Start \(name)", #selector(startMode(_:)), image: symbol(live ? "stop.circle" : "play.circle"), to: sm)
+            go.representedObject = mid; go.isEnabled = !clearing && (!focused || live)
             let use = add("Use Ticked Apps", #selector(updateMode(_:)), image: symbol("checklist"), to: sm)
             use.representedObject = mid; use.isEnabled = !excluded.isEmpty
             add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).representedObject = mid
@@ -2861,6 +2872,18 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         t.modes = []
         done(newField != nil && made != nil && renamed && noPopups && shows && iconOnly && fields.count == 2 && sessRenamed && titleFollows && cleared,
              "new mode inline: \(made != nil); rename inline: \(renamed); no Rename…/New Mode… popups: \(noPopups); menu bar ' AI': \(shows); icon only when off: \(iconOnly); past session has 2 inline fields: \(fields.count == 2); session rename: \(sessRenamed), menu bar follows: \(titleFollows); clears after: \(cleared)")
+    }))
+    steps.append(("40. the menu bar always names the session: its name, else the mode it matches, else Focus", { done in
+        t.modes = []; t.store.removeObject(forKey: "showNameInMenuBar")
+        t.createMode("AI", apps: [edit, calc])
+        t.sessions = [["date": Date(), "kept": [edit, "com.apple.Preview"], "apps": [[String: Any]]()]]
+        t.store.set(true, forKey: "focused"); t.updateTitle()
+        let matched = t.item.button?.title == " AI"
+        t.sessions = [["date": Date(), "kept": ["com.apple.Preview"], "apps": [[String: Any]]()]]; t.updateTitle()
+        let fallback = t.item.button?.title == " Focus"
+        t.sessions[0]["name"] = "Essay"; t.updateTitle(); let own = t.item.button?.title == " Essay"
+        t.store.set(false, forKey: "focused"); t.sessions = []; t.updateTitle(); t.modes = []
+        done(matched && fallback && own, "matches mode → ' AI': \(matched); no match → ' Focus': \(fallback); own name wins: \(own)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {
