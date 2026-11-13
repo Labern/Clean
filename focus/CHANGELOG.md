@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.13.0 — 2026-11-13
+- The menu's first line says where you are: "Focus" out of a session, "Focus — in session (3 apps, since 21:48)"
+  in one.
+
 ## 0.12.0 — 2026-11-13
 - Settings ▸ Appearance ▸ Icon Colour ▸ **Evangelion**: UNIT 01, Asuka, Rei, Shinji, Misato, Kaworu and Pen Pen,
   each a ring and dot pair in the show's colours. The original presets stay.

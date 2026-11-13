@@ -1665,6 +1665,13 @@ final class Focus: NSObject, NSMenuDelegate {
         }
     }
 
+    /// The first line of the menu: whether a session is on, how many apps are in it and since when.
+    var stateLine: String {
+        guard focused, let live = sessions.first else { return "Focus" }
+        let n = apps().filter { !isParked($0.bundleIdentifier ?? "") }.count
+        let since = (live["date"] as? Date).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) }
+        return "Focus — in session (\(n) app\(n == 1 ? "" : "s")" + (since.map { ", since \($0)" } ?? "") + ")"
+    }
     func menuNeedsUpdate(_ m: NSMenu) {
         // Submenus share this delegate only so they open dark (menuWillOpen). They build themselves; rebuilding one
         // here would fill it with a copy of the whole menu.
@@ -1682,6 +1689,7 @@ final class Focus: NSObject, NSMenuDelegate {
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
         mem = memoryByPid()
+        header(stateLine)                                       // "Focus" or "Focus — in session (3 apps, since 21:48)"
         // In a session: say what it is, first thing — the mode, or the name you gave it (Rename shows up here at once).
         if focused, let live = sessions.first {
             let when = (live["date"] as? Date).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
@@ -2462,6 +2470,13 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         done(eva && originals && listed != nil && picked && del != nil && gone,
              "Evangelion listed: \(eva); originals kept: \(originals); saved scheme listed: \(listed != nil); picking it applies it: \(picked); ⌥ delete: \(del != nil); deleted: \(gone)")
     }))
+    steps.append(("34. the menu opens with its state: Focus out of session, and in a session how many apps and since when", { done in
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let first = m.items.first?.title ?? ""
+        let line = t.stateLine
+        done(!t.focused && first == "Focus" && line == "Focus",
+             "first line out of session: '\(first)'")
+    }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {
             guard scope([calc]) else { return done(false, "scope") }   // TextEdit ticked = kept, Calculator parked
@@ -2528,8 +2543,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
     steps.append(("28. a live session says what it is: banner with the mode's name at the top, 'End <name>', renames show at once", { done in
         t.sessions = [["date": Date(), "name": "Game design", "mode": "Game design", "kept": ["com.apple.TextEdit"], "apps": [[String: Any]]()]]
         UserDefaults(suiteName: suite)!.set(true, forKey: "focused")
-        func banner() -> SessionBanner? { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.first?.view as? SessionBanner }
+        func banner() -> SessionBanner? { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.prefix(3).compactMap { $0.view as? SessionBanner }.first }
         let first = banner()
+        let top = { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.first?.title ?? "" }()
+        let stateOK = top.hasPrefix("Focus — in session (") && top.contains(" app") && top.contains(", since ") && top.hasSuffix(")")
         let named = first?.title == "Game design" && first?.detail.hasPrefix("Mode") == true && first?.detail.contains("TextEdit") == true
         let button = t.focused ? "End " + (t.sessionName ?? "Session") : ""
         t.sessions[0]["name"] = "Level 3 blockout"                         // what Rename… does
@@ -2538,8 +2555,8 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let plain = banner()?.title == "Focus session"
         UserDefaults(suiteName: suite)!.set(false, forKey: "focused"); t.sessions = []
         let none = banner() == nil
-        done(named && button == "End Game design" && renamed && plain && none,
-             "banner '\(first?.title ?? "-")' / '\(first?.detail ?? "-")': \(named); button '\(button)'; rename shows: \(renamed); unnamed says Focus session: \(plain); no banner outside a session: \(none)")
+        done(named && button == "End Game design" && renamed && plain && none && stateOK,
+             "first line '\(top)': \(stateOK); banner '\(first?.title ?? "-")' / '\(first?.detail ?? "-")': \(named); button '\(button)'; rename shows: \(renamed); unnamed says Focus session: \(plain); no banner outside a session: \(none)")
     }))
     steps.append(("29. switching and hide-instead-of-quit settings; the Fewer icon", { done in
         let d = UserDefaults(suiteName: suite)!
