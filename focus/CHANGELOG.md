@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.10.1 — 2026-11-13
+- Only the icons you picked in the Icon Lab stay: Full stop, Aperture, Reticle, Zoom, Ichi (三 → 一), Ensō,
+  Hinomaru, Tomoe, Stone, Windows, Spotlight, Counter and Door. The 14 you didn't pick are removed. 20 designs in all.
+
 ## 0.10.0 — 2026-11-13
 - 27 new menu bar icons from the Icon Lab, in Settings ▸ Appearance: every idea on the page, now 34 designs.
   - Narrowing in session: Pillar, Ghost, Fuse, Point, Wide, Keystone, Tally.

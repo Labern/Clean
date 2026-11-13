@@ -255,19 +255,15 @@ final class SpeedDial: NSView {
 /// `ring` = the frame / the many, `dot` = the one thing kept. No colours = white, like every menu bar icon.
 enum IconStyle: String, CaseIterable {
     case lens, lessMore, narrowing, framed, gathered, switcher, fewer
-    // The Icon Lab collection: Narrowing in session, minimal, Japanese, maximal, wildcards
-    case pillar, ghost, fuse, point, fullWidth, keystone, tally
-    case fullStop, aperture, selection, reticle, zoom
-    case ichi, enso, hinomaru, shoji, tomoe, stone, hanko
-    case orbit, constellation, gather, windows, spotlight
-    case counter, hourglass, door
+    // Picked from the Icon Lab: minimal, Japanese, Mac windows, and ones that carry information
+    case fullStop, aperture, reticle, zoom
+    case ichi, enso, hinomaru, tomoe, stone
+    case windows, spotlight, counter, door
     var name: String { ["Lens", "Less, more", "Narrowing", "Framed", "Gathered", "Switcher", "Fewer",
-                        "Pillar", "Ghost", "Fuse", "Point", "Wide", "Keystone", "Tally",
-                        "Full stop", "Aperture", "Selection", "Reticle", "Zoom",
-                        "Ichi", "Ensō", "Hinomaru", "Shōji", "Tomoe", "Stone", "Hanko",
-                        "Orbit", "Stars", "Gather", "Windows", "Spotlight",
-                        "Counter", "Hourglass", "Door"][IconStyle.allCases.firstIndex(of: self)!] }
-    var isCollection: Bool { IconStyle.allCases.firstIndex(of: self)! >= IconStyle.allCases.firstIndex(of: .pillar)! }
+                        "Full stop", "Aperture", "Reticle", "Zoom",
+                        "Ichi", "Ensō", "Hinomaru", "Tomoe", "Stone",
+                        "Windows", "Spotlight", "Counter", "Door"][IconStyle.allCases.firstIndex(of: self)!] }
+    var isCollection: Bool { IconStyle.allCases.firstIndex(of: self)! >= IconStyle.allCases.firstIndex(of: .fullStop)! }
 }
 var iconStyle: IconStyle = .lens                                  // set from Settings; read by every glyph() below
 
@@ -433,7 +429,6 @@ func collectionGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?
             return NSBezierPath(roundedRect: NSRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h), xRadius: r, yRadius: r)
         }
         func bar(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat, _ c: NSColor, _ a: CGFloat = 1) { if let p = pill(cx, cy, w, h) { fill(p, c, a) } }
-        func barO(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat, _ c: NSColor, _ a: CGFloat) { if let p = pill(cx, cy, w, h) { stroke(p, c, 0.9, a) } }
         func oval(_ cx: CGFloat, _ cy: CGFloat, _ rx: CGFloat, _ ry: CGFloat) -> NSBezierPath { NSBezierPath(ovalIn: NSRect(x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2)) }
         func dot(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat, _ c: NSColor, _ a: CGFloat = 1) { if r > 0.05 { fill(oval(cx, cy, r, r), c, a) } }
         func ring(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat, _ w: CGFloat, _ c: NSColor, _ a: CGFloat = 1) { stroke(oval(cx, cy, r, r), c, w, a) }
@@ -451,41 +446,8 @@ func collectionGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?
             p.curve(to: P(x0, y - h * 0.42), controlPoint1: P(x0 - 0.47, y + h * 0.14), controlPoint2: P(x0 - 0.47, y - h * 0.14))
             p.close(); fill(p, c, a)
         }
-        func star4(_ cx: CGFloat, _ cy: CGFloat, _ s: CGFloat, _ c: NSColor, _ a: CGFloat = 1) {
-            guard s > 0.1 else { return }; let k = s * 0.26, p = NSBezierPath()
-            p.move(to: P(cx, cy - s)); p.line(to: P(cx + k, cy - k)); p.line(to: P(cx + s, cy)); p.line(to: P(cx + k, cy + k))
-            p.line(to: P(cx, cy + s)); p.line(to: P(cx - k, cy + k)); p.line(to: P(cx - s, cy)); p.line(to: P(cx - k, cy - k)); p.close(); fill(p, c, a)
-        }
-        func around(_ deg: CGFloat, scale s: CGFloat = 1, _ body: () -> Void) {   // rotate/scale about the centre
-            NSGraphicsContext.saveGraphicsState()
-            let tr = NSAffineTransform(); tr.translateX(by: 9, yBy: 9); tr.rotate(byDegrees: deg); tr.scale(by: s); tr.translateX(by: -9, yBy: -9); tr.concat()
-            body(); NSGraphicsContext.restoreGraphicsState()
-        }
-        // Narrowing's resting bars (the same geometry as .narrowing, y-down)
-        func rest() { bar(9, 4.9, 14, 2.6, A, 0.35 * (1 - e)); bar(9, 9, 8.6, 2.6, A, 0.65 * (1 - e)) }
 
         switch style {
-        // — Narrowing, in session —
-        case .pillar:   rest(); bar(9, L(13.1, 9), L(3.6, 3.8), L(2.6, 12.4), B)
-        case .ghost:
-            bar(9, 4.9, 14, 2.6, A, 0.35 * (1 - e)); barO(9, 4.9, 14, 2.6, A, 0.55 * e)
-            bar(9, 9, 8.6, 2.6, A, 0.65 * (1 - e)); barO(9, 9, 8.6, 2.6, A, 0.55 * e)
-            bar(9, 13.1, L(3.6, 5.6), L(2.6, 2.8), B)
-        case .fuse:
-            let c = e > 0.82 ? B : A
-            bar(9, L(4.9, 6.7), L(14, 8), L(2.6, 3.2), c, L(0.35, 1)); bar(9, 9, L(8.6, 8), L(2.6, 3.2), c, L(0.65, 1))
-            bar(9, L(13.1, 11.3), L(3.6, 8), L(2.6, 3.2), B)
-        case .point:
-            bar(9, L(4.9, 9), L(14, 0), 2.6, A, 0.35 * (1 - e)); bar(9, 9, L(8.6, 0), 2.6, A, 0.65 * (1 - e))
-            bar(9, L(13.1, 9), L(3.6, 6), L(2.6, 6), B)
-        case .fullWidth: rest(); bar(9, L(13.1, 9), L(3.6, 14.4), L(2.6, 3.6), B)
-        case .keystone:
-            bar(9, L(4.9, 3.6), 14, 2.6, A, 0.35 * (1 - e)); bar(9, L(9, 7.8), 8.6, 2.6, A, 0.65 * (1 - e))
-            bar(9, L(13.1, 11.6), L(3.6, 10.4), L(2.6, 4.4), B)
-        case .tally:
-            bar(L(9, 6.6), L(4.9, 14.2), L(14, 2), 2.6 + (2 - 2.6) * e, A, L(0.35, 0.6))
-            bar(L(9, 11.4), L(9, 14.2), L(8.6, 2), 2.6 + (2 - 2.6) * e, A, L(0.65, 0.6))
-            bar(9, L(13.1, 7.6), L(3.6, 9), L(2.6, 3.8), B)
         // — Minimal —
         case .fullStop:
             dot(L(3.4, 9), 9, L(1.7, 1), A, 0.55 * (1 - e)); dot(L(14.6, 9), 9, L(1.7, 1), A, 0.55 * (1 - e)); dot(9, 9, L(1.7, 3.4), B)
@@ -495,12 +457,6 @@ func collectionGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?
             for k in 0..<6 { let a = (rot + 60 * CGFloat(k)) * .pi / 180; let p = P(9 + hr * cos(a), 9 + hr * sin(a)); k == 0 ? hex.move(to: p) : hex.line(to: p) }
             hex.close(); knock(hex)
             if twoColours { dot(9, 9, L(0, 1.3), B) }
-        case .selection:
-            let x = L(2.3, 4.9), h = L(10, 8), arm: CGFloat = 1.7, p = NSBezierPath()
-            p.move(to: P(x + arm, 9 - h / 2)); p.line(to: P(x, 9 - h / 2)); p.line(to: P(x, 9 + h / 2)); p.line(to: P(x + arm, 9 + h / 2))
-            p.move(to: P(18 - x - arm, 9 - h / 2)); p.line(to: P(18 - x, 9 - h / 2)); p.line(to: P(18 - x, 9 + h / 2)); p.line(to: P(18 - x - arm, 9 + h / 2))
-            p.lineCapStyle = .round; p.lineJoinStyle = .round; stroke(p, A, 1.8)
-            dot(L(6.2, 9), 9, 1.15, A, 0.6 * (1 - e)); dot(L(11.8, 9), 9, 1.15, A, 0.6 * (1 - e)); dot(9, 9, L(1.15, 2.2), B)
         case .reticle:
             let r = L(7.9, 5)
             for (dx, dy) in [(0, -1), (1, 0), (0, 1), (-1, 0)] as [(CGFloat, CGFloat)] { line(9 + dx * r, 9 + dy * r, 9 + dx * (r - 2.4), 9 + dy * (r - 2.4), A, 2) }
@@ -525,11 +481,6 @@ func collectionGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?
             ring(9, 9, 6, 1.5, A, 1 - e)
             NSGraphicsContext.saveGraphicsState(); NSBezierPath(rect: NSRect(x: 0, y: L(15.5, 1.5), width: 18, height: 18)).addClip()
             dot(9, 9, L(6, 6.6), B); NSGraphicsContext.restoreGraphicsState()
-        case .shoji:
-            stroke(rrect(2.2, 2.2, 13.6, 13.6, 1.2), A, 1.5)
-            let a = L(0.9, 0.35)
-            for v in [6.73, 11.27] as [CGFloat] { line(v, 2.6, v, 15.4, A, 1, a); line(2.6, v, 15.4, v, A, 1, a) }
-            let s = L(0, 4.2); if s > 0.1 { fill(rrect(L(9, 6.9), L(9, 6.9), s, s, 0.6), B) }
         case .tomoe:
             let rot = e * 300
             for i in 0..<3 {
@@ -546,30 +497,7 @@ func collectionGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?
             fill(oval(9, L(4.3, 9.6), 2.6, 1.7), A, 0.5 * (1 - e)); fill(oval(9, L(8.3, 9.6), 3.9, 2.1), A, 0.75 * (1 - e))
             fill(oval(9, L(13, 9.6), L(5.4, 4.4), L(2.7, 2.6)), B)
             stroke(oval(9, 9.6, L(5, 7.4), L(3, 4.6)), A, 0.8, 0.6 * e)
-        case .hanko:
-            around(L(0, -6), scale: L(1, 0.92)) {
-                stroke(rrect(2.6, 2.6, 12.8, 12.8, 1.8), A, 1.5, 1 - e); bar(9, 9, 8, 1.6, A, 1 - e)
-                fill(rrect(2.6, 2.6, 12.8, 12.8, 1.8), B, e); knock(rrect(5, 8.1, 8, 1.8, 0.9), e)
-            }
-        // — Maximal —
-        case .orbit:
-            for (i, o) in ([(4, 1, 0.9), (6, 1.35, 1.1), (7.8, 0.8, 1.2)] as [(CGFloat, CGFloat, CGFloat)]).enumerated() {
-                ring(9, 9, o.0, 0.55, A, 0.3 * (1 - e))
-                let a = CGFloat(i) * 2.1 + e * o.1 * 4, R = o.0 * (1 - e)
-                dot(9 + R * cos(a), 9 + R * sin(a), o.2, A, 1 - e * 0.9)
-            }
-            dot(9, 9, L(1.8, 3.8), B)
-        case .constellation:
-            let pts = ([(2.5, 4), (6, 2.2), (11.5, 3.4), (15.6, 6), (14.2, 12.6), (9.4, 15.4), (3.6, 13.2), (2, 8.6)] as [(CGFloat, CGFloat)]).map { P(L($0.0, 9), L($0.1, 9)) }
-            for i in pts.indices { let a = pts[i], b = pts[(i + 1) % pts.count]; line(a.x, a.y, b.x, b.y, A, 0.5, 0.35 * (1 - e)) }
-            for (i, p) in pts.enumerated() { dot(p.x, p.y, i % 3 == 0 ? 1.3 : 1, A, 1 - e) }
-            star4(9, 9, L(1.6, 7.4), B); dot(9, 9, L(1, 0), B)
-        case .gather:
-            for i in 0..<12 {
-                let a = CGFloat(i) * .pi / 6, r0 = L(4.6, 4), r1 = L(8.2, 4)
-                if r1 - r0 > 0.05 { line(9 + r0 * cos(a), 9 + r0 * sin(a), 9 + r1 * cos(a), 9 + r1 * sin(a), A, 1.3, 1 - e) }
-            }
-            dot(9, 9, L(2.2, 4.4), B)
+        // — Mac and wildcards —
         case .windows:
             for (x, y, a) in [(1.6, 2.4, 0.3), (3.6, 4.6, 0.55)] as [(CGFloat, CGFloat, CGFloat)] { fill(rrect(L(x, x - 3), L(y, y - 3), 10.4, 7.6, 1.4), A, a * (1 - e)) }
             let w = L(10.4, 14.4), h = L(7.6, 10.6), x = L(5.8, 9 - w / 2), y = L(7.4, 9 - h / 2)
@@ -583,7 +511,6 @@ func collectionGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?
                 fill(rrect(9 + CGFloat(i) * 3.4 - 1.3, k ? L(11.2, 10.6) : 11.2, 2.6, hh, 0.7), k ? B : A, k ? L(0.6, 1) : L(0.6, 0.15))
             }
             line(1, 15.4, 17, 15.4, A, 0.8, 0.5)
-        // — Wildcards —
         case .counter:
             let box = rrect(1.8, 1.8, 14.4, 14.4, 4); stroke(box, A, 1.5, 1 - e); fill(box, B, e)
             let n = min(openAppCount, 99), s = "\(n)" as NSString
@@ -596,17 +523,6 @@ func collectionGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?
                 s.draw(in: r, withAttributes: [.font: font, .foregroundColor: NSColor.black.withAlphaComponent(e)])
                 ctx.cgContext.setBlendMode(.normal)
             }
-        case .hourglass:
-            around(180 * e) {
-                let g = NSBezierPath()
-                g.move(to: P(4.4, 2.2)); g.line(to: P(13.6, 2.2)); g.move(to: P(4.4, 15.8)); g.line(to: P(13.6, 15.8))
-                g.move(to: P(5.2, 2.2)); g.curve(to: P(8.2, 9), controlPoint1: P(5.2, 6.4), controlPoint2: P(8.2, 7.6)); g.curve(to: P(5.2, 15.8), controlPoint1: P(8.2, 10.4), controlPoint2: P(5.2, 11.6))
-                g.move(to: P(12.8, 2.2)); g.curve(to: P(9.8, 9), controlPoint1: P(12.8, 6.4), controlPoint2: P(9.8, 7.6)); g.curve(to: P(12.8, 15.8), controlPoint1: P(9.8, 10.4), controlPoint2: P(12.8, 11.6))
-                g.lineCapStyle = .round; stroke(g, A, 1.5)
-                let sand = NSBezierPath(); sand.move(to: P(6.2, 15.1)); sand.curve(to: P(9, 11.6), controlPoint1: P(6.4, 12.9), controlPoint2: P(8, 12))
-                sand.curve(to: P(11.8, 15.1), controlPoint1: P(10, 12), controlPoint2: P(11.6, 12.9)); sand.close(); fill(sand, B)
-            }
-            if e > 0.95 { line(9, 9.6, 9, 13.6, B, 0.8) }
         case .door:
             stroke(rrect(4.3, 1.8, 9.4, 14.4, 1), A, 1.5)
             let w = L(4.2, 9.4), leaf = NSBezierPath()
@@ -623,7 +539,7 @@ func collectionGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?
 /// The icon picker in Settings ▸ Appearance: every design side by side, in the user's colours; click to choose.
 final class IconGrid: NSView {
     var selected: IconStyle, hover: IconStyle?, ring: NSColor?, dot: NSColor?, pick: (IconStyle) -> Void
-    static let cols = 5, cellH: CGFloat = 54
+    static let cols = 5, cellH: CGFloat = 56
     init(_ selected: IconStyle, ring: NSColor?, dot: NSColor?, pick: @escaping (IconStyle) -> Void) {
         self.selected = selected; self.ring = ring; self.dot = dot; self.pick = pick
         let rows = (IconStyle.allCases.count + Self.cols - 1) / Self.cols
