@@ -4,6 +4,16 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.10.0 — 2026-11-13
+- 27 new menu bar icons from the Icon Lab, in Settings ▸ Appearance: every idea on the page, now 34 designs.
+  - Narrowing in session: Pillar, Ghost, Fuse, Point, Wide, Keystone, Tally.
+  - Minimal: Full stop, Aperture, Selection, Reticle, Zoom.
+  - Japanese: Ichi (三 → 一), Ensō, Hinomaru, Shōji, Tomoe, Stone, Hanko.
+  - Maximal: Orbit, Stars, Gather, Windows, Spotlight.
+  - Counter (shows how many apps are open), Hourglass, Door.
+- Each one follows your icon colours and animates into its in-session state.
+- The icon picker shows five per row so all 34 fit.
+
 ## 0.9.0 — 2026-11-13 (branch focus/feat-live-session)
 
 - **Edit a session while it runs.** Click an open app to take it out now (saved and quit, or hidden if it's hide-only;

@@ -255,7 +255,19 @@ final class SpeedDial: NSView {
 /// `ring` = the frame / the many, `dot` = the one thing kept. No colours = white, like every menu bar icon.
 enum IconStyle: String, CaseIterable {
     case lens, lessMore, narrowing, framed, gathered, switcher, fewer
-    var name: String { ["Lens", "Less, more", "Narrowing", "Framed", "Gathered", "Switcher", "Fewer"][IconStyle.allCases.firstIndex(of: self)!] }
+    // The Icon Lab collection: Narrowing in session, minimal, Japanese, maximal, wildcards
+    case pillar, ghost, fuse, point, fullWidth, keystone, tally
+    case fullStop, aperture, selection, reticle, zoom
+    case ichi, enso, hinomaru, shoji, tomoe, stone, hanko
+    case orbit, constellation, gather, windows, spotlight
+    case counter, hourglass, door
+    var name: String { ["Lens", "Less, more", "Narrowing", "Framed", "Gathered", "Switcher", "Fewer",
+                        "Pillar", "Ghost", "Fuse", "Point", "Wide", "Keystone", "Tally",
+                        "Full stop", "Aperture", "Selection", "Reticle", "Zoom",
+                        "Ichi", "Ensō", "Hinomaru", "Shōji", "Tomoe", "Stone", "Hanko",
+                        "Orbit", "Stars", "Gather", "Windows", "Spotlight",
+                        "Counter", "Hourglass", "Door"][IconStyle.allCases.firstIndex(of: self)!] }
+    var isCollection: Bool { IconStyle.allCases.firstIndex(of: self)! >= IconStyle.allCases.firstIndex(of: .pillar)! }
 }
 var iconStyle: IconStyle = .lens                                  // set from Settings; read by every glyph() below
 
@@ -332,6 +344,7 @@ func glyph(focused: Bool) -> NSImage { glyph(focused ? 1 : 0) }
 
 /// The five newer designs. Same 18 pt canvas and weights as the lens, so they sit in the menu bar the same way.
 func styledGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?, dot dotColor: NSColor?) -> NSImage {
+    if style.isCollection { return collectionGlyph(style, t0, ring: ringColor, dot: dotColor) }
     let t = min(max(t0, 0), 1), e = t * t * (3 - 2 * t)                 // smoothstep
     let prim = ringColor ?? .black, sec = dotColor ?? ringColor ?? .black
     func lerp(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * e }
@@ -385,7 +398,221 @@ func styledGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?, do
                 (kept ? sec : prim.withAlphaComponent(a)).setFill()
                 NSBezierPath(roundedRect: NSRect(x: x - w / 2, y: 9 - h / 2, width: w, height: h), xRadius: 0.8, yRadius: 0.8).fill()
             }
-        case .lens: break
+        default: break
+        }
+        return true
+    }
+    img.isTemplate = ringColor == nil && dotColor == nil
+    return img
+}
+
+/// The icon collection from the Icon Lab: drawn on a flipped (y-down) 18-pt canvas, numbers taken straight from the
+/// Lab so the app and the Lab match. Every design: out of session at t = 0, in session at t = 1, smoothstep between.
+var openAppCount = 0                                              // Counter shows this; kept current by Focus
+func collectionGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?, dot dotColor: NSColor?) -> NSImage {
+    let t = min(max(t0, 0), 1), e = t * t * (3 - 2 * t)
+    let A = ringColor ?? .black, B = dotColor ?? ringColor ?? .black
+    let twoColours = dotColor != nil && dotColor != ringColor
+    func L(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * e }
+    func P(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: x, y: y) }
+    let img = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { _ in
+        guard let ctx = NSGraphicsContext.current else { return false }
+        func fill(_ p: NSBezierPath, _ c: NSColor, _ a: CGFloat = 1) {
+            guard a > 0.01 else { return }; c.withAlphaComponent(c.alphaComponent * min(a, 1)).setFill(); p.fill()
+        }
+        func stroke(_ p: NSBezierPath, _ c: NSColor, _ w: CGFloat, _ a: CGFloat = 1) {
+            guard a > 0.01 else { return }; p.lineWidth = w; c.withAlphaComponent(c.alphaComponent * min(a, 1)).setStroke(); p.stroke()
+        }
+        func knock(_ p: NSBezierPath, _ a: CGFloat = 1) {             // punch a see-through hole
+            guard a > 0.01 else { return }
+            ctx.compositingOperation = .destinationOut; NSColor.black.withAlphaComponent(min(a, 1)).setFill(); p.fill()
+            ctx.compositingOperation = .sourceOver
+        }
+        func pill(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat) -> NSBezierPath? {
+            guard w > 0.15, h > 0.15 else { return nil }; let r = min(w, h) / 2
+            return NSBezierPath(roundedRect: NSRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h), xRadius: r, yRadius: r)
+        }
+        func bar(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat, _ c: NSColor, _ a: CGFloat = 1) { if let p = pill(cx, cy, w, h) { fill(p, c, a) } }
+        func barO(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat, _ c: NSColor, _ a: CGFloat) { if let p = pill(cx, cy, w, h) { stroke(p, c, 0.9, a) } }
+        func oval(_ cx: CGFloat, _ cy: CGFloat, _ rx: CGFloat, _ ry: CGFloat) -> NSBezierPath { NSBezierPath(ovalIn: NSRect(x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2)) }
+        func dot(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat, _ c: NSColor, _ a: CGFloat = 1) { if r > 0.05 { fill(oval(cx, cy, r, r), c, a) } }
+        func ring(_ cx: CGFloat, _ cy: CGFloat, _ r: CGFloat, _ w: CGFloat, _ c: NSColor, _ a: CGFloat = 1) { stroke(oval(cx, cy, r, r), c, w, a) }
+        func line(_ x0: CGFloat, _ y0: CGFloat, _ x1: CGFloat, _ y1: CGFloat, _ c: NSColor, _ w: CGFloat, _ a: CGFloat = 1) {
+            let p = NSBezierPath(); p.move(to: P(x0, y0)); p.line(to: P(x1, y1)); p.lineCapStyle = .round; stroke(p, c, w, a)
+        }
+        func rrect(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat) -> NSBezierPath { NSBezierPath(roundedRect: NSRect(x: x, y: y, width: w, height: h), xRadius: r, yRadius: r) }
+        func brush(_ x0: CGFloat, _ x1: CGFloat, _ y: CGFloat, _ h: CGFloat, _ c: NSColor, _ a: CGFloat) {
+            guard a > 0.01, x1 - x0 > 0.3 else { return }
+            let m = x0 + (x1 - x0) * 0.5, p = NSBezierPath()
+            p.move(to: P(x0, y - h * 0.42))
+            p.curve(to: P(x1, y - h * 0.12), controlPoint1: P(m, y - h * 0.62), controlPoint2: P(x1 - 1.3, y - h * 0.56))
+            p.curve(to: P(x1 - 1.6, y + h * 0.4), controlPoint1: P(x1 + 0.25, y + h * 0.34), controlPoint2: P(x1 - 0.8, y + h * 0.58))
+            p.curve(to: P(x0, y + h * 0.42), controlPoint1: P(m, y + h * 0.28), controlPoint2: P(x0 + 0.6, y + h * 0.56))
+            p.curve(to: P(x0, y - h * 0.42), controlPoint1: P(x0 - 0.47, y + h * 0.14), controlPoint2: P(x0 - 0.47, y - h * 0.14))
+            p.close(); fill(p, c, a)
+        }
+        func star4(_ cx: CGFloat, _ cy: CGFloat, _ s: CGFloat, _ c: NSColor, _ a: CGFloat = 1) {
+            guard s > 0.1 else { return }; let k = s * 0.26, p = NSBezierPath()
+            p.move(to: P(cx, cy - s)); p.line(to: P(cx + k, cy - k)); p.line(to: P(cx + s, cy)); p.line(to: P(cx + k, cy + k))
+            p.line(to: P(cx, cy + s)); p.line(to: P(cx - k, cy + k)); p.line(to: P(cx - s, cy)); p.line(to: P(cx - k, cy - k)); p.close(); fill(p, c, a)
+        }
+        func around(_ deg: CGFloat, scale s: CGFloat = 1, _ body: () -> Void) {   // rotate/scale about the centre
+            NSGraphicsContext.saveGraphicsState()
+            let tr = NSAffineTransform(); tr.translateX(by: 9, yBy: 9); tr.rotate(byDegrees: deg); tr.scale(by: s); tr.translateX(by: -9, yBy: -9); tr.concat()
+            body(); NSGraphicsContext.restoreGraphicsState()
+        }
+        // Narrowing's resting bars (the same geometry as .narrowing, y-down)
+        func rest() { bar(9, 4.9, 14, 2.6, A, 0.35 * (1 - e)); bar(9, 9, 8.6, 2.6, A, 0.65 * (1 - e)) }
+
+        switch style {
+        // — Narrowing, in session —
+        case .pillar:   rest(); bar(9, L(13.1, 9), L(3.6, 3.8), L(2.6, 12.4), B)
+        case .ghost:
+            bar(9, 4.9, 14, 2.6, A, 0.35 * (1 - e)); barO(9, 4.9, 14, 2.6, A, 0.55 * e)
+            bar(9, 9, 8.6, 2.6, A, 0.65 * (1 - e)); barO(9, 9, 8.6, 2.6, A, 0.55 * e)
+            bar(9, 13.1, L(3.6, 5.6), L(2.6, 2.8), B)
+        case .fuse:
+            let c = e > 0.82 ? B : A
+            bar(9, L(4.9, 6.7), L(14, 8), L(2.6, 3.2), c, L(0.35, 1)); bar(9, 9, L(8.6, 8), L(2.6, 3.2), c, L(0.65, 1))
+            bar(9, L(13.1, 11.3), L(3.6, 8), L(2.6, 3.2), B)
+        case .point:
+            bar(9, L(4.9, 9), L(14, 0), 2.6, A, 0.35 * (1 - e)); bar(9, 9, L(8.6, 0), 2.6, A, 0.65 * (1 - e))
+            bar(9, L(13.1, 9), L(3.6, 6), L(2.6, 6), B)
+        case .fullWidth: rest(); bar(9, L(13.1, 9), L(3.6, 14.4), L(2.6, 3.6), B)
+        case .keystone:
+            bar(9, L(4.9, 3.6), 14, 2.6, A, 0.35 * (1 - e)); bar(9, L(9, 7.8), 8.6, 2.6, A, 0.65 * (1 - e))
+            bar(9, L(13.1, 11.6), L(3.6, 10.4), L(2.6, 4.4), B)
+        case .tally:
+            bar(L(9, 6.6), L(4.9, 14.2), L(14, 2), 2.6 + (2 - 2.6) * e, A, L(0.35, 0.6))
+            bar(L(9, 11.4), L(9, 14.2), L(8.6, 2), 2.6 + (2 - 2.6) * e, A, L(0.65, 0.6))
+            bar(9, L(13.1, 7.6), L(3.6, 9), L(2.6, 3.8), B)
+        // — Minimal —
+        case .fullStop:
+            dot(L(3.4, 9), 9, L(1.7, 1), A, 0.55 * (1 - e)); dot(L(14.6, 9), 9, L(1.7, 1), A, 0.55 * (1 - e)); dot(9, 9, L(1.7, 3.4), B)
+        case .aperture:
+            fill(oval(9, 9, 7.8, 7.8), A)
+            let hr = L(5.6, 1.9), rot = L(0, 60), hex = NSBezierPath()
+            for k in 0..<6 { let a = (rot + 60 * CGFloat(k)) * .pi / 180; let p = P(9 + hr * cos(a), 9 + hr * sin(a)); k == 0 ? hex.move(to: p) : hex.line(to: p) }
+            hex.close(); knock(hex)
+            if twoColours { dot(9, 9, L(0, 1.3), B) }
+        case .selection:
+            let x = L(2.3, 4.9), h = L(10, 8), arm: CGFloat = 1.7, p = NSBezierPath()
+            p.move(to: P(x + arm, 9 - h / 2)); p.line(to: P(x, 9 - h / 2)); p.line(to: P(x, 9 + h / 2)); p.line(to: P(x + arm, 9 + h / 2))
+            p.move(to: P(18 - x - arm, 9 - h / 2)); p.line(to: P(18 - x, 9 - h / 2)); p.line(to: P(18 - x, 9 + h / 2)); p.line(to: P(18 - x - arm, 9 + h / 2))
+            p.lineCapStyle = .round; p.lineJoinStyle = .round; stroke(p, A, 1.8)
+            dot(L(6.2, 9), 9, 1.15, A, 0.6 * (1 - e)); dot(L(11.8, 9), 9, 1.15, A, 0.6 * (1 - e)); dot(9, 9, L(1.15, 2.2), B)
+        case .reticle:
+            let r = L(7.9, 5)
+            for (dx, dy) in [(0, -1), (1, 0), (0, 1), (-1, 0)] as [(CGFloat, CGFloat)] { line(9 + dx * r, 9 + dy * r, 9 + dx * (r - 2.4), 9 + dy * (r - 2.4), A, 2) }
+            dot(9, 9, L(1.4, 2.5), B)
+        case .zoom:
+            for (w, a) in [(15, 0.35), (10.2, 0.6)] as [(CGFloat, CGFloat)] { let W = L(w, w + 5); stroke(rrect(9 - W / 2, 9 - W / 2, W, W, 1.6), A, 1.5, a * (1 - e)) }
+            let w = L(5.4, 8), sq = rrect(9 - w / 2, 9 - w / 2, w, w, L(1, 1.8)); fill(sq, B, e); stroke(sq, B, 1.5)
+        // — Japanese —
+        case .ichi:
+            brush(L(4.6, 6), L(13.4, 12), L(3.8, 9.4), L(2, 1.2), A, 0.5 * (1 - e))
+            brush(L(5.4, 6), L(12.6, 12), L(8.6, 9.4), L(1.8, 1.2), A, 0.7 * (1 - e))
+            brush(2, 16, L(14, 9.4), L(2.4, 3.2), B, 1)
+        case .enso:
+            let r: CGFloat = 6.3, gap = L(0.24, 0), p = NSBezierPath()
+            if gap < 0.003 { p.appendOval(in: NSRect(x: 9 - r, y: 9 - r, width: r * 2, height: r * 2)) }
+            else { p.appendArc(withCenter: P(9, 9), radius: r, startAngle: -62, endAngle: -62 + 360 * (1 - gap), clockwise: false) }
+            p.lineCapStyle = .round; stroke(p, A, 2.4)
+            let q = NSBezierPath(); q.appendArc(withCenter: P(9, 9), radius: r - 0.7, startAngle: -62, endAngle: -62 + 360 * 0.55 * (1 - gap * 0.6), clockwise: false)
+            q.lineCapStyle = .round; stroke(q, A, 0.8, 0.45)
+            dot(9, 9, L(0, 1.9), B)
+        case .hinomaru:
+            ring(9, 9, 6, 1.5, A, 1 - e)
+            NSGraphicsContext.saveGraphicsState(); NSBezierPath(rect: NSRect(x: 0, y: L(15.5, 1.5), width: 18, height: 18)).addClip()
+            dot(9, 9, L(6, 6.6), B); NSGraphicsContext.restoreGraphicsState()
+        case .shoji:
+            stroke(rrect(2.2, 2.2, 13.6, 13.6, 1.2), A, 1.5)
+            let a = L(0.9, 0.35)
+            for v in [6.73, 11.27] as [CGFloat] { line(v, 2.6, v, 15.4, A, 1, a); line(2.6, v, 15.4, v, A, 1, a) }
+            let s = L(0, 4.2); if s > 0.1 { fill(rrect(L(9, 6.9), L(9, 6.9), s, s, 0.6), B) }
+        case .tomoe:
+            let rot = e * 300
+            for i in 0..<3 {
+                let a = (rot + 120 * CGFloat(i)) * .pi / 180, R = L(4.5, 0), main = i == 0
+                let x = 9 + R * cos(a), y = 9 + R * sin(a), tx = 9 + R * cos(a - 1.15) * 1.05, ty = 9 + R * sin(a - 1.15) * 1.05
+                let q = P(9 + R * 1.3 * cos(a - 0.6), 9 + R * 1.3 * sin(a - 0.6))
+                let tail = NSBezierPath(); tail.move(to: P(x, y))
+                tail.curve(to: P(tx, ty), controlPoint1: P(x + (q.x - x) * 2 / 3, y + (q.y - y) * 2 / 3), controlPoint2: P(tx + (q.x - tx) * 2 / 3, ty + (q.y - ty) * 2 / 3))
+                tail.lineCapStyle = .round
+                if L(1.3, 0) > 0.05 { stroke(tail, main ? B : A, L(1.3, 0), main ? 1 : 1 - e) }
+                dot(x, y, L(2.1, main ? 4.2 : 1), main ? B : A, main ? 1 : 1 - e)
+            }
+        case .stone:
+            fill(oval(9, L(4.3, 9.6), 2.6, 1.7), A, 0.5 * (1 - e)); fill(oval(9, L(8.3, 9.6), 3.9, 2.1), A, 0.75 * (1 - e))
+            fill(oval(9, L(13, 9.6), L(5.4, 4.4), L(2.7, 2.6)), B)
+            stroke(oval(9, 9.6, L(5, 7.4), L(3, 4.6)), A, 0.8, 0.6 * e)
+        case .hanko:
+            around(L(0, -6), scale: L(1, 0.92)) {
+                stroke(rrect(2.6, 2.6, 12.8, 12.8, 1.8), A, 1.5, 1 - e); bar(9, 9, 8, 1.6, A, 1 - e)
+                fill(rrect(2.6, 2.6, 12.8, 12.8, 1.8), B, e); knock(rrect(5, 8.1, 8, 1.8, 0.9), e)
+            }
+        // — Maximal —
+        case .orbit:
+            for (i, o) in ([(4, 1, 0.9), (6, 1.35, 1.1), (7.8, 0.8, 1.2)] as [(CGFloat, CGFloat, CGFloat)]).enumerated() {
+                ring(9, 9, o.0, 0.55, A, 0.3 * (1 - e))
+                let a = CGFloat(i) * 2.1 + e * o.1 * 4, R = o.0 * (1 - e)
+                dot(9 + R * cos(a), 9 + R * sin(a), o.2, A, 1 - e * 0.9)
+            }
+            dot(9, 9, L(1.8, 3.8), B)
+        case .constellation:
+            let pts = ([(2.5, 4), (6, 2.2), (11.5, 3.4), (15.6, 6), (14.2, 12.6), (9.4, 15.4), (3.6, 13.2), (2, 8.6)] as [(CGFloat, CGFloat)]).map { P(L($0.0, 9), L($0.1, 9)) }
+            for i in pts.indices { let a = pts[i], b = pts[(i + 1) % pts.count]; line(a.x, a.y, b.x, b.y, A, 0.5, 0.35 * (1 - e)) }
+            for (i, p) in pts.enumerated() { dot(p.x, p.y, i % 3 == 0 ? 1.3 : 1, A, 1 - e) }
+            star4(9, 9, L(1.6, 7.4), B); dot(9, 9, L(1, 0), B)
+        case .gather:
+            for i in 0..<12 {
+                let a = CGFloat(i) * .pi / 6, r0 = L(4.6, 4), r1 = L(8.2, 4)
+                if r1 - r0 > 0.05 { line(9 + r0 * cos(a), 9 + r0 * sin(a), 9 + r1 * cos(a), 9 + r1 * sin(a), A, 1.3, 1 - e) }
+            }
+            dot(9, 9, L(2.2, 4.4), B)
+        case .windows:
+            for (x, y, a) in [(1.6, 2.4, 0.3), (3.6, 4.6, 0.55)] as [(CGFloat, CGFloat, CGFloat)] { fill(rrect(L(x, x - 3), L(y, y - 3), 10.4, 7.6, 1.4), A, a * (1 - e)) }
+            let w = L(10.4, 14.4), h = L(7.6, 10.6), x = L(5.8, 9 - w / 2), y = L(7.4, 9 - h / 2)
+            fill(rrect(x, y, w, h, 1.6), B)
+            for i in 0..<3 { knock(oval(x + 1.4 + CGFloat(i) * 1.25, y + 1.3, 0.45, 0.45), 0.6) }
+        case .spotlight:
+            let cone = NSBezierPath(); cone.move(to: P(7.6, 0)); cone.line(to: P(10.4, 0)); cone.line(to: P(13, 13.6)); cone.line(to: P(5, 13.6)); cone.close()
+            fill(cone, B, 0.28 * e)
+            for i in -2...2 {
+                let k = i == 0, hh = k ? L(2.6, 3.4) : 2.6
+                fill(rrect(9 + CGFloat(i) * 3.4 - 1.3, k ? L(11.2, 10.6) : 11.2, 2.6, hh, 0.7), k ? B : A, k ? L(0.6, 1) : L(0.6, 0.15))
+            }
+            line(1, 15.4, 17, 15.4, A, 0.8, 0.5)
+        // — Wildcards —
+        case .counter:
+            let box = rrect(1.8, 1.8, 14.4, 14.4, 4); stroke(box, A, 1.5, 1 - e); fill(box, B, e)
+            let n = min(openAppCount, 99), s = "\(n)" as NSString
+            let font = NSFont.systemFont(ofSize: s.length > 1 ? 9 : 11, weight: .heavy)
+            let size = s.size(withAttributes: [.font: font])
+            let r = NSRect(x: 9 - size.width / 2, y: 9 - size.height / 2 + 0.2, width: size.width, height: size.height)
+            s.draw(in: r, withAttributes: [.font: font, .foregroundColor: A.withAlphaComponent(1 - e)])
+            if e > 0.01 {                                         // in session the number is cut out of the solid tile
+                ctx.cgContext.setBlendMode(.destinationOut)
+                s.draw(in: r, withAttributes: [.font: font, .foregroundColor: NSColor.black.withAlphaComponent(e)])
+                ctx.cgContext.setBlendMode(.normal)
+            }
+        case .hourglass:
+            around(180 * e) {
+                let g = NSBezierPath()
+                g.move(to: P(4.4, 2.2)); g.line(to: P(13.6, 2.2)); g.move(to: P(4.4, 15.8)); g.line(to: P(13.6, 15.8))
+                g.move(to: P(5.2, 2.2)); g.curve(to: P(8.2, 9), controlPoint1: P(5.2, 6.4), controlPoint2: P(8.2, 7.6)); g.curve(to: P(5.2, 15.8), controlPoint1: P(8.2, 10.4), controlPoint2: P(5.2, 11.6))
+                g.move(to: P(12.8, 2.2)); g.curve(to: P(9.8, 9), controlPoint1: P(12.8, 6.4), controlPoint2: P(9.8, 7.6)); g.curve(to: P(12.8, 15.8), controlPoint1: P(9.8, 10.4), controlPoint2: P(12.8, 11.6))
+                g.lineCapStyle = .round; stroke(g, A, 1.5)
+                let sand = NSBezierPath(); sand.move(to: P(6.2, 15.1)); sand.curve(to: P(9, 11.6), controlPoint1: P(6.4, 12.9), controlPoint2: P(8, 12))
+                sand.curve(to: P(11.8, 15.1), controlPoint1: P(10, 12), controlPoint2: P(11.6, 12.9)); sand.close(); fill(sand, B)
+            }
+            if e > 0.95 { line(9, 9.6, 9, 13.6, B, 0.8) }
+        case .door:
+            stroke(rrect(4.3, 1.8, 9.4, 14.4, 1), A, 1.5)
+            let w = L(4.2, 9.4), leaf = NSBezierPath()
+            leaf.move(to: P(4.3, 1.8)); leaf.line(to: P(4.3 + w, L(3.4, 1.8))); leaf.line(to: P(4.3 + w, L(14.6, 16.2))); leaf.line(to: P(4.3, 16.2)); leaf.close()
+            fill(leaf, B, L(0.55, 1)); knock(oval(L(7.2, 11.4), 9, 0.85, 0.85), 0.8 * e)
+        default: break
         }
         return true
     }
@@ -396,7 +623,7 @@ func styledGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?, do
 /// The icon picker in Settings ▸ Appearance: every design side by side, in the user's colours; click to choose.
 final class IconGrid: NSView {
     var selected: IconStyle, hover: IconStyle?, ring: NSColor?, dot: NSColor?, pick: (IconStyle) -> Void
-    static let cols = 3, cellH: CGFloat = 62
+    static let cols = 5, cellH: CGFloat = 54
     init(_ selected: IconStyle, ring: NSColor?, dot: NSColor?, pick: @escaping (IconStyle) -> Void) {
         self.selected = selected; self.ring = ring; self.dot = dot; self.pick = pick
         let rows = (IconStyle.allCases.count + Self.cols - 1) / Self.cols
@@ -426,11 +653,11 @@ final class IconGrid: NSView {
             }
             // At rest, as it sits in the menu bar; white when no colours are chosen (the menu is always dark).
             let g = glyph(0, ring: ring ?? .white, dot: dot ?? ring ?? .white, style: st)
-            g.draw(in: NSRect(x: c.midX - 14, y: c.maxY - 36, width: 28, height: 28))
+            g.draw(in: NSRect(x: c.midX - 13, y: c.maxY - 33, width: 26, height: 26))
             let name = st.name as NSString
-            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11, weight: st == selected ? .semibold : .regular),
+            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10, weight: st == selected ? .semibold : .regular),
                                                         .foregroundColor: st == selected ? theme.text : theme.faint]
-            name.draw(at: NSPoint(x: c.midX - name.size(withAttributes: attrs).width / 2, y: c.minY + 6), withAttributes: attrs)
+            name.draw(at: NSPoint(x: c.midX - name.size(withAttributes: attrs).width / 2, y: c.minY + 4), withAttributes: attrs)
         }
     }
 }
@@ -763,6 +990,13 @@ final class Focus: NSObject, NSMenuDelegate {
     /// Every icon frame goes through here, so the chosen colours hold through the focus animation too.
     func drawIcon(_ t: CGFloat, hunt: Bool = false) { item.button?.image = glyph(t, hunt: hunt, ring: ringColor, dot: dotColor) }
     func redrawIcon() { drawIcon(focused ? 1 : 0) }
+    /// Apps you can see in the Dock right now (Focus and macOS's own apps aside): Counter's number.
+    func countApps() {
+        let n = ws.runningApplications.filter { $0.activationPolicy == .regular && !system($0) }.count
+        guard n != openAppCount else { return }
+        openAppCount = n
+        if iconStyle == .counter && pill.timer?.isValid != true { redrawIcon() }   // never mid-animation
+    }
     func setIcon(_ img: NSImage) { redrawIcon() }
     @objc func pickPreset(_ s: NSMenuItem) {
         let pair = s.representedObject as? [String] ?? ["", ""]
@@ -864,6 +1098,12 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         migrateModes()                                          // older modes get their permanent ids
         if store == .standard { iconStyle = iconStyleSetting }     // the real Focus draws the user's chosen design everywhere
+        if store == .standard {                                 // Counter shows how many apps are open: keep it current
+            for n in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+                ws.notificationCenter.addObserver(forName: n, object: nil, queue: .main) { [weak self] _ in self?.countApps() }
+            }
+            countApps()
+        }
         setIcon(glyph(focused: focused))
         pruneSnapshots()
         if store == .standard && logoCustom { DispatchQueue.main.async { self.applyLogo() } }
