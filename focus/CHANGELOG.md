@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.0 — 2026-11-13
+- **Switching between modes has its own animation.**
+  - The apps leaving fan out on the left and are pulled into the menu bar icon.
+  - The apps arriving fly out of the icon on the right and drop into the pill.
+  - The pill stays until they land.
+- **The mode's name writes itself in,** letter by letter from left to right, with a glowing spark at each letter. When a session ends it deletes itself from the right.
+- The ordinary start and end keep their exact timing, Normal included.
+- Developer flag `--render-pill FILE start|switch|end` draws the show off-screen as a filmstrip.
+
 ## 0.17.0 — 2026-11-13
 - **Modes start with one click:**
   - Each mode is an item under the Modes heading, with its shortcut on the right.

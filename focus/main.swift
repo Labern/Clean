@@ -836,7 +836,11 @@ func painted(_ img: NSImage, _ color: NSColor, _ size: NSSize) -> CGImage? {
 final class SessionPill {
     var win: NSWindow?, timer: Timer?
 
-    func play(start: Bool, icons: [NSImage], target: NSPoint, label: String, hold: (start: Double, end: Double) = AnimSpeed.normal.hold) {
+    /// `incoming`: apps coming back during a switch between modes — they fly out of the menu bar icon on the right
+    /// while the leaving `icons` are pulled into it on the left. Empty for an ordinary start or end (unchanged).
+    /// Off-screen filmstrip for checking the show without a screen: frames at `filmstrip` seconds, written to `film`.
+    var filmstrip: [Double]? = nil, film: String? = nil
+    func play(start: Bool, icons: [NSImage], incoming: [NSImage] = [], target: NSPoint, label: String, hold: (start: Double, end: Double) = AnimSpeed.normal.hold) {
         timer?.invalidate(); win?.orderOut(nil)
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(target) }) ?? NSScreen.main ?? NSScreen.screens.first else { return }   // no display: skip the show
         let w = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -855,9 +859,40 @@ final class SessionPill {
         pill.borderColor = theme.hudEdge.cgColor; pill.borderWidth = 1
         pill.shadowColor = NSColor.black.cgColor; pill.shadowOpacity = 0.45; pill.shadowRadius = 14; pill.shadowOffset = CGSize(width: 0, height: -4)
         let mark = CALayer(); mark.frame = CGRect(x: 16, y: 10, width: 24, height: 24); mark.contentsScale = s
-        let word = CATextLayer(); word.string = label; word.font = NSFont.systemFont(ofSize: 15, weight: .semibold)
-        word.fontSize = 15; word.foregroundColor = theme.hudInk.cgColor; word.contentsScale = s
+        let word = CATextLayer(); word.contentsScale = s
         word.frame = CGRect(x: 50, y: 12, width: size.width - 62, height: 20)
+        // The name writes itself in, letter by letter left to right, a spark at each new letter; on End it deletes
+        // itself right to left. `p` = how far through the word (0…1); each letter fades over a short window.
+        let wordFont = NSFont.systemFont(ofSize: 15, weight: .semibold), chars = Array(label)
+        let edges: [CGFloat] = (0...chars.count).map { k in (String(chars.prefix(k)) as NSString).size(withAttributes: [.font: wordFont]).width }
+        func spell(_ p: CGFloat) {
+            let a = NSMutableAttributedString()
+            for (k, c) in chars.enumerated() {
+                let soft = 1.6 / CGFloat(max(chars.count, 1))                        // each letter fades in over this much of p
+                let alpha = min(max((p - CGFloat(k) / CGFloat(max(chars.count, 1))) / soft, 0), 1)
+                a.append(NSAttributedString(string: String(c), attributes: [.font: wordFont, .foregroundColor: theme.hudInk.withAlphaComponent(alpha)]))
+            }
+            word.string = a
+        }
+        var sparks: [CAShapeLayer] = []
+        func spark(at k: Int) {                                     // a small four-point star where letter k appears / goes
+            let x = 50 + (edges[min(k + 1, chars.count)] + edges[k]) / 2, sz: CGFloat = 7.5
+            let path = CGMutablePath(), q = sz * 0.28
+            path.addLines(between: [CGPoint(x: 0, y: sz), CGPoint(x: q, y: q), CGPoint(x: sz, y: 0), CGPoint(x: q, y: -q),
+                                    CGPoint(x: 0, y: -sz), CGPoint(x: -q, y: -q), CGPoint(x: -sz, y: 0), CGPoint(x: -q, y: q)]); path.closeSubpath()
+            let l = CAShapeLayer(); l.path = path; l.fillColor = theme.hudInk.cgColor; l.position = CGPoint(x: x, y: 24)
+            l.shadowColor = theme.hudInk.cgColor; l.shadowOpacity = 1; l.shadowRadius = 4; l.shadowOffset = .zero   // a soft glow
+            l.contentsScale = s; l.setValue(clock, forKey: "born"); pill.addSublayer(l); sparks.append(l)
+        }
+        func tickSparks() {
+            for l in sparks {
+                let age = CGFloat(clock.timeIntervalSince(l.value(forKey: "born") as? Date ?? clock) / 0.38)
+                l.opacity = Float(max(0, 1 - age * age)); let k = age < 0.25 ? 0.3 + 3.2 * age : 1.1 - 0.5 * (age - 0.25)   // flare, then fade
+                l.transform = CATransform3DConcat(CATransform3DMakeScale(k, k, 1), CATransform3DMakeRotation(age * 1.6, 0, 0, 1))
+            }
+        }
+        var sparked = start ? -1 : chars.count                      // the last letter that has had its spark
+        spell(start ? 0 : 1)
         let flash = CALayer(); flash.frame = pill.bounds; flash.cornerRadius = 22; flash.backgroundColor = theme.hudInk.cgColor; flash.opacity = 0
         [mark, word, flash].forEach(pill.addSublayer)
         root.addSublayer(pill)
@@ -869,10 +904,22 @@ final class SessionPill {
             l.contents = img.cgImage(forProposedRect: nil, context: nil, hints: nil); l.opacity = 0
             root.addSublayer(l); return l
         }
-        let fan: [CGPoint] = (0..<n).map { i in
-            let a = n == 1 ? CGFloat.pi / 2 : CGFloat.pi * (0.78 - 0.56 * CGFloat(i) / CGFloat(n - 1))
-            return CGPoint(x: home.x + cos(a) * 150, y: home.y + 26 + sin(a) * 92)
+        let switching = start && !incoming.isEmpty
+        // An ordinary start or end: one arc above the pill. A switch: leaving apps on the left half, arriving on the right.
+        func arc(_ count: Int, from a0: CGFloat, to a1: CGFloat) -> [CGPoint] {
+            (0..<count).map { i in
+                let a = count == 1 ? (a0 + a1) / 2 * .pi : .pi * (a0 + (a1 - a0) * CGFloat(i) / CGFloat(count - 1))
+                return CGPoint(x: home.x + cos(a) * 150, y: home.y + 26 + sin(a) * 92)
+            }
         }
+        let fan = switching ? arc(n, from: 0.86, to: 0.56) : (n == 1 ? arc(1, from: 0.5, to: 0.5) : arc(n, from: 0.78, to: 0.22))
+        let arriving = Array(incoming.prefix(9)), m = arriving.count
+        let inTiles: [CALayer] = arriving.map { img in
+            let l = CALayer(); l.bounds = CGRect(x: 0, y: 0, width: 44, height: 44); l.contentsScale = s
+            l.contents = img.cgImage(forProposedRect: nil, context: nil, hints: nil); l.opacity = 0
+            root.addSublayer(l); return l
+        }
+        let inFan = arc(m, from: 0.44, to: 0.14)
         func lerp(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint { CGPoint(x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t) }
         func setMark(_ t: CGFloat) { mark.contents = painted(glyph(t), theme.hudInk, NSSize(width: 24, height: 24)) }
 
@@ -881,13 +928,12 @@ final class SessionPill {
         let impact = start ? popIn : popIn + Double(max(n - 1, 0)) * stagger + fly + hold.end + 0.20   // Normal: + 0.02 + 0.20 = the original + 0.22
         let after = impact + stop
         let flyDone = start ? after + hold.start + Double(max(n - 1, 0)) * stagger + fly : impact     // Normal: hold 0.24 = the original 0.16 + 0.08
-        let zipAt = (start ? flyDone : after + 0.06), zipLen = 0.22, end = zipAt + zipLen + 0.05
+        let landed = after + hold.start + Double(max(incoming.prefix(9).count - 1, 0)) * stagger + fly * 1.5
+        let zipAt = (start ? max(flyDone, incoming.isEmpty ? 0 : landed) : after + 0.06), zipLen = 0.22, end = zipAt + zipLen + 0.05
         setMark(start ? 0 : 1)
 
-        w.orderFrontRegardless(); win = w
-        let began = Date()
-        let t = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] tm in
-            let now = Date().timeIntervalSince(began)
+        var clock = Date()                                          // the sparks age by this (real time, or the filmstrip's)
+        let step: (Double) -> Void = { now in
             CATransaction.begin(); CATransaction.setDisableActions(true)
             // pill: zop in, shake during the stop, zip out sideways at the end
             let inP = CGFloat(now / popIn)
@@ -902,6 +948,28 @@ final class SessionPill {
             // impact: the mark snaps, the flash decays
             if now >= impact && (mark.value(forKey: "snapped") as? Bool) != true { setMark(start ? 1 : 0); mark.setValue(true, forKey: "snapped") }
             flash.opacity = now >= impact ? Float(0.85 * (1 - ease(CGFloat((now - impact) / 0.16)))) : 0
+            // the name: written in after the pop (start), deleted before the impact (end)
+            let wp: CGFloat = start ? CGFloat((now - popIn * 0.6) / 0.42) : 1 - CGFloat((now - popIn - 0.12) / max(impact - popIn - 0.2, 0.25))
+            let clamped = min(max(wp, 0), 1); spell(clamped)
+            let at = Int((clamped * CGFloat(chars.count)).rounded(.down))
+            if start { while sparked < min(at, chars.count - 1) { sparked += 1; spark(at: sparked) } }
+            else { while sparked > at && sparked > 0 { sparked -= 1; spark(at: sparked) } }
+            tickSparks()
+            // arriving apps (a switch): out of the menu bar icon to the right, then down into the pill
+            for (i, l) in inTiles.enumerated() {
+                let d = Double(i) * stagger
+                let out = CGFloat((now - after - d) / fly), drop = CGFloat((now - after - hold.start - d - fly * 0.5) / fly)
+                if out <= 0 { l.opacity = 0; continue }
+                if drop <= 0 {
+                    let k = easeOut(out)
+                    l.position = lerp(tgt, inFan[i], k); l.opacity = Float(ease(out * 3))
+                    l.transform = CATransform3DMakeScale(0.2 + 0.8 * k, 0.2 + 0.8 * k, 1)
+                } else {
+                    let k = easeIn(drop)
+                    l.position = lerp(inFan[i], home, k); l.opacity = Float(1 - k)
+                    l.transform = CATransform3DMakeScale(1 - 0.6 * k, 1 - 0.6 * k, 1)
+                }
+            }
             // icons
             for (i, l) in tiles.enumerated() {
                 let d = Double(i) * stagger
@@ -931,6 +999,33 @@ final class SessionPill {
                 }
             }
             CATransaction.commit()
+        }
+        if let frames = filmstrip, let film {                       // render, don't show
+            let fw = 760, fh = 300, rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: fw, pixelsHigh: fh * frames.count, bitsPerSample: 8,
+                                                           samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+            let ctx = NSGraphicsContext(bitmapImageRep: rep)!.cgContext
+            ctx.setFillColor(NSColor(white: 0.42, alpha: 1).cgColor); ctx.fill(CGRect(x: 0, y: 0, width: fw, height: fh * frames.count))
+            let base = Date()
+            for (k, f) in frames.enumerated() {
+                // replay from 0 so sparks are born at the right moments
+                var tt = 0.0; while tt < f { clock = base.addingTimeInterval(tt); step(tt); tt += 1.0 / 120 }
+                clock = base.addingTimeInterval(f); step(f)
+                ctx.saveGState()
+                ctx.translateBy(x: CGFloat(fw) / 2 - home.x, y: CGFloat(fh * (frames.count - 1 - k)) + 20 - home.y + 40)
+                root.render(in: ctx); ctx.restoreGState()
+                ctx.setFillColor(NSColor.white.cgColor)
+                NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
+                (String(format: "%.2fs", f) as NSString).draw(at: NSPoint(x: 8, y: fh * (frames.count - k) - 20), withAttributes: [.foregroundColor: NSColor.white, .font: NSFont.systemFont(ofSize: 12)])
+                NSGraphicsContext.restoreGraphicsState()
+            }
+            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: film))
+            return
+        }
+        w.orderFrontRegardless(); win = w
+        let began = Date()
+        let t = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] tm in
+            let now = Date().timeIntervalSince(began); clock = Date()
+            step(now)
             if now > end { tm.invalidate(); self?.win?.orderOut(nil); self?.win = nil }
         }
         RunLoop.main.add(t, forMode: .common); timer = t
@@ -1692,6 +1787,7 @@ final class Focus: NSObject, NSMenuDelegate {
     func switchMode(id: String, limit: Set<String>? = nil) {
         guard focused, !sessions.isEmpty, let m = mode(id) else { return }
         let want = m["apps"] as? [String] ?? [], name = m["name"] as? String ?? "Mode"
+        let arriving = want.filter { id in isParked(id) || !ws.runningApplications.contains(where: { a in a.bundleIdentifier == id && !a.isTerminated }) }
         for app in want {
             if isParked(app) { bringBack(app) }
             else if !ws.runningApplications.contains(where: { $0.bundleIdentifier == app && !$0.isTerminated }), let url = ws.urlForApplication(withBundleIdentifier: app) {
@@ -1699,7 +1795,8 @@ final class Focus: NSObject, NSMenuDelegate {
             }
         }
         let leaving = apps().compactMap(\.bundleIdentifier).filter { !want.contains($0) && !isParked($0) && (limit?.contains($0) ?? true) }
-        pill.play(start: true, icons: leaving.compactMap(path).map { ws.icon(forFile: $0) }, target: iconPoint, label: name, hold: animSpeed.hold)
+        pill.play(start: true, icons: leaving.compactMap(path).map { ws.icon(forFile: $0) }, incoming: arriving.compactMap(path).map { ws.icon(forFile: $0) },
+                  target: iconPoint, label: name, hold: animSpeed.hold)
         for app in leaving { parkNow(app) }
         var s0 = sessions[0]; s0["mode"] = name; s0["name"] = name; s0["modeID"] = id; s0["kept"] = want; sessions[0] = s0
         modeKeep = Set(want)
@@ -2423,6 +2520,17 @@ func olderFocus() -> NSRunningApplication? {
         .first { a in let d = a.launchDate ?? .distantPast; return d < mine.0 || (d == mine.0 && a.processIdentifier < mine.1) }
 }
 let others = olderFocus().map { [$0] } ?? []
+/// `Focus --render-pill FILE start|end|switch`: the session show drawn off-screen as a filmstrip, to check it by eye.
+if let i = CommandLine.arguments.firstIndex(of: "--render-pill"), CommandLine.arguments.count > i + 2 {
+    let kind = CommandLine.arguments[i + 2], ws = NSWorkspace.shared
+    let ic = { (ids: [String]) in ids.compactMap { ws.urlForApplication(withBundleIdentifier: $0) }.map { ws.icon(forFile: $0.path) } }
+    let out = ic(["com.apple.iWork.Keynote", "com.apple.systempreferences", "com.apple.Preview"]), inn = ic(["com.apple.Terminal", "com.apple.TextEdit"])
+    let p = SessionPill(); p.film = CommandLine.arguments[i + 1]
+    p.filmstrip = kind == "end" ? [0.1, 0.25, 0.45, 0.65, 0.85, 1.0] : [0.12, 0.3, 0.42, 0.55, 0.75, 0.95, 1.15, 1.35]
+    let s = (NSScreen.main ?? NSScreen.screens[0]).frame, tgt = NSPoint(x: s.midX + 260, y: 300)
+    p.play(start: kind != "end", icons: out, incoming: kind == "switch" ? inn : [], target: tgt, label: kind == "start" ? "Programming" : "AI")
+    exit(0)
+}
 if CommandLine.arguments.contains("--pill-demo") {          // watch the start and end shows without a session
     let p = SessionPill(), ws = NSWorkspace.shared
     let icons = ["com.google.Chrome", "md.obsidian", "com.apple.iWork.Keynote", "com.apple.Preview", "com.readdle.SparkDesktop", "com.openai.chat"]
