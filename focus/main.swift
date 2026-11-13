@@ -694,6 +694,32 @@ final class AppRow: HoverView {
     }
 }
 
+/// A name typed straight into the menu: no popup. Return saves (and closes the menu); Escape closes it unchanged.
+final class InlineNameField: NSView {
+    let field = NSTextField(), commit: (String) -> Void
+    init(_ value: String, placeholder: String, symbolName: String, enabled: Bool = true, commit: @escaping (String) -> Void) {
+        self.commit = commit
+        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 34))
+        autoresizingMask = [.width]
+        let icon = NSImageView(image: symbol(symbolName, [theme.faint]) ?? NSImage())
+        icon.frame = NSRect(x: 14, y: 9, width: 16, height: 16); addSubview(icon)
+        field.stringValue = value; field.placeholderString = placeholder
+        field.font = .menuFont(ofSize: 13); field.isBordered = true; field.bezelStyle = .roundedBezel
+        field.focusRingType = .exterior; field.isEnabled = enabled
+        field.frame = NSRect(x: 36, y: 5, width: menuWidth - 50, height: 24); field.autoresizingMask = [.width]
+        field.target = self; field.action = #selector(done)
+        (field.cell as? NSTextFieldCell)?.sendsActionOnEndEditing = false     // only Return saves
+        addSubview(field)
+    }
+    required init?(coder: NSCoder) { nil }
+    override func acceptsFirstMouse(for e: NSEvent?) -> Bool { true }
+    @objc func done() {
+        let v = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !v.isEmpty else { return }
+        commit(v); enclosingMenuItem?.menu?.cancelTracking()
+    }
+}
+
 /// The hover popup for app rows: one line, dark, just under the row it explains.
 final class RowTip {
     static let shared = RowTip()
@@ -915,7 +941,7 @@ typealias Session = [String: Any]                              // "date": Date, 
 
 final class Focus: NSObject, NSMenuDelegate {
     let ws = NSWorkspace.shared, store: UserDefaults
-    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)   // room for the session's name
     weak var button: BigButton?                                 // redrawn as rows change, so its caption is live
     var mem: [pid_t: UInt64] = [:]                              // refreshed each time the menu opens
     var queue: [NSRunningApplication] = [], total = 0           // the slow, one-at-a-time quit in progress
@@ -970,8 +996,16 @@ final class Focus: NSObject, NSMenuDelegate {
 
     var sessions: [Session] {                                   // newest first, last 12 kept
         get { store.array(forKey: "sessions") as? [Session] ?? [] }
-        set { store.set(Array(newValue.prefix(12)), forKey: "sessions") }
+        set { store.set(Array(newValue.prefix(12)), forKey: "sessions"); updateTitle() }
     }
+    /// In a session the menu bar reads: icon, then the mode's or session's name. Settings can make it icon only.
+    var showNameInMenuBar: Bool { get { store.object(forKey: "showNameInMenuBar") as? Bool ?? true } set { store.set(newValue, forKey: "showNameInMenuBar"); updateTitle() } }
+    func updateTitle() {
+        guard let b = item.button else { return }
+        let t = showNameInMenuBar ? (sessionName.map { " " + $0 } ?? "") : ""
+        if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }
+    }
+    @objc func toggleNameInMenuBar() { showNameInMenuBar.toggle() }
     var excluded: [String] {                                    // "keep open": the user's per-session picks
         get { store.stringArray(forKey: "excluded") ?? [] }
         set { store.set(newValue, forKey: "excluded") }
@@ -1012,7 +1046,7 @@ final class Focus: NSObject, NSMenuDelegate {
     var ringColor: NSColor? { hexColor(iconColor) }
     var dotColor: NSColor? { hexColor(iconColor2) ?? ringColor }
     /// Every icon frame goes through here, so the chosen colours hold through the focus animation too.
-    func drawIcon(_ t: CGFloat, hunt: Bool = false) { item.button?.image = glyph(t, hunt: hunt, ring: ringColor, dot: dotColor) }
+    func drawIcon(_ t: CGFloat, hunt: Bool = false) { item.button?.image = glyph(t, hunt: hunt, ring: ringColor, dot: dotColor); updateTitle() }
     func redrawIcon() { drawIcon(focused ? 1 : 0) }
     /// Apps you can see in the Dock right now (Focus and macOS's own apps aside): Counter's number.
     func countApps() {
@@ -1947,6 +1981,8 @@ final class Focus: NSObject, NSMenuDelegate {
                                                                                                 .foregroundColor: NSColor.secondaryLabelColor]))
                 row.attributedTitle = t
             }
+            let nameRow = NSMenuItem(); nameRow.view = InlineNameField(name, placeholder: "Mode name", symbolName: "pencil") { [unowned self] v in self.renameMode(mid, to: v) }
+            sm.addItem(nameRow)
             // Its apps, ticked; apps open right now that aren't in it, unticked. Click to put one in or take it out.
             if #available(macOS 14, *) { sm.addItem(.sectionHeader(title: "Keeps open — click to add or remove")) }
             let others = running.map(\.0).filter { !ids.contains($0) }
@@ -1972,13 +2008,14 @@ final class Focus: NSObject, NSMenuDelegate {
             kItem.submenu = kMenu
             let go = add("Start \(name)", #selector(startMode(_:)), image: symbol("play.circle"), to: sm)
             go.representedObject = mid; go.isEnabled = !focused && !clearing
-            add("Rename…", #selector(renameMode(_:)), image: symbol("pencil"), to: sm).representedObject = mid
             let use = add("Use Ticked Apps", #selector(updateMode(_:)), image: symbol("checklist"), to: sm)
             use.representedObject = mid; use.isEnabled = !excluded.isEmpty
             add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).representedObject = mid
             row.submenu = sm
         }
-        add("New Mode from Ticked Apps…", #selector(newMode), image: symbol("plus.circle"))
+        view(InlineNameField("", placeholder: "New mode — type a name, press Return", symbolName: "plus.circle") { [unowned self] v in
+            self.createMode(v, apps: self.excluded.filter { self.path($0) != nil })   // the ticked apps; edit it after
+        })
         let ideas = suggestedModes()
         if !ideas.isEmpty {
             let sug = add("Suggested Modes", nil, image: symbol("sparkles")), sgm = NSMenu()
@@ -2017,9 +2054,13 @@ final class Focus: NSObject, NSMenuDelegate {
                 for p in list.compactMap({ $0["path"] as? String }) { add(appName(p), nil, image: appIcon(p), to: one) }
                 one.addItem(.separator())
                 add(isLive(n) ? "End Session and Reopen" : "Open all", #selector(reopen), image: symbol("arrow.up.forward.app"), to: one).tag = n
-                add("Rename…", #selector(renameSession(_:)), image: symbol("pencil"), to: one).tag = n
-                let save = add("Save as Mode…", #selector(sessionToMode(_:)), image: symbol("square.stack"), to: one)
-                save.tag = n; save.isEnabled = !kept(s).isEmpty         // a mode is the kept apps; older sessions didn't record them
+                let rn = NSMenuItem(); rn.view = InlineNameField(s["name"] as? String ?? "", placeholder: "Name this session", symbolName: "pencil") { [unowned self] v in
+                    if self.sessions.indices.contains(n) { self.sessions[n]["name"] = v }
+                }
+                one.addItem(rn)
+                let sv = NSMenuItem(); sv.view = InlineNameField("", placeholder: kept(s).isEmpty ? "Save as mode (older sessions can't)" : "Save as mode — name it, press Return",
+                                                                symbolName: "square.stack", enabled: !kept(s).isEmpty) { [unowned self] v in self.modeFromSession(n, name: v) }
+                one.addItem(sv)          // a mode is the kept apps; older sessions didn't record them
                 let del = add("Delete", #selector(forget), image: symbol("trash"), to: one)
                 del.tag = n; del.isEnabled = !isLive(n)                 // deleting the live session would lose its restore
                 i.submenu = one
@@ -2096,6 +2137,8 @@ final class Focus: NSObject, NSMenuDelegate {
         hdr("Logo Mark")
         let lm = NSMenuItem(); lm.view = ColorGrid(grid, selected: logoMark) { [unowned self] h in self.logoMark = h }; cm.addItem(lm)
         colour.submenu = cm
+        am.addItem(.separator())
+        add("Show Session Name Next to Icon", #selector(toggleNameInMenuBar), image: symbol("character.cursor.ibeam"), to: am).state = showNameInMenuBar ? .on : .off
         am.addItem(.separator())
         if #available(macOS 14, *) { am.addItem(.sectionHeader(title: "Animation Speed")) } else { add("Animation Speed", nil, to: am).isEnabled = false }
         let dial = NSMenuItem(); dial.view = SpeedDial(animSpeed) { [unowned self] s in self.animSpeed = s }; am.addItem(dial)
@@ -2750,6 +2793,33 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
                 }
             }
         }
+    }))
+    steps.append(("39. naming is inline (no popups): new mode, rename mode, rename session, save as mode; the menu bar shows the session's name, or only the icon if turned off", { done in
+        t.modes = []; t.store.removeObject(forKey: "showNameInMenuBar")
+        func menu() -> NSMenu { let m = NSMenu(); t.menuNeedsUpdate(m); return m }
+        let newField = menu().items.compactMap { $0.view as? InlineNameField }.first
+        newField?.commit("AI")
+        let made = t.modes.first { $0["name"] as? String == "AI" }
+        let mid = made?["id"] as? String ?? ""
+        let sub = menu().items.first { $0.title == "AI" }?.submenu
+        let renameField = sub?.items.first?.view as? InlineNameField
+        renameField?.commit("Deep work")
+        let renamed = t.mode(mid)?["name"] as? String == "Deep work"
+        let noPopups = sub?.items.contains { $0.title.hasPrefix("Rename") } == false && !menu().items.contains { $0.title.hasPrefix("New Mode from") }
+        t.sessions = [["date": Date(), "name": "AI", "mode": "AI", "kept": [edit], "apps": [[String: Any]]()]]
+        t.store.set(true, forKey: "focused"); t.updateTitle()
+        let shows = t.item.button?.title == " AI"
+        t.showNameInMenuBar = false; let iconOnly = t.item.button?.title == ""
+        t.showNameInMenuBar = true
+        let past = menu().items.first { $0.title == "Past sessions" }?.submenu?.items.first?.submenu
+        let fields = past?.items.compactMap { $0.view as? InlineNameField } ?? []
+        fields.first?.commit("Night run"); let sessRenamed = t.sessions.first?["name"] as? String == "Night run"
+        let titleFollows = t.item.button?.title == " Night run"
+        t.store.set(false, forKey: "focused"); t.sessions = []; t.updateTitle()
+        let cleared = t.item.button?.title == ""
+        t.modes = []
+        done(newField != nil && made != nil && renamed && noPopups && shows && iconOnly && fields.count == 2 && sessRenamed && titleFollows && cleared,
+             "new mode inline: \(made != nil); rename inline: \(renamed); no Rename…/New Mode… popups: \(noPopups); menu bar ' AI': \(shows); icon only when off: \(iconOnly); past session has 2 inline fields: \(fields.count == 2); session rename: \(sessRenamed), menu bar follows: \(titleFollows); clears after: \(cleared)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {

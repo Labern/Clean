@@ -4,6 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.15.0 — 2026-11-13
+- Naming happens in the menu itself, with no popups. Type and press Return for:
+  - a new mode
+  - renaming a mode, as the first line of its submenu
+  - renaming a past session
+  - saving a past session as a mode
+- During a session the menu bar shows the icon, then the mode's or session's name. Turn it off in Settings ▸ Appearance ▸ Show Session Name Next to Icon.
+
 ## 0.14.1 — 2026-11-13
 - The Modes heading reads "Modes — pre-defined app combinations".
 
