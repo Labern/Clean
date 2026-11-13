@@ -495,6 +495,26 @@ final class BigButton: HoverView {
     }
 }
 
+/// The live session, named at the top of the menu: what you're doing (the mode or the name you gave it), in bold,
+/// and a quiet line under it — kind, start time, the apps kept open.
+final class SessionBanner: NSView {
+    let title: String, detail: String
+    init(title: String, detail: String) {
+        self.title = title; self.detail = detail
+        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 52))
+        autoresizingMask = [.width]
+    }
+    required init?(coder: NSCoder) { nil }
+    override func draw(_ r: NSRect) {
+        let big: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 16, weight: .semibold), .foregroundColor: theme.text]
+        let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: theme.faint]
+        let para = NSMutableParagraphStyle(); para.lineBreakMode = .byTruncatingTail
+        var b = big; b[.paragraphStyle] = para; var sm = small; sm[.paragraphStyle] = para
+        (title as NSString).draw(with: NSRect(x: 14, y: 22, width: bounds.width - 28, height: 22), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: b)
+        (detail as NSString).draw(with: NSRect(x: 14, y: 6, width: bounds.width - 28, height: 15), options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine], attributes: sm)
+    }
+}
+
 /// The session snapshot as a rounded thumbnail; click to open it full size.
 final class Thumb: HoverView {
     let img: NSImage, action: () -> Void
@@ -1268,6 +1288,8 @@ final class Focus: NSObject, NSMenuDelegate {
 
     /// The live session is sessions[0] while focused: opening it = End Session; it can't be deleted mid-session.
     func isLive(_ n: Int) -> Bool { focused && n == 0 }
+    /// The live session's name — its mode's, or what you renamed it to. nil when unnamed or not in a session.
+    var sessionName: String? { focused ? (sessions.first?["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } : nil }
     @objc func reopen(_ s: NSMenuItem) {
         guard sessions.indices.contains(s.tag) else { return }
         if isLive(s.tag) { open(sessions[0]) } else { openApps(sessions[s.tag]) }
@@ -1347,6 +1369,15 @@ final class Focus: NSObject, NSMenuDelegate {
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
         mem = memoryByPid()
+        // In a session: say what it is, first thing — the mode, or the name you gave it (Rename shows up here at once).
+        if focused, let live = sessions.first {
+            let when = (live["date"] as? Date).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
+            let keeps = keptShort(live)
+            let kind = live["mode"] != nil ? "Mode" : "Focus session"
+            let detail = [kind, when.isEmpty ? nil : "started " + when, keeps.isEmpty ? nil : "keeps " + keeps].compactMap { $0 }.joined(separator: " · ")
+            view(SessionBanner(title: sessionName ?? "Focus session", detail: detail))
+            m.addItem(.separator())
+        }
         if let status { header(status) }
         if focused, let shot = sessions.first?["shot"] as? String, let img = NSImage(contentsOfFile: shot) {
             header("What you were doing — click to open")
@@ -1540,7 +1571,7 @@ final class Focus: NSObject, NSMenuDelegate {
 
         m.addItem(.separator())
         let b = BigButton(
-            title: { [unowned self] in self.focused ? "End Session" : "Start New Session" },
+            title: { [unowned self] in self.focused ? "End " + (self.sessionName ?? "Session") : "Start New Session" },
             caption: { [unowned self] in
                 if self.focused {
                     let n = self.apps((self.sessions.first?["apps"] as? [Any])?.count ?? 0)
@@ -1634,6 +1665,25 @@ func appIconRep(_ px: Int, bg: NSColor?, mark markColor: NSColor?) -> NSBitmapIm
         NSGraphicsContext.current!.cgContext.draw(mark, in: tile.insetBy(dx: 120 * u, dy: 120 * u))
         NSGraphicsContext.restoreGraphicsState()
         return rep
+}
+
+/// `Focus --render-banner FILE`: the top and bottom of the menu during a named session, drawn off-screen.
+if let i = CommandLine.arguments.firstIndex(of: "--render-banner"), CommandLine.arguments.count > i + 1 {
+    let banner = SessionBanner(title: "Game design", detail: "Mode · started 21:48 · keeps Unreal Editor, Claude")
+    let button = BigButton(title: { "End Game design" }, caption: { "Ending the session will reopen 6 apps exactly as they were." }, action: {})
+    let w = Int(menuWidth), h = Int(banner.frame.height + button.frame.height + 20)
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w * 2, pixelsHigh: h * 2, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    rep.size = NSSize(width: w, height: h)
+    NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance {
+        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        theme.menuBackground.setFill(); NSRect(x: 0, y: 0, width: w, height: h).fill()
+        let ctx = NSGraphicsContext.current!.cgContext
+        ctx.saveGState(); ctx.translateBy(x: 0, y: CGFloat(h) - banner.frame.height); banner.draw(banner.bounds); ctx.restoreGState()
+        ctx.saveGState(); ctx.translateBy(x: 0, y: 4); button.draw(button.bounds); ctx.restoreGState()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+    try? rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+    exit(0)
 }
 
 /// `Focus --render-icons FILE`: every icon design drawn off-screen to a PNG (rows: white, then purple/green; columns:
@@ -2065,6 +2115,22 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         pb.releaseGlobally(); d.removeObject(forKey: "modes")
         done(migrated && created && dropped && dupe && moved && edited && byIdSurvivesReorder && deleted,
              "migration \(migrated) · create+dedupe \(created) · dragged .app \(dropped) · no duplicates \(dupe) · reorder \(moved) · remove+rename \(edited) · found by id \(byIdSurvivesReorder) · delete \(deleted)")
+    }))
+    steps.append(("28. a live session says what it is: banner with the mode's name at the top, 'End <name>', renames show at once", { done in
+        t.sessions = [["date": Date(), "name": "Game design", "mode": "Game design", "kept": ["com.apple.TextEdit"], "apps": [[String: Any]]()]]
+        UserDefaults(suiteName: suite)!.set(true, forKey: "focused")
+        func banner() -> SessionBanner? { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.first?.view as? SessionBanner }
+        let first = banner()
+        let named = first?.title == "Game design" && first?.detail.hasPrefix("Mode") == true && first?.detail.contains("TextEdit") == true
+        let button = t.focused ? "End " + (t.sessionName ?? "Session") : ""
+        t.sessions[0]["name"] = "Level 3 blockout"                         // what Rename… does
+        let renamed = banner()?.title == "Level 3 blockout"
+        t.sessions = [["date": Date(), "apps": [[String: Any]]()]]          // an unnamed session
+        let plain = banner()?.title == "Focus session"
+        UserDefaults(suiteName: suite)!.set(false, forKey: "focused"); t.sessions = []
+        let none = banner() == nil
+        done(named && button == "End Game design" && renamed && plain && none,
+             "banner '\(first?.title ?? "-")' / '\(first?.detail ?? "-")': \(named); button '\(button)'; rename shows: \(renamed); unnamed says Focus session: \(plain); no banner outside a session: \(none)")
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }

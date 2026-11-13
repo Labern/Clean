@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.7.0 — 2026-11-13 (branch focus/feat-session-banner)
+
+- **A session says what it is.** During a session the menu opens with a banner: the mode's name (or the name you
+  gave the session) in bold, with "Mode · started 21:48 · keeps Unreal Editor, Claude" under it. Unnamed sessions read
+  "Focus session". The big button reads "End Game design". Renaming the live session shows at once. Scenario 28.
+
 ## 0.6.0 — 2026-11-13 (branch focus/feat-modes-plumbing)
 
 - **Modes plumbing, ready for drag and drop** (no dragging in the UI yet, by design): every mode has a permanent id
