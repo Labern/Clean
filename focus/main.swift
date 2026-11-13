@@ -956,6 +956,61 @@ final class Focus: NSObject, NSMenuDelegate {
         check()
     }
 
+    // MARK: editing a live session — no ending, no procedure
+
+    /// The live session's parked entries (what End Session will reopen).
+    var parkedEntries: [[String: Any]] { focused ? (sessions.first?["apps"] as? [[String: Any]] ?? []) : [] }
+    func isParked(_ id: String) -> Bool { parkedEntries.contains { ($0["id"] as? String) == id || ($0["path"] as? String).flatMap { Bundle(path: $0)?.bundleIdentifier } == id } }
+    /// Takes an open app out of the session now: saved and quit (or hidden, if it's hide-only) like the rest,
+    /// and added to the session so End Session brings it back.
+    func parkNow(_ id: String) {
+        guard focused, !sessions.isEmpty, let a = ws.runningApplications.first(where: { $0.bundleIdentifier == id && !$0.isTerminated }), !protected(a) else { return }
+        if !isParked(id), let url = a.bundleURL {
+            var s0 = sessions[0]
+            s0["apps"] = (s0["apps"] as? [[String: Any]] ?? []) + [["path": url.path, "id": id, "hidden": a.isHidden, "pid": Int(a.processIdentifier)]]
+            s0["kept"] = (s0["kept"] as? [String] ?? []).filter { $0 != id }
+            sessions[0] = s0
+        }
+        excluded = excluded.filter { $0 != id }; modeKeep?.remove(id)
+        if hideOnly.contains(id) { a.hide(); return }
+        if queue.isEmpty { queue = [a]; total = 1; quitNext() } else if !queue.contains(a) { queue.append(a); total += 1 }
+    }
+    /// Brings a parked app back into the session now: reopened (or un-hidden) and no longer parked.
+    func bringBack(_ id: String) {
+        guard focused, !sessions.isEmpty else { return }
+        let entry = parkedEntries.first { ($0["id"] as? String) == id || ($0["path"] as? String).flatMap { Bundle(path: $0)?.bundleIdentifier } == id }
+        var s0 = sessions[0]
+        s0["apps"] = parkedEntries.filter { e in !((isEntry(e, id))) }
+        s0["kept"] = (s0["kept"] as? [String] ?? []).filter { $0 != id } + [id]
+        sessions[0] = s0
+        if !excluded.contains(id) { excluded.append(id) }; modeKeep?.insert(id)
+        queue.removeAll { $0.bundleIdentifier == id }; waiting.removeAll { $0.bundleIdentifier == id }
+        if let a = ws.runningApplications.first(where: { $0.bundleIdentifier == id && !$0.isTerminated }) {
+            a.unhide(); a.activate(options: [.activateAllWindows])
+        } else if let e = entry ?? path(id).map({ ["path": $0, "id": id] as [String: Any] }) {
+            relaunch(ArraySlice([e.merging(["hidden": false]) { $1 }]), generation)
+        }
+        if waiting.isEmpty, status?.hasPrefix("Waiting") == true { status = nil }
+    }
+    func isEntry(_ e: [String: Any], _ id: String) -> Bool {
+        (e["id"] as? String) == id || (e["path"] as? String).flatMap { Bundle(path: $0)?.bundleIdentifier } == id
+    }
+    @objc func showPrompt(_ s: NSMenuItem) {
+        guard let id = s.representedObject as? String, let a = ws.runningApplications.first(where: { $0.bundleIdentifier == id }) else { return }
+        a.unhide(); a.activate(options: [.activateAllWindows])
+    }
+    @objc func keepStuck(_ s: NSMenuItem) { if let id = s.representedObject as? String { bringBack(id) } }
+    @objc func forceStuck(_ s: NSMenuItem) {
+        guard let id = s.representedObject as? String, let a = ws.runningApplications.first(where: { $0.bundleIdentifier == id }) else { return }
+        let alert = NSAlert(); alert.alertStyle = .critical
+        alert.messageText = "Force quit \(a.localizedName ?? "this app")?"
+        alert.informativeText = "Anything it hasn't saved will be lost. End Session still reopens it."
+        alert.addButton(withTitle: "Force Quit"); alert.addButton(withTitle: "Cancel"); alert.buttons[0].hasDestructiveAction = true
+        guard run(alert) == .alertFirstButtonReturn else { return }
+        a.forceTerminate(); waiting.removeAll { $0 == a }
+        if waiting.isEmpty, status?.hasPrefix("Waiting") == true { status = nil }
+    }
+
     /// Fast switching: every app is asked to quit at the same moment (still the normal way — never forced), then
     /// the usual waiting list for any that don't go within `patience`.
     func quitAllAtOnce(_ apps: [NSRunningApplication]) {
@@ -1426,7 +1481,7 @@ final class Focus: NSObject, NSMenuDelegate {
             view(SessionBanner(title: sessionName ?? "Focus session", detail: detail))
             m.addItem(.separator())
         }
-        if let status { header(status) }
+        if let status, !status.hasPrefix("Waiting") { header(status) }   // the waiting app has its own line below
         if focused, let shot = sessions.first?["shot"] as? String, let img = NSImage(contentsOfFile: shot) {
             header("What you were doing — click to open")
             let w = menuWidth - 28, h = (w * img.size.height / max(img.size.width, 1)).rounded()
@@ -1435,13 +1490,39 @@ final class Focus: NSObject, NSMenuDelegate {
         }
 
         // Keep open — this session's picks.
-        header(focused ? "In session · kept open" : "Keep open this session — click to choose")
         let running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
-        let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
-        for (id, p) in running + idle {
-            let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
-            let detail = size > 0 ? gb(size) : ""
-            view(AppRow(appName(p), appIcon(p), detail: detail, on: excluded.contains(id)) { [unowned self] in self.flip(\.excluded, id) })
+        if focused {
+            // In a session the rows ARE the session: ticked = in it, open. Click to take one out now, or put it back.
+            header("In this session — click an app to take it out or bring it back")
+            let stuckIDs = Set(waiting.compactMap(\.bundleIdentifier))
+            for (id, p) in running {
+                let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
+                let parked = isParked(id)
+                let detail = stuckIDs.contains(id) ? "waiting to save" : parked ? "leaving…" : (size > 0 ? gb(size) : "")
+                view(AppRow(appName(p), appIcon(p), detail: detail, on: !parked) { [unowned self] in
+                    if self.isParked(id) { self.bringBack(id); return true } else { self.parkNow(id); return false }
+                })
+            }
+            let parkedAway = parkedEntries.compactMap { e -> (String, String)? in
+                guard let p = e["path"] as? String, let id = (e["id"] as? String) ?? Bundle(path: p)?.bundleIdentifier,
+                      !running.contains(where: { $0.0 == id }) else { return nil }
+                return (id, p)
+            }
+            if !parkedAway.isEmpty {
+                m.addItem(.separator())
+                header("Parked — click one to bring it back now")
+                for (id, p) in parkedAway {
+                    view(AppRow(appName(p), appIcon(p), on: false) { [unowned self] in self.bringBack(id); return true })
+                }
+            }
+        } else {
+            header("Keep open this session — click to choose")
+            let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
+            for (id, p) in running + idle {
+                let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
+                let detail = size > 0 ? gb(size) : ""
+                view(AppRow(appName(p), appIcon(p), detail: detail, on: excluded.contains(id)) { [unowned self] in self.flip(\.excluded, id) })
+            }
         }
 
         // Critical system processes — never quit or hidden by Focus. Click to take one off; it moves up next time.
@@ -1462,9 +1543,17 @@ final class Focus: NSObject, NSMenuDelegate {
                 add("Reopened by itself: " + back.compactMap(\.localizedName).joined(separator: ", ") + " — quit again",
                     #selector(quitAgain), image: symbol("arrow.triangle.2.circlepath"))
             }
-            if !stuck.isEmpty {
-                add("Still open — probably a save prompt: " + stuck.compactMap(\.localizedName).joined(separator: ", "),
-                    #selector(look), image: symbol("exclamationmark.bubble"))
+            for a in stuck {                                     // never stuck: show it, keep it, or (asked first) force it
+                let row = add("\(a.localizedName ?? "An app") is waiting for you to save", nil, image: symbol("exclamationmark.bubble")), sm = NSMenu()
+                sm.autoenablesItems = false
+                let id = a.bundleIdentifier ?? ""
+                add("Show Its Save Prompt", #selector(showPrompt(_:)), image: symbol("macwindow"), to: sm).representedObject = id
+                add("Keep It in the Session", #selector(keepStuck(_:)), image: symbol("checkmark.circle"), to: sm).representedObject = id
+                sm.addItem(.separator())
+                let force = add("Force Quit — Unsaved Changes Lost…", #selector(forceStuck(_:)), image: symbol("bolt.circle", [theme.hazard]), to: sm)
+                force.representedObject = id
+                force.attributedTitle = NSAttributedString(string: force.title, attributes: [.foregroundColor: theme.hazard, .font: NSFont.menuFont(ofSize: 0)])
+                row.submenu = sm
             }
         }
 
@@ -2224,6 +2313,27 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
                     done(parked && samePid && back, "Calculator quit + TextEdit hidden: \(parked); TextEdit never quit (same process): \(samePid); both back: \(back)")
                 }
             }
+            }
+        } }
+    }))
+    steps.append(("31. edit a live session: take an open app out now, bring a parked one back now, End restores the rest", { done in
+        launch(edit) { launch(calc) {
+            guard scope([calc]) else { return done(false, "scope") }   // TextEdit kept, Calculator parked
+            t.park(quit: true)
+            waitUntil(10, { t.queue.isEmpty && running(calc).isEmpty }) { _ in
+                t.parkNow(edit)                                        // take TextEdit out, mid-session
+                waitUntil(10, { running(edit).isEmpty && t.queue.isEmpty }) { out in
+                    let recorded = t.isParked(edit) && t.focused
+                    t.bringBack(calc)                                  // bring Calculator back, mid-session
+                    waitUntil(10, { !running(calc).isEmpty }) { back in
+                        let noLongerParked = !t.isParked(calc) && t.focused
+                        t.toggle()                                     // End
+                        waitUntil(10, { !running(edit).isEmpty }) { restored in
+                            done(out && recorded && back && noLongerParked && restored && running(calc).count == 1,
+                                 "TextEdit out mid-session: \(out) (recorded \(recorded)); Calculator back mid-session: \(back) (unparked \(noLongerParked)); End brings TextEdit back: \(restored); one Calculator: \(running(calc).count == 1)")
+                        }
+                    }
+                }
             }
         } }
     }))

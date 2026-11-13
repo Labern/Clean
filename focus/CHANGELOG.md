@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.9.0 — 2026-11-13 (branch focus/feat-live-session)
+
+- **Edit a session while it runs.** Click an open app to take it out now (saved and quit, or hidden if it's hide-only;
+  End Session brings it back). Click a parked app under **Parked** to bring it back now. No ending, no procedure.
+- **Never stuck behind a save prompt.** An app waiting for you to save gets its own line with **Show Its Save Prompt**,
+  **Keep It in the Session** and **Force Quit — Unsaved Changes Lost…** (asks first, in red). Scenario 31.
+
 ## 0.8.0 — 2026-11-13 (branch focus/feat-switching)
 
 - **Settings ▸ Switching:** Careful (one app at a time, each saving before the next) or Fast (every app quits and
