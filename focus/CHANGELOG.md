@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.11.1 — 2026-11-13
+- Settings ▸ Switching is now **App Open/Close Speed**: "Safety first (closes all apps carefully, slower)" or
+  "Speed first (opens/closes apps immediately)".
+
 ## 0.11.0 — 2026-11-13
 - Settings ▸ Appearance ▸ Icon: hover over a design and it plays, from out of session to in session with the hit
   stop and back, on a loop, so you see what it will do in the menu bar before choosing it.

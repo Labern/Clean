@@ -1876,10 +1876,10 @@ final class Focus: NSObject, NSMenuDelegate {
         if menuKeyTaken { add("⚠︎ " + label(menuMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
         keys.submenu = km
         sub.addItem(.separator())
-        let sw = add("Switching", nil, image: symbol("arrow.left.arrow.right"), to: sub), swm = NSMenu()
+        let sw = add("App Open/Close Speed", nil, image: symbol("arrow.left.arrow.right"), to: sub), swm = NSMenu()
         swm.autoenablesItems = false
-        add("Careful — one app at a time, everything saved", #selector(switchingCareful), to: swm).state = fastSwitching ? .off : .on
-        add("Fast — all apps at once", #selector(switchingFast), to: swm).state = fastSwitching ? .on : .off
+        add("Safety first (closes all apps carefully, slower)", #selector(switchingCareful), to: swm).state = fastSwitching ? .off : .on
+        add("Speed first (opens/closes apps immediately)", #selector(switchingFast), to: swm).state = fastSwitching ? .on : .off
         sw.submenu = swm
         let ho = add("Hide Instead of Quit", nil, image: symbol("eye.slash"), to: sub), hom = NSMenu()
         hom.minimumWidth = menuWidth
@@ -2488,7 +2488,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let careful = !t.fastSwitching
         let m = NSMenu(); t.menuNeedsUpdate(m)
         let settings = m.items.first { $0.title == "Settings" }?.submenu
-        let sw = settings?.items.first { $0.title == "Switching" }?.submenu
+        let sw = settings?.items.first { $0.title == "App Open/Close Speed" }?.submenu
         let carefulTicked = sw?.items.first?.state == .on && sw?.items.last?.state == .off
         let hideMenu = settings?.items.first { $0.title == "Hide Instead of Quit" }?.submenu
         let rows = hideMenu?.items.contains { $0.view is AppRow } == true
