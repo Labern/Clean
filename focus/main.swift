@@ -556,8 +556,36 @@ final class IconGrid: NSView {
         let p = convert(e.locationInWindow, from: nil)
         return IconStyle.allCases.indices.first { cell($0).contains(p) }.map { IconStyle.allCases[$0] }
     }
-    override func mouseMoved(with e: NSEvent) { let h = hit(e); if h != hover { hover = h; needsDisplay = true } }
-    override func mouseExited(with e: NSEvent) { hover = nil; needsDisplay = true }
+    // Hovering a design plays it: out of session → in session (with the hit stop) → back, on a loop, so you see
+    // exactly what it will do in the menu bar before choosing it.
+    var anim: Timer?, animStart = Date()
+    func setHover(_ h: IconStyle?) {
+        guard h != hover else { return }
+        hover = h; anim?.invalidate(); anim = nil; needsDisplay = true
+        guard h != nil else { return }
+        animStart = Date()
+        let tm = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            guard let self, let hv = self.hover, let i = IconStyle.allCases.firstIndex(of: hv) else { return }
+            self.setNeedsDisplay(self.cell(i))
+        }
+        RunLoop.main.add(tm, forMode: .common)                    // menus track in their own run loop mode
+        anim = tm
+    }
+    /// One loop: rest 0.45 s · in 0.45 s · hit stop · hold 0.8 s · out 0.45 s · rest. Returns (t, scale).
+    func hoverPhase() -> (CGFloat, CGFloat) {
+        let p = CGFloat(Date().timeIntervalSince(animStart).truncatingRemainder(dividingBy: 2.7))
+        switch p {
+        case ..<0.45: return (0, 1)
+        case ..<0.9:  return ((p - 0.45) / 0.45, 1)
+        case ..<1.0:  return (1, 1 + 0.12 * sin((p - 0.9) / 0.1 * .pi))
+        case ..<1.8:  return (1, 1)
+        case ..<2.25: return (1 - (p - 1.8) / 0.45, 1)
+        default:      return (0, 1)
+        }
+    }
+    override func viewDidMoveToWindow() { if window == nil { anim?.invalidate(); anim = nil; hover = nil } }
+    override func mouseMoved(with e: NSEvent) { setHover(hit(e)) }
+    override func mouseExited(with e: NSEvent) { setHover(nil) }
     override func mouseDown(with e: NSEvent) {}
     override func mouseUp(with e: NSEvent) { if let h = hit(e) { selected = h; pick(h); needsDisplay = true } }
     override func draw(_ r: NSRect) {
@@ -568,8 +596,9 @@ final class IconGrid: NSView {
                 NSBezierPath(roundedRect: c.insetBy(dx: 4, dy: 3), xRadius: 8, yRadius: 8).fill()
             }
             // At rest, as it sits in the menu bar; white when no colours are chosen (the menu is always dark).
-            let g = glyph(0, ring: ring ?? .white, dot: dot ?? ring ?? .white, style: st)
-            g.draw(in: NSRect(x: c.midX - 13, y: c.maxY - 33, width: 26, height: 26))
+            let (t, k) = st == hover ? hoverPhase() : (0, 1)
+            let g = glyph(t, ring: ring ?? .white, dot: dot ?? ring ?? .white, style: st), side = 26 * k
+            g.draw(in: NSRect(x: c.midX - side / 2, y: c.maxY - 20 - side / 2, width: side, height: side))
             let name = st.name as NSString
             let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10, weight: st == selected ? .semibold : .regular),
                                                         .foregroundColor: st == selected ? theme.text : theme.faint]
@@ -2360,6 +2389,19 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         d.removeObject(forKey: "animSpeed")
         done(normalDefault && slow && fast && hasColour && hasDial,
              "default Normal with hold 0.24 s / 0.02 s: \(normalDefault); slow longer: \(slow); fast shorter: \(fast); Appearance has Icon Colour: \(hasColour) and the dial: \(hasDial)")
+    }))
+    steps.append(("32. icon picker: hovering a design plays it back and forth (rest → in session with hit stop → back); leaving stops it; 20 designs", { done in
+        let g = IconGrid(.lens, ring: nil, dot: nil) { _ in }
+        g.setHover(.enso)
+        let started = g.anim?.isValid == true
+        g.animStart = Date().addingTimeInterval(-0.95); let (tHit, kHit) = g.hoverPhase()      // landing: in session, popping
+        g.animStart = Date().addingTimeInterval(-0.2);  let (tRest, _) = g.hoverPhase()        // at rest
+        g.animStart = Date().addingTimeInterval(-2.0);  let (tBack, _) = g.hoverPhase()        // on its way back
+        let timer = g.anim; g.setHover(nil)
+        let stopped = timer?.isValid == false && g.anim == nil
+        let count = IconStyle.allCases.count
+        done(started && tHit == 1 && kHit > 1 && tRest == 0 && tBack > 0 && tBack < 1 && stopped && count == 20,
+             "starts: \(started); landing t=\(tHit) scale=\(kHit); rest t=\(tRest); returning t=\(tBack); stops: \(stopped); designs: \(count)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {
