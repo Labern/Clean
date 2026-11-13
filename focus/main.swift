@@ -13,6 +13,7 @@ import Carbon.HIToolbox
 import ServiceManagement
 import SwiftUI
 import Darwin
+import UniformTypeIdentifiers
 
 // Earlier builds switched the system ⌘⇥ off (private SkyLight call). That setting outlives the process, so every
 // launch switches it back on — heals any Mac left without ⌘⇥ by an old build. Focus never switches it off.
@@ -40,6 +41,22 @@ let modifierChoices: [KeyChoice] = [
     KeyChoice(label: "⌃⇧", mods: controlKey | shiftKey, clash: "rarely used on a Mac"),
     KeyChoice(label: "⌃⌥⌘", mods: controlKey | optionKey | cmdKey, clash: "free — three keys, nothing else uses it"),
 ]
+/// Mode shortcuts are a modifier + a digit (0–9), the digit chosen per mode by the user. The modifier is shared.
+let modeModifierChoices: [KeyChoice] = [
+    KeyChoice(label: "⌘", mods: cmdKey, clash: "while set, apps don't get it: browsers use ⌘1–9 for tabs"),
+    KeyChoice(label: "⌃", mods: controlKey, clash: "Mission Control uses ⌃1–9 for Spaces if you turned that on"),
+    KeyChoice(label: "⌃⌥", mods: controlKey | optionKey, clash: "free, except while VoiceOver is on"),
+    KeyChoice(label: "⌃⌥⌘", mods: controlKey | optionKey | cmdKey, clash: "free — three keys, nothing else uses it"),
+]
+extension NSEvent.ModifierFlags {
+    init(carbon m: Int) {
+        var f: NSEvent.ModifierFlags = []
+        if m & cmdKey != 0 { f.insert(.command) }; if m & shiftKey != 0 { f.insert(.shift) }
+        if m & optionKey != 0 { f.insert(.option) }; if m & controlKey != 0 { f.insert(.control) }
+        self = f
+    }
+}
+let digitKeys = [kVK_ANSI_0, kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5, kVK_ANSI_6, kVK_ANSI_7, kVK_ANSI_8, kVK_ANSI_9]
 func symbol(_ name: String, _ colors: [NSColor]? = nil) -> NSImage? {
     let i = NSImage(systemSymbolName: name, accessibilityDescription: nil)
     guard let colors else { return i }
@@ -635,13 +652,34 @@ class HoverView: NSView {
 /// can be set in one go. `on` uses `onMark`, off uses an empty circle; apps that will go read dimmer.
 final class AppRow: HoverView {
     let name: String, icon: NSImage, detail: String, onMark: String, flip: () -> Bool
+    /// What a click adds the app to or takes it out of ("your session", "this mode"); nil = no hover popup.
+    let target: String?
     var on: Bool
-    init(_ name: String, _ icon: NSImage, detail: String = "", on: Bool, onMark: String = "checkmark.circle.fill", flip: @escaping () -> Bool) {
-        self.name = name; self.icon = icon; self.detail = detail; self.on = on; self.onMark = onMark; self.flip = flip
+    init(_ name: String, _ icon: NSImage, detail: String = "", on: Bool, onMark: String = "checkmark.circle.fill",
+         target: String? = nil, flip: @escaping () -> Bool) {
+        self.name = name; self.icon = icon; self.detail = detail; self.on = on; self.onMark = onMark; self.target = target; self.flip = flip
         super.init(height: 26)
     }
     required init?(coder: NSCoder) { nil }
-    override func mouseUp(with e: NSEvent) { on = flip(); needsDisplay = true }
+    /// After a steady hover, a small popup says exactly what a click will do.
+    static let tipDelay: TimeInterval = 2.5
+    var tipTimer: Timer?
+    var tipText: String? { target.map { on ? "Click to remove \(name) from \($0)." : "Click to add \(name) to \($0)." } }
+    override func mouseEntered(with e: NSEvent) {
+        super.mouseEntered(with: e)
+        tipTimer?.invalidate()
+        guard target != nil else { return }
+        let t = Timer(timeInterval: Self.tipDelay, repeats: false) { [weak self] _ in self?.showTip() }
+        RunLoop.main.add(t, forMode: .common); tipTimer = t           // menus track in their own run loop mode
+    }
+    override func mouseExited(with e: NSEvent) { super.mouseExited(with: e); tipTimer?.invalidate(); RowTip.shared.hide() }
+    override func viewDidMoveToWindow() { if window == nil { tipTimer?.invalidate(); RowTip.shared.hide() } }
+    func showTip() {
+        guard hover, let text = tipText, let w = window else { return }
+        let r = w.convertToScreen(convert(bounds, to: nil))
+        RowTip.shared.show(text, under: r)
+    }
+    override func mouseUp(with e: NSEvent) { on = flip(); needsDisplay = true; tipTimer?.invalidate(); RowTip.shared.hide() }
     override func draw(_ r: NSRect) {
         if hover { theme.hover.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: 5, yRadius: 5).fill() }
         icon.draw(in: NSRect(x: 14, y: 5, width: 16, height: 16), from: .zero, operation: .sourceOver, fraction: on ? 1 : 0.55)
@@ -649,9 +687,34 @@ final class AppRow: HoverView {
         let small: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular), .foregroundColor: theme.faint]
         let d = detail as NSString
         d.draw(at: NSPoint(x: bounds.width - 42 - d.size(withAttributes: small).width, y: 6), withAttributes: small)
-        let mark = on ? symbol(onMark, [theme.onAccent, theme.accent]) : symbol("circle", [theme.dropped])
+        // Hovering says what a click will do: × takes it out, + puts it in.
+        let mark = hover ? (on ? symbol("xmark.circle.fill", [theme.onAccent, theme.accent]) : symbol("plus.circle", [theme.text]))
+                         : on ? symbol(onMark, [theme.onAccent, theme.accent]) : symbol("circle", [theme.dropped])
         mark?.draw(in: NSRect(x: bounds.width - 32, y: 5, width: 16, height: 16))
     }
+}
+
+/// The hover popup for app rows: one line, dark, just under the row it explains.
+final class RowTip {
+    static let shared = RowTip()
+    var panel: NSPanel?
+    func show(_ text: String, under row: NSRect) {
+        hide()
+        let font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        let size = (text as NSString).size(withAttributes: [.font: font])
+        let w = ceil(size.width) + 22, h: CGFloat = 26
+        let p = NSPanel(contentRect: NSRect(x: row.minX + 38, y: row.minY - h - 4, width: w, height: h),
+                        styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = true; p.ignoresMouseEvents = true
+        p.level = .popUpMenu + 1; p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        let v = NSView(frame: NSRect(x: 0, y: 0, width: w, height: h)); v.wantsLayer = true
+        v.layer?.backgroundColor = theme.hudBg.cgColor; v.layer?.cornerRadius = 7
+        v.layer?.borderColor = theme.hudEdge.cgColor; v.layer?.borderWidth = 1
+        let l = NSTextField(labelWithString: text); l.font = font; l.textColor = theme.hudInk
+        l.frame = NSRect(x: 11, y: (h - ceil(size.height)) / 2, width: ceil(size.width) + 2, height: ceil(size.height))
+        v.addSubview(l); p.contentView = v; p.orderFrontRegardless(); panel = p
+    }
+    func hide() { panel?.orderOut(nil); panel = nil }
 }
 
 /// The big button at the bottom: the one action, its key, and a live caption of what it will do.
@@ -879,20 +942,28 @@ final class Focus: NSObject, NSMenuDelegate {
     // MARK: shortcuts
     var sessionMods: Int { get { store.object(forKey: "sessionMods") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "sessionMods"); applyShortcuts() } }
     var menuMods: Int { get { store.object(forKey: "menuMods") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "menuMods"); applyShortcuts() } }
+    var modeMods: Int { get { store.object(forKey: "modeMods") as? Int ?? modeModifierChoices[0].mods } set { store.set(newValue, forKey: "modeMods"); applyShortcuts() } }
+    var takenModeKeys: Set<Int> = []                            // digits macOS refused (another app holds them)
     var keyRefs: [EventHotKeyRef?] = []
     var sessionKeyTaken = false, menuKeyTaken = false
     func label(_ mods: Int) -> String { modifierChoices.first { $0.mods == mods }?.label ?? "⌘⇧" }
+    func label(forMode d: Int) -> String { (modeModifierChoices.first { $0.mods == modeMods }?.label ?? "⌘") + String(d) }
     /// (Re)registers both shortcuts. Takes effect at once; reports a combination another app already holds.
     func applyShortcuts() {
         keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }
         let s = hotkey(1, kVK_ANSI_F, sessionMods), m = hotkey(2, kVK_ANSI_E, menuMods)
         keyRefs = [s, m]; sessionKeyTaken = s == nil; menuKeyTaken = m == nil
+        takenModeKeys = []
+        for md in modes { if let d = md["key"] as? Int, digitKeys.indices.contains(d) {   // only the keys the user set
+            let r = hotkey(UInt32(100 + d), digitKeys[d], modeMods); keyRefs.append(r); if r == nil { takenModeKeys.insert(d) }
+        } }
         sessionKey = label(sessionMods) + "F"
         button?.needsDisplay = true
     }
     func releaseShortcuts() { keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }; keyRefs = [] }
     @objc func pickSessionKey(_ s: NSMenuItem) { sessionMods = s.tag }
     @objc func pickMenuKey(_ s: NSMenuItem) { menuMods = s.tag }
+    @objc func pickModeMods(_ s: NSMenuItem) { modeMods = s.tag }
     let when: DateFormatter = {
         let f = DateFormatter(); f.dateStyle = .short; f.timeStyle = .short; f.doesRelativeDateFormatting = true; return f
     }()
@@ -1124,6 +1195,7 @@ final class Focus: NSObject, NSMenuDelegate {
         if !unreached.isEmpty { record["apps"] = (record["apps"] as? [[String: Any]] ?? []) + unreached }
         pendingRestore = []
         if let name { record["mode"] = name; record["name"] = name }
+        if let mid = mode?["id"] as? String { record["modeID"] = mid }
         sessions.insert(record, at: 0)
         focused = true
         let go = { [self] in
@@ -1469,7 +1541,7 @@ final class Focus: NSObject, NSMenuDelegate {
     /// everything else; End Session restores. Nothing is built in — every mode is the user's own.
     var modes: [[String: Any]] {
         get { store.array(forKey: "modes") as? [[String: Any]] ?? [] }
-        set { store.set(newValue, forKey: "modes") }
+        set { store.set(newValue, forKey: "modes"); if store == .standard && !keyRefs.isEmpty { applyShortcuts() } }
     }
     /// A one-line text prompt (kept in front: a menu bar app is often refused activation).
     func ask(_ title: String, _ text: String, _ value: String = "", placeholder: String = "") -> String? {
@@ -1510,6 +1582,86 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     func renameMode(_ id: String, to name: String) { if let i = modeIndex(id), !name.isEmpty { modes[i]["name"] = name } }
     func removeMode(_ id: String) { if let i = modeIndex(id) { modes.remove(at: i) } }
+    /// Suggested modes: a starting point for anyone, built only from apps this Mac actually has. Each lists
+    /// candidates by kind; the first installed ones are used. "browser" = whatever the default browser is.
+    static let suggestions: [(name: String, groups: [[String]])] = [
+        ("Game Design", [["com.epicgames.UnrealEditor", "com.epicgames.UnrealEditor5", "com.unity3d.unityhub", "org.godotengine.godot", "org.blenderfoundation.blender"],
+                         ["com.anthropic.claudefordesktop", "com.openai.chat"]]),
+        ("Web Only", [["browser"]]),
+        ("Writing", [["com.ulyssesapp.mac", "pro.writer.mac", "com.literatureandlatte.scrivener3", "com.microsoft.Word", "com.apple.iWork.Pages", "md.obsidian", "net.shinyfrog.bear"],
+                     ["browser"]]),
+        ("Coding", [["com.apple.dt.Xcode", "com.microsoft.VSCode", "com.todesktop.230313mzl4w4u92", "dev.zed.Zed"],
+                    ["com.mitchellh.ghostty", "com.googlecode.iterm2", "com.apple.Terminal"], ["browser"]]),
+        ("Design", [["com.figma.Desktop", "com.bohemiancoding.sketch3", "com.pixelmatorteam.pixelmator.x", "com.seriflabs.affinitydesigner2"], ["browser"]]),
+        ("Calls", [["us.zoom.xos", "com.microsoft.teams2", "com.apple.FaceTime"], ["com.apple.Notes"]]),
+    ]
+    var defaultBrowser: String? {
+        URL(string: "https://example.com").flatMap { ws.urlForApplication(toOpen: $0) }.flatMap { Bundle(url: $0)?.bundleIdentifier }
+    }
+    /// The suggestions this Mac can use, with their apps, minus any the user already has a mode of that name for.
+    func suggestedModes() -> [(name: String, apps: [String])] {
+        let have = Set(modes.compactMap { ($0["name"] as? String)?.lowercased() })
+        return Focus.suggestions.compactMap { sg in
+            guard !have.contains(sg.name.lowercased()) else { return nil }
+            let first = sg.groups.first ?? []
+            let apps = sg.groups.compactMap { g in g.lazy.map { $0 == "browser" ? self.defaultBrowser : $0 }.compactMap { $0 }.first { self.path($0) != nil } }
+            // the mode's main kind must be installed (no Game Design without a game engine)
+            let core = first.map { $0 == "browser" ? defaultBrowser ?? "" : $0 }.contains { path($0) != nil }
+            return core ? (sg.name, apps) : nil
+        }
+    }
+    /// Gives a mode a digit (nil = none). A digit belongs to one mode: taking it moves it.
+    func setModeKey(_ id: String, _ digit: Int?) {
+        var all = modes
+        for i in all.indices {
+            if all[i]["id"] as? String == id { if let digit { all[i]["key"] = digit } else { all[i].removeValue(forKey: "key") } }
+            else if let digit, all[i]["key"] as? Int == digit { all[i].removeValue(forKey: "key") }
+        }
+        modes = all
+    }
+    @objc func pickModeKey(_ s: NSMenuItem) {
+        guard let id = s.representedObject as? String else { return }
+        setModeKey(id, s.tag < 0 ? nil : s.tag)
+    }
+    func modeForKey(_ d: Int) -> [String: Any]? { modes.first { $0["key"] as? Int == d } }
+    /// A mode's key: start it; press again to end it; in another session, switch straight to it.
+    func modeKey(_ d: Int) {
+        guard !clearing, let m = modeForKey(d), let id = m["id"] as? String else { return }
+        if !focused { startMode(id: id); return }
+        if sessions.first?["modeID"] as? String == id { toggle(); return }
+        switchMode(id: id)
+    }
+    /// Switch from the live session to a mode without reopening everything in between: the mode's apps come up
+    /// (back from Temporarily Closed, or opened), everything else open is temporarily closed — all in the same
+    /// session, so End Session still brings back exactly what was open before the first one started.
+    func switchMode(id: String, limit: Set<String>? = nil) {
+        guard focused, !sessions.isEmpty, let m = mode(id) else { return }
+        let want = m["apps"] as? [String] ?? [], name = m["name"] as? String ?? "Mode"
+        for app in want {
+            if isParked(app) { bringBack(app) }
+            else if !ws.runningApplications.contains(where: { $0.bundleIdentifier == app && !$0.isTerminated }), let url = ws.urlForApplication(withBundleIdentifier: app) {
+                let c = NSWorkspace.OpenConfiguration(); c.activates = false; ws.openApplication(at: url, configuration: c)
+            }
+        }
+        let leaving = apps().compactMap(\.bundleIdentifier).filter { !want.contains($0) && !isParked($0) && (limit?.contains($0) ?? true) }
+        pill.play(start: true, icons: leaving.compactMap(path).map { ws.icon(forFile: $0) }, target: iconPoint, label: name, hold: animSpeed.hold)
+        for app in leaving { parkNow(app) }
+        var s0 = sessions[0]; s0["mode"] = name; s0["name"] = name; s0["modeID"] = id; s0["kept"] = want; sessions[0] = s0
+        modeKeep = Set(want)
+    }
+    @objc func addSuggested(_ s: NSMenuItem) {
+        guard let name = s.representedObject as? String, let sg = suggestedModes().first(where: { $0.name == name }) else { return }
+        createMode(sg.name, apps: sg.apps)
+    }
+    /// Add any installed app to a mode, whether or not it's running.
+    @objc func addAppToMode(_ s: NSMenuItem) {
+        guard let id = s.representedObject as? String else { return }
+        let p = NSOpenPanel(); p.directoryURL = URL(fileURLWithPath: "/Applications"); p.allowedContentTypes = [.application]
+        p.allowsMultipleSelection = true; p.prompt = "Add to Mode"; p.message = "Choose apps for this mode"
+        NSApp.activate(ignoringOtherApps: true)
+        guard p.runModal() == .OK else { return }
+        for url in p.urls { if let app = appID(at: url) { addApp(app, toMode: id) } }
+    }
     /// Adds an installed app to a mode (once), at a position or at the end. False = unknown mode or app, or already in.
     @discardableResult
     func addApp(_ app: String, toMode id: String, at index: Int? = nil) -> Bool {
@@ -1549,7 +1701,7 @@ final class Focus: NSObject, NSMenuDelegate {
         guard !ids.isEmpty else {
             return tell("Tick the apps for this mode first", "In the Focus menu, tick the apps you want in the mode — say, your writing app and your browser — then choose New Mode again.")
         }
-        guard let name = ask("New Mode", "Starting this mode keeps \(names(ids)) open (opening any that aren't running) and parks everything else.", placeholder: "Game design") else { return }
+        guard let name = ask("New Mode", "Starting this mode keeps \(names(ids)) open (opening any that aren't running) and temporarily closes everything else.", placeholder: "Game design") else { return }
         createMode(name, apps: ids)
     }
     @objc func startMode(_ s: NSMenuItem) { if let id = s.representedObject as? String { startMode(id: id) } }
@@ -1578,7 +1730,7 @@ final class Focus: NSObject, NSMenuDelegate {
         return n.prefix(3).joined(separator: ", ") + (n.count > 3 ? " +\(n.count - 3)" : "")
     }
     @objc func sessionToMode(_ s: NSMenuItem) {
-        guard sessions.indices.contains(s.tag), let name = ask("Save as Mode", "Starting this mode keeps \(keptNames(sessions[s.tag])) open and parks everything else.",
+        guard sessions.indices.contains(s.tag), let name = ask("Save as Mode", "Starting this mode keeps \(keptNames(sessions[s.tag])) open and temporarily closes everything else.",
                                                                sessions[s.tag]["name"] as? String ?? "") else { return }
         modeFromSession(s.tag, name: name)
     }
@@ -1717,7 +1869,7 @@ final class Focus: NSObject, NSMenuDelegate {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
                 let parked = isParked(id)
                 let detail = stuckIDs.contains(id) ? "waiting to save" : parked ? "leaving…" : (size > 0 ? gb(size) : "")
-                view(AppRow(appName(p), appIcon(p), detail: detail, on: !parked) { [unowned self] in
+                view(AppRow(appName(p), appIcon(p), detail: detail, on: !parked, target: "your session") { [unowned self] in
                     if self.isParked(id) { self.bringBack(id); return true } else { self.parkNow(id); return false }
                 })
             }
@@ -1728,9 +1880,9 @@ final class Focus: NSObject, NSMenuDelegate {
             }
             if !parkedAway.isEmpty {
                 m.addItem(.separator())
-                header("Parked — click one to bring it back now")
+                header("Temporarily Closed / End Session to Reopen")
                 for (id, p) in parkedAway {
-                    view(AppRow(appName(p), appIcon(p), on: false) { [unowned self] in self.bringBack(id); return true })
+                    view(AppRow(appName(p), appIcon(p), on: false, target: "your session") { [unowned self] in self.bringBack(id); return true })
                 }
             }
         } else {
@@ -1739,7 +1891,7 @@ final class Focus: NSObject, NSMenuDelegate {
             for (id, p) in running + idle {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
                 let detail = size > 0 ? gb(size) : ""
-                view(AppRow(appName(p), appIcon(p), detail: detail, on: excluded.contains(id)) { [unowned self] in self.flip(\.excluded, id) })
+                view(AppRow(appName(p), appIcon(p), detail: detail, on: excluded.contains(id), target: "your session") { [unowned self] in self.flip(\.excluded, id) })
             }
         }
 
@@ -1781,14 +1933,43 @@ final class Focus: NSObject, NSMenuDelegate {
             m.addItem(.separator())
         }
         // Modes — the user's named sets of apps.
-        header(modes.isEmpty ? "Modes — tick the apps you keep open, then save them" : "Modes — the apps you keep open")
+        header("Modes — the apps you keep open")
         for md in modes {
             let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
             let row = add(name, nil, image: stack(ids)), sm = NSMenu()
             sm.autoenablesItems = false
-            if #available(macOS 14, *) { sm.addItem(.sectionHeader(title: "Keeps open")) }
-            for id in ids { if let p = path(id) { add(appName(p), nil, image: appIcon(p), to: sm) } }
+            let digit = md["key"] as? Int
+            if let digit {                                       // shown at the right of the row, like any Mac shortcut
+                // (a row that opens a submenu can't carry a real key equivalent, so it's drawn into the title)
+                let para = NSMutableParagraphStyle(); para.tabStops = [NSTextTab(textAlignment: .right, location: menuWidth - 58)]
+                let t = NSMutableAttributedString(string: name, attributes: [.font: NSFont.menuFont(ofSize: 0), .paragraphStyle: para])
+                t.append(NSAttributedString(string: "\t" + label(forMode: digit), attributes: [.font: NSFont.menuFont(ofSize: 0), .paragraphStyle: para,
+                                                                                                .foregroundColor: NSColor.secondaryLabelColor]))
+                row.attributedTitle = t
+            }
+            // Its apps, ticked; apps open right now that aren't in it, unticked. Click to put one in or take it out.
+            if #available(macOS 14, *) { sm.addItem(.sectionHeader(title: "Keeps open — click to add or remove")) }
+            let others = running.map(\.0).filter { !ids.contains($0) }
+            for id in ids + others {
+                guard let p = path(id) else { continue }
+                let v = NSMenuItem(); v.view = AppRow(appName(p), appIcon(p), on: ids.contains(id), target: "this mode") { [unowned self] in
+                    let inIt = (self.mode(mid)?["apps"] as? [String] ?? []).contains(id)
+                    if inIt { self.removeApp(id, fromMode: mid) } else { self.addApp(id, toMode: mid) }
+                    return !inIt
+                }
+                sm.addItem(v)
+            }
+            add("Add App…", #selector(addAppToMode(_:)), image: symbol("plus.app"), to: sm).representedObject = mid
             sm.addItem(.separator())
+            let kItem = add(digit.map { "Shortcut: " + label(forMode: $0) } ?? "Shortcut: none", nil, image: symbol("keyboard"), to: sm), kMenu = NSMenu()
+            let none = add("None", #selector(pickModeKey(_:)), to: kMenu); none.tag = -1; none.representedObject = mid; none.state = digit == nil ? .on : .off
+            for d in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0] {
+                let owner = modeForKey(d).flatMap { $0["id"] as? String == mid ? nil : $0["name"] as? String }
+                let i = add(label(forMode: d) + (owner.map { "   (now \($0))" } ?? ""), #selector(pickModeKey(_:)), to: kMenu)
+                i.tag = d; i.representedObject = mid; i.state = digit == d ? .on : .off
+            }
+            if let digit, takenModeKeys.contains(digit) { add("⚠︎ " + label(forMode: digit) + " is taken by another app — pick another", nil, to: kMenu).isEnabled = false }
+            kItem.submenu = kMenu
             let go = add("Start \(name)", #selector(startMode(_:)), image: symbol("play.circle"), to: sm)
             go.representedObject = mid; go.isEnabled = !focused && !clearing
             add("Rename…", #selector(renameMode(_:)), image: symbol("pencil"), to: sm).representedObject = mid
@@ -1798,6 +1979,18 @@ final class Focus: NSObject, NSMenuDelegate {
             row.submenu = sm
         }
         add("New Mode from Ticked Apps…", #selector(newMode), image: symbol("plus.circle"))
+        let ideas = suggestedModes()
+        if !ideas.isEmpty {
+            let sug = add("Suggested Modes", nil, image: symbol("sparkles")), sgm = NSMenu()
+            if #available(macOS 14, *) { sgm.addItem(.sectionHeader(title: "Click to add — built from apps on this Mac")) }
+            for idea in ideas {
+                let i = add(idea.name, #selector(addSuggested(_:)), image: stack(idea.apps), to: sgm)
+                i.representedObject = idea.name; i.toolTip = names(idea.apps)
+                let detail = NSMenuItem(title: "  " + names(idea.apps), action: nil, keyEquivalent: ""); detail.isEnabled = false
+                sgm.addItem(detail)
+            }
+            sug.submenu = sgm
+        }
         m.addItem(.separator())
 
         if !sessions.isEmpty {
@@ -1819,7 +2012,7 @@ final class Focus: NSObject, NSMenuDelegate {
                 if !kept(s).isEmpty {
                     if #available(macOS 14, *) { one.addItem(.sectionHeader(title: "Kept open")) }
                     for id in kept(s) { if let p = path(id) { add(appName(p), nil, image: appIcon(p), to: one) } }
-                    if #available(macOS 14, *) { one.addItem(.sectionHeader(title: "Parked")) }
+                    if #available(macOS 14, *) { one.addItem(.sectionHeader(title: "Temporarily closed")) }
                 }
                 for p in list.compactMap({ $0["path"] as? String }) { add(appName(p), nil, image: appIcon(p), to: one) }
                 one.addItem(.separator())
@@ -1920,6 +2113,11 @@ final class Focus: NSObject, NSMenuDelegate {
             let i = add(c.label + "E", #selector(pickMenuKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == menuMods ? .on : .off
         }
         if menuKeyTaken { add("⚠︎ " + label(menuMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
+        km.addItem(.separator())
+        if #available(macOS 14, *) { km.addItem(.sectionHeader(title: "Modes — this plus a number you give each mode")) }
+        for c in modeModifierChoices {
+            let i = add(c.label + "1  ·  " + c.clash, #selector(pickModeMods(_:)), to: km); i.tag = c.mods; i.state = c.mods == modeMods ? .on : .off
+        }
         keys.submenu = km
         sub.addItem(.separator())
         let sw = add("App Open/Close Speed", nil, image: symbol("arrow.left.arrow.right"), to: sub), swm = NSMenu()
@@ -2477,6 +2675,82 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         done(!t.focused && first == "Focus" && line == "Focus",
              "first line out of session: '\(first)'")
     }))
+    steps.append(("35. modes: suggestions use only installed apps (Web Only = the default browser); adding one makes a real mode and it leaves the list; a mode's apps can be added and removed; Temporarily Closed wording", { done in
+        t.modes = []
+        let ideas = t.suggestedModes()
+        let web = ideas.first { $0.name == "Web Only" }
+        let browser = t.defaultBrowser
+        let webOK = browser != nil && web?.apps == [browser!]
+        let allInstalled = ideas.allSatisfy { $0.apps.allSatisfy { t.path($0) != nil } && !$0.apps.isEmpty }
+        let it = NSMenuItem(); it.representedObject = "Web Only"; t.addSuggested(it)
+        let made = t.modes.first { $0["name"] as? String == "Web Only" }
+        let gone = !t.suggestedModes().contains { $0.name == "Web Only" }
+        let mid = made?["id"] as? String ?? ""
+        let added = t.addApp(edit, toMode: mid); t.removeApp(browser ?? "", fromMode: mid)
+        let apps = t.mode(mid)?["apps"] as? [String] ?? []
+        let edited = added && apps == [edit]
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let row = m.items.first { $0.title == "Web Only" }?.submenu
+        let rows = row?.items.contains { $0.view is AppRow } == true && row?.items.contains { $0.title == "Add App…" } == true
+        let sugMenu = m.items.first { $0.title == "Suggested Modes" }
+        t.modes = []
+        done(webOK && allInstalled && made != nil && gone && edited && rows && (ideas.count <= 1 || sugMenu != nil),
+             "suggestions \(ideas.map(\.name)); Web Only = default browser: \(webOK); all apps installed: \(allInstalled); added as a mode: \(made != nil), then leaves the list: \(gone); add/remove apps: \(edited); mode menu has app rows + Add App: \(rows)")
+    }))
+    steps.append(("36. mode shortcuts: none until the user sets one; a digit belongs to one mode; the row shows it; the modifier is a Setting; a self-test never takes the keys", { done in
+        t.modes = []
+        let a = t.createMode("Web", apps: [calc]), b = t.createMode("Games", apps: [edit])
+        let noneYet = t.modes.allSatisfy { $0["key"] == nil }
+        t.setModeKey(a, 1); t.setModeKey(b, 0)
+        let set = t.modeForKey(1)?["id"] as? String == a && t.modeForKey(0)?["id"] as? String == b
+        t.setModeKey(b, 1)                                              // take Web's digit
+        let moved = t.modeForKey(1)?["id"] as? String == b && t.mode(a)?["key"] == nil
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let row = m.items.first { $0.title.hasPrefix("Games") }
+        let shows = row?.attributedTitle?.string == "Games\t⌘1"
+        let picker = row?.submenu?.items.first { $0.title.hasPrefix("Shortcut: ") }?.submenu
+        let pickerOK = picker?.items.contains { $0.title == "None" } == true && picker?.items.filter { $0.state == .on }.count == 1
+        let keys = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Shortcuts" }?.submenu
+        let modsOK = keys?.items.contains { $0.title.hasPrefix("⌘1") } == true
+        let untouched = t.keyRefs.isEmpty                                // the test copy registered nothing global
+        t.setModeKey(b, nil); let cleared = t.modeForKey(1) == nil
+        t.modes = []
+        done(noneYet && set && moved && shows && pickerOK && modsOK && untouched && cleared,
+             "no keys until set: \(noneYet); set: \(set); digit moves: \(moved); row shows ⌘1: \(shows); picker: \(pickerOK); modifier in Settings: \(modsOK); test took no keys: \(untouched); None clears: \(cleared)")
+    }))
+    steps.append(("38. app rows: hovering shows + (will add) or × (will remove); after 2.5 s a popup says exactly what a click does", { done in
+        let row = AppRow("Chrome", NSImage(), on: false, target: "your session") { true }
+        let addText = row.tipText; row.on = true; let removeText = row.tipText
+        let mode = AppRow("Chrome", NSImage(), on: false, target: "this mode") { true }.tipText
+        let silent = AppRow("Chrome", NSImage(), on: true, onMark: "eye.slash.circle.fill") { true }.tipText == nil
+        RowTip.shared.show("Click to add Chrome to your session.", under: NSRect(x: 100, y: 400, width: 300, height: 26))
+        let shown = RowTip.shared.panel?.isVisible == true; RowTip.shared.hide()
+        done(addText == "Click to add Chrome to your session." && removeText == "Click to remove Chrome from your session."
+             && mode == "Click to add Chrome to this mode." && silent && AppRow.tipDelay >= 2 && AppRow.tipDelay <= 5 && shown,
+             "add: '\(addText ?? "-")'; remove: '\(removeText ?? "-")'; mode: '\(mode ?? "-")'; no popup where nothing is added: \(silent); delay \(AppRow.tipDelay) s; popup shows: \(shown)")
+    }))
+    steps.append(("37. switching modes mid-session: the new mode's apps come back, the old ones close for now, all in one session; End restores", { done in
+        for a in running(edit) { a.terminate() }
+        waitUntil(8, { running(edit).isEmpty }) { _ in
+            launch(calc) {
+                t.modes = []
+                let w = t.createMode("Writing", apps: [edit]), c = t.createMode("Sums", apps: [calc])
+                t.park(quit: true, mode: t.mode(w), limit: [calc])
+                waitUntil(12, { !running(edit).isEmpty && running(calc).isEmpty && t.queue.isEmpty }) { started in
+                    t.switchMode(id: c, limit: [edit])                         // scoped: only TextEdit may close
+                    waitUntil(14, { !running(calc).isEmpty && running(edit).isEmpty && t.queue.isEmpty }) { switched in
+                        let one = t.sessions.first?["modeID"] as? String == c && t.sessions.first?["name"] as? String == "Sums"
+                        t.toggle()
+                        waitUntil(12, { !running(calc).isEmpty && !running(edit).isEmpty }) { back in
+                            t.modes = []
+                            done(started && switched && one && back,
+                                 "Writing started: \(started); switched to Sums (Calculator back, TextEdit closed): \(switched); same session, renamed: \(one); End brings both back: \(back)")
+                        }
+                    }
+                }
+            }
+        }
+    }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {
             guard scope([calc]) else { return done(false, "scope") }   // TextEdit ticked = kept, Calculator parked
@@ -2743,6 +3017,7 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
         switch hk.id {
         case 1: focus.toggle()
         case 2: focus.showMenu()
+        case 100...109: focus.modeKey(Int(hk.id) - 100)
         default: break
         }
     }

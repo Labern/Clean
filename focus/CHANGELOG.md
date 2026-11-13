@@ -4,6 +4,19 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.14.0 — 2026-11-13
+- **Modes, built out.**
+  - **Suggested Modes:** Game Design, Web Only, Writing, Coding, Design, Calls. Each is built only from apps this Mac has; Web Only uses your default browser. Click one to add it, then make it your own.
+  - **A mode's menu lists its apps ticked and your open apps unticked.** Click to put one in or take it out, or use Add App… for anything installed.
+  - **Mode shortcuts:** give any mode a number in its Shortcut menu. Nothing is set until you choose.
+    - Pressing it starts the mode, pressing it again ends the session, and pressing it in another session switches straight to it.
+    - The modifier is in Settings ▸ Shortcuts. ⌘ is the default, and the menu notes that browsers use ⌘1–9 for tabs.
+    - A mode's key shows at the right of its row.
+- **"Parked" is now "Temporarily Closed / End Session to Reopen".**
+- **App rows on hover:**
+  - + when a click will add the app, × when it will remove it.
+  - After 2.5 seconds, a popup says exactly what a click does ("Click to remove Chrome from your session.").
+
 ## 0.13.0 — 2026-11-13
 - The menu's first line says where you are: "Focus" out of a session, "Focus — in session (3 apps, since 21:48)"
   in one.
