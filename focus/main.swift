@@ -2012,7 +2012,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
                 let keptOK = t.kept(rec).contains(edit) && !t.kept(rec).contains(calc)
                 let m = NSMenu(); t.menuNeedsUpdate(m)
                 let title = m.items.first { $0.title == "Past sessions" }?.submenu?.items.first?.title ?? ""
-                let titled = title.hasPrefix("Kept ") && title.contains("TextEdit") && !title.contains("Calculator")
+                let titled = title.hasPrefix("Kept ") && !title.contains("Calculator") && t.keptNames(rec).contains("TextEdit")   // title shows ≤3 names + "+N"
                 t.modes = []; t.modeFromSession(0, name: "Test")
                 let modeOK = (t.modes.first?["apps"] as? [String])?.contains(edit) == true && (t.modes.first?["apps"] as? [String])?.contains(calc) == false
                 t.modes = []
