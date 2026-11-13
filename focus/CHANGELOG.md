@@ -4,6 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.5.0 — 2026-11-13 (branch focus/feat-icon-styles)
+
+- **A chunkier menu bar icon, like the logo.** Off: four thick brackets round a solid dot. On: the brackets close and
+  the disc floods solid with the dot knocked out — outline vs solid, obvious at a glance. Same animation timing.
+  The app logo keeps the original drawing (frozen as `classicLens`).
+- **Settings ▸ Appearance ▸ Icon:** six designs — Lens (default), Less more, Narrowing, Framed, Gathered, Switcher.
+  Each animates into its focused state; the icon colours apply to all; white by default.
+
 ## 0.4.0 — 2026-11-13 (branch focus/feat-kept-apps)
 
 - **A session is defined by the apps you keep open**, not the ones it parks (Unreal + Claude = game design). Every

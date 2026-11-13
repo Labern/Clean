@@ -51,6 +51,7 @@ struct Theme {
     // Monochrome, like the drawing on the product page: colour belongs to the icon the user picks, not the menu.
     var accent = NSColor(name: "focusAccent") { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .white : hexColor("171A20")! }
     var onAccent = NSColor(name: "focusOnAccent") { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .black : .white }
+    var switcherPlateOrHover = NSColor.labelColor.withAlphaComponent(0.16)   // selected cell in the icon picker
     var hazard = NSColor.systemRed                                  // red only for the destructive action
     var menuBackground = hexColor("1F1F21")!                       // the menu: opaque off-black, always dark (as on the product page)
     var menuEdge = NSColor(white: 1, alpha: 0.12)
@@ -249,7 +250,17 @@ final class SpeedDial: NSView {
 /// brackets, gaps at the compass points, small dot) to 1 (focused: one closed ring, bigger dot). With `hunt`
 /// the ring first pulls in and comes back out — a lens finding focus — then the gaps close in place and the
 /// dot swells. Each phase has its own eased slice of the timeline. Template image: follows light / dark bars.
-func glyph(_ t: CGFloat, hunt: Bool = false, ring ringColor: NSColor? = nil, dot dotColor: NSColor? = nil) -> NSImage {
+/// Menu bar icon designs (Settings ▸ Appearance ▸ Icon). Lens is the original and the default. Each one is drawn at
+/// rest (t = 0) and focused (t = 1) and animates between them; the user's two colours apply to all of them —
+/// `ring` = the frame / the many, `dot` = the one thing kept. No colours = white, like every menu bar icon.
+enum IconStyle: String, CaseIterable {
+    case lens, lessMore, narrowing, framed, gathered, switcher
+    var name: String { ["Lens", "Less, more", "Narrowing", "Framed", "Gathered", "Switcher"][IconStyle.allCases.firstIndex(of: self)!] }
+}
+var iconStyle: IconStyle = .lens                                  // set from Settings; read by every glyph() below
+
+/// The ORIGINAL lens (thin ring, 1.6 pt) — kept exactly, because the app logo is drawn from it and he likes the logo.
+func classicLens(_ t: CGFloat, hunt: Bool = false, ring ringColor: NSColor? = nil, dot dotColor: NSColor? = nil) -> NSImage {
     func phase(_ a: CGFloat, _ b: CGFloat) -> CGFloat {          // 0…1 across [a, b], smoothstep-eased
         let x = min(max((t - a) / (b - a), 0), 1); return x * x * (3 - 2 * x)
     }
@@ -274,7 +285,143 @@ func glyph(_ t: CGFloat, hunt: Bool = false, ring ringColor: NSColor? = nil, dot
     img.isTemplate = ringColor == nil && dotColor == nil
     return img
 }
+
+func glyph(_ t: CGFloat, hunt: Bool = false, ring ringColor: NSColor? = nil, dot dotColor: NSColor? = nil, style: IconStyle? = nil) -> NSImage {
+    let style = style ?? iconStyle
+    if style != .lens { return styledGlyph(style, t, ring: ringColor, dot: dotColor) }
+    func phase(_ a: CGFloat, _ b: CGFloat) -> CGFloat {          // 0…1 across [a, b], smoothstep-eased
+        let x = min(max((t - a) / (b - a), 0), 1); return x * x * (3 - 2 * x)
+    }
+    // The menu bar lens — chunky, like the logo's mark. OFF: four thick brackets round a solid dot.
+    // ON: the brackets close, then the disc floods solid with the dot knocked out — outline vs solid, obvious at a glance.
+    let pull = hunt ? sin(.pi * phase(0, 0.55)) * 1.6 : 0
+    let close = hunt ? phase(0.30, 0.70) : t                     // gaps close
+    let flood = hunt ? phase(0.65, 0.95) : t                     // then the fill comes in
+    let img = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { r in
+        let c = NSPoint(x: r.midX, y: r.midY), stroke: CGFloat = 2.6, radius = 7.6 - stroke / 2 - pull
+        let gap = 30 * (1 - close)                                    // degrees; 0 = a closed ring
+        let ring = NSBezierPath(); ring.lineWidth = stroke; ring.lineCapStyle = .butt
+        if gap < 0.5 { ring.appendOval(in: NSRect(x: c.x - radius, y: c.y - radius, width: radius * 2, height: radius * 2)) }
+        else { for k in 0..<4 {                                       // arcs centred on 45°, 135°… so gaps sit on the axes
+            let mid = 45 + 90 * CGFloat(k)
+            ring.move(to: NSPoint(x: c.x + radius * cos((mid - 45 + gap / 2) * .pi / 180), y: c.y + radius * sin((mid - 45 + gap / 2) * .pi / 180)))
+            ring.appendArc(withCenter: c, radius: radius, startAngle: mid - 45 + gap / 2, endAngle: mid + 45 - gap / 2)
+        } }
+        (ringColor ?? .black).setStroke(); ring.stroke()
+        if flood > 0 {                                                // the disc fills in
+            (ringColor ?? .black).withAlphaComponent(flood).setFill()
+            NSBezierPath(ovalIn: NSRect(x: c.x - radius, y: c.y - radius, width: radius * 2, height: radius * 2)).fill()
+        }
+        let dot = 2.3 + 0.5 * flood - (hunt ? pull * 0.3 : 0)
+        let dotRect = NSRect(x: c.x - dot, y: c.y - dot, width: dot * 2, height: dot * 2)
+        let knock = dotColor == nil || dotColor == ringColor          // dot same as the disc: knock it out so it shows
+        if flood > 0.01 && knock {                                    // a see-through dot in the solid disc
+            NSGraphicsContext.current?.compositingOperation = .destinationOut
+            NSColor.black.withAlphaComponent(flood).setFill(); NSBezierPath(ovalIn: dotRect).fill()
+            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            if flood < 1 { (NSColor.black.withAlphaComponent(1 - flood)).setFill(); NSBezierPath(ovalIn: dotRect).fill() }
+        } else {
+            (dotColor ?? ringColor ?? .black).setFill(); NSBezierPath(ovalIn: dotRect).fill()
+        }
+        return true
+    }
+    img.isTemplate = ringColor == nil && dotColor == nil
+    return img
+}
 func glyph(focused: Bool) -> NSImage { glyph(focused ? 1 : 0) }
+
+/// The five newer designs. Same 18 pt canvas and weights as the lens, so they sit in the menu bar the same way.
+func styledGlyph(_ style: IconStyle, _ t0: CGFloat, ring ringColor: NSColor?, dot dotColor: NSColor?) -> NSImage {
+    let t = min(max(t0, 0), 1), e = t * t * (3 - 2 * t)                 // smoothstep
+    let prim = ringColor ?? .black, sec = dotColor ?? ringColor ?? .black
+    func lerp(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * e }
+    func bar(_ cx: CGFloat, _ cy: CGFloat, _ w: CGFloat, _ h: CGFloat, _ c: NSColor) {
+        guard w > 0.2 else { return }
+        c.setFill(); NSBezierPath(roundedRect: NSRect(x: cx - w / 2, y: cy - h / 2, width: w, height: h), xRadius: h / 2, yRadius: h / 2).fill()
+    }
+    let img = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+        switch style {
+        case .lessMore:                                              // the long, crowded bar gives way to the short one
+            bar(9, lerp(12.1, 9), lerp(14, 0), 3.4, prim.withAlphaComponent(0.4 * (1 - e)))
+            bar(9, lerp(6.3, 9), lerp(6, 7.5), lerp(3.4, 4.2), sec)
+        case .narrowing:                                             // three shortening bars collapse into one
+            bar(9, lerp(13.1, 9), lerp(14, 3.6), 2.6, prim.withAlphaComponent(0.35 * (1 - e)))
+            bar(9, lerp(9, 9), lerp(8.6, 3.6), 2.6, prim.withAlphaComponent(0.65 * (1 - e)))
+            bar(9, lerp(4.9, 9), lerp(3.6, 8), lerp(2.6, 3.6), sec)
+        case .framed:                                                // the brackets close in on the one that matters
+            let k = lerp(5.2, 4.4), side = lerp(4, 4.6)                 // brackets stop just clear of the square
+            sec.setFill(); NSBezierPath(roundedRect: NSRect(x: 9 - side / 2, y: 9 - side / 2, width: side, height: side), xRadius: 1, yRadius: 1).fill()
+            let b = NSBezierPath(); let arm: CGFloat = 2
+            for (sx, sy) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] as [(CGFloat, CGFloat)] {
+                let x = 9 + sx * k, y = 9 + sy * k
+                b.move(to: NSPoint(x: x, y: y - sy * arm)); b.line(to: NSPoint(x: x, y: y)); b.line(to: NSPoint(x: x - sx * arm, y: y))
+            }
+            b.lineWidth = 1.5; b.lineCapStyle = .round; b.lineJoinStyle = .round; prim.setStroke(); b.stroke()
+        case .gathered:                                              // the corner apps are pulled in and vanish
+            for (sx, sy) in [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)] as [(CGFloat, CGFloat)] {
+                let d = lerp(6.6, 2.5), sz = lerp(2.4, 0.8)
+                prim.withAlphaComponent(0.4 * (1 - e)).setFill()
+                NSBezierPath(roundedRect: NSRect(x: 9 + sx * d - sz / 2, y: 9 + sy * d - sz / 2, width: sz, height: sz), xRadius: 0.6, yRadius: 0.6).fill()
+            }
+            let ring = NSBezierPath(ovalIn: NSRect(x: 9 - 4.6, y: 9 - 4.6, width: 9.2, height: 9.2)); ring.lineWidth = 1.5
+            prim.setStroke(); ring.stroke()
+            let sq = lerp(3, 3.8)
+            sec.setFill(); NSBezierPath(roundedRect: NSRect(x: 9 - sq / 2, y: 9 - sq / 2, width: sq, height: sq), xRadius: 0.9, yRadius: 0.9).fill()
+        case .switcher:                                              // the ⌘⇥ bar shrinks down to the lens
+            let w = lerp(15.2, 9.6), h = lerp(8, 9.6)                   // the bar becomes a ring the size of the lens
+            let pill = NSBezierPath(roundedRect: NSRect(x: 9 - w / 2, y: 9 - h / 2, width: w, height: h), xRadius: h / 2, yRadius: h / 2)
+            pill.lineWidth = 1.2; prim.withAlphaComponent(0.5 + 0.5 * e).setStroke(); pill.stroke()
+            let dot = lerp(0.9, 2.2)
+            sec.setFill(); NSBezierPath(ovalIn: NSRect(x: 9 - dot, y: 9 - dot, width: dot * 2, height: dot * 2)).fill()
+        case .lens: break
+        }
+        return true
+    }
+    img.isTemplate = ringColor == nil && dotColor == nil
+    return img
+}
+
+/// The icon picker in Settings ▸ Appearance: every design side by side, in the user's colours; click to choose.
+final class IconGrid: NSView {
+    var selected: IconStyle, hover: IconStyle?, ring: NSColor?, dot: NSColor?, pick: (IconStyle) -> Void
+    static let cols = 3, cellH: CGFloat = 62
+    init(_ selected: IconStyle, ring: NSColor?, dot: NSColor?, pick: @escaping (IconStyle) -> Void) {
+        self.selected = selected; self.ring = ring; self.dot = dot; self.pick = pick
+        let rows = (IconStyle.allCases.count + Self.cols - 1) / Self.cols
+        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: CGFloat(rows) * Self.cellH + 12))
+        autoresizingMask = [.width]
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+    required init?(coder: NSCoder) { nil }
+    func cell(_ i: Int) -> NSRect {
+        let w = (bounds.width - 24) / CGFloat(Self.cols), row = i / Self.cols, col = i % Self.cols
+        return NSRect(x: 12 + CGFloat(col) * w, y: bounds.height - 6 - CGFloat(row + 1) * Self.cellH, width: w, height: Self.cellH)
+    }
+    func hit(_ e: NSEvent) -> IconStyle? {
+        let p = convert(e.locationInWindow, from: nil)
+        return IconStyle.allCases.indices.first { cell($0).contains(p) }.map { IconStyle.allCases[$0] }
+    }
+    override func mouseMoved(with e: NSEvent) { let h = hit(e); if h != hover { hover = h; needsDisplay = true } }
+    override func mouseExited(with e: NSEvent) { hover = nil; needsDisplay = true }
+    override func mouseDown(with e: NSEvent) {}
+    override func mouseUp(with e: NSEvent) { if let h = hit(e) { selected = h; pick(h); needsDisplay = true } }
+    override func draw(_ r: NSRect) {
+        for (i, st) in IconStyle.allCases.enumerated() {
+            let c = cell(i)
+            if st == selected || st == hover {
+                (st == selected ? theme.switcherPlateOrHover : theme.hover).setFill()
+                NSBezierPath(roundedRect: c.insetBy(dx: 4, dy: 3), xRadius: 8, yRadius: 8).fill()
+            }
+            // At rest, as it sits in the menu bar; white when no colours are chosen (the menu is always dark).
+            let g = glyph(0, ring: ring ?? .white, dot: dot ?? ring ?? .white, style: st)
+            g.draw(in: NSRect(x: c.midX - 14, y: c.maxY - 36, width: 28, height: 28))
+            let name = st.name as NSString
+            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11, weight: st == selected ? .semibold : .regular),
+                                                        .foregroundColor: st == selected ? theme.text : theme.faint]
+            name.draw(at: NSPoint(x: c.midX - name.size(withAttributes: attrs).width / 2, y: c.minY + 6), withAttributes: attrs)
+        }
+    }
+}
 
 /// A menu view that highlights under the pointer and stretches to the menu's width.
 class HoverView: NSView {
@@ -607,6 +754,11 @@ final class Focus: NSObject, NSMenuDelegate {
         store.set(iconColor.isEmpty ? "A78BFA" : iconColor, forKey: "logoBg")
         logoMark = iconColor2.isEmpty ? (iconColor.isEmpty ? "5FD7AF" : "FFFFFF") : iconColor2
     }
+    /// Settings ▸ Appearance ▸ Icon. Missing = Lens, the original.
+    var iconStyleSetting: IconStyle {
+        get { IconStyle(rawValue: store.string(forKey: "iconStyle") ?? "") ?? .lens }
+        set { store.set(newValue.rawValue, forKey: "iconStyle"); if store == .standard { iconStyle = newValue }; redrawIcon() }
+    }
     /// Settings ▸ Appearance ▸ Animation Speed. Missing = Normal, the permanent default.
     var animSpeed: AnimSpeed {
         get { AnimSpeed(rawValue: store.integer(forKey: "animSpeed")) ?? .normal }
@@ -665,6 +817,7 @@ final class Focus: NSObject, NSMenuDelegate {
         if store == .standard {                                 // the real Focus only — never a --selftest instance
             healSystemSwitcher()
         }
+        if store == .standard { iconStyle = iconStyleSetting }     // the real Focus draws the user's chosen design everywhere
         setIcon(glyph(focused: focused))
         pruneSnapshots()
         if store == .standard && logoCustom { DispatchQueue.main.async { self.applyLogo() } }
@@ -1256,6 +1409,9 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         let look = add("Appearance", nil, image: symbol("paintbrush"), to: sub), am = NSMenu()
         am.minimumWidth = menuWidth
+        if #available(macOS 14, *) { am.addItem(.sectionHeader(title: "Icon")) } else { add("Icon", nil, to: am).isEnabled = false }
+        let picker = NSMenuItem(); picker.view = IconGrid(iconStyleSetting, ring: ringColor, dot: dotColor) { [unowned self] st in self.iconStyleSetting = st }
+        am.addItem(picker)
         let colour = add("Icon Colour", nil, image: two(ringColor, dotColor), to: am), cm = NSMenu()
         cm.minimumWidth = 300
         func hdr(_ t: String) { if #available(macOS 14, *) { cm.addItem(.sectionHeader(title: t)) } else { add(t, nil, to: cm).isEnabled = false } }
@@ -1415,10 +1571,45 @@ func appIconRep(_ px: Int, bg: NSColor?, mark markColor: NSColor?) -> NSBitmapIm
         NSGradient(starting: top, ending: bottom)!.draw(in: shape, angle: -90)
         NSGraphicsContext.restoreGraphicsState()
         theme.hudEdge.setStroke(); shape.lineWidth = max(1, 3 * u); shape.stroke()
-        let mark = painted(glyph(0), markColor ?? theme.hudInk, NSSize(width: 512, height: 512))!
+        let mark = painted(classicLens(0), markColor ?? theme.hudInk, NSSize(width: 512, height: 512))!   // the app logo: the original lens, unchanged
         NSGraphicsContext.current!.cgContext.draw(mark, in: tile.insetBy(dx: 120 * u, dy: 120 * u))
         NSGraphicsContext.restoreGraphicsState()
         return rep
+}
+
+/// `Focus --render-icons FILE`: every icon design drawn off-screen to a PNG (rows: white, then purple/green; columns:
+/// at rest, mid-animation, focused) — for checking designs without touching the screen.
+if let i = CommandLine.arguments.firstIndex(of: "--render-icons"), CommandLine.arguments.count > i + 1 {
+    let cell: CGFloat = 64, styles = IconStyle.allCases, phases: [CGFloat] = [0, 0.5, 1]
+    let palettes: [(NSColor?, NSColor?)] = [(nil, nil), (hexColor("A78BFA"), hexColor("5FD7AF"))]
+    let w = Int(cell) * phases.count * palettes.count + 40, h = Int(cell) * styles.count + 20
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    theme.menuBackground.setFill(); NSRect(x: 0, y: 0, width: w, height: h).fill()
+    for (row, st) in styles.enumerated() {
+        for (pi, pal) in palettes.enumerated() {
+            for (ci, ph) in phases.enumerated() {
+                let x = CGFloat(pi * phases.count + ci) * cell + CGFloat(pi) * 40 + 10, y = CGFloat(h) - CGFloat(row + 1) * cell - 10
+                glyph(ph, ring: pal.0 ?? .white, dot: pal.1 ?? pal.0 ?? .white, style: st).draw(in: NSRect(x: x + 14, y: y + 14, width: 36, height: 36))
+            }
+        }
+    }
+    NSGraphicsContext.restoreGraphicsState()
+    try? rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+    // Second file: the template lens tinted as the menu bar would, light and dark.
+    let tw = Int(cell) * 3, trep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: tw, pixelsHigh: Int(cell) * 2, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: trep)
+    for (k, pair) in [(NSColor(white: 0.93, alpha: 1), NSColor.black), (NSColor(white: 0.1, alpha: 1), NSColor.white)].enumerated() {
+        pair.0.setFill(); NSRect(x: 0, y: CGFloat(k) * cell, width: CGFloat(tw), height: cell).fill()
+        for (ci, ph) in phases.enumerated() {
+            painted(glyph(ph, style: .lens), pair.1, NSSize(width: 36, height: 36)).map { cg in
+                NSGraphicsContext.current?.cgContext.draw(cg, in: CGRect(x: CGFloat(ci) * cell + 14, y: CGFloat(k) * cell + 14, width: 36, height: 36))
+            }
+        }
+    }
+    NSGraphicsContext.restoreGraphicsState()
+    try? trep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1] + ".template.png"))
+    exit(0)
 }
 
 /// `Focus --make-icon DIR`: writes the app icon set (the menu bar mark at rest, white on the pill's near-black,
@@ -1772,6 +1963,26 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
                 }
             }
         } }
+    }))
+    steps.append(("26. icon designs: Lens is the default; every design draws at rest and focused, in the user's colours; the picker is in Appearance", { done in
+        let d = UserDefaults(suiteName: suite)!
+        d.removeObject(forKey: "iconStyle")
+        let lensDefault = t.iconStyleSetting == .lens
+        func ink(_ img: NSImage) -> Int {                        // how many pixels the design actually paints
+            let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 36, pixelsHigh: 36, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+            NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+            img.draw(in: NSRect(x: 0, y: 0, width: 36, height: 36)); NSGraphicsContext.restoreGraphicsState()
+            var n = 0; for y in 0..<36 { for x in 0..<36 where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.1 { n += 1 } }; return n
+        }
+        var blank: [String] = []
+        for st in IconStyle.allCases { for tt in [0.0, 1.0] as [CGFloat] where ink(glyph(tt, ring: .red, dot: .green, style: st)) < 12 { blank.append("\(st.name)@\(tt)") } }
+        t.iconStyleSetting = .framed; let saved = t.iconStyleSetting == .framed
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let look = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Appearance" }?.submenu
+        let picker = look?.items.contains { $0.view is IconGrid } == true
+        d.removeObject(forKey: "iconStyle")
+        done(lensDefault && blank.isEmpty && saved && picker,
+             "Lens default: \(lensDefault); designs that drew nothing: \(blank.isEmpty ? "none" : blank.joined(separator: ", ")); choice saved: \(saved); picker in Appearance: \(picker)")
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }
