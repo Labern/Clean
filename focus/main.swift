@@ -1670,10 +1670,9 @@ final class Focus: NSObject, NSMenuDelegate {
     func modeForKey(_ d: Int) -> [String: Any]? { modes.first { $0["key"] as? Int == d } }
     /// A mode's key: start it; press again to end it; in another session, switch straight to it.
     func modeKey(_ d: Int) {
+        NSLog("Focus: mode key %d pressed (mode: %@)", d, (modeForKey(d)?["name"] as? String) ?? "none")
         guard !clearing, let m = modeForKey(d), let id = m["id"] as? String else { return }
-        if !focused { startMode(id: id); return }
-        if sessions.first?["modeID"] as? String == id { toggle(); return }
-        switchMode(id: id)
+        startOrSwitch(id)
     }
     /// Switch from the live session to a mode without reopening everything in between: the mode's apps come up
     /// (back from Temporarily Closed, or opened), everything else open is temporarily closed — all in the same
@@ -1757,7 +1756,11 @@ final class Focus: NSObject, NSMenuDelegate {
         guard let name = ask("New Mode", "Starting this mode keeps \(names(ids)) open (opening any that aren't running) and temporarily closes everything else.", placeholder: "Game design") else { return }
         createMode(name, apps: ids)
     }
-    @objc func startMode(_ s: NSMenuItem) { if let id = s.representedObject as? String { startMode(id: id) } }
+    /// From the menu: start it, switch to it mid-session, or end it if it's the live one — the same as its key.
+    @objc func startMode(_ s: NSMenuItem) { if let id = s.representedObject as? String { startOrSwitch(id) } }
+    func startOrSwitch(_ id: String) {
+        if !focused { startMode(id: id) } else if sessions.first?["modeID"] as? String == id { toggle() } else { switchMode(id: id) }
+    }
     @objc func renameMode(_ s: NSMenuItem) {
         guard let id = s.representedObject as? String, let m = mode(id), let name = ask("Rename Mode", "", m["name"] as? String ?? "") else { return }
         renameMode(id, to: name)
@@ -1875,7 +1878,7 @@ final class Focus: NSObject, NSMenuDelegate {
         guard focused, let live = sessions.first else { return "Focus" }
         let n = apps().filter { !isParked($0.bundleIdentifier ?? "") }.count
         let since = (live["date"] as? Date).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) }
-        return "Focus — in session (\(n) app\(n == 1 ? "" : "s")" + (since.map { ", since \($0)" } ?? "") + ")"
+        return "Focus — \(sessionName ?? "in session") (\(n) app\(n == 1 ? "" : "s")" + (since.map { ", since \($0)" } ?? "") + ")"
     }
     func menuNeedsUpdate(_ m: NSMenu) {
         // Submenus share this delegate only so they open dark (menuWillOpen). They build themselves; rebuilding one
@@ -2025,8 +2028,10 @@ final class Focus: NSObject, NSMenuDelegate {
             }
             if let digit, takenModeKeys.contains(digit) { add("⚠︎ " + label(forMode: digit) + " is taken by another app — pick another", nil, to: kMenu).isEnabled = false }
             kItem.submenu = kMenu
-            let go = add("Start \(name)", #selector(startMode(_:)), image: symbol("play.circle"), to: sm)
-            go.representedObject = mid; go.isEnabled = !focused && !clearing
+            let live = focused && sessions.first?["modeID"] as? String == mid
+            let go = add(live ? "End \(name)" : focused ? "Switch to \(name)" : "Start \(name)", #selector(startMode(_:)),
+                         image: symbol(live ? "stop.circle" : focused ? "arrow.triangle.swap" : "play.circle"), to: sm)
+            go.representedObject = mid; go.isEnabled = !clearing
             let use = add("Use Ticked Apps", #selector(updateMode(_:)), image: symbol("checklist"), to: sm)
             use.representedObject = mid; use.isEnabled = !excluded.isEmpty
             add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).representedObject = mid
@@ -2926,7 +2931,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         func banner() -> SessionBanner? { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.prefix(3).compactMap { $0.view as? SessionBanner }.first }
         let first = banner()
         let top = { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.first?.title ?? "" }()
-        let stateOK = top.hasPrefix("Focus — in session (") && top.contains(" app") && top.contains(", since ") && top.hasSuffix(")")
+        let stateOK = top.hasPrefix("Focus — Game design (") && top.contains(" app") && top.contains(", since ") && top.hasSuffix(")")
         let named = first?.title == "Game design" && first?.detail.hasPrefix("Mode") == true && first?.detail.contains("TextEdit") == true
         let button = t.focused ? "End " + (t.sessionName ?? "Session") : ""
         t.sessions[0]["name"] = "Level 3 blockout"                         // what Rename… does

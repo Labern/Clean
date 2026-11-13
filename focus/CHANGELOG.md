@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.16.1 — 2026-11-13
+- During a session a mode's menu offers "Switch to <mode>" instead of a greyed-out Start, or "End <mode>" if it's the live one, the same as its key.
+- The menu's first line names the mode: "Focus — AI (4 apps, since 21:40)".
+- Mode keys write a line to the system log when pressed, so a key that doesn't arrive can be traced.
+
 ## 0.16.0 — 2026-11-13
 - **Suggested Modes:** three at most, built from the apps you actually use. For each kind, Focus picks what's running or was used most recently, from macOS's last-used dates. The list no longer has a grey line under each suggestion.
 - **New Mode is a builder:**
