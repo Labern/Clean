@@ -97,3 +97,6 @@ These are done and pass their tests, but haven't been seen on your screen in rea
   changes; it currently matches 0.0.3.
 - **Your icon** is a purple ring with a green dot, and your app logo is a purple tile with a green mark. The
   default for everyone is white.
+
+## Next: first-run tutorial (requested 2026-11-13)
+- Like Wispr Flow's: the first time Focus opens, a short walkthrough of how it works. A Skip button. Reopen any time from Settings ▸ Show Tutorial.
