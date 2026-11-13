@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.3.0 — 2026-11-13 (branch focus/feat-animation-speed)
+
+- **Settings ▸ Appearance:** Icon Colour moves here, beside a new **Animation Speed** dial: a small clock with the hand
+  straight up for **Normal**, back at 10 for **Slow**, on at 2 for **Fast**. Speed sets how long the app icons stay on
+  screen before they're swept into the menu bar (start) or drop into the pill (end).
+- **Normal is the original animation and the permanent default.** Its timing, recorded: icons hold **0.24 s** at the
+  start of a session and **0.02 s** at the end; unchanged at every speed: pop-in 0.16 s, hit stop 0.10 s, burst 0.16 s,
+  flight 0.34 s (+35 ms per icon), zip 0.22 s. Slow holds 1.2 s / 0.9 s; Fast 0.08 s / 0 s.
+
 ## 0.2.1 — 2026-11-12 (branch focus/feat-shortcuts)
 
 - **Test suite:** `./test.sh` (quick, ~15 s, touches no apps — run after every major change) and `./test.sh full`

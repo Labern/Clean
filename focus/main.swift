@@ -181,6 +181,70 @@ final class ColorGrid: NSView {
     }
 }
 
+/// How long the app icons stay on screen in the session pop-up, before they're swept into the menu bar icon (start)
+/// or drop into the pill (end). NORMAL IS THE ORIGINAL TIMING AND THE PERMANENT DEFAULT — recorded 2026-11-13:
+///   start: icons hold 0.24 s after bursting out, then are swept away · end: icons hold 0.02 s after arriving, then drop.
+///   Unchanged at every speed: pop-in 0.16 s, hit stop 0.10 s, burst 0.16 s, flight 0.34 s (+35 ms per icon), zip 0.22 s.
+/// Slow and Fast only change the two holds. Never change Normal's values or make anything else the default.
+enum AnimSpeed: Int, CaseIterable {
+    case slow = -1, normal = 0, fast = 1
+    var hold: (start: Double, end: Double) {
+        switch self {
+        case .normal: return (0.24, 0.02)                      // the original — do not change
+        case .slow: return (1.2, 0.9)
+        case .fast: return (0.08, 0.0)
+        }
+    }
+    var name: String { ["Slow", "Normal", "Fast"][rawValue + 1] }
+    var clockAngle: CGFloat { [150, 90, 30][rawValue + 1] }    // 10, 12 and 2 o'clock, in degrees from 3 o'clock
+}
+
+/// The speed control: a small clock face. The hand points straight up for Normal, back to 10 for Slow, on to 2 for
+/// Fast — the clock wound slower or faster. Click a position (or its word) to set it; the menu stays open.
+final class SpeedDial: NSView {
+    var speed: AnimSpeed, pick: (AnimSpeed) -> Void, hover: AnimSpeed?
+    let radius: CGFloat = 34
+    var centre: NSPoint { NSPoint(x: bounds.midX, y: 22 + radius) }
+    init(_ speed: AnimSpeed, pick: @escaping (AnimSpeed) -> Void) {
+        self.speed = speed; self.pick = pick
+        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 2 * 34 + 52))
+        autoresizingMask = [.width]
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+    required init?(coder: NSCoder) { nil }
+    func point(_ s: AnimSpeed, _ r: CGFloat) -> NSPoint {
+        let a = s.clockAngle * .pi / 180; return NSPoint(x: centre.x + cos(a) * r, y: centre.y + sin(a) * r)
+    }
+    func hit(_ e: NSEvent) -> AnimSpeed? {
+        let p = convert(e.locationInWindow, from: nil)
+        return AnimSpeed.allCases.min { hypot(point($0, radius + 10).x - p.x, point($0, radius + 10).y - p.y) < hypot(point($1, radius + 10).x - p.x, point($1, radius + 10).y - p.y) }
+            .flatMap { hypot(point($0, radius + 10).x - p.x, point($0, radius + 10).y - p.y) < 34 ? $0 : nil }
+    }
+    override func mouseMoved(with e: NSEvent) { let h = hit(e); if h != hover { hover = h; needsDisplay = true } }
+    override func mouseExited(with e: NSEvent) { hover = nil; needsDisplay = true }
+    override func mouseDown(with e: NSEvent) {}
+    override func mouseUp(with e: NSEvent) { if let h = hit(e) { speed = h; pick(h); needsDisplay = true } }
+    override func draw(_ r: NSRect) {
+        let face = NSBezierPath(ovalIn: NSRect(x: centre.x - radius, y: centre.y - radius, width: radius * 2, height: radius * 2))
+        theme.hover.setFill(); face.fill()
+        theme.dropped.setStroke(); face.lineWidth = 1; face.stroke()
+        for s in AnimSpeed.allCases {                               // a tick at 10, 12 and 2
+            let tick = NSBezierPath(); tick.move(to: point(s, radius - 7)); tick.line(to: point(s, radius - 2))
+            tick.lineWidth = s == speed ? 2.4 : 1.4; tick.lineCapStyle = .round
+            (s == speed ? theme.text : theme.faint).setStroke(); tick.stroke()
+            let word = s.name as NSString
+            let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 12, weight: s == speed ? .semibold : .regular),
+                                                        .foregroundColor: s == speed || s == hover ? theme.text : theme.faint]
+            let size = word.size(withAttributes: attrs), at = point(s, radius + 14)
+            let x = s == .slow ? at.x - size.width : s == .fast ? at.x : at.x - size.width / 2
+            word.draw(at: NSPoint(x: x, y: s == .normal ? at.y - 2 : at.y - size.height / 2), withAttributes: attrs)
+        }
+        let hand = NSBezierPath(); hand.move(to: centre); hand.line(to: point(speed, radius - 10))
+        hand.lineWidth = 2.4; hand.lineCapStyle = .round; theme.text.setStroke(); hand.stroke()
+        theme.text.setFill(); NSBezierPath(ovalIn: NSRect(x: centre.x - 3, y: centre.y - 3, width: 6, height: 6)).fill()
+    }
+}
+
 /// The menu bar mark: a viewfinder ring with a centre dot. `t` is linear progress, 0 (at rest: four open
 /// brackets, gaps at the compass points, small dot) to 1 (focused: one closed ring, bigger dot). With `hunt`
 /// the ring first pulls in and comes back out — a lens finding focus — then the gaps close in place and the
@@ -324,7 +388,7 @@ func painted(_ img: NSImage, _ color: NSColor, _ size: NSSize) -> CGImage? {
 final class SessionPill {
     var win: NSWindow?, timer: Timer?
 
-    func play(start: Bool, icons: [NSImage], target: NSPoint, label: String) {
+    func play(start: Bool, icons: [NSImage], target: NSPoint, label: String, hold: (start: Double, end: Double) = AnimSpeed.normal.hold) {
         timer?.invalidate(); win?.orderOut(nil)
         guard let screen = NSScreen.screens.first(where: { $0.frame.contains(target) }) ?? NSScreen.main ?? NSScreen.screens.first else { return }   // no display: skip the show
         let w = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
@@ -366,9 +430,9 @@ final class SessionPill {
 
         // Timeline (seconds). `stop` is the hit stop: nothing moves but the flash.
         let popIn = 0.16, stop = 0.10, stagger = 0.035, fly = 0.34
-        let impact = start ? popIn : popIn + 0.10 + Double(max(n - 1, 0)) * stagger + fly + 0.12
+        let impact = start ? popIn : popIn + Double(max(n - 1, 0)) * stagger + fly + hold.end + 0.20   // Normal: + 0.02 + 0.20 = the original + 0.22
         let after = impact + stop
-        let flyDone = start ? after + 0.16 + 0.08 + Double(max(n - 1, 0)) * stagger + fly : impact
+        let flyDone = start ? after + hold.start + Double(max(n - 1, 0)) * stagger + fly : impact     // Normal: hold 0.24 = the original 0.16 + 0.08
         let zipAt = (start ? flyDone : after + 0.06), zipLen = 0.22, end = zipAt + zipLen + 0.05
         setMark(start ? 0 : 1)
 
@@ -394,7 +458,7 @@ final class SessionPill {
             for (i, l) in tiles.enumerated() {
                 let d = Double(i) * stagger
                 if start {
-                    let burst = CGFloat((now - after - d * 0.5) / 0.16), suck = CGFloat((now - after - 0.24 - d) / fly)
+                    let burst = CGFloat((now - after - d * 0.5) / 0.16), suck = CGFloat((now - after - hold.start - d) / fly)
                     if now < after { l.opacity = 0; continue }
                     if suck <= 0 {
                         l.position = lerp(home, fan[i], easeBack(burst)); l.opacity = Float(ease(burst * 2))
@@ -405,7 +469,7 @@ final class SessionPill {
                         l.transform = CATransform3DMakeScale(1 - 0.8 * k, 1 - 0.8 * k, 1)
                     }
                 } else {
-                    let out = CGFloat((now - popIn - d) / fly), drop = CGFloat((now - popIn - Double(max(n - 1, 0)) * stagger - fly - 0.02) / 0.12)
+                    let out = CGFloat((now - popIn - d) / fly), drop = CGFloat((now - popIn - Double(max(n - 1, 0)) * stagger - fly - hold.end) / 0.12)
                     if out <= 0 { l.opacity = 0; continue }
                     if drop <= 0 {
                         let k = easeOut(out)
@@ -543,6 +607,11 @@ final class Focus: NSObject, NSMenuDelegate {
         store.set(iconColor.isEmpty ? "A78BFA" : iconColor, forKey: "logoBg")
         logoMark = iconColor2.isEmpty ? (iconColor.isEmpty ? "5FD7AF" : "FFFFFF") : iconColor2
     }
+    /// Settings ▸ Appearance ▸ Animation Speed. Missing = Normal, the permanent default.
+    var animSpeed: AnimSpeed {
+        get { AnimSpeed(rawValue: store.integer(forKey: "animSpeed")) ?? .normal }
+        set { store.set(newValue.rawValue, forKey: "animSpeed") }
+    }
     var wheelForDot = false
     @objc func wheelRing() { openWheel(dot: false) }
     @objc func wheelDot() { openWheel(dot: true) }
@@ -634,7 +703,7 @@ final class Focus: NSObject, NSMenuDelegate {
         let name = mode?["name"] as? String
         // Instant: the pill plays the moment the key goes down. The snapshot is grabbed in the background in the
         // same instant (the pill is still invisible then) and the quitting starts once it's on disk.
-        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: name ?? "Focus")
+        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: name ?? "Focus", hold: animSpeed.hold)
         var record: Session = ["date": Date(), "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "id": a.bundleIdentifier ?? "", "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }]
         // Started mid-restore: the apps that restore hadn't reached join this session, so End brings them back too.
         let have = Set(out.compactMap { $0.bundleURL?.path })
@@ -732,7 +801,7 @@ final class Focus: NSObject, NSMenuDelegate {
         guard !out.isEmpty else { if restart { restartMac() }; return }
         sessions.insert(["date": Date(), "kind": "quit all",
                          "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "id": a.bundleIdentifier ?? "", "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
-        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear")
+        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear", hold: animSpeed.hold)
         clearing = true; restartAfter = restart; refused = []
         queue = out.sorted { memory($0) > memory($1) }; total = queue.count
         quitNext()
@@ -771,7 +840,7 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         sessions.insert(["date": Date(), "kind": "force quit",
                          "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "id": a.bundleIdentifier ?? "", "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }], at: 0)
-        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear")
+        pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: "Clear", hold: animSpeed.hold)
         out.forEach { $0.forceTerminate() }
     }
     @objc func forceQuitAllApps() { forceQuitAll() }
@@ -790,7 +859,7 @@ final class Focus: NSObject, NSMenuDelegate {
         queue = []; total = 0; status = nil; modeKeep = nil; waiting = []   // nothing from the ended session lingers
         focused = false
         pill.play(start: false, icons: (s["apps"] as? [[String: Any]] ?? []).compactMap { $0["path"] as? String }.map { ws.icon(forFile: $0) },
-                  target: iconPoint, label: "Back")
+                  target: iconPoint, label: "Back", hold: animSpeed.hold)
         relaunch(ArraySlice(s["apps"] as? [[String: Any]] ?? []), generation)
     }
     /// Past sessions ▸ Open all on an OLD session just opens its apps; the live session (if any) carries on.
@@ -1160,7 +1229,9 @@ final class Focus: NSObject, NSMenuDelegate {
         let two = { (a: NSColor?, b: NSColor?) -> NSImage in      // a mini icon in two colours, for menu rows
             let g = glyph(0, ring: a ?? .labelColor, dot: b ?? a ?? .labelColor); g.size = NSSize(width: 16, height: 16); return g
         }
-        let colour = add("Icon Colour", nil, image: two(ringColor, dotColor), to: sub), cm = NSMenu()
+        let look = add("Appearance", nil, image: symbol("paintbrush"), to: sub), am = NSMenu()
+        am.minimumWidth = menuWidth
+        let colour = add("Icon Colour", nil, image: two(ringColor, dotColor), to: am), cm = NSMenu()
         cm.minimumWidth = 300
         func hdr(_ t: String) { if #available(macOS 14, *) { cm.addItem(.sectionHeader(title: t)) } else { add(t, nil, to: cm).isEnabled = false } }
         hdr("Presets")
@@ -1193,6 +1264,11 @@ final class Focus: NSObject, NSMenuDelegate {
         hdr("Logo Mark")
         let lm = NSMenuItem(); lm.view = ColorGrid(grid, selected: logoMark) { [unowned self] h in self.logoMark = h }; cm.addItem(lm)
         colour.submenu = cm
+        am.addItem(.separator())
+        if #available(macOS 14, *) { am.addItem(.sectionHeader(title: "Animation Speed")) } else { add("Animation Speed", nil, to: am).isEnabled = false }
+        let dial = NSMenuItem(); dial.view = SpeedDial(animSpeed) { [unowned self] s in self.animSpeed = s }; am.addItem(dial)
+        add("How long the apps stay on screen as a session starts or ends. Normal is the original.", nil, to: am).isEnabled = false
+        look.submenu = am
         let keys = add("Shortcuts", nil, image: symbol("keyboard"), to: sub), km = NSMenu()
         km.autoenablesItems = false; km.minimumWidth = 300
         if #available(macOS 14, *) { km.addItem(.sectionHeader(title: "Start / End Session")) }
@@ -1637,6 +1713,20 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         t.releaseShortcuts()
         UserDefaults(suiteName: suite)!.removeObject(forKey: "sessionMods"); sessionKey = "⌘⇧F"
         done(defaultOK && s1 && ticked, "default ⌘⇧F/⌘⇧E: \(defaultOK); ⌃⇧F registered live: \(s1); ticked in the menu: \(ticked)")
+    }))
+    steps.append(("24. animation speed: Normal is the default and keeps the original timing; Slow/Fast change only the holds", { done in
+        let d = UserDefaults(suiteName: suite)!
+        d.removeObject(forKey: "animSpeed")
+        let normalDefault = t.animSpeed == .normal && t.animSpeed.hold == (0.24, 0.02)
+        t.animSpeed = .slow; let slow = t.animSpeed.hold.start > 0.24
+        t.animSpeed = .fast; let fast = t.animSpeed.hold.start < 0.24
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let look = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Appearance" }?.submenu
+        let hasColour = look?.items.contains { $0.title == "Icon Colour" } == true
+        let hasDial = look?.items.contains { $0.view is SpeedDial } == true
+        d.removeObject(forKey: "animSpeed")
+        done(normalDefault && slow && fast && hasColour && hasDial,
+             "default Normal with hold 0.24 s / 0.02 s: \(normalDefault); slow longer: \(slow); fast shorter: \(fast); Appearance has Icon Colour: \(hasColour) and the dial: \(hasDial)")
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }
