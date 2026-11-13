@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.6.0 — 2026-11-13 (branch focus/feat-modes-plumbing)
+
+- **Modes plumbing, ready for drag and drop** (no dragging in the UI yet, by design): every mode has a permanent id
+  (older modes are migrated); create, rename, delete, add an app (by id, or from a .app dragged in from Finder or the
+  Dock), remove, reorder and start — all by id. The menu now addresses modes by id, not position. Scenario 27.
+
 ## 0.5.0 — 2026-11-13 (branch focus/feat-icon-styles)
 
 - **A chunkier menu bar icon, like the logo.** Off: four thick brackets round a solid dot. On: the brackets close and

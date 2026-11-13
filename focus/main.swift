@@ -817,6 +817,7 @@ final class Focus: NSObject, NSMenuDelegate {
         if store == .standard {                                 // the real Focus only — never a --selftest instance
             healSystemSwitcher()
         }
+        migrateModes()                                          // older modes get their permanent ids
         if store == .standard { iconStyle = iconStyleSetting }     // the real Focus draws the user's chosen design everywhere
         setIcon(glyph(focused: focused))
         pruneSnapshots()
@@ -1149,28 +1150,86 @@ final class Focus: NSObject, NSMenuDelegate {
         return v.isEmpty ? nil : v
     }
     func names(_ ids: [String]) -> String { ids.compactMap(path).map(appName).joined(separator: ", ") }
+    // MARK: modes — the plumbing (a drag-and-drop UI will call these; nothing here depends on how they're called)
+
+    static let appDragType = NSPasteboard.PasteboardType("com.labern.focus.app")   // our own drags carry a bundle id
+    /// Every mode has a permanent id, so a rename, reorder or delete can never hit the wrong one. Older modes get one.
+    func migrateModes() {
+        guard modes.contains(where: { ($0["id"] as? String ?? "").isEmpty }) else { return }
+        modes = modes.map { var m = $0; if (m["id"] as? String ?? "").isEmpty { m["id"] = UUID().uuidString }; return m }
+    }
+    func modeIndex(_ id: String) -> Int? { modes.firstIndex { $0["id"] as? String == id } }
+    func mode(_ id: String) -> [String: Any]? { modeIndex(id).map { modes[$0] } }
+    /// A bundle id from an app on disk — what a drag from Finder or the Dock hands over.
+    func appID(at url: URL) -> String? { url.pathExtension == "app" ? Bundle(url: url)?.bundleIdentifier : nil }
+    /// The apps on a drag-and-drop pasteboard: our own drags (bundle ids) or .app files dragged in.
+    func draggedApps(_ pb: NSPasteboard) -> [String] {
+        let ours = (pb.pasteboardItems ?? []).compactMap { $0.string(forType: Focus.appDragType) }
+        let files = (pb.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []).compactMap(appID)
+        return ours + files
+    }
+    @discardableResult
+    func createMode(_ name: String, apps ids: [String]) -> String {
+        let id = UUID().uuidString
+        var seen = Set<String>()
+        modes.append(["id": id, "name": name, "apps": ids.filter { path($0) != nil && seen.insert($0).inserted }])
+        return id
+    }
+    func renameMode(_ id: String, to name: String) { if let i = modeIndex(id), !name.isEmpty { modes[i]["name"] = name } }
+    func removeMode(_ id: String) { if let i = modeIndex(id) { modes.remove(at: i) } }
+    /// Adds an installed app to a mode (once), at a position or at the end. False = unknown mode or app, or already in.
+    @discardableResult
+    func addApp(_ app: String, toMode id: String, at index: Int? = nil) -> Bool {
+        guard let i = modeIndex(id), path(app) != nil else { return false }
+        var list = modes[i]["apps"] as? [String] ?? []
+        guard !list.contains(app) else { return false }
+        list.insert(app, at: min(max(index ?? list.count, 0), list.count))
+        modes[i]["apps"] = list; return true
+    }
+    @discardableResult
+    func addApps(from pb: NSPasteboard, toMode id: String, at index: Int? = nil) -> Int {
+        var n = 0, at = index
+        for app in draggedApps(pb) where addApp(app, toMode: id, at: at) { n += 1; at = at.map { $0 + 1 } }
+        return n
+    }
+    func removeApp(_ app: String, fromMode id: String) {
+        guard let i = modeIndex(id) else { return }
+        modes[i]["apps"] = (modes[i]["apps"] as? [String] ?? []).filter { $0 != app }
+    }
+    /// Reorders within a mode (what dragging a row up or down will do). Out-of-range moves are ignored.
+    func moveApp(inMode id: String, from: Int, to: Int) {
+        guard let i = modeIndex(id) else { return }
+        var list = modes[i]["apps"] as? [String] ?? []
+        guard list.indices.contains(from) else { return }
+        let app = list.remove(at: from); list.insert(app, at: min(max(to, 0), list.count))
+        modes[i]["apps"] = list
+    }
+    /// Starts a mode: opens its apps, parks everything else. Refused during a session or a Quit All.
+    @discardableResult
+    func startMode(id: String) -> Bool {
+        guard !focused, !clearing, let m = mode(id) else { return false }
+        item.menu?.cancelTracking(); park(quit: !hideMode, mode: m); return true
+    }
+
     @objc func newMode() {
         let ids = excluded.filter { path($0) != nil }
         guard !ids.isEmpty else {
             return tell("Tick the apps for this mode first", "In the Focus menu, tick the apps you want in the mode — say, your writing app and your browser — then choose New Mode again.")
         }
         guard let name = ask("New Mode", "Starting this mode keeps \(names(ids)) open (opening any that aren't running) and parks everything else.", placeholder: "Game design") else { return }
-        modes.append(["name": name, "apps": ids])
+        createMode(name, apps: ids)
     }
-    @objc func startMode(_ s: NSMenuItem) {
-        guard !focused, !clearing, modes.indices.contains(s.tag) else { return }
-        item.menu?.cancelTracking(); park(quit: !hideMode, mode: modes[s.tag])
-    }
+    @objc func startMode(_ s: NSMenuItem) { if let id = s.representedObject as? String { startMode(id: id) } }
     @objc func renameMode(_ s: NSMenuItem) {
-        guard modes.indices.contains(s.tag), let name = ask("Rename Mode", "", modes[s.tag]["name"] as? String ?? "") else { return }
-        modes[s.tag]["name"] = name
+        guard let id = s.representedObject as? String, let m = mode(id), let name = ask("Rename Mode", "", m["name"] as? String ?? "") else { return }
+        renameMode(id, to: name)
     }
     @objc func updateMode(_ s: NSMenuItem) {
         let ids = excluded.filter { path($0) != nil }
-        guard modes.indices.contains(s.tag), !ids.isEmpty else { return }
-        modes[s.tag]["apps"] = ids
+        guard let id = s.representedObject as? String, let i = modeIndex(id), !ids.isEmpty else { return }
+        modes[i]["apps"] = ids
     }
-    @objc func deleteMode(_ s: NSMenuItem) { if modes.indices.contains(s.tag) { modes.remove(at: s.tag) } }
+    @objc func deleteMode(_ s: NSMenuItem) { if let id = s.representedObject as? String { removeMode(id) } }
     @objc func renameSession(_ s: NSMenuItem) {
         guard sessions.indices.contains(s.tag) else { return }
         let current = sessions[s.tag]["name"] as? String ?? ""
@@ -1195,7 +1254,7 @@ final class Focus: NSObject, NSMenuDelegate {
     func modeFromSession(_ n: Int, name: String) -> Bool {
         guard sessions.indices.contains(n) else { return false }
         let ids = kept(sessions[n]); guard !ids.isEmpty else { return false }
-        modes.append(["name": name, "apps": ids]); return true
+        createMode(name, apps: ids); return true
     }
     /// Up to three app icons, overlapped, for a mode's row.
     func stack(_ ids: [String]) -> NSImage {
@@ -1337,19 +1396,19 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         // Modes — the user's named sets of apps.
         header(modes.isEmpty ? "Modes — tick the apps you keep open, then save them" : "Modes — the apps you keep open")
-        for (n, md) in modes.enumerated() {
-            let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode"
+        for md in modes {
+            let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
             let row = add(name, nil, image: stack(ids)), sm = NSMenu()
             sm.autoenablesItems = false
             if #available(macOS 14, *) { sm.addItem(.sectionHeader(title: "Keeps open")) }
             for id in ids { if let p = path(id) { add(appName(p), nil, image: appIcon(p), to: sm) } }
             sm.addItem(.separator())
             let go = add("Start \(name)", #selector(startMode(_:)), image: symbol("play.circle"), to: sm)
-            go.tag = n; go.isEnabled = !focused && !clearing
-            add("Rename…", #selector(renameMode(_:)), image: symbol("pencil"), to: sm).tag = n
+            go.representedObject = mid; go.isEnabled = !focused && !clearing
+            add("Rename…", #selector(renameMode(_:)), image: symbol("pencil"), to: sm).representedObject = mid
             let use = add("Use Ticked Apps", #selector(updateMode(_:)), image: symbol("checklist"), to: sm)
-            use.tag = n; use.isEnabled = !excluded.isEmpty
-            add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).tag = n
+            use.representedObject = mid; use.isEnabled = !excluded.isEmpty
+            add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).representedObject = mid
             row.submenu = sm
         }
         add("New Mode from Ticked Apps…", #selector(newMode), image: symbol("plus.circle"))
@@ -1983,6 +2042,29 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         d.removeObject(forKey: "iconStyle")
         done(lensDefault && blank.isEmpty && saved && picker,
              "Lens default: \(lensDefault); designs that drew nothing: \(blank.isEmpty ? "none" : blank.joined(separator: ", ")); choice saved: \(saved); picker in Appearance: \(picker)")
+    }))
+    steps.append(("27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration", { done in
+        let d = UserDefaults(suiteName: suite)!
+        d.set([["name": "Old", "apps": ["com.apple.TextEdit"]]], forKey: "modes")     // a mode saved before ids existed
+        t.migrateModes()
+        let migrated = !(t.modes.first?["id"] as? String ?? "").isEmpty && t.modes.first?["name"] as? String == "Old"
+        let id = t.createMode("Game design", apps: ["com.apple.TextEdit", "com.apple.TextEdit", "com.nobody.ghost"])
+        let created = (t.mode(id)?["apps"] as? [String]) == ["com.apple.TextEdit"]          // deduped, unknown app dropped
+        let pb = NSPasteboard(name: NSPasteboard.Name("focus-test-\(UUID().uuidString)")); pb.clearContents()
+        pb.writeObjects([URL(fileURLWithPath: "/System/Applications/Calculator.app") as NSURL])
+        let dropped = t.addApps(from: pb, toMode: id, at: 0) == 1 && (t.mode(id)?["apps"] as? [String])?.first == "com.apple.calculator"
+        let dupe = !t.addApp("com.apple.calculator", toMode: id)
+        t.moveApp(inMode: id, from: 0, to: 5)                                   // past the end = to the end
+        let moved = (t.mode(id)?["apps"] as? [String]) == ["com.apple.TextEdit", "com.apple.calculator"]
+        t.removeApp("com.apple.TextEdit", fromMode: id)
+        t.renameMode(id, to: "Design")
+        let edited = (t.mode(id)?["apps"] as? [String]) == ["com.apple.calculator"] && t.mode(id)?["name"] as? String == "Design"
+        let byIdSurvivesReorder = t.modeIndex(id) == 1
+        t.removeMode(id)
+        let deleted = t.mode(id) == nil && t.modes.count == 1
+        pb.releaseGlobally(); d.removeObject(forKey: "modes")
+        done(migrated && created && dropped && dupe && moved && edited && byIdSurvivesReorder && deleted,
+             "migration \(migrated) · create+dedupe \(created) · dragged .app \(dropped) · no duplicates \(dupe) · reorder \(moved) · remove+rename \(edited) · found by id \(byIdSurvivesReorder) · delete \(deleted)")
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }
