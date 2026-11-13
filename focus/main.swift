@@ -68,6 +68,14 @@ struct Theme {
     var iconPresets: [(String, String, String)] = [("Purple & Green", "A78BFA", "5FD7AF"), ("Pink & Teal", "FF87FF", "87D7D7"),
                                                    ("Violet & Gold", "AF87FF", "FFD75F"), ("Teal & Pink", "87D7D7", "FF87FF"),
                                                    ("All Purple", "A78BFA", "A78BFA")]
+    /// Evangelion: each pair is (ring, dot) in the character's or Eva's own colours, lifted a touch so they read on
+    /// a dark menu bar. Unit-01's armour purple and lime; Unit-02 red and Asuka's orange; Unit-00 blue and Rei's red
+    /// eyes; Shinji's plugsuit blue and white; Misato's purple hair and red jacket; Kaworu's grey hair and red eyes;
+    /// Pen Pen's slate-blue feathers and yellow beak.
+    var evaPresets: [(String, String, String)] = [("UNIT 01", "7851A9", "8FD14F"), ("Asuka", "E3262F", "F28C28"),
+                                                 ("Rei", "5B8DEF", "E8343C"), ("Shinji", "3E6FD6", "F1F3F6"),
+                                                 ("Misato", "8A6CC0", "D7263D"), ("Kaworu", "D8D8DE", "D3203B"),
+                                                 ("Pen Pen", "6F86B8", "F6C445")]
 }
 let theme = Theme()
 let menuWidth: CGFloat = 320
@@ -943,6 +951,23 @@ final class Focus: NSObject, NSMenuDelegate {
         if iconStyle == .counter && pill.timer?.isValid != true { redrawIcon() }   // never mid-animation
     }
     func setIcon(_ img: NSImage) { redrawIcon() }
+    /// Colour schemes the user saved: [name, ring hex, dot hex] (dot "" = same as ring).
+    var customSchemes: [[String]] {
+        get { (store.array(forKey: "customSchemes") as? [[String]] ?? []).filter { $0.count == 3 && !$0[0].isEmpty } }
+        set { store.set(newValue, forKey: "customSchemes") }
+    }
+    func addScheme(_ name: String) {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines); guard !n.isEmpty, !iconColor.isEmpty else { return }
+        customSchemes = customSchemes.filter { $0[0] != n } + [[n, iconColor, iconColor2]]   // same name: replaced
+    }
+    @objc func saveScheme() {
+        let a = NSAlert(); a.messageText = "Save these colours as a scheme"; a.informativeText = "Give it a name. It will appear under Your Schemes."
+        let f = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24)); f.placeholderString = "Name"; a.accessoryView = f
+        a.addButton(withTitle: "Save"); a.addButton(withTitle: "Cancel"); a.window.initialFirstResponder = f
+        NSApp.activate(ignoringOtherApps: true)
+        if a.runModal() == .alertFirstButtonReturn { addScheme(f.stringValue) }
+    }
+    @objc func deleteScheme(_ s: NSMenuItem) { var c = customSchemes; if c.indices.contains(s.tag) { c.remove(at: s.tag); customSchemes = c } }
     @objc func pickPreset(_ s: NSMenuItem) {
         let pair = s.representedObject as? [String] ?? ["", ""]
         iconColor = pair[0]; iconColor2 = pair.count > 1 ? pair[1] : ""
@@ -1838,6 +1863,19 @@ final class Focus: NSObject, NSMenuDelegate {
             i.representedObject = [a, a == b ? "" : b]
             i.state = iconColor == a && (iconColor2 == b || (a == b && iconColor2.isEmpty)) ? .on : .off
         }
+        hdr("Evangelion")
+        for (name, a, b) in theme.evaPresets {
+            let i = add(name, #selector(pickPreset(_:)), image: two(hexColor(a), hexColor(b)), to: cm)
+            i.representedObject = [a, b]; i.state = iconColor == a && iconColor2 == b ? .on : .off
+        }
+        hdr("Your Schemes")
+        for (k, sc) in customSchemes.enumerated() {
+            let i = add(sc[0], #selector(pickPreset(_:)), image: two(hexColor(sc[1]), hexColor(sc[2]) ?? hexColor(sc[1])), to: cm)
+            i.representedObject = [sc[1], sc[2]]; i.state = iconColor == sc[1] && iconColor2 == sc[2] ? .on : .off
+            let del = add("Delete “\(sc[0])”", #selector(deleteScheme(_:)), image: symbol("trash"), to: cm)   // hold ⌥ to see it
+            del.tag = k; del.isAlternate = true; del.keyEquivalentModifierMask = .option
+        }
+        add("Save Current Colours as Scheme…", #selector(saveScheme), image: symbol("plus.circle"), to: cm).isEnabled = !iconColor.isEmpty
         let grid = theme.iconHues.map(shades)
         hdr("Ring — primary")
         let gi = NSMenuItem(); gi.view = ColorGrid(grid, selected: iconColor) { [unowned self] h in self.iconColor = h }; cm.addItem(gi)
@@ -2402,6 +2440,27 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let count = IconStyle.allCases.count
         done(started && tHit == 1 && kHit > 1 && tRest == 0 && tBack > 0 && tBack < 1 && stopped && count == 20,
              "starts: \(started); landing t=\(tHit) scale=\(kHit); rest t=\(tRest); returning t=\(tBack); stops: \(stopped); designs: \(count)")
+    }))
+    steps.append(("33. colour schemes: the Evangelion pairs are listed by name; a user can save, pick and delete their own; the originals stay", { done in
+        func colourMenu() -> NSMenu? {
+            let m = NSMenu(); t.menuNeedsUpdate(m)
+            return m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Appearance" }?.submenu?.items.first { $0.title == "Icon Colour" }?.submenu
+        }
+        t.store.removeObject(forKey: "customSchemes")
+        let titles = colourMenu()?.items.map(\.title) ?? []
+        let eva = ["UNIT 01", "Asuka", "Rei", "Shinji", "Misato", "Kaworu", "Pen Pen"].allSatisfy(titles.contains)
+        let originals = ["Purple & Green", "Pink & Teal", "Violet & Gold", "Teal & Pink", "All Purple"].allSatisfy(titles.contains)
+        t.iconColor = "123456"; t.iconColor2 = "ABCDEF"; t.addScheme("Night shift")
+        let listed = colourMenu()?.items.first { $0.title == "Night shift" }
+        t.iconColor = ""; t.iconColor2 = ""
+        if let l = listed { t.pickPreset(l) }
+        let picked = t.iconColor == "123456" && t.iconColor2 == "ABCDEF"
+        let del = colourMenu()?.items.first { $0.title == "Delete “Night shift”" && $0.isAlternate }
+        if let x = del { t.deleteScheme(x) }
+        let gone = t.customSchemes.isEmpty && colourMenu()?.items.contains { $0.title == "Night shift" } == false
+        t.iconColor = ""; t.iconColor2 = ""; t.store.removeObject(forKey: "customSchemes")
+        done(eva && originals && listed != nil && picked && del != nil && gone,
+             "Evangelion listed: \(eva); originals kept: \(originals); saved scheme listed: \(listed != nil); picking it applies it: \(picked); ⌥ delete: \(del != nil); deleted: \(gone)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {

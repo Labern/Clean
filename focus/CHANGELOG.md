@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.12.0 — 2026-11-13
+- Settings ▸ Appearance ▸ Icon Colour ▸ **Evangelion**: UNIT 01, Asuka, Rei, Shinji, Misato, Kaworu and Pen Pen,
+  each a ring and dot pair in the show's colours. The original presets stay.
+- **Your Schemes**: "Save Current Colours as Scheme…" names and keeps your ring and dot colours; hold ⌥ to delete one.
+
 ## 0.11.1 — 2026-11-13
 - Settings ▸ Switching is now **App Open/Close Speed**: "Safety first (closes all apps carefully, slower)" or
   "Speed first (opens/closes apps immediately)".
