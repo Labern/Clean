@@ -816,6 +816,7 @@ final class QuitRow: NSView {
         if hover { theme.hover.setFill(); NSBezierPath(roundedRect: spot, xRadius: 5, yRadius: 5).fill() }
         var a = attrs; a[.foregroundColor] = hover ? theme.text : theme.faint
         ("Quit" as NSString).draw(at: NSPoint(x: spot.minX + 8, y: 4), withAttributes: a)
+        ("Focus" as NSString).draw(at: NSPoint(x: 14, y: 5), withAttributes: Heading.attrs)      // the app's name, top left
     }
 }
 
@@ -848,7 +849,7 @@ final class BigButton: HoverView {
     var down = false { didSet { needsDisplay = true } }
     init(title: @escaping () -> String, caption: @escaping () -> String, action: @escaping () -> Void) {
         self.title = title; self.caption = caption; self.action = action
-        super.init(height: 106)
+        super.init(height: 111)
     }
     required init?(coder: NSCoder) { nil }
     override func mouseDown(with e: NSEvent) { down = true }
@@ -870,7 +871,7 @@ final class BigButton: HoverView {
         let c = caption() as NSString
         let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineBreakMode = .byWordWrapping
         var wrapped = small; wrapped[.paragraphStyle] = para
-        c.draw(with: NSRect(x: 18, y: 6, width: bounds.width - 36, height: pill.minY - 10),
+        c.draw(with: NSRect(x: 18, y: 6, width: bounds.width - 36, height: pill.minY - 15),
                options: [.usesLineFragmentOrigin], attributes: wrapped)     // plain English, wraps to two lines
     }
 }
@@ -2116,8 +2117,8 @@ final class Focus: NSObject, NSMenuDelegate {
             i.target = self; i.image = image
             return i
         }
-        func header(_ t: String, in menu: NSMenu? = nil) {
-            (menu ?? m).addItem(headingItem(t))
+        func header(_ t: String, tip: String? = nil, in menu: NSMenu? = nil) {
+            let h = headingItem(t); h.toolTip = tip; (menu ?? m).addItem(h)      // the explanation shows on hover
         }
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
@@ -2136,7 +2137,7 @@ final class Focus: NSObject, NSMenuDelegate {
         let running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
         if focused {
             // In a session the rows ARE the session: ticked = in it, open. Click to take one out now, or put it back.
-            header("Click an app to take it out or bring it back")
+            header("In Session", tip: "Click an app to take it out or bring it back.")
             view(ColumnHeader())
             let stuckIDs = Set(waiting.compactMap(\.bundleIdentifier))
             for (id, p) in running {
@@ -2160,7 +2161,6 @@ final class Focus: NSObject, NSMenuDelegate {
                 }
             }
         } else {
-            header("Keep open this session — click to choose")
             view(ColumnHeader())
             let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
             for (id, p) in running + idle {
@@ -2172,7 +2172,7 @@ final class Focus: NSObject, NSMenuDelegate {
 
         // Critical system processes — never quit or hidden by Focus. Click to take one off; it moves up next time.
         m.addItem(.separator())
-        header("Critical System Processes — never quit")
+        header("Critical System Processes", tip: "These are never quit.")
         for id in neverClose {
             guard let p = path(id) else { continue }
             view(AppRow(appName(p), appIcon(p), on: true, onMark: "lock.circle.fill") { [unowned self] in self.flip(\.neverClose, id) })
@@ -2208,7 +2208,7 @@ final class Focus: NSObject, NSMenuDelegate {
             m.addItem(.separator())
         }
         // Modes — the user's named sets of apps.
-        header("Modes — pre-defined app combinations")
+        header("Modes", tip: "Pre-defined app combinations.")
         let nm = add("Create New Mode", nil, image: symbol("plus.circle")), nmm = NSMenu()
         nmm.autoenablesItems = false
         let nextKey = nextModeKey.map { label(forMode: $0) }
@@ -3172,7 +3172,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let beh = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Behaviour" }?.submenu?.items.map(\.title) ?? []
         let behOK = beh.count == 3 && beh[0] == "App Open/Close Speed" && beh[1] == "Hide Instead of Quit" && beh[2].lowercased().contains("snapshot")
         let moved = !settings.contains("App Open/Close Speed") && !settings.contains("Hide Instead of Quit")
-        let hi = titles.firstIndex(of: "Modes — pre-defined app combinations") ?? -9
+        let hi = titles.firstIndex(of: "Modes") ?? -9
         let createFirst = titles.indices.contains(hi + 1) && titles[hi + 1] == "Create New Mode" && titles.indices.contains(hi + 2) && titles[hi + 2] == "Mode 1"
         let row = m.items.first { $0.title == "Mode 1" }?.view as? ModeRow
         let edit1 = row?.edit()

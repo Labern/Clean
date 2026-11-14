@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.4 — 2026-11-14
+- "Focus" is back at the top left, on the same row as Quit.
+- **Minimal headings:** "In Session", "Critical System Processes" and "Modes". Each heading's description shows when you hover over it. The "Keep open this session…" line is gone.
+- A little more space between the Start/End button and its description.
+
 ## 0.18.3 — 2026-11-14
 - **Taken back out:** the "Focus — mode (apps, since…)" line at the top; the "App" title and the mark over the ticks (only "Usage" stays); the larger custom headings (macOS's own grey headings are back); the taller button.
 - **Quit** is the first row of the menu, at the top right.

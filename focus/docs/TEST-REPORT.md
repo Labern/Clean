@@ -1,11 +1,11 @@
 # Focus — test report
 
-**quick** run · version 0.18.2 · 2026-11-14 03:03 · 36s · **20 passed, 0 failed**
+**quick** run · version 0.18.4 · 2026-11-14 03:06 · 35s · **20 passed, 0 failed**
 
 | Result | Check | Detail |
 |---|---|---|
 | PASS | Builds with zero errors and zero warnings |  |
-| PASS | 4. corrupted / odd saved settings | menu built with 26 items; session state reset to false |
+| PASS | 4. corrupted / odd saved settings | menu built with 23 items; session state reset to false |
 | PASS | 9. session history is capped at 12 | 12 kept of 15 |
 | PASS | 18. submenus keep their own items when they open (Settings must not become a copy of the menu) | Settings, Tools, Past sessions unchanged on open |
 | PASS | 23. shortcuts: switching registers the new keys at once; the default is ⌘⇧F / ⌘⇧E | default ⌘⇧F/⌘⇧E: true; ⌃⇧F registered live: true; ticked in the menu: true |
@@ -23,6 +23,6 @@
 | PASS | 27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration | migration true · create+dedupe true · dragged .app true · no duplicates true · reorder true · remove+rename true · found by id true · delete true |
 | PASS | 28. a live session: no banner and no state line at the top; the button says End Session | first line 'Quit', no banner or state line: true; button 'End Session' |
 | PASS | 29. switching and hide-instead-of-quit settings; the Fewer icon | careful unless chosen: true; menu ticks Careful: true; per-app hide rows: true; Fewer icon: true |
-| PASS | 16. menu speed with every process on the Mac | 50 ms per menu open |
+| PASS | 16. menu speed with every process on the Mac | 47 ms per menu open |
 
 Quick: `./test.sh` (every major change). Full: `./test.sh full` (when needed).
