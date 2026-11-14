@@ -1595,6 +1595,16 @@ final class Focus: NSObject, NSMenuDelegate {
         if hideOnly.contains(id) { a.hide(); return }
         if queue.isEmpty { queue = [a]; total = 1; quitNext() } else if !queue.contains(a) { queue.append(a); total += 1 }
     }
+    /// One app taken out of, or brought back into, a running session from the menu: the session animation plays for
+    /// just that app — into the menu bar icon when it leaves, out of it when it returns. (The animation itself is
+    /// the standard one, unchanged; a mode switch plays its own and doesn't come through here.)
+    var movesShown: [(String, Bool)] = []
+    func showMove(_ id: String, out: Bool) {
+        guard focused, let p = path(id) else { return }
+        movesShown.append((id, out))
+        guard store == .standard else { return }                // a self-test never plays anything on screen
+        pill.play(start: out, icons: [ws.icon(forFile: p)], target: iconPoint, label: displayName ?? "Focus", hold: animSpeed.hold)
+    }
     /// Brings a parked app back into the session now: reopened (or un-hidden) and no longer parked.
     func bringBack(_ id: String) {
         guard focused, !sessions.isEmpty else { return }
@@ -2278,7 +2288,8 @@ final class Focus: NSObject, NSMenuDelegate {
                 let parked = isParked(id)
                 let detail = stuckIDs.contains(id) ? "waiting to save" : parked ? "leaving…" : (size > 0 ? gb(size) : "")
                 view(AppRow(appName(p), appIcon(p), detail: detail, on: !parked, target: "your session") { [unowned self] in
-                    if self.isParked(id) { self.bringBack(id); return true } else { self.parkNow(id); return false }
+                    if self.isParked(id) { self.showMove(id, out: false); self.bringBack(id); return true }
+                    self.showMove(id, out: true); self.parkNow(id); return false
                 })
             }
             let parkedAway = parkedEntries.compactMap { e -> (String, String)? in
@@ -2291,7 +2302,7 @@ final class Focus: NSObject, NSMenuDelegate {
                 header("Apps Outside Session")
                 explain("These apps are not in the session right now. Click one to add it to the session.")
                 for (id, p) in parkedAway {
-                    view(AppRow(appName(p), appIcon(p), on: false, target: "your session") { [unowned self] in self.bringBack(id); return true })
+                    view(AppRow(appName(p), appIcon(p), on: false, target: "your session") { [unowned self] in self.showMove(id, out: false); self.bringBack(id); return true })
                 }
             }
         } else {
@@ -3433,6 +3444,12 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         lightMenu = true; t.menuNeedsUpdate(m)
         let lightOK = m.appearance?.name == .aqua && m.items.compactMap(\.view).allSatisfy { $0.appearance?.name == .aqua }
         lightMenu = was; t.modes = []
+        t.sessions = [["date": Date(), "kept": [edit], "apps": [[String: Any]]()]]; t.store.set(true, forKey: "focused")
+        t.movesShown = []; t.showMove(edit, out: true); t.showMove(edit, out: false)
+        let moves = t.movesShown.count == 2 && t.movesShown[0].1 && !t.movesShown[1].1
+        t.store.set(false, forKey: "focused"); t.sessions = []; t.showMove(edit, out: true)
+        let quietOut = t.movesShown.count == 2                              // nothing out of a session
+        wrong += moves && quietOut ? [] : ["single-app move animation"]
         done(wrong.isEmpty && menus > 8 && rows > 5 && edit1 != nil && lightOK,
              "\(menus) menus and \(rows) drawn rows all dark at build: \(wrong.isEmpty)\(wrong.isEmpty ? "" : " — wrong: " + wrong.prefix(4).joined(separator: "; ")); light look consistent when chosen: \(lightOK)")
     }))

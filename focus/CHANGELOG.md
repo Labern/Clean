@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.24 — 2026-11-14
+- Taking an app out of a running session from the menu, or bringing one back, plays the session animation for just that app: into the menu bar icon when it leaves, out of it when it returns. The animation itself is unchanged.
+
 ## 0.18.23 — 2026-11-14
 - **Fixed:** on a Mac in Light mode the menu could open with its rows drawn in light-mode ink (dark text, dark button) on the dark background.
   - Cause: the dark look was applied only as the menu opened, too late for the first drawing.
