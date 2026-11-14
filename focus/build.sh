@@ -11,7 +11,7 @@ VERSION="$(tr -d '[:space:]' < VERSION)"                 # semantic version, sin
 OUT="${TMPDIR:-/tmp}/focus-build"; rm -rf "$OUT"; mkdir -p "$OUT"
 C="$OUT/Focus.app/Contents"
 mkdir -p "$C/MacOS"
-swiftc -O -swift-version 5 main.swift -o "$C/MacOS/Focus"
+swiftc -O -swift-version 5 main.swift desktop.swift -o "$C/MacOS/Focus"
 mkdir -p "$C/Resources"                                  # app icon, drawn by the app's own glyph()
 "$C/MacOS/Focus" --make-icon "$OUT/Focus.iconset" && iconutil -c icns "$OUT/Focus.iconset" -o "$C/Resources/Focus.icns"
 cat > "$C/Info.plist" <<EOF

@@ -4,6 +4,17 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.27 — 2026-11-14 (branch focus/feat-desktop-app)
+- **The desktop app (first version).** An optional window, hidden until asked for. The menu bar app still does everything on its own.
+  - **Design:** the website's. Black ground, white ink, the Graphik face, rounded corners.
+  - **Sidebar (fixed):** the logo and "Focus"; Session; your modes with their shortcuts; Create New Mode; ★★★★★ × PARADOX™.
+  - **Session view:** every open app with its full-size icon and memory. Click to keep or release an app, or to take it out of a running session or bring it back. Also Apps Outside Session, Critical System Processes, and the Start/End button with its caption.
+  - **Mode view:** rename, choose its shortcut, add and remove apps, start it, delete it.
+  - **Opening it:** "Open Desktop App ↗" to the left of Quit in the menu, and Settings ▸ Show/Hide Desktop App.
+  - **While it's open:** Focus is in the Dock and ⌘-Tab. ⌘H (or ⌘W) puts the window away and returns Focus to the menu bar only.
+- **The logo (final):** a closed white ring round a large white dot on a near-black rounded tile. It's used in the window and the Dock, and it plays its opening when the window appears.
+- **Code:** the window lives in `desktop.swift`, apart from the menu. `--render-desktop FILE [mode]` draws it off-screen.
+
 ## 0.18.26 — 2026-11-14
 - Right-click on a mode: now also caught at the app level while the menu is open, because a menu doesn't pass a right-click to its rows. Logged.
 - The Create New Mode builder keeps a half-typed name (and the apps picked) if its menu closes by accident.

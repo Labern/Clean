@@ -824,6 +824,13 @@ final class ModeRow: HoverView {
 final class QuitRow: NSView {
     let action: () -> Void
     var hover = false { didSet { needsDisplay = true } }
+    var openApp: (() -> Void)?                                  // "Open Desktop App ↗", left of Quit
+    var hoverOpen = false { didSet { needsDisplay = true } }
+    static let openTitle = "Open Desktop App"
+    var openSpot: NSRect {
+        let w = (Self.openTitle as NSString).size(withAttributes: attrs).width
+        return NSRect(x: spot.minX - w - 38, y: 9, width: w + 34, height: 20)
+    }
     init(action: @escaping () -> Void) {
         self.action = action
         super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 38)); autoresizingMask = [.width]
@@ -832,11 +839,16 @@ final class QuitRow: NSView {
     required init?(coder: NSCoder) { nil }
     let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 13)]
     var spot: NSRect { let w = ("Quit" as NSString).size(withAttributes: attrs).width; return NSRect(x: bounds.width - w - 26, y: 9, width: w + 16, height: 20) }
-    override func mouseMoved(with e: NSEvent) { hover = spot.contains(convert(e.locationInWindow, from: nil)) }
-    override func mouseExited(with e: NSEvent) { hover = false }
+    override func mouseMoved(with e: NSEvent) {
+        let p = convert(e.locationInWindow, from: nil); hover = spot.contains(p); hoverOpen = openApp != nil && openSpot.contains(p)
+    }
+    override func mouseExited(with e: NSEvent) { hover = false; hoverOpen = false }
     override func mouseDown(with e: NSEvent) {}
     override func acceptsFirstMouse(for e: NSEvent?) -> Bool { true }
     override func mouseUp(with e: NSEvent) {
+        if let openApp, openSpot.contains(convert(e.locationInWindow, from: nil)) {
+            enclosingMenuItem?.menu?.cancelTracking(); DispatchQueue.main.async(execute: openApp); return
+        }
         guard spot.contains(convert(e.locationInWindow, from: nil)) else { return }
         enclosingMenuItem?.menu?.cancelTracking(); DispatchQueue.main.async(execute: action)
     }
@@ -844,6 +856,12 @@ final class QuitRow: NSView {
         if hover { theme.hover.setFill(); NSBezierPath(roundedRect: spot, xRadius: 5, yRadius: 5).fill() }
         var a = attrs; a[.foregroundColor] = hover ? theme.text : theme.faint
         ("Quit" as NSString).draw(at: NSPoint(x: spot.minX + 8, y: 11), withAttributes: a)
+        if openApp != nil {
+            if hoverOpen { theme.hover.setFill(); NSBezierPath(roundedRect: openSpot, xRadius: 5, yRadius: 5).fill() }
+            var o = attrs; o[.foregroundColor] = hoverOpen ? theme.text : theme.faint
+            (Self.openTitle as NSString).draw(at: NSPoint(x: openSpot.minX + 8, y: 11), withAttributes: o)
+            symbol("arrow.up.forward", [hoverOpen ? theme.text : theme.faint])?.draw(in: NSRect(x: openSpot.maxX - 20, y: 13, width: 11, height: 11))
+        }
         ("Focus" as NSString).draw(at: NSPoint(x: 14, y: 6), withAttributes: [.font: NSFont.systemFont(ofSize: 21, weight: .bold), .foregroundColor: theme.text])   // the app's name, big, top left
     }
 }
@@ -2257,6 +2275,19 @@ final class Focus: NSObject, NSMenuDelegate {
         let since = (live["date"] as? Date).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) }
         return "Focus — \(displayName ?? "in session") (\(n) app\(n == 1 ? "" : "s")" + (since.map { ", since \($0)" } ?? "") + ")"
     }
+    /// The line under the Start/End button: what pressing it will do. Shared by the menu and the desktop window.
+    func sessionCaption() -> String {
+        if focused {
+            let n = apps((sessions.first?["apps"] as? [Any])?.count ?? 0)
+            return queue.isEmpty ? "Ending the session will reopen \(n) exactly as they were."
+                : "Ending the session now stops the quitting and reopens \(n) as they were."
+        }
+        let out = leaving()
+        if out.isEmpty { return "Every open app is kept, so there's nothing to \(hideMode ? "hide" : "quit")." }
+        if hideMode { return "Starting a new session will hide \(apps(out.count)). Click again to bring them back." }
+        let them = out.count == 1 ? "it" : "them"
+        return "Starting a new session will save and quit \(apps(out.count)), freeing about \(gb(out.reduce(0) { $0 + memory($1) })) of RAM. Click again to reopen \(them)."
+    }
     func menuNeedsUpdate(_ m: NSMenu) {
         // Submenus share this delegate only so they open dark (menuWillOpen). They build themselves; rebuilding one
         // here would fill it with a copy of the whole menu.
@@ -2287,7 +2318,9 @@ final class Focus: NSObject, NSMenuDelegate {
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
         mem = memoryByPid()
-        let quit = NSMenuItem(title: "Quit", action: nil, keyEquivalent: ""); quit.view = QuitRow { [unowned self] in self.bye() }
+        let quitRow = QuitRow { [unowned self] in self.bye() }
+        quitRow.openApp = { [unowned self] in self.openDesktop() }
+        let quit = NSMenuItem(title: "Quit", action: nil, keyEquivalent: ""); quit.view = quitRow
         m.addItem(quit)
         if let status, !status.hasPrefix("Waiting") { header(status) }   // the waiting app has its own line below
         if focused, let shot = sessions.first?["shot"] as? String, let img = NSImage(contentsOfFile: shot) {
@@ -2661,6 +2694,7 @@ final class Focus: NSObject, NSMenuDelegate {
             add("Allow snapshots… (asks for Screen Recording once)", #selector(snaps), image: symbol("camera"), to: bm)
         }
         behave.submenu = bm
+        add(desktop.shown ? "Hide Desktop App" : "Show Desktop App", #selector(toggleDesktop), image: symbol("macwindow"), to: sub)
         sub.addItem(.separator())
         // On or off is shown by the icon itself, so these two line up with the icons above (a tick mark would sit in its own column).
         let onOff = { (on: Bool) in on ? symbol("checkmark.circle.fill") : symbol("circle") }
@@ -2675,18 +2709,7 @@ final class Focus: NSObject, NSMenuDelegate {
         m.addItem(.separator())
         let b = BigButton(
             title: { [unowned self] in self.focused ? "End Session" : "Start New Session" },
-            caption: { [unowned self] in
-                if self.focused {
-                    let n = self.apps((self.sessions.first?["apps"] as? [Any])?.count ?? 0)
-                    return self.queue.isEmpty ? "Ending the session will reopen \(n) exactly as they were."
-                        : "Ending the session now stops the quitting and reopens \(n) as they were."
-                }
-                let out = self.leaving()
-                if out.isEmpty { return "Every open app is kept, so there's nothing to \(self.hideMode ? "hide" : "quit")." }
-                if self.hideMode { return "Starting a new session will hide \(self.apps(out.count)). Click again to bring them back." }
-                let them = out.count == 1 ? "it" : "them"
-                return "Starting a new session will save and quit \(self.apps(out.count)), freeing about \(gb(out.reduce(0) { $0 + self.memory($1) })) of RAM. Click again to reopen \(them)."
-            },
+            caption: { [unowned self] in self.sessionCaption() },
             action: { [unowned self] in self.toggle() })
         button = b; view(b)
         let mark = NSMenuItem(title: Maker.text, action: nil, keyEquivalent: ""); mark.view = Maker(); m.addItem(mark)   // the last line of the menu
@@ -2791,6 +2814,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-banner"), CommandLine.
     exit(0)
 }
 
+/// `Focus --render-desktop FILE [mode]`: the desktop window's content, drawn off-screen.
+if let i = CommandLine.arguments.firstIndex(of: "--render-desktop"), CommandLine.arguments.count > i + 1 {
+    _ = NSApplication.shared
+    renderDesktop(to: CommandLine.arguments[i + 1], mode: CommandLine.arguments.contains("mode")); exit(0)
+}
+
 /// `Focus --render-rows FILE`: the menu's headings, column titles, app rows and mode rows drawn off-screen, stacked
 /// as they sit in the menu — for checking sizes and alignment without opening the menu.
 if let i = CommandLine.arguments.firstIndex(of: "--render-rows"), CommandLine.arguments.count > i + 1 {
@@ -2801,7 +2830,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-rows"), CommandLine.ar
         ic("com.apple.Terminal").draw(in: NSRect(x: 7, y: 0, width: 16, height: 16)); ic("com.apple.Safari").draw(in: NSRect(x: 0, y: 0, width: 16, height: 16)); return true }
     let hovered = ModeRow("Mode 2", stackIcon, key: "⌘2", live: false, enabled: true, start: {}, edit: { NSMenu() }); hovered.hover = true
     let rows: [NSView] = [
-        QuitRow {}, ColumnHeader(),
+        { let q = QuitRow {}; q.openApp = {}; return q }(), ColumnHeader(),
         AppRow("Safari", ic("com.apple.Safari"), detail: "2.4 GB", on: true) { true },
         AppRow("Notes", ic("com.apple.Notes"), detail: "310 MB", on: false) { true },
         Heading("Modes — frequently used sessions"),
@@ -3401,7 +3430,9 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         t.menuBarSeparator = "·"; let dot = t.menuBarSeparator == "·"; t.store.removeObject(forKey: "menuBarSeparator")
         let sized = quiet && dot && styles && !m.items.contains { $0.view is Heading }                     // headings are macOS's own
         t.modes = []
-        let quitTop = m.items.first?.view is QuitRow && m.items.last?.view is Maker && m.items.last?.title == "★★★★★ × PARADOX™"
+        let openItem = (m.items.first?.view as? QuitRow)?.openApp != nil && QuitRow.openTitle == "Open Desktop App"
+            && m.items.first { $0.title == "Settings" }?.submenu?.items.contains { $0.title == "Show Desktop App" } == true
+        let quitTop = openItem && m.items.first?.view is QuitRow && m.items.last?.view is Maker && m.items.last?.title == "★★★★★ × PARADOX™"
             && Maker.helpURL.scheme == "mailto" && Maker.help == "Help / Suggest Improvement"
         let aligned = quitTop && t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
         done(aligned && unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,

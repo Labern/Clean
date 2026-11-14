@@ -59,3 +59,8 @@ These are first thoughts from knowing the code, not researched facts. Anything m
 ## Not expected to carry over
 The session pill's exact animation, the menu bar name sparkle, snapshots, the Customised Logo, and anything that depends
 on macOS window restoration. They can be redone per platform later.
+
+## Rust, including the Mac version (noted 2026-11-14)
+He is open to a Rust port of even the Mac version, at a later date. Today it is Swift (AppKit menu in `main.swift`,
+SwiftUI window in `desktop.swift`). This strengthens option 1 above: a Rust core holding the session engine, with a thin
+native shell per platform. Nothing to do now; keep the engine separable.
