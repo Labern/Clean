@@ -64,14 +64,17 @@ func symbol(_ name: String, _ colors: [NSColor]? = nil) -> NSImage? {
 }
 
 /// Every colour the custom menu views use. One token set: swap it to re-theme the whole menu.
+/// The menu's look: dark (as it has always been) unless the user chooses Light in Settings ▸ Appearance.
+var lightMenu = false
 struct Theme {
     // Monochrome, like the drawing on the product page: colour belongs to the icon the user picks, not the menu.
     var accent = NSColor(name: "focusAccent") { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .white : hexColor("171A20")! }
     var onAccent = NSColor(name: "focusOnAccent") { $0.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? .black : .white }
     var switcherPlateOrHover = NSColor.labelColor.withAlphaComponent(0.16)   // selected cell in the icon picker
     var hazard = NSColor.systemRed                                  // red only for the destructive action
-    var menuBackground = hexColor("1F1F21")!                       // the menu: opaque off-black, always dark (as on the product page)
-    var menuEdge = NSColor(white: 1, alpha: 0.12)
+    /// The menu's ground. Dark: opaque off-black, as on the product page (unchanged). Light: a soft off-white.
+    var menuBackground: NSColor { lightMenu ? hexColor("F5F5F7")! : hexColor("1F1F21")! }
+    var menuEdge: NSColor { lightMenu ? NSColor(white: 0, alpha: 0.12) : NSColor(white: 1, alpha: 0.12) }
     var hover = NSColor.labelColor.withAlphaComponent(0.08)
     var text = NSColor.labelColor
     var faint = NSColor.secondaryLabelColor
@@ -627,7 +630,8 @@ final class IconGrid: NSView {
             }
             // At rest, as it sits in the menu bar; white when no colours are chosen (the menu is always dark).
             let (t, k) = st == hover ? hoverPhase() : (0, 1)
-            let g = glyph(t, ring: ring ?? .white, dot: dot ?? ring ?? .white, style: st), side = 26 * k
+            let ink: NSColor = lightMenu ? .black : .white           // no colours chosen: the menu's own ink
+            let g = glyph(t, ring: ring ?? ink, dot: dot ?? ring ?? ink, style: st), side = 26 * k
             g.draw(in: NSRect(x: c.midX - side / 2, y: c.maxY - 20 - side / 2, width: side, height: side))
             let name = st.name as NSString
             let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 10, weight: st == selected ? .semibold : .regular),
@@ -1281,6 +1285,12 @@ final class Focus: NSObject, NSMenuDelegate {
     /// (Normal, plus a sentence under each explaining the section).
     var headingStyle: Int { get { min(max(store.object(forKey: "headingStyle") as? Int ?? 1, 0), 2) } set { store.set(newValue, forKey: "headingStyle") } }
     @objc func pickHeadingStyle(_ s: NSMenuItem) { headingStyle = s.tag }
+    /// Dark (the standard look) or Light, for the menu and its submenus. The session animation is not affected.
+    var lightMenuSetting: Bool {
+        get { store.bool(forKey: "lightMenu") }
+        set { store.set(newValue, forKey: "lightMenu"); if store == .standard { lightMenu = newValue } }
+    }
+    @objc func pickMenuLook(_ s: NSMenuItem) { lightMenuSetting = s.tag == 1 }
     /// How the name reads beside the icon: "AI", "AI session" or "AI (in session)".
     static let nameStyles: [(String) -> String] = [{ $0 }, { $0 + " session" }, { $0 + " (in session)" }]
     var menuBarNameStyle: Int {
@@ -1464,6 +1474,7 @@ final class Focus: NSObject, NSMenuDelegate {
             healSystemSwitcher()
         }
         migrateModes()                                          // older modes get their permanent ids
+        if store == .standard { lightMenu = lightMenuSetting }
         if store == .standard { iconStyle = iconStyleSetting }     // the real Focus draws the user's chosen design everywhere
         if store == .standard {                                 // Counter shows how many apps are open: keep it current
             for n in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
@@ -2158,12 +2169,15 @@ final class Focus: NSObject, NSMenuDelegate {
         DispatchQueue.main.async { self.paintMenuWindows() }
     }
     func darken(_ m: NSMenu) {
-        m.appearance = NSAppearance(named: .darkAqua)
+        m.appearance = NSAppearance(named: lightMenu ? .aqua : .darkAqua)
         for i in m.items { if let sub = i.submenu { sub.delegate = sub.delegate ?? self; darken(sub) } }
     }
     func paintMenuWindows() {
         for w in NSApp.windows where w.isVisible && NSStringFromClass(type(of: w)).contains("Menu") {
-            guard let host = w.contentView, host.subviews.first(where: { $0.identifier?.rawValue == "focusBacking" }) == nil else { continue }
+            guard let host = w.contentView else { continue }
+            if let old = host.subviews.first(where: { $0.identifier?.rawValue == "focusBacking" }) {   // already backed: keep its colours current
+                old.layer?.backgroundColor = theme.menuBackground.cgColor; old.layer?.borderColor = theme.menuEdge.cgColor; continue
+            }
             let back = NSView(frame: host.bounds)
             back.identifier = NSUserInterfaceItemIdentifier("focusBacking")
             back.autoresizingMask = [.width, .height]
@@ -2530,6 +2544,11 @@ final class Focus: NSObject, NSMenuDelegate {
         let lm = NSMenuItem(); lm.view = ColorGrid(grid, selected: logoMark) { [unowned self] h in self.logoMark = h }; cm.addItem(lm)
         colour.submenu = cm
         am.addItem(.separator())
+        let lk = add("Light or Dark", nil, image: symbol("circle.lefthalf.filled"), to: am), lkm = NSMenu()
+        for (k, n) in ["Dark", "Light"].enumerated() {
+            let i = add(n, #selector(pickMenuLook(_:)), to: lkm); i.tag = k; i.state = (lightMenuSetting ? 1 : 0) == k ? .on : .off
+        }
+        lk.submenu = lkm
         let hs = add("Headings", nil, image: symbol("text.alignleft"), to: am), hsm = NSMenu()
         for (k, n) in ["Minimalist", "Normal", "Verbose"].enumerated() {
             let i = add(n, #selector(pickHeadingStyle(_:)), to: hsm); i.tag = k; i.state = headingStyle == k ? .on : .off
@@ -2730,6 +2749,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-banner"), CommandLine.
 /// `Focus --render-rows FILE`: the menu's headings, column titles, app rows and mode rows drawn off-screen, stacked
 /// as they sit in the menu — for checking sizes and alignment without opening the menu.
 if let i = CommandLine.arguments.firstIndex(of: "--render-rows"), CommandLine.arguments.count > i + 1 {
+    lightMenu = CommandLine.arguments.contains("--light")
     let ws = NSWorkspace.shared
     func ic(_ id: String) -> NSImage { let im = ws.urlForApplication(withBundleIdentifier: id).map { ws.icon(forFile: $0.path) } ?? NSImage(); im.size = NSSize(width: 16, height: 16); return im }
     let stackIcon = NSImage(size: NSSize(width: 23, height: 16), flipped: false) { _ in
@@ -2746,7 +2766,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-rows"), CommandLine.ar
     let w = Int(menuWidth), h = Int(rows.reduce(0) { $0 + $1.frame.height }) + 12
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w * 2, pixelsHigh: h * 2, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
     rep.size = NSSize(width: w, height: h)
-    NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance {
+    NSAppearance(named: lightMenu ? .aqua : .darkAqua)!.performAsCurrentDrawingAppearance {
         NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         theme.menuBackground.setFill(); NSRect(x: 0, y: 0, width: w, height: h).fill()
         let ctx = NSGraphicsContext.current!.cgContext
@@ -3372,6 +3392,19 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let a1 = "These apps are in your session. Click one to take it out.", a2 = "These apps are not in the session right now. Click one to add it to the session."
         let sessionVerb = inVerb.contains(a1) && inVerb.contains(a2) && !inNorm.contains(a1) && !inNorm.contains(a2)
         done(sessionVerb && miniOK && normOK && verbOK && pick, "in a session, Verbose explains both lists (Normal doesn't): \(sessionVerb); minimalist: \(miniOK); normal unchanged: \(normOK); verbose adds three explanations: \(verbOK); picker, Normal ticked: \(pick)")
+    }))
+    steps.append(("45. Settings ▸ Appearance ▸ Light or Dark: Dark is standard and unchanged (#1F1F21); Light is optional", { done in
+        t.store.removeObject(forKey: "lightMenu")
+        let was = lightMenu; lightMenu = false
+        let dark = !t.lightMenuSetting && hexString(theme.menuBackground).uppercased() == "1F1F21"
+        let m = NSMenu(); t.menuNeedsUpdate(m); t.darken(m)
+        let darkLook = m.appearance?.name == .darkAqua
+        let picker = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Appearance" }?.submenu?.items.first { $0.title == "Light or Dark" }?.submenu
+        let pick = picker?.items.map(\.title) == ["Dark", "Light"] && picker?.items.first?.state == .on
+        lightMenu = true; t.darken(m)
+        let light = m.appearance?.name == .aqua && hexString(theme.menuBackground).uppercased() == "F5F5F7"
+        lightMenu = was
+        done(dark && darkLook && pick && light, "dark is the standard, #1F1F21: \(dark && darkLook); picker, Dark ticked: \(pick); light look when chosen: \(light)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {
