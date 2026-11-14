@@ -705,7 +705,9 @@ final class AppRow: HoverView {
 }
 
 /// A name typed straight into the menu: no popup. Return saves (and closes the menu); Escape closes it unchanged.
-final class InlineNameField: NSView {
+final class InlineNameField: NSView, NSTextFieldDelegate {
+    var onChange: ((String) -> Void)?                           // every keystroke, so a half-typed name is never lost
+    func controlTextDidChange(_ n: Notification) { onChange?(field.stringValue) }
     let field = NSTextField(), commit: (String) -> Void
     init(_ value: String, placeholder: String, symbolName: String, enabled: Bool = true, commit: @escaping (String) -> Void) {
         self.commit = commit
@@ -717,7 +719,7 @@ final class InlineNameField: NSView {
         field.font = .menuFont(ofSize: 13); field.isBordered = true; field.bezelStyle = .roundedBezel
         field.focusRingType = .exterior; field.isEnabled = enabled
         field.frame = NSRect(x: 36, y: 5, width: menuWidth - 50, height: 24); field.autoresizingMask = [.width]
-        field.target = self; field.action = #selector(done)
+        field.target = self; field.action = #selector(done); field.delegate = self
         (field.cell as? NSTextFieldCell)?.sendsActionOnEndEditing = false     // only Return saves
         addSubview(field)
     }
@@ -2021,6 +2023,7 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     /// The mode being built in New Mode, before it's named.
     var draftApps: [String] = []
+    var draftName = ""                                          // what's typed in the builder's name field so far
     @objc func addAppToDraft() {
         let p = NSOpenPanel(); p.directoryURL = URL(fileURLWithPath: "/Applications"); p.allowedContentTypes = [.application]
         p.allowsMultipleSelection = true; p.prompt = "Add to Mode"; p.message = "Choose apps for the new mode"
@@ -2175,7 +2178,27 @@ final class Focus: NSObject, NSMenuDelegate {
 
     /// macOS gives menus no background colour, only its translucent material. So every Focus menu is forced dark,
     /// and once its window exists an opaque off-black backing is slipped under the items.
+    var rightClickWatch: Any?
+    func menuDidClose(_ m: NSMenu) {
+        guard m === item.menu, let w = rightClickWatch else { return }
+        NSEvent.removeMonitor(w); rightClickWatch = nil
+    }
+    /// The mode row under the pointer, if any (rows live in the open menu's own window).
+    func modeRowUnderPointer() -> ModeRow? {
+        let at = NSEvent.mouseLocation
+        return (item.menu?.items ?? []).compactMap { $0.view as? ModeRow }.first { row in
+            guard let w = row.window else { return false }
+            return w.convertToScreen(row.convert(row.bounds, to: nil)).contains(at)
+        }
+    }
     func menuWillOpen(_ m: NSMenu) {
+        if m === item.menu, rightClickWatch == nil {
+            rightClickWatch = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .rightMouseUp, .otherMouseDown]) { [weak self] e in
+                NSLog("Focus: right click seen while the menu is open")
+                if let row = self?.modeRowUnderPointer() { row.showEdit(); return nil }
+                return e
+            }
+        }
         darken(m)
         DispatchQueue.main.async { self.paintMenuWindows() }
     }
@@ -2377,9 +2400,11 @@ final class Focus: NSObject, NSMenuDelegate {
         add("Add App…", #selector(addAppToDraft), image: symbol("plus.app"), to: nmm)
         nmm.addItem(.separator())
         // No name needed: it takes the next number. A name is optional (Return creates it too).
-        let nameIt = NSMenuItem(); nameIt.view = InlineNameField("", placeholder: "Name (optional)", symbolName: "pencil") { [unowned self] v in
-            self.createMode(v, apps: self.draftApps); self.draftApps = []
+        let nameField = InlineNameField(draftName, placeholder: "Name (optional)", symbolName: "pencil") { [unowned self] v in
+            self.createMode(v, apps: self.draftApps); self.draftApps = []; self.draftName = ""
         }
+        nameField.onChange = { [unowned self] v in self.draftName = v }      // drift off the menu and come back: still there
+        let nameIt = NSMenuItem(); nameIt.view = nameField
         nmm.addItem(nameIt)
         let make = add("Create Mode" + (nextKey.map { "  " + $0 } ?? ""), #selector(createDraftMode), image: symbol("checkmark.circle"), to: nmm)
         make.isEnabled = !draftApps.isEmpty
@@ -3452,6 +3477,16 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         wrong += moves && quietOut ? [] : ["single-app move animation"]
         done(wrong.isEmpty && menus > 8 && rows > 5 && edit1 != nil && lightOK,
              "\(menus) menus and \(rows) drawn rows all dark at build: \(wrong.isEmpty)\(wrong.isEmpty ? "" : " — wrong: " + wrong.prefix(4).joined(separator: "; ")); light look consistent when chosen: \(lightOK)")
+    }))
+    steps.append(("48. the mode builder keeps a half-typed name if its menu closes; cleared once the mode is made", { done in
+        t.modes = []; t.draftName = ""; t.draftApps = [edit]
+        func field() -> InlineNameField? { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.first { $0.title == "Create New Mode" }?.submenu?.items.compactMap { $0.view as? InlineNameField }.first }
+        let f1 = field(); f1?.field.stringValue = "Rese"; f1?.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+        let kept = t.draftName == "Rese" && field()?.field.stringValue == "Rese"      // rebuilt menu: still there
+        field()?.commit("Research")
+        let cleared = t.draftName.isEmpty && t.modes.first?["name"] as? String == "Research"
+        t.modes = []; t.draftApps = []
+        done(kept && cleared, "half-typed name survives the menu closing: \(kept); cleared after creating: \(cleared)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {

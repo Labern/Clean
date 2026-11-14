@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.26 — 2026-11-14
+- Right-click on a mode: now also caught at the app level while the menu is open, because a menu doesn't pass a right-click to its rows. Logged.
+- The Create New Mode builder keeps a half-typed name (and the apps picked) if its menu closes by accident.
+
 ## 0.18.25 — 2026-11-14
 - The stars are removed from the menu bar name animation.
 
