@@ -106,3 +106,7 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - His words: "when I close an app, I need it to open just the way it was. Otherwise, the app isn't doing what it promises."
 - Today: quit apps come back only as well as each app restores itself (macOS window restoration is on; Chrome gets --restore-last-session). Only Hide Instead of Quit is exact, and his hide list is empty.
 - Decision needed from him: hide by default (exact, frees less memory) vs quit by default with per-app hiding.
+
+## Help link (2026-11-14)
+- The menu's bottom-left "Help / Suggest Improvement" opens an email to labern@paradoxica.co.uk for now (`Maker.helpURL`).
+- Later: it goes to the website, where a form lets the person send the message. Replace `Maker.helpURL` with that page once the Hub has built it.

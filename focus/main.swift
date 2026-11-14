@@ -842,15 +842,35 @@ final class QuitRow: NSView {
     }
 }
 
-/// The maker's mark, the last line of the menu: ★★★★★ × PARADOX™, small, bottom right.
+/// The last line of the menu: a help link on the left, the maker's mark (★★★★★ × PARADOX™) small at the right.
 final class Maker: NSView {
     static let text = "★★★★★ × PARADOX™"
-    init() { super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 20)); autoresizingMask = [.width] }
+    static let help = "Help / Suggest Improvement"
+    /// Where the help link goes. For now a new email; later the website's own help form replaces it.
+    static let helpURL = URL(string: "mailto:labern@paradoxica.co.uk?subject=Focus%20%E2%80%94%20help%20or%20suggestion")!
+    var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
+    var hover = false { didSet { needsDisplay = true } }
+    let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: theme.faint]
+    var spot: NSRect { NSRect(x: 8, y: 2, width: (Self.help as NSString).size(withAttributes: small).width + 28, height: 16) }
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 20)); autoresizingMask = [.width]
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
     required init?(coder: NSCoder) { nil }
+    override func mouseMoved(with e: NSEvent) { hover = spot.contains(convert(e.locationInWindow, from: nil)) }
+    override func mouseExited(with e: NSEvent) { hover = false }
+    override func mouseDown(with e: NSEvent) {}
+    override func acceptsFirstMouse(for e: NSEvent?) -> Bool { true }
+    override func mouseUp(with e: NSEvent) {
+        guard spot.contains(convert(e.locationInWindow, from: nil)) else { return }
+        enclosingMenuItem?.menu?.cancelTracking(); open(Self.helpURL)
+    }
     override func draw(_ r: NSRect) {
-        let a: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: theme.faint]
-        let t = Self.text as NSString, w = t.size(withAttributes: a).width
-        t.draw(at: NSPoint(x: bounds.width - w - 14, y: 6), withAttributes: a)      // small, bottom right
+        var a = small; if hover { a[.foregroundColor] = theme.text }
+        symbol("questionmark.circle", [hover ? theme.text : theme.faint])?.draw(in: NSRect(x: 14, y: 5, width: 11, height: 11))
+        (Self.help as NSString).draw(at: NSPoint(x: 29, y: 5), withAttributes: a)
+        let t = Self.text as NSString, w = t.size(withAttributes: small).width
+        t.draw(at: NSPoint(x: bounds.width - w - 14, y: 5), withAttributes: small)      // small, bottom right
     }
 }
 
@@ -3251,6 +3271,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let sized = styles && !m.items.contains { $0.view is Heading }                     // headings are macOS's own
         t.modes = []
         let quitTop = m.items.first?.view is QuitRow && m.items.last?.view is Maker && m.items.last?.title == "★★★★★ × PARADOX™"
+            && Maker.helpURL.scheme == "mailto" && Maker.help == "Help / Suggest Improvement"
         let aligned = quitTop && t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
         done(aligned && unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,
              "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode under the modes, Add New Mode in Edit Modes, lock rows inert: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); standard macOS headings + name styles: \(sized)")

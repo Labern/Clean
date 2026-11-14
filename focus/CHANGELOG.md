@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.12 — 2026-11-14
+- "Help / Suggest Improvement" at the bottom left of the menu, with a help icon. For now it opens a new email.
+
 ## 0.18.11 — 2026-11-14
 - The headings carry their descriptions again: "Keep open this session — click to choose", "Critical System Processes — never quit" and "Modes — frequently used sessions".
 
