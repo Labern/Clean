@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.30 — 2026-11-14
+- Fixes 0.18.29, which did not build (a comment cut a line of the window's code short). Use this version, not 0.18.29.
+
 ## 0.18.29 — 2026-11-14
 - The desktop window follows the menu's record in every case: a mode renamed from the menu now updates in the window's name field at once.
 

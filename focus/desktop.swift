@@ -229,7 +229,7 @@ struct DesktopView: View {
         HStack(spacing: 0) {
             sidebar.frame(width: 248)
             Rectangle().fill(Site.line).frame(width: 1)
-            Group { if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) }   // renamed in the menu: the field follows else { SessionDetail(m: m) } }
+            Group { if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) } else { SessionDetail(m: m) } }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Site.bg).preferredColorScheme(.dark)
