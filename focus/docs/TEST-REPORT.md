@@ -1,6 +1,6 @@
 # Focus — test report
 
-**quick** run · version 0.18.16 · 2026-11-14 04:10 · 38s · **22 passed, 0 failed**
+**quick** run · version 0.18.17 · 2026-11-14 04:13 · 37s · **22 passed, 0 failed**
 
 | Result | Check | Detail |
 |---|---|---|
@@ -25,6 +25,6 @@
 | PASS | 27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration | migration true · create+dedupe true · dragged .app true · no duplicates true · reorder true · remove+rename true · found by id true · delete true |
 | PASS | 28. a live session: no banner and no state line at the top; the button says End Session | first line 'Quit', no banner or state line: true; button 'End Session' |
 | PASS | 29. switching and hide-instead-of-quit settings; the Fewer icon | careful unless chosen: true; menu ticks Careful: true; per-app hide rows: true; Fewer icon: true |
-| PASS | 16. menu speed with every process on the Mac | 42 ms per menu open |
+| PASS | 16. menu speed with every process on the Mac | 39 ms per menu open |
 
 Quick: `./test.sh` (every major change). Full: `./test.sh full` (when needed).

@@ -890,6 +890,65 @@ final class Explain: NSView {
     }
 }
 
+/// The sparkle over the menu bar name: a flash that pops behind the name, and a sweep of glowing four-point stars
+/// from its first letter to its last. Drawn in a see-through window laid over the menu bar item, so it works with
+/// any menu bar and never moves the item itself. `reverse` sweeps right to left (a session ending).
+final class Sparkle {
+    var win: NSWindow?, timer: Timer?
+    static let length = 0.9, pad: CGFloat = 28
+    /// Builds the layers for a name occupying `box` (in the layer's own coordinates) and returns the frame-drawing step.
+    static func build(in root: CALayer, box: CGRect, tint: NSColor, reverse: Bool, scale: CGFloat) -> (Double) -> Void {
+        let flash = CALayer(); flash.frame = box.insetBy(dx: -4, dy: 1); flash.cornerRadius = flash.bounds.height / 2
+        flash.backgroundColor = NSColor.white.cgColor; flash.opacity = 0; root.addSublayer(flash)
+        var seed: UInt64 = 0x9E3779B97F4A7C15
+        func rnd() -> CGFloat { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; return CGFloat(seed % 10_000) / 10_000 }
+        let n = max(9, Int(box.width / 9))
+        let stars: [(CAShapeLayer, CGPoint, CGFloat, Double)] = (0..<n).map { i in
+            let sz = 3.5 + rnd() * 5.5, q = sz * 0.26, path = CGMutablePath()
+            path.addLines(between: [CGPoint(x: 0, y: sz), CGPoint(x: q, y: q), CGPoint(x: sz, y: 0), CGPoint(x: q, y: -q),
+                                    CGPoint(x: 0, y: -sz), CGPoint(x: -q, y: -q), CGPoint(x: -sz, y: 0), CGPoint(x: -q, y: q)]); path.closeSubpath()
+            let l = CAShapeLayer(); l.path = path; l.fillColor = (i % 3 == 1 ? tint : NSColor.white).cgColor
+            l.shadowColor = (i % 3 == 1 ? tint : NSColor.white).cgColor; l.shadowOpacity = 1; l.shadowRadius = 5; l.shadowOffset = .zero
+            l.contentsScale = scale; l.opacity = 0; root.addSublayer(l)
+            let f = (CGFloat(i) + 0.5) / CGFloat(n)
+            let home = CGPoint(x: box.minX + box.width * (reverse ? 1 - f : f), y: box.midY + (rnd() - 0.5) * box.height * 1.5)
+            return (l, home, rnd() * 2 - 1, Double(i) * 0.035)               // layer, position, drift, start time
+        }
+        return { now in
+            CATransaction.begin(); CATransaction.setDisableActions(true)
+            let p = CGFloat(min(max(now / 0.34, 0), 1))                        // the pop: swell and fade
+            flash.opacity = Float(0.55 * sin(.pi * p)); let k = 0.9 + 0.22 * sin(.pi * p)
+            flash.transform = CATransform3DMakeScale(k, 1 + 0.5 * sin(.pi * p), 1)
+            for (l, home, drift, t0) in stars {
+                let a = CGFloat((now - t0) / 0.42)
+                guard a > 0, a < 1 else { l.opacity = 0; continue }
+                l.opacity = Float(sin(.pi * a)); let sc = 0.25 + 1.2 * sin(.pi * min(a * 1.4, 1))
+                l.position = CGPoint(x: home.x + drift * 5 * a, y: home.y + 7 * a)
+                l.transform = CATransform3DConcat(CATransform3DMakeScale(sc, sc, 1), CATransform3DMakeRotation(a * 1.9 + drift, 0, 0, 1))
+            }
+            CATransaction.commit()
+        }
+    }
+    func play(over frame: NSRect, tint: NSColor, reverse: Bool) {
+        timer?.invalidate(); win?.orderOut(nil)
+        let pad = Sparkle.pad, w = NSWindow(contentRect: frame.insetBy(dx: -pad, dy: -pad), styleMask: .borderless, backing: .buffered, defer: false)
+        w.isOpaque = false; w.backgroundColor = .clear; w.hasShadow = false; w.ignoresMouseEvents = true
+        w.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
+        w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        let root = CALayer(); w.contentView!.wantsLayer = true; w.contentView!.layer = root
+        // the name sits to the right of the icon: leave the icon (about 26 pt) out of the box
+        let box = CGRect(x: pad + min(26, frame.width * 0.3), y: pad, width: max(frame.width - min(26, frame.width * 0.3), 12), height: frame.height)
+        let step = Sparkle.build(in: root, box: box, tint: tint, reverse: reverse, scale: w.backingScaleFactor)
+        w.orderFrontRegardless(); win = w
+        let began = Date()
+        let t = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] tm in
+            let now = Date().timeIntervalSince(began); step(now)
+            if now > Sparkle.length { tm.invalidate(); self?.win?.orderOut(nil); self?.win = nil }
+        }
+        RunLoop.main.add(t, forMode: .common); timer = t
+    }
+}
+
 /// The hover popup for app rows: one line, dark, just under the row it explains.
 final class RowTip {
     static let shared = RowTip()
@@ -1282,6 +1341,7 @@ final class Focus: NSObject, NSMenuDelegate {
         let t = showNameInMenuBar ? (displayName.map { " | " + Focus.nameStyles[menuBarNameStyle]($0) } ?? "") : ""
         if store != .standard { if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }; return }   // tests: at once
         guard t != titleTarget else { return }
+        if t.isEmpty && !b.title.isEmpty { sparkleNow(reverse: true) }   // ending: it sparkles, then is deleted from the right
         titleTarget = t
         guard titleTimer == nil else { return }                 // already writing: it will head for the new target
         let tm = Timer(timeInterval: 0.05, repeats: true) { [weak self] tm in self?.writeTitle(tm) }
@@ -1290,25 +1350,19 @@ final class Focus: NSObject, NSMenuDelegate {
     /// The menu bar name is written one letter at a time (the icon slides left as it grows), then sparkles and pops.
     /// Ending a session deletes it the same way, from the right.
     var titleTarget = "", titleTimer: Timer?
+    let sparkle = Sparkle()
+    func sparkleNow(reverse: Bool) {
+        guard let f = item.button?.window?.frame, f.width > 34 else { return }
+        sparkle.play(over: f, tint: dotColor ?? ringColor ?? hexColor("FFD75F") ?? .white, reverse: reverse)
+    }
     func writeTitle(_ tm: Timer) {
         guard let b = item.button else { tm.invalidate(); titleTimer = nil; return }
-        let now = b.title.replacingOccurrences(of: " ✦", with: ""), goal = titleTarget
+        let now = b.title, goal = titleTarget
         if now == goal {
             tm.invalidate(); titleTimer = nil
             b.title = goal; b.imagePosition = goal.isEmpty ? .imageOnly : .imageLeft
             guard !goal.isEmpty else { return }
-            b.title = goal + " ✦"                               // the sparkle
-            b.wantsLayer = true
-            if let l = b.layer {                                 // the pop
-                let pop = CAKeyframeAnimation(keyPath: "transform.scale")
-                pop.values = [1, 1.14, 0.97, 1]; pop.keyTimes = [0, 0.35, 0.7, 1]; pop.duration = 0.32
-                l.anchorPoint = CGPoint(x: 0.5, y: 0.5); l.position = CGPoint(x: b.bounds.midX, y: b.bounds.midY)
-                l.add(pop, forKey: "pop")
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
-                guard let self, self.titleTimer == nil, let b = self.item.button, b.title == goal + " ✦" else { return }
-                b.title = self.titleTarget
-            }
+            sparkleNow(reverse: false)                          // the name is written: sparkle and pop
             return
         }
         // one letter towards the goal: delete from the right until what's shown is the start of it, then add
@@ -2838,6 +2892,29 @@ func olderFocus() -> NSRunningApplication? {
         .first { a in let d = a.launchDate ?? .distantPast; return d < mine.0 || (d == mine.0 && a.processIdentifier < mine.1) }
 }
 let others = olderFocus().map { [$0] } ?? []
+/// `Focus --render-sparkle FILE`: the menu bar sparkle drawn off-screen over a mock "icon | Research session" item.
+if let i = CommandLine.arguments.firstIndex(of: "--render-sparkle"), CommandLine.arguments.count > i + 1 {
+    let frames = [0.05, 0.14, 0.24, 0.34, 0.46, 0.6, 0.78], fw = 300, fh = 80
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: fw * 2, pixelsHigh: fh * frames.count * 2, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    rep.size = NSSize(width: fw, height: fh * frames.count)
+    let g = NSGraphicsContext(bitmapImageRep: rep)!; let ctx = g.cgContext
+    for (k, f) in frames.enumerated() {
+        let y0 = CGFloat(fh * (frames.count - 1 - k))
+        ctx.setFillColor(NSColor(white: 0.13, alpha: 1).cgColor); ctx.fill(CGRect(x: 0, y: y0, width: CGFloat(fw), height: CGFloat(fh)))
+        ctx.setFillColor(NSColor(white: 0.2, alpha: 1).cgColor); ctx.fill(CGRect(x: 0, y: y0 + 28, width: CGFloat(fw), height: 24))     // the menu bar
+        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = g
+        ("◉ | Research session" as NSString).draw(at: NSPoint(x: 70, y: y0 + 32), withAttributes: [.font: NSFont.menuBarFont(ofSize: 0), .foregroundColor: NSColor.white])
+        (String(format: "%.2fs", f) as NSString).draw(at: NSPoint(x: 6, y: y0 + 60), withAttributes: [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: NSColor.gray])
+        NSGraphicsContext.restoreGraphicsState()
+        let root = CALayer(); root.frame = CGRect(x: 0, y: 0, width: fw, height: fh)
+        let step = Sparkle.build(in: root, box: CGRect(x: 92, y: 28, width: 130, height: 24), tint: hexColor("FFD75F")!, reverse: false, scale: 2)
+        step(f)
+        ctx.saveGState(); ctx.translateBy(x: 0, y: y0); root.render(in: ctx); ctx.restoreGState()
+    }
+    try? rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+    exit(0)
+}
+
 /// `Focus --render-pill FILE start|end|switch`: the session show drawn off-screen as a filmstrip, to check it by eye.
 if let i = CommandLine.arguments.firstIndex(of: "--render-pill"), CommandLine.arguments.count > i + 2 {
     let kind = CommandLine.arguments[i + 2], ws = NSWorkspace.shared
