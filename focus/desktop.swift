@@ -15,6 +15,7 @@ import AppKit
 import SwiftUI
 import ServiceManagement
 import UniformTypeIdentifiers
+import Carbon.HIToolbox
 
 /// The two measurements the top of the window hangs on: the session button and the logo share them, so they line up.
 enum Layout { static let top: CGFloat = 28, button: CGFloat = 64 }
@@ -28,10 +29,13 @@ enum Site {
     /// Graphik, the site's face (it ships with macOS as a downloadable system font); Helvetica Neue if it's absent.
     /// The user's text size for the window (View ▸ Bigger Text / Smaller Text): every size is multiplied by it.
     static var scale: CGFloat = {
+        if !UserDefaults.standard.bool(forKey: "desktopTextBase108") {      // the standard size moved up: start everyone from it
+            UserDefaults.standard.set(true, forKey: "desktopTextBase108"); UserDefaults.standard.removeObject(forKey: "desktopTextScale")
+        }
         let s = UserDefaults.standard.double(forKey: "desktopTextScale"); return s >= 0.8 && s <= 1.6 ? CGFloat(s) : 1
     }() { didSet { UserDefaults.standard.set(Double(scale), forKey: "desktopTextScale") } }
     static func font(_ base: CGFloat, _ w: Weight = .regular) -> Font {
-        let size = (base * 0.9 * scale).rounded()                   // every size in this file is written a little over its drawn size
+        let size = (base * 1.08 * scale).rounded()                  // the standard size (what two ⌘+ presses gave before 0.18.34)
         let name = ["Graphik-Regular", "Graphik-Medium", "Graphik-Semibold"][w == .regular ? 0 : w == .medium ? 1 : 2]
         if NSFont(name: name, size: size) != nil { return .custom(name, size: size) }
         let fallback = ["HelveticaNeue", "HelveticaNeue-Medium", "HelveticaNeue-Bold"][w == .regular ? 0 : w == .medium ? 1 : 2]
@@ -209,7 +213,8 @@ final class DesktopModel: ObservableObject {
     }
     /// Under the button: what pressing it does, in a line.
     var caption: String {
-        guard !f.focused, !f.hideMode else { return f.sessionCaption() }
+        if f.focused { return "End the session to restore all of your apps as they were." }      // no memory talk once a session is on
+        guard !f.hideMode else { return f.sessionCaption() }
         let out = f.leaving(); guard !out.isEmpty else { return f.sessionCaption() }
         return "Closes \(out.count) app\(out.count == 1 ? "" : "s") and saves \(gb(out.reduce(0) { $0 + f.memory($1) })) of RAM. They reopen when the session ends."
     }
@@ -325,8 +330,8 @@ struct SessionButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                Text(title).font(Site.font(30, .medium)).tracking(-0.4).lineLimit(1)
-                HStack { Spacer(); Text(key).font(Site.font(22)).opacity(0.45).lineLimit(1) }.padding(.trailing, 24)
+                Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
+                HStack { Spacer(); Text(key).font(Site.font(18)).opacity(0.45).lineLimit(1) }.padding(.trailing, 24)
             }
             .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: Layout.button)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.92 : 1)))
@@ -343,6 +348,37 @@ struct PulseDot: View {
     var body: some View {
         Circle().fill(Color.white).frame(width: 8, height: 8).opacity(on ? 1 : 0.35)
             .onAppear { withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { on = true } }
+    }
+}
+
+/// A plain text box in the window's own face. (SwiftUI's TextEditor fell back to the system font for typed text.)
+struct SiteEditor: NSViewRepresentable {
+    @Binding var text: String
+    let size: CGFloat
+    static func nsFont(_ base: CGFloat) -> NSFont {
+        let s = (base * 1.08 * Site.scale).rounded()
+        return NSFont(name: "Graphik-Regular", size: s) ?? NSFont(name: "HelveticaNeue", size: s) ?? .systemFont(ofSize: s)
+    }
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSTextView.scrollableTextView(), tv = scroll.documentView as! NSTextView
+        scroll.drawsBackground = false; scroll.hasVerticalScroller = true; scroll.scrollerStyle = .overlay
+        tv.drawsBackground = false; tv.isRichText = false; tv.allowsUndo = true
+        tv.font = Self.nsFont(size); tv.textColor = .white; tv.insertionPointColor = .white
+        tv.typingAttributes = [.font: Self.nsFont(size), .foregroundColor: NSColor.white]
+        tv.textContainerInset = NSSize(width: 0, height: 0); tv.delegate = context.coordinator; tv.string = text
+        DispatchQueue.main.async { tv.window?.makeFirstResponder(tv) }
+        return scroll
+    }
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let tv = scroll.documentView as? NSTextView else { return }
+        if tv.string != text { tv.string = text }
+        tv.font = Self.nsFont(size)
+    }
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        let parent: SiteEditor
+        init(_ p: SiteEditor) { parent = p }
+        func textDidChange(_ n: Notification) { if let tv = n.object as? NSTextView { parent.text = tv.string } }
     }
 }
 
@@ -369,7 +405,7 @@ struct FeedbackCard: View {
                 default:
                     Text("Report a bug, suggest an idea, or share what's working well.").font(Site.font(19)).foregroundColor(Site.low)
                     ZStack(alignment: .topLeading) {
-                        TextEditor(text: $m.feedbackText).font(Site.font(19)).foregroundColor(Site.head).scrollContentBackground(.hidden).padding(8)
+                        SiteEditor(text: $m.feedbackText, size: 19).padding(8)
                         if m.feedbackText.isEmpty {
                             Text("“The Dock icon stayed after I closed the window.”").font(Site.font(19)).foregroundColor(Site.muted).padding(.horizontal, 13).padding(.vertical, 8).allowsHitTesting(false)
                         }
@@ -452,14 +488,15 @@ struct SideRow: View {
                     }
                 }.frame(width: 40, alignment: .leading)
             }
-            Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1)
+            Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1).minimumScaleFactor(0.85)
             Spacer(minLength: 6)
-            if live { Circle().fill(Site.head).frame(width: 7, height: 7) }
-            Text(trailing).font(Site.font(15)).foregroundColor(Site.muted)
+            if live { Text("On").font(Site.font(14, .medium)).foregroundColor(.black).padding(.horizontal, 7).frame(height: 18).background(Capsule().fill(Color.white)) }
+            Text(trailing).font(Site.font(15)).foregroundColor(live ? Site.head : Site.muted)
         }
-        .foregroundColor(selected ? Site.head : Site.low)
+        .foregroundColor(selected || live ? Site.head : Site.low)
         .padding(.horizontal, 12).frame(height: 34)
-        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(selected ? Site.surface2 : hover ? Site.surface : Color.clear))
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(selected ? Site.surface2 : hover || live ? Site.surface : Color.clear))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Color.white.opacity(live ? 0.85 : 0), lineWidth: 1))   // in use: outlined in white
         .contentShape(Rectangle()).onHover { hover = $0 }.onTapGesture(perform: action)
     }
 }
@@ -471,7 +508,7 @@ struct DesktopView: View {
     var body: some View {
         let _ = m.tick
         HStack(spacing: 0) {
-            sidebar.frame(width: 256)
+            sidebar.frame(width: 292)
             VStack(spacing: 0) {
                 // Always there, whatever is selected: the one action, worded as in the menu, with its key. Not full
                 // width: a fat button at the top left of the pane, what it will do written beside it.
@@ -504,7 +541,7 @@ struct DesktopView: View {
                 Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
             }.padding(.leading, 16).padding(.top, Layout.top).padding(.bottom, 16)      // just clear of the window's three buttons
             VStack(spacing: 2) {
-                SideRow(title: "Session", trailing: m.f.focused ? "On" : "", live: m.f.focused, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2") { m.selection = nil }
+                SideRow(title: "Session", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2") { m.selection = nil }
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver") { m.selection = Page.tools }
                 SideRow(title: "History", trailing: m.f.sessions.isEmpty ? "" : "\(m.f.sessions.count)", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath") { m.selection = Page.history }
@@ -513,7 +550,7 @@ struct DesktopView: View {
             Button { withAnimation(.easeOut(duration: 0.15)) { m.modesShown.toggle() } } label: {
                 HStack(spacing: 5) {
                     Text("Modes").font(Site.font(16, .medium))
-                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(m.modesShown ? 90 : 0))
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(m.modesShown ? 90 : 0)).offset(y: 1.5)   // on the text's middle line
                     Spacer()
                 }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 14).padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())
             }.buttonStyle(.plain).help(m.modesShown ? "Hide your modes" : "Show your modes")
@@ -548,10 +585,10 @@ struct DesktopView: View {
                     HStack(alignment: .top, spacing: 3) {
                         if let b = brandLockup { Image(nsImage: b).resizable().interpolation(.high).frame(width: 196, height: 196 * 112.0 / 1080.0) }
                         else { Text("★★★★★ × PARADOX").font(Site.font(15)).foregroundColor(Site.head) }
-                        Text("™").font(.system(size: 7, weight: .medium)).foregroundColor(Site.head).offset(x: -3, y: 2)
+                        Text("™").font(Site.font(8, .medium)).foregroundColor(Site.head).offset(x: -3, y: 2)
                     }.fixedSize().frame(maxWidth: .infinity).padding(.top, 12).padding(.bottom, 2).contentShape(Rectangle())
                 }.buttonStyle(.plain).help("paradoxica.co.uk")
-            }.padding(.horizontal, 12).padding(.bottom, 16)
+            }.padding(.horizontal, 12).padding(.bottom, 24)
         }
     }
 }
@@ -569,7 +606,7 @@ struct SessionDetail: View {
                     Text(f.focused ? "Click an app to take it out of the session, or to bring one back."
                                    : "Tick the apps you want to keep. Everything else closes when the session starts and comes back when it ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
-                    MemoryBar(apps: m.running).padding(.top, 12)
+                    if !f.focused { MemoryBar(apps: m.running).padding(.top, 12) }      // the memory to be saved is shown before a session, never during one
                     SectionLabel("Apps in Session", "Usage").padding(.horizontal, -14)
                     ForEach(m.running) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
@@ -590,7 +627,7 @@ struct SessionDetail: View {
                     }
                     SiteButton("Add or remove…") { f.showNever() }.padding(.top, 8)
                 }
-                .padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 20)
+                .padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 30)
             }
         }
     }
@@ -638,7 +675,7 @@ struct ModeDetail: View {
                         SiteButton("Delete Mode", tint: Site.hazard) { m.act { f.removeMode(mode.id); m.selection = nil } }
                     }.padding(.top, 10)
                 }
-                .padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 20)
+                .padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 30)
             }
         }
         .onAppear { name = mode.name }
@@ -659,7 +696,7 @@ struct PageFrame<Content: View>: View {
                 Text(title).font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
                 Text(text).font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
                 content
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 20)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 30)
         }
     }
 }
@@ -862,7 +899,8 @@ struct SettingsPage: View {
 final class DesktopWindow: NSWindow {
     override func performKeyEquivalent(with e: NSEvent) -> Bool {
         if e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command, let ch = e.charactersIgnoringModifiers?.lowercased(), ch == "h" || ch == "w" || ch == "q" {
-            close(); return true
+            if ch == "h" { desktop.hideByH() } else { close() }
+            return true
         }
         return super.performKeyEquivalent(with: e)
     }
@@ -886,7 +924,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             let m = DesktopModel(f); model = m
             let screen = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 800)
             // A squat rectangle, well inside the screen: no wider or taller than it needs to be.
-            let size = NSSize(width: min(960, screen.width - 120), height: min(640, screen.height - 140))
+            let size = NSSize(width: min(1000, screen.width - 120), height: min(660, screen.height - 140))
             let w = DesktopWindow(contentRect: NSRect(origin: .zero, size: size),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden; w.title = "Focus"
@@ -922,7 +960,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
         menu("Focus") { m in
             item(m, "About Focus", #selector(about))
             m.addItem(.separator())
-            item(m, "Hide Desktop App", #selector(closeWindow), "h")
+            item(m, "Hide Desktop App", #selector(hideByH), "h")
             item(m, "Quit Desktop App", #selector(closeWindow), "q")             // back to the menu bar: Focus itself keeps running
         }
         menu("File") { m in
@@ -955,6 +993,24 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     }
     @objc func about() { NSApp.orderFrontStandardAboutPanel(options: [.applicationIcon: siteLogo(256, grid: true), .applicationName: "Focus"]) }
     @objc func closeWindow() { window?.close() }
+    /// ⌘H puts the window away. Pressed again straight away, it brings it back: for a few seconds after hiding,
+    /// Focus holds ⌘H itself (the window is gone, so the key would otherwise go to whatever app is in front), then
+    /// lets it go so ⌘H works normally everywhere else.
+    static let reopenWindow: TimeInterval = 4
+    var reopenKey: EventHotKeyRef?, reopenTimer: Timer?
+    @objc func hideByH() {
+        window?.close()
+        disarmReopen()
+        reopenKey = hotkey(200, kVK_ANSI_H, cmdKey)
+        let t = Timer(timeInterval: Self.reopenWindow, repeats: false) { [weak self] _ in self?.disarmReopen() }
+        RunLoop.main.add(t, forMode: .common); reopenTimer = t
+    }
+    func disarmReopen() {
+        reopenTimer?.invalidate(); reopenTimer = nil
+        if let k = reopenKey { UnregisterEventHotKey(k); reopenKey = nil }
+    }
+    /// ⌘H arrived while Focus was holding it: the window comes back.
+    func reopenFromH() { disarmReopen(); focus.openDesktop() }
     @objc func newMode() { model?.newMode() }
     func setScale(_ s: CGFloat) { Site.scale = min(max((s * 20).rounded() / 20, 0.8), 1.6); model?.tick &+= 1 }
     @objc func biggerText() { setScale(Site.scale + 0.1) }
@@ -989,10 +1045,14 @@ func renderDesktop(to file: String, mode: Bool) {
     f.neverClose = have(["com.apple.Terminal"]); f.excluded = have(["com.apple.Safari", "com.apple.Terminal"])
     let m = DesktopModel(f); m.still = true; m.refresh(); if mode { m.selection = second }
     if CommandLine.arguments.contains("feedback") { m.openFeedback() }
+    if CommandLine.arguments.contains("live") {
+        f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
+        f.store.set(true, forKey: "focused")
+    }
     for p in [Page.settings, Page.shortcuts, Page.tools, Page.history] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
-    f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]]
+    if !CommandLine.arguments.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
-    let size = NSSize(width: 960, height: CommandLine.arguments.contains("tall") ? 1500 : 640)
+    let size = NSSize(width: 1000, height: CommandLine.arguments.contains("tall") ? 1500 : 660)
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: .darkAqua); w.contentView = host

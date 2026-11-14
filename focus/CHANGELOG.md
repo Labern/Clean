@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.34 — 2026-11-14
+- The desktop app's standard text size is now what two presses of ⌘+ used to give. Any earlier size change is reset once, so everyone starts from the new standard.
+- The session button's own text is two steps smaller than that, so it sits inside the button comfortably. The sidebar is a little wider and the window opens at up to 1000 × 660.
+- ⌘H hides the desktop app; pressed again within four seconds, it brings it back.
+- One face throughout: the feedback box's typed text is now Graphik like everything else.
+- During a session the line under the button reads "End the session to restore all of your apps as they were." The memory bar and the memory saved are shown only before a session starts.
+- The mode in use is highlighted in the sidebar: outlined in white, with an "On" label.
+- The arrow beside "Modes" sits on the middle of its line. More space at the bottom of the window.
+
 ## 0.18.33 — 2026-11-14 (branch focus/feat-desktop-app)
 - **⌘Q quits the desktop app, never the menu bar app.** Only the menu's own Quit, or the Mac shutting down or logging out, ends Focus. A quit that arrives any other way while the window is open is refused and closes the window. "Quit Focus Completely" is removed from the window's menus.
 - **The logo** is at the top left of the window, the same height as the Start/End Session button and level with it.

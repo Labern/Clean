@@ -3849,6 +3849,7 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
         case 1: focus.toggle()
         case 2: focus.showMenu()
         case 100...109: focus.modeKey(Int(hk.id) - 100)
+        case 200: desktop.reopenFromH()                         // ⌘H straight after hiding the desktop app
         default: break
         }
     }
