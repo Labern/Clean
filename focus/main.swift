@@ -2216,6 +2216,7 @@ final class Focus: NSObject, NSMenuDelegate {
                 }
             }
         } else {
+            header("Keep open this session — click to choose")
             view(columns())
             let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
             for (id, p) in running + idle {
@@ -2227,7 +2228,7 @@ final class Focus: NSObject, NSMenuDelegate {
 
         // Critical system processes — never quit or hidden by Focus. Click to take one off; it moves up next time.
         m.addItem(.separator())
-        header("Critical System Processes", tip: "These are never quit.")
+        header("Critical System Processes — never quit")
         for id in neverClose {
             guard let p = path(id) else { continue }
             let row = AppRow(appName(p), appIcon(p), on: true, onMark: "lock.circle.fill") { true }   // changed only via Add or remove…
@@ -2264,7 +2265,7 @@ final class Focus: NSObject, NSMenuDelegate {
             m.addItem(.separator())
         }
         // Modes — the user's named sets of apps.
-        header("Modes", tip: "Pre-defined app combinations.")
+        header("Modes — frequently used sessions")
         // The builder for a new mode: pick apps, optionally name it, create. Offered under the modes and in Edit Modes.
         func builderMenu() -> NSMenu {
         let nmm = NSMenu()
@@ -2667,7 +2668,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-rows"), CommandLine.ar
         QuitRow {}, ColumnHeader(),
         AppRow("Safari", ic("com.apple.Safari"), detail: "2.4 GB", on: true) { true },
         AppRow("Notes", ic("com.apple.Notes"), detail: "310 MB", on: false) { true },
-        Heading("Modes"),
+        Heading("Modes — frequently used sessions"),
         ModeRow("AI", stackIcon, key: "⌘1", live: true, enabled: true, start: {}, edit: { NSMenu() }), hovered,
         BigButton(title: { "Start New Session" }, caption: { "Starting a new session will save and quit 6 apps, freeing about 10.7 GB of RAM." }, action: {}), Maker(),
     ]
@@ -3235,7 +3236,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let beh = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Behaviour" }?.submenu?.items.map(\.title) ?? []
         let behOK = beh.count == 3 && beh[0] == "App Open/Close Speed" && beh[1] == "Hide Instead of Quit" && beh[2].lowercased().contains("snapshot")
         let moved = !settings.contains("App Open/Close Speed") && !settings.contains("Hide Instead of Quit")
-        let hi = titles.firstIndex(of: "Modes") ?? -9
+        let hi = titles.firstIndex(of: "Modes — frequently used sessions") ?? -9
         let em = m.items.first { $0.title == "Edit Modes" }?.submenu
         let lock = m.items.compactMap { $0.view as? AppRow }.filter { $0.onMark == "lock.circle.fill" }.allSatisfy(\.inert)
         let createFirst = lock && titles.indices.contains(hi + 2) && titles[hi + 1] == "Mode 1" && titles[hi + 2] == "Create New Mode"
