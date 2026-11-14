@@ -111,3 +111,7 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - The menu's bottom-left "Help / Suggest Improvement" opens an email to labern@paradoxica.co.uk for now (`Maker.helpURL`).
 - Later: it goes to the website, where a form lets the person send the message. Replace `Maker.helpURL` with that page once the Hub has built it.
 - 2026-11-14, his plan: one address for every app, help@paradoxica.co.uk (he sets up the mailbox). Each app's help link starts the subject with the app's name ("Focus: "). An AI agent answers the mail, as Wispr Flow's does. Focus already uses the address and subject (0.18.13).
+
+## Unconfirmed: menu dark with wrong colours after waking (2026-11-14)
+- He saw Focus "dark and the colours were all wrong" once, could not reproduce it, and suspects a dark-mode hangover after reopening the Mac.
+- Suspect: the forced-dark menu and its painted backing (`darken`, `paintMenuWindows`) after an appearance change during sleep. Not changed; needs a screenshot and whether the Mac had just woken.
