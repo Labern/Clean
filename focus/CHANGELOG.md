@@ -4,6 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.33 — 2026-11-14 (branch focus/feat-desktop-app)
+- **⌘Q quits the desktop app, never the menu bar app.** Only the menu's own Quit, or the Mac shutting down or logging out, ends Focus. A quit that arrives any other way while the window is open is refused and closes the window. "Quit Focus Completely" is removed from the window's menus.
+- **The logo** is at the top left of the window, the same height as the Start/End Session button and level with it.
+- **Text** is a step larger again (0.9 of the original sizes).
+- **Send feedback** in the app (sidebar ▸ Feedback, or Help ▸ Send Feedback…): write it, press Send.
+  - It posts to https://paradoxica.co.uk/api/feedback. Until that address answers, the message is put into an email to labern@paradoxica.co.uk instead.
+  - It sends the message, the Focus version and the macOS version, and says so.
+
 ## 0.18.32 — 2026-11-14 (branch focus/feat-desktop-app)
 **Desktop app, reworked around the session.** Getting into a session is the point of the app; modes are secondary.
 - **The Start/End Session button** is the largest thing in the window: full width of the pane, centred, at the top of every page. Under it, one line: how many apps close, how much memory that saves, and that they reopen. The "in session for…" line is gone.

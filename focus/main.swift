@@ -915,7 +915,7 @@ final class Maker: NSView {
     static let help = "Help / Suggest Improvement"
     /// Where the help link goes. For now a new email; later the website's own help form replaces it.
     /// One help address for every PARADOX app; the subject starts with the app's name and the person writes the rest.
-    static let helpURL = URL(string: "mailto:help@paradoxica.co.uk?subject=Focus%3A%20")!
+    static let helpURL = URL(string: "mailto:labern@paradoxica.co.uk?subject=Focus%3A%20")!
     var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
     var hover = false { didSet { needsDisplay = true } }
     let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: theme.faint]
@@ -2235,7 +2235,8 @@ final class Focus: NSObject, NSMenuDelegate {
         let s = SMAppService.mainApp
         try? (s.status == .enabled ? s.unregister() : s.register())
     }
-    @objc func bye() { NSApp.terminate(nil) }
+    static var quitAsked = false                                // set only by the menu's own Quit
+    @objc func bye() { Focus.quitAsked = true; NSApp.terminate(nil) }
 
     // MARK: menu (rebuilt each time it opens, so it never goes stale)
 

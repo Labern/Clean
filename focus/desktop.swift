@@ -16,6 +16,9 @@ import SwiftUI
 import ServiceManagement
 import UniformTypeIdentifiers
 
+/// The two measurements the top of the window hangs on: the session button and the logo share them, so they line up.
+enum Layout { static let top: CGFloat = 28, button: CGFloat = 64 }
+
 /// The website's design tokens (its :root block), so the window and the site are one look.
 enum Site {
     static func hex(_ h: UInt32) -> Color { Color(red: Double((h >> 16) & 255) / 255, green: Double((h >> 8) & 255) / 255, blue: Double(h & 255) / 255) }
@@ -28,7 +31,7 @@ enum Site {
         let s = UserDefaults.standard.double(forKey: "desktopTextScale"); return s >= 0.8 && s <= 1.6 ? CGFloat(s) : 1
     }() { didSet { UserDefaults.standard.set(Double(scale), forKey: "desktopTextScale") } }
     static func font(_ base: CGFloat, _ w: Weight = .regular) -> Font {
-        let size = (base * 0.8 * scale).rounded()                   // every size in this file is written at 1.25× its drawn size
+        let size = (base * 0.9 * scale).rounded()                   // every size in this file is written a little over its drawn size
         let name = ["Graphik-Regular", "Graphik-Medium", "Graphik-Semibold"][w == .regular ? 0 : w == .medium ? 1 : 2]
         if NSFont(name: name, size: size) != nil { return .custom(name, size: size) }
         let fallback = ["HelveticaNeue", "HelveticaNeue-Medium", "HelveticaNeue-Bold"][w == .regular ? 0 : w == .medium ? 1 : 2]
@@ -122,6 +125,37 @@ final class DesktopModel: ObservableObject {
     }
 
     static let site = URL(string: "https://paradoxica.co.uk")!
+
+    // — feedback, written here and sent straight to the developer —
+    enum FeedbackState: Equatable { case writing, sending, sent, emailed }
+    @Published var feedbackShown = false
+    @Published var feedbackText = ""
+    @Published var feedbackState = FeedbackState.writing
+    /// Where feedback is posted. Until the site answers there, the message goes into an email instead.
+    static let feedbackEndpoint = URL(string: "https://paradoxica.co.uk/api/feedback")!
+    static let feedbackAddress = "labern@paradoxica.co.uk"      // for now; help@paradoxica.co.uk later
+    func openFeedback() { feedbackState = .writing; feedbackShown = true }
+    func sendFeedback() {
+        let text = feedbackText.trimmingCharacters(in: .whitespacesAndNewlines); guard !text.isEmpty, feedbackState == .writing else { return }
+        feedbackState = .sending
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        let os = ProcessInfo.processInfo.operatingSystemVersionString
+        var req = URLRequest(url: Self.feedbackEndpoint, timeoutInterval: 12); req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["app": "Focus", "version": version, "macOS": os, "message": text])
+        URLSession.shared.dataTask(with: req) { [weak self] _, resp, _ in
+            let ok = (resp as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
+            DispatchQueue.main.async {
+                guard let self else { return }
+                if ok { self.feedbackState = .sent; self.feedbackText = ""; return }
+                // No answer from the site: put the same message in an email, so nothing written is lost.
+                var c = URLComponents(); c.scheme = "mailto"; c.path = Self.feedbackAddress
+                c.queryItems = [URLQueryItem(name: "subject", value: "Focus: feedback"), URLQueryItem(name: "body", value: text + "\n\nFocus \(version) · \(os)")]
+                if let u = c.url { NSWorkspace.shared.open(u) }
+                self.feedbackState = .emailed
+            }
+        }.resume()
+    }
 
     // — one app, from a right-click —
     func quit(_ id: String, force: Bool) {
@@ -294,7 +328,7 @@ struct SessionButton: View {
                 Text(title).font(Site.font(30, .medium)).tracking(-0.4).lineLimit(1)
                 HStack { Spacer(); Text(key).font(Site.font(22)).opacity(0.45).lineLimit(1) }.padding(.trailing, 24)
             }
-            .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: 68)
+            .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: Layout.button)
             .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.92 : 1)))
             .shadow(color: Color.white.opacity(hover ? 0.20 : 0), radius: 16)           // a soft glow under the pointer
             .scaleEffect(hover ? 1.006 : 1).animation(.easeOut(duration: 0.15), value: hover)
@@ -309,6 +343,59 @@ struct PulseDot: View {
     var body: some View {
         Circle().fill(Color.white).frame(width: 8, height: 8).opacity(on ? 1 : 0.35)
             .onAppear { withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { on = true } }
+    }
+}
+
+/// Send feedback: written in the app and sent from it. A card over the dimmed window.
+struct FeedbackCard: View {
+    @ObservedObject var m: DesktopModel
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.6).onTapGesture { m.feedbackShown = false }
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Send feedback").font(Site.font(28, .medium)).tracking(-0.4).foregroundColor(Site.head)
+                    Spacer()
+                    Button { m.feedbackShown = false } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(Site.low).frame(width: 28, height: 28).contentShape(Rectangle()) }.buttonStyle(.plain)
+                }
+                switch m.feedbackState {
+                case .sent:
+                    Text("Sent. Thank you.").font(Site.font(19)).foregroundColor(Site.low).padding(.vertical, 18)
+                    HStack { Spacer(); SiteButton("Close") { m.feedbackShown = false } }
+                case .emailed:
+                    Text("Focus couldn't send it directly, so your message is in a new email to \(DesktopModel.feedbackAddress). Send that and it will reach us.")
+                        .font(Site.font(19)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true).padding(.vertical, 12)
+                    HStack { Spacer(); SiteButton("Close") { m.feedbackShown = false } }
+                default:
+                    Text("Report a bug, suggest an idea, or share what's working well.").font(Site.font(19)).foregroundColor(Site.low)
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $m.feedbackText).font(Site.font(19)).foregroundColor(Site.head).scrollContentBackground(.hidden).padding(8)
+                        if m.feedbackText.isEmpty {
+                            Text("“The Dock icon stayed after I closed the window.”").font(Site.font(19)).foregroundColor(Site.muted).padding(.horizontal, 13).padding(.vertical, 8).allowsHitTesting(false)
+                        }
+                    }
+                    .frame(height: 130)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.surface2))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.hex(0x4A4A4A), lineWidth: 1))
+                    Text("This sends your message, the Focus version and your macOS version. Nothing else.")
+                        .font(Site.font(16)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 10) {
+                        Spacer()
+                        SiteButton("Cancel") { m.feedbackShown = false }
+                        Button { m.sendFeedback() } label: {
+                            Text(m.feedbackState == .sending ? "Sending…" : "Send").font(Site.font(18, .medium)).foregroundColor(.black)
+                                .padding(.horizontal, 22).frame(height: 32)
+                                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
+                        }.buttonStyle(.plain)
+                        .opacity(m.feedbackText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || m.feedbackState == .sending ? 0.35 : 1)
+                    }
+                }
+            }
+            .padding(24).frame(width: 520)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Site.surface))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Site.line, lineWidth: 1))
+            .shadow(color: .black.opacity(0.6), radius: 30, y: 12)
+        }
     }
 }
 
@@ -391,7 +478,7 @@ struct DesktopView: View {
                 VStack(spacing: 9) {
                     SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey) { m.act { m.f.toggle() } }
                     Text(m.caption).font(Site.font(17)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                }.padding(.horizontal, 28).padding(.top, 22).padding(.bottom, 8)
+                }.padding(.horizontal, 28).padding(.top, Layout.top).padding(.bottom, 8)
                 Group {
                     if m.selection == Page.shortcuts { ShortcutsPage(m: m) }
                     else if m.selection == Page.tools { ToolsPage(m: m) }
@@ -406,13 +493,16 @@ struct DesktopView: View {
             }
         }
         .background(Site.bg).preferredColorScheme(.dark)
+        .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
+        .animation(.easeOut(duration: 0.15), value: m.feedbackShown)
     }
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                if m.still { Image(nsImage: siteLogo(96)).resizable().interpolation(.high).frame(width: 34, height: 34) } else { LogoView(side: 34) }
-                Text("Focus").font(Site.font(30, .medium)).tracking(-0.5).foregroundColor(Site.head)
-            }.padding(.leading, 18).padding(.top, 40).padding(.bottom, 14)      // just clear of the window's three buttons
+                // The logo stands level with the session button beside it: the same height, the same top edge.
+                if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
+                Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
+            }.padding(.leading, 16).padding(.top, Layout.top).padding(.bottom, 16)      // just clear of the window's three buttons
             VStack(spacing: 2) {
                 SideRow(title: "Session", trailing: m.f.focused ? "On" : "", live: m.f.focused, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2") { m.selection = nil }
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
@@ -449,8 +539,8 @@ struct DesktopView: View {
                     }.buttonStyle(.plain).help("Focus \(u.version) is available. Click to get it.")
                 }
                 HStack(spacing: 8) {
-                    FootButton(symbol: "lifepreserver", title: "Help", enabled: true) { NSWorkspace.shared.open(Maker.helpURL) }
-                        .help("Write to help@paradoxica.co.uk")
+                    FootButton(symbol: "bubble.left", title: "Feedback", enabled: true) { m.openFeedback() }
+                        .help("Report a bug, suggest an idea, or say what's working well")
                     FootButton(symbol: "book", title: "Manual", enabled: false) {}
                         .help("The manual isn't written yet.")
                 }
@@ -777,7 +867,18 @@ final class DesktopWindow: NSWindow {
         return super.performKeyEquivalent(with: e)
     }
 }
-final class DesktopController: NSObject, NSWindowDelegate {
+final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate {
+    /// ⌘Q quits the desktop app, never the menu bar app. Ever. Only the menu's own Quit (or the Mac shutting down or
+    /// logging out) ends Focus: any other quit that arrives while the window is open, or from the Q key, closes the
+    /// window and is refused.
+    var poweringOff = false
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if Focus.quitAsked || poweringOff { return .terminateNow }
+        let fromQ = NSApp.currentEvent.map { $0.type == .keyDown && $0.charactersIgnoringModifiers?.lowercased() == "q" } ?? false
+        guard shown || fromQ else { return .terminateNow }
+        flog("⌘Q / quit while the desktop app was open: closed the window, Focus stays in the menu bar")
+        window?.close(); return .terminateCancel
+    }
     var window: NSWindow?, model: DesktopModel?
     var shown: Bool { window?.isVisible == true }
     func show(_ f: Focus) {
@@ -803,6 +904,10 @@ final class DesktopController: NSObject, NSWindowDelegate {
         NSApp.setActivationPolicy(.regular)                      // now in the Dock and ⌘⇥…
         NSApp.applicationIconImage = siteLogo(512, grid: true)   // …with the site's logo
         NSApp.mainMenu = mainMenu()                              // …and a menu bar of its own
+        if NSApp.delegate == nil {
+            NSApp.delegate = self
+            NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main) { [weak self] _ in self?.poweringOff = true }
+        }
         NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil)
     }
     func hide() { window?.close() }
@@ -819,7 +924,6 @@ final class DesktopController: NSObject, NSWindowDelegate {
             m.addItem(.separator())
             item(m, "Hide Desktop App", #selector(closeWindow), "h")
             item(m, "Quit Desktop App", #selector(closeWindow), "q")             // back to the menu bar: Focus itself keeps running
-            item(m, "Quit Focus Completely", #selector(quitAll), "q", [.command, .option])
         }
         menu("File") { m in
             item(m, "New Mode", #selector(newMode), "n")
@@ -843,19 +947,20 @@ final class DesktopController: NSObject, NSWindowDelegate {
             item(m, "Zoom", #selector(NSWindow.performZoom(_:)), mine: false)
         }
         menu("Help") { m in
-            item(m, "Focus Help", #selector(help))
+            item(m, "Send Feedback…", #selector(feedback))
+            item(m, "Email Support", #selector(help))
             item(m, "Focus Website", #selector(website))
         }
         return bar
     }
     @objc func about() { NSApp.orderFrontStandardAboutPanel(options: [.applicationIcon: siteLogo(256, grid: true), .applicationName: "Focus"]) }
     @objc func closeWindow() { window?.close() }
-    @objc func quitAll() { NSApp.terminate(nil) }
     @objc func newMode() { model?.newMode() }
     func setScale(_ s: CGFloat) { Site.scale = min(max((s * 20).rounded() / 20, 0.8), 1.6); model?.tick &+= 1 }
     @objc func biggerText() { setScale(Site.scale + 0.1) }
     @objc func smallerText() { setScale(Site.scale - 0.1) }
     @objc func actualText() { setScale(1) }
+    @objc func feedback() { model?.openFeedback() }
     @objc func help() { NSWorkspace.shared.open(Maker.helpURL) }
     @objc func website() { NSWorkspace.shared.open(DesktopModel.site) }
     func windowWillClose(_ n: Notification) {
@@ -883,6 +988,7 @@ func renderDesktop(to file: String, mode: Bool) {
     f.createMode("", apps: have(["com.apple.TextEdit"]))
     f.neverClose = have(["com.apple.Terminal"]); f.excluded = have(["com.apple.Safari", "com.apple.Terminal"])
     let m = DesktopModel(f); m.still = true; m.refresh(); if mode { m.selection = second }
+    if CommandLine.arguments.contains("feedback") { m.openFeedback() }
     for p in [Page.settings, Page.shortcuts, Page.tools, Page.history] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
     f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]]
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
