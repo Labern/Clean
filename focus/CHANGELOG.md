@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.25 — 2026-11-14
+- The stars are removed from the menu bar name animation.
+
 ## 0.18.24 — 2026-11-14
 - Taking an app out of a running session from the menu, or bringing one back, plays the session animation for just that app: into the menu bar icon when it leaves, out of it when it returns. The animation itself is unchanged.
 

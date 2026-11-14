@@ -906,7 +906,7 @@ final class Sparkle {
         flash.backgroundColor = NSColor.white.cgColor; flash.opacity = 0; root.addSublayer(flash)
         var seed: UInt64 = 0x9E3779B97F4A7C15
         func rnd() -> CGFloat { seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17; return CGFloat(seed % 10_000) / 10_000 }
-        let n = max(9, Int(box.width / 9))
+        let n = 0                                               // no stars (removed at his request): only the soft flash
         let stars: [(CAShapeLayer, CGPoint, CGFloat, Double)] = (0..<n).map { i in
             let sz = 3.5 + rnd() * 5.5, q = sz * 0.26, path = CGMutablePath()
             path.addLines(between: [CGPoint(x: 0, y: sz), CGPoint(x: q, y: q), CGPoint(x: sz, y: 0), CGPoint(x: q, y: -q),
