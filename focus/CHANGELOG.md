@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.2 — 2026-11-14
+- Every mode's name starts in the same place, however many apps the mode has.
+
 ## 0.18.1 — 2026-11-14
 - **Headings:** every grey heading in the menu and its submenus is drawn by Focus at one size (13 pt), set in one place with its weight and colour.
 - **Tools:** "Quit apps to free RAM" heads the three Quit items; "Analyse performance" heads Activity Monitor and System Settings.

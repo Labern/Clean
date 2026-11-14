@@ -2001,7 +2001,8 @@ final class Focus: NSObject, NSMenuDelegate {
     /// Up to three app icons, overlapped, for a mode's row.
     func stack(_ ids: [String]) -> NSImage {
         let icons = ids.prefix(3).compactMap(path).map { ws.icon(forFile: $0) }
-        let img = NSImage(size: NSSize(width: 16 + CGFloat(max(icons.count - 1, 0)) * 7, height: 16), flipped: false) { _ in
+        // always the width of three icons, so every mode's name starts in the same place however many apps it has
+        let img = NSImage(size: NSSize(width: 30, height: 16), flipped: false) { _ in
             for (i, ic) in icons.enumerated().reversed() { ic.draw(in: NSRect(x: CGFloat(i) * 7, y: 0, width: 16, height: 16)) }
             return true
         }
@@ -3159,7 +3160,8 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let styles = t.menuBarNameStyle == 1 && Focus.nameStyles.map { $0("AI") } == ["AI", "AI session", "AI (in session)"]
         let sized = styles && !heads.isEmpty && (Heading.attrs[.font] as? NSFont)?.pointSize == theme.headingSize && theme.headingSize > 11
         t.modes = []
-        done(unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,
+        let aligned = t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
+        done(aligned && unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,
              "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode first: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); headings \(theme.headingSize) pt from one setting: \(sized)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in

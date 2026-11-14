@@ -1,6 +1,6 @@
 # Focus — test report
 
-**quick** run · version 0.18.0 · 2026-11-14 02:56 · 34s · **20 passed, 0 failed**
+**quick** run · version 0.18.1 · 2026-11-14 02:57 · 35s · **20 passed, 0 failed**
 
 | Result | Check | Detail |
 |---|---|---|
@@ -10,7 +10,7 @@
 | PASS | 18. submenus keep their own items when they open (Settings must not become a copy of the menu) | Settings, Tools, Past sessions unchanged on open |
 | PASS | 23. shortcuts: switching registers the new keys at once; the default is ⌘⇧F / ⌘⇧E | default ⌘⇧F/⌘⇧E: true; ⌃⇧F registered live: true; ticked in the menu: true |
 | PASS | 24. animation speed: Normal is the default and keeps the original timing; Slow/Fast change only the holds | default Normal with hold 0.24 s / 0.02 s: true; slow longer: true; fast shorter: true; Appearance has Icon Colour: true and the dial: true |
-| PASS | 32. icon picker: hovering a design plays it back and forth (rest → in session with hit stop → back); leaving stops it; 20 designs | starts: true; landing t=1.0 scale=1.119999999925642; rest t=0.0; returning t=0.5555555555555557; stops: true; designs: 20 |
+| PASS | 32. icon picker: hovering a design plays it back and forth (rest → in session with hit stop → back); leaving stops it; 20 designs | starts: true; landing t=1.0 scale=1.1199999999998653; rest t=0.0; returning t=0.5555555555555557; stops: true; designs: 20 |
 | PASS | 33. colour schemes: the Evangelion pairs are listed by name; a user can save, pick and delete their own; the originals stay | Evangelion listed: true; originals kept: true; saved scheme listed: true; picking it applies it: true; ⌥ delete: true; deleted: true |
 | PASS | 34. the menu opens with its state: Focus out of session, and in a session how many apps and since when | first line out of session: 'Focus' |
 | PASS | 35. modes: suggestions use only installed apps (Web Only = the default browser); adding one makes a real mode and it leaves the list; a mode's apps can be added and removed; Temporarily Closed wording | suggestions ["Web Only: Google Chrome", "Writing: Obsidian, Google Chrome", "Coding: Xcode, Terminal, Google Chrome"]; Web Only = default browser: true; all apps installed: true; added as a mode: true, then leaves the list: true; add/remove apps: true; mode menu has app rows + Add App: true |
@@ -21,8 +21,8 @@
 | PASS | 41. organised: Tools headings; Settings ▸ Behaviour; Create New Mode first; unnamed modes are numbered; right-click edit menu; column headings; headings share one size | unnamed → Mode 1 on ⌘1: true; Tools headings: true; Appearance, Shortcuts, Behaviour: true; Behaviour holds the three: true, moved out of Settings: true; Create New Mode first: true; right-click edit menu: true; column headings: true; headings 13.0 pt from one setting: true |
 | PASS | 26. icon designs: Lens is the default; every design draws at rest and focused, in the user's colours; the picker is in Appearance | Lens default: true; designs that drew nothing: none; choice saved: true; picker in Appearance: true |
 | PASS | 27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration | migration true · create+dedupe true · dragged .app true · no duplicates true · reorder true · remove+rename true · found by id true · delete true |
-| PASS | 28. a live session: the first line names it; no banner under it; renames show at once; the button says End Session | first line 'Focus — Game design (4 apps, since 02:56)': true; no banner: true; button 'End Session'; rename shows: true; out of session 'Focus': true |
+| PASS | 28. a live session: the first line names it; no banner under it; renames show at once; the button says End Session | first line 'Focus — Game design (4 apps, since 02:57)': true; no banner: true; button 'End Session'; rename shows: true; out of session 'Focus': true |
 | PASS | 29. switching and hide-instead-of-quit settings; the Fewer icon | careful unless chosen: true; menu ticks Careful: true; per-app hide rows: true; Fewer icon: true |
-| PASS | 16. menu speed with every process on the Mac | 48 ms per menu open |
+| PASS | 16. menu speed with every process on the Mac | 46 ms per menu open |
 
 Quick: `./test.sh` (every major change). Full: `./test.sh full` (when needed).
