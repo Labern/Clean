@@ -116,3 +116,11 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - He saw Focus "dark and the colours were all wrong" once, could not reproduce it, and suspects a dark-mode hangover after reopening the Mac.
 - Suspect: the forced-dark menu and its painted backing (`darken`, `paintMenuWindows`) after an appearance change during sleep. Not changed; needs a screenshot and whether the Mac had just woken.
 - Cause found from his screenshot: Mac in Light mode; the dark appearance was set in menuWillOpen only. Now set at build on every menu, submenu and row (scenario 46). The sleep/wake theory was a coincidence: it shows in daylight, when the Mac is light.
+
+## Accounts and email (noted 2026-11-14, undecided)
+- He may add user accounts to capture each buyer's email, possibly at purchase: an email, with or without a password, so he can send news of updates and future products. Not built. Needs a decision on where it happens (the purchase page is the simplest) and consent wording for marketing email.
+
+## Desktop app: still to do (2026-11-14)
+- Screenshots of Wispr Flow, then borrow its best details (he asked; needs screen access granted).
+- The Manual (the sidebar button is there, greyed, until it's written).
+- The window's outer edge: macOS draws a thin light rim on dark windows. Only a borderless window removes it.

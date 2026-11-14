@@ -13,6 +13,7 @@
 // Design: the website's (paradoxica.co.uk/focus) — black ground, white ink, the Graphik face, the same greys.
 import AppKit
 import SwiftUI
+import ServiceManagement
 
 /// The website's design tokens (its :root block), so the window and the site are one look.
 enum Site {
@@ -21,7 +22,12 @@ enum Site {
     static let head = Color.white, body = hex(0xEEEEEE), low = hex(0xD0D1D2), muted = hex(0x8E8E8E), hazard = hex(0xED4E3B)
     enum Weight { case regular, medium, semibold }
     /// Graphik, the site's face (it ships with macOS as a downloadable system font); Helvetica Neue if it's absent.
-    static func font(_ size: CGFloat, _ w: Weight = .regular) -> Font {
+    /// The user's text size for the window (View ▸ Bigger Text / Smaller Text): every size is multiplied by it.
+    static var scale: CGFloat = {
+        let s = UserDefaults.standard.double(forKey: "desktopTextScale"); return s >= 0.8 && s <= 1.6 ? CGFloat(s) : 1
+    }() { didSet { UserDefaults.standard.set(Double(scale), forKey: "desktopTextScale") } }
+    static func font(_ base: CGFloat, _ w: Weight = .regular) -> Font {
+        let size = (base * scale).rounded()
         let name = ["Graphik-Regular", "Graphik-Medium", "Graphik-Semibold"][w == .regular ? 0 : w == .medium ? 1 : 2]
         if NSFont(name: name, size: size) != nil { return .custom(name, size: size) }
         let fallback = ["HelveticaNeue", "HelveticaNeue-Medium", "HelveticaNeue-Bold"][w == .regular ? 0 : w == .medium ? 1 : 2]
@@ -59,16 +65,20 @@ struct LogoView: View {
     @State private var timer: Timer?
     var body: some View {
         Image(nsImage: siteLogo(side * 2, t: t)).resizable().interpolation(.high).frame(width: side, height: side)
-            .onAppear {
+            .onTapGesture { play() }                                   // click the logo: it plays again
+            .onAppear { play() }
+            .onDisappear { timer?.invalidate() }
+    }
+    func play() {
+        do {
                 guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { t = 1; return }
                 t = 0; let began = Date()
                 let tm = Timer(timeInterval: 1.0 / 60, repeats: true) { tm in
                     let x = CGFloat(Date().timeIntervalSince(began) - 0.25) / 0.7        // a beat, then 0.7 s
                     t = min(max(x, 0), 1); if x >= 1 { tm.invalidate() }
                 }
-                RunLoop.main.add(tm, forMode: .common); timer = tm
-            }
-            .onDisappear { timer?.invalidate() }
+                timer?.invalidate(); RunLoop.main.add(tm, forMode: .common); timer = tm
+        }
     }
 }
 
@@ -88,8 +98,39 @@ final class DesktopModel: ObservableObject {
     var still = false                                           // off-screen drawing: no animation
     private var timer: Timer?
     init(_ f: Focus) { self.f = f }
+
+    // — updates —
+    /// A newer build than this one, if the release page has one: its version and where to get it.
+    @Published var update: (version: String, url: URL)?
+    static let releaseAPI = URL(string: "https://api.github.com/repos/Labern/Clean/releases/tags/focus-latest")!
+    static let releasePage = URL(string: "https://github.com/Labern/Clean/releases/tag/focus-latest")!
+    static func newer(_ a: String, than b: String) -> Bool {
+        let x = a.split(separator: ".").map { Int($0) ?? 0 }, y = b.split(separator: ".").map { Int($0) ?? 0 }
+        for i in 0..<max(x.count, y.count) { let p = i < x.count ? x[i] : 0, q = i < y.count ? y[i] : 0; if p != q { return p > q } }
+        return false
+    }
+    /// Asks the release page which version it holds (it sends nothing about this Mac beyond an ordinary web request).
+    func checkForUpdate() {
+        let mine = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        URLSession.shared.dataTask(with: Self.releaseAPI) { [weak self] data, _, _ in
+            guard let data, let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let body = j["body"] as? String,
+                  let r = body.range(of: #"focus-v[0-9]+(\.[0-9]+)+"#, options: .regularExpression) else { return }
+            let latest = String(body[r].dropFirst("focus-v".count))
+            DispatchQueue.main.async { self?.update = Self.newer(latest, than: mine) ? (latest, Self.releasePage) : nil }
+        }.resume()
+    }
+
+    static let site = URL(string: "https://paradoxica.co.uk")!
+
+    // — one app, from a right-click —
+    func quit(_ id: String, force: Bool) {
+        for a in NSWorkspace.shared.runningApplications where a.bundleIdentifier == id && !a.isTerminated { _ = force ? a.forceTerminate() : a.terminate() }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.refresh() }
+    }
+
     func start() {
         refresh()
+        if !still { checkForUpdate() }
         timer?.invalidate()
         let t = Timer(timeInterval: 1.5, repeats: true) { [weak self] _ in self?.refresh() }
         RunLoop.main.add(t, forMode: .common); timer = t
@@ -100,13 +141,13 @@ final class DesktopModel: ObservableObject {
     func act(_ change: () -> Void) { change(); tick &+= 1 }
 
     // — the engine, read for the views —
-    struct AppLine: Identifiable { let id: String, path: String, name: String, usage: String, on: Bool, note: String }
+    struct AppLine: Identifiable { let id: String, path: String, name: String, usage: String, on: Bool, note: String; var bytes: UInt64 = 0 }
     func icon(_ path: String) -> NSImage { let i = NSWorkspace.shared.icon(forFile: path); i.size = NSSize(width: 128, height: 128); return i }   // the full-size artwork
     var running: [AppLine] {
         f.sorted(f.apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }).map { id, p in
             let size = NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }.map(f.memory) ?? 0
             let parked = f.focused && f.isParked(id)
-            return AppLine(id: id, path: p, name: f.appName(p), usage: size > 0 ? gb(size) : "", on: f.focused ? !parked : f.excluded.contains(id), note: parked ? "leaving…" : "")
+            return AppLine(id: id, path: p, name: f.appName(p), usage: size > 0 ? gb(size) : "", on: f.focused ? !parked : f.excluded.contains(id), note: parked ? "leaving…" : "", bytes: size)
         }
     }
     var outside: [AppLine] {
@@ -126,6 +167,23 @@ final class DesktopModel: ObservableObject {
             guard let id = md["id"] as? String else { return nil }
             return ModeLine(id: id, name: md["name"] as? String ?? "Mode", key: (md["key"] as? Int).map { f.label(forMode: $0) } ?? "",
                             apps: md["apps"] as? [String] ?? [], live: f.focused && f.sessions.first?["modeID"] as? String == id)
+        }
+    }
+    /// "12 min", "1 h 05 min": how long the live session has run.
+    var elapsed: String? {
+        guard f.focused, let began = f.sessions.first?["date"] as? Date else { return nil }
+        let min = max(0, Int(Date().timeIntervalSince(began) / 60))
+        return min < 60 ? "\(min) min" : "\(min / 60) h \(String(format: "%02d", min % 60)) min"
+    }
+    struct PastLine: Identifiable { let id: Int, title: String, detail: String, canSave: Bool, live: Bool }
+    var history: [PastLine] {
+        let when = DateFormatter(); when.dateStyle = .medium; when.timeStyle = .short; when.doesRelativeDateFormatting = true
+        return f.sessions.enumerated().map { n, s in
+            let kept = f.keptShort(s), closed = (s["apps"] as? [Any])?.count ?? 0
+            let name = (s["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? (kept.isEmpty ? "Session" : "Kept " + kept)
+            let date = (s["date"] as? Date).map { when.string(from: $0) } ?? ""
+            return PastLine(id: n, title: name, detail: [date, kept.isEmpty ? nil : "kept " + kept, "closed \(closed) app\(closed == 1 ? "" : "s")"].compactMap { $0 }.joined(separator: " · "),
+                            canSave: !f.kept(s).isEmpty, live: f.focused && n == 0)
         }
     }
     func toggle(_ app: AppLine) {
@@ -148,21 +206,99 @@ final class DesktopModel: ObservableObject {
 
 struct AppRowView: View {
     let app: DesktopModel.AppLine, icon: NSImage, mark: String, action: (() -> Void)?
+    var quit: ((Bool) -> Void)? = nil                           // right-click: Quit / Force Quit this app (running apps only)
     @State private var hover = false
     var body: some View {
-        HStack(spacing: 14) {
-            Image(nsImage: icon).resizable().interpolation(.high).frame(width: 34, height: 34).opacity(app.on ? 1 : 0.55)
-            Text(app.name).font(Site.font(15, .medium)).foregroundColor(app.on ? Site.head : Site.muted)
+        HStack(spacing: 12) {
+            Image(nsImage: icon).resizable().interpolation(.high).frame(width: 28, height: 28).opacity(app.on ? 1 : 0.55)
+            Text(app.name).font(Site.font(18, .medium)).foregroundColor(app.on ? Site.head : Site.muted)
             Spacer(minLength: 12)
-            Text(app.note.isEmpty ? app.usage : app.note).font(Site.font(13)).foregroundColor(Site.muted).monospacedDigit()
+            Text(app.note.isEmpty ? app.usage : app.note).font(Site.font(16)).foregroundColor(Site.muted).monospacedDigit()
             Image(systemName: hover && action != nil ? (app.on ? "xmark.circle.fill" : "plus.circle") : mark)
                 .font(.system(size: 19)).foregroundColor(app.on ? Site.head : Site.muted).frame(width: 24)
         }
-        .padding(.horizontal, 14).frame(height: 52)
+        .padding(.horizontal, 14).frame(height: 40)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(hover && action != nil ? Site.surface : Color.clear))
         .contentShape(Rectangle())
+        .animation(.easeOut(duration: 0.12), value: hover).animation(.easeOut(duration: 0.2), value: app.on)
         .onHover { hover = $0 }
         .onTapGesture { action?() }
+        .contextMenu {
+            if let quit {
+                Button("Quit \(app.name)") { quit(false) }
+                Button("Force Quit \(app.name)") { quit(true) }
+            }
+        }
+    }
+}
+
+/// What the open apps are holding, as one bar: each app a segment as wide as its memory. White = stays in the
+/// session, grey = would close. Hover a segment to see whose it is.
+struct MemoryBar: View {
+    let apps: [DesktopModel.AppLine]
+    @State private var hover: String?
+    var body: some View {
+        let total = max(apps.reduce(0) { $0 + $1.bytes }, 1), freed = apps.filter { !$0.on }.reduce(0) { $0 + $1.bytes }
+        VStack(alignment: .leading, spacing: 6) {
+            GeometryReader { g in
+                HStack(spacing: 2) {
+                    ForEach(apps.filter { $0.bytes > 0 }) { a in
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(a.on ? Color.white : Site.hex(0x4A4A4A)).opacity(hover == nil || hover == a.id ? 1 : 0.45)
+                            .frame(width: max(3, (g.size.width - CGFloat(apps.count) * 2) * CGFloat(a.bytes) / CGFloat(total)))
+                            .onHover { hover = $0 ? a.id : (hover == a.id ? nil : hover) }
+                    }
+                }.animation(.easeOut(duration: 0.35), value: apps.map(\.on))
+            }.frame(height: 10)
+            Text(hover.flatMap { id in apps.first { $0.id == id } }.map { "\($0.name) · \($0.usage)" }
+                 ?? "\(gb(total)) in use by open apps" + (freed > 0 ? " · a session frees \(gb(freed))" : ""))
+                .font(Site.font(15)).foregroundColor(Site.muted)
+        }
+    }
+}
+
+/// The one action, and the most important thing in the window: start or end a session. Fat, white, never full
+/// width, with its key — worded as in the menu.
+struct SessionButton: View {
+    let title: String, key: String, action: () -> Void
+    @State private var hover = false
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 18) {
+                Text(title).font(Site.font(22, .medium)).tracking(-0.3).lineLimit(1)
+                Text(key).font(Site.font(18)).opacity(0.5).lineLimit(1)
+            }
+            .fixedSize()                                            // one line, always: the caption beside it gives way, never this
+            .foregroundColor(.black).padding(.horizontal, 26).frame(height: 62)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(hover ? 0.9 : 1)))
+            .shadow(color: Color.white.opacity(hover ? 0.22 : 0), radius: 14)          // a soft glow under the pointer
+            .scaleEffect(hover ? 1.015 : 1).animation(.easeOut(duration: 0.15), value: hover)
+        }
+        .buttonStyle(.plain).onHover { hover = $0 }
+    }
+}
+
+/// A slow white pulse: a session is running.
+struct PulseDot: View {
+    @State private var on = false
+    var body: some View {
+        Circle().fill(Color.white).frame(width: 8, height: 8).opacity(on ? 1 : 0.35)
+            .onAppear { withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { on = true } }
+    }
+}
+
+/// A small labelled button for the foot of the sidebar (Help, Manual).
+struct FootButton: View {
+    let symbol: String, title: String, enabled: Bool, action: () -> Void
+    @State private var hover = false
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) { Image(systemName: symbol).font(.system(size: 14)); Text(title).font(Site.font(15, .medium)) }
+                .foregroundColor(enabled ? Site.head : Site.muted)
+                .frame(maxWidth: .infinity).frame(height: 34)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hover && enabled ? Site.surface2 : Site.surface))
+        }
+        .buttonStyle(.plain).onHover { hover = $0 }
     }
 }
 
@@ -171,7 +307,7 @@ struct SectionLabel: View {
     init(_ left: String, _ right: String = "") { self.left = left; self.right = right }
     var body: some View {
         HStack { Text(left); Spacer(); Text(right).padding(.trailing, 38) }
-            .font(Site.font(12, .medium)).foregroundColor(Site.muted).padding(.horizontal, 14).padding(.top, 22).padding(.bottom, 6)
+            .font(Site.font(15, .medium)).foregroundColor(Site.muted).padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 3)
     }
 }
 
@@ -184,9 +320,9 @@ struct SiteButton: View {
     @State private var hover = false
     var body: some View {
         Button(action: action) {
-            HStack { Text(title).font(Site.font(15, .medium)); if !key.isEmpty { Spacer(); Text(key).font(Site.font(13)).opacity(0.55) } }
+            HStack { Text(title).font(Site.font(filled ? 19 : 15, .medium)).tracking(filled ? -0.2 : 0); if !key.isEmpty { Spacer(); Text(key).font(Site.font(filled ? 17 : 14)).opacity(0.55) } }
                 .foregroundColor(filled ? .black : tint)
-                .padding(.horizontal, 18).frame(height: filled ? 48 : 36)
+                .padding(.horizontal, 20).frame(height: filled ? 54 : 34)
                 .frame(maxWidth: filled ? .infinity : nil)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(filled ? Color.white.opacity(hover ? 0.88 : 1) : (hover ? Site.surface : Color.clear)))
                 .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(filled ? Color.clear : Site.line, lineWidth: 1))
@@ -208,13 +344,13 @@ struct SideRow: View {
                     }
                 }.frame(width: 40, alignment: .leading)
             }
-            Text(title).font(Site.font(14, selected ? .medium : .regular)).lineLimit(1)
+            Text(title).font(Site.font(17, selected ? .medium : .regular)).lineLimit(1)
             Spacer(minLength: 6)
             if live { Circle().fill(Site.head).frame(width: 7, height: 7) }
-            Text(trailing).font(Site.font(12)).foregroundColor(Site.muted)
+            Text(trailing).font(Site.font(15)).foregroundColor(Site.muted)
         }
         .foregroundColor(selected ? Site.head : Site.low)
-        .padding(.horizontal, 12).frame(height: 38)
+        .padding(.horizontal, 12).frame(height: 32)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(selected ? Site.surface2 : hover ? Site.surface : Color.clear))
         .contentShape(Rectangle()).onHover { hover = $0 }.onTapGesture(perform: action)
     }
@@ -227,10 +363,32 @@ struct DesktopView: View {
     var body: some View {
         let _ = m.tick
         HStack(spacing: 0) {
-            sidebar.frame(width: 248)
-            Rectangle().fill(Site.line).frame(width: 1)
-            Group { if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) } else { SessionDetail(m: m) } }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            sidebar.frame(width: 256)
+            VStack(spacing: 0) {
+                // Always there, whatever is selected: the one action, worded as in the menu, with its key. Not full
+                // width: a fat button at the top left of the pane, what it will do written beside it.
+                HStack(alignment: .center, spacing: 18) {
+                    SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey) { m.act { m.f.toggle() } }
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let t = m.elapsed {
+                            HStack(spacing: 7) { PulseDot(); Text("In session for \(t)").font(Site.font(16, .medium)).foregroundColor(Site.head) }
+                        }
+                        Text(m.f.sessionCaption()).font(Site.font(15)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 0)
+                }.padding(.leading, 24).padding(.trailing, 24).padding(.top, 18).padding(.bottom, 6)
+                Group {
+                    if m.selection == Page.shortcuts { ShortcutsPage(m: m) }
+                    else if m.selection == Page.tools { ToolsPage(m: m) }
+                    else if m.selection == Page.settings { SettingsPage(m: m) }
+                    else if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) }
+                    else if m.selection == Page.history { HistoryPage(m: m) }
+                    else { SessionDetail(m: m) }
+                }
+                .id(m.selection ?? "session").transition(.opacity)
+                .animation(.easeOut(duration: 0.16), value: m.selection)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .background(Site.bg).preferredColorScheme(.dark)
     }
@@ -238,12 +396,16 @@ struct DesktopView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
                 if m.still { Image(nsImage: siteLogo(96)).resizable().interpolation(.high).frame(width: 38, height: 38) } else { LogoView(side: 38) }
-                Text("Focus").font(Site.font(24, .medium)).foregroundColor(Site.head)
-            }.padding(.leading, 18).padding(.top, 52).padding(.bottom, 22)
+                Text("Focus").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
+            }.padding(.leading, 18).padding(.top, 36).padding(.bottom, 10)      // just clear of the window's three buttons
             VStack(spacing: 2) {
                 SideRow(title: "Session", trailing: m.f.focused ? "On" : "", live: m.f.focused, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2") { m.selection = nil }
+                SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
+                SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver") { m.selection = Page.tools }
+                SideRow(title: "History", trailing: m.f.sessions.isEmpty ? "" : "\(m.f.sessions.count)", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath") { m.selection = Page.history }
+                SideRow(title: "Settings", trailing: "", live: false, selected: m.selection == Page.settings, icons: [], symbol: "gearshape") { m.selection = Page.settings }
             }.padding(.horizontal, 10)
-            Text("Modes").font(Site.font(12, .medium)).foregroundColor(Site.muted).padding(.leading, 22).padding(.top, 22).padding(.bottom, 6)
+            Text("Modes").font(Site.font(15, .medium)).foregroundColor(Site.muted).padding(.leading, 22).padding(.top, 10).padding(.bottom, 3)
             ScrollView {
                 VStack(spacing: 2) {
                     ForEach(m.modes) { mode in
@@ -251,14 +413,37 @@ struct DesktopView: View {
                                 icons: mode.apps.compactMap { m.f.path($0) }.map(m.icon), symbol: nil) { m.selection = mode.id }
                     }
                     SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { m.newMode() }
+                    ForEach(m.f.suggestedModes(), id: \.name) { idea in                // from the apps you use; click to add
+                        SideRow(title: idea.name, trailing: "Add", live: false, selected: false, icons: [], symbol: "sparkles") {
+                            m.act { m.selection = m.f.createMode(idea.name, apps: idea.apps) }
+                        }.opacity(0.75)
+                    }
                 }.padding(.horizontal, 10)
             }
             Spacer(minLength: 8)
-            HStack(alignment: .top, spacing: 2) {
-                if let b = brandLockup { Image(nsImage: b).resizable().interpolation(.high).aspectRatio(1080.0 / 112.0, contentMode: .fit).frame(width: 150) }
-                else { Text("★★★★★ × PARADOX").font(Site.font(12, .medium)).foregroundColor(Site.head) }
-                Text("™").font(Site.font(8)).foregroundColor(Site.head).offset(y: -1)
-            }.padding(.leading, 20).padding(.bottom, 20)
+            // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
+            VStack(spacing: 8) {
+                if let u = m.update {
+                    Button { NSWorkspace.shared.open(u.url) } label: {
+                        HStack(spacing: 7) { Image(systemName: "arrow.down.circle.fill").font(.system(size: 15)); Text("Update available").font(Site.font(15, .medium)) }
+                            .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: 36)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
+                    }.buttonStyle(.plain).help("Focus \(u.version) is available. Click to get it.")
+                }
+                HStack(spacing: 8) {
+                    FootButton(symbol: "lifepreserver", title: "Help", enabled: true) { NSWorkspace.shared.open(Maker.helpURL) }
+                        .help("Write to help@paradoxica.co.uk")
+                    FootButton(symbol: "book", title: "Manual", enabled: false) {}
+                        .help("The manual isn't written yet.")
+                }
+                Button { NSWorkspace.shared.open(DesktopModel.site) } label: {
+                    HStack(alignment: .top, spacing: 3) {
+                        if let b = brandLockup { Image(nsImage: b).resizable().interpolation(.high).frame(width: 200, height: 200 * 112.0 / 1080.0) }
+                        else { Text("★★★★★ × PARADOX").font(Site.font(15)).foregroundColor(Site.head) }
+                        Text("™").font(Site.font(10)).foregroundColor(Site.head)
+                    }.fixedSize().frame(maxWidth: .infinity).padding(.top, 8).contentShape(Rectangle())
+                }.buttonStyle(.plain).help("paradoxica.co.uk")
+            }.padding(.horizontal, 12).padding(.bottom, 16)
         }
     }
 }
@@ -272,13 +457,15 @@ struct SessionDetail: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(f.focused ? (f.displayName ?? "In Session") : "Keep open this session").font(Site.font(32, .medium)).foregroundColor(Site.head)
+                    Text(f.focused ? (f.displayName ?? "In Session") : "Keep open this session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
                     Text(f.focused ? "Click an app to take it out of the session, or to bring one back."
                                    : "Tick the apps you want to keep. Everything else closes when the session starts and comes back when it ends.")
-                        .font(Site.font(15)).foregroundColor(Site.low).padding(.top, 8).fixedSize(horizontal: false, vertical: true)
+                        .font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
+                    MemoryBar(apps: m.running).padding(.top, 12)
                     SectionLabel("Apps in Session", "Usage").padding(.horizontal, -14)
                     ForEach(m.running) { app in
-                        AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle") { m.toggle(app) }.padding(.horizontal, -14)
+                        AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
+                                   quit: { m.quit(app.id, force: $0) }).padding(.horizontal, -14)
                     }
                     if !m.outside.isEmpty {
                         SectionLabel("Apps Outside Session").padding(.horizontal, -14)
@@ -290,15 +477,10 @@ struct SessionDetail: View {
                     ForEach(m.critical) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: "lock.circle.fill", action: nil).padding(.horizontal, -14)
                     }
-                    SiteButton("Add or remove…", filled: false) { f.showNever() }.padding(.top, 10)
+                    SiteButton("Add or remove…", filled: false) { f.showNever() }.padding(.top, 8)
                 }
-                .padding(.horizontal, 34).padding(.top, 46).padding(.bottom, 24)
+                .padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 14)
             }
-            Rectangle().fill(Site.line).frame(height: 1)
-            VStack(spacing: 10) {
-                SiteButton(f.focused ? "End Session" : "Start New Session", key: sessionKey) { m.act { f.toggle() } }
-                Text(f.sessionCaption()).font(Site.font(12)).foregroundColor(Site.muted).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-            }.padding(.horizontal, 34).padding(.vertical, 18)
         }
     }
 }
@@ -317,20 +499,23 @@ struct ModeDetail: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline, spacing: 14) {
                         TextField("Mode name", text: $name, onCommit: { m.act { f.renameMode(mode.id, to: name.trimmingCharacters(in: .whitespacesAndNewlines)) } })
-                            .textFieldStyle(.plain).font(Site.font(32, .medium)).foregroundColor(Site.head)
+                            .textFieldStyle(.plain).font(Site.font(26, .medium)).foregroundColor(Site.head)
                         Menu {
                             Button("None") { m.act { f.setModeKey(mode.id, nil) } }
                             ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], id: \.self) { d in Button(f.label(forMode: d)) { m.act { f.setModeKey(mode.id, d) } } }
-                        } label: { Text(mode.key.isEmpty ? "No shortcut" : mode.key).font(Site.font(14, .medium)) }
+                        } label: { Text(mode.key.isEmpty ? "No shortcut" : mode.key).font(Site.font(15, .medium)) }
                         .menuStyle(.borderlessButton).fixedSize()
+                        if !mode.live {
+                            SiteButton(mode.apps.isEmpty ? "Add an app to start" : "Start \(mode.name)", filled: false) { if !mode.apps.isEmpty { m.act { f.startOrSwitch(mode.id) } } }
+                        }
                     }
                     Text("A mode is a set of apps you keep open. Starting it closes everything else until the session ends.")
-                        .font(Site.font(15)).foregroundColor(Site.low).padding(.top, 8).fixedSize(horizontal: false, vertical: true)
+                        .font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
                     SectionLabel("Keeps open").padding(.horizontal, -14)
                     ForEach(inMode) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: "checkmark.circle.fill") { m.act { f.removeApp(app.id, fromMode: mode.id) } }.padding(.horizontal, -14)
                     }
-                    if inMode.isEmpty { Text("No apps yet. Add one below.").font(Site.font(14)).foregroundColor(Site.muted).padding(.vertical, 12) }
+                    if inMode.isEmpty { Text("No apps yet. Add one below.").font(Site.font(16)).foregroundColor(Site.muted).padding(.vertical, 8) }
                     if !others.isEmpty {
                         SectionLabel("Open now — click to add").padding(.horizontal, -14)
                         ForEach(others) { app in
@@ -340,21 +525,208 @@ struct ModeDetail: View {
                     HStack(spacing: 10) {
                         SiteButton("Add App…", filled: false) { let s = NSMenuItem(); s.representedObject = mode.id; f.addAppToMode(s); m.refresh() }
                         SiteButton("Delete Mode", filled: false, tint: Site.hazard) { m.act { f.removeMode(mode.id); m.selection = nil } }
-                    }.padding(.top, 14)
+                    }.padding(.top, 10)
                 }
-                .padding(.horizontal, 34).padding(.top, 46).padding(.bottom, 24)
+                .padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 14)
             }
-            Rectangle().fill(Site.line).frame(height: 1)
-            VStack(spacing: 10) {
-                SiteButton(mode.live ? "End Session" : "Start \(mode.name)", key: mode.key) { if !mode.apps.isEmpty || mode.live { m.act { f.startOrSwitch(mode.id) } } }
-                    .opacity(mode.apps.isEmpty && !mode.live ? 0.4 : 1)
-                Text(mode.apps.isEmpty ? "Add at least one app before starting this mode."
-                     : mode.live ? "Ending the session reopens everything this mode closed."
-                     : "Keeps \(f.names(mode.apps)) open and closes everything else until the session ends.")
-                    .font(Site.font(12)).foregroundColor(Site.muted).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-            }.padding(.horizontal, 34).padding(.vertical, 18)
         }
         .onAppear { name = mode.name }
+    }
+}
+
+// MARK: the other pages — the same settings the menu has, read from and written to the same place
+
+/// Sidebar pages that aren't a mode (a mode's id is a UUID, so these can't collide).
+enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history" }
+
+struct PageFrame<Content: View>: View {
+    let title: String, text: String
+    @ViewBuilder var content: Content
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(title).font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
+                Text(text).font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
+                content
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 14)
+        }
+    }
+}
+
+/// One choice out of a few, as a row of pills.
+struct Choice: View {
+    let options: [String], selected: Int, pick: (Int) -> Void
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(options.enumerated()), id: \.offset) { i, o in
+                Button { pick(i) } label: {
+                    Text(o).font(Site.font(16, .medium)).foregroundColor(i == selected ? .black : Site.head).lineLimit(1).fixedSize()
+                        .padding(.horizontal, 14).frame(height: 34)
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(i == selected ? Color.white : Site.surface))
+                }.buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+struct SettingLine<Control: View>: View {
+    let title: String, note: String
+    @ViewBuilder var control: Control
+    var body: some View {
+        HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(Site.font(18, .medium)).foregroundColor(Site.head)
+                if !note.isEmpty { Text(note).font(Site.font(15)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true) }
+            }
+            Spacer(minLength: 12)
+            control.layoutPriority(1)                               // the choices are never cut short: the note wraps instead
+        }.padding(.vertical, 9)
+    }
+}
+
+struct ShortcutsPage: View {
+    @ObservedObject var m: DesktopModel
+    var body: some View {
+        let f = m.f
+        PageFrame(title: "Shortcuts", text: "The keys that start and end a session, open the menu, and start your modes.") {
+            SettingLine(title: "Start / End Session", note: f.sessionKeyTaken ? "That combination is taken by another app. Pick another." : "Then F.") {
+                Choice(options: modifierChoices.map { $0.label + "F" }, selected: modifierChoices.firstIndex { $0.mods == f.sessionMods } ?? 0) { i in m.act { f.sessionMods = modifierChoices[i].mods } }
+            }
+            SettingLine(title: "Open the Menu", note: f.menuKeyTaken ? "That combination is taken by another app. Pick another." : "Then E.") {
+                Choice(options: modifierChoices.map { $0.label + "E" }, selected: modifierChoices.firstIndex { $0.mods == f.menuMods } ?? 0) { i in m.act { f.menuMods = modifierChoices[i].mods } }
+            }
+            SettingLine(title: "Modes", note: "This, plus the number you give each mode.") {
+                Choice(options: modeModifierChoices.map { $0.label + "1" }, selected: modeModifierChoices.firstIndex { $0.mods == f.modeMods } ?? 0) { i in m.act { f.modeMods = modeModifierChoices[i].mods } }
+            }
+            SectionLabel("Your modes").padding(.horizontal, -14)
+            ForEach(m.modes) { mode in
+                HStack {
+                    Text(mode.name).font(Site.font(18, .medium)).foregroundColor(Site.head)
+                    Spacer()
+                    Menu {
+                        Button("None") { m.act { f.setModeKey(mode.id, nil) } }
+                        ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], id: \.self) { d in Button(f.label(forMode: d)) { m.act { f.setModeKey(mode.id, d) } } }
+                    } label: { Text(mode.key.isEmpty ? "No shortcut" : mode.key).font(Site.font(16, .medium)) }
+                    .menuStyle(.borderlessButton).fixedSize()
+                }.frame(height: 36)
+            }
+            if m.modes.isEmpty { Text("No modes yet.").font(Site.font(16)).foregroundColor(Site.muted).padding(.vertical, 6) }
+        }
+    }
+}
+
+/// Past sessions: when, what was kept, how many apps were closed. Any of them can become a mode.
+struct HistoryPage: View {
+    @ObservedObject var m: DesktopModel
+    var body: some View {
+        let f = m.f
+        PageFrame(title: "History", text: "Your past sessions. Save one as a mode to start it again with a key.") {
+            if m.history.isEmpty { Text("No sessions yet.").font(Site.font(16)).foregroundColor(Site.muted).padding(.vertical, 10) }
+            ForEach(m.history) { s in
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 8) { if s.live { PulseDot() }; Text(s.title).font(Site.font(18, .medium)).foregroundColor(Site.head).lineLimit(1) }
+                        Text(s.detail).font(Site.font(15)).foregroundColor(Site.muted).lineLimit(1)
+                    }
+                    Spacer(minLength: 10)
+                    if s.canSave {
+                        SiteButton("Save as Mode", filled: false) { m.act { if f.modeFromSession(s.id, name: s.title) { m.selection = f.modes.last?["id"] as? String } } }
+                    }
+                }.padding(.vertical, 7)
+            }
+        }
+    }
+}
+
+/// One menu bar icon design in the picker: at rest, and playing into its in-session state under the pointer.
+struct IconCell: View {
+    let style: IconStyle, selected: Bool, ring: NSColor, dot: NSColor, pick: () -> Void
+    @State private var hover = false
+    var body: some View {
+        VStack(spacing: 4) {
+            TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !hover)) { tl in
+                let p = hover ? tl.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.2) / 2.2 : 0
+                let t = p < 0.2 ? 0 : p < 0.45 ? (p - 0.2) / 0.25 : p < 0.75 ? 1 : 1 - (p - 0.75) / 0.25
+                Image(nsImage: glyph(CGFloat(t), ring: ring, dot: dot, style: style)).resizable().interpolation(.high).frame(width: 30, height: 30)
+            }
+            Text(style.name).font(Site.font(13)).foregroundColor(selected ? Site.head : Site.muted).lineLimit(1)
+        }
+        .frame(width: 84, height: 66)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(selected ? Site.surface2 : hover ? Site.surface : Color.clear))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(selected ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1))
+        .contentShape(Rectangle()).onHover { hover = $0 }.onTapGesture(perform: pick)
+    }
+}
+
+struct ToolsPage: View {
+    @ObservedObject var m: DesktopModel
+    var body: some View {
+        let f = m.f, busy = f.focused || f.clearing
+        PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "Look at what your Mac is doing, or clear everything at once.") {
+            SectionLabel("Analyse performance").padding(.horizontal, -14)
+            HStack(spacing: 10) {
+                SiteButton("Open Activity Monitor", filled: false) { f.openActivityMonitor() }
+                SiteButton("Open System Settings", filled: false) { f.openSystemSettings() }
+            }.padding(.top, 4)
+            SectionLabel("Quit Unresponsive Apps").padding(.horizontal, -14)
+            HStack(spacing: 10) {
+                SiteButton("Quit All Apps…", filled: false) { if !busy { f.quitAllApps() } }
+                SiteButton("Quit All & Restart Mac…", filled: false) { if !busy { f.quitAllRestart() } }
+                SiteButton("Force Quit All Apps…", filled: false, tint: Site.hazard) { if !busy { f.forceQuitAllApps() } }
+            }.padding(.top, 4).opacity(busy ? 0.4 : 1)
+        }
+    }
+}
+
+struct SettingsPage: View {
+    @ObservedObject var m: DesktopModel
+    var body: some View {
+        let f = m.f
+        PageFrame(title: "Settings", text: "The same settings as the menu. Changing one here changes it there.") {
+            SettingLine(title: "App Open/Close Speed", note: "Safety first closes apps one at a time. Speed first does them all at once.") {
+                Choice(options: ["Safety first", "Speed first"], selected: f.fastSwitching ? 1 : 0) { i in m.act { f.fastSwitching = i == 1 } }
+            }
+            SettingLine(title: "Reopen windows as they were", note: "Asks macOS to bring each app's windows back when it reopens.") {
+                Choice(options: ["Off", "On"], selected: f.keepWindows ? 1 : 0) { i in m.act { f.keepWindows = i == 1 } }
+            }
+            SettingLine(title: "Open at login", note: "") {
+                Choice(options: ["Off", "On"], selected: SMAppService.mainApp.status == .enabled ? 1 : 0) { i in
+                    if (SMAppService.mainApp.status == .enabled) != (i == 1) { m.act { f.login() } }
+                }
+            }
+            SettingLine(title: "Menu", note: "The look of the menu bar menu.") {
+                Choice(options: ["Dark", "Light"], selected: f.lightMenuSetting ? 1 : 0) { i in m.act { f.lightMenuSetting = i == 1 } }
+            }
+            SettingLine(title: "Menu headings", note: "How much the menu's headings explain.") {
+                Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
+            }
+            SectionLabel("Menu bar icon — hover to see it enter a session").padding(.horizontal, -14)
+            let ring = hexColor(f.iconColor) ?? .white, dot = hexColor(f.iconColor2) ?? ring
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 6)], alignment: .leading, spacing: 6) {
+                ForEach(IconStyle.allCases, id: \.rawValue) { st in
+                    IconCell(style: st, selected: f.iconStyleSetting == st, ring: ring, dot: dot) { m.act { f.iconStyleSetting = st } }
+                }
+            }
+            SectionLabel("Icon colour").padding(.horizontal, -14)
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 6)], alignment: .leading, spacing: 6) {
+                let all = [("White", "", "")] + theme.iconPresets + theme.evaPresets
+                ForEach(all, id: \.0) { name, a, b in
+                    let on = f.iconColor == a && (f.iconColor2 == b || (a == b && f.iconColor2.isEmpty) || (a.isEmpty && f.iconColor2.isEmpty))
+                    Button { m.act { f.iconColor = a; f.iconColor2 = a == b ? "" : b } } label: {
+                        HStack(spacing: 8) {
+                            ZStack { Circle().fill(Color(nsColor: hexColor(a) ?? .white)).frame(width: 16, height: 16)
+                                     Circle().fill(Color(nsColor: hexColor(b) ?? hexColor(a) ?? .white)).frame(width: 7, height: 7) }
+                            Text(name).font(Site.font(15, on ? .medium : .regular)).foregroundColor(on ? Site.head : Site.low).lineLimit(1)
+                            Spacer(minLength: 0)
+                        }.padding(.horizontal, 10).frame(height: 32)
+                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(on ? Site.surface2 : Site.surface))
+                    }.buttonStyle(.plain)
+                }
+            }
+            SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
+                Choice(options: ["Smaller", "Actual", "Bigger"], selected: 1) { i in desktop.setScale(i == 1 ? 1 : Site.scale + (i == 2 ? 0.1 : -0.1)) }
+            }
+        }
     }
 }
 
@@ -366,7 +738,7 @@ struct ModeDetail: View {
 /// window is open: Focus takes no such key otherwise.
 final class DesktopWindow: NSWindow {
     override func performKeyEquivalent(with e: NSEvent) -> Bool {
-        if e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command, let ch = e.charactersIgnoringModifiers?.lowercased(), ch == "h" || ch == "w" {
+        if e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command, let ch = e.charactersIgnoringModifiers?.lowercased(), ch == "h" || ch == "w" || ch == "q" {
             close(); return true
         }
         return super.performKeyEquivalent(with: e)
@@ -378,24 +750,84 @@ final class DesktopController: NSObject, NSWindowDelegate {
     func show(_ f: Focus) {
         if window == nil {
             let m = DesktopModel(f); model = m
-            let w = DesktopWindow(contentRect: NSRect(x: 0, y: 0, width: 940, height: 660),
+            let screen = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 800)
+            // A squat rectangle, well inside the screen: no wider or taller than it needs to be.
+            let size = NSSize(width: min(900, screen.width - 120), height: min(580, screen.height - 140))
+            let w = DesktopWindow(contentRect: NSRect(origin: .zero, size: size),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden; w.title = "Focus"
             w.backgroundColor = .black; w.appearance = NSAppearance(named: .darkAqua)
             w.isMovableByWindowBackground = true; w.isReleasedWhenClosed = false
-            w.minSize = NSSize(width: 780, height: 540)
-            w.contentView = NSHostingView(rootView: DesktopView(m: m))
-            w.setFrameAutosaveName("FocusDesktop"); if w.frame.origin == .zero { w.center() }
+            w.minSize = NSSize(width: 720, height: 420)
+            let host = NSHostingView(rootView: DesktopView(m: m))
+            host.sizingOptions = []                                  // the window sets the size, never the content
+            w.contentView = host
+            w.setContentSize(size)
+            w.setFrame(NSRect(x: screen.midX - w.frame.width / 2, y: screen.midY - w.frame.height / 2, width: w.frame.width, height: w.frame.height), display: false)
             w.delegate = self; window = w
         }
         model?.start()
         NSApp.setActivationPolicy(.regular)                      // now in the Dock and ⌘⇥…
         NSApp.applicationIconImage = siteLogo(512, grid: true)   // …with the site's logo
+        NSApp.mainMenu = mainMenu()                              // …and a menu bar of its own
         NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil)
     }
     func hide() { window?.close() }
+
+    // MARK: the menu bar while the window is open — Focus, File, Edit, View, Window, Help
+    func mainMenu() -> NSMenu {
+        let bar = NSMenu()
+        func menu(_ title: String, _ build: (NSMenu) -> Void) { let i = NSMenuItem(), m = NSMenu(title: title); build(m); i.submenu = m; bar.addItem(i) }
+        func item(_ m: NSMenu, _ title: String, _ action: Selector?, _ key: String = "", _ mods: NSEvent.ModifierFlags = .command, mine: Bool = true) {
+            let i = m.addItem(withTitle: title, action: action, keyEquivalent: key); i.keyEquivalentModifierMask = mods; if mine { i.target = self }
+        }
+        menu("Focus") { m in
+            item(m, "About Focus", #selector(about))
+            m.addItem(.separator())
+            item(m, "Hide Desktop App", #selector(closeWindow), "h")
+            item(m, "Quit Desktop App", #selector(closeWindow), "q")             // back to the menu bar: Focus itself keeps running
+            item(m, "Quit Focus Completely", #selector(quitAll), "q", [.command, .option])
+        }
+        menu("File") { m in
+            item(m, "New Mode", #selector(newMode), "n")
+            item(m, "Close Window", #selector(closeWindow), "w")
+        }
+        menu("Edit") { m in
+            item(m, "Undo", Selector(("undo:")), "z", mine: false); item(m, "Redo", Selector(("redo:")), "z", [.command, .shift], mine: false)
+            m.addItem(.separator())
+            item(m, "Cut", #selector(NSText.cut(_:)), "x", mine: false); item(m, "Copy", #selector(NSText.copy(_:)), "c", mine: false)
+            item(m, "Paste", #selector(NSText.paste(_:)), "v", mine: false); item(m, "Select All", #selector(NSText.selectAll(_:)), "a", mine: false)
+        }
+        menu("View") { m in
+            item(m, "Increase Font Size", #selector(biggerText), "+")
+            item(m, "Decrease Font Size", #selector(smallerText), "-")
+            item(m, "Actual Size", #selector(actualText))
+            let eq = m.addItem(withTitle: "Increase Font Size", action: #selector(biggerText), keyEquivalent: "="); eq.target = self   // ⌘= without Shift
+            eq.isHidden = true; eq.allowsKeyEquivalentWhenHidden = true
+        }
+        menu("Window") { m in
+            item(m, "Minimize", #selector(NSWindow.performMiniaturize(_:)), "m", mine: false)
+            item(m, "Zoom", #selector(NSWindow.performZoom(_:)), mine: false)
+        }
+        menu("Help") { m in
+            item(m, "Focus Help", #selector(help))
+            item(m, "Focus Website", #selector(website))
+        }
+        return bar
+    }
+    @objc func about() { NSApp.orderFrontStandardAboutPanel(options: [.applicationIcon: siteLogo(256, grid: true), .applicationName: "Focus"]) }
+    @objc func closeWindow() { window?.close() }
+    @objc func quitAll() { NSApp.terminate(nil) }
+    @objc func newMode() { model?.newMode() }
+    func setScale(_ s: CGFloat) { Site.scale = min(max((s * 20).rounded() / 20, 0.8), 1.6); model?.tick &+= 1 }
+    @objc func biggerText() { setScale(Site.scale + 0.1) }
+    @objc func smallerText() { setScale(Site.scale - 0.1) }
+    @objc func actualText() { setScale(1) }
+    @objc func help() { NSWorkspace.shared.open(Maker.helpURL) }
+    @objc func website() { NSWorkspace.shared.open(DesktopModel.site) }
     func windowWillClose(_ n: Notification) {
         model?.stop()
+        NSApp.mainMenu = nil
         NSApp.setActivationPolicy(.accessory)                    // back to the menu bar only
     }
 }
@@ -418,7 +850,10 @@ func renderDesktop(to file: String, mode: Bool) {
     f.createMode("", apps: have(["com.apple.TextEdit"]))
     f.neverClose = have(["com.apple.Terminal"]); f.excluded = have(["com.apple.Safari", "com.apple.Terminal"])
     let m = DesktopModel(f); m.still = true; m.refresh(); if mode { m.selection = second }
-    let size = NSSize(width: 940, height: 660)
+    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
+    f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]]
+    m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
+    let size = NSSize(width: 900, height: 580)
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: .darkAqua); w.contentView = host

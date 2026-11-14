@@ -25,6 +25,16 @@ func systemSwitcher(_ on: Bool) {
 }
 func healSystemSwitcher() { systemSwitcher(true) }
 
+/// Focus's own log: ~/Library/Logs/Focus.log. One line per event worth tracing (a right-click that arrived, a mode
+/// key). Kept small: started afresh past 200 KB.
+func flog(_ line: String) {
+    let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Focus.log")
+    let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    let data = Data((f.string(from: Date()) + "  " + line + "\n").utf8)
+    if let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int, size > 200_000 { try? FileManager.default.removeItem(at: url) }
+    if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(data); try? h.close() } else { try? data.write(to: url) }
+}
+
 /// A global shortcut via Carbon (needs no Accessibility permission). nil = macOS refused it: another app has it.
 func hotkey(_ id: UInt32, _ key: Int, _ mods: Int) -> EventHotKeyRef? {
     var ref: EventHotKeyRef?
@@ -287,18 +297,20 @@ final class SpeedDial: NSView {
 /// rest (t = 0) and focused (t = 1) and animates between them; the user's two colours apply to all of them —
 /// `ring` = the frame / the many, `dot` = the one thing kept. No colours = white, like every menu bar icon.
 enum IconStyle: String, CaseIterable {
-    case lens, lessMore, narrowing, framed, gathered, switcher, fewer
+    /// `site` ("Default"): the website's mark — the ring in four pieces round a small dot out of session, closed round
+    /// a large dot in session (the logo). `lens` ("Original"): the chunky lens that floods solid in session.
+    case site, lens, lessMore, narrowing, framed, gathered, switcher, fewer
     // Picked from the Icon Lab: minimal, Japanese, Mac windows, and ones that carry information
     case fullStop, aperture, reticle, zoom
     case ichi, enso, hinomaru, tomoe, stone
     case windows, spotlight, counter, door
-    var name: String { ["Lens", "Less, more", "Narrowing", "Framed", "Gathered", "Switcher", "Fewer",
+    var name: String { ["Default", "Original", "Less, more", "Narrowing", "Framed", "Gathered", "Switcher", "Fewer",
                         "Full stop", "Aperture", "Reticle", "Zoom",
                         "Ichi", "Ensō", "Hinomaru", "Tomoe", "Stone",
                         "Windows", "Spotlight", "Counter", "Door"][IconStyle.allCases.firstIndex(of: self)!] }
     var isCollection: Bool { IconStyle.allCases.firstIndex(of: self)! >= IconStyle.allCases.firstIndex(of: .fullStop)! }
 }
-var iconStyle: IconStyle = .lens                                  // set from Settings; read by every glyph() below
+var iconStyle: IconStyle = .site                                  // set from Settings; read by every glyph() below
 
 /// The ORIGINAL lens (thin ring, 1.6 pt) — kept exactly, because the app logo is drawn from it and he likes the logo.
 func classicLens(_ t: CGFloat, hunt: Bool = false, ring ringColor: NSColor? = nil, dot dotColor: NSColor? = nil) -> NSImage {
@@ -329,6 +341,7 @@ func classicLens(_ t: CGFloat, hunt: Bool = false, ring ringColor: NSColor? = ni
 
 func glyph(_ t: CGFloat, hunt: Bool = false, ring ringColor: NSColor? = nil, dot dotColor: NSColor? = nil, style: IconStyle? = nil) -> NSImage {
     let style = style ?? iconStyle
+    if style == .site { return classicLens(t, hunt: hunt, ring: ringColor, dot: dotColor) }     // the website's mark, exactly as the logo draws it
     if style != .lens { return styledGlyph(style, t, ring: ringColor, dot: dotColor) }
     func phase(_ a: CGFloat, _ b: CGFloat) -> CGFloat {          // 0…1 across [a, b], smoothstep-eased
         let x = min(max((t - a) / (b - a), 0), 1); return x * x * (3 - 2 * x)
@@ -659,11 +672,39 @@ class HoverView: NSView {
 
 /// One app: icon, name, and a mark on the right. Clicking flips it without closing the menu, so several
 /// can be set in one go. `on` uses `onMark`, off uses an empty circle; apps that will go read dimmer.
+/// Quits one app, from a right-click on its row.
+final class AppQuitter: NSObject {
+    static let shared = AppQuitter()
+    func each(_ s: NSMenuItem, _ body: (NSRunningApplication) -> Void) {
+        guard let id = s.representedObject as? String else { return }
+        for a in NSWorkspace.shared.runningApplications where a.bundleIdentifier == id && !a.isTerminated { body(a) }
+    }
+    @objc func quit(_ s: NSMenuItem) { each(s) { $0.terminate() } }
+    @objc func force(_ s: NSMenuItem) { each(s) { $0.forceTerminate() } }
+}
 final class AppRow: HoverView {
     let name: String, icon: NSImage, detail: String, onMark: String, flip: () -> Bool
     /// What a click adds the app to or takes it out of ("your session", "this mode"); nil = no hover popup.
     let target: String?
     var inert = false                                           // shown, not clickable: no hover, no click
+    /// A running app's row: right-click (or ⌃-click) offers Quit and Force Quit for that app.
+    var bundleID: String?
+    var shownQuit = false
+    override func rightMouseDown(with e: NSEvent) { flog("app row: right mouse down (\(name))"); showQuitMenu() }
+    override func rightMouseUp(with e: NSEvent) { flog("app row: right mouse up (\(name))"); showQuitMenu() }
+    override func menu(for e: NSEvent) -> NSMenu? { flog("app row: asked for its menu (\(name))"); showQuitMenu(); return nil }
+    func showQuitMenu() {
+        guard let id = bundleID, !shownQuit else { return }; shownQuit = true
+        let at = NSEvent.mouseLocation, m = NSMenu()
+        m.appearance = NSAppearance(named: lightMenu ? .aqua : .darkAqua)
+        let q = m.addItem(withTitle: "Quit \(name)", action: #selector(AppQuitter.quit(_:)), keyEquivalent: ""); q.target = AppQuitter.shared; q.representedObject = id
+        let fq = m.addItem(withTitle: "Force Quit \(name)", action: #selector(AppQuitter.force(_:)), keyEquivalent: ""); fq.target = AppQuitter.shared; fq.representedObject = id
+        enclosingMenuItem?.menu?.cancelTracking()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            flog("opening Quit / Force Quit for \(id)")
+            NSApp.activate(ignoringOtherApps: true); m.popUp(positioning: nil, at: at, in: nil)
+        }
+    }
     var on: Bool
     init(_ name: String, _ icon: NSImage, detail: String = "", on: Bool, onMark: String = "checkmark.circle.fill",
          target: String? = nil, flip: @escaping () -> Bool) {
@@ -689,7 +730,9 @@ final class AppRow: HoverView {
         let r = w.convertToScreen(convert(bounds, to: nil))
         RowTip.shared.show(text, under: r)
     }
-    override func mouseUp(with e: NSEvent) { guard !inert else { return }; on = flip(); needsDisplay = true; tipTimer?.invalidate(); RowTip.shared.hide() }
+    override func mouseUp(with e: NSEvent) {
+        if e.modifierFlags.contains(.control), bundleID != nil { return showQuitMenu() }
+        guard !inert else { return }; on = flip(); needsDisplay = true; tipTimer?.invalidate(); RowTip.shared.hide() }
     override func draw(_ r: NSRect) {
         if hover && !inert { theme.hover.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: 5, yRadius: 5).fill() }
         icon.draw(in: NSRect(x: 14, y: 5, width: 16, height: 16), from: .zero, operation: .sourceOver, fraction: on ? 1 : 0.55)
@@ -789,10 +832,10 @@ final class ModeRow: HoverView {
         enclosingMenuItem?.menu?.cancelTracking(); DispatchQueue.main.async(execute: start)
     }
     // Right-click (either half of it, whichever the menu delivers), a two-finger click, or ⌃-click.
-    override func rightMouseDown(with e: NSEvent) { NSLog("Focus: mode row right mouse down"); showEdit() }
-    override func rightMouseUp(with e: NSEvent) { NSLog("Focus: mode row right mouse up"); showEdit() }
+    override func rightMouseDown(with e: NSEvent) { flog("mode row: right mouse down"); showEdit() }
+    override func rightMouseUp(with e: NSEvent) { flog("mode row: right mouse up"); showEdit() }
     override func otherMouseDown(with e: NSEvent) { showEdit() }
-    override func menu(for e: NSEvent) -> NSMenu? { NSLog("Focus: mode row asked for its menu"); showEdit(); return nil }
+    override func menu(for e: NSEvent) -> NSMenu? { flog("mode row: asked for its menu"); showEdit(); return nil }
     var shown = false
     /// The open menu is closed first, then the mode's edit menu opens where the pointer is: a menu opened from
     /// inside another menu's row doesn't reliably appear.
@@ -801,7 +844,7 @@ final class ModeRow: HoverView {
         let menu = edit(), at = NSEvent.mouseLocation
         enclosingMenuItem?.menu?.cancelTracking()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            NSLog("Focus: opening a mode's edit menu")
+            flog("opening a mode's edit menu")
             NSApp.activate(ignoringOtherApps: true)
             menu.popUp(positioning: nil, at: at, in: nil)
         }
@@ -1419,7 +1462,7 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     /// Settings ▸ Appearance ▸ Icon. Missing = Lens, the original.
     var iconStyleSetting: IconStyle {
-        get { IconStyle(rawValue: store.string(forKey: "iconStyle") ?? "") ?? .lens }
+        get { IconStyle(rawValue: store.string(forKey: "iconStyle") ?? "") ?? .site }
         set { store.set(newValue.rawValue, forKey: "iconStyle"); if store == .standard { iconStyle = newValue }; redrawIcon() }
     }
     /// Settings ▸ Appearance ▸ Animation Speed. Missing = Normal, the permanent default.
@@ -1498,6 +1541,10 @@ final class Focus: NSObject, NSMenuDelegate {
         if store == .standard { lightMenu = lightMenuSetting }
         if store == .standard {                                 // `Focus --open-desktop` from a script or another app
             DistributedNotificationCenter.default().addObserver(forName: .init("com.labern.focus.openDesktop"), object: nil, queue: .main) { [weak self] _ in self?.openDesktop() }
+        }
+        if store == .standard, !store.bool(forKey: "iconDefaultIsSite") {
+            store.set(true, forKey: "iconDefaultIsSite")
+            if store.string(forKey: "iconStyle") == "lens" { store.set("site", forKey: "iconStyle") }
         }
         if store == .standard { iconStyle = iconStyleSetting }     // the real Focus draws the user's chosen design everywhere
         if store == .standard {                                 // Counter shows how many apps are open: keep it current
@@ -2016,7 +2063,7 @@ final class Focus: NSObject, NSMenuDelegate {
     func modeForKey(_ d: Int) -> [String: Any]? { modes.first { $0["key"] as? Int == d } }
     /// A mode's key: start it; press again to end it; in another session, switch straight to it.
     func modeKey(_ d: Int) {
-        NSLog("Focus: mode key %d pressed (mode: %@)", d, (modeForKey(d)?["name"] as? String) ?? "none")
+        flog("mode key \(d) pressed (mode: \((modeForKey(d)?["name"] as? String) ?? "none"))")
         guard !clearing, let m = modeForKey(d), let id = m["id"] as? String else { return }
         startOrSwitch(id)
     }
@@ -2212,11 +2259,20 @@ final class Focus: NSObject, NSMenuDelegate {
             return w.convertToScreen(row.convert(row.bounds, to: nil)).contains(at)
         }
     }
+    func appRowUnderPointer() -> AppRow? {
+        let at = NSEvent.mouseLocation
+        return (item.menu?.items ?? []).compactMap { $0.view as? AppRow }.first { row in
+            guard row.bundleID != nil, let w = row.window else { return false }
+            return w.convertToScreen(row.convert(row.bounds, to: nil)).contains(at)
+        }
+    }
     func menuWillOpen(_ m: NSMenu) {
+        if m === item.menu { flog("menu opened") }
         if m === item.menu, rightClickWatch == nil {
             rightClickWatch = NSEvent.addLocalMonitorForEvents(matching: [.rightMouseDown, .rightMouseUp, .otherMouseDown]) { [weak self] e in
-                NSLog("Focus: right click seen while the menu is open")
+                flog("menu open: right click seen by the watcher")
                 if let row = self?.modeRowUnderPointer() { row.showEdit(); return nil }
+                if let row = self?.appRowUnderPointer() { row.showQuitMenu(); return nil }
                 return e
             }
         }
@@ -2346,10 +2402,11 @@ final class Focus: NSObject, NSMenuDelegate {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
                 let parked = isParked(id)
                 let detail = stuckIDs.contains(id) ? "waiting to save" : parked ? "leaving…" : (size > 0 ? gb(size) : "")
-                view(AppRow(appName(p), appIcon(p), detail: detail, on: !parked, target: "your session") { [unowned self] in
+                let liveRow = AppRow(appName(p), appIcon(p), detail: detail, on: !parked, target: "your session") { [unowned self] in
                     if self.isParked(id) { self.showMove(id, out: false); self.bringBack(id); return true }
                     self.showMove(id, out: true); self.parkNow(id); return false
-                })
+                }
+                liveRow.bundleID = id; view(liveRow)
             }
             let parkedAway = parkedEntries.compactMap { e -> (String, String)? in
                 guard let p = e["path"] as? String, let id = (e["id"] as? String) ?? Bundle(path: p)?.bundleIdentifier,
@@ -2372,7 +2429,9 @@ final class Focus: NSObject, NSMenuDelegate {
             for (id, p) in running + idle {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
                 let detail = size > 0 ? gb(size) : ""
-                view(AppRow(appName(p), appIcon(p), detail: detail, on: excluded.contains(id), target: "your session") { [unowned self] in self.flip(\.excluded, id) })
+                let row = AppRow(appName(p), appIcon(p), detail: detail, on: excluded.contains(id), target: "your session") { [unowned self] in self.flip(\.excluded, id) }
+                if running.contains(where: { $0.0 == id }) { row.bundleID = id }      // only an app that's open can be quit
+                view(row)
             }
         }
 
@@ -3253,7 +3312,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         done(normalDefault && slow && fast && hasColour && hasDial,
              "default Normal with hold 0.24 s / 0.02 s: \(normalDefault); slow longer: \(slow); fast shorter: \(fast); Appearance has Icon Colour: \(hasColour) and the dial: \(hasDial)")
     }))
-    steps.append(("32. icon picker: hovering a design plays it back and forth (rest → in session with hit stop → back); leaving stops it; 20 designs", { done in
+    steps.append(("32. icon picker: hovering a design plays it back and forth (rest → in session with hit stop → back); leaving stops it; 21 designs", { done in
         let g = IconGrid(.lens, ring: nil, dot: nil) { _ in }
         g.setHover(.enso)
         let started = g.anim?.isValid == true
@@ -3263,7 +3322,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let timer = g.anim; g.setHover(nil)
         let stopped = timer?.isValid == false && g.anim == nil
         let count = IconStyle.allCases.count
-        done(started && tHit == 1 && kHit > 1 && tRest == 0 && tBack > 0 && tBack < 1 && stopped && count == 20,
+        done(started && tHit == 1 && kHit > 1 && tRest == 0 && tBack > 0 && tBack < 1 && stopped && count == 21,
              "starts: \(started); landing t=\(tHit) scale=\(kHit); rest t=\(tRest); returning t=\(tBack); stops: \(stopped); designs: \(count)")
     }))
     steps.append(("33. colour schemes: the Evangelion pairs are listed by name; a user can save, pick and delete their own; the originals stay", { done in
@@ -3442,7 +3501,9 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
             && m.items.first { $0.title == "Settings" }?.submenu?.items.contains { $0.title == "Show Desktop App" } == true
         let quitTop = openItem && m.items.first?.view is QuitRow && m.items.last?.view is Maker && m.items.last?.title == "★★★★★ × PARADOX™"
             && Maker.helpURL.scheme == "mailto" && Maker.help == "Help / Suggest Improvement"
-        let aligned = quitTop && t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
+        let quitRows = m.items.compactMap { $0.view as? AppRow }.filter { $0.bundleID != nil }
+        let rightClick = !quitRows.isEmpty && quitRows.allSatisfy { r in NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == r.bundleID } }
+        let aligned = rightClick && quitTop && t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
         done(aligned && unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,
              "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode under the modes, Add New Mode in Edit Modes, lock rows inert: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); standard macOS headings + name styles: \(sized)")
     }))
@@ -3547,10 +3608,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
             }
         } }
     }))
-    steps.append(("26. icon designs: Lens is the default; every design draws at rest and focused, in the user's colours; the picker is in Appearance", { done in
+    steps.append(("26. icon designs: Default (the website's mark) is the default, Original is still offered; every design draws at rest and focused, in the user's colours; the picker is in Appearance", { done in
         let d = UserDefaults(suiteName: suite)!
         d.removeObject(forKey: "iconStyle")
-        let lensDefault = t.iconStyleSetting == .lens
+        let lensDefault = t.iconStyleSetting == .site && IconStyle.site.name == "Default" && IconStyle.lens.name == "Original"
         func ink(_ img: NSImage) -> Int {                        // how many pixels the design actually paints
             let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 36, pixelsHigh: 36, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
             NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
@@ -3565,7 +3626,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let picker = look?.items.contains { $0.view is IconGrid } == true
         d.removeObject(forKey: "iconStyle")
         done(lensDefault && blank.isEmpty && saved && picker,
-             "Lens default: \(lensDefault); designs that drew nothing: \(blank.isEmpty ? "none" : blank.joined(separator: ", ")); choice saved: \(saved); picker in Appearance: \(picker)")
+             "Default is the default, Original offered: \(lensDefault); designs that drew nothing: \(blank.isEmpty ? "none" : blank.joined(separator: ", ")); choice saved: \(saved); picker in Appearance: \(picker)")
     }))
     steps.append(("27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration", { done in
         let d = UserDefaults(suiteName: suite)!

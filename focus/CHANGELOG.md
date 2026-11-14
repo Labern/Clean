@@ -4,6 +4,25 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.31 — 2026-11-14 (branch focus/feat-desktop-app)
+**Desktop app**
+- **Size:** a smaller, squat window (900 × 580 at most, always inside the screen), with tighter spacing at the top.
+- **Text:** larger throughout, and adjustable with View ▸ Increase / Decrease Font Size (⌘+ / ⌘−), or in Settings.
+- **Menu bar while it's open:** Focus, File, Edit, View, Window, Help. ⌘Q and ⌘H leave the desktop app (Focus keeps running in the menu bar); ⌥⌘Q quits Focus completely.
+- **The session button:** fat, white, at the top left of every page, never full width, with its key. What it will do is written beside it, with the time in session and a pulse while one runs.
+- **Sidebar:** Session, Shortcuts, Tools, History and Settings pages, then your modes, Create New Mode and up to three suggested modes.
+- **Sidebar foot:** "Update available" (only when the release page has a newer build), Help (writes to help@paradoxica.co.uk), Manual (not written yet), and the ★★★★★ × PARADOX™ mark, larger and centred, which opens paradoxica.co.uk.
+- **Session page:** a memory bar, one segment per app (white stays, grey closes; hover for whose it is).
+- **Settings page:** the menu's settings, plus the icon picker (hover plays each design into a session) and icon colours.
+- **Right-click an app** in the window: Quit or Force Quit it.
+- **Motion:** pages fade as you move between them, rows and the button respond to the pointer, and clicking the logo replays its opening.
+- **Dividers** between the sidebar and the pane are gone: the window is one black surface.
+
+**Menu bar app**
+- **Menu bar icon:** a new design, "Default", is the website's mark: the ring in pieces round a small dot out of session, closed round the large dot in session. The previous one is still offered as "Original".
+- **Right-click an app row** in the menu: Quit / Force Quit. Still unproven: right-clicks inside a menu may not arrive.
+- **Log:** Focus writes its own log to ~/Library/Logs/Focus.log, so that can now be checked.
+
 ## 0.18.30 — 2026-11-14
 - Fixes 0.18.29, which did not build (a comment cut a line of the window's code short). Use this version, not 0.18.29.
 
