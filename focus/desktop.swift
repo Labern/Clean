@@ -703,18 +703,29 @@ struct PageFrame<Content: View>: View {
 
 /// One choice out of a few, as a row of pills.
 struct Choice: View {
-    let options: [String], selected: Int, pick: (Int) -> Void
+    let options: [String], selected: Int
+    var unavailable: Set<Int> = []                              // shown, dimmed, not yet choosable
+    let pick: (Int) -> Void
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             ForEach(Array(options.enumerated()), id: \.offset) { i, o in
-                Button { pick(i) } label: {
+                Button { if !unavailable.contains(i) { pick(i) } } label: {
                     Text(o).font(Site.font(16, .medium)).foregroundColor(i == selected ? .black : Site.head).lineLimit(1).fixedSize()
-                        .padding(.horizontal, 14).frame(height: 34)
-                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(i == selected ? Color.white : Site.surface))
-                }.buttonStyle(.plain)
+                        .padding(.horizontal, 16).frame(height: 36)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(i == selected ? Color.white : Color.clear))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(i == selected ? 0 : 0.75), lineWidth: 1))
+                        .contentShape(Rectangle())
+                }.buttonStyle(.plain).opacity(unavailable.contains(i) ? 0.35 : 1)
             }
         }
     }
+}
+
+/// The name of a group of settings: larger than a section label, with room above it.
+struct GroupTitle: View {
+    let title: String
+    init(_ t: String) { title = t }
+    var body: some View { Text(title).font(Site.font(22, .medium)).tracking(-0.3).foregroundColor(Site.head).padding(.top, 30).padding(.bottom, 2) }
 }
 
 struct SettingLine<Control: View>: View {
@@ -728,7 +739,9 @@ struct SettingLine<Control: View>: View {
             }
             Spacer(minLength: 12)
             control.layoutPriority(1)                               // the choices are never cut short: the note wraps instead
-        }.padding(.vertical, 11)
+        }
+        .padding(.vertical, 18)
+        .overlay(alignment: .bottom) { Rectangle().fill(Site.line).frame(height: 1) }
     }
 }
 
@@ -809,10 +822,29 @@ struct IconCell: View {
             }
             Text(style.name).font(Site.font(13)).foregroundColor(selected ? Site.head : Site.muted).lineLimit(1)
         }
-        .frame(width: 84, height: 66)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(selected ? Site.surface2 : hover ? Site.surface : Color.clear))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(selected ? Color.white.opacity(0.5) : Color.clear, lineWidth: 1))
+        .frame(maxWidth: .infinity).frame(height: 76)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(hover || selected ? Site.surface2 : Site.surface))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(selected ? 0.9 : 0), lineWidth: 1.5))
         .contentShape(Rectangle()).onHover { hover = $0 }.onTapGesture(perform: pick)
+    }
+}
+
+/// One tool: a large button, and beside it why you'd reach for it.
+struct ToolLine: View {
+    let title: String, why: String, tint: Color, enabled: Bool, action: () -> Void
+    @State private var hover = false
+    var body: some View {
+        HStack(alignment: .center, spacing: 18) {
+            Button { if enabled { action() } } label: {
+                Text(title).font(Site.font(18, .medium)).foregroundColor(tint).lineLimit(1).minimumScaleFactor(0.85)
+                    .padding(.horizontal, 16).frame(width: 290, height: 48)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(hover && enabled ? Site.surface2 : Site.surface))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.line, lineWidth: 1))
+            }.buttonStyle(.plain).onHover { hover = $0 }
+            Text(why).font(Site.font(16)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 6).opacity(enabled ? 1 : 0.4)
     }
 }
 
@@ -822,16 +854,12 @@ struct ToolsPage: View {
         let f = m.f, busy = f.focused || f.clearing
         PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "Look at what your Mac is doing, or clear everything at once.") {
             SectionLabel("Analyse performance").padding(.horizontal, -14)
-            HStack(spacing: 10) {
-                SiteButton("Open Activity Monitor") { f.openActivityMonitor() }
-                SiteButton("Open System Settings") { f.openSystemSettings() }
-            }.padding(.top, 4)
+            ToolLine(title: "Open Activity Monitor", why: "See which apps are using the most memory and processor right now.", tint: Site.head, enabled: true) { f.openActivityMonitor() }
+            ToolLine(title: "Open System Settings", why: "Change what opens at login, and the battery and display settings that affect how the Mac runs.", tint: Site.head, enabled: true) { f.openSystemSettings() }
             SectionLabel("Quit Unresponsive Apps").padding(.horizontal, -14)
-            HStack(spacing: 10) {
-                SiteButton("Quit All Apps…") { if !busy { f.quitAllApps() } }
-                SiteButton("Quit All & Restart Mac…") { if !busy { f.quitAllRestart() } }
-                SiteButton("Force Quit All Apps…", tint: Site.hazard) { if !busy { f.forceQuitAllApps() } }
-            }.padding(.top, 4).opacity(busy ? 0.4 : 1)
+            ToolLine(title: "Quit All Apps…", why: "Close every app at once for a clean start. Each app saves first. Critical System Processes stay open.", tint: Site.head, enabled: !busy) { f.quitAllApps() }
+            ToolLine(title: "Quit All Apps & Restart Mac…", why: "Close everything, then restart. Clears memory completely when the Mac feels slow.", tint: Site.head, enabled: !busy) { f.quitAllRestart() }
+            ToolLine(title: "Force Quit All Apps…", why: "For apps that have frozen and won't quit. Unsaved work in them is lost, so it asks first.", tint: Site.hazard, enabled: !busy) { f.forceQuitAllApps() }
         }
     }
 }
@@ -841,6 +869,7 @@ struct SettingsPage: View {
     var body: some View {
         let f = m.f
         PageFrame(title: "Settings", text: "The same settings as the menu. Changing one here changes it there.") {
+            GroupTitle("Behaviour")
             SettingLine(title: "App Open/Close Speed", note: "Safety first closes apps one at a time. Speed first does them all at once.") {
                 Choice(options: ["Safety first", "Speed first"], selected: f.fastSwitching ? 1 : 0) { i in m.act { f.fastSwitching = i == 1 } }
             }
@@ -852,21 +881,30 @@ struct SettingsPage: View {
                     if (SMAppService.mainApp.status == .enabled) != (i == 1) { m.act { f.login() } }
                 }
             }
+            GroupTitle("Appearance")
+            SettingLine(title: "This window", note: "Dark is the standard look. Light and System are coming.") {
+                Choice(options: ["Light", "Dark", "System"], selected: 1, unavailable: [0, 2]) { _ in }
+            }
             SettingLine(title: "Menu", note: "The look of the menu bar menu.") {
                 Choice(options: ["Dark", "Light"], selected: f.lightMenuSetting ? 1 : 0) { i in m.act { f.lightMenuSetting = i == 1 } }
             }
             SettingLine(title: "Menu headings", note: "How much the menu's headings explain.") {
                 Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
             }
-            SectionLabel("Menu bar icon — hover to see it enter a session").padding(.horizontal, -14)
+            SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
+                Choice(options: ["Smaller", "Actual", "Bigger"], selected: Site.scale < 0.99 ? 0 : Site.scale > 1.01 ? 2 : 1) { i in
+                    desktop.setScale(i == 1 ? 1 : Site.scale + (i == 2 ? 0.1 : -0.1))
+                }
+            }
+            SectionLabel("Menu bar icon — hover to see it enter a session").padding(.horizontal, -14).padding(.top, 10)
             let ring = hexColor(f.iconColor) ?? .white, dot = hexColor(f.iconColor2) ?? ring
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 6)], alignment: .leading, spacing: 6) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), alignment: .leading, spacing: 8) {
                 ForEach(IconStyle.allCases, id: \.rawValue) { st in
                     IconCell(style: st, selected: f.iconStyleSetting == st, ring: ring, dot: dot) { m.act { f.iconStyleSetting = st } }
                 }
             }
-            SectionLabel("Icon colour").padding(.horizontal, -14)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 6)], alignment: .leading, spacing: 6) {
+            SectionLabel("Icon colour").padding(.horizontal, -14).padding(.top, 10)
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), alignment: .leading, spacing: 8) {
                 let all = [("White", "", "")] + theme.iconPresets + theme.evaPresets
                 ForEach(all, id: \.0) { name, a, b in
                     let on = f.iconColor == a && (f.iconColor2 == b || (a == b && f.iconColor2.isEmpty) || (a.isEmpty && f.iconColor2.isEmpty))
@@ -874,16 +912,12 @@ struct SettingsPage: View {
                         HStack(spacing: 8) {
                             ZStack { Circle().fill(Color(nsColor: hexColor(a) ?? .white)).frame(width: 16, height: 16)
                                      Circle().fill(Color(nsColor: hexColor(b) ?? hexColor(a) ?? .white)).frame(width: 7, height: 7) }
-                            Text(name).font(Site.font(15, on ? .medium : .regular)).foregroundColor(on ? Site.head : Site.low).lineLimit(1)
+                            Text(name).font(Site.font(15, on ? .medium : .regular)).foregroundColor(on ? Site.head : Site.low).lineLimit(1).minimumScaleFactor(0.8)
                             Spacer(minLength: 0)
-                        }.padding(.horizontal, 10).frame(height: 32)
-                        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(on ? Site.surface2 : Site.surface))
+                        }.padding(.horizontal, 12).frame(height: 38)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Site.surface2 : Site.surface))
+                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(on ? 0.9 : 0), lineWidth: 1.5))
                     }.buttonStyle(.plain)
-                }
-            }
-            SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
-                Choice(options: ["Smaller", "Actual", "Bigger"], selected: Site.scale < 0.99 ? 0 : Site.scale > 1.01 ? 2 : 1) { i in
-                    desktop.setScale(i == 1 ? 1 : Site.scale + (i == 2 ? 0.1 : -0.1))
                 }
             }
         }
@@ -924,7 +958,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             let m = DesktopModel(f); model = m
             let screen = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 800)
             // A squat rectangle, well inside the screen: no wider or taller than it needs to be.
-            let size = NSSize(width: min(1000, screen.width - 120), height: min(660, screen.height - 140))
+            let size = NSSize(width: min(1000, screen.width - 120), height: min(730, screen.height - 110))
             let w = DesktopWindow(contentRect: NSRect(origin: .zero, size: size),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden; w.title = "Focus"
@@ -1052,7 +1086,7 @@ func renderDesktop(to file: String, mode: Bool) {
     for p in [Page.settings, Page.shortcuts, Page.tools, Page.history] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
     if !CommandLine.arguments.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
-    let size = NSSize(width: 1000, height: CommandLine.arguments.contains("tall") ? 1500 : 660)
+    let size = NSSize(width: 1000, height: CommandLine.arguments.contains("tall") ? 1500 : 730)
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: .darkAqua); w.contentView = host

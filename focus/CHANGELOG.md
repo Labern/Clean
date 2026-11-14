@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.35 — 2026-11-14
+- Tools page: each tool is a large button with a line beside it saying when you'd use it.
+- Settings page: two groups, Behaviour and Appearance; more room between settings and a line under each; a choice reads like a switch (the chosen option solid white, the other outlined in white). The icon and colour pickers are even grids, with the chosen one outlined.
+- Settings ▸ Appearance ▸ This window: Light, Dark, System. Dark is the standard; Light and System are shown but not built yet.
+- The window opens a little taller (up to 1000 × 730).
+
 ## 0.18.34 — 2026-11-14
 - The desktop app's standard text size is now what two presses of ⌘+ used to give. Any earlier size change is reset once, so everyone starts from the new standard.
 - The session button's own text is two steps smaller than that, so it sits inside the button comfortably. The sidebar is a little wider and the window opens at up to 1000 × 660.

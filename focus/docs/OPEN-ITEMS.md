@@ -124,3 +124,4 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - Screenshots of Wispr Flow, then borrow its best details (he asked; needs screen access granted).
 - The Manual (the sidebar button is there, greyed, until it's written).
 - The window's outer edge: macOS draws a thin light rim on dark windows. Only a borderless window removes it.
+- Desktop window light mode (asked 2026-11-14, "don't build it yet"): Light, Dark (default), System. The choice is in Settings ▸ Appearance ▸ This window with Light and System dimmed. Building it means a second token set in `Site` and following the system appearance.
