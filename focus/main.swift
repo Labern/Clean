@@ -75,6 +75,11 @@ struct Theme {
     var hover = NSColor.labelColor.withAlphaComponent(0.08)
     var text = NSColor.labelColor
     var faint = NSColor.secondaryLabelColor
+    /// Every grey heading in the menu and its submenus: one size, one weight, one colour. Change these three to
+    /// restyle them all at once.
+    var headingSize: CGFloat = 13
+    var headingWeight: NSFont.Weight = .semibold
+    var heading = NSColor.secondaryLabelColor
     var dropped = NSColor.tertiaryLabelColor
     var hudBg = NSColor(white: 0.07, alpha: 0.88)                // the session pill
     var hudInk = NSColor.white
@@ -720,6 +725,77 @@ final class InlineNameField: NSView {
     }
 }
 
+/// A heading in the menu, drawn by Focus so its size and colour come from the theme (macOS's own section headers
+/// are a fixed small grey).
+final class Heading: NSView {
+    let text: String
+    static var attrs: [NSAttributedString.Key: Any] {
+        [.font: NSFont.systemFont(ofSize: theme.headingSize, weight: theme.headingWeight), .foregroundColor: theme.heading]
+    }
+    init(_ text: String) {
+        self.text = text
+        let w = ceil((text as NSString).size(withAttributes: Self.attrs).width) + 28
+        super.init(frame: NSRect(x: 0, y: 0, width: w, height: theme.headingSize + 13))
+        autoresizingMask = [.width]
+    }
+    required init?(coder: NSCoder) { nil }
+    override func draw(_ r: NSRect) { (text as NSString).draw(at: NSPoint(x: 14, y: 4), withAttributes: Self.attrs) }
+}
+func headingItem(_ t: String) -> NSMenuItem {
+    let i = NSMenuItem(title: t, action: nil, keyEquivalent: ""); i.view = Heading(t); i.isEnabled = false; return i
+}
+
+/// The column titles over the app list: App over the names, Usage over the memory, and the Focus mark (as it
+/// looks in a session) exactly over the ticks — ticked means in the session.
+final class ColumnHeader: NSView {
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: theme.headingSize + 11)); autoresizingMask = [.width]
+        toolTip = "Ticked apps are in the session. Unticked apps are out of it."
+    }
+    required init?(coder: NSCoder) { nil }
+    override func draw(_ r: NSRect) {
+        let a = Heading.attrs
+        ("App" as NSString).draw(at: NSPoint(x: 38, y: 4), withAttributes: a)                    // over the names
+        let u = "Usage" as NSString
+        u.draw(at: NSPoint(x: bounds.width - 42 - u.size(withAttributes: a).width, y: 4), withAttributes: a)   // over the memory
+        if let cg = painted(glyph(1), theme.heading, NSSize(width: 32, height: 32)) {             // over the ticks
+            NSGraphicsContext.current?.cgContext.draw(cg, in: CGRect(x: bounds.width - 32, y: 3, width: 16, height: 16))
+        }
+    }
+}
+
+/// One mode: click to start it (or move the session to it; the live one ends). Right-click or ⌃-click to edit it.
+/// Its shortcut sits in the same column as the apps' memory; the live mode is ticked.
+final class ModeRow: HoverView {
+    let name: String, icon: NSImage, key: String, live: Bool, enabled: Bool, start: () -> Void, edit: () -> NSMenu
+    init(_ name: String, _ icon: NSImage, key: String, live: Bool, enabled: Bool, start: @escaping () -> Void, edit: @escaping () -> NSMenu) {
+        self.name = name; self.icon = icon; self.key = key; self.live = live; self.enabled = enabled; self.start = start; self.edit = edit
+        super.init(height: 26)
+        toolTip = "Click to start. Right-click to edit."
+    }
+    required init?(coder: NSCoder) { nil }
+    override func mouseUp(with e: NSEvent) {
+        if e.modifierFlags.contains(.control) { return showEdit() }
+        guard enabled else { return }
+        enclosingMenuItem?.menu?.cancelTracking(); DispatchQueue.main.async(execute: start)
+    }
+    override func rightMouseDown(with e: NSEvent) {}
+    override func rightMouseUp(with e: NSEvent) { showEdit() }
+    func showEdit() { edit().popUp(positioning: nil, at: NSPoint(x: 38, y: 0), in: self) }
+    override func draw(_ r: NSRect) {
+        if hover { theme.hover.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: 5, yRadius: 5).fill() }
+        icon.draw(in: NSRect(x: 14, y: 5, width: icon.size.width, height: 16), from: .zero, operation: .sourceOver, fraction: enabled ? 1 : 0.5)
+        (name as NSString).draw(at: NSPoint(x: 22 + icon.size.width, y: 4.5),
+                                withAttributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: enabled ? theme.text : theme.faint])
+        let small: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: theme.faint]
+        let k = key as NSString
+        k.draw(at: NSPoint(x: bounds.width - 42 - k.size(withAttributes: small).width, y: 4.5), withAttributes: small)
+        let mark = live ? symbol(hover ? "stop.circle.fill" : "checkmark.circle.fill", [theme.onAccent, theme.accent])
+                        : hover && enabled ? symbol("play.circle", [theme.text]) : nil
+        mark?.draw(in: NSRect(x: bounds.width - 32, y: 5, width: 16, height: 16))
+    }
+}
+
 /// The hover popup for app rows: one line, dark, just under the row it explains.
 final class RowTip {
     static let shared = RowTip()
@@ -749,7 +825,7 @@ final class BigButton: HoverView {
     var down = false { didSet { needsDisplay = true } }
     init(title: @escaping () -> String, caption: @escaping () -> String, action: @escaping () -> Void) {
         self.title = title; self.caption = caption; self.action = action
-        super.init(height: 106)
+        super.init(height: 114)
     }
     required init?(coder: NSCoder) { nil }
     override func mouseDown(with e: NSEvent) { down = true }
@@ -771,7 +847,7 @@ final class BigButton: HoverView {
         let c = caption() as NSString
         let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineBreakMode = .byWordWrapping
         var wrapped = small; wrapped[.paragraphStyle] = para
-        c.draw(with: NSRect(x: 18, y: 6, width: bounds.width - 36, height: pill.minY - 10),
+        c.draw(with: NSRect(x: 18, y: 6, width: bounds.width - 36, height: pill.minY - 18),
                options: [.usesLineFragmentOrigin], attributes: wrapped)     // plain English, wraps to two lines
     }
 }
@@ -1109,10 +1185,17 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     func updateTitle() {
         guard let b = item.button else { return }
-        let t = showNameInMenuBar ? (displayName.map { " " + $0 } ?? "") : ""
+        let t = showNameInMenuBar ? (displayName.map { " " + Focus.nameStyles[menuBarNameStyle]($0) } ?? "") : ""
         if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }
     }
     @objc func toggleNameInMenuBar() { showNameInMenuBar.toggle() }
+    /// How the name reads beside the icon: "AI", "AI session" or "AI (in session)".
+    static let nameStyles: [(String) -> String] = [{ $0 }, { $0 + " session" }, { $0 + " (in session)" }]
+    var menuBarNameStyle: Int {
+        get { min(max(store.object(forKey: "menuBarNameStyle") as? Int ?? 1, 0), Focus.nameStyles.count - 1) }
+        set { store.set(newValue, forKey: "menuBarNameStyle"); store.set(true, forKey: "showNameInMenuBar"); updateTitle() }
+    }
+    @objc func pickNameStyle(_ s: NSMenuItem) { if s.tag < 0 { showNameInMenuBar = false } else { menuBarNameStyle = s.tag } }
     var excluded: [String] {                                    // "keep open": the user's per-session picks
         get { store.stringArray(forKey: "excluded") ?? [] }
         set { store.set(newValue, forKey: "excluded") }
@@ -1718,9 +1801,18 @@ final class Focus: NSObject, NSMenuDelegate {
     func createMode(_ name: String, apps ids: [String]) -> String {
         let id = UUID().uuidString
         var seen = Set<String>()
-        modes.append(["id": id, "name": name, "apps": ids.filter { path($0) != nil && seen.insert($0).inserted }])
+        let used = Set(modes.compactMap { $0["key"] as? Int })
+        let digit = [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].first { !used.contains($0) }     // ⌘1, ⌘2 … ⌘0; past ten, none
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        var m: [String: Any] = ["id": id, "name": n.isEmpty ? "Mode \(digit.map(String.init) ?? String(modes.count + 1))" : n,
+                                "apps": ids.filter { path($0) != nil && seen.insert($0).inserted }]
+        if let digit { m["key"] = digit }
+        modes.append(m)
         return id
     }
+    /// The number the next new mode will get (nil once all ten are taken).
+    var nextModeKey: Int? { let used = Set(modes.compactMap { $0["key"] as? Int }); return [1, 2, 3, 4, 5, 6, 7, 8, 9, 0].first { !used.contains($0) } }
+    @objc func createDraftMode() { guard !draftApps.isEmpty else { return }; createMode("", apps: draftApps); draftApps = [] }
     func renameMode(_ id: String, to name: String) { if let i = modeIndex(id), !name.isEmpty { modes[i]["name"] = name } }
     func removeMode(_ id: String) { if let i = modeIndex(id) { modes.remove(at: i) } }
     /// Suggested modes: a starting point for anyone, built only from apps this Mac actually has. Each lists
@@ -1992,7 +2084,7 @@ final class Focus: NSObject, NSMenuDelegate {
     func menuNeedsUpdate(_ m: NSMenu) {
         // Submenus share this delegate only so they open dark (menuWillOpen). They build themselves; rebuilding one
         // here would fill it with a copy of the whole menu.
-        guard m.supermenu == nil else { return }
+        guard m.supermenu == nil, m.identifier?.rawValue != "modeEdit" else { return }
         m.removeAllItems()
         @discardableResult
         func add(_ title: String, _ action: Selector?, image: NSImage? = nil, to menu: NSMenu? = nil) -> NSMenuItem {
@@ -2001,21 +2093,12 @@ final class Focus: NSObject, NSMenuDelegate {
             return i
         }
         func header(_ t: String, in menu: NSMenu? = nil) {
-            if #available(macOS 14, *) { (menu ?? m).addItem(.sectionHeader(title: t)) } else { add(t, nil, to: menu).isEnabled = false }
+            (menu ?? m).addItem(headingItem(t))
         }
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
         mem = memoryByPid()
         header(stateLine)                                       // "Focus" or "Focus — in session (3 apps, since 21:48)"
-        // In a session: say what it is, first thing — the mode, or the name you gave it (Rename shows up here at once).
-        if focused, let live = sessions.first {
-            let when = (live["date"] as? Date).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) } ?? ""
-            let keeps = keptShort(live)
-            let kind = live["mode"] != nil ? "Mode" : "Focus session"
-            let detail = [kind, when.isEmpty ? nil : "started " + when, keeps.isEmpty ? nil : "keeps " + keeps].compactMap { $0 }.joined(separator: " · ")
-            view(SessionBanner(title: sessionName ?? "Focus session", detail: detail))
-            m.addItem(.separator())
-        }
         if let status, !status.hasPrefix("Waiting") { header(status) }   // the waiting app has its own line below
         if focused, let shot = sessions.first?["shot"] as? String, let img = NSImage(contentsOfFile: shot) {
             header("What you were doing — click to open")
@@ -2029,6 +2112,7 @@ final class Focus: NSObject, NSMenuDelegate {
         if focused {
             // In a session the rows ARE the session: ticked = in it, open. Click to take one out now, or put it back.
             header("In this session — click an app to take it out or bring it back")
+            view(ColumnHeader())
             let stuckIDs = Set(waiting.compactMap(\.bundleIdentifier))
             for (id, p) in running {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
@@ -2052,6 +2136,7 @@ final class Focus: NSObject, NSMenuDelegate {
             }
         } else {
             header("Keep open this session — click to choose")
+            view(ColumnHeader())
             let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
             for (id, p) in running + idle {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
@@ -2099,61 +2184,10 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         // Modes — the user's named sets of apps.
         header("Modes — pre-defined app combinations")
-        // Each mode is one click: start it (or move the live session to it); the live one is ticked and ends on click.
-        for md in modes {
-            let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
-            let go = add(name, #selector(startMode(_:)), image: stack(ids))
-            go.representedObject = mid; go.isEnabled = !clearing
-            go.state = focused && sessions.first?["modeID"] as? String == mid ? .on : .off
-            go.toolTip = names(ids)
-            if let digit = md["key"] as? Int {                   // its shortcut, at the right like any Mac menu item
-                go.keyEquivalent = String(digit); go.keyEquivalentModifierMask = NSEvent.ModifierFlags(carbon: modeMods)
-            }
-        }
-        let editModes = modes.isEmpty ? nil : add("Edit Modes", nil, image: symbol("slider.horizontal.3")), em = NSMenu()
-        for md in modes {
-            let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
-            let row = add(name, nil, image: stack(ids), to: em), sm = NSMenu()
-            sm.autoenablesItems = false
-            let digit = md["key"] as? Int
-            let nameRow = NSMenuItem(); nameRow.view = InlineNameField(name, placeholder: "Mode name", symbolName: "pencil") { [unowned self] v in self.renameMode(mid, to: v) }
-            sm.addItem(nameRow)
-            // Its apps, ticked; apps open right now that aren't in it, unticked. Click to put one in or take it out.
-            if #available(macOS 14, *) { sm.addItem(.sectionHeader(title: "Keeps open — click to add or remove")) }
-            let others = running.map(\.0).filter { !ids.contains($0) }
-            for id in ids + others {
-                guard let p = path(id) else { continue }
-                let v = NSMenuItem(); v.view = AppRow(appName(p), appIcon(p), on: ids.contains(id), target: "this mode") { [unowned self] in
-                    let inIt = (self.mode(mid)?["apps"] as? [String] ?? []).contains(id)
-                    if inIt { self.removeApp(id, fromMode: mid) } else { self.addApp(id, toMode: mid) }
-                    return !inIt
-                }
-                sm.addItem(v)
-            }
-            add("Add App…", #selector(addAppToMode(_:)), image: symbol("plus.app"), to: sm).representedObject = mid
-            sm.addItem(.separator())
-            let kItem = add(digit.map { "Shortcut: " + label(forMode: $0) } ?? "Shortcut: none", nil, image: symbol("keyboard"), to: sm), kMenu = NSMenu()
-            let none = add("None", #selector(pickModeKey(_:)), to: kMenu); none.tag = -1; none.representedObject = mid; none.state = digit == nil ? .on : .off
-            for d in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0] {
-                let owner = modeForKey(d).flatMap { $0["id"] as? String == mid ? nil : $0["name"] as? String }
-                let i = add(label(forMode: d) + (owner.map { "   (now \($0))" } ?? ""), #selector(pickModeKey(_:)), to: kMenu)
-                i.tag = d; i.representedObject = mid; i.state = digit == d ? .on : .off
-            }
-            if let digit, takenModeKeys.contains(digit) { add("⚠︎ " + label(forMode: digit) + " is taken by another app — pick another", nil, to: kMenu).isEnabled = false }
-            kItem.submenu = kMenu
-            let use = add("Use Ticked Apps", #selector(updateMode(_:)), image: symbol("checklist"), to: sm)
-            use.representedObject = mid; use.isEnabled = !excluded.isEmpty
-            add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).representedObject = mid
-            row.submenu = sm
-        }
-        editModes?.submenu = em
-        let nm = add("New Mode", nil, image: symbol("plus.circle")), nmm = NSMenu()
+        let nm = add("Create New Mode", nil, image: symbol("plus.circle")), nmm = NSMenu()
         nmm.autoenablesItems = false
-        let nameIt = NSMenuItem(); nameIt.view = InlineNameField("", placeholder: "Name it, then press Return", symbolName: "pencil") { [unowned self] v in
-            self.createMode(v, apps: self.draftApps); self.draftApps = []
-        }
-        nmm.addItem(nameIt)
-        if #available(macOS 14, *) { nmm.addItem(.sectionHeader(title: "Its apps — click to add")) }
+        let nextKey = nextModeKey.map { label(forMode: $0) }
+        nmm.addItem(headingItem("Its apps — click to add"))
         // open apps first, then apps your sessions kept, then anything already picked
         var seenIDs = Set<String>()
         let pool = (running.map(\.0) + sessions.flatMap { kept($0) } + draftApps).filter { seenIDs.insert($0).inserted }
@@ -2166,11 +2200,72 @@ final class Focus: NSObject, NSMenuDelegate {
             nmm.addItem(v)
         }
         add("Add App…", #selector(addAppToDraft), image: symbol("plus.app"), to: nmm)
+        nmm.addItem(.separator())
+        // No name needed: it takes the next number. A name is optional (Return creates it too).
+        let nameIt = NSMenuItem(); nameIt.view = InlineNameField("", placeholder: "Name (optional)", symbolName: "pencil") { [unowned self] v in
+            self.createMode(v, apps: self.draftApps); self.draftApps = []
+        }
+        nmm.addItem(nameIt)
+        let make = add("Create Mode" + (nextKey.map { "  " + $0 } ?? ""), #selector(createDraftMode), image: symbol("checkmark.circle"), to: nmm)
+        make.isEnabled = !draftApps.isEmpty
         nm.submenu = nmm
+        // Building one mode's edit menu: its name, its apps, its shortcut, delete. Used by right-click and by Edit Modes.
+        func editMenu(_ md: [String: Any]) -> NSMenu {
+            let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
+                let sm = NSMenu()
+                sm.autoenablesItems = false
+                let digit = md["key"] as? Int
+                let nameRow = NSMenuItem(); nameRow.view = InlineNameField(name, placeholder: "Mode name", symbolName: "pencil") { [unowned self] v in self.renameMode(mid, to: v) }
+                sm.addItem(nameRow)
+                // Its apps, ticked; apps open right now that aren't in it, unticked. Click to put one in or take it out.
+                sm.addItem(headingItem("Keeps open — click to add or remove"))
+                let others = running.map(\.0).filter { !ids.contains($0) }
+                for id in ids + others {
+                    guard let p = path(id) else { continue }
+                    let v = NSMenuItem(); v.view = AppRow(appName(p), appIcon(p), on: ids.contains(id), target: "this mode") { [unowned self] in
+                        let inIt = (self.mode(mid)?["apps"] as? [String] ?? []).contains(id)
+                        if inIt { self.removeApp(id, fromMode: mid) } else { self.addApp(id, toMode: mid) }
+                        return !inIt
+                    }
+                    sm.addItem(v)
+                }
+                add("Add App…", #selector(addAppToMode(_:)), image: symbol("plus.app"), to: sm).representedObject = mid
+                sm.addItem(.separator())
+                let kItem = add(digit.map { "Shortcut: " + label(forMode: $0) } ?? "Shortcut: none", nil, image: symbol("keyboard"), to: sm), kMenu = NSMenu()
+                let none = add("None", #selector(pickModeKey(_:)), to: kMenu); none.tag = -1; none.representedObject = mid; none.state = digit == nil ? .on : .off
+                for d in [1, 2, 3, 4, 5, 6, 7, 8, 9, 0] {
+                    let owner = modeForKey(d).flatMap { $0["id"] as? String == mid ? nil : $0["name"] as? String }
+                    let i = add(label(forMode: d) + (owner.map { "   (now \($0))" } ?? ""), #selector(pickModeKey(_:)), to: kMenu)
+                    i.tag = d; i.representedObject = mid; i.state = digit == d ? .on : .off
+                }
+                if let digit, takenModeKeys.contains(digit) { add("⚠︎ " + label(forMode: digit) + " is taken by another app — pick another", nil, to: kMenu).isEnabled = false }
+                kItem.submenu = kMenu
+                let use = add("Use Ticked Apps", #selector(updateMode(_:)), image: symbol("checklist"), to: sm)
+                use.representedObject = mid; use.isEnabled = !excluded.isEmpty
+                add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).representedObject = mid
+            sm.identifier = NSUserInterfaceItemIdentifier("modeEdit"); sm.delegate = self
+            return sm
+        }
+        // Each mode is one click: start it (or move the live session to it); the live one is ticked and ends on click.
+        for md in modes {
+            let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
+            let digit = md["key"] as? Int, live = focused && sessions.first?["modeID"] as? String == mid
+            let go = add(name, #selector(startMode(_:)))
+            go.representedObject = mid; go.isEnabled = !clearing; go.state = live ? .on : .off
+            if let digit { go.keyEquivalent = String(digit); go.keyEquivalentModifierMask = NSEvent.ModifierFlags(carbon: modeMods) }
+            go.view = ModeRow(name, stack(ids), key: digit.map { label(forMode: $0) } ?? "", live: live, enabled: !clearing,
+                              start: { [unowned self] in self.startOrSwitch(mid) }, edit: { editMenu(md) })
+        }
+        let editModes = modes.isEmpty ? nil : add("Edit Modes", nil, image: symbol("slider.horizontal.3")), em = NSMenu()
+        for md in modes {
+            let row = add(md["name"] as? String ?? "Mode", nil, image: stack(md["apps"] as? [String] ?? []), to: em)
+            row.submenu = editMenu(md)
+        }
+        editModes?.submenu = em
         let ideas = suggestedModes()
         if !ideas.isEmpty {
             let sug = add("Suggested Modes", nil, image: symbol("sparkles")), sgm = NSMenu()
-            if #available(macOS 14, *) { sgm.addItem(.sectionHeader(title: "Click to add — from the apps you use")) }
+            sgm.addItem(headingItem("Click to add — from the apps you use"))
             for idea in ideas {
                 let i = add(idea.name, #selector(addSuggested(_:)), image: stack(idea.apps), to: sgm)
                 i.representedObject = idea.name; i.toolTip = names(idea.apps)
@@ -2196,9 +2291,9 @@ final class Focus: NSObject, NSMenuDelegate {
                     one.addItem(v); one.addItem(.separator())
                 }
                 if !kept(s).isEmpty {
-                    if #available(macOS 14, *) { one.addItem(.sectionHeader(title: "Kept open")) }
+                    one.addItem(headingItem("Kept open"))
                     for id in kept(s) { if let p = path(id) { add(appName(p), nil, image: appIcon(p), to: one) } }
-                    if #available(macOS 14, *) { one.addItem(.sectionHeader(title: "Temporarily closed")) }
+                    one.addItem(headingItem("Temporarily closed"))
                 }
                 for p in list.compactMap({ $0["path"] as? String }) { add(appName(p), nil, image: appIcon(p), to: one) }
                 one.addItem(.separator())
@@ -2219,12 +2314,14 @@ final class Focus: NSObject, NSMenuDelegate {
         let tools = add("Tools", nil, image: symbol("wrench.and.screwdriver")), tm = NSMenu()
         tm.autoenablesItems = false
         let busy = focused || clearing
+        tm.addItem(headingItem("Quit apps to free RAM"))
         add("Quit All Apps…", #selector(quitAllApps), image: symbol("xmark.circle"), to: tm).isEnabled = !busy
         add("Quit All Apps & Restart Mac…", #selector(quitAllRestart), image: symbol("arrow.clockwise.circle"), to: tm).isEnabled = !busy
         let fq = add("Force Quit All Apps…", #selector(forceQuitAllApps), image: symbol("bolt.circle", [theme.hazard]), to: tm)
         fq.isEnabled = !busy
         if !busy { fq.attributedTitle = NSAttributedString(string: fq.title, attributes: [.foregroundColor: theme.hazard, .font: NSFont.menuFont(ofSize: 0)]) }
         tm.addItem(.separator())
+        tm.addItem(headingItem("Analyse performance"))
         add("Open Activity Monitor", #selector(openActivityMonitor), image: symbol("waveform.path.ecg"), to: tm)
         add("Open System Settings", #selector(openSystemSettings), image: symbol("gearshape.2"), to: tm)
         tm.addItem(.separator())
@@ -2237,12 +2334,12 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         let look = add("Appearance", nil, image: symbol("paintbrush"), to: sub), am = NSMenu()
         am.minimumWidth = menuWidth
-        if #available(macOS 14, *) { am.addItem(.sectionHeader(title: "Icon")) } else { add("Icon", nil, to: am).isEnabled = false }
+        am.addItem(headingItem("Icon"))
         let picker = NSMenuItem(); picker.view = IconGrid(iconStyleSetting, ring: ringColor, dot: dotColor) { [unowned self] st in self.iconStyleSetting = st }
         am.addItem(picker)
         let colour = add("Icon Colour", nil, image: two(ringColor, dotColor), to: am), cm = NSMenu()
         cm.minimumWidth = 300
-        func hdr(_ t: String) { if #available(macOS 14, *) { cm.addItem(.sectionHeader(title: t)) } else { add(t, nil, to: cm).isEnabled = false } }
+        func hdr(_ t: String) { cm.addItem(headingItem(t)) }
         hdr("Presets")
         let def = add("White", #selector(pickPreset(_:)), image: swatch(nil), to: cm); def.representedObject = ["", ""]
         def.state = iconColor.isEmpty && iconColor2.isEmpty ? .on : .off
@@ -2287,39 +2384,46 @@ final class Focus: NSObject, NSMenuDelegate {
         let lm = NSMenuItem(); lm.view = ColorGrid(grid, selected: logoMark) { [unowned self] h in self.logoMark = h }; cm.addItem(lm)
         colour.submenu = cm
         am.addItem(.separator())
-        add("Show Session Name Next to Icon", #selector(toggleNameInMenuBar), image: symbol("character.cursor.ibeam"), to: am).state = showNameInMenuBar ? .on : .off
+        let nb = add("Menu Bar Name", nil, image: symbol("character.cursor.ibeam"), to: am), nbm = NSMenu()
+        let sample = displayName ?? modes.first?["name"] as? String ?? "AI"
+        for (k, f) in Focus.nameStyles.enumerated() {
+            let i = add(f(sample), #selector(pickNameStyle(_:)), to: nbm); i.tag = k; i.state = showNameInMenuBar && menuBarNameStyle == k ? .on : .off
+        }
+        let io = add("Icon only", #selector(pickNameStyle(_:)), to: nbm); io.tag = -1; io.state = showNameInMenuBar ? .off : .on
+        nb.submenu = nbm
         am.addItem(.separator())
-        if #available(macOS 14, *) { am.addItem(.sectionHeader(title: "Animation Speed")) } else { add("Animation Speed", nil, to: am).isEnabled = false }
+        am.addItem(headingItem("Animation Speed"))
         let dial = NSMenuItem(); dial.view = SpeedDial(animSpeed) { [unowned self] s in self.animSpeed = s }; am.addItem(dial)
         look.submenu = am
         let keys = add("Shortcuts", nil, image: symbol("keyboard"), to: sub), km = NSMenu()
         km.autoenablesItems = false; km.minimumWidth = 300
-        if #available(macOS 14, *) { km.addItem(.sectionHeader(title: "Start / End Session")) }
+        km.addItem(headingItem("Start / End Session"))
         for c in modifierChoices {
             let i = add(c.label + "F  ·  " + c.clash, #selector(pickSessionKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == sessionMods ? .on : .off
         }
         if sessionKeyTaken { add("⚠︎ " + label(sessionMods) + "F is taken by another app — pick another", nil, to: km).isEnabled = false }
         km.addItem(.separator())
-        if #available(macOS 14, *) { km.addItem(.sectionHeader(title: "Open This Menu")) }
+        km.addItem(headingItem("Open This Menu"))
         for c in modifierChoices {
             let i = add(c.label + "E", #selector(pickMenuKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == menuMods ? .on : .off
         }
         if menuKeyTaken { add("⚠︎ " + label(menuMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
         km.addItem(.separator())
-        if #available(macOS 14, *) { km.addItem(.sectionHeader(title: "Modes — this plus a number you give each mode")) }
+        km.addItem(headingItem("Modes — this plus a number you give each mode"))
         for c in modeModifierChoices {
             let i = add(c.label + "1  ·  " + c.clash, #selector(pickModeMods(_:)), to: km); i.tag = c.mods; i.state = c.mods == modeMods ? .on : .off
         }
         keys.submenu = km
-        sub.addItem(.separator())
-        let sw = add("App Open/Close Speed", nil, image: symbol("arrow.left.arrow.right"), to: sub), swm = NSMenu()
+        let behave = add("Behaviour", nil, image: symbol("switch.2"), to: sub), bm = NSMenu()
+        bm.autoenablesItems = false
+        let sw = add("App Open/Close Speed", nil, image: symbol("arrow.left.arrow.right"), to: bm), swm = NSMenu()
         swm.autoenablesItems = false
         add("Safety first (closes all apps carefully, slower)", #selector(switchingCareful), to: swm).state = fastSwitching ? .off : .on
         add("Speed first (opens/closes apps immediately)", #selector(switchingFast), to: swm).state = fastSwitching ? .on : .off
         sw.submenu = swm
-        let ho = add("Hide Instead of Quit", nil, image: symbol("eye.slash"), to: sub), hom = NSMenu()
+        let ho = add("Hide Instead of Quit", nil, image: symbol("eye.slash"), to: bm), hom = NSMenu()
         hom.minimumWidth = menuWidth
-        if #available(macOS 14, *) { hom.addItem(.sectionHeader(title: "Ticked apps are hidden, not quit — back exactly as they were")) }
+        hom.addItem(headingItem("Ticked apps are hidden, not quit — back exactly as they were"))
         let dockApps = ws.runningApplications.filter { $0.activationPolicy == .regular && !system($0) }.compactMap(\.bundleIdentifier)
         var listed = Set<String>()
         for id in hideOnly + dockApps where listed.insert(id).inserted {
@@ -2330,10 +2434,12 @@ final class Focus: NSObject, NSMenuDelegate {
         add("Hide every app", #selector(hiding), to: hom).state = hideMode ? .on : .off
         ho.submenu = hom
         if CGPreflightScreenCaptureAccess() {
-            add("Take a snapshot when a session starts", #selector(snaps), to: sub).state = snapshots ? .on : .off
+            add("Take a snapshot when a session starts", #selector(snaps), image: symbol("camera"), to: bm).state = snapshots ? .on : .off
         } else {
-            add("Allow snapshots… (asks for Screen Recording once)", #selector(snaps), image: symbol("camera"), to: sub)
+            add("Allow snapshots… (asks for Screen Recording once)", #selector(snaps), image: symbol("camera"), to: bm)
         }
+        behave.submenu = bm
+        sub.addItem(.separator())
         add("Reopen windows as they were", #selector(windows), to: sub).state = keepWindows ? .on : .off
         add("Open at login", #selector(login), to: sub).state = SMAppService.mainApp.status == .enabled ? .on : .off
         sub.addItem(.separator())
@@ -2344,7 +2450,7 @@ final class Focus: NSObject, NSMenuDelegate {
 
         m.addItem(.separator())
         let b = BigButton(
-            title: { [unowned self] in self.focused ? "End " + (self.sessionName ?? "Session") : "Start New Session" },
+            title: { [unowned self] in self.focused ? "End Session" : "Start New Session" },
             caption: { [unowned self] in
                 if self.focused {
                     let n = self.apps((self.sessions.first?["apps"] as? [Any])?.count ?? 0)
@@ -2453,6 +2559,40 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-banner"), CommandLine.
         let ctx = NSGraphicsContext.current!.cgContext
         ctx.saveGState(); ctx.translateBy(x: 0, y: CGFloat(h) - banner.frame.height); banner.draw(banner.bounds); ctx.restoreGState()
         ctx.saveGState(); ctx.translateBy(x: 0, y: 4); button.draw(button.bounds); ctx.restoreGState()
+        NSGraphicsContext.restoreGraphicsState()
+    }
+    try? rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+    exit(0)
+}
+
+/// `Focus --render-rows FILE`: the menu's headings, column titles, app rows and mode rows drawn off-screen, stacked
+/// as they sit in the menu — for checking sizes and alignment without opening the menu.
+if let i = CommandLine.arguments.firstIndex(of: "--render-rows"), CommandLine.arguments.count > i + 1 {
+    let ws = NSWorkspace.shared
+    func ic(_ id: String) -> NSImage { let im = ws.urlForApplication(withBundleIdentifier: id).map { ws.icon(forFile: $0.path) } ?? NSImage(); im.size = NSSize(width: 16, height: 16); return im }
+    let stackIcon = NSImage(size: NSSize(width: 23, height: 16), flipped: false) { _ in
+        ic("com.apple.Terminal").draw(in: NSRect(x: 7, y: 0, width: 16, height: 16)); ic("com.apple.Safari").draw(in: NSRect(x: 0, y: 0, width: 16, height: 16)); return true }
+    let hovered = ModeRow("Mode 2", stackIcon, key: "⌘2", live: false, enabled: true, start: {}, edit: { NSMenu() }); hovered.hover = true
+    let rows: [NSView] = [
+        Heading("Focus"), Heading("Keep open this session — click to choose"), ColumnHeader(),
+        AppRow("Safari", ic("com.apple.Safari"), detail: "2.4 GB", on: true) { true },
+        AppRow("Notes", ic("com.apple.Notes"), detail: "310 MB", on: false) { true },
+        Heading("Modes — pre-defined app combinations"),
+        ModeRow("AI", stackIcon, key: "⌘1", live: true, enabled: true, start: {}, edit: { NSMenu() }), hovered,
+        Heading("Quit apps to free RAM"), Heading("Analyse performance"),
+    ]
+    let w = Int(menuWidth), h = Int(rows.reduce(0) { $0 + $1.frame.height }) + 12
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w * 2, pixelsHigh: h * 2, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    rep.size = NSSize(width: w, height: h)
+    NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance {
+        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        theme.menuBackground.setFill(); NSRect(x: 0, y: 0, width: w, height: h).fill()
+        let ctx = NSGraphicsContext.current!.cgContext
+        var y = CGFloat(h) - 6
+        for v in rows {
+            v.frame.size.width = menuWidth; y -= v.frame.height
+            ctx.saveGState(); ctx.translateBy(x: 0, y: y); v.draw(v.bounds); ctx.restoreGState()
+        }
         NSGraphicsContext.restoreGraphicsState()
     }
     try? rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
@@ -2900,10 +3040,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         done(webOK && allInstalled && made != nil && gone && edited && rows && (ideas.count <= 1 || sugMenu != nil),
              "suggestions \(ideas.map { "\($0.name): \(t.names($0.apps))" }); Web Only = default browser: \(webOK); all apps installed: \(allInstalled); added as a mode: \(made != nil), then leaves the list: \(gone); add/remove apps: \(edited); mode menu has app rows + Add App: \(rows)")
     }))
-    steps.append(("36. mode shortcuts: none until the user sets one; a digit belongs to one mode; the row shows it; the modifier is a Setting; a self-test never takes the keys", { done in
+    steps.append(("36. mode shortcuts: each new mode takes the next number; a digit belongs to one mode; the row shows it; the modifier is a Setting; a self-test never takes the keys", { done in
         t.modes = []
         let a = t.createMode("Web", apps: [calc]), b = t.createMode("Games", apps: [edit])
-        let noneYet = t.modes.allSatisfy { $0["key"] == nil }
+        let noneYet = t.mode(a)?["key"] as? Int == 1 && t.mode(b)?["key"] as? Int == 2     // given in order as they're made
         t.setModeKey(a, 1); t.setModeKey(b, 0)
         let set = t.modeForKey(1)?["id"] as? String == a && t.modeForKey(0)?["id"] as? String == b
         t.setModeKey(b, 1)                                              // take Web's digit
@@ -2919,7 +3059,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         t.setModeKey(b, nil); let cleared = t.modeForKey(1) == nil
         t.modes = []
         done(noneYet && set && moved && shows && pickerOK && modsOK && untouched && cleared,
-             "no keys until set: \(noneYet); set: \(set); digit moves: \(moved); row shows ⌘1: \(shows); picker: \(pickerOK); modifier in Settings: \(modsOK); test took no keys: \(untouched); None clears: \(cleared)")
+             "numbered 1, 2 as created: \(noneYet); set: \(set); digit moves: \(moved); row shows ⌘1: \(shows); picker: \(pickerOK); modifier in Settings: \(modsOK); test took no keys: \(untouched); None clears: \(cleared)")
     }))
     steps.append(("38. app rows: hovering shows + (will add) or × (will remove); after 2.5 s a popup says exactly what a click does", { done in
         let row = AppRow("Chrome", NSImage(), on: false, target: "your session") { true }
@@ -2955,10 +3095,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         }
     }))
     steps.append(("39. naming is inline (no popups): new mode, rename mode, rename session, save as mode; the menu bar shows the session's name, or only the icon if turned off", { done in
-        t.modes = []; t.store.removeObject(forKey: "showNameInMenuBar")
+        t.modes = []; t.store.removeObject(forKey: "showNameInMenuBar"); t.store.set(0, forKey: "menuBarNameStyle")
         func menu() -> NSMenu { let m = NSMenu(); t.menuNeedsUpdate(m); return m }
-        let builder = menu().items.first { $0.title == "New Mode" }?.submenu
-        let newField = builder?.items.first?.view as? InlineNameField
+        let builder = menu().items.first { $0.title == "Create New Mode" }?.submenu
+        let newField = builder?.items.compactMap { $0.view as? InlineNameField }.first
         t.draftApps = [edit]
         newField?.commit("AI")
         let made = t.modes.first { $0["name"] as? String == "AI" && ($0["apps"] as? [String]) == [edit] }
@@ -2984,7 +3124,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
              "new mode inline: \(made != nil); rename inline: \(renamed); no Rename…/New Mode… popups: \(noPopups); menu bar ' AI': \(shows); icon only when off: \(iconOnly); past session has 2 inline fields: \(fields.count == 2); session rename: \(sessRenamed), menu bar follows: \(titleFollows); clears after: \(cleared)")
     }))
     steps.append(("40. the menu bar always names the session: its name, else the mode it matches, else Focus", { done in
-        t.modes = []; t.store.removeObject(forKey: "showNameInMenuBar")
+        t.modes = []; t.store.removeObject(forKey: "showNameInMenuBar"); t.store.set(0, forKey: "menuBarNameStyle")
         t.createMode("AI", apps: [edit, calc])
         t.sessions = [["date": Date(), "kept": [edit, "com.apple.Preview"], "apps": [[String: Any]]()]]
         t.store.set(true, forKey: "focused"); t.updateTitle()
@@ -2994,6 +3134,33 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         t.sessions[0]["name"] = "Essay"; t.updateTitle(); let own = t.item.button?.title == " Essay"
         t.store.set(false, forKey: "focused"); t.sessions = []; t.updateTitle(); t.modes = []
         done(matched && fallback && own, "matches mode → ' AI': \(matched); no match → ' Focus': \(fallback); own name wins: \(own)")
+    }))
+    steps.append(("41. organised: Tools headings; Settings ▸ Behaviour; Create New Mode first; unnamed modes are numbered; right-click edit menu; column headings; headings share one size", { done in
+        t.modes = []; t.draftApps = [edit]; t.createDraftMode()
+        let unnamed = t.modes.first?["name"] as? String == "Mode 1" && t.modes.first?["key"] as? Int == 1 && t.draftApps.isEmpty
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let titles = m.items.map(\.title)
+        let tools = m.items.first { $0.title == "Tools" }?.submenu?.items.map(\.title) ?? []
+        let toolsOK = tools.firstIndex(of: "Quit apps to free RAM") == 0 && (tools.firstIndex(of: "Analyse performance") ?? 0) + 1 == tools.firstIndex(of: "Open Activity Monitor")
+        let settings = m.items.first { $0.title == "Settings" }?.submenu?.items.map(\.title) ?? []
+        let order = settings.firstIndex(of: "Appearance") == 0 && settings.firstIndex(of: "Shortcuts") == 1 && settings.firstIndex(of: "Behaviour") == 2
+        let beh = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Behaviour" }?.submenu?.items.map(\.title) ?? []
+        let behOK = beh.count == 3 && beh[0] == "App Open/Close Speed" && beh[1] == "Hide Instead of Quit" && beh[2].lowercased().contains("snapshot")
+        let moved = !settings.contains("App Open/Close Speed") && !settings.contains("Hide Instead of Quit")
+        let hi = titles.firstIndex(of: "Modes — pre-defined app combinations") ?? -9
+        let createFirst = titles.indices.contains(hi + 1) && titles[hi + 1] == "Create New Mode" && titles.indices.contains(hi + 2) && titles[hi + 2] == "Mode 1"
+        let row = m.items.first { $0.title == "Mode 1" }?.view as? ModeRow
+        let edit1 = row?.edit()
+        let before = edit1?.items.count ?? 0; if let e = edit1 { t.menuNeedsUpdate(e) }           // must stay its own menu
+        let editOK = row?.key == "⌘1" && before > 3 && edit1?.items.count == before && edit1?.items.first?.view is InlineNameField
+        let columns = m.items.contains { $0.view is ColumnHeader }
+        let heads = m.items.compactMap { $0.view as? Heading }
+        t.store.removeObject(forKey: "menuBarNameStyle")
+        let styles = t.menuBarNameStyle == 1 && Focus.nameStyles.map { $0("AI") } == ["AI", "AI session", "AI (in session)"]
+        let sized = styles && !heads.isEmpty && (Heading.attrs[.font] as? NSFont)?.pointSize == theme.headingSize && theme.headingSize > 11
+        t.modes = []
+        done(unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,
+             "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode first: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); headings \(theme.headingSize) pt from one setting: \(sized)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {
@@ -3058,23 +3225,20 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         done(migrated && created && dropped && dupe && moved && edited && byIdSurvivesReorder && deleted,
              "migration \(migrated) · create+dedupe \(created) · dragged .app \(dropped) · no duplicates \(dupe) · reorder \(moved) · remove+rename \(edited) · found by id \(byIdSurvivesReorder) · delete \(deleted)")
     }))
-    steps.append(("28. a live session says what it is: banner with the mode's name at the top, 'End <name>', renames show at once", { done in
+    steps.append(("28. a live session: the first line names it; no banner under it; renames show at once; the button says End Session", { done in
         t.sessions = [["date": Date(), "name": "Game design", "mode": "Game design", "kept": ["com.apple.TextEdit"], "apps": [[String: Any]]()]]
         UserDefaults(suiteName: suite)!.set(true, forKey: "focused")
-        func banner() -> SessionBanner? { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.prefix(3).compactMap { $0.view as? SessionBanner }.first }
-        let first = banner()
-        let top = { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.first?.title ?? "" }()
+        func menu() -> NSMenu { let m = NSMenu(); t.menuNeedsUpdate(m); return m }
+        let m1 = menu(), top = m1.items.first?.title ?? ""
         let stateOK = top.hasPrefix("Focus — Game design (") && top.contains(" app") && top.contains(", since ") && top.hasSuffix(")")
-        let named = first?.title == "Game design" && first?.detail.hasPrefix("Mode") == true && first?.detail.contains("TextEdit") == true
-        let button = t.focused ? "End " + (t.sessionName ?? "Session") : ""
-        t.sessions[0]["name"] = "Level 3 blockout"                         // what Rename… does
-        let renamed = banner()?.title == "Level 3 blockout"
-        t.sessions = [["date": Date(), "apps": [[String: Any]]()]]          // an unnamed session
-        let plain = banner()?.title == "Focus session"
+        let noBanner = !m1.items.contains { $0.view is SessionBanner }
+        let button = (m1.items.compactMap { $0.view as? BigButton }.first?.title() ?? "")
+        t.sessions[0]["name"] = "Level 3 blockout"
+        let renamed = (menu().items.first?.title ?? "").hasPrefix("Focus — Level 3 blockout (")
         UserDefaults(suiteName: suite)!.set(false, forKey: "focused"); t.sessions = []
-        let none = banner() == nil
-        done(named && button == "End Game design" && renamed && plain && none && stateOK,
-             "first line '\(top)': \(stateOK); banner '\(first?.title ?? "-")' / '\(first?.detail ?? "-")': \(named); button '\(button)'; rename shows: \(renamed); unnamed says Focus session: \(plain); no banner outside a session: \(none)")
+        let out = menu().items.first?.title == "Focus"
+        done(stateOK && noBanner && button == "End Session" && renamed && out,
+             "first line '\(top)': \(stateOK); no banner: \(noBanner); button '\(button)'; rename shows: \(renamed); out of session 'Focus': \(out)")
     }))
     steps.append(("29. switching and hide-instead-of-quit settings; the Fewer icon", { done in
         let d = UserDefaults(suiteName: suite)!
@@ -3082,9 +3246,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let careful = !t.fastSwitching
         let m = NSMenu(); t.menuNeedsUpdate(m)
         let settings = m.items.first { $0.title == "Settings" }?.submenu
-        let sw = settings?.items.first { $0.title == "App Open/Close Speed" }?.submenu
+        let behaviour = settings?.items.first { $0.title == "Behaviour" }?.submenu
+        let sw = behaviour?.items.first { $0.title == "App Open/Close Speed" }?.submenu
         let carefulTicked = sw?.items.first?.state == .on && sw?.items.last?.state == .off
-        let hideMenu = settings?.items.first { $0.title == "Hide Instead of Quit" }?.submenu
+        let hideMenu = behaviour?.items.first { $0.title == "Hide Instead of Quit" }?.submenu
         let rows = hideMenu?.items.contains { $0.view is AppRow } == true
         let fewer = IconStyle.allCases.contains(.fewer)
         done(careful && carefulTicked && rows && fewer, "careful unless chosen: \(careful); menu ticks Careful: \(carefulTicked); per-app hide rows: \(rows); Fewer icon: \(fewer)")

@@ -4,6 +4,18 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.1 — 2026-11-14
+- **Headings:** every grey heading in the menu and its submenus is drawn by Focus at one size (13 pt), set in one place with its weight and colour.
+- **Tools:** "Quit apps to free RAM" heads the three Quit items; "Analyse performance" heads Activity Monitor and System Settings.
+- **Settings ▸ Behaviour** (under Appearance and Shortcuts) holds App Open/Close Speed, Hide Instead of Quit and snapshots.
+- **Modes:**
+  - "Create New Mode" comes first. It needs no name: each new mode takes the next number (⌘1 … ⌘9, ⌘0) and is called "Mode 3" until named.
+  - Right-click or ⌃-click a mode to edit it.
+  - A mode's shortcut sits in the same column as the apps' memory.
+- **Column titles over the app list:** App, Usage, and the Focus mark over the ticks.
+- **Menu bar name:** Settings ▸ Appearance ▸ Menu Bar Name offers "AI", "AI session", "AI (in session)" or icon only.
+- The banner naming the mode at the top of the menu is removed. The button reads "End Session" again, with more space above its description.
+
 ## 0.18.0 — 2026-11-13
 - **Switching between modes has its own animation.**
   - The apps leaving fan out on the left and are pulled into the menu bar icon.
