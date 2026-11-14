@@ -1469,6 +1469,7 @@ final class Focus: NSObject, NSMenuDelegate {
         // the real Focus always shows its icon.
         if store != .standard { item.autosaveName = "focus-selftest"; item.isVisible = false } else { item.isVisible = true }
         let menu = NSMenu(); menu.delegate = self; menu.minimumWidth = menuWidth; item.menu = menu
+        menu.appearance = NSAppearance(named: lightMenu ? .aqua : .darkAqua)
         if !store.bool(forKey: "setUp") { keepWindows = true; store.set(true, forKey: "setUp") }
         if store == .standard {                                 // the real Focus only — never a --selftest instance
             healSystemSwitcher()
@@ -2168,9 +2169,16 @@ final class Focus: NSObject, NSMenuDelegate {
         darken(m)
         DispatchQueue.main.async { self.paintMenuWindows() }
     }
+    /// Gives a menu its look (dark, or light if chosen) — the menu itself, every row Focus draws, and every submenu.
+    /// Called when a menu is BUILT, not only when it opens: set at opening it came too late for the first drawing,
+    /// so on a Mac in Light mode the rows were drawn in light-mode ink on the dark ground.
     func darken(_ m: NSMenu) {
-        m.appearance = NSAppearance(named: lightMenu ? .aqua : .darkAqua)
-        for i in m.items { if let sub = i.submenu { sub.delegate = sub.delegate ?? self; darken(sub) } }
+        let look = NSAppearance(named: lightMenu ? .aqua : .darkAqua)
+        m.appearance = look
+        for i in m.items {
+            i.view?.appearance = look                            // each drawn row carries the look itself
+            if let sub = i.submenu { sub.delegate = sub.delegate ?? self; darken(sub) }
+        }
     }
     func paintMenuWindows() {
         for w in NSApp.windows where w.isVisible && NSStringFromClass(type(of: w)).contains("Menu") {
@@ -2400,7 +2408,7 @@ final class Focus: NSObject, NSMenuDelegate {
                 let use = add("Use Ticked Apps", #selector(updateMode(_:)), image: symbol("checklist"), to: sm)
                 use.representedObject = mid; use.isEnabled = !excluded.isEmpty
                 add("Delete", #selector(deleteMode(_:)), image: symbol("trash"), to: sm).representedObject = mid
-            sm.identifier = NSUserInterfaceItemIdentifier("modeEdit"); sm.delegate = self
+            sm.identifier = NSUserInterfaceItemIdentifier("modeEdit"); sm.delegate = self; darken(sm)
             return sm
         }
         // Each mode is one click: start it (or move the live session to it); the live one is ticked and ends on click.
@@ -2646,6 +2654,7 @@ final class Focus: NSObject, NSMenuDelegate {
             action: { [unowned self] in self.toggle() })
         button = b; view(b)
         let mark = NSMenuItem(title: Maker.text, action: nil, keyEquivalent: ""); mark.view = Maker(); m.addItem(mark)   // the last line of the menu
+        darken(m)                                               // the look goes on as the menu is built, before it can be drawn
     }
 }
 
@@ -3405,6 +3414,27 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let light = m.appearance?.name == .aqua && hexString(theme.menuBackground).uppercased() == "F5F5F7"
         lightMenu = was
         done(dark && darkLook && pick && light, "dark is the standard, #1F1F21: \(dark && darkLook); picker, Dark ticked: \(pick); light look when chosen: \(light)")
+    }))
+    steps.append(("46. the dark look is on every menu, submenu and drawn row as soon as the menu is built (never light ink on the dark ground)", { done in
+        let was = lightMenu; lightMenu = false
+        t.modes = []; t.createMode("AI", apps: [edit])
+        let m = NSMenu(); t.menuNeedsUpdate(m)                       // built only: not opened
+        var menus = 0, rows = 0, wrong: [String] = []
+        func check(_ menu: NSMenu, _ path: String) {
+            menus += 1; if menu.appearance?.name != .darkAqua { wrong.append("menu " + path) }
+            for i in menu.items {
+                if let v = i.view { rows += 1; if v.appearance?.name != .darkAqua { wrong.append("row \(type(of: v)) in " + path) } }
+                if let sub = i.submenu { check(sub, path + " ▸ " + i.title) }
+            }
+        }
+        check(m, "Focus")
+        let edit1 = (m.items.compactMap { $0.view as? ModeRow }.first)?.edit()
+        if let e = edit1 { check(e, "right-click edit") }
+        lightMenu = true; t.menuNeedsUpdate(m)
+        let lightOK = m.appearance?.name == .aqua && m.items.compactMap(\.view).allSatisfy { $0.appearance?.name == .aqua }
+        lightMenu = was; t.modes = []
+        done(wrong.isEmpty && menus > 8 && rows > 5 && edit1 != nil && lightOK,
+             "\(menus) menus and \(rows) drawn rows all dark at build: \(wrong.isEmpty)\(wrong.isEmpty ? "" : " — wrong: " + wrong.prefix(4).joined(separator: "; ")); light look consistent when chosen: \(lightOK)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {

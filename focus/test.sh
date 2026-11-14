@@ -40,7 +40,7 @@ if [ "$errors" = 0 ] && [ "$warnings" = 0 ] && [ -x "$BIN" ]; then record PASS "
 else record FAIL "Builds with zero errors and zero warnings" "$errors errors, $warnings warnings"; fi
 
 echo "2. Menu, settings, history, shortcuts"
-collect < <("$BIN" --selftest-stress --only=4,9,16,18,23,24,26,27,28,29,32,33,34,35,36,38,39,40,41,42,43,45 2>&1)   # not a pipe: results must reach this shell
+collect < <("$BIN" --selftest-stress --only=4,9,16,18,23,24,26,27,28,29,32,33,34,35,36,38,39,40,41,42,43,45,46 2>&1)   # not a pipe: results must reach this shell
 
 if [ "$MODE" = "full" ]; then
     quiet_mic
@@ -57,7 +57,7 @@ if [ "$MODE" = "full" ]; then
     open -g -j "$WORK/SlowQuit.app"; open -g -j "$WORK/Relauncher.app"
     ( for _ in $(seq 1 420); do pgrep -x Relauncher >/dev/null || open -g -j "$WORK/Relauncher.app"; sleep 1; done ) & WATCH=$!
     sleep 2
-    collect < <("$BIN" --selftest-stress 2>&1 | grep -v -E "stress: (PASS|FAIL)  (4|9|16|18|23|24|26|27|28|29|32|33|34|35|36|38|39|40|41|42|43|45)\.")
+    collect < <("$BIN" --selftest-stress 2>&1 | grep -v -E "stress: (PASS|FAIL)  (4|9|16|18|23|24|26|27|28|29|32|33|34|35|36|38|39|40|41|42|43|45|46)\.")
     kill "$WATCH" 2>/dev/null; pkill -x Relauncher; pkill -x SlowQuit
 
     echo "5. Snapshot and a full session on TextEdit"

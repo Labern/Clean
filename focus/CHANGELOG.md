@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.23 — 2026-11-14
+- **Fixed:** on a Mac in Light mode the menu could open with its rows drawn in light-mode ink (dark text, dark button) on the dark background.
+  - Cause: the dark look was applied only as the menu opened, too late for the first drawing.
+  - Fix: it's now set when the menu is built, on the menu, every submenu and every drawn row.
+  - Test scenario 46 checks all of them.
+
 ## 0.18.22 — 2026-11-14
 - Settings ▸ Appearance ▸ Light or Dark: the menu can be light. Dark is the standard and is unchanged.
 
