@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.8 — 2026-11-14
+- The menu ends with the maker's mark: ★★★★★ × PARADOX™.
+
 ## 0.18.7 — 2026-11-14
 - Clicking "Usage" cycles the order of the app list: as listed, most memory first, most used first (the apps you've kept open in the most sessions), then back.
 

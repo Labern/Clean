@@ -827,6 +827,18 @@ final class QuitRow: NSView {
     }
 }
 
+/// The maker's mark, the last line of the menu: ★★★★★ × PARADOX™, centred.
+final class Maker: NSView {
+    static let text = "★★★★★ × PARADOX™"
+    init() { super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 26)); autoresizingMask = [.width] }
+    required init?(coder: NSCoder) { nil }
+    override func draw(_ r: NSRect) {
+        let a: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: theme.faint, .kern: 1.2]
+        let t = Self.text as NSString, w = t.size(withAttributes: a).width
+        t.draw(at: NSPoint(x: (bounds.width - w) / 2, y: 8), withAttributes: a)
+    }
+}
+
 /// The hover popup for app rows: one line, dark, just under the row it explains.
 final class RowTip {
     static let shared = RowTip()
@@ -2527,6 +2539,7 @@ final class Focus: NSObject, NSMenuDelegate {
             },
             action: { [unowned self] in self.toggle() })
         button = b; view(b)
+        let mark = NSMenuItem(title: Maker.text, action: nil, keyEquivalent: ""); mark.view = Maker(); m.addItem(mark)   // the last line of the menu
     }
 }
 
@@ -2641,7 +2654,7 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-rows"), CommandLine.ar
         AppRow("Notes", ic("com.apple.Notes"), detail: "310 MB", on: false) { true },
         Heading("Modes"),
         ModeRow("AI", stackIcon, key: "⌘1", live: true, enabled: true, start: {}, edit: { NSMenu() }), hovered,
-        BigButton(title: { "Start New Session" }, caption: { "Starting a new session will save and quit 6 apps, freeing about 10.7 GB of RAM." }, action: {}),
+        BigButton(title: { "Start New Session" }, caption: { "Starting a new session will save and quit 6 apps, freeing about 10.7 GB of RAM." }, action: {}), Maker(),
     ]
     let w = Int(menuWidth), h = Int(rows.reduce(0) { $0 + $1.frame.height }) + 12
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w * 2, pixelsHigh: h * 2, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
@@ -3221,7 +3234,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let styles = t.menuBarNameStyle == 1 && Focus.nameStyles.map { $0("AI") } == ["AI", "AI session", "AI (in session)"]
         let sized = styles && !m.items.contains { $0.view is Heading }                     // headings are macOS's own
         t.modes = []
-        let quitTop = m.items.first?.view is QuitRow
+        let quitTop = m.items.first?.view is QuitRow && m.items.last?.view is Maker && m.items.last?.title == "★★★★★ × PARADOX™"
         let aligned = quitTop && t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
         done(aligned && unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,
              "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode under the modes, Add New Mode in Edit Modes, lock rows inert: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); standard macOS headings + name styles: \(sized)")
