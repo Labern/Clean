@@ -659,6 +659,7 @@ final class AppRow: HoverView {
     let name: String, icon: NSImage, detail: String, onMark: String, flip: () -> Bool
     /// What a click adds the app to or takes it out of ("your session", "this mode"); nil = no hover popup.
     let target: String?
+    var inert = false                                           // shown, not clickable: no hover, no click
     var on: Bool
     init(_ name: String, _ icon: NSImage, detail: String = "", on: Bool, onMark: String = "checkmark.circle.fill",
          target: String? = nil, flip: @escaping () -> Bool) {
@@ -684,9 +685,9 @@ final class AppRow: HoverView {
         let r = w.convertToScreen(convert(bounds, to: nil))
         RowTip.shared.show(text, under: r)
     }
-    override func mouseUp(with e: NSEvent) { on = flip(); needsDisplay = true; tipTimer?.invalidate(); RowTip.shared.hide() }
+    override func mouseUp(with e: NSEvent) { guard !inert else { return }; on = flip(); needsDisplay = true; tipTimer?.invalidate(); RowTip.shared.hide() }
     override func draw(_ r: NSRect) {
-        if hover { theme.hover.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: 5, yRadius: 5).fill() }
+        if hover && !inert { theme.hover.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: 5, yRadius: 5).fill() }
         icon.draw(in: NSRect(x: 14, y: 5, width: 16, height: 16), from: .zero, operation: .sourceOver, fraction: on ? 1 : 0.55)
         (name as NSString).draw(at: NSPoint(x: 38, y: 4.5), withAttributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: on ? theme.text : theme.faint])
         let small: [NSAttributedString.Key: Any] = [.font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular), .foregroundColor: theme.faint]
@@ -2175,7 +2176,8 @@ final class Focus: NSObject, NSMenuDelegate {
         header("Critical System Processes", tip: "These are never quit.")
         for id in neverClose {
             guard let p = path(id) else { continue }
-            view(AppRow(appName(p), appIcon(p), on: true, onMark: "lock.circle.fill") { [unowned self] in self.flip(\.neverClose, id) })
+            let row = AppRow(appName(p), appIcon(p), on: true, onMark: "lock.circle.fill") { true }   // changed only via Add or remove…
+            row.inert = true; view(row)
         }
         add("Add or remove…", #selector(showNever), image: symbol("plus.circle"))
 
@@ -2209,13 +2211,15 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         // Modes — the user's named sets of apps.
         header("Modes", tip: "Pre-defined app combinations.")
-        let nm = add("Create New Mode", nil, image: symbol("plus.circle")), nmm = NSMenu()
+        // The builder for a new mode: pick apps, optionally name it, create. Offered under the modes and in Edit Modes.
+        func builderMenu() -> NSMenu {
+        let nmm = NSMenu()
         nmm.autoenablesItems = false
         let nextKey = nextModeKey.map { label(forMode: $0) }
         nmm.addItem(headingItem("Its apps — click to add"))
         // open apps first, then apps your sessions kept, then anything already picked
         var seenIDs = Set<String>()
-        let pool = (running.map(\.0) + sessions.flatMap { kept($0) } + draftApps).filter { seenIDs.insert($0).inserted }
+        let pool = (running.map(\.0) + sessions.flatMap { self.kept($0) } + draftApps).filter { seenIDs.insert($0).inserted }
         for id in pool.prefix(14) {
             guard let p = path(id) else { continue }
             let v = NSMenuItem(); v.view = AppRow(appName(p), appIcon(p), on: draftApps.contains(id), target: "this mode") { [unowned self] in
@@ -2233,7 +2237,8 @@ final class Focus: NSObject, NSMenuDelegate {
         nmm.addItem(nameIt)
         let make = add("Create Mode" + (nextKey.map { "  " + $0 } ?? ""), #selector(createDraftMode), image: symbol("checkmark.circle"), to: nmm)
         make.isEnabled = !draftApps.isEmpty
-        nm.submenu = nmm
+        return nmm
+        }
         // Building one mode's edit menu: its name, its apps, its shortcut, delete. Used by right-click and by Edit Modes.
         func editMenu(_ md: [String: Any]) -> NSMenu {
             let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
@@ -2281,7 +2286,10 @@ final class Focus: NSObject, NSMenuDelegate {
             go.view = ModeRow(name, stack(ids), key: digit.map { label(forMode: $0) } ?? "", live: live, enabled: !clearing,
                               start: { [unowned self] in self.startOrSwitch(mid) }, edit: { editMenu(md) })
         }
+        add("Create New Mode", nil, image: symbol("plus.circle")).submenu = builderMenu()      // under your modes; first when there are none
         let editModes = modes.isEmpty ? nil : add("Edit Modes", nil, image: symbol("slider.horizontal.3")), em = NSMenu()
+        add("Add New Mode", nil, image: symbol("plus.circle"), to: em).submenu = builderMenu()
+        em.addItem(.separator())
         for md in modes {
             let row = add(md["name"] as? String ?? "Mode", nil, image: stack(md["apps"] as? [String] ?? []), to: em)
             row.submenu = editMenu(md)
@@ -3173,7 +3181,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let behOK = beh.count == 3 && beh[0] == "App Open/Close Speed" && beh[1] == "Hide Instead of Quit" && beh[2].lowercased().contains("snapshot")
         let moved = !settings.contains("App Open/Close Speed") && !settings.contains("Hide Instead of Quit")
         let hi = titles.firstIndex(of: "Modes") ?? -9
-        let createFirst = titles.indices.contains(hi + 1) && titles[hi + 1] == "Create New Mode" && titles.indices.contains(hi + 2) && titles[hi + 2] == "Mode 1"
+        let em = m.items.first { $0.title == "Edit Modes" }?.submenu
+        let lock = m.items.compactMap { $0.view as? AppRow }.filter { $0.onMark == "lock.circle.fill" }.allSatisfy(\.inert)
+        let createFirst = lock && titles.indices.contains(hi + 2) && titles[hi + 1] == "Mode 1" && titles[hi + 2] == "Create New Mode"
+            && em?.items.first?.title == "Add New Mode" && em?.items.first?.submenu != nil
         let row = m.items.first { $0.title == "Mode 1" }?.view as? ModeRow
         let edit1 = row?.edit()
         let before = edit1?.items.count ?? 0; if let e = edit1 { t.menuNeedsUpdate(e) }           // must stay its own menu
@@ -3186,7 +3197,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let quitTop = m.items.first?.view is QuitRow
         let aligned = quitTop && t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
         done(aligned && unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,
-             "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode first: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); standard macOS headings + name styles: \(sized)")
+             "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode under the modes, Add New Mode in Edit Modes, lock rows inert: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); standard macOS headings + name styles: \(sized)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {

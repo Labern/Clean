@@ -1,11 +1,11 @@
 # Focus — test report
 
-**quick** run · version 0.18.4 · 2026-11-14 03:06 · 35s · **20 passed, 0 failed**
+**quick** run · version 0.18.4 · 2026-11-14 03:08 · 35s · **20 passed, 0 failed**
 
 | Result | Check | Detail |
 |---|---|---|
 | PASS | Builds with zero errors and zero warnings |  |
-| PASS | 4. corrupted / odd saved settings | menu built with 23 items; session state reset to false |
+| PASS | 4. corrupted / odd saved settings | menu built with 21 items; session state reset to false |
 | PASS | 9. session history is capped at 12 | 12 kept of 15 |
 | PASS | 18. submenus keep their own items when they open (Settings must not become a copy of the menu) | Settings, Tools, Past sessions unchanged on open |
 | PASS | 23. shortcuts: switching registers the new keys at once; the default is ⌘⇧F / ⌘⇧E | default ⌘⇧F/⌘⇧E: true; ⌃⇧F registered live: true; ticked in the menu: true |
@@ -18,11 +18,11 @@
 | PASS | 38. app rows: hovering shows + (will add) or × (will remove); after 2.5 s a popup says exactly what a click does | add: 'Click to add Chrome to your session.'; remove: 'Click to remove Chrome from your session.'; mode: 'Click to add Chrome to this mode.'; no popup where nothing is added: true; delay 2.5 s; popup shows: true |
 | PASS | 39. naming is inline (no popups): new mode, rename mode, rename session, save as mode; the menu bar shows the session's name, or only the icon if turned off | new mode inline: true; rename inline: true; no Rename…/New Mode… popups: true; menu bar ' AI': true; icon only when off: true; past session has 2 inline fields: true; session rename: true, menu bar follows: true; clears after: true |
 | PASS | 40. the menu bar always names the session: its name, else the mode it matches, else Focus | matches mode → ' AI': true; no match → ' Focus': true; own name wins: true |
-| PASS | 41. organised: Tools headings; Settings ▸ Behaviour; Create New Mode first; unnamed modes are numbered; right-click edit menu; column headings; headings share one size | unnamed → Mode 1 on ⌘1: true; Tools headings: true; Appearance, Shortcuts, Behaviour: true; Behaviour holds the three: true, moved out of Settings: true; Create New Mode first: true; right-click edit menu: true; column headings: true; standard macOS headings + name styles: true |
+| PASS | 41. organised: Tools headings; Settings ▸ Behaviour; Create New Mode first; unnamed modes are numbered; right-click edit menu; column headings; headings share one size | unnamed → Mode 1 on ⌘1: true; Tools headings: true; Appearance, Shortcuts, Behaviour: true; Behaviour holds the three: true, moved out of Settings: true; Create New Mode under the modes, Add New Mode in Edit Modes, lock rows inert: true; right-click edit menu: true; column headings: true; standard macOS headings + name styles: true |
 | PASS | 26. icon designs: Lens is the default; every design draws at rest and focused, in the user's colours; the picker is in Appearance | Lens default: true; designs that drew nothing: none; choice saved: true; picker in Appearance: true |
 | PASS | 27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration | migration true · create+dedupe true · dragged .app true · no duplicates true · reorder true · remove+rename true · found by id true · delete true |
 | PASS | 28. a live session: no banner and no state line at the top; the button says End Session | first line 'Quit', no banner or state line: true; button 'End Session' |
 | PASS | 29. switching and hide-instead-of-quit settings; the Fewer icon | careful unless chosen: true; menu ticks Careful: true; per-app hide rows: true; Fewer icon: true |
-| PASS | 16. menu speed with every process on the Mac | 47 ms per menu open |
+| PASS | 16. menu speed with every process on the Mac | 45 ms per menu open |
 
 Quick: `./test.sh` (every major change). Full: `./test.sh full` (when needed).

@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.5 — 2026-11-14
+- Critical System Processes rows can't be clicked and don't react to hover: the lock stays, and changes go through "Add or remove…".
+- "Create New Mode" sits under your modes (it's first when you have none). Edit Modes starts with "Add New Mode".
+
 ## 0.18.4 — 2026-11-14
 - "Focus" is back at the top left, on the same row as Quit.
 - **Minimal headings:** "In Session", "Critical System Processes" and "Modes". Each heading's description shows when you hover over it. The "Keep open this session…" line is gone.
