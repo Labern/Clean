@@ -1,0 +1,9 @@
+[package]
+name = "focus-ui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+focus-core = { path = "../core" }
+tiny-skia = { version = "0.11", default-features = false, features = ["std", "simd", "png-format"] }
+fontdue = "0.9"
