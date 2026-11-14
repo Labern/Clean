@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.6 — 2026-11-14
+- "Focus" at the top left is large (21 pt bold).
+- "Apps in Session" sits to the left of "Usage", on one line over the app list.
+- The Start/End button is taller, with more padding above and below its text.
+- Tools: "Analyse performance" comes first; the quit section is headed "Quit Unresponsive Apps".
+
 ## 0.18.5 — 2026-11-14
 - Critical System Processes rows can't be clicked and don't react to hover: the lock stays, and changes go through "Add or remove…".
 - "Create New Mode" sits under your modes (it's first when you have none). Edit Modes starts with "Add New Mode".

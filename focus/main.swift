@@ -752,10 +752,12 @@ func headingItem(_ t: String) -> NSMenuItem {
 final class ColumnHeader: NSView {
     init() {
         super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: theme.headingSize + 11)); autoresizingMask = [.width]
+        toolTip = "Ticked apps are in the session. Click an app to put it in or take it out."
     }
     required init?(coder: NSCoder) { nil }
     override func draw(_ r: NSRect) {
         let a = Heading.attrs
+        ("Apps in Session" as NSString).draw(at: NSPoint(x: 14, y: 4), withAttributes: a)
         let u = "Usage" as NSString
         u.draw(at: NSPoint(x: bounds.width - 42 - u.size(withAttributes: a).width, y: 4), withAttributes: a)   // over the memory
     }
@@ -799,12 +801,12 @@ final class QuitRow: NSView {
     var hover = false { didSet { needsDisplay = true } }
     init(action: @escaping () -> Void) {
         self.action = action
-        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 24)); autoresizingMask = [.width]
+        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 38)); autoresizingMask = [.width]
         addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
     }
     required init?(coder: NSCoder) { nil }
     let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 13)]
-    var spot: NSRect { let w = ("Quit" as NSString).size(withAttributes: attrs).width; return NSRect(x: bounds.width - w - 26, y: 2, width: w + 16, height: 20) }
+    var spot: NSRect { let w = ("Quit" as NSString).size(withAttributes: attrs).width; return NSRect(x: bounds.width - w - 26, y: 9, width: w + 16, height: 20) }
     override func mouseMoved(with e: NSEvent) { hover = spot.contains(convert(e.locationInWindow, from: nil)) }
     override func mouseExited(with e: NSEvent) { hover = false }
     override func mouseDown(with e: NSEvent) {}
@@ -816,8 +818,8 @@ final class QuitRow: NSView {
     override func draw(_ r: NSRect) {
         if hover { theme.hover.setFill(); NSBezierPath(roundedRect: spot, xRadius: 5, yRadius: 5).fill() }
         var a = attrs; a[.foregroundColor] = hover ? theme.text : theme.faint
-        ("Quit" as NSString).draw(at: NSPoint(x: spot.minX + 8, y: 4), withAttributes: a)
-        ("Focus" as NSString).draw(at: NSPoint(x: 14, y: 5), withAttributes: Heading.attrs)      // the app's name, top left
+        ("Quit" as NSString).draw(at: NSPoint(x: spot.minX + 8, y: 11), withAttributes: a)
+        ("Focus" as NSString).draw(at: NSPoint(x: 14, y: 6), withAttributes: [.font: NSFont.systemFont(ofSize: 21, weight: .bold), .foregroundColor: theme.text])   // the app's name, big, top left
     }
 }
 
@@ -850,7 +852,7 @@ final class BigButton: HoverView {
     var down = false { didSet { needsDisplay = true } }
     init(title: @escaping () -> String, caption: @escaping () -> String, action: @escaping () -> Void) {
         self.title = title; self.caption = caption; self.action = action
-        super.init(height: 111)
+        super.init(height: 121)
     }
     required init?(coder: NSCoder) { nil }
     override func mouseDown(with e: NSEvent) { down = true }
@@ -860,9 +862,9 @@ final class BigButton: HoverView {
         DispatchQueue.main.async(execute: action)
     }
     override func draw(_ r: NSRect) {
-        let pill = NSRect(x: 12, y: bounds.height - 46, width: bounds.width - 24, height: 38)
+        let pill = NSRect(x: 12, y: bounds.height - 56, width: bounds.width - 24, height: 48)
         (down ? theme.accent.withAlphaComponent(0.7) : hover ? theme.accent.withAlphaComponent(0.88) : theme.accent).setFill()
-        NSBezierPath(roundedRect: pill, xRadius: 9, yRadius: 9).fill()
+        NSBezierPath(roundedRect: pill, xRadius: 11, yRadius: 11).fill()
         let big: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 14, weight: .semibold), .foregroundColor: theme.onAccent]
         (title() as NSString).draw(at: NSPoint(x: pill.minX + 14, y: pill.midY - 9), withAttributes: big)
         let key: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13, weight: .medium), .foregroundColor: theme.onAccent.withAlphaComponent(0.6)]
@@ -2138,7 +2140,6 @@ final class Focus: NSObject, NSMenuDelegate {
         let running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
         if focused {
             // In a session the rows ARE the session: ticked = in it, open. Click to take one out now, or put it back.
-            header("In Session", tip: "Click an app to take it out or bring it back.")
             view(ColumnHeader())
             let stuckIDs = Set(waiting.compactMap(\.bundleIdentifier))
             for (id, p) in running {
@@ -2347,16 +2348,16 @@ final class Focus: NSObject, NSMenuDelegate {
         let tools = add("Tools", nil, image: symbol("wrench.and.screwdriver")), tm = NSMenu()
         tm.autoenablesItems = false
         let busy = focused || clearing
-        tm.addItem(headingItem("Quit apps to free RAM"))
+        tm.addItem(headingItem("Analyse performance"))
+        add("Open Activity Monitor", #selector(openActivityMonitor), image: symbol("waveform.path.ecg"), to: tm)
+        add("Open System Settings", #selector(openSystemSettings), image: symbol("gearshape.2"), to: tm)
+        tm.addItem(.separator())
+        tm.addItem(headingItem("Quit Unresponsive Apps"))
         add("Quit All Apps…", #selector(quitAllApps), image: symbol("xmark.circle"), to: tm).isEnabled = !busy
         add("Quit All Apps & Restart Mac…", #selector(quitAllRestart), image: symbol("arrow.clockwise.circle"), to: tm).isEnabled = !busy
         let fq = add("Force Quit All Apps…", #selector(forceQuitAllApps), image: symbol("bolt.circle", [theme.hazard]), to: tm)
         fq.isEnabled = !busy
         if !busy { fq.attributedTitle = NSAttributedString(string: fq.title, attributes: [.foregroundColor: theme.hazard, .font: NSFont.menuFont(ofSize: 0)]) }
-        tm.addItem(.separator())
-        tm.addItem(headingItem("Analyse performance"))
-        add("Open Activity Monitor", #selector(openActivityMonitor), image: symbol("waveform.path.ecg"), to: tm)
-        add("Open System Settings", #selector(openSystemSettings), image: symbol("gearshape.2"), to: tm)
         tm.addItem(.separator())
         let kept = neverClose.compactMap(path).map(appName)
         add(busy ? "End the session first" : kept.isEmpty ? "Add apps to Critical System Processes to keep them" : "Keeps " + kept.joined(separator: ", "), nil, to: tm).isEnabled = false
@@ -2609,12 +2610,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-rows"), CommandLine.ar
         ic("com.apple.Terminal").draw(in: NSRect(x: 7, y: 0, width: 16, height: 16)); ic("com.apple.Safari").draw(in: NSRect(x: 0, y: 0, width: 16, height: 16)); return true }
     let hovered = ModeRow("Mode 2", stackIcon, key: "⌘2", live: false, enabled: true, start: {}, edit: { NSMenu() }); hovered.hover = true
     let rows: [NSView] = [
-        Heading("Focus"), Heading("Keep open this session — click to choose"), ColumnHeader(),
+        QuitRow {}, ColumnHeader(),
         AppRow("Safari", ic("com.apple.Safari"), detail: "2.4 GB", on: true) { true },
         AppRow("Notes", ic("com.apple.Notes"), detail: "310 MB", on: false) { true },
-        Heading("Modes — pre-defined app combinations"),
+        Heading("Modes"),
         ModeRow("AI", stackIcon, key: "⌘1", live: true, enabled: true, start: {}, edit: { NSMenu() }), hovered,
-        Heading("Quit apps to free RAM"), Heading("Analyse performance"),
+        BigButton(title: { "Start New Session" }, caption: { "Starting a new session will save and quit 6 apps, freeing about 10.7 GB of RAM." }, action: {}),
     ]
     let w = Int(menuWidth), h = Int(rows.reduce(0) { $0 + $1.frame.height }) + 12
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w * 2, pixelsHigh: h * 2, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
@@ -3174,7 +3175,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let m = NSMenu(); t.menuNeedsUpdate(m)
         let titles = m.items.map(\.title)
         let tools = m.items.first { $0.title == "Tools" }?.submenu?.items.map(\.title) ?? []
-        let toolsOK = tools.firstIndex(of: "Quit apps to free RAM") == 0 && (tools.firstIndex(of: "Analyse performance") ?? 0) + 1 == tools.firstIndex(of: "Open Activity Monitor")
+        let toolsOK = tools.firstIndex(of: "Analyse performance") == 0 && tools.firstIndex(of: "Open Activity Monitor") == 1 && (tools.firstIndex(of: "Quit Unresponsive Apps") ?? 0) + 1 == tools.firstIndex(of: "Quit All Apps…")
         let settings = m.items.first { $0.title == "Settings" }?.submenu?.items.map(\.title) ?? []
         let order = settings.firstIndex(of: "Appearance") == 0 && settings.firstIndex(of: "Shortcuts") == 1 && settings.firstIndex(of: "Behaviour") == 2
         let beh = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Behaviour" }?.submenu?.items.map(\.title) ?? []
