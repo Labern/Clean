@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.3 — 2026-11-14
+- **Taken back out:** the "Focus — mode (apps, since…)" line at the top; the "App" title and the mark over the ticks (only "Usage" stays); the larger custom headings (macOS's own grey headings are back); the taller button.
+- **Quit** is the first row of the menu, at the top right.
+- **Mode names** start in one fixed place, clear of three icons, however many apps a mode has.
+- "Temporarily Closed / End Session to Reopen" is now "Apps Outside Session". "In this session —" is gone from the app list's heading.
+- The lock on Critical System Processes stays a lock on hover. + and × show only where a click adds to or removes from a session or mode.
+- **Settings:** Reopen windows and Open at login show on or off with their icon, so they line up with the icons above.
+- Removed two marks that could push a menu's icons to the right.
+
 ## 0.18.2 — 2026-11-14
 - Every mode's name starts in the same place, however many apps the mode has.
 

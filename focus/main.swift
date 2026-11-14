@@ -77,9 +77,9 @@ struct Theme {
     var faint = NSColor.secondaryLabelColor
     /// Every grey heading in the menu and its submenus: one size, one weight, one colour. Change these three to
     /// restyle them all at once.
-    var headingSize: CGFloat = 13
+    var headingSize: CGFloat = 11
     var headingWeight: NSFont.Weight = .semibold
-    var heading = NSColor.secondaryLabelColor
+    var heading = NSColor.tertiaryLabelColor
     var dropped = NSColor.tertiaryLabelColor
     var hudBg = NSColor(white: 0.07, alpha: 0.88)                // the session pill
     var hudInk = NSColor.white
@@ -693,7 +693,7 @@ final class AppRow: HoverView {
         let d = detail as NSString
         d.draw(at: NSPoint(x: bounds.width - 42 - d.size(withAttributes: small).width, y: 6), withAttributes: small)
         // Hovering says what a click will do: × takes it out, + puts it in.
-        let mark = hover ? (on ? symbol("xmark.circle.fill", [theme.onAccent, theme.accent]) : symbol("plus.circle", [theme.text]))
+        let mark = hover && target != nil ? (on ? symbol("xmark.circle.fill", [theme.onAccent, theme.accent]) : symbol("plus.circle", [theme.text]))
                          : on ? symbol(onMark, [theme.onAccent, theme.accent]) : symbol("circle", [theme.dropped])
         mark?.draw(in: NSRect(x: bounds.width - 32, y: 5, width: 16, height: 16))
     }
@@ -742,7 +742,8 @@ final class Heading: NSView {
     override func draw(_ r: NSRect) { (text as NSString).draw(at: NSPoint(x: 14, y: 4), withAttributes: Self.attrs) }
 }
 func headingItem(_ t: String) -> NSMenuItem {
-    let i = NSMenuItem(title: t, action: nil, keyEquivalent: ""); i.view = Heading(t); i.isEnabled = false; return i
+    if #available(macOS 14, *) { return .sectionHeader(title: t) }             // macOS's own heading, exactly as before
+    let i = NSMenuItem(title: t, action: nil, keyEquivalent: ""); i.isEnabled = false; return i
 }
 
 /// The column titles over the app list: App over the names, Usage over the memory, and the Focus mark (as it
@@ -750,17 +751,12 @@ func headingItem(_ t: String) -> NSMenuItem {
 final class ColumnHeader: NSView {
     init() {
         super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: theme.headingSize + 11)); autoresizingMask = [.width]
-        toolTip = "Ticked apps are in the session. Unticked apps are out of it."
     }
     required init?(coder: NSCoder) { nil }
     override func draw(_ r: NSRect) {
         let a = Heading.attrs
-        ("App" as NSString).draw(at: NSPoint(x: 38, y: 4), withAttributes: a)                    // over the names
         let u = "Usage" as NSString
         u.draw(at: NSPoint(x: bounds.width - 42 - u.size(withAttributes: a).width, y: 4), withAttributes: a)   // over the memory
-        if let cg = painted(glyph(1), theme.heading, NSSize(width: 32, height: 32)) {             // over the ticks
-            NSGraphicsContext.current?.cgContext.draw(cg, in: CGRect(x: bounds.width - 32, y: 3, width: 16, height: 16))
-        }
     }
 }
 
@@ -785,7 +781,7 @@ final class ModeRow: HoverView {
     override func draw(_ r: NSRect) {
         if hover { theme.hover.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: 5, yRadius: 5).fill() }
         icon.draw(in: NSRect(x: 14, y: 5, width: icon.size.width, height: 16), from: .zero, operation: .sourceOver, fraction: enabled ? 1 : 0.5)
-        (name as NSString).draw(at: NSPoint(x: 22 + icon.size.width, y: 4.5),
+        (name as NSString).draw(at: NSPoint(x: 58, y: 4.5),            // one fixed place: clear of three icons, whatever the mode holds
                                 withAttributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: enabled ? theme.text : theme.faint])
         let small: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: theme.faint]
         let k = key as NSString
@@ -793,6 +789,33 @@ final class ModeRow: HoverView {
         let mark = live ? symbol(hover ? "stop.circle.fill" : "checkmark.circle.fill", [theme.onAccent, theme.accent])
                         : hover && enabled ? symbol("play.circle", [theme.text]) : nil
         mark?.draw(in: NSRect(x: bounds.width - 32, y: 5, width: 16, height: 16))
+    }
+}
+
+/// The first row of the menu: a plain "Quit" at the top right, so leaving Focus is never hidden in Settings.
+final class QuitRow: NSView {
+    let action: () -> Void
+    var hover = false { didSet { needsDisplay = true } }
+    init(action: @escaping () -> Void) {
+        self.action = action
+        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 24)); autoresizingMask = [.width]
+        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+    }
+    required init?(coder: NSCoder) { nil }
+    let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 13)]
+    var spot: NSRect { let w = ("Quit" as NSString).size(withAttributes: attrs).width; return NSRect(x: bounds.width - w - 26, y: 2, width: w + 16, height: 20) }
+    override func mouseMoved(with e: NSEvent) { hover = spot.contains(convert(e.locationInWindow, from: nil)) }
+    override func mouseExited(with e: NSEvent) { hover = false }
+    override func mouseDown(with e: NSEvent) {}
+    override func acceptsFirstMouse(for e: NSEvent?) -> Bool { true }
+    override func mouseUp(with e: NSEvent) {
+        guard spot.contains(convert(e.locationInWindow, from: nil)) else { return }
+        enclosingMenuItem?.menu?.cancelTracking(); DispatchQueue.main.async(execute: action)
+    }
+    override func draw(_ r: NSRect) {
+        if hover { theme.hover.setFill(); NSBezierPath(roundedRect: spot, xRadius: 5, yRadius: 5).fill() }
+        var a = attrs; a[.foregroundColor] = hover ? theme.text : theme.faint
+        ("Quit" as NSString).draw(at: NSPoint(x: spot.minX + 8, y: 4), withAttributes: a)
     }
 }
 
@@ -825,7 +848,7 @@ final class BigButton: HoverView {
     var down = false { didSet { needsDisplay = true } }
     init(title: @escaping () -> String, caption: @escaping () -> String, action: @escaping () -> Void) {
         self.title = title; self.caption = caption; self.action = action
-        super.init(height: 114)
+        super.init(height: 106)
     }
     required init?(coder: NSCoder) { nil }
     override func mouseDown(with e: NSEvent) { down = true }
@@ -847,7 +870,7 @@ final class BigButton: HoverView {
         let c = caption() as NSString
         let para = NSMutableParagraphStyle(); para.alignment = .center; para.lineBreakMode = .byWordWrapping
         var wrapped = small; wrapped[.paragraphStyle] = para
-        c.draw(with: NSRect(x: 18, y: 6, width: bounds.width - 36, height: pill.minY - 18),
+        c.draw(with: NSRect(x: 18, y: 6, width: bounds.width - 36, height: pill.minY - 10),
                options: [.usesLineFragmentOrigin], attributes: wrapped)     // plain English, wraps to two lines
     }
 }
@@ -2099,7 +2122,8 @@ final class Focus: NSObject, NSMenuDelegate {
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
         mem = memoryByPid()
-        header(stateLine)                                       // "Focus" or "Focus — in session (3 apps, since 21:48)"
+        let quit = NSMenuItem(title: "Quit", action: nil, keyEquivalent: ""); quit.view = QuitRow { [unowned self] in self.bye() }
+        m.addItem(quit)
         if let status, !status.hasPrefix("Waiting") { header(status) }   // the waiting app has its own line below
         if focused, let shot = sessions.first?["shot"] as? String, let img = NSImage(contentsOfFile: shot) {
             header("What you were doing — click to open")
@@ -2112,7 +2136,7 @@ final class Focus: NSObject, NSMenuDelegate {
         let running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
         if focused {
             // In a session the rows ARE the session: ticked = in it, open. Click to take one out now, or put it back.
-            header("In this session — click an app to take it out or bring it back")
+            header("Click an app to take it out or bring it back")
             view(ColumnHeader())
             let stuckIDs = Set(waiting.compactMap(\.bundleIdentifier))
             for (id, p) in running {
@@ -2130,7 +2154,7 @@ final class Focus: NSObject, NSMenuDelegate {
             }
             if !parkedAway.isEmpty {
                 m.addItem(.separator())
-                header("Temporarily Closed / End Session to Reopen")
+                header("Apps Outside Session")
                 for (id, p) in parkedAway {
                     view(AppRow(appName(p), appIcon(p), on: false, target: "your session") { [unowned self] in self.bringBack(id); return true })
                 }
@@ -2252,7 +2276,7 @@ final class Focus: NSObject, NSMenuDelegate {
             let ids = md["apps"] as? [String] ?? [], name = md["name"] as? String ?? "Mode", mid = md["id"] as? String ?? ""
             let digit = md["key"] as? Int, live = focused && sessions.first?["modeID"] as? String == mid
             let go = add(name, #selector(startMode(_:)))
-            go.representedObject = mid; go.isEnabled = !clearing; go.state = live ? .on : .off
+            go.representedObject = mid; go.isEnabled = !clearing         // (the row draws its own tick: a state mark here would shift every icon in the menu)
             if let digit { go.keyEquivalent = String(digit); go.keyEquivalentModifierMask = NSEvent.ModifierFlags(carbon: modeMods) }
             go.view = ModeRow(name, stack(ids), key: digit.map { label(forMode: $0) } ?? "", live: live, enabled: !clearing,
                               start: { [unowned self] in self.startOrSwitch(mid) }, edit: { editMenu(md) })
@@ -2435,14 +2459,16 @@ final class Focus: NSObject, NSMenuDelegate {
         add("Hide every app", #selector(hiding), to: hom).state = hideMode ? .on : .off
         ho.submenu = hom
         if CGPreflightScreenCaptureAccess() {
-            add("Take a snapshot when a session starts", #selector(snaps), image: symbol("camera"), to: bm).state = snapshots ? .on : .off
+            add("Take a snapshot when a session starts", #selector(snaps), to: bm).state = snapshots ? .on : .off
         } else {
             add("Allow snapshots… (asks for Screen Recording once)", #selector(snaps), image: symbol("camera"), to: bm)
         }
         behave.submenu = bm
         sub.addItem(.separator())
-        add("Reopen windows as they were", #selector(windows), to: sub).state = keepWindows ? .on : .off
-        add("Open at login", #selector(login), to: sub).state = SMAppService.mainApp.status == .enabled ? .on : .off
+        // On or off is shown by the icon itself, so these two line up with the icons above (a tick mark would sit in its own column).
+        let onOff = { (on: Bool) in on ? symbol("checkmark.circle.fill") : symbol("circle") }
+        add("Reopen windows as they were", #selector(windows), image: onOff(keepWindows), to: sub)
+        add("Open at login", #selector(login), image: onOff(SMAppService.mainApp.status == .enabled), to: sub)
         sub.addItem(.separator())
         add(label(menuMods) + "E opens this menu", nil, to: sub).isEnabled = false
         add("Focus " + ((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"), nil, to: sub).isEnabled = false
@@ -3012,12 +3038,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         done(eva && originals && listed != nil && picked && del != nil && gone,
              "Evangelion listed: \(eva); originals kept: \(originals); saved scheme listed: \(listed != nil); picking it applies it: \(picked); ⌥ delete: \(del != nil); deleted: \(gone)")
     }))
-    steps.append(("34. the menu opens with its state: Focus out of session, and in a session how many apps and since when", { done in
+    steps.append(("34. the menu has no state line; its first row is Quit, at the top right", { done in
         let m = NSMenu(); t.menuNeedsUpdate(m)
         let first = m.items.first?.title ?? ""
-        let line = t.stateLine
-        done(!t.focused && first == "Focus" && line == "Focus",
-             "first line out of session: '\(first)'")
+        done(m.items.first?.view is QuitRow && !m.items.contains { $0.title.hasPrefix("Focus —") }, "first row is Quit: '\(first)'")
     }))
     steps.append(("35. modes: suggestions use only installed apps (Web Only = the default browser); adding one makes a real mode and it leaves the list; a mode's apps can be added and removed; Temporarily Closed wording", { done in
         t.modes = []
@@ -3155,14 +3179,14 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let before = edit1?.items.count ?? 0; if let e = edit1 { t.menuNeedsUpdate(e) }           // must stay its own menu
         let editOK = row?.key == "⌘1" && before > 3 && edit1?.items.count == before && edit1?.items.first?.view is InlineNameField
         let columns = m.items.contains { $0.view is ColumnHeader }
-        let heads = m.items.compactMap { $0.view as? Heading }
         t.store.removeObject(forKey: "menuBarNameStyle")
         let styles = t.menuBarNameStyle == 1 && Focus.nameStyles.map { $0("AI") } == ["AI", "AI session", "AI (in session)"]
-        let sized = styles && !heads.isEmpty && (Heading.attrs[.font] as? NSFont)?.pointSize == theme.headingSize && theme.headingSize > 11
+        let sized = styles && !m.items.contains { $0.view is Heading }                     // headings are macOS's own
         t.modes = []
-        let aligned = t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
+        let quitTop = m.items.first?.view is QuitRow
+        let aligned = quitTop && t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
         done(aligned && unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,
-             "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode first: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); headings \(theme.headingSize) pt from one setting: \(sized)")
+             "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode first: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); standard macOS headings + name styles: \(sized)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {
@@ -3227,20 +3251,15 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         done(migrated && created && dropped && dupe && moved && edited && byIdSurvivesReorder && deleted,
              "migration \(migrated) · create+dedupe \(created) · dragged .app \(dropped) · no duplicates \(dupe) · reorder \(moved) · remove+rename \(edited) · found by id \(byIdSurvivesReorder) · delete \(deleted)")
     }))
-    steps.append(("28. a live session: the first line names it; no banner under it; renames show at once; the button says End Session", { done in
+    steps.append(("28. a live session: no banner and no state line at the top; the button says End Session", { done in
         t.sessions = [["date": Date(), "name": "Game design", "mode": "Game design", "kept": ["com.apple.TextEdit"], "apps": [[String: Any]]()]]
         UserDefaults(suiteName: suite)!.set(true, forKey: "focused")
-        func menu() -> NSMenu { let m = NSMenu(); t.menuNeedsUpdate(m); return m }
-        let m1 = menu(), top = m1.items.first?.title ?? ""
-        let stateOK = top.hasPrefix("Focus — Game design (") && top.contains(" app") && top.contains(", since ") && top.hasSuffix(")")
-        let noBanner = !m1.items.contains { $0.view is SessionBanner }
+        let m1 = NSMenu(); t.menuNeedsUpdate(m1)
+        let top = m1.items.first?.title ?? ""
+        let noBanner = !m1.items.contains { $0.view is SessionBanner } && !top.hasPrefix("Focus")
         let button = (m1.items.compactMap { $0.view as? BigButton }.first?.title() ?? "")
-        t.sessions[0]["name"] = "Level 3 blockout"
-        let renamed = (menu().items.first?.title ?? "").hasPrefix("Focus — Level 3 blockout (")
         UserDefaults(suiteName: suite)!.set(false, forKey: "focused"); t.sessions = []
-        let out = menu().items.first?.title == "Focus"
-        done(stateOK && noBanner && button == "End Session" && renamed && out,
-             "first line '\(top)': \(stateOK); no banner: \(noBanner); button '\(button)'; rename shows: \(renamed); out of session 'Focus': \(out)")
+        done(noBanner && button == "End Session", "first line '\(top)', no banner or state line: \(noBanner); button '\(button)'")
     }))
     steps.append(("29. switching and hide-instead-of-quit settings; the Fewer icon", { done in
         let d = UserDefaults(suiteName: suite)!
