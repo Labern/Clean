@@ -1,0 +1,64 @@
+name: Focus port (Windows + Linux)
+on:
+  push:
+    paths: ["focus-port/**", ".github/workflows/focus-port.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: focus-port
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust
+        run: rustup toolchain install stable --profile minimal --no-self-update; rustup default stable; cargo --version
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            focus-port/target
+          key: focus-port-win-${{ hashFiles('focus-port/**/Cargo.toml') }}
+      - name: Build (release)
+        run: cargo build --release --all-targets 2>&1
+      - name: Tests (core + drawing)
+        run: cargo test --release 2>&1
+      - name: What Windows is this
+        run: |
+          cmd /c ver
+          Get-ComputerInfo -Property OsName, OsVersion | Format-List
+      - name: Apps that are open
+        run: ./target/release/focus.exe --list
+      - name: A real session with throwaway apps
+        run: ./target/release/focus.exe --selftest
+      - name: Draw the menu, icon and animation with Windows' own font
+        if: always()
+        run: ./target/release/examples/render.exe out
+      - name: Cloud test with screenshots
+        if: always()
+        run: if (Test-Path ./target/release/focus.exe) { ./target/release/focus.exe --cloud-test out; exit 0 }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: focus-windows
+          path: |
+            focus-port/out
+            focus-port/target/release/focus.exe
+  linux:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: focus-port
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests (core + drawing)
+        run: cargo test --release -p focus-core -p focus-ui 2>&1
+      - name: Draw the pictures
+        run: cargo run --release -p focus-ui --example render -- out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: focus-linux-pictures
+          path: focus-port/out
