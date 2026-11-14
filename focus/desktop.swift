@@ -14,6 +14,7 @@
 import AppKit
 import SwiftUI
 import ServiceManagement
+import UniformTypeIdentifiers
 
 /// The website's design tokens (its :root block), so the window and the site are one look.
 enum Site {
@@ -27,7 +28,7 @@ enum Site {
         let s = UserDefaults.standard.double(forKey: "desktopTextScale"); return s >= 0.8 && s <= 1.6 ? CGFloat(s) : 1
     }() { didSet { UserDefaults.standard.set(Double(scale), forKey: "desktopTextScale") } }
     static func font(_ base: CGFloat, _ w: Weight = .regular) -> Font {
-        let size = (base * scale).rounded()
+        let size = (base * 0.8 * scale).rounded()                   // every size in this file is written at 1.25× its drawn size
         let name = ["Graphik-Regular", "Graphik-Medium", "Graphik-Semibold"][w == .regular ? 0 : w == .medium ? 1 : 2]
         if NSFont(name: name, size: size) != nil { return .custom(name, size: size) }
         let fallback = ["HelveticaNeue", "HelveticaNeue-Medium", "HelveticaNeue-Bold"][w == .regular ? 0 : w == .medium ? 1 : 2]
@@ -144,7 +145,10 @@ final class DesktopModel: ObservableObject {
     struct AppLine: Identifiable { let id: String, path: String, name: String, usage: String, on: Bool, note: String; var bytes: UInt64 = 0 }
     func icon(_ path: String) -> NSImage { let i = NSWorkspace.shared.icon(forFile: path); i.size = NSSize(width: 128, height: 128); return i }   // the full-size artwork
     var running: [AppLine] {
-        f.sorted(f.apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }).map { id, p in
+        let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+        let listed = f.sorted(f.apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } })
+        let mine = listed.enumerated().sorted { (rank[$0.element.0] ?? 10_000 + $0.offset) < (rank[$1.element.0] ?? 10_000 + $1.offset) }.map(\.element)
+        return mine.map { id, p in
             let size = NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }.map(f.memory) ?? 0
             let parked = f.focused && f.isParked(id)
             return AppLine(id: id, path: p, name: f.appName(p), usage: size > 0 ? gb(size) : "", on: f.focused ? !parked : f.excluded.contains(id), note: parked ? "leaving…" : "", bytes: size)
@@ -169,11 +173,25 @@ final class DesktopModel: ObservableObject {
                             apps: md["apps"] as? [String] ?? [], live: f.focused && f.sessions.first?["modeID"] as? String == id)
         }
     }
-    /// "12 min", "1 h 05 min": how long the live session has run.
-    var elapsed: String? {
-        guard f.focused, let began = f.sessions.first?["date"] as? Date else { return nil }
-        let min = max(0, Int(Date().timeIntervalSince(began) / 60))
-        return min < 60 ? "\(min) min" : "\(min / 60) h \(String(format: "%02d", min % 60)) min"
+    /// Under the button: what pressing it does, in a line.
+    var caption: String {
+        guard !f.focused, !f.hideMode else { return f.sessionCaption() }
+        let out = f.leaving(); guard !out.isEmpty else { return f.sessionCaption() }
+        return "Closes \(out.count) app\(out.count == 1 ? "" : "s") and saves \(gb(out.reduce(0) { $0 + f.memory($1) })) of RAM. They reopen when the session ends."
+    }
+    // — the user's own order for the app list (drag a row; it changes nothing but how the list looks) —
+    @Published var dragging: String?
+    var order: [String] {
+        get { UserDefaults.standard.stringArray(forKey: "desktopAppOrder") ?? [] }
+        set { UserDefaults.standard.set(newValue, forKey: "desktopAppOrder") }
+    }
+    func move(_ id: String, before target: String) {
+        var ids = running.map(\.id)
+        guard id != target, let from = ids.firstIndex(of: id), let to = ids.firstIndex(of: target) else { return }
+        ids.remove(at: from); ids.insert(id, at: to); order = ids; tick &+= 1
+    }
+    @Published var modesShown = UserDefaults.standard.object(forKey: "desktopModesShown") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(modesShown, forKey: "desktopModesShown") }
     }
     struct PastLine: Identifiable { let id: Int, title: String, detail: String, canSave: Bool, live: Bool }
     var history: [PastLine] {
@@ -217,7 +235,7 @@ struct AppRowView: View {
             Image(systemName: hover && action != nil ? (app.on ? "xmark.circle.fill" : "plus.circle") : mark)
                 .font(.system(size: 19)).foregroundColor(app.on ? Site.head : Site.muted).frame(width: 24)
         }
-        .padding(.horizontal, 14).frame(height: 40)
+        .padding(.horizontal, 14).frame(height: 38)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(hover && action != nil ? Site.surface : Color.clear))
         .contentShape(Rectangle())
         .animation(.easeOut(duration: 0.12), value: hover).animation(.easeOut(duration: 0.2), value: app.on)
@@ -230,6 +248,14 @@ struct AppRowView: View {
             }
         }
     }
+}
+
+/// Dragging one app row over another puts it there.
+struct RowDrop: DropDelegate {
+    let id: String, m: DesktopModel
+    func dropEntered(info: DropInfo) { if let d = m.dragging { withAnimation(.easeOut(duration: 0.15)) { m.move(d, before: id) } } }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+    func performDrop(info: DropInfo) -> Bool { m.dragging = nil; return true }
 }
 
 /// What the open apps are holding, as one bar: each app a segment as wide as its memory. White = stays in the
@@ -257,22 +283,21 @@ struct MemoryBar: View {
     }
 }
 
-/// The one action, and the most important thing in the window: start or end a session. Fat, white, never full
-/// width, with its key — worded as in the menu.
+/// The point of the app: one press and you're in a session. As wide as the pane, tall, white, its title centred
+/// and its key at the right — worded as in the menu.
 struct SessionButton: View {
     let title: String, key: String, action: () -> Void
     @State private var hover = false
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 18) {
-                Text(title).font(Site.font(22, .medium)).tracking(-0.3).lineLimit(1)
-                Text(key).font(Site.font(18)).opacity(0.5).lineLimit(1)
+            ZStack {
+                Text(title).font(Site.font(30, .medium)).tracking(-0.4).lineLimit(1)
+                HStack { Spacer(); Text(key).font(Site.font(22)).opacity(0.45).lineLimit(1) }.padding(.trailing, 24)
             }
-            .fixedSize()                                            // one line, always: the caption beside it gives way, never this
-            .foregroundColor(.black).padding(.horizontal, 26).frame(height: 62)
-            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(hover ? 0.9 : 1)))
-            .shadow(color: Color.white.opacity(hover ? 0.22 : 0), radius: 14)          // a soft glow under the pointer
-            .scaleEffect(hover ? 1.015 : 1).animation(.easeOut(duration: 0.15), value: hover)
+            .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: 68)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.92 : 1)))
+            .shadow(color: Color.white.opacity(hover ? 0.20 : 0), radius: 16)           // a soft glow under the pointer
+            .scaleEffect(hover ? 1.006 : 1).animation(.easeOut(duration: 0.15), value: hover)
         }
         .buttonStyle(.plain).onHover { hover = $0 }
     }
@@ -307,25 +332,21 @@ struct SectionLabel: View {
     init(_ left: String, _ right: String = "") { self.left = left; self.right = right }
     var body: some View {
         HStack { Text(left); Spacer(); Text(right).padding(.trailing, 38) }
-            .font(Site.font(15, .medium)).foregroundColor(Site.muted).padding(.horizontal, 14).padding(.top, 12).padding(.bottom, 3)
+            .font(Site.font(16, .medium)).foregroundColor(Site.muted).padding(.horizontal, 14).padding(.top, 18).padding(.bottom, 6)
     }
 }
 
-/// The site's button: white, black ink — or an outline for the quieter actions.
+/// A quiet outlined button for the lesser actions.
 struct SiteButton: View {
-    let title: String, key: String, filled: Bool, tint: Color, action: () -> Void
-    init(_ title: String, key: String = "", filled: Bool = true, tint: Color = Site.head, action: @escaping () -> Void) {
-        self.title = title; self.key = key; self.filled = filled; self.tint = tint; self.action = action
-    }
+    let title: String, tint: Color, action: () -> Void
+    init(_ title: String, tint: Color = Site.head, action: @escaping () -> Void) { self.title = title; self.tint = tint; self.action = action }
     @State private var hover = false
     var body: some View {
         Button(action: action) {
-            HStack { Text(title).font(Site.font(filled ? 19 : 15, .medium)).tracking(filled ? -0.2 : 0); if !key.isEmpty { Spacer(); Text(key).font(Site.font(filled ? 17 : 14)).opacity(0.55) } }
-                .foregroundColor(filled ? .black : tint)
-                .padding(.horizontal, 20).frame(height: filled ? 54 : 34)
-                .frame(maxWidth: filled ? .infinity : nil)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(filled ? Color.white.opacity(hover ? 0.88 : 1) : (hover ? Site.surface : Color.clear)))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(filled ? Color.clear : Site.line, lineWidth: 1))
+            Text(title).font(Site.font(16, .medium)).foregroundColor(tint).lineLimit(1).fixedSize()
+                .padding(.horizontal, 14).frame(height: 30)
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hover ? Site.surface : Color.clear))
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.line, lineWidth: 1))
         }
         .buttonStyle(.plain).onHover { hover = $0 }
     }
@@ -344,13 +365,13 @@ struct SideRow: View {
                     }
                 }.frame(width: 40, alignment: .leading)
             }
-            Text(title).font(Site.font(17, selected ? .medium : .regular)).lineLimit(1)
+            Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1)
             Spacer(minLength: 6)
             if live { Circle().fill(Site.head).frame(width: 7, height: 7) }
             Text(trailing).font(Site.font(15)).foregroundColor(Site.muted)
         }
         .foregroundColor(selected ? Site.head : Site.low)
-        .padding(.horizontal, 12).frame(height: 32)
+        .padding(.horizontal, 12).frame(height: 34)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(selected ? Site.surface2 : hover ? Site.surface : Color.clear))
         .contentShape(Rectangle()).onHover { hover = $0 }.onTapGesture(perform: action)
     }
@@ -367,16 +388,10 @@ struct DesktopView: View {
             VStack(spacing: 0) {
                 // Always there, whatever is selected: the one action, worded as in the menu, with its key. Not full
                 // width: a fat button at the top left of the pane, what it will do written beside it.
-                HStack(alignment: .center, spacing: 18) {
+                VStack(spacing: 9) {
                     SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey) { m.act { m.f.toggle() } }
-                    VStack(alignment: .leading, spacing: 2) {
-                        if let t = m.elapsed {
-                            HStack(spacing: 7) { PulseDot(); Text("In session for \(t)").font(Site.font(16, .medium)).foregroundColor(Site.head) }
-                        }
-                        Text(m.f.sessionCaption()).font(Site.font(15)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true)
-                    }
-                    Spacer(minLength: 0)
-                }.padding(.leading, 24).padding(.trailing, 24).padding(.top, 18).padding(.bottom, 6)
+                    Text(m.caption).font(Site.font(17)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                }.padding(.horizontal, 28).padding(.top, 22).padding(.bottom, 8)
                 Group {
                     if m.selection == Page.shortcuts { ShortcutsPage(m: m) }
                     else if m.selection == Page.tools { ToolsPage(m: m) }
@@ -395,9 +410,9 @@ struct DesktopView: View {
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
-                if m.still { Image(nsImage: siteLogo(96)).resizable().interpolation(.high).frame(width: 38, height: 38) } else { LogoView(side: 38) }
-                Text("Focus").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
-            }.padding(.leading, 18).padding(.top, 36).padding(.bottom, 10)      // just clear of the window's three buttons
+                if m.still { Image(nsImage: siteLogo(96)).resizable().interpolation(.high).frame(width: 34, height: 34) } else { LogoView(side: 34) }
+                Text("Focus").font(Site.font(30, .medium)).tracking(-0.5).foregroundColor(Site.head)
+            }.padding(.leading, 18).padding(.top, 40).padding(.bottom, 14)      // just clear of the window's three buttons
             VStack(spacing: 2) {
                 SideRow(title: "Session", trailing: m.f.focused ? "On" : "", live: m.f.focused, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2") { m.selection = nil }
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
@@ -405,20 +420,23 @@ struct DesktopView: View {
                 SideRow(title: "History", trailing: m.f.sessions.isEmpty ? "" : "\(m.f.sessions.count)", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath") { m.selection = Page.history }
                 SideRow(title: "Settings", trailing: "", live: false, selected: m.selection == Page.settings, icons: [], symbol: "gearshape") { m.selection = Page.settings }
             }.padding(.horizontal, 10)
-            Text("Modes").font(Site.font(15, .medium)).foregroundColor(Site.muted).padding(.leading, 22).padding(.top, 10).padding(.bottom, 3)
-            ScrollView {
-                VStack(spacing: 2) {
-                    ForEach(m.modes) { mode in
-                        SideRow(title: mode.name, trailing: mode.key, live: mode.live, selected: m.selection == mode.id,
-                                icons: mode.apps.compactMap { m.f.path($0) }.map(m.icon), symbol: nil) { m.selection = mode.id }
-                    }
-                    SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { m.newMode() }
-                    ForEach(m.f.suggestedModes(), id: \.name) { idea in                // from the apps you use; click to add
-                        SideRow(title: idea.name, trailing: "Add", live: false, selected: false, icons: [], symbol: "sparkles") {
-                            m.act { m.selection = m.f.createMode(idea.name, apps: idea.apps) }
-                        }.opacity(0.75)
-                    }
-                }.padding(.horizontal, 10)
+            Button { withAnimation(.easeOut(duration: 0.15)) { m.modesShown.toggle() } } label: {
+                HStack(spacing: 5) {
+                    Text("Modes").font(Site.font(16, .medium))
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(m.modesShown ? 90 : 0))
+                    Spacer()
+                }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 14).padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())
+            }.buttonStyle(.plain).help(m.modesShown ? "Hide your modes" : "Show your modes")
+            if m.modesShown {
+                ScrollView {
+                    VStack(spacing: 2) {
+                        ForEach(m.modes) { mode in
+                            SideRow(title: mode.name, trailing: mode.key, live: mode.live, selected: m.selection == mode.id,
+                                    icons: mode.apps.compactMap { m.f.path($0) }.map(m.icon), symbol: nil) { m.selection = mode.id }
+                        }
+                        SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { m.newMode() }
+                    }.padding(.horizontal, 10)
+                }
             }
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
@@ -438,10 +456,10 @@ struct DesktopView: View {
                 }
                 Button { NSWorkspace.shared.open(DesktopModel.site) } label: {
                     HStack(alignment: .top, spacing: 3) {
-                        if let b = brandLockup { Image(nsImage: b).resizable().interpolation(.high).frame(width: 200, height: 200 * 112.0 / 1080.0) }
+                        if let b = brandLockup { Image(nsImage: b).resizable().interpolation(.high).frame(width: 196, height: 196 * 112.0 / 1080.0) }
                         else { Text("★★★★★ × PARADOX").font(Site.font(15)).foregroundColor(Site.head) }
-                        Text("™").font(Site.font(10)).foregroundColor(Site.head)
-                    }.fixedSize().frame(maxWidth: .infinity).padding(.top, 8).contentShape(Rectangle())
+                        Text("™").font(.system(size: 7, weight: .medium)).foregroundColor(Site.head).offset(x: -3, y: 2)
+                    }.fixedSize().frame(maxWidth: .infinity).padding(.top, 12).padding(.bottom, 2).contentShape(Rectangle())
                 }.buttonStyle(.plain).help("paradoxica.co.uk")
             }.padding(.horizontal, 12).padding(.bottom, 16)
         }
@@ -466,6 +484,9 @@ struct SessionDetail: View {
                     ForEach(m.running) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
                                    quit: { m.quit(app.id, force: $0) }).padding(.horizontal, -14)
+                            .opacity(m.dragging == app.id ? 0.4 : 1)
+                            .onDrag { m.dragging = app.id; return NSItemProvider(object: app.id as NSString) }
+                            .onDrop(of: [UTType.text], delegate: RowDrop(id: app.id, m: m))
                     }
                     if !m.outside.isEmpty {
                         SectionLabel("Apps Outside Session").padding(.horizontal, -14)
@@ -477,9 +498,9 @@ struct SessionDetail: View {
                     ForEach(m.critical) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: "lock.circle.fill", action: nil).padding(.horizontal, -14)
                     }
-                    SiteButton("Add or remove…", filled: false) { f.showNever() }.padding(.top, 8)
+                    SiteButton("Add or remove…") { f.showNever() }.padding(.top, 8)
                 }
-                .padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 14)
+                .padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 20)
             }
         }
     }
@@ -506,7 +527,7 @@ struct ModeDetail: View {
                         } label: { Text(mode.key.isEmpty ? "No shortcut" : mode.key).font(Site.font(15, .medium)) }
                         .menuStyle(.borderlessButton).fixedSize()
                         if !mode.live {
-                            SiteButton(mode.apps.isEmpty ? "Add an app to start" : "Start \(mode.name)", filled: false) { if !mode.apps.isEmpty { m.act { f.startOrSwitch(mode.id) } } }
+                            SiteButton(mode.apps.isEmpty ? "Add an app to start" : "Start \(mode.name)") { if !mode.apps.isEmpty { m.act { f.startOrSwitch(mode.id) } } }
                         }
                     }
                     Text("A mode is a set of apps you keep open. Starting it closes everything else until the session ends.")
@@ -523,11 +544,11 @@ struct ModeDetail: View {
                         }
                     }
                     HStack(spacing: 10) {
-                        SiteButton("Add App…", filled: false) { let s = NSMenuItem(); s.representedObject = mode.id; f.addAppToMode(s); m.refresh() }
-                        SiteButton("Delete Mode", filled: false, tint: Site.hazard) { m.act { f.removeMode(mode.id); m.selection = nil } }
+                        SiteButton("Add App…") { let s = NSMenuItem(); s.representedObject = mode.id; f.addAppToMode(s); m.refresh() }
+                        SiteButton("Delete Mode", tint: Site.hazard) { m.act { f.removeMode(mode.id); m.selection = nil } }
                     }.padding(.top, 10)
                 }
-                .padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 14)
+                .padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 20)
             }
         }
         .onAppear { name = mode.name }
@@ -548,7 +569,7 @@ struct PageFrame<Content: View>: View {
                 Text(title).font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
                 Text(text).font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
                 content
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 24).padding(.top, 12).padding(.bottom, 14)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 20)
         }
     }
 }
@@ -580,7 +601,7 @@ struct SettingLine<Control: View>: View {
             }
             Spacer(minLength: 12)
             control.layoutPriority(1)                               // the choices are never cut short: the note wraps instead
-        }.padding(.vertical, 9)
+        }.padding(.vertical, 11)
     }
 }
 
@@ -630,12 +651,22 @@ struct HistoryPage: View {
                     }
                     Spacer(minLength: 10)
                     if s.canSave {
-                        SiteButton("Save as Mode", filled: false) { m.act { if f.modeFromSession(s.id, name: s.title) { m.selection = f.modes.last?["id"] as? String } } }
+                        SiteButton("Save as Mode") { m.act { if f.modeFromSession(s.id, name: s.title) { m.selection = f.modes.last?["id"] as? String } } }
                     }
                 }.padding(.vertical, 7)
             }
         }
     }
+}
+
+/// The menu bar's own drawing of an icon, rasterised the right way up at 4× (some designs are drawn on a flipped
+/// canvas; handed to SwiftUI as they are, those came out upside-down — not the icon the menu bar shows).
+func upright(_ g: NSImage) -> NSImage {
+    let side: CGFloat = 72
+    let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(side), pixelsHigh: Int(side), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    g.draw(in: NSRect(x: 0, y: 0, width: side, height: side)); NSGraphicsContext.restoreGraphicsState()
+    let out = NSImage(size: NSSize(width: 18, height: 18)); out.addRepresentation(rep); return out
 }
 
 /// One menu bar icon design in the picker: at rest, and playing into its in-session state under the pointer.
@@ -647,7 +678,7 @@ struct IconCell: View {
             TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !hover)) { tl in
                 let p = hover ? tl.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.2) / 2.2 : 0
                 let t = p < 0.2 ? 0 : p < 0.45 ? (p - 0.2) / 0.25 : p < 0.75 ? 1 : 1 - (p - 0.75) / 0.25
-                Image(nsImage: glyph(CGFloat(t), ring: ring, dot: dot, style: style)).resizable().interpolation(.high).frame(width: 30, height: 30)
+                Image(nsImage: upright(glyph(CGFloat(t), ring: ring, dot: dot, style: style))).resizable().interpolation(.high).frame(width: 30, height: 30)
             }
             Text(style.name).font(Site.font(13)).foregroundColor(selected ? Site.head : Site.muted).lineLimit(1)
         }
@@ -665,14 +696,14 @@ struct ToolsPage: View {
         PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "Look at what your Mac is doing, or clear everything at once.") {
             SectionLabel("Analyse performance").padding(.horizontal, -14)
             HStack(spacing: 10) {
-                SiteButton("Open Activity Monitor", filled: false) { f.openActivityMonitor() }
-                SiteButton("Open System Settings", filled: false) { f.openSystemSettings() }
+                SiteButton("Open Activity Monitor") { f.openActivityMonitor() }
+                SiteButton("Open System Settings") { f.openSystemSettings() }
             }.padding(.top, 4)
             SectionLabel("Quit Unresponsive Apps").padding(.horizontal, -14)
             HStack(spacing: 10) {
-                SiteButton("Quit All Apps…", filled: false) { if !busy { f.quitAllApps() } }
-                SiteButton("Quit All & Restart Mac…", filled: false) { if !busy { f.quitAllRestart() } }
-                SiteButton("Force Quit All Apps…", filled: false, tint: Site.hazard) { if !busy { f.forceQuitAllApps() } }
+                SiteButton("Quit All Apps…") { if !busy { f.quitAllApps() } }
+                SiteButton("Quit All & Restart Mac…") { if !busy { f.quitAllRestart() } }
+                SiteButton("Force Quit All Apps…", tint: Site.hazard) { if !busy { f.forceQuitAllApps() } }
             }.padding(.top, 4).opacity(busy ? 0.4 : 1)
         }
     }
@@ -724,7 +755,9 @@ struct SettingsPage: View {
                 }
             }
             SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
-                Choice(options: ["Smaller", "Actual", "Bigger"], selected: 1) { i in desktop.setScale(i == 1 ? 1 : Site.scale + (i == 2 ? 0.1 : -0.1)) }
+                Choice(options: ["Smaller", "Actual", "Bigger"], selected: Site.scale < 0.99 ? 0 : Site.scale > 1.01 ? 2 : 1) { i in
+                    desktop.setScale(i == 1 ? 1 : Site.scale + (i == 2 ? 0.1 : -0.1))
+                }
             }
         }
     }
@@ -752,12 +785,12 @@ final class DesktopController: NSObject, NSWindowDelegate {
             let m = DesktopModel(f); model = m
             let screen = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 800)
             // A squat rectangle, well inside the screen: no wider or taller than it needs to be.
-            let size = NSSize(width: min(900, screen.width - 120), height: min(580, screen.height - 140))
+            let size = NSSize(width: min(960, screen.width - 120), height: min(640, screen.height - 140))
             let w = DesktopWindow(contentRect: NSRect(origin: .zero, size: size),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden; w.title = "Focus"
             w.backgroundColor = .black; w.appearance = NSAppearance(named: .darkAqua)
-            w.isMovableByWindowBackground = true; w.isReleasedWhenClosed = false
+            w.isMovableByWindowBackground = false; w.isReleasedWhenClosed = false   // drag the top strip to move it: rows are for dragging apps
             w.minSize = NSSize(width: 720, height: 420)
             let host = NSHostingView(rootView: DesktopView(m: m))
             host.sizingOptions = []                                  // the window sets the size, never the content
@@ -853,7 +886,7 @@ func renderDesktop(to file: String, mode: Bool) {
     for p in [Page.settings, Page.shortcuts, Page.tools, Page.history] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
     f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]]
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
-    let size = NSSize(width: 900, height: 580)
+    let size = NSSize(width: 960, height: CommandLine.arguments.contains("tall") ? 1500 : 640)
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: .darkAqua); w.contentView = host

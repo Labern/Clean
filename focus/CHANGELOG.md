@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.32 — 2026-11-14 (branch focus/feat-desktop-app)
+**Desktop app, reworked around the session.** Getting into a session is the point of the app; modes are secondary.
+- **The Start/End Session button** is the largest thing in the window: full width of the pane, centred, at the top of every page. Under it, one line: how many apps close, how much memory that saves, and that they reopen. The "in session for…" line is gone.
+- **Text** is 0.8 of what it was, with more room around everything. The window opens slightly larger (960 × 640 at most).
+- **Sidebar:** only your modes and Create New Mode sit under "Modes", and clicking that heading hides them. Suggested modes are no longer listed there. Editing happens inside the mode.
+- **Drag an app row** to reorder the list. It changes nothing but the order you see. Dragging no longer moves the window; drag the top strip for that.
+- **Fixed:** the icon picker showed several designs upside-down, so they didn't match the real menu bar icons. Each preview is now the menu bar's own drawing, the right way up.
+- The text-size choice in Settings shows the current setting.
+
 ## 0.18.31 — 2026-11-14 (branch focus/feat-desktop-app)
 **Desktop app**
 - **Size:** a smaller, squat window (900 × 580 at most, always inside the screen), with tighter spacing at the top.
