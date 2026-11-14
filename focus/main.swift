@@ -827,15 +827,15 @@ final class QuitRow: NSView {
     }
 }
 
-/// The maker's mark, the last line of the menu: ★★★★★ × PARADOX™, centred.
+/// The maker's mark, the last line of the menu: ★★★★★ × PARADOX™, small, bottom right.
 final class Maker: NSView {
     static let text = "★★★★★ × PARADOX™"
-    init() { super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 26)); autoresizingMask = [.width] }
+    init() { super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: 20)); autoresizingMask = [.width] }
     required init?(coder: NSCoder) { nil }
     override func draw(_ r: NSRect) {
-        let a: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11, weight: .semibold), .foregroundColor: theme.faint, .kern: 1.2]
+        let a: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: theme.faint]
         let t = Self.text as NSString, w = t.size(withAttributes: a).width
-        t.draw(at: NSPoint(x: (bounds.width - w) / 2, y: 8), withAttributes: a)
+        t.draw(at: NSPoint(x: bounds.width - w - 14, y: 6), withAttributes: a)      // small, bottom right
     }
 }
 

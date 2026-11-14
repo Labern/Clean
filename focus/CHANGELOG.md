@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.9 — 2026-11-14
+- The ★★★★★ × PARADOX™ mark is small, plain and at the bottom right.
+
 ## 0.18.8 — 2026-11-14
 - The menu ends with the maker's mark: ★★★★★ × PARADOX™.
 
