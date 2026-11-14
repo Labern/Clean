@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.21 — 2026-11-14
+- **The session animation (apps flying to and from the menu bar icon) is restored exactly as it was in 0.17.0.** Everything added to it in 0.18.0 is removed: the name written letter by letter in the pill, its sparks, and the in/out animation when switching modes.
+- "Its apps — click to add" now reads "Add apps for mode". "Animate the Name" now reads "Animate on Session Start/End".
+
 ## 0.18.20 — 2026-11-14
 - A wider gap between the name and the character on each side of it in the menu bar.
 
