@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.18 — 2026-11-14
+- Verbose headings, during a session: a line under the app list says these apps are in your session, and a line under "Apps Outside Session" says those aren't and that clicking one adds it.
+- The menu bar reads "icon | name |", with a bar on each side of the name.
+
 ## 0.18.17 — 2026-11-14
 - When the name has been written in the menu bar it sparkles: a flash pops behind it and glowing stars sweep from its first letter to its last. When a session ends, the stars sweep the other way before the name is deleted.
 - Developer flag `--render-sparkle FILE` draws the sparkle off-screen as a filmstrip.

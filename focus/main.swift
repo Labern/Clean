@@ -1338,7 +1338,7 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     func updateTitle() {
         guard let b = item.button else { return }
-        let t = showNameInMenuBar ? (displayName.map { " | " + Focus.nameStyles[menuBarNameStyle]($0) } ?? "") : ""
+        let t = showNameInMenuBar ? (displayName.map { " | " + Focus.nameStyles[menuBarNameStyle]($0) + " |" } ?? "") : ""
         if store != .standard { if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }; return }   // tests: at once
         guard t != titleTarget else { return }
         if t.isEmpty && !b.title.isEmpty { sparkleNow(reverse: true) }   // ending: it sparkles, then is deleted from the right
@@ -2309,6 +2309,11 @@ final class Focus: NSObject, NSMenuDelegate {
             header(name + " — " + few)
             if style == 2 { let i = NSMenuItem(title: more, action: nil, keyEquivalent: ""); i.view = Explain(more); i.isEnabled = false; m.addItem(i) }
         }
+        /// A sentence of explanation, shown only when Headings is set to Verbose.
+        func explain(_ text: String) {
+            guard headingStyle == 2 else { return }
+            let i = NSMenuItem(title: text, action: nil, keyEquivalent: ""); i.view = Explain(text); i.isEnabled = false; m.addItem(i)
+        }
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
         mem = memoryByPid()
@@ -2329,6 +2334,7 @@ final class Focus: NSObject, NSMenuDelegate {
         if focused {
             // In a session the rows ARE the session: ticked = in it, open. Click to take one out now, or put it back.
             view(columns())
+            explain("These apps are in your session. Click one to take it out.")
             let stuckIDs = Set(waiting.compactMap(\.bundleIdentifier))
             for (id, p) in running {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
@@ -2346,6 +2352,7 @@ final class Focus: NSObject, NSMenuDelegate {
             if !parkedAway.isEmpty {
                 m.addItem(.separator())
                 header("Apps Outside Session")
+                explain("These apps are not in the session right now. Click one to add it to the session.")
                 for (id, p) in parkedAway {
                     view(AppRow(appName(p), appIcon(p), on: false, target: "your session") { [unowned self] in self.bringBack(id); return true })
                 }
@@ -3363,13 +3370,13 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let noPopups = sub?.items.contains { $0.title.hasPrefix("Rename") } == false && !menu().items.contains { $0.title.hasPrefix("New Mode from") }
         t.sessions = [["date": Date(), "name": "AI", "mode": "AI", "kept": [edit], "apps": [[String: Any]]()]]
         t.store.set(true, forKey: "focused"); t.updateTitle()
-        let shows = t.item.button?.title == " | AI"
+        let shows = t.item.button?.title == " | AI |"
         t.showNameInMenuBar = false; let iconOnly = t.item.button?.title == ""
         t.showNameInMenuBar = true
         let past = menu().items.first { $0.title == "Past sessions" }?.submenu?.items.first?.submenu
         let fields = past?.items.compactMap { $0.view as? InlineNameField } ?? []
         fields.first?.commit("Night run"); let sessRenamed = t.sessions.first?["name"] as? String == "Night run"
-        let titleFollows = t.item.button?.title == " | Night run"
+        let titleFollows = t.item.button?.title == " | Night run |"
         t.store.set(false, forKey: "focused"); t.sessions = []; t.updateTitle()
         let cleared = t.item.button?.title == ""
         t.modes = []
@@ -3381,10 +3388,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         t.createMode("AI", apps: [edit, calc])
         t.sessions = [["date": Date(), "kept": [edit, "com.apple.Preview"], "apps": [[String: Any]]()]]
         t.store.set(true, forKey: "focused"); t.updateTitle()
-        let matched = t.item.button?.title == " | AI"
+        let matched = t.item.button?.title == " | AI |"
         t.sessions = [["date": Date(), "kept": ["com.apple.Preview"], "apps": [[String: Any]]()]]; t.updateTitle()
-        let fallback = t.item.button?.title == " | Focus"
-        t.sessions[0]["name"] = "Essay"; t.updateTitle(); let own = t.item.button?.title == " | Essay"
+        let fallback = t.item.button?.title == " | Focus |"
+        t.sessions[0]["name"] = "Essay"; t.updateTitle(); let own = t.item.button?.title == " | Essay |"
         t.store.set(false, forKey: "focused"); t.sessions = []; t.updateTitle(); t.modes = []
         done(matched && fallback && own, "matches mode → ' AI': \(matched); no match → ' Focus': \(fallback); own name wins: \(own)")
     }))
@@ -3443,7 +3450,13 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let normOK = norm.contains("Modes — frequently used sessions") && norm.contains("Critical System Processes — never quit") && norm.contains("Keep open this session — click to choose")
         let verbOK = verb.contains("Modes — frequently used sessions") && verb.count == norm.count + 3
         let pick = picker?.items.map(\.title) == ["Minimalist", "Normal", "Verbose"] && picker?.items[1].state == .on
-        done(miniOK && normOK && verbOK && pick, "minimalist: \(miniOK); normal unchanged: \(normOK); verbose adds three explanations: \(verbOK); picker, Normal ticked: \(pick)")
+        t.sessions = [["date": Date(), "kept": [edit], "apps": [["path": "/System/Applications/Chess.app", "id": "com.apple.Chess"]]]]
+        t.store.set(true, forKey: "focused")
+        let inVerb = titles(2), inNorm = titles(1)
+        t.store.set(false, forKey: "focused"); t.sessions = []; t.store.removeObject(forKey: "headingStyle")
+        let a1 = "These apps are in your session. Click one to take it out.", a2 = "These apps are not in the session right now. Click one to add it to the session."
+        let sessionVerb = inVerb.contains(a1) && inVerb.contains(a2) && !inNorm.contains(a1) && !inNorm.contains(a2)
+        done(sessionVerb && miniOK && normOK && verbOK && pick, "in a session, Verbose explains both lists (Normal doesn't): \(sessionVerb); minimalist: \(miniOK); normal unchanged: \(normOK); verbose adds three explanations: \(verbOK); picker, Normal ticked: \(pick)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {
