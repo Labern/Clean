@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.16 — 2026-11-14
+- The menu bar reads "icon | name": a bar between the icon and the session's name.
+
 ## 0.18.15 — 2026-11-14
 - In the menu bar, the session's name is written one letter at a time beside the icon (the icon slides left as it grows), then sparkles and pops. When the session ends it is deleted the same way, from the right.
 

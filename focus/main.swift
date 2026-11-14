@@ -1279,7 +1279,7 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     func updateTitle() {
         guard let b = item.button else { return }
-        let t = showNameInMenuBar ? (displayName.map { " " + Focus.nameStyles[menuBarNameStyle]($0) } ?? "") : ""
+        let t = showNameInMenuBar ? (displayName.map { " | " + Focus.nameStyles[menuBarNameStyle]($0) } ?? "") : ""
         if store != .standard { if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }; return }   // tests: at once
         guard t != titleTarget else { return }
         titleTarget = t
@@ -3286,13 +3286,13 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let noPopups = sub?.items.contains { $0.title.hasPrefix("Rename") } == false && !menu().items.contains { $0.title.hasPrefix("New Mode from") }
         t.sessions = [["date": Date(), "name": "AI", "mode": "AI", "kept": [edit], "apps": [[String: Any]]()]]
         t.store.set(true, forKey: "focused"); t.updateTitle()
-        let shows = t.item.button?.title == " AI"
+        let shows = t.item.button?.title == " | AI"
         t.showNameInMenuBar = false; let iconOnly = t.item.button?.title == ""
         t.showNameInMenuBar = true
         let past = menu().items.first { $0.title == "Past sessions" }?.submenu?.items.first?.submenu
         let fields = past?.items.compactMap { $0.view as? InlineNameField } ?? []
         fields.first?.commit("Night run"); let sessRenamed = t.sessions.first?["name"] as? String == "Night run"
-        let titleFollows = t.item.button?.title == " Night run"
+        let titleFollows = t.item.button?.title == " | Night run"
         t.store.set(false, forKey: "focused"); t.sessions = []; t.updateTitle()
         let cleared = t.item.button?.title == ""
         t.modes = []
@@ -3304,10 +3304,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         t.createMode("AI", apps: [edit, calc])
         t.sessions = [["date": Date(), "kept": [edit, "com.apple.Preview"], "apps": [[String: Any]]()]]
         t.store.set(true, forKey: "focused"); t.updateTitle()
-        let matched = t.item.button?.title == " AI"
+        let matched = t.item.button?.title == " | AI"
         t.sessions = [["date": Date(), "kept": ["com.apple.Preview"], "apps": [[String: Any]]()]]; t.updateTitle()
-        let fallback = t.item.button?.title == " Focus"
-        t.sessions[0]["name"] = "Essay"; t.updateTitle(); let own = t.item.button?.title == " Essay"
+        let fallback = t.item.button?.title == " | Focus"
+        t.sessions[0]["name"] = "Essay"; t.updateTitle(); let own = t.item.button?.title == " | Essay"
         t.store.set(false, forKey: "focused"); t.sessions = []; t.updateTitle(); t.modes = []
         done(matched && fallback && own, "matches mode → ' AI': \(matched); no match → ' Focus': \(fallback); own name wins: \(own)")
     }))
