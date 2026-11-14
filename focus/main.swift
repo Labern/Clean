@@ -750,6 +750,10 @@ func headingItem(_ t: String) -> NSMenuItem {
 /// The column titles over the app list: App over the names, Usage over the memory, and the Focus mark (as it
 /// looks in a session) exactly over the ticks — ticked means in the session.
 final class ColumnHeader: NSView {
+    var onUsage: (() -> Void)?                                  // clicking "Usage" cycles how the list is ordered
+    override func mouseDown(with e: NSEvent) {}
+    override func acceptsFirstMouse(for e: NSEvent?) -> Bool { true }
+    override func mouseUp(with e: NSEvent) { if convert(e.locationInWindow, from: nil).x > bounds.width - 110 { onUsage?() } }
     init() {
         super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: theme.headingSize + 11)); autoresizingMask = [.width]
         toolTip = "Ticked apps are in the session. Click an app to put it in or take it out."
@@ -2102,6 +2106,26 @@ final class Focus: NSObject, NSMenuDelegate {
         }
     }
 
+    /// How the app list is ordered. Clicking "Usage" cycles: as macOS lists them → most memory first → most used first
+    /// (the apps you've kept open in the most sessions).
+    var appSort: Int { get { store.integer(forKey: "appSort") % 3 } set { store.set(newValue % 3, forKey: "appSort") } }
+    func sorted(_ list: [(String, String)]) -> [(String, String)] {
+        switch appSort {
+        case 1:
+            func size(_ id: String) -> UInt64 { ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0 }
+            return list.sorted { size($0.0) > size($1.0) }
+        case 2:
+            var uses: [String: Int] = [:]
+            for s in sessions { for id in kept(s) { uses[id, default: 0] += 1 } }
+            return list.sorted { (uses[$0.0] ?? 0, appName($1.1)) > (uses[$1.0] ?? 0, appName($0.1)) }
+        default: return list
+        }
+    }
+    func cycleSort() {
+        appSort += 1
+        guard let m = item.menu else { return }
+        RunLoop.main.perform(inModes: [.common, .eventTracking]) { [weak self] in self?.menuNeedsUpdate(m); self.map { $0.darken(m) } }   // redraw the open menu in the new order
+    }
     /// The first line of the menu: whether a session is on, how many apps are in it and since when.
     var stateLine: String {
         guard focused, let live = sessions.first else { return "Focus" }
@@ -2137,10 +2161,12 @@ final class Focus: NSObject, NSMenuDelegate {
         }
 
         // Keep open — this session's picks.
-        let running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
+        var running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
+        running = sorted(running)
+        func columns() -> ColumnHeader { let c = ColumnHeader(); c.onUsage = { [unowned self] in self.cycleSort() }; return c }
         if focused {
             // In a session the rows ARE the session: ticked = in it, open. Click to take one out now, or put it back.
-            view(ColumnHeader())
+            view(columns())
             let stuckIDs = Set(waiting.compactMap(\.bundleIdentifier))
             for (id, p) in running {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
@@ -2163,7 +2189,7 @@ final class Focus: NSObject, NSMenuDelegate {
                 }
             }
         } else {
-            view(ColumnHeader())
+            view(columns())
             let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
             for (id, p) in running + idle {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
@@ -3199,6 +3225,19 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let aligned = quitTop && t.stack([edit]).size.width == t.stack([edit, calc, "com.apple.Preview"]).size.width
         done(aligned && unnamed && toolsOK && order && behOK && moved && createFirst && editOK && columns && sized,
              "unnamed → Mode 1 on ⌘1: \(unnamed); Tools headings: \(toolsOK); Appearance, Shortcuts, Behaviour: \(order); Behaviour holds the three: \(behOK), moved out of Settings: \(moved); Create New Mode under the modes, Add New Mode in Edit Modes, lock rows inert: \(createFirst); right-click edit menu: \(editOK); column headings: \(columns); standard macOS headings + name styles: \(sized)")
+    }))
+    steps.append(("42. clicking Usage cycles the app list: as listed → most memory first → most used first → back", { done in
+        t.store.removeObject(forKey: "appSort")
+        let list = [("a.small", "/Applications/Small.app"), ("b.big", "/Applications/Big.app")]
+        let plain = t.sorted(list).map(\.0) == ["a.small", "b.big"]
+        t.sessions = [["date": Date(), "kept": [calc], "apps": [[String: Any]]()], ["date": Date(), "kept": [calc, edit], "apps": [[String: Any]]()]]
+        t.store.set(2, forKey: "appSort")
+        let used = t.sorted([(edit, t.path(edit) ?? ""), (calc, t.path(calc) ?? "")]).map(\.0) == [calc, edit]
+        t.store.set(0, forKey: "appSort"); t.sessions = []
+        t.appSort += 1; let one = t.appSort == 1; t.appSort += 1; let two = t.appSort == 2; t.appSort += 1; let back = t.appSort == 0
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let wired = (m.items.compactMap { $0.view as? ColumnHeader }.first?.onUsage) != nil
+        done(plain && used && one && two && back && wired, "as listed: \(plain); most used first: \(used); cycles 1, 2, 0: \(one && two && back); Usage is clickable: \(wired)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {

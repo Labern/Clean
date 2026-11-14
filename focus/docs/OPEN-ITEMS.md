@@ -100,3 +100,9 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 
 ## Next: first-run tutorial (requested 2026-11-13)
 - Like Wispr Flow's: the first time Focus opens, a short walkthrough of how it works. A Skip button. Reopen any time from Settings ▸ Show Tutorial.
+- Where it lives (2026-11-14): a "Tutorial" item directly above Quit in the menus; clicking it shows the tutorial.
+
+## Most important: apps must reopen exactly as they were (2026-11-14)
+- His words: "when I close an app, I need it to open just the way it was. Otherwise, the app isn't doing what it promises."
+- Today: quit apps come back only as well as each app restores itself (macOS window restoration is on; Chrome gets --restore-last-session). Only Hide Instead of Quit is exact, and his hide list is empty.
+- Decision needed from him: hide by default (exact, frees less memory) vs quit by default with per-app hiding.
