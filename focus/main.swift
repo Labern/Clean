@@ -778,13 +778,28 @@ final class ModeRow: HoverView {
     }
     required init?(coder: NSCoder) { nil }
     override func mouseUp(with e: NSEvent) {
-        if e.modifierFlags.contains(.control) { return showEdit() }
+        if e.modifierFlags.contains(.control) || e.type == .rightMouseUp { return showEdit() }
         guard enabled else { return }
         enclosingMenuItem?.menu?.cancelTracking(); DispatchQueue.main.async(execute: start)
     }
-    override func rightMouseDown(with e: NSEvent) {}
-    override func rightMouseUp(with e: NSEvent) { showEdit() }
-    func showEdit() { edit().popUp(positioning: nil, at: NSPoint(x: 38, y: 0), in: self) }
+    // Right-click (either half of it, whichever the menu delivers), a two-finger click, or ⌃-click.
+    override func rightMouseDown(with e: NSEvent) { NSLog("Focus: mode row right mouse down"); showEdit() }
+    override func rightMouseUp(with e: NSEvent) { NSLog("Focus: mode row right mouse up"); showEdit() }
+    override func otherMouseDown(with e: NSEvent) { showEdit() }
+    override func menu(for e: NSEvent) -> NSMenu? { NSLog("Focus: mode row asked for its menu"); showEdit(); return nil }
+    var shown = false
+    /// The open menu is closed first, then the mode's edit menu opens where the pointer is: a menu opened from
+    /// inside another menu's row doesn't reliably appear.
+    func showEdit() {
+        guard !shown else { return }; shown = true
+        let menu = edit(), at = NSEvent.mouseLocation
+        enclosingMenuItem?.menu?.cancelTracking()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            NSLog("Focus: opening a mode's edit menu")
+            NSApp.activate(ignoringOtherApps: true)
+            menu.popUp(positioning: nil, at: at, in: nil)
+        }
+    }
     override func draw(_ r: NSRect) {
         if hover { theme.hover.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: 5, yRadius: 5).fill() }
         icon.draw(in: NSRect(x: 14, y: 5, width: icon.size.width, height: 16), from: .zero, operation: .sourceOver, fraction: enabled ? 1 : 0.5)
