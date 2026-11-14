@@ -4,6 +4,12 @@
 // menu, or Settings ▸ Show Desktop App). Everything it does goes through the same Focus engine the menu uses: it
 // keeps no state of its own and nothing in the menu depends on it.
 //
+// ORDER OF AUTHORITY (his rule, 2026-11-14): the menu has authority. The window must never conflict with it. It
+// holds no record of its own — every list, name, tick and number is read from the Focus engine (the menu's own
+// record) each time the view is drawn, and every action is a call into that engine. If the two could ever
+// disagree, the menu's record is right and the window re-reads it. Do not add stored state here beyond what is
+// purely the window's own (which row is selected; text being typed before Return).
+//
 // Design: the website's (paradoxica.co.uk/focus) — black ground, white ink, the Graphik face, the same greys.
 import AppKit
 import SwiftUI
@@ -223,7 +229,7 @@ struct DesktopView: View {
         HStack(spacing: 0) {
             sidebar.frame(width: 248)
             Rectangle().fill(Site.line).frame(width: 1)
-            Group { if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id) } else { SessionDetail(m: m) } }
+            Group { if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) }   // renamed in the menu: the field follows else { SessionDetail(m: m) } }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Site.bg).preferredColorScheme(.dark)
