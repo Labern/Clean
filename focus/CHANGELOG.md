@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.19 — 2026-11-14
+- Settings ▸ Appearance ▸ Menu Bar Name:
+  - Choose the character beside the name: | · — / › • or none.
+  - "Animate the Name" turns on the letter-by-letter writing and sparkle. It's off unless you turn it on.
+
 ## 0.18.18 — 2026-11-14
 - Verbose headings, during a session: a line under the app list says these apps are in your session, and a line under "Apps Outside Session" says those aren't and that clicking one adds it.
 - The menu bar reads "icon | name |", with a bar on each side of the name.

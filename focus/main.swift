@@ -1338,8 +1338,10 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     func updateTitle() {
         guard let b = item.button else { return }
-        let t = showNameInMenuBar ? (displayName.map { " | " + Focus.nameStyles[menuBarNameStyle]($0) + " |" } ?? "") : ""
-        if store != .standard { if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }; return }   // tests: at once
+        let t = showNameInMenuBar ? (displayName.map { n in
+            let sep = menuBarSeparator, name = Focus.nameStyles[menuBarNameStyle](n)
+            return sep.isEmpty ? " " + name : " \(sep) \(name) \(sep)" } ?? "") : ""
+        if store != .standard || !animateMenuBarName { titleTimer?.invalidate(); titleTimer = nil; titleTarget = t; if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }; return }   // tests: at once
         guard t != titleTarget else { return }
         if t.isEmpty && !b.title.isEmpty { sparkleNow(reverse: true) }   // ending: it sparkles, then is deleted from the right
         titleTarget = t
@@ -1380,6 +1382,16 @@ final class Focus: NSObject, NSMenuDelegate {
         get { min(max(store.object(forKey: "menuBarNameStyle") as? Int ?? 1, 0), Focus.nameStyles.count - 1) }
         set { store.set(newValue, forKey: "menuBarNameStyle"); store.set(true, forKey: "showNameInMenuBar"); updateTitle() }
     }
+    /// The character either side of the name in the menu bar ("" = none).
+    static let separators = ["|", "·", "—", "/", "›", "•", ""]
+    var menuBarSeparator: String {
+        get { store.string(forKey: "menuBarSeparator").flatMap { Focus.separators.contains($0) ? $0 : nil } ?? "|" }
+        set { store.set(newValue, forKey: "menuBarSeparator"); updateTitle() }
+    }
+    @objc func pickSeparator(_ s: NSMenuItem) { menuBarSeparator = s.representedObject as? String ?? "|" }
+    /// Writing the name letter by letter with a sparkle. Off unless the user turns it on.
+    var animateMenuBarName: Bool { get { store.bool(forKey: "animateMenuBarName") } set { store.set(newValue, forKey: "animateMenuBarName") } }
+    @objc func toggleNameAnimation() { animateMenuBarName.toggle() }
     @objc func pickNameStyle(_ s: NSMenuItem) { if s.tag < 0 { showNameInMenuBar = false } else { menuBarNameStyle = s.tag } }
     var excluded: [String] {                                    // "keep open": the user's per-session picks
         get { store.stringArray(forKey: "excluded") ?? [] }
@@ -2626,6 +2638,14 @@ final class Focus: NSObject, NSMenuDelegate {
             let i = add(f(sample), #selector(pickNameStyle(_:)), to: nbm); i.tag = k; i.state = showNameInMenuBar && menuBarNameStyle == k ? .on : .off
         }
         let io = add("Icon only", #selector(pickNameStyle(_:)), to: nbm); io.tag = -1; io.state = showNameInMenuBar ? .off : .on
+        nbm.addItem(.separator())
+        nbm.addItem(headingItem("Character beside the name"))
+        for sep in Focus.separators {
+            let i = add(sep.isEmpty ? "None" : "\(sep)  \(sample)  \(sep)", #selector(pickSeparator(_:)), to: nbm)
+            i.representedObject = sep; i.state = menuBarSeparator == sep ? .on : .off
+        }
+        nbm.addItem(.separator())
+        add("Animate the Name", #selector(toggleNameAnimation), to: nbm).state = animateMenuBarName ? .on : .off
         nb.submenu = nbm
         am.addItem(.separator())
         am.addItem(headingItem("Animation Speed"))
@@ -3419,7 +3439,10 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let columns = m.items.contains { $0.view is ColumnHeader }
         t.store.removeObject(forKey: "menuBarNameStyle")
         let styles = t.menuBarNameStyle == 1 && Focus.nameStyles.map { $0("AI") } == ["AI", "AI session", "AI (in session)"]
-        let sized = styles && !m.items.contains { $0.view is Heading }                     // headings are macOS's own
+        t.store.removeObject(forKey: "animateMenuBarName"); t.store.removeObject(forKey: "menuBarSeparator")
+        let quiet = !t.animateMenuBarName && t.menuBarSeparator == "|"
+        t.menuBarSeparator = "·"; let dot = t.menuBarSeparator == "·"; t.store.removeObject(forKey: "menuBarSeparator")
+        let sized = quiet && dot && styles && !m.items.contains { $0.view is Heading }                     // headings are macOS's own
         t.modes = []
         let quitTop = m.items.first?.view is QuitRow && m.items.last?.view is Maker && m.items.last?.title == "★★★★★ × PARADOX™"
             && Maker.helpURL.scheme == "mailto" && Maker.help == "Help / Suggest Improvement"
