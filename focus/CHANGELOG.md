@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.28 — 2026-11-14
+- `Focus --open-desktop` asks the running Focus to show its desktop window.
+
 ## 0.18.27 — 2026-11-14 (branch focus/feat-desktop-app)
 - **The desktop app (first version).** An optional window, hidden until asked for. The menu bar app still does everything on its own.
   - **Design:** the website's. Black ground, white ink, the Graphik face, rounded corners.

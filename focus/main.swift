@@ -1496,6 +1496,9 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         migrateModes()                                          // older modes get their permanent ids
         if store == .standard { lightMenu = lightMenuSetting }
+        if store == .standard {                                 // `Focus --open-desktop` from a script or another app
+            DistributedNotificationCenter.default().addObserver(forName: .init("com.labern.focus.openDesktop"), object: nil, queue: .main) { [weak self] _ in self?.openDesktop() }
+        }
         if store == .standard { iconStyle = iconStyleSetting }     // the real Focus draws the user's chosen design everywhere
         if store == .standard {                                 // Counter shows how many apps are open: keep it current
             for n in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
@@ -2814,6 +2817,11 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-banner"), CommandLine.
     exit(0)
 }
 
+/// `Focus --open-desktop`: asks the running Focus to show its desktop window, then exits (no second Focus).
+if CommandLine.arguments.contains("--open-desktop") {
+    DistributedNotificationCenter.default().postNotificationName(.init("com.labern.focus.openDesktop"), object: nil, userInfo: nil, deliverImmediately: true)
+    RunLoop.main.run(until: Date().addingTimeInterval(0.3)); exit(0)
+}
 /// `Focus --render-desktop FILE [mode]`: the desktop window's content, drawn off-screen.
 if let i = CommandLine.arguments.firstIndex(of: "--render-desktop"), CommandLine.arguments.count > i + 1 {
     _ = NSApplication.shared
