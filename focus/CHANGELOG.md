@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.15 — 2026-11-14
+- In the menu bar, the session's name is written one letter at a time beside the icon (the icon slides left as it grows), then sparkles and pops. When the session ends it is deleted the same way, from the right.
+
+## 0.18.14 — 2026-11-14
+- Settings ▸ Appearance ▸ Headings: Minimalist (section names only), Normal (as now) or Verbose (a sentence under each heading saying what the section does).
+
 ## 0.18.13 — 2026-11-14
 - The help link writes to help@paradoxica.co.uk, with the subject starting "Focus: ".
 

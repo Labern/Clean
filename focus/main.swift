@@ -875,6 +875,21 @@ final class Maker: NSView {
     }
 }
 
+/// Verbose headings: a short paragraph under a heading saying what the section does. Wraps to the menu's width.
+final class Explain: NSView {
+    let text: String
+    static let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: theme.faint]
+    init(_ text: String) {
+        self.text = text
+        let h = (text as NSString).boundingRect(with: NSSize(width: menuWidth - 28, height: 400), options: [.usesLineFragmentOrigin], attributes: Self.attrs).height
+        super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: ceil(h) + 8)); autoresizingMask = [.width]
+    }
+    required init?(coder: NSCoder) { nil }
+    override func draw(_ r: NSRect) {
+        (text as NSString).draw(with: NSRect(x: 14, y: 4, width: bounds.width - 28, height: bounds.height - 6), options: [.usesLineFragmentOrigin], attributes: Self.attrs)
+    }
+}
+
 /// The hover popup for app rows: one line, dark, just under the row it explains.
 final class RowTip {
     static let shared = RowTip()
@@ -1265,9 +1280,46 @@ final class Focus: NSObject, NSMenuDelegate {
     func updateTitle() {
         guard let b = item.button else { return }
         let t = showNameInMenuBar ? (displayName.map { " " + Focus.nameStyles[menuBarNameStyle]($0) } ?? "") : ""
-        if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }
+        if store != .standard { if b.title != t { b.title = t; b.imagePosition = t.isEmpty ? .imageOnly : .imageLeft }; return }   // tests: at once
+        guard t != titleTarget else { return }
+        titleTarget = t
+        guard titleTimer == nil else { return }                 // already writing: it will head for the new target
+        let tm = Timer(timeInterval: 0.05, repeats: true) { [weak self] tm in self?.writeTitle(tm) }
+        RunLoop.main.add(tm, forMode: .common); titleTimer = tm
+    }
+    /// The menu bar name is written one letter at a time (the icon slides left as it grows), then sparkles and pops.
+    /// Ending a session deletes it the same way, from the right.
+    var titleTarget = "", titleTimer: Timer?
+    func writeTitle(_ tm: Timer) {
+        guard let b = item.button else { tm.invalidate(); titleTimer = nil; return }
+        let now = b.title.replacingOccurrences(of: " ✦", with: ""), goal = titleTarget
+        if now == goal {
+            tm.invalidate(); titleTimer = nil
+            b.title = goal; b.imagePosition = goal.isEmpty ? .imageOnly : .imageLeft
+            guard !goal.isEmpty else { return }
+            b.title = goal + " ✦"                               // the sparkle
+            b.wantsLayer = true
+            if let l = b.layer {                                 // the pop
+                let pop = CAKeyframeAnimation(keyPath: "transform.scale")
+                pop.values = [1, 1.14, 0.97, 1]; pop.keyTimes = [0, 0.35, 0.7, 1]; pop.duration = 0.32
+                l.anchorPoint = CGPoint(x: 0.5, y: 0.5); l.position = CGPoint(x: b.bounds.midX, y: b.bounds.midY)
+                l.add(pop, forKey: "pop")
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) { [weak self] in
+                guard let self, self.titleTimer == nil, let b = self.item.button, b.title == goal + " ✦" else { return }
+                b.title = self.titleTarget
+            }
+            return
+        }
+        // one letter towards the goal: delete from the right until what's shown is the start of it, then add
+        let next = goal.hasPrefix(now) ? String(goal.prefix(now.count + 1)) : String(now.dropLast())
+        b.title = next; b.imagePosition = next.isEmpty ? .imageOnly : .imageLeft
     }
     @objc func toggleNameInMenuBar() { showNameInMenuBar.toggle() }
+    /// How much the menu's headings say: 0 Minimalist (the name only), 1 Normal (name — a few words), 2 Verbose
+    /// (Normal, plus a sentence under each explaining the section).
+    var headingStyle: Int { get { min(max(store.object(forKey: "headingStyle") as? Int ?? 1, 0), 2) } set { store.set(newValue, forKey: "headingStyle") } }
+    @objc func pickHeadingStyle(_ s: NSMenuItem) { headingStyle = s.tag }
     /// How the name reads beside the icon: "AI", "AI session" or "AI (in session)".
     static let nameStyles: [(String) -> String] = [{ $0 }, { $0 + " session" }, { $0 + " (in session)" }]
     var menuBarNameStyle: Int {
@@ -2195,6 +2247,14 @@ final class Focus: NSObject, NSMenuDelegate {
         func header(_ t: String, tip: String? = nil, in menu: NSMenu? = nil) {
             let h = headingItem(t); h.toolTip = tip; (menu ?? m).addItem(h)      // the explanation shows on hover
         }
+        /// A section's heading in the chosen style. `name` alone when Minimalist; "name — few words" when Normal;
+        /// Verbose adds `more`, a sentence, underneath. `optional` headings vanish altogether when Minimalist.
+        func section(_ name: String, _ few: String, _ more: String, optional: Bool = false) {
+            let style = headingStyle
+            if style == 0 { if !optional { header(name) }; return }
+            header(name + " — " + few)
+            if style == 2 { let i = NSMenuItem(title: more, action: nil, keyEquivalent: ""); i.view = Explain(more); i.isEnabled = false; m.addItem(i) }
+        }
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
         mem = memoryByPid()
@@ -2237,7 +2297,8 @@ final class Focus: NSObject, NSMenuDelegate {
                 }
             }
         } else {
-            header("Keep open this session — click to choose")
+            section("Keep open this session", "click to choose",
+                    "Tick the apps you want to keep. Everything else closes when the session starts and comes back when it ends.", optional: true)
             view(columns())
             let idle = excluded.filter { id in !running.contains { $0.0 == id } && !neverClose.contains(id) }.compactMap { id in path(id).map { (id, $0) } }
             for (id, p) in running + idle {
@@ -2249,7 +2310,7 @@ final class Focus: NSObject, NSMenuDelegate {
 
         // Critical system processes — never quit or hidden by Focus. Click to take one off; it moves up next time.
         m.addItem(.separator())
-        header("Critical System Processes — never quit")
+        section("Critical System Processes", "never quit", "These apps are never quit or hidden, in any session. Change the list with Add or remove.")
         for id in neverClose {
             guard let p = path(id) else { continue }
             let row = AppRow(appName(p), appIcon(p), on: true, onMark: "lock.circle.fill") { true }   // changed only via Add or remove…
@@ -2286,7 +2347,7 @@ final class Focus: NSObject, NSMenuDelegate {
             m.addItem(.separator())
         }
         // Modes — the user's named sets of apps.
-        header("Modes — frequently used sessions")
+        section("Modes", "frequently used sessions", "A mode is a set of apps you keep open. Click one to start it, or press its number. Right-click to edit it.")
         // The builder for a new mode: pick apps, optionally name it, create. Offered under the modes and in Edit Modes.
         func builderMenu() -> NSMenu {
         let nmm = NSMenu()
@@ -2493,6 +2554,11 @@ final class Focus: NSObject, NSMenuDelegate {
         let lm = NSMenuItem(); lm.view = ColorGrid(grid, selected: logoMark) { [unowned self] h in self.logoMark = h }; cm.addItem(lm)
         colour.submenu = cm
         am.addItem(.separator())
+        let hs = add("Headings", nil, image: symbol("text.alignleft"), to: am), hsm = NSMenu()
+        for (k, n) in ["Minimalist", "Normal", "Verbose"].enumerated() {
+            let i = add(n, #selector(pickHeadingStyle(_:)), to: hsm); i.tag = k; i.state = headingStyle == k ? .on : .off
+        }
+        hs.submenu = hsm
         let nb = add("Menu Bar Name", nil, image: symbol("character.cursor.ibeam"), to: am), nbm = NSMenu()
         let sample = displayName ?? modes.first?["name"] as? String ?? "AI"
         for (k, f) in Focus.nameStyles.enumerated() {
@@ -3289,6 +3355,18 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let m = NSMenu(); t.menuNeedsUpdate(m)
         let wired = (m.items.compactMap { $0.view as? ColumnHeader }.first?.onUsage) != nil
         done(plain && used && one && two && back && wired, "as listed: \(plain); most used first: \(used); cycles 1, 2, 0: \(one && two && back); Usage is clickable: \(wired)")
+    }))
+    steps.append(("43. Settings ▸ Appearance ▸ Headings: Minimalist (names only), Normal (as now), Verbose (a sentence under each)", { done in
+        func titles(_ k: Int) -> [String] { t.headingStyle = k; let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.map(\.title) }
+        let mini = titles(0), norm = titles(1), verb = titles(2)
+        t.store.removeObject(forKey: "headingStyle")
+        let m = NSMenu(); t.menuNeedsUpdate(m)
+        let picker = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Appearance" }?.submenu?.items.first { $0.title == "Headings" }?.submenu
+        let miniOK = mini.contains("Modes") && mini.contains("Critical System Processes") && !mini.contains { $0.hasPrefix("Keep open this session") }
+        let normOK = norm.contains("Modes — frequently used sessions") && norm.contains("Critical System Processes — never quit") && norm.contains("Keep open this session — click to choose")
+        let verbOK = verb.contains("Modes — frequently used sessions") && verb.count == norm.count + 3
+        let pick = picker?.items.map(\.title) == ["Minimalist", "Normal", "Verbose"] && picker?.items[1].state == .on
+        done(miniOK && normOK && verbOK && pick, "minimalist: \(miniOK); normal unchanged: \(normOK); verbose adds three explanations: \(verbOK); picker, Normal ticked: \(pick)")
     }))
     steps.append(("25. a session is defined by what it kept: recorded, titled by it, and Save as Mode uses it (never the parked apps)", { done in
         launch(edit) { launch(calc) {
