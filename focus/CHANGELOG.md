@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.20 — 2026-11-14
+- A wider gap between the name and the character on each side of it in the menu bar.
+
 ## 0.18.19 — 2026-11-14
 - Settings ▸ Appearance ▸ Menu Bar Name:
   - Choose the character beside the name: | · — / › • or none.
