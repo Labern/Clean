@@ -1,0 +1,209 @@
+<title>Focus Sign-in Plan</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap">
+<style>
+/* layout: a plan read top to bottom — principles, flow, mockups (drawn in the app's own black and white), the build,
+   security, data, questions. Single dark look on purpose: the mockups are of the dark app. */
+:root{
+  --bg:#000; --surface:#141414; --surface2:#1E1E1E; --line:#2A2A2A;
+  --ink:#fff; --low:#D0D1D2; --muted:#8E8E8E; --ok:#5FD7AF;
+  --font:"Graphik","Inter","Helvetica Neue",Helvetica,Arial,sans-serif;
+  color-scheme:dark;
+}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:32px 64px}
+main{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:44px}
+h1{font-size:34px;font-weight:500;letter-spacing:-.02em;margin:0;text-wrap:balance}
+h2{font-size:24px;font-weight:500;letter-spacing:-.01em;margin:0;padding-bottom:10px;border-bottom:1px solid var(--ink)}
+h3{font-size:16px;font-weight:600;margin:0}
+p,li{color:var(--low);max-width:72ch}
+p{margin:0}
+ul,ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px}
+b{color:var(--ink);font-weight:600}
+section{display:flex;flex-direction:column;gap:16px}
+.lede{font-size:17px}
+.rule{height:1px;background:var(--ink)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
+.card{border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;min-width:0}
+.card.key{border-color:var(--ink)}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;counter-reset:s}
+.step{border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:6px}
+.step .n{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.step .t{font-weight:600}
+.step .d{font-size:13.5px;color:var(--low)}
+/* mockups */
+.mocks{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:22px}
+.mock{display:flex;flex-direction:column;gap:10px;min-width:0}
+.win{background:#000;border:1px solid var(--line);border-radius:14px;padding:28px 26px;display:flex;flex-direction:column;gap:14px;min-height:300px;position:relative}
+.dots{position:absolute;top:12px;left:14px;display:flex;gap:6px}
+.dots i{width:10px;height:10px;border-radius:50%;background:#3a3a3a;display:block}
+.logo{width:44px;height:44px;border-radius:11px;background:linear-gradient(#2b2b2b,#101010);display:grid;place-items:center;margin-top:8px}
+.logo::before{content:"";width:22px;height:22px;border-radius:50%;border:3.5px solid #fff;box-sizing:border-box;display:grid}
+.logo{position:relative}
+.logo::after{content:"";position:absolute;width:8px;height:8px;border-radius:50%;background:#fff}
+.mt{font-size:24px;font-weight:500;letter-spacing:-.01em}
+.ms{font-size:14px;color:var(--low)}
+.field{height:44px;border-radius:9px;background:var(--surface);border:1px solid var(--ink);display:flex;align-items:center;padding:0 14px;font-size:16px;color:var(--ink)}
+.field.ph{color:var(--muted);border-color:var(--line)}
+.btn{height:44px;border-radius:9px;background:var(--ink);color:#000;display:flex;align-items:center;justify-content:center;font-weight:500;font-size:16px}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid rgba(255,255,255,.6)}
+.small{font-size:12.5px;color:var(--muted)}
+.code{display:flex;gap:8px}
+.code span{width:44px;height:52px;border-radius:9px;border:1px solid var(--line);background:var(--surface);display:grid;place-items:center;font-size:24px;font-weight:500}
+.code span.f{border-color:var(--ink)}
+.chip{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.av{width:28px;height:28px;border-radius:50%;background:#2e2e2e;display:grid;place-items:center;font-size:13px;font-weight:600;color:#fff;flex:none}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:15px}
+.row:last-child{border-bottom:0}
+.row .v{color:var(--low)}
+.danger{color:#ED4E3B}
+.caption{font-size:13.5px;color:var(--low)}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase}
+td.n{color:var(--muted)}
+.tw{overflow-x:auto}
+.q li{color:var(--ink)}
+</style>
+<main>
+  <h1>Focus — sign-in and accounts</h1>
+  <div class="rule"></div>
+  <p class="lede">An email is the one thing Focus asks for. You sign in with a six-digit code sent to it. There are no passwords and no phone number. A name and a photo are optional, added whenever you like. One screen to get in, then out of the way.</p>
+
+  <section>
+    <h2>Principles</h2>
+    <div class="cols">
+      <div class="card key"><h3>Built on a proven service, not hand-made</h3><p>Sign-in codes, sessions and token rotation come from a mature, audited authentication service. We write the product around it, never our own cryptography.</p></div>
+      <div class="card key"><h3>The least data possible</h3><p>Required: email. Optional: first name, surname, photo. Nothing else is asked for, inferred or stored: no phone, no address, no birthday, no tracking.</p></div>
+      <div class="card key"><h3>Fewest clicks</h3><p>Type your email, press Return, paste the code. Focus fills it in and signs you in on the sixth digit. A link in the email does the same in one click.</p></div>
+      <div class="card key"><h3>Yours to leave</h3><p>Sign out anywhere. Download your data, or delete your account in one step. Deleting erases it, it doesn't just hide it.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The flow</h2>
+    <div class="flow">
+      <div class="step"><span class="n">On the site</span><span class="t">Email, then Download</span><span class="d">One field. The download starts at once. We send a welcome email with a "Sign in to Focus" link.</span></div>
+      <div class="step"><span class="n">First launch</span><span class="t">Already signed in</span><span class="d">Opening that link (or the site's "Open Focus" button) signs Focus in. If you skip it, Focus asks for your email: one field.</span></div>
+      <div class="step"><span class="n">The code</span><span class="t">Six digits, auto-filled</span><span class="d">Paste it, or let macOS fill it from Mail. It signs you in on the sixth digit; there's no button to press.</span></div>
+      <div class="step"><span class="n">Then</span><span class="t">Pro Preview starts</span><span class="d">Fourteen days of Pro. Focus shows your email until you add a name or photo, if you ever do.</span></div>
+      <div class="step"><span class="n">Buying</span><span class="t">Same email at checkout</span><span class="d">The app opens the checkout with your email filled in. Pro unlocks on this Mac within seconds; no licence key to copy.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>The screens</h2>
+    <div class="mocks">
+      <div class="mock">
+        <div class="win"><div class="dots"><i></i><i></i><i></i></div>
+          <div class="logo"></div>
+          <div class="mt">Welcome to Focus</div>
+          <div class="ms">Enter your email to start. We'll send you a code: no password, nothing else.</div>
+          <div class="field">sam@example.com</div>
+          <div class="btn">Send code</div>
+          <div class="small">Only your email. Name and photo are optional, later.</div>
+        </div>
+        <span class="caption">1 · First launch, if the site link wasn't used: one field, Return to send.</span>
+      </div>
+      <div class="mock">
+        <div class="win"><div class="dots"><i></i><i></i><i></i></div>
+          <div class="logo"></div>
+          <div class="mt">Check your email</div>
+          <div class="ms">We sent a code to <b>sam@example.com</b>.</div>
+          <div class="code"><span class="f">4</span><span class="f">8</span><span class="f">1</span><span class="f">0</span><span>2</span><span></span></div>
+          <div class="small">Signs you in on the sixth digit. Or click the link in the email.</div>
+          <div class="small">Didn't arrive? <u>Send again</u> (in 30 s) · <u>Use a different email</u></div>
+        </div>
+        <span class="caption">2 · The code: paste or type it, no button to press.</span>
+      </div>
+      <div class="mock">
+        <div class="win" style="min-height:0"><div class="dots"><i></i><i></i><i></i></div>
+          <div class="small" style="margin-top:8px">Sidebar foot, signed in</div>
+          <div class="chip"><div class="av">S</div><span style="font-size:14px">sam@example.com</span><span class="small" style="margin-left:auto">Account</span></div>
+          <div class="small">After adding a name and photo</div>
+          <div class="chip"><div class="av" style="background:#6b4fc8">SR</div><span style="font-size:14px">Sam Rivera</span><span class="small" style="margin-left:auto">Account</span></div>
+        </div>
+        <span class="caption">3 · Who you are, quietly: your email, or your name once you add it.</span>
+      </div>
+      <div class="mock">
+        <div class="win"><div class="dots"><i></i><i></i><i></i></div>
+          <div class="mt" style="margin-top:8px">Account</div>
+          <div>
+            <div class="row"><span>Email</span><span class="v">sam@example.com</span></div>
+            <div class="row"><span>Name <span class="small">optional</span></span><span class="v"><u>Add</u></span></div>
+            <div class="row"><span>Photo <span class="small">optional</span></span><span class="v"><u>Add</u></span></div>
+            <div class="row"><span>Plan</span><span class="v">Pro Preview · 12 days left</span></div>
+            <div class="row"><span>This Mac</span><span class="v">1 of 3 · <u>Manage</u></span></div>
+            <div class="row"><span><u>Download my data</u></span><span class="v"><u>Sign out</u></span></div>
+            <div class="row"><span class="danger"><u>Delete my account</u></span><span></span></div>
+          </div>
+        </div>
+        <span class="caption">4 · Account page: every optional field says so, and leaving is one step.</span>
+      </div>
+      <div class="mock">
+        <div class="win" style="min-height:0;padding:22px"><div class="small">paradoxica.uk/focus</div>
+          <div class="mt" style="font-size:22px">Download Focus</div>
+          <div style="display:flex;gap:8px"><div class="field" style="flex:1">sam@example.com</div><div class="btn" style="padding:0 18px">Download</div></div>
+          <div class="small">Starts at once. We'll email you a link that signs Focus in.</div>
+        </div>
+        <span class="caption">5 · On the site: email and Download, nothing more.</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>How it would be built</h2>
+    <div class="cols">
+      <div class="card key"><h3>Identity and data: Supabase (London region)</h3>
+        <p>Supabase Auth sends the six-digit email codes and manages sessions: single-use codes with short expiry and rate limits, and refresh tokens that rotate, with reuse detection. Postgres row-level security means each person can only ever read their own row. It's open source, so Focus is never locked in, and hosting in London keeps data in the UK.</p></div>
+      <div class="card"><h3>Payments: Stripe (already planned)</h3>
+        <p>Stripe holds every card and billing detail. We never see them. A signed Stripe webhook, verified on our server, records the plan against the account. Checkout opens with the email filled in.</p></div>
+      <div class="card"><h3>Email: Postmark, from paradoxica.uk</h3>
+        <p>Codes go through a dedicated email service with SPF, DKIM and DMARC set up for paradoxica.uk, so they arrive in the inbox, not spam, within seconds. The emails are plain and branded, with no tracking pixels.</p></div>
+      <div class="card"><h3>The Mac app: native, no web views</h3>
+        <p>A small Swift client talks to Supabase over HTTPS. Its tokens are kept in the macOS Keychain, on this device only, never in plain settings. Pro is unlocked by a <b>signed licence</b> that the app checks with a public key built into it, so it can't be faked by editing a settings file. It keeps working offline for 30 days.</p></div>
+      <div class="card"><h3>Macs per person</h3>
+        <p>Each Mac gets a random ID when it signs in. Nothing about the hardware is collected. Pro covers your Macs up to the limit you choose (2–3). Signing in on one more lets you sign an old one out in the same screen, so nobody is ever locked out of what they paid for.</p></div>
+      <div class="card"><h3>Who builds what</h3>
+        <p><b>Focus Site</b>: the Supabase project, the email templates, the Stripe webhook, signed licences, the site's Download and Account pages. <b>Focus App</b>: the sign-in screens, Keychain storage, checking the licence, the Account page, and the Mac limit. One shared spec in the repo, so the two halves agree.</p></div>
+    </div>
+    <p class="small">Why not the alternatives: Clerk and Auth0 are excellent but hosted outside the UK and keep more profile data by default. WorkOS is the one to add later for Enterprise single sign-on (Google, Okta), and it sits alongside this rather than replacing it.</p>
+  </section>
+
+  <section>
+    <h2>Security, written down before code</h2>
+    <ul>
+      <li><b>Codes:</b> 6 digits, single use, expire in 10 minutes, at most 5 tries, then a fresh code. Rate-limited per email and per network. Stored hashed, never in plain text.</li>
+      <li><b>Sessions:</b> short-lived access tokens (1 hour) and rotating refresh tokens. If an old refresh token is reused, every session for that account is signed out.</li>
+      <li><b>On the Mac:</b> tokens live in the Keychain, on this device only. Nothing sensitive goes in preferences or logs.</li>
+      <li><b>Licences:</b> signed on the server with a key that never leaves it. The app holds only the public half, so a copied or edited licence fails.</li>
+      <li><b>Server:</b> every table locked by row-level security. The service key exists only on the server. Webhooks are verified by their signature, and repeated deliveries are handled safely.</li>
+      <li><b>Before launch:</b> a written threat model, automated tests for every sign-in path (including expired codes, reused tokens and a wrong code six times), and an independent review of the server rules.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Exactly what's stored</h2>
+    <div class="tw"><table>
+      <tr><th>What</th><th>Required?</th><th>Why</th><th>Kept until</th></tr>
+      <tr><td>Email</td><td>Yes</td><td>To sign in, and to receive your receipt</td><td>You delete the account</td></tr>
+      <tr><td>First name, surname</td><td class="n">Optional</td><td>Shown in the app instead of your email</td><td>You remove it</td></tr>
+      <tr><td>Photo</td><td class="n">Optional</td><td>Shown beside your name</td><td>You remove it</td></tr>
+      <tr><td>Plan and dates</td><td>Automatic</td><td>To know you have Pro and when the Preview ends</td><td>You delete the account</td></tr>
+      <tr><td>Mac IDs (random)</td><td>Automatic</td><td>To keep Pro to your Macs</td><td>You sign that Mac out</td></tr>
+      <tr><td>Card and billing</td><td class="n">Stripe only</td><td>Never stored by Focus</td><td>Stripe's own rules</td></tr>
+    </table></div>
+    <p>Not collected: phone, address, date of birth, location, contacts, usage tracking or advertising IDs. The apps you use in sessions never leave your Mac.</p>
+  </section>
+
+  <section>
+    <h2>Questions for you</h2>
+    <ol class="q">
+      <li>Supabase in London: happy with that, or do you want everything on our own servers (more work, same security)?</li>
+      <li>Is an email required to use Basic at all, or only for the Pro Preview and buying? Your note says it's required, so I've assumed at first launch.</li>
+      <li>Macs per Pro account: 2 or 3?</li>
+      <li>Offline: 30 days before Focus needs to check in. Shorter or longer?</li>
+      <li>Should the code email also carry a one-click "Sign in" link, or only the code?</li>
+    </ol>
+  </section>
+</main>
