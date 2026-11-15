@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.42 — 2026-11-15
+- The Start/End Session button, hovered: it lifts, a sheen crosses its face, a soft white glow breathes and sparks flare at its corners.
+- Clicked: it presses in, then a white line draws round it the way the website's Buy square does. It starts at the top centre and takes 2.4 s, quick then settling. It runs anticlockwise when a session starts and clockwise when one ends.
+- The sidebar's Session row is now "Session Manager", with a switch at its right: white "On" in a session, black outlined "Off" otherwise.
+- Reordering modes is instant: rows jump to their new place with no easing or dimming, and icons are read once rather than on every redraw.
+- The feedback card is black, like the rest of the app.
+- No scroll bars anywhere in the window; scrolling still works.
+- New "About" button in the sidebar foot, between Feedback and Manual. It opens an About panel for the maker's own words (`AboutPage.words` in desktop.swift).
+
 ## 0.18.41 — 2026-11-15
 - The Start/End Session button: under the pointer, a white line traces round it anticlockwise and sparks flare at its corners. The line stays while the pointer is on the button.
 - Clicking it: the button presses in, and a ring of light leaves its edge.

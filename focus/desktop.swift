@@ -183,7 +183,11 @@ final class DesktopModel: ObservableObject {
 
     // — the engine, read for the views —
     struct AppLine: Identifiable { let id: String, path: String, name: String, usage: String, on: Bool, note: String; var bytes: UInt64 = 0 }
-    func icon(_ path: String) -> NSImage { let i = NSWorkspace.shared.icon(forFile: path); i.size = NSSize(width: 128, height: 128); return i }   // the full-size artwork
+    private var icons: [String: NSImage] = [:]                   // read once per app: redrawing (e.g. while dragging) stays instant
+    func icon(_ path: String) -> NSImage {
+        if let i = icons[path] { return i }
+        let i = NSWorkspace.shared.icon(forFile: path); i.size = NSSize(width: 128, height: 128); icons[path] = i; return i   // the full-size artwork
+    }
     var running: [AppLine] {
         let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
         let listed = f.sorted(f.apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } })
@@ -303,7 +307,11 @@ struct RowDrop: DropDelegate {
 /// Dragging one mode over another in the sidebar puts it there (the menu shows the same order).
 struct ModeDrop: DropDelegate {
     let id: String, m: DesktopModel
-    func dropEntered(info: DropInfo) { if let d = m.draggingMode { withAnimation(.easeOut(duration: 0.15)) { m.act { m.f.moveMode(d, before: id) } } } }
+    func dropEntered(info: DropInfo) {                           // instant: the row jumps to its new place, no easing
+        guard let d = m.draggingMode, d != id else { return }
+        var t = Transaction(); t.disablesAnimations = true
+        withTransaction(t) { m.act { m.f.moveMode(d, before: id) } }
+    }
     func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
     func performDrop(info: DropInfo) -> Bool { m.draggingMode = nil; return true }
 }
@@ -333,56 +341,111 @@ struct MemoryBar: View {
     }
 }
 
+/// The edge the website's Buy square draws: from the top centre, anticlockwise, round all four sides, and 2 points
+/// past the start so the ends meet without a seam.
+struct DrawnEdge: Shape {
+    let radius: CGFloat
+    func path(in r: CGRect) -> Path {
+        var p = Path(), q = radius
+        p.move(to: CGPoint(x: r.midX, y: r.minY))
+        p.addLine(to: CGPoint(x: r.minX + q, y: r.minY))
+        p.addArc(tangent1End: CGPoint(x: r.minX, y: r.minY), tangent2End: CGPoint(x: r.minX, y: r.minY + q), radius: q)
+        p.addLine(to: CGPoint(x: r.minX, y: r.maxY - q))
+        p.addArc(tangent1End: CGPoint(x: r.minX, y: r.maxY), tangent2End: CGPoint(x: r.minX + q, y: r.maxY), radius: q)
+        p.addLine(to: CGPoint(x: r.maxX - q, y: r.maxY))
+        p.addArc(tangent1End: CGPoint(x: r.maxX, y: r.maxY), tangent2End: CGPoint(x: r.maxX, y: r.maxY - q), radius: q)
+        p.addLine(to: CGPoint(x: r.maxX, y: r.minY + q))
+        p.addArc(tangent1End: CGPoint(x: r.maxX, y: r.minY), tangent2End: CGPoint(x: r.maxX - q, y: r.minY), radius: q)
+        p.addLine(to: CGPoint(x: r.midX - 2, y: r.minY))
+        return p
+    }
+}
+
 /// The point of the app: one press and you're in a session. As wide as the pane, tall, white, its title centred
-/// and its key at the right — worded as in the menu. Under the pointer a white line traces round it anticlockwise,
-/// then sparks flare at its corners.
+/// and its key at the right — worded as in the menu.
+/// Under the pointer: it lifts, a sheen crosses its face, a soft glow breathes and sparks flare at its corners.
+/// Clicked: it sinks, then a white line draws round it the way the website's Buy square does — from the top centre,
+/// 2.4 s, quick then settling — anticlockwise when a session begins, clockwise when one ends.
 struct SessionButton: View {
-    let title: String, key: String, action: () -> Void
+    let title: String, key: String, starting: Bool, action: () -> Void
     @State private var hover = false
     @State private var trace: CGFloat = 0
+    @State private var clockwise = false
+    @State private var lineShown = false
     @State private var spark = false
+    @State private var sheen: CGFloat = -0.4
+    @State private var glow = false
     @State private var gen = 0
-    @State private var burst = 0
+    @State private var drawGen = 0
+    static let gap: CGFloat = 6                                   // the drawn line sits this far outside the button
+    static var still: (hover: Bool, trace: CGFloat, clockwise: Bool)?   // off-screen renders only: freeze a moment
     var body: some View {
-        Button(action: { burst += 1; action() }) {
+        Button(action: click) {
             ZStack {
-                Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
-                HStack { Spacer(); Text(key).font(Site.font(18)).opacity(0.45).lineLimit(1) }.padding(.trailing, 24)
+                Text(title).font(Site.font(25, .medium)).tracking(hover ? -0.1 : -0.4).lineLimit(1)
+                HStack { Spacer(); Text(key).font(Site.font(18)).opacity(hover ? 0.7 : 0.45).lineLimit(1) }.padding(.trailing, 24)
             }
             .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: Layout.button)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.94 : 1)))
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white)
+                    .overlay(GeometryReader { g in                     // the sheen: a soft band of light crossing once
+                        LinearGradient(colors: [.clear, Color.black.opacity(0.07), .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: g.size.width * 0.35).offset(x: g.size.width * sheen)
+                    }.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous)))
+            )
+            .shadow(color: Color.white.opacity(hover ? (glow ? 0.34 : 0.12) : 0), radius: hover ? 22 : 0)
             .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous).trim(from: 0, to: trace)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
-                    .scaleEffect(x: -1, y: 1)                              // drawn the other way round: anticlockwise
-                    .padding(-5).allowsHitTesting(false)
+                DrawnEdge(radius: 16 + Self.gap).trim(from: 0, to: trace)
+                    .stroke(Color.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    .scaleEffect(x: clockwise ? -1 : 1, y: 1)          // mirrored about the centre: same start, other way round
+                    .opacity(lineShown ? 1 : 0)
+                    .padding(-Self.gap).allowsHitTesting(false)
             )
             .overlay(GeometryReader { g in
-                let w = g.size.width + 10, h = g.size.height + 10
+                let w = g.size.width, h = g.size.height, o = Self.gap
                 ForEach(0..<6, id: \.self) { i in
-                    let p = [CGPoint(x: -5, y: -5), CGPoint(x: w - 5, y: -5), CGPoint(x: w - 5, y: h - 5), CGPoint(x: -5, y: h - 5), CGPoint(x: w / 2 - 5, y: -5), CGPoint(x: w / 2 - 5, y: h - 5)][i]
-                    Image(systemName: "sparkle").font(.system(size: i < 4 ? 13 : 9, weight: .semibold)).foregroundColor(.white)
-                        .shadow(color: .white, radius: 4)
-                        .scaleEffect(spark ? 1 : 0.2).opacity(spark ? 1 : 0).rotationEffect(.degrees(spark ? 45 : 0))
-                        .animation(.easeOut(duration: 0.35).delay(Double(i) * 0.04), value: spark)
+                    let p = [CGPoint(x: -o, y: -o), CGPoint(x: -o, y: h + o), CGPoint(x: w + o, y: h + o), CGPoint(x: w + o, y: -o),
+                             CGPoint(x: w / 2, y: -o), CGPoint(x: w / 2, y: h + o)][i]
+                    Image(systemName: "sparkle").font(.system(size: i < 4 ? 14 : 10, weight: .semibold)).foregroundColor(.white)
+                        .shadow(color: .white, radius: 5)
+                        .scaleEffect(spark ? 1 : 0.1).opacity(spark ? 1 : 0).rotationEffect(.degrees(spark ? 90 : 0))
+                        .animation(.easeOut(duration: 0.4).delay(Double(i) * 0.06), value: spark)
                         .position(p)
                 }
             }.allowsHitTesting(false))
-            .scaleEffect(hover ? 1.006 : 1).animation(.easeOut(duration: 0.15), value: hover)
-            .overlay(BurstRing(trigger: burst).allowsHitTesting(false))
+            .scaleEffect(hover ? 1.012 : 1).offset(y: hover ? -1.5 : 0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hover)
         }
         .buttonStyle(PressStyle())
+        .onAppear {
+            guard let s = Self.still else { return }
+            hover = s.hover; glow = s.hover; spark = s.hover; sheen = s.hover ? 0.3 : -0.4
+            trace = s.trace; clockwise = s.clockwise; lineShown = s.trace > 0
+        }
         .onHover { on in
             hover = on; gen += 1; let g = gen
             if on {
-                trace = 0; spark = false
-                withAnimation(.easeInOut(duration: 0.65)) { trace = 1 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.62) { if gen == g { spark = true } }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { if gen == g { spark = false } }   // sparks flare, then settle; the line stays
+                spark = false; sheen = -0.4; glow = false
+                withAnimation(.easeInOut(duration: 0.9)) { sheen = 1.05 }
+                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) { glow = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { if gen == g { spark = true } }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { if gen == g { spark = false } }
             } else {
-                withAnimation(.easeOut(duration: 0.2)) { trace = 0 }; spark = false
+                withAnimation(.easeOut(duration: 0.25)) { glow = false }
+                spark = false; sheen = -0.4
             }
         }
+    }
+
+    private func click() {
+        drawGen += 1; let g = drawGen
+        clockwise = !starting; trace = 0; lineShown = true
+        withAnimation(.timingCurve(0.5, 0, 0, 0.75, duration: 2.4)) { trace = 1 }     // the website's curve and time
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+            guard drawGen == g else { return }
+            withAnimation(.easeOut(duration: 0.5)) { lineShown = false }
+        }
+        action()
     }
 }
 
@@ -391,17 +454,6 @@ struct PressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label.scaleEffect(configuration.isPressed ? 0.975 : 1).brightness(configuration.isPressed ? -0.06 : 0)
             .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
-    }
-}
-/// On a click: a ring of white light leaves the button's edge and fades as it grows.
-struct BurstRing: View {
-    let trigger: Int
-    @State private var t: CGFloat = 1
-    var body: some View {
-        RoundedRectangle(cornerRadius: 16 + 14 * t, style: .continuous)
-            .stroke(Color.white.opacity(Double(1 - t) * 0.9), lineWidth: 2 + 4 * (1 - t))
-            .padding(-22 * t)
-            .onChange(of: trigger) { _, _ in t = 0; withAnimation(.easeOut(duration: 0.55)) { t = 1 } }
     }
 }
 
@@ -425,7 +477,7 @@ struct SiteEditor: NSViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(self) }
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSTextView.scrollableTextView(), tv = scroll.documentView as! NSTextView
-        scroll.drawsBackground = false; scroll.hasVerticalScroller = true; scroll.scrollerStyle = .overlay
+        scroll.drawsBackground = false; scroll.hasVerticalScroller = false; scroll.scrollerStyle = .overlay
         tv.drawsBackground = false; tv.isRichText = false; tv.allowsUndo = true
         tv.font = Self.nsFont(size); tv.textColor = .white; tv.insertionPointColor = .white
         tv.typingAttributes = [.font: Self.nsFont(size), .foregroundColor: NSColor.white]
@@ -474,7 +526,8 @@ struct FeedbackCard: View {
                         }
                     }
                     .frame(height: 130)
-                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.surface2))
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.bg))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.line, lineWidth: 1))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.hex(0x4A4A4A), lineWidth: 1))
                     Text("This sends your message, the Focus version and your macOS version. Nothing else.")
                         .font(Site.font(16)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true)
@@ -491,8 +544,8 @@ struct FeedbackCard: View {
                 }
             }
             .padding(24).frame(width: 520)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Site.surface))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Site.line, lineWidth: 1))
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Site.bg))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.white.opacity(0.35), lineWidth: 1))
             .shadow(color: .black.opacity(0.6), radius: 30, y: 12)
         }
     }
@@ -500,14 +553,16 @@ struct FeedbackCard: View {
 
 /// A small labelled button for the foot of the sidebar (Help, Manual).
 struct FootButton: View {
-    let symbol: String, title: String, enabled: Bool, action: () -> Void
+    let symbol: String, title: String, enabled: Bool
+    var selected = false
+    let action: () -> Void
     @State private var hover = false
     var body: some View {
         Button(action: action) {
             HStack(spacing: 7) { Image(systemName: symbol).font(.system(size: 14)); Text(title).font(Site.font(15, .medium)) }
                 .foregroundColor(enabled ? Site.head : Site.muted)
                 .frame(maxWidth: .infinity).frame(height: 34)
-                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hover && enabled ? Site.surface2 : Site.surface))
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill((hover && enabled) || selected ? Site.surface2 : Site.surface))
         }
         .buttonStyle(.plain).onHover { hover = $0 }
     }
@@ -552,6 +607,7 @@ struct SiteButton: View {
 struct SideRow: View {
     let title: String, trailing: String, live: Bool, selected: Bool, icons: [NSImage], symbol: String?, action: () -> Void
     var hint: String? = nil                                      // under the pointer, said at the right instead of `trailing`
+    var state: Bool? = nil                                       // a switch at the right: white "On", or outlined "Off"
     @State private var hover = false
     var body: some View {
         HStack(spacing: 10) {
@@ -565,8 +621,15 @@ struct SideRow: View {
             }
             Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1).minimumScaleFactor(0.85)
             Spacer(minLength: 6)
-            if live { Text("On").font(Site.font(14, .medium)).foregroundColor(.black).padding(.horizontal, 7).frame(height: 18).background(Capsule().fill(Color.white)) }
-            Text(hover && hint != nil ? hint! : trailing).font(Site.font(15)).foregroundColor(live || (hover && hint != nil) ? Site.head : Site.muted)
+            if live && state == nil { Text("On").font(Site.font(14, .medium)).foregroundColor(.black).padding(.horizontal, 7).frame(height: 18).background(Capsule().fill(Color.white)) }
+            if hover, let hint, state != nil { Text(hint).font(Site.font(15)).foregroundColor(Site.head) }
+            if let on = state {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .circular).fill(on ? Color.white : Color.black)
+                    RoundedRectangle(cornerRadius: 10, style: .circular).strokeBorder(Color.white, lineWidth: 1.2)
+                    Text(on ? "On" : "Off").font(Site.font(14, .medium)).foregroundColor(on ? .black : .white)
+                }.frame(width: 38, height: 20).compositingGroup()
+            } else { Text(hover && hint != nil ? hint! : trailing).font(Site.font(15)).foregroundColor(live || (hover && hint != nil) ? Site.head : Site.muted) }
         }
         .foregroundColor(selected || live ? Site.head : Site.low)
         .padding(.horizontal, 12).frame(height: 34)
@@ -590,7 +653,7 @@ struct DesktopView: View {
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
                 }.padding(.leading, 16).frame(width: 292, alignment: .leading)
                 VStack(spacing: 9) {
-                    SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey) { m.act { m.f.toggle() } }
+                    SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey, starting: !m.f.focused) { m.act { m.f.toggle() } }
                     Text(m.caption).font(Site.font(17)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                 }.padding(.horizontal, 28)
             }
@@ -604,6 +667,7 @@ struct DesktopView: View {
                     else if m.selection == Page.settings { SettingsPage(m: m) }
                     else if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) }
                     else if m.selection == Page.history { HistoryPage(m: m) }
+                    else if m.selection == Page.about { AboutPage() }
                     else { SessionDetail(m: m) }
                 }
                 .id(m.selection ?? "session").transition(.opacity)
@@ -618,9 +682,9 @@ struct DesktopView: View {
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 2) {
-                SideRow(title: "Session", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
+                SideRow(title: "Session Manager", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
                         action: { if m.selection == nil { m.act { m.f.toggle() } } else { m.selection = nil } },
-                        hint: m.selection != nil ? "Open" : m.f.focused ? "Click to end" : "Click to start")
+                        hint: m.selection != nil ? "Open" : m.f.focused ? "Click to end" : "Click to start", state: m.f.focused)
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver") { m.selection = Page.tools }
                 SideRow(title: "History", trailing: m.f.sessions.isEmpty ? "" : "\(m.f.sessions.count)", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath") { m.selection = Page.history }
@@ -634,12 +698,11 @@ struct DesktopView: View {
                 }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 14).padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())
             }.buttonStyle(.plain).help(m.modesShown ? "Hide your modes" : "Show your modes")
             if m.modesShown {
-                ScrollView {
+                ScrollView(showsIndicators: false) {
                     VStack(spacing: 2) {
                         ForEach(m.modes) { mode in
                             SideRow(title: mode.name, trailing: mode.key, live: mode.live, selected: m.selection == mode.id,
                                     icons: mode.apps.compactMap { m.f.path($0) }.map(m.icon), symbol: nil) { m.selection = mode.id }
-                                .opacity(m.draggingMode == mode.id ? 0.4 : 1)
                                 .onDrag { m.draggingMode = mode.id; return NSItemProvider(object: mode.id as NSString) }
                                 .onDrop(of: [UTType.text], delegate: ModeDrop(id: mode.id, m: m))
                                 .contextMenu {
@@ -667,12 +730,11 @@ struct DesktopView: View {
                             .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
                     }.buttonStyle(.plain).help("Focus \(u.version) is available. Click to get it.")
                 }
-                HStack(spacing: 8) {
-                    FootButton(symbol: "bubble.left", title: "Feedback", enabled: true) { m.openFeedback() }
-                        .help("Report a bug, suggest an idea, or say what's working well")
-                    FootButton(symbol: "book", title: "Manual", enabled: false) {}
-                        .help("The manual isn't written yet.")
-                }
+                FootButton(symbol: "bubble.left", title: "Feedback", enabled: true) { m.openFeedback() }
+                    .help("Report a bug, suggest an idea, or say what's working well")
+                FootButton(symbol: "info.circle", title: "About", enabled: true, selected: m.selection == Page.about) { m.selection = Page.about }
+                FootButton(symbol: "book", title: "Manual", enabled: false) {}
+                    .help("The manual isn't written yet.")
                 Button { NSWorkspace.shared.open(DesktopModel.site) } label: {
                     HStack(alignment: .top, spacing: 3) {
                         if let b = brandLockup { Image(nsImage: b).resizable().interpolation(.high).frame(width: 196, height: 196 * 112.0 / 1080.0) }
@@ -692,7 +754,7 @@ struct SessionDetail: View {
     var body: some View {
         let f = m.f
         VStack(spacing: 0) {
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(f.focused ? (f.displayName ?? "In Session") : "Keep open this session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
                     PanelRule()
@@ -705,7 +767,7 @@ struct SessionDetail: View {
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
                                    quit: { m.quit(app.id, force: $0) }).padding(.horizontal, -14)
                             .opacity(m.dragging == app.id ? 0.4 : 1)
-                            .onDrag { m.dragging = app.id; return NSItemProvider(object: app.id as NSString) }
+                            .onDrag { m.dragging = app.id; m.draggingMode = nil; return NSItemProvider(object: app.id as NSString) }
                             .onDrop(of: [UTType.text], delegate: RowDrop(id: app.id, m: m))
                     }
                     if !m.outside.isEmpty {
@@ -736,7 +798,7 @@ struct ModeDetail: View {
         let inMode = mode.apps.compactMap { id in f.path(id).map { DesktopModel.AppLine(id: id, path: $0, name: f.appName($0), usage: "", on: true, note: "") } }
         let others = m.running.filter { !mode.apps.contains($0.id) }.map { DesktopModel.AppLine(id: $0.id, path: $0.path, name: $0.name, usage: $0.usage, on: false, note: "") }
         VStack(spacing: 0) {
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline, spacing: 14) {
                         TextField("Mode name", text: $name, onCommit: { m.act { f.renameMode(mode.id, to: name.trimmingCharacters(in: .whitespacesAndNewlines)) } })
@@ -779,17 +841,17 @@ struct ModeDetail: View {
 // MARK: the other pages — the same settings the menu has, read from and written to the same place
 
 /// Sidebar pages that aren't a mode (a mode's id is a UUID, so these can't collide).
-enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history" }
+enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history", about = "§about" }
 
 struct PageFrame<Content: View>: View {
     let title: String, text: String
     @ViewBuilder var content: Content
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(title).font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
                 PanelRule()
-                Text(text).font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
+                if !text.isEmpty { Text(text).font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true) }
                 content
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
         }
@@ -872,6 +934,19 @@ struct ShortcutsPage: View {
 }
 
 /// Past sessions: when, what was kept, how many apps were closed. Any of them can become a mode.
+/// About: the maker's own words. Written by hand — put the text in `words` (blank lines start new paragraphs).
+struct AboutPage: View {
+    static let words = """
+    """
+    var body: some View {
+        PageFrame(title: "About", text: "") {
+            ForEach(Array(Self.words.components(separatedBy: "\n\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.enumerated()), id: \.offset) { _, para in
+                Text(para).font(Site.font(18)).foregroundColor(Site.low).lineSpacing(5).fixedSize(horizontal: false, vertical: true).padding(.bottom, 12)
+            }
+        }
+    }
+}
+
 struct HistoryPage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
@@ -1178,8 +1253,11 @@ func renderDesktop(to file: String, mode: Bool) {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
         f.store.set(true, forKey: "focused")
     }
-    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
+    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history, Page.about] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
     if !CommandLine.arguments.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
+    if CommandLine.arguments.contains("hover") { SessionButton.still = (true, 0, false) }
+    if let a = CommandLine.arguments.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {
+        SessionButton.still = (false, CGFloat(abs(t)), t < 0) }                          // line=-0.3: drawn clockwise
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
     let size = NSSize(width: 1000, height: CommandLine.arguments.contains("tall") ? 1500 : 730)
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
