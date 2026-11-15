@@ -1056,7 +1056,7 @@ struct ManualPage: View {
         .bullets(["Total focus (the name really is Focus for a reason).", "The most possible RAM.", "The least possible CPU usage."]),
         .text("The moment you're done, or if you temporarily want to do something else, just end the session."),
         .heading("End a session"),
-        .text("The beauty of Focus is that whether you use the button (in the menu, and at the top of this window) or the keyboard shortcut (⌘⇧F by default, and yours to change), you can press it and instantly get everything back."),
+        .text("The beauty of Focus is that whether you use the button (in the menu, and at the top of the app) or the keyboard shortcut (⌘⇧F by default, and yours to change), you can press it and instantly get everything back."),
         .text("All apps will be reopened as they were. Wherever possible, they will be returned to where they were. If an app's defaults do not allow this, it will reopen as if you had opened it yourself."),
         .text("The main advantage is that you don't have to make a mental note of which apps you had open, which files you had open in which app, and so on."),
         .text("For example, if you have 10+ apps open (it happens — you know it), each with several things open in it (writing, projects), all of them will be ready to go. What once looked like this:"),
@@ -1082,12 +1082,12 @@ struct ManualPage: View {
         .text("As with sessions, the idea is to save you from having to search for apps and close them one by one, and to let you do it all at once."),
         .heading("Appearance"),
         .text("There is a range of options to change the look and style of the app: play around and see which one you like."),
-        .figure(.colours, "The colour you choose in Settings ▸ Appearance colours the menu bar icon and this button."),
+        .figure(.colours, "The colour you choose in Settings ▸ Appearance colours the menu bar icon and the big button."),
         .heading("Menu and app"),
-        .text("Focus is primarily a menu tool — it's intended for power users who like to keep their hands on the keyboard and stay in flow. But there is also a fully working app: this window, which you can hide with ⌘H or close with ⌘Q (which does not stop the menu from running). Use one or both, as you like. The menu always runs: that's where the work is done."),
+        .text("Focus is primarily a menu tool — it's intended for power users who like to keep their hands on the keyboard and stay in flow. But there is also a fully working app, which you can hide with ⌘H or close with ⌘Q (which does not stop the menu from running). Use one or both, as you like. The menu always runs: that's where the work is done."),
         .figure(.keys, "The keys that matter."),
         .heading("Feedback"),
-        .text("If you have any ideas or feedback, please use the Feedback button in this window."),
+        .text("If you have any ideas or feedback, please use the Feedback button."),
         .heading("About"),
         .link("paradoxica.co.uk/focus", URL(string: "https://paradoxica.co.uk/focus")!),
         .text("Focus is made by ★★★★★ × PARADOX™."),
@@ -1108,6 +1108,7 @@ struct ManualPage: View {
                     Contents(titles: Self.sections) { t in withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(t, anchor: .top) } }
                     ForEach(Array(Self.blocks.enumerated()), id: \.offset) { _, b in block(b, proxy) }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.bottom, 30)
+                .textSelection(.enabled)                                   // any of it can be selected and copied
             }
         }
     }
@@ -1232,8 +1233,8 @@ struct ManualFigure: View {
             case .keys:
                 VStack(alignment: .leading, spacing: 10) {
                     KeyLine(keys: ["⌘", "⇧", "F"], says: "Start or end a session, from anywhere")
-                    KeyLine(keys: ["⌘", "H"], says: "Hide this window; press again straight away to bring it back")
-                    KeyLine(keys: ["⌘", "Q"], says: "Close this window. The menu keeps running")
+                    KeyLine(keys: ["⌘", "H"], says: "Hide the app; press again straight away to bring it back")
+                    KeyLine(keys: ["⌘", "Q"], says: "Close the app. The menu keeps running")
                     KeyLine(keys: ["⌘", "+"], says: "Bigger text (⌘− for smaller)")
                 }.frame(maxWidth: .infinity, alignment: .leading)
             }
