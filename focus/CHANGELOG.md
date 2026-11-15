@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.54 — 2026-11-15
+- **The session line:** starting a session draws the line round the button (from the top centre, anticlockwise) and it stays for the whole session. Ending the session undraws it, back the way it came. It follows the session itself, so the menu and ⌘⇧F draw and undraw it too.
+- **Modes in the Session Editor:** under the pointer each mode shows a white "Start session" button. A running mode says "On" (hover: "End session"). Clicking a mode's name, or the rest of its row, opens it to edit. Right-click still has the full menu.
+- **Session Editor row:** the "Click to…" hover text is gone, and a click just opens the page.
+- **Spacing:** the gap under the description in Apps in Session is gone.
+
 ## 0.18.53 — 2026-11-15
 - **Headings inside every panel** (Apps Outside Session, Critical System Processes, Modes, and those on the mode, Tools and Settings pages) are large and white with a fine white line under them, the same as Behaviour and Appearance. They replace the small grey labels; "Usage" stays a small column name.
 - Noted, not built: the idea of an empty bordered circle as the out-of-session icon (docs/OPEN-ITEMS.md).

@@ -368,17 +368,16 @@ struct DrawnEdge: Shape {
 /// The point of the app: one press and you're in a session. As wide as the pane, tall, white, its title centred
 /// and its key at the right — worded as in the menu.
 /// Under the pointer: a touch dimmer, a touch larger, and pressure builds — see PressureDots.
-/// Clicked: it sinks, then a white line draws round it the way the website's Buy square does — from the top centre,
-/// 2.4 s, quick then settling — anticlockwise when a session begins, clockwise when one ends.
+/// The line: when a session starts, a line draws round it the way the website's Buy square does — from the top centre,
+/// anticlockwise, 2.4 s, quick then settling — and stays for the whole session. When the session ends, it undraws,
+/// back the way it came. It follows the session itself, so starting or ending one from the menu or the key does it too.
 struct SessionButton: View {
     let title: String, key: String, starting: Bool
     var tint = Color.white, tint2 = Color.white, ink = Color.black   // Settings ▸ Appearance's colour (the icon's), and text that reads on it
     let action: () -> Void
     @State private var hover = false
     @State private var trace: CGFloat = 0
-    @State private var clockwise = false
-    @State private var lineShown = false
-    @State private var drawGen = 0
+    @State private var drawn = false                              // the first look: the line is simply there (or not)
     @State private var pressStart: Date?
     @State private var pressEnd: Date?
     @State private var pressRelease: Date?
@@ -404,8 +403,7 @@ struct SessionButton: View {
             .overlay(
                 DrawnEdge(radius: 16 + Self.gap).trim(from: 0, to: trace)
                     .stroke(tint, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-                    .scaleEffect(x: clockwise ? -1 : 1, y: 1)          // mirrored about the centre: same start, other way round
-                    .opacity(lineShown ? 1 : 0)
+                    .opacity(trace > 0.001 ? 1 : 0)
                     .padding(-Self.gap).allowsHitTesting(false)
             )
             .scaleEffect(hover ? 1.005 : 1)
@@ -414,8 +412,13 @@ struct SessionButton: View {
         .buttonStyle(PressStyle())
         .onAppear {
             guard let s = Self.still else { return }
-            hover = s.hover; trace = s.trace; clockwise = s.clockwise; lineShown = s.trace > 0
+            hover = s.hover; if s.trace > 0 { trace = s.trace }
             if s.hover { pressStart = Date().addingTimeInterval(-6) }
+        }
+        .task(id: starting) {                                       // the session started or ended: draw or undraw
+            let on = !starting
+            if !drawn || Self.still != nil { drawn = true; if Self.still?.trace ?? 0 == 0 { trace = on ? 1 : 0 }; return }
+            withAnimation(.timingCurve(0.5, 0, 0, 0.75, duration: 2.4)) { trace = on ? 1 : 0 }   // the website's curve and time
         }
         .onHover { on in
             hover = on
@@ -429,14 +432,7 @@ struct SessionButton: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {    // …and, still under the pointer, let it build again
             if hover { pressStart = Date(); pressEnd = nil; pressRelease = nil }
         }
-        drawGen += 1; let g = drawGen
-        clockwise = !starting; trace = 0; lineShown = true
-        withAnimation(.timingCurve(0.5, 0, 0, 0.75, duration: 2.4)) { trace = 1 }     // the website's curve and time
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
-            guard drawGen == g else { return }
-            withAnimation(.easeOut(duration: 0.5)) { lineShown = false }
-        }
-        action()
+        action()                                                    // the line follows the session (see .task above)
     }
 }
 
@@ -617,6 +613,44 @@ struct PanelRule: View {
     var body: some View { Rectangle().fill(Color.white).frame(height: 1).frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 12) }
 }
 
+/// A mode in the Session Editor's list. Its name opens it to edit (as does the rest of the row). At the right: its key,
+/// and under the pointer a white "Start session" button; a mode that's running says "On" (hover: "End session").
+struct ModeListRow: View {
+    @ObservedObject var m: DesktopModel
+    let mode: DesktopModel.ModeLine
+    @State private var hover = false
+    @State private var nameHover = false
+    var body: some View {
+        HStack(spacing: 10) {
+            ZStack(alignment: .leading) {
+                ForEach(Array(mode.apps.compactMap { m.f.path($0) }.prefix(3).enumerated().reversed()), id: \.offset) { i, p in
+                    Image(nsImage: m.icon(p)).resizable().interpolation(.high).frame(width: 20, height: 20).offset(x: CGFloat(i) * 9)
+                }
+            }.frame(width: 40, alignment: .leading)
+            Text(mode.name).font(Site.font(18, mode.live ? .medium : .regular)).foregroundColor(Site.head).lineLimit(1)
+                .underline(nameHover).onHover { nameHover = $0 }.help("Edit \(mode.name)")
+            Spacer(minLength: 8)
+            if mode.live {
+                Button { m.act { m.f.startOrSwitch(mode.id) } } label: {
+                    Text(hover ? "End session" : "On").font(Site.font(14, .medium)).foregroundColor(.black)
+                        .padding(.horizontal, 12).frame(height: 26).background(Capsule().fill(Color.white))
+                }.buttonStyle(PressStyle())
+            } else if hover {
+                Button { if !mode.apps.isEmpty { m.act { m.f.startOrSwitch(mode.id) } } } label: {
+                    Text(mode.apps.isEmpty ? "Add apps first" : "Start session").font(Site.font(14, .medium)).foregroundColor(.black)
+                        .padding(.horizontal, 12).frame(height: 26).background(Capsule().fill(Color.white))
+                }.buttonStyle(PressStyle()).opacity(mode.apps.isEmpty ? 0.5 : 1)
+            }
+            Text(mode.key).font(Site.font(15)).foregroundColor(Site.muted).frame(minWidth: 30, alignment: .trailing)
+        }
+        .padding(.horizontal, 12).frame(height: 40)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hover ? Site.surface : Color.clear))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Color.white.opacity(mode.live ? 0.85 : 0), lineWidth: 1))
+        .contentShape(Rectangle()).onHover { hover = $0 }
+        .onTapGesture { m.selection = mode.id }
+    }
+}
+
 /// Right-click on a mode, wherever it's listed: start or end it, edit it, give it a key, delete it.
 struct ModeMenu: View {
     @ObservedObject var m: DesktopModel
@@ -649,7 +683,7 @@ struct SectionLabel: View {
     var body: some View {
         if left.isEmpty {
             HStack { Spacer(); Text(right).font(Site.font(15)).foregroundColor(Site.muted).padding(.trailing, 38) }
-                .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 2)
+                .padding(.horizontal, 14).padding(.top, 2).padding(.bottom, 0)
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
@@ -780,8 +814,7 @@ struct DesktopView: View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 2) {
                 SideRow(title: "Session Editor", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
-                        action: { if m.selection == nil { m.act { m.f.toggle() } } else { m.selection = nil } },
-                        hint: m.selection != nil ? "Open" : m.f.focused ? "Click to end" : "Click to start", state: m.f.focused)
+                        action: { m.selection = nil }, state: m.f.focused)
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver") { m.selection = Page.tools }
                 SideRow(title: "History", trailing: m.f.sessions.isEmpty ? "" : "\(m.f.sessions.count)", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath") { m.selection = Page.history }
@@ -858,7 +891,7 @@ struct SessionDetail: View {
                                    : "Tick the apps you want in the session. Everything else closes when the session starts and comes back when it ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
                     if !f.focused { MemoryBar(apps: m.running).padding(.top, 12) }      // the memory to be saved is shown before a session, never during one
-                    SectionLabel("", "Usage", divider: false).padding(.horizontal, -14)
+                    SectionLabel("", "Usage", divider: false).padding(.horizontal, -14).padding(.top, f.focused ? 0 : 8)
                     ForEach(m.running) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
                                    quit: { m.quit(app.id, force: $0) }).padding(.horizontal, -14)
@@ -881,14 +914,10 @@ struct SessionDetail: View {
                     SiteButton("Add or remove…") { f.showNever() }.padding(.top, 8)
                     // Modes follow on, as in the menu. Click one to start it; the sidebar's Modes open each in detail.
                     SectionLabel("Modes — frequently used sessions").padding(.horizontal, -14).padding(.top, 8)
-                    Note("A mode is a set of apps you keep open. Click one to start it, or press its number. Right-click to edit it.")
+                    Note("A mode is a set of apps you keep open. Start one with its button or its key; click its name to edit it.")
                     VStack(spacing: 2) {
                         ForEach(m.modes) { mode in
-                            SideRow(title: mode.name, trailing: mode.key, live: mode.live, selected: false,
-                                    icons: mode.apps.compactMap { f.path($0) }.map(m.icon), symbol: nil,
-                                    action: { if !mode.apps.isEmpty { m.act { f.startOrSwitch(mode.id) } } },
-                                    hint: mode.apps.isEmpty ? "Add apps first" : mode.live ? "Click to end" : "Click to start")
-                                .contextMenu { ModeMenu(m: m, mode: mode) }
+                            ModeListRow(m: m, mode: mode).contextMenu { ModeMenu(m: m, mode: mode) }
                         }
                         SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { m.newMode() }
                     }.padding(.horizontal, -12)
@@ -1653,7 +1682,7 @@ func renderDesktop(to file: String, mode: Bool) {
     if !CommandLine.arguments.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
     if CommandLine.arguments.contains("hover") { SessionButton.still = (true, 0, false) }
     if let a = CommandLine.arguments.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {
-        SessionButton.still = (false, CGFloat(abs(t)), t < 0) }                          // line=-0.3: drawn clockwise
+        SessionButton.still = (false, CGFloat(abs(t)), false) }
     if let c = CommandLine.arguments.first(where: { $0.hasPrefix("colour=") }) {          // e.g. colour=8B5CF6 or colour=8B5CF6,F472B6
         let p = c.dropFirst(7).split(separator: ","); f.store.set(String(p[0]), forKey: "iconColor"); f.store.set(p.count > 1 ? String(p[1]) : "", forKey: "iconColor2")
     }
