@@ -368,7 +368,9 @@ struct DrawnEdge: Shape {
 /// Clicked: it sinks, then a white line draws round it the way the website's Buy square does — from the top centre,
 /// 2.4 s, quick then settling — anticlockwise when a session begins, clockwise when one ends.
 struct SessionButton: View {
-    let title: String, key: String, starting: Bool, action: () -> Void
+    let title: String, key: String, starting: Bool
+    var tint = Color.white, tint2 = Color.white, ink = Color.black   // Settings ▸ Appearance's colour (the icon's), and text that reads on it
+    let action: () -> Void
     @State private var hover = false
     @State private var trace: CGFloat = 0
     @State private var clockwise = false
@@ -382,15 +384,16 @@ struct SessionButton: View {
                 Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
                 HStack { Spacer(); Text(key).font(Site.font(18)).opacity(hover ? 0.6 : 0.45).lineLimit(1) }.padding(.trailing, 24)
             }
-            .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: Layout.button)
+            .foregroundColor(ink).frame(maxWidth: .infinity).frame(height: Layout.button)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.92 : 1))
-                    .overlay(TensionDots().opacity(hover ? 1 : 0).animation(.easeOut(duration: 0.35), value: hover)
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(LinearGradient(colors: [tint, tint2], startPoint: .leading, endPoint: .trailing)).opacity(hover ? 0.92 : 1)
+                    .overlay(TensionDots(ink: ink).opacity(hover ? 1 : 0).animation(.easeOut(duration: 0.35), value: hover)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous)))
             )
             .overlay(
                 DrawnEdge(radius: 16 + Self.gap).trim(from: 0, to: trace)
-                    .stroke(Color.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                    .stroke(tint, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
                     .scaleEffect(x: clockwise ? -1 : 1, y: 1)          // mirrored about the centre: same start, other way round
                     .opacity(lineShown ? 1 : 0)
                     .padding(-Self.gap).allowsHitTesting(false)
@@ -421,6 +424,7 @@ struct SessionButton: View {
 /// Small dark dots drifting right to left along the button's lower third. Each eases in and out, so they bunch and
 /// stretch apart like a rubber band being drawn back; each fades in from the right and out before the left edge.
 struct TensionDots: View {
+    var ink = Color.black
     static let count = 9, cycle = 2.6                             // dots, and seconds for one to cross
     var body: some View {
         TimelineView(.animation) { tl in
@@ -432,7 +436,7 @@ struct TensionDots: View {
                     let x = size.width * (0.94 - 0.88 * e), y = size.height * 0.8
                     let side: CGFloat = 3
                     c.fill(Path(CGRect(x: x - side / 2, y: y - side / 2, width: side, height: side)),
-                           with: .color(Color.black.opacity(0.22 * sin(.pi * p))))
+                           with: .color(ink.opacity(0.22 * sin(.pi * p))))
                 }
             }
         }
@@ -562,6 +566,13 @@ struct PanelRule: View {
     var body: some View { Rectangle().fill(Color.white).frame(height: 1).frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 12) }
 }
 
+/// The line of explanation under a section's name, as the menu has.
+struct Note: View {
+    let text: String
+    init(_ t: String) { text = t }
+    var body: some View { Text(text).font(Site.font(16)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true).padding(.bottom, 4) }
+}
+
 struct SectionLabel: View {
     let left: String, right: String, divider: Bool
     init(_ left: String, _ right: String = "", divider: Bool = true) { self.left = left; self.right = right; self.divider = divider }
@@ -649,7 +660,9 @@ struct DesktopView: View {
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
                 }.padding(.leading, 16).frame(width: 292, alignment: .leading)
                 VStack(spacing: 9) {
-                    SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey, starting: !m.f.focused) { m.act { m.f.toggle() } }
+                    let look = buttonColours
+                    SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey, starting: !m.f.focused,
+                                  tint: look.0, tint2: look.1, ink: look.2) { m.act { m.f.toggle() } }
                     Text(m.caption).font(Site.font(17)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                 }.padding(.horizontal, 28).padding(.leading, pageInsets.lead).padding(.trailing, pageInsets.trail)
             }
@@ -678,6 +691,13 @@ struct DesktopView: View {
         }
         .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
         .animation(.easeOut(duration: 0.15), value: m.feedbackShown)
+    }
+    /// The big button wears the colour chosen in Settings ▸ Appearance (the icon's ring, then its dot), white when none is.
+    /// Its text is black on light colours and white on dark ones.
+    var buttonColours: (Color, Color, Color) {
+        let a = hexColor(m.f.iconColor) ?? .white, b = hexColor(m.f.iconColor2) ?? a
+        func light(_ c: NSColor) -> Bool { let s = c.usingColorSpace(.sRGB) ?? c; return 0.2126 * s.redComponent + 0.7152 * s.greenComponent + 0.0722 * s.blueComponent > 0.55 }
+        return (Color(nsColor: a), Color(nsColor: b), light(a) || light(b) ? .black : .white)
     }
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -757,13 +777,13 @@ struct SessionDetail: View {
         VStack(spacing: 0) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(f.focused ? (f.displayName ?? "In Session") : "Keep open this session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
+                    Text("Apps in Session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)   // the menu's own headings
                     PanelRule()
-                    Text(f.focused ? "Click an app to take it out of the session, or to bring one back."
-                                   : "Tick the apps you want to keep. Everything else closes when the session starts and comes back when it ends.")
+                    Text(f.focused ? "These apps are in your session. Click one to take it out."
+                                   : "Tick the apps you want in the session. Everything else closes when the session starts and comes back when it ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
                     if !f.focused { MemoryBar(apps: m.running).padding(.top, 12) }      // the memory to be saved is shown before a session, never during one
-                    SectionLabel("Apps in Session", "Usage", divider: false).padding(.horizontal, -14)
+                    SectionLabel("", "Usage", divider: false).padding(.horizontal, -14)
                     ForEach(m.running) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
                                    quit: { m.quit(app.id, force: $0) }).padding(.horizontal, -14)
@@ -773,11 +793,13 @@ struct SessionDetail: View {
                     }
                     if !m.outside.isEmpty {
                         SectionLabel("Apps Outside Session").padding(.horizontal, -14)
+                        Note("These apps are not in the session right now. Click one to add it to the session.")
                         ForEach(m.outside) { app in
                             AppRowView(app: app, icon: m.icon(app.path), mark: "circle") { m.toggle(app) }.padding(.horizontal, -14)
                         }
                     }
                     SectionLabel("Critical System Processes — never quit").padding(.horizontal, -14)
+                    Note("These apps are never quit or hidden, in any session. Change the list with Add or remove.")
                     ForEach(m.critical) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: "lock.circle.fill", action: nil).padding(.horizontal, -14)
                     }
@@ -1386,6 +1408,9 @@ func renderDesktop(to file: String, mode: Bool) {
     if CommandLine.arguments.contains("hover") { SessionButton.still = (true, 0, false) }
     if let a = CommandLine.arguments.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {
         SessionButton.still = (false, CGFloat(abs(t)), t < 0) }                          // line=-0.3: drawn clockwise
+    if let c = CommandLine.arguments.first(where: { $0.hasPrefix("colour=") }) {          // e.g. colour=8B5CF6 or colour=8B5CF6,F472B6
+        let p = c.dropFirst(7).split(separator: ","); f.store.set(String(p[0]), forKey: "iconColor"); f.store.set(p.count > 1 ? String(p[1]) : "", forKey: "iconColor2")
+    }
     if CommandLine.arguments.contains("trial=none") { DesktopView.trial = .none }
     if CommandLine.arguments.contains("trial=right") { DesktopView.trial = .right }
     if CommandLine.arguments.contains("trial=narrow") { DesktopView.trial = .narrow }

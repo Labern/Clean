@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.48 — 2026-11-15
+- **Session page headings now match the menu's:** "Apps in Session", "Apps Outside Session" and "Critical System Processes — never quit", each with the menu's line of explanation. "Keep open this session" is gone.
+- **The big button takes the colour from Settings ▸ Appearance:** the ring colour, running into the dot's colour when the two differ. Its text turns black on light colours and white on dark ones, and the click line and hover dots follow. White is still the default. A colour picked in the menu reaches the window within 1.5 s.
+
 ## 0.18.47 — 2026-11-15
 - **Session button hover:** small dark dots drift in from the right along its lower third. They ease in and out, bunching and stretching like a rubber band being drawn back. They are subtle, and only show while the pointer is on the button.
 - **Manual:** its text is one stop (one ⌘+) larger than the other pages.
