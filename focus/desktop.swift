@@ -363,8 +363,7 @@ struct DrawnEdge: Shape {
 
 /// The point of the app: one press and you're in a session. As wide as the pane, tall, white, its title centred
 /// and its key at the right — worded as in the menu.
-/// Under the pointer it answers quietly: a touch dimmer, a touch larger, and a few small dark dots drift in from the
-/// right, gathering and stretching like a rubber band being drawn back — something is about to happen.
+/// Under the pointer: a touch dimmer, a touch larger, and pressure builds — see PressureDots.
 /// Clicked: it sinks, then a white line draws round it the way the website's Buy square does — from the top centre,
 /// 2.4 s, quick then settling — anticlockwise when a session begins, clockwise when one ends.
 struct SessionButton: View {
@@ -376,20 +375,27 @@ struct SessionButton: View {
     @State private var clockwise = false
     @State private var lineShown = false
     @State private var drawGen = 0
+    @State private var pressStart: Date?
+    @State private var pressEnd: Date?
+    @State private var pressRelease: Date?
+    @State private var titleWidth: CGFloat = 200
     static let gap: CGFloat = 6                                   // the drawn line sits this far outside the button
     static var still: (hover: Bool, trace: CGFloat, clockwise: Bool)?   // off-screen renders only: freeze a moment
     var body: some View {
         Button(action: click) {
             ZStack {
                 Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
+                    .background(GeometryReader { g in Color.clear.preference(key: TitleWidth.self, value: g.size.width) })
+                    .onPreferenceChange(TitleWidth.self) { titleWidth = $0 }
                 HStack { Spacer(); Text(key).font(Site.font(18)).opacity(hover ? 0.6 : 0.45).lineLimit(1) }.padding(.trailing, 24)
             }
             .foregroundColor(ink).frame(maxWidth: .infinity).frame(height: Layout.button)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(LinearGradient(colors: [tint, tint2], startPoint: .leading, endPoint: .trailing)).opacity(hover ? 0.92 : 1)
-                    .overlay(TensionDots(ink: ink).opacity(hover ? 1 : 0).animation(.easeOut(duration: 0.35), value: hover)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous)))
+                    .overlay(Group {
+                        if let s = pressStart { PressureDots(ink: ink, titleWidth: titleWidth, start: s, end: pressEnd, release: pressRelease) }
+                    }.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous)))
             )
             .overlay(
                 DrawnEdge(radius: 16 + Self.gap).trim(from: 0, to: trace)
@@ -405,11 +411,20 @@ struct SessionButton: View {
         .onAppear {
             guard let s = Self.still else { return }
             hover = s.hover; trace = s.trace; clockwise = s.clockwise; lineShown = s.trace > 0
+            if s.hover { pressStart = Date().addingTimeInterval(-6) }
         }
-        .onHover { hover = $0 }
+        .onHover { on in
+            hover = on
+            if on { pressStart = Date(); pressEnd = nil; pressRelease = nil }
+            else if pressRelease == nil { pressEnd = Date() }
+        }
     }
 
     private func click() {
+        pressRelease = Date()                                     // let the pressure go…
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {    // …and, still under the pointer, let it build again
+            if hover { pressStart = Date(); pressEnd = nil; pressRelease = nil }
+        }
         drawGen += 1; let g = drawGen
         clockwise = !starting; trace = 0; lineShown = true
         withAnimation(.timingCurve(0.5, 0, 0, 0.75, duration: 2.4)) { trace = 1 }     // the website's curve and time
@@ -421,22 +436,48 @@ struct SessionButton: View {
     }
 }
 
-/// Small dark dots drifting right to left along the button's lower third. Each eases in and out, so they bunch and
-/// stretch apart like a rubber band being drawn back; each fades in from the right and out before the left edge.
-struct TensionDots: View {
-    var ink = Color.black
-    static let count = 9, cycle = 2.6                             // dots, and seconds for one to cross
+/// Pressure, under the pointer: thick dark squares slide in from both outer edges along the button's middle and pile
+/// up against the title, each new one queuing behind the last; once the pile is full it presses inward in a slow pulse.
+/// On the click everything is let go: the squares fly back out and fade while the line draws. Leaving without a click,
+/// they simply fade.
+struct TitleWidth: PreferenceKey {
+    static let defaultValue: CGFloat = 200
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+struct PressureDots: View {
+    let ink: Color, titleWidth: CGFloat
+    let start: Date, end: Date?, release: Date?
+    static let side: CGFloat = 9, step: CGFloat = 15, every = 0.26, travel = 0.5, perSide = 8
     var body: some View {
         TimelineView(.animation) { tl in
             Canvas { c, size in
-                let t = tl.date.timeIntervalSinceReferenceDate / Self.cycle
-                for i in 0..<Self.count {
-                    let p = (t + Double(i) / Double(Self.count)).truncatingRemainder(dividingBy: 1)
-                    let e = p < 0.5 ? 2 * p * p : 1 - pow(-2 * p + 2, 2) / 2          // ease in and out: the band's stretch
-                    let x = size.width * (0.94 - 0.88 * e), y = size.height * 0.8
-                    let side: CGFloat = 3
-                    c.fill(Path(CGRect(x: x - side / 2, y: y - side / 2, width: side, height: side)),
-                           with: .color(ink.opacity(0.22 * sin(.pi * p))))
+                let now = tl.date
+                let built = (release ?? now).timeIntervalSince(start)            // how far the build got (frozen at the click)
+                let gone = release.map { now.timeIntervalSince($0) / 0.45 } ?? 0  // 0…1 after the click
+                let fade = end.map { 1 - now.timeIntervalSince($0) / 0.25 } ?? 1  // leaving without a click
+                guard gone < 1, fade > 0, built > 0 else { return }
+                let midX = size.width / 2, y = size.height / 2, s = Self.side
+                let innerL = midX - titleWidth / 2 - 20, innerR = midX + titleWidth / 2 + 20
+                let edgeL: CGFloat = 16, edgeR = size.width - 92                   // the key sits at the right edge
+                let room = Int(min(innerL - edgeL, edgeR - innerR) / Self.step)            // the same count both sides
+                let count = max(0, min(Self.perSide, room))
+                let full = built > Double(count) * Self.every + Self.travel
+                let squeeze = full ? CGFloat(sin(now.timeIntervalSinceReferenceDate * 3)) * 1.6 : 0
+                for k in 0..<count {
+                    let born = Double(k) * Self.every
+                    guard built > born else { break }
+                    var p = min(1, (built - born) / Self.travel); p = 1 - pow(1 - p, 3)        // ease out: arrives and settles
+                    for left in [true, false] {
+                        let slot = left ? innerL - CGFloat(k) * Self.step : innerR + CGFloat(k) * Self.step
+                        let from = left ? edgeL : edgeR
+                        var x = from + (slot - from) * CGFloat(p)
+                        x += (left ? 1 : -1) * squeeze * CGFloat(count - k) / CGFloat(max(count, 1))   // the pile presses in
+                        x += (left ? -1 : 1) * CGFloat(gone * gone) * 260                                   // let go
+                        let a = (1 - gone) * fade * (0.55 + 0.45 * Double(p))
+                        let r = CGRect(x: x - s / 2, y: y - s / 2, width: s, height: s)
+                        c.fill(Path(roundedRect: r, cornerRadius: 2), with: .color(ink.opacity(a)))
+                    }
                 }
             }
         }
@@ -564,6 +605,22 @@ struct FootButton: View {
 /// The line under a panel's name: white, full width — the panel's one strong rule.
 struct PanelRule: View {
     var body: some View { Rectangle().fill(Color.white).frame(height: 1).frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 12) }
+}
+
+/// Right-click on a mode, wherever it's listed: start or end it, edit it, give it a key, delete it.
+struct ModeMenu: View {
+    @ObservedObject var m: DesktopModel
+    let mode: DesktopModel.ModeLine
+    var body: some View {
+        Button(mode.live ? "End \(mode.name)" : "Start \(mode.name)") { m.act { m.f.startOrSwitch(mode.id) } }
+        Button("Edit…") { m.selection = mode.id }
+        Menu("Shortcut") {
+            Button("None") { m.act { m.f.setModeKey(mode.id, nil) } }
+            ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], id: \.self) { d in Button(m.f.label(forMode: d)) { m.act { m.f.setModeKey(mode.id, d) } } }
+        }
+        Divider()
+        Button("Delete \(mode.name)", role: .destructive) { m.act { m.f.removeMode(mode.id); if m.selection == mode.id { m.selection = nil } } }
+    }
 }
 
 /// The line of explanation under a section's name, as the menu has.
@@ -702,7 +759,7 @@ struct DesktopView: View {
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 2) {
-                SideRow(title: "Session Manager", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
+                SideRow(title: "Session Editor", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
                         action: { if m.selection == nil { m.act { m.f.toggle() } } else { m.selection = nil } },
                         hint: m.selection != nil ? "Open" : m.f.focused ? "Click to end" : "Click to start", state: m.f.focused)
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
@@ -725,16 +782,7 @@ struct DesktopView: View {
                                     icons: mode.apps.compactMap { m.f.path($0) }.map(m.icon), symbol: nil) { m.selection = mode.id }
                                 .onDrag { m.draggingMode = mode.id; return NSItemProvider(object: mode.id as NSString) }
                                 .onDrop(of: [UTType.text], delegate: ModeDrop(id: mode.id, m: m))
-                                .contextMenu {
-                                    Button(mode.live ? "End \(mode.name)" : "Start \(mode.name)") { m.act { m.f.startOrSwitch(mode.id) } }
-                                    Button("Edit…") { m.selection = mode.id }
-                                    Menu("Shortcut") {
-                                        Button("None") { m.act { m.f.setModeKey(mode.id, nil) } }
-                                        ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], id: \.self) { d in Button(m.f.label(forMode: d)) { m.act { m.f.setModeKey(mode.id, d) } } }
-                                    }
-                                    Divider()
-                                    Button("Delete \(mode.name)", role: .destructive) { m.act { m.f.removeMode(mode.id); if m.selection == mode.id { m.selection = nil } } }
-                                }
+                                .contextMenu { ModeMenu(m: m, mode: mode) }
                         }
                         SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { m.newMode() }
                     }.padding(.horizontal, 10)
@@ -804,6 +852,19 @@ struct SessionDetail: View {
                         AppRowView(app: app, icon: m.icon(app.path), mark: "lock.circle.fill", action: nil).padding(.horizontal, -14)
                     }
                     SiteButton("Add or remove…") { f.showNever() }.padding(.top, 8)
+                    // Modes follow on, as in the menu. Click one to start it; the sidebar's Modes open each in detail.
+                    SectionLabel("Modes — frequently used sessions").padding(.horizontal, -14).padding(.top, 8)
+                    Note("A mode is a set of apps you keep open. Click one to start it, or press its number. Right-click to edit it.")
+                    VStack(spacing: 2) {
+                        ForEach(m.modes) { mode in
+                            SideRow(title: mode.name, trailing: mode.key, live: mode.live, selected: false,
+                                    icons: mode.apps.compactMap { f.path($0) }.map(m.icon), symbol: nil,
+                                    action: { if !mode.apps.isEmpty { m.act { f.startOrSwitch(mode.id) } } },
+                                    hint: mode.apps.isEmpty ? "Add apps first" : mode.live ? "Click to end" : "Click to start")
+                                .contextMenu { ModeMenu(m: m, mode: mode) }
+                        }
+                        SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { m.newMode() }
+                    }.padding(.horizontal, -12)
                 }
                 .padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
             }
@@ -832,7 +893,7 @@ struct ModeDetail: View {
                         } label: { Text(mode.key.isEmpty ? "No shortcut" : mode.key).font(Site.font(15, .medium)) }
                         .menuStyle(.borderlessButton).fixedSize()
                         if !mode.live {
-                            SiteButton(mode.apps.isEmpty ? "Add an app to start" : "Start \(mode.name)") { if !mode.apps.isEmpty { m.act { f.startOrSwitch(mode.id) } } }
+                            SiteButton(mode.apps.isEmpty ? "Add an app to start" : "Start this session") { if !mode.apps.isEmpty { m.act { f.startOrSwitch(mode.id) } } }
                         }
                     }
                     PanelRule()

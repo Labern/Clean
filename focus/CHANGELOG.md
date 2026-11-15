@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.49 — 2026-11-15
+- **Session button hover:** pressure builds. Thick dark squares slide in from both outer edges along the button's middle and pile up against the title, the same number each side. Once the pile is full it presses inward in a slow pulse. Clicking lets it all go: the squares fly out and fade while the line draws. Leaving without a click fades them. They replace the faint dots.
+- **Session Editor:** the sidebar's "Session Manager" is renamed. Its page now ends with **Modes — frequently used sessions**, as the menu does: click a mode to start it, right-click to edit, or Create New Mode. The sidebar's Modes open each one in detail.
+- **Mode pages:** the start button says "Start this session".
+
 ## 0.18.48 — 2026-11-15
 - **Session page headings now match the menu's:** "Apps in Session", "Apps Outside Session" and "Critical System Processes — never quit", each with the menu's line of explanation. "Keep open this session" is gone.
 - **The big button takes the colour from Settings ▸ Appearance:** the ring colour, running into the dot's colour when the two differ. Its text turns black on light colours and white on dark ones, and the click line and hover dots follow. White is still the default. A colour picked in the menu reaches the window within 1.5 s.
