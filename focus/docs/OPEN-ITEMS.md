@@ -132,7 +132,7 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - Noted only: nothing is changed yet. Ask before building, and remember that the icon set feeds the menu bar, the
   icon picker and (via siteLogo) the app icon.
 
-> **Pricing: the full, current picture is in [PRICING-THOUGHTS.md](PRICING-THOUGHTS.md)** (Free / Pro / Max with Pro as the best deal; £50 once or a smaller monthly). The notes below are the history.
+> **Pricing: the full, current picture is in [PRICING.md](PRICING.md)** (Free / Pro / Max with Pro as the best deal; £50 once or a smaller monthly). The notes below are the history.
 
 ## Price and model — his current thinking (2026-11-15, latest; supersedes the £55 / no-free-tier note)
 - **Focus Pro is premium: £50**, one-off. Round numbers only (5s and 0s); no prices ending in 9.

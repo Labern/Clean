@@ -14,6 +14,18 @@ built yet; the app only shows the parts that are visible, and those are placehol
 - He likes having both, up front and monthly.
 - Still open: what Max includes and costs, what exactly is free, and the monthly figure.
 
+- **On the page:** Pro gets the emphasis (highlighted column, "Best value" or similar); Max is shown honestly,
+  just not pushed. It has to be honest: "no bullshit, minimalistic, honest".
+- Still open on payment: can a subscriber convert to the one-off with what they've paid credited (suggestion: yes)?
+  When a subscription lapses, back to Free (the same rule as the Pro Preview ending)? A yearly option or not
+  (suggestion: not; it muddies "once or monthly")?
+
+## On the site now (paradoxica.uk/focus; the "Focus Site" session owns it)
+- £50. Buy Now → a dummy Stripe checkout at `/focus/checkout/` (nothing is charged). Trial button: "14-Day Free
+  Trial · Everything in Pro" (to align with the app's "Pro Preview" naming once he confirms).
+- A Free | Pro table and a header "Pricing" link, built but **off** behind `SHOW_PRICING` (preview: `?pricing`).
+  Becomes Free / Pro / Max with a once/monthly toggle when he settles this. `#buy` stays the buy anchor.
+
 ## Earlier tier sketches (kept for the record)
 - **Free / Medium / Pro:** Free is a session only (no modes, no tools, minimal appearance changes). Medium is session
   plus Tools. Pro is unlimited sessions plus Tools, Modes and appearance. "Unlimited" was never defined.
