@@ -509,15 +509,22 @@ struct DesktopView: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
         let _ = m.tick
-        HStack(spacing: 0) {
-            sidebar.frame(width: 292)
-            VStack(spacing: 0) {
-                // Always there, whatever is selected: the one action, worded as in the menu, with its key. Not full
-                // width: a fat button at the top left of the pane, what it will do written beside it.
+        VStack(spacing: 0) {
+            // The top row, across the whole window: the logo, and the one action. Shown on every page.
+            HStack(alignment: .top, spacing: 0) {
+                HStack(spacing: 12) {
+                    if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
+                    Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
+                }.padding(.leading, 16).frame(width: 292, alignment: .leading)
                 VStack(spacing: 9) {
                     SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey) { m.act { m.f.toggle() } }
                     Text(m.caption).font(Site.font(17)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                }.padding(.horizontal, 28).padding(.top, Layout.top).padding(.bottom, 26)    // the top row stands apart from the page below
+                }.padding(.horizontal, 28)
+            }
+            .padding(.top, Layout.top).padding(.bottom, 26)                 // the top row stands apart from everything below
+            // Below it, the sidebar and the page start on the same line.
+            HStack(alignment: .top, spacing: 0) {
+                sidebar.frame(width: 292)
                 Group {
                     if m.selection == Page.shortcuts { ShortcutsPage(m: m) }
                     else if m.selection == Page.tools { ToolsPage(m: m) }
@@ -528,7 +535,7 @@ struct DesktopView: View {
                 }
                 .id(m.selection ?? "session").transition(.opacity)
                 .animation(.easeOut(duration: 0.16), value: m.selection)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .background(Site.bg).preferredColorScheme(.dark)
@@ -537,11 +544,6 @@ struct DesktopView: View {
     }
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 12) {
-                // The logo stands level with the session button beside it: the same height, the same top edge.
-                if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
-                Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
-            }.padding(.leading, 16).padding(.top, Layout.top).padding(.bottom, 30)       // a clear gap before the pages      // just clear of the window's three buttons
             VStack(spacing: 2) {
                 SideRow(title: "Session", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2") { m.selection = nil }
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
@@ -629,7 +631,7 @@ struct SessionDetail: View {
                     }
                     SiteButton("Add or remove…") { f.showNever() }.padding(.top, 8)
                 }
-                .padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 30)
+                .padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
             }
         }
     }
@@ -677,7 +679,7 @@ struct ModeDetail: View {
                         SiteButton("Delete Mode", tint: Site.hazard) { m.act { f.removeMode(mode.id); m.selection = nil } }
                     }.padding(.top, 10)
                 }
-                .padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 30)
+                .padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
             }
         }
         .onAppear { name = mode.name }
@@ -698,7 +700,7 @@ struct PageFrame<Content: View>: View {
                 Text(title).font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
                 Text(text).font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
                 content
-            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.top, 14).padding(.bottom, 30)
+            }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
         }
     }
 }

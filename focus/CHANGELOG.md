@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.40 — 2026-11-15
+- **Desktop app:** one top row across the whole window, with the logo and the Start/End Session button. Below it the sidebar and the page start on the same line. The button stays on every page, modes included.
+- What 0.18.39 looked like is kept in docs/looks/.
+
 ## 0.18.39 — 2026-11-15
 - More space between the session button's line and the page below, so the top row (logo, button) stands apart.
 
