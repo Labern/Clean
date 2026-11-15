@@ -115,3 +115,7 @@ built yet; the app only shows the parts that are visible, and those are placehol
 ## Purchase flow
 - Built from the Tesla research, Stripe and the MAKE book: the trial, sign-up, paying, refunds and using it must each
   be one obvious step. There's a 30-day refund. The Hub session handles Stripe, downloads and notarisation.
+
+## Badge wording (his, 2026-11-15; saved, may change later)
+- Pro's "Best value" badge could instead read **"Most popular"**. Kept as "Best value" for now; the switch is one field
+  (`badge`) in the site's `pricing.json`.
