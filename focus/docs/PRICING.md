@@ -26,11 +26,10 @@ built yet; the app only shows the parts that are visible, and those are placehol
 - **Free is partial, and not by much.** Every copy starts with **14 days of Pro**, then drops to Free.
 - **The trial takes an email.** The site's trial dialog collects it (filed on the server as `focus-signup`), then
   promises the download link by email.
-- **What Free gets (on the site now):** sessions, but **only up to 2 apps kept open** during a session; Basic
-  appearance; no Tools, Modes, History or custom shortcuts. Pro and Max: any number of apps.
-  - Why "apps kept open" and not "one session": a session is one start→end cycle; you're either in one or not, so
-    "one session" vs "unlimited sessions" limits nothing real (a daily cap would punish the habit). The number of
-    apps you can keep is felt every time and tightens as you rely on it. Easy to change if he prefers another lever.
+- **What Free gets (on the site now): 3 sessions a week** (number open), any apps kept open, basic appearance; no
+  Tools, Modes, History, shortcuts, scheduling or blocking. Pro and Max: unlimited sessions.
+  - His rule (2026-11-15): **never limit what a session can do** ("2 apps per session is unbelievably toxic and
+    unacceptable"). Limit how often instead: the user hits the weekly limit and thinks "I'll buy".
 - The pricing table (Free / Pro / Max, Monthly | One-off switch, Monthly first) and the header Pricing link are live.
 
 ## Tiers: Free, Pro, Max (latest)
