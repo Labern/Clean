@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.66 — 2026-11-15
+- **Light and Dark (and System):** Settings ▸ Appearance ▸ This window now works. Light is the site's look inverted, black on white; Dark stays the standard; System follows macOS, live. Every colour comes from the theme tokens, apart from the user's button colours and swatches. The ★★★★★ × PARADOX™ lockup turns black in Light.
+- **Pro tags:** a small white "Pro" beside Shortcuts, Tools, History and Modes in the sidebar, and on the Session Editor's Modes heading. They show on Free and during the Pro Preview, and disappear once Pro or Max is bought.
+- **Tools:** each tool records its click in ~/Library/Logs/Focus.log. A quit tool that can't run now says why (in a session, or still closing apps) instead of doing nothing.
+- **GUI tests:** 14 checks, and every visual one runs in both Light and Dark (new check 14: the right ground and a readable title in each look). All pass.
+- **Notes:** the Free limit is now "how often, never what": 3 sessions a week. Pro also sells early access and priority support. Customisation is a few schemes on Free and almost total freedom on Pro and Max.
+
 ## 0.18.65 — 2026-11-15
 - **Tiers in the app: Free, Pro or Max,** read live from the purchase (`focusTier`; the older `focusPro` flag counts as Pro). A bought Max shows a white **Max** box by the name, where Pro shows **Pro**. Max has full functionality; it's priced to make Pro the one people buy.
 - **Pricing (docs/PRICING.md, "The pricing play"):** his sales logic. The low monthly price is the lure: Pro £5/month, Max £10/month, and a very limited Free. Checkout then reveals 10× once (Pro £50 forever, Max £100) or yearly. Planned for Pro and Max: opening apps at a set time, and blocking apps.

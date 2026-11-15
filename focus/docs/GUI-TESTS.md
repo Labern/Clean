@@ -8,6 +8,8 @@ the Mac. Each prints `gui: PASS|FAIL  n. what — detail`; the exit code is the 
 touches (Width, text size, the Focus Pro flag, text colour) are put back afterwards. The menu's own tests are still
 `--selftest-stress` (see STRESS-TEST.md).
 
+Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 12, 13, 14).
+
 **Mechanical**
 1. **The sidebar is never squashed at the opening size.** On a 14" MacBook screen with 0, 2, 4 and 6 modes, the
    window is drawn at the size it opens at, and the room between the sidebar's last row and its foot is measured in
@@ -30,6 +32,7 @@ touches (Width, text size, the Focus Pro flag, text colour) are put back afterwa
 12. **Every page draws** (Session, In session, Mode, Settings, Shortcuts, Tools, History, Manual, Feedback) at the
     smallest window and in each Width, without coming out blank.
 13. **The Focus mark** shows on the big button, right of the title, during a session.
+14. **Light and Dark:** five pages (Feedback shades the page on purpose, so it is left out) in each look draw on the right ground (white or black), with a readable title.
 
 **Not covered** (needs the real screen or a pointer): hover states, the hand cursor, drag to reorder, the pressure
 build and release over time, the click line animating, ⌘Q/⌘H in a live window. Check these by eye.

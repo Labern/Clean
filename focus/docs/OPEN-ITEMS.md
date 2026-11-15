@@ -191,6 +191,8 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 ## Planned for Pro and Max (2026-11-15, not built; ask before building)
 - **Open apps at a set time:** e.g. Discord at 5:30pm.
 - **Block apps:** keep chosen apps from opening.
-- **Gating to match the site's table** (Focus Site session, PRICING.md): Free keeps at most 2 apps open in a session,
-  with basic appearance and no Tools, Modes, History or custom shortcuts. Pro and Max have everything. The app gates
-  nothing yet: it waits for licences.
+- **Gating to match the site's table** (Focus Site session, PRICING.md). His rule: **never limit what a session can
+  do, only how often.** Free gets **3 sessions a week** (a starting figure) with any apps kept open, basic appearance
+  (a few set schemes), and no Tools, Modes, History, custom shortcuts, scheduling or blocking. Pro and Max have
+  unlimited sessions and everything. The app gates nothing yet: it waits for licences. The small white "Pro" tags
+  (0.18.66) already mark the Pro parts.

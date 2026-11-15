@@ -1763,7 +1763,8 @@ final class Focus: NSObject, NSMenuDelegate {
     /// Tools ▸ Quit All Apps (and optionally restart): everything goes except Critical System Processes, Focus and
     /// nothing else — "keep open" ticks don't apply. Same slow, safe quit; saved as a Past session.
     func quitAll(restart: Bool, only: Set<String>? = nil, confirm: Bool = true) {
-        guard !focused, !clearing else { return }
+        flog("tool: quit all\(restart ? " & restart" : "") — focused \(focused), clearing \(clearing)")
+        guard !focused, !clearing else { if confirm { toolRefused() }; return }
         let out: [NSRunningApplication] = ws.runningApplications.filter { app in
             app.activationPolicy == .regular && !protected(app)
                 && (only?.contains(app.bundleIdentifier ?? "") ?? true)
@@ -1803,7 +1804,8 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     /// Tools ▸ Force Quit All: the blunt one. Same spared set; unsaved work is lost, so it asks first, in red.
     func forceQuitAll(only: Set<String>? = nil, confirm: Bool = true) {
-        guard !focused, !clearing else { return }
+        flog("tool: force quit all — focused \(focused), clearing \(clearing)")
+        guard !focused, !clearing else { if confirm { toolRefused() }; return }
         let out: [NSRunningApplication] = ws.runningApplications.filter { app in
             app.activationPolicy == .regular && !protected(app)
                 && (only?.contains(app.bundleIdentifier ?? "") ?? true)
@@ -1827,8 +1829,17 @@ final class Focus: NSObject, NSMenuDelegate {
     @objc func openActivityMonitor() { openApp("com.apple.ActivityMonitor") }
     @objc func openSystemSettings() { openApp("com.apple.systempreferences") }
     func openApp(_ id: String) {
-        guard let url = ws.urlForApplication(withBundleIdentifier: id) else { return }
-        ws.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+        guard let url = ws.urlForApplication(withBundleIdentifier: id) else { flog("tool: open \(id) — not found"); tell("Couldn't find that app", "macOS didn't return \(id)."); return }
+        flog("tool: open \(id)")
+        ws.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            if let error { flog("tool: open \(id) failed — \(error.localizedDescription)") }
+        }
+    }
+    /// A quit tool asked for at a moment it can't run: say why, rather than doing nothing.
+    func toolRefused() {
+        tell(focused ? "End the session first" : "Still closing apps",
+             focused ? "The quit tools work outside a session, so they never close the apps you're focusing on."
+                     : "Focus is still closing apps from the last request. Try again when it's finished.")
     }
     @objc func quitAllApps() { quitAll(restart: false) }
     @objc func quitAllRestart() { quitAll(restart: true) }

@@ -12,6 +12,13 @@ built yet; the app only shows the parts that are visible, and those are placehol
 - **Yearly: undecided, removed from the checkout.** He's weighing **£50 a year**, with the one-off at some higher **£X**.
 - **Max: nobody should ever want to buy it, but it needs full functionality.** It exists to make Pro the obvious buy.
 
+## What each tier gets — his latest (2026-11-15)
+- **Pro also sells early access and priority support:** new features first, and help first.
+- **Customisation grows with the tier.** Free has a limited subset (e.g. a few set schemes). Pro opens it up to almost
+  total freedom (unlimited schemes, colours, icons, layouts), and so does Max.
+- **Max still needs its own distinguishing offer** (open). It has everything Pro has, and must stay fully functional,
+  but it shouldn't be what most people buy.
+
 ## New features (his, 2026-11-15) — Pro and Max only; for the app session to build
 1. **Open apps at a set time**, e.g. fun apps like Discord at 5:30 PM.
 2. **Block apps you choose** (other apps do this; here it's part of Pro and Max).

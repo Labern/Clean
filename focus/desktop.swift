@@ -25,8 +25,30 @@ enum Layout { static let top: CGFloat = 28, button: CGFloat = 64 }
 /// The website's design tokens (its :root block), so the window and the site are one look.
 enum Site {
     static func hex(_ h: UInt32) -> Color { Color(red: Double((h >> 16) & 255) / 255, green: Double((h >> 8) & 255) / 255, blue: Double(h & 255) / 255) }
-    static let bg = Color.black, surface = hex(0x1A1A1A), surface2 = hex(0x232323), line = hex(0x2A2A2A)
-    static let head = Color.white, body = hex(0xEEEEEE), low = hex(0xD0D1D2), muted = hex(0x8E8E8E), hazard = hex(0xED4E3B)
+    /// The window's look: Light, Dark (the standard) or System (follows macOS, live). Settings ▸ Appearance ▸ This
+    /// window; renders: `look=light|dark`. Every colour below follows it: the site's white on black, or its exact
+    /// inverse, black on white.
+    static var look: Int { renderArgs.contains("look=light") ? 0 : renderArgs.contains("look=dark") ? 1 : (UserDefaults.standard.object(forKey: "desktopLook") as? Int ?? 1) }
+    static var light: Bool {
+        switch look {
+        case 0: return true
+        case 2: return NSApp?.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .aqua
+        default: return false
+        }
+    }
+    static func pick(_ dark: UInt32, _ lite: UInt32) -> Color { hex(light ? lite : dark) }
+    static var ink: Color { light ? .black : .white }               // what was white: text, rules, solid buttons
+    static var paper: Color { light ? .white : .black }             // what was black: the ground, text on solid buttons
+    static var bg: Color { paper }
+    static var surface: Color { pick(0x1A1A1A, 0xF2F2F2) }
+    static var surface2: Color { pick(0x232323, 0xE6E6E6) }
+    static var line: Color { pick(0x2A2A2A, 0xDDDDDD) }
+    static var head: Color { ink }
+    static var body: Color { pick(0xEEEEEE, 0x111111) }
+    static var low: Color { pick(0xD0D1D2, 0x3A3A3A) }
+    static var muted: Color { pick(0x8E8E8E, 0x6E6E6E) }
+    static var idle: Color { pick(0x4A4A4A, 0xC4C4C4) }              // the memory bar's grey (apps that would close)
+    static let hazard = hex(0xED4E3B)
     enum Weight { case regular, medium, semibold }
     /// Graphik, the site's face (it ships with macOS as a downloadable system font); Helvetica Neue if it's absent.
     /// The user's text size for the window (View ▸ Bigger Text / Smaller Text): every size is multiplied by it.
@@ -204,7 +226,7 @@ final class DesktopModel: ObservableObject {
         RunLoop.main.add(t, forMode: .common); timer = t
     }
     func stop() { timer?.invalidate(); timer = nil }
-    func refresh() { f.mem = memoryByPid(); tick &+= 1 }
+    func refresh() { f.mem = memoryByPid(); if Site.look == 2, let w = desktop.window { DesktopController.applyLook(to: w) }; tick &+= 1 }
     /// Do something to the engine, then show it.
     func act(_ change: () -> Void) { change(); tick &+= 1 }
 
@@ -355,7 +377,7 @@ struct MemoryBar: View {
                 HStack(spacing: 2) {
                     ForEach(apps.filter { $0.bytes > 0 }) { a in
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(a.on ? Color.white : Site.hex(0x4A4A4A)).opacity(hover == nil || hover == a.id ? 1 : 0.45)
+                            .fill(a.on ? Site.ink : Site.idle).opacity(hover == nil || hover == a.id ? 1 : 0.45)
                             .frame(width: max(3, (g.size.width - CGFloat(apps.count) * 2) * CGFloat(a.bytes) / CGFloat(total)))
                             .onHover { hover = $0 ? a.id : (hover == a.id ? nil : hover) }
                     }
@@ -593,7 +615,7 @@ struct PressStyle: ButtonStyle {
 struct PulseDot: View {
     @State private var on = false
     var body: some View {
-        Circle().fill(Color.white).frame(width: 8, height: 8).opacity(on ? 1 : 0.35)
+        Circle().fill(Site.ink).frame(width: 8, height: 8).opacity(on ? 1 : 0.35)
             .onAppear { withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { on = true } }
     }
 }
@@ -611,8 +633,9 @@ struct SiteEditor: NSViewRepresentable {
         let scroll = NSTextView.scrollableTextView(), tv = scroll.documentView as! NSTextView
         scroll.drawsBackground = false; scroll.hasVerticalScroller = false; scroll.scrollerStyle = .overlay
         tv.drawsBackground = false; tv.isRichText = false; tv.allowsUndo = true
-        tv.font = Self.nsFont(size); tv.textColor = .white; tv.insertionPointColor = .white
-        tv.typingAttributes = [.font: Self.nsFont(size), .foregroundColor: NSColor.white]
+        let ink: NSColor = Site.light ? .black : .white
+        tv.font = Self.nsFont(size); tv.textColor = ink; tv.insertionPointColor = ink
+        tv.typingAttributes = [.font: Self.nsFont(size), .foregroundColor: ink]
         tv.textContainerInset = NSSize(width: 0, height: 0); tv.delegate = context.coordinator; tv.string = text
         DispatchQueue.main.async { tv.window?.makeFirstResponder(tv) }
         return scroll
@@ -667,9 +690,9 @@ struct FeedbackCard: View {
                         Spacer()
                         SiteButton("Cancel") { m.feedbackShown = false }
                         Button { m.sendFeedback() } label: {
-                            Text(m.feedbackState == .sending ? "Sending…" : "Send").font(Site.font(18, .medium)).foregroundColor(.black)
+                            Text(m.feedbackState == .sending ? "Sending…" : "Send").font(Site.font(18, .medium)).foregroundColor(Site.paper)
                                 .padding(.horizontal, 22).frame(height: 32)
-                                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
+                                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Site.ink))
                         }.buttonStyle(.plain)
                         .opacity(m.feedbackText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || m.feedbackState == .sending ? 0.35 : 1)
                     }
@@ -677,7 +700,7 @@ struct FeedbackCard: View {
             }
             .padding(24).frame(width: 520)
             .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Site.bg))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.white.opacity(0.35), lineWidth: 1))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Site.ink.opacity(0.35), lineWidth: 1))
             .shadow(color: .black.opacity(0.6), radius: 30, y: 12)
         }
     }
@@ -701,12 +724,12 @@ struct FootButton: View {
 /// The line under a heading inside a panel (Behaviour, Appearance, the Manual's sections): white, full width, finer
 /// than the panel's own.
 struct HeadingRule: View {
-    var body: some View { Rectangle().fill(Color.white.opacity(0.85)).frame(height: 0.75).frame(maxWidth: .infinity) }
+    var body: some View { Rectangle().fill(Site.ink.opacity(0.85)).frame(height: 0.75).frame(maxWidth: .infinity) }
 }
 
 /// The line under a panel's name: white, full width — the panel's one strong rule.
 struct PanelRule: View {
-    var body: some View { Rectangle().fill(Color.white).frame(height: 1).frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 12) }
+    var body: some View { Rectangle().fill(Site.ink).frame(height: 1).frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 12) }
 }
 
 /// A mode in the Session Editor's list. Its name opens it to edit (as does the rest of the row). At the right: its key,
@@ -728,20 +751,20 @@ struct ModeListRow: View {
             Spacer(minLength: 8)
             if mode.live {
                 Button { m.act { m.f.startOrSwitch(mode.id) } } label: {
-                    Text(hover ? "End session" : "On").font(Site.font(14, .medium)).foregroundColor(.black)
-                        .padding(.horizontal, 12).frame(height: 26).background(Capsule().fill(Color.white))
+                    Text(hover ? "End session" : "On").font(Site.font(14, .medium)).foregroundColor(Site.paper)
+                        .padding(.horizontal, 12).frame(height: 26).background(Capsule().fill(Site.ink))
                 }.buttonStyle(PressStyle())
             } else if hover {
                 Button { if !mode.apps.isEmpty { m.act { m.f.startOrSwitch(mode.id) } } } label: {
-                    Text(mode.apps.isEmpty ? "Add apps first" : "Start session").font(Site.font(14, .medium)).foregroundColor(.black)
-                        .padding(.horizontal, 12).frame(height: 26).background(Capsule().fill(Color.white))
+                    Text(mode.apps.isEmpty ? "Add apps first" : "Start session").font(Site.font(14, .medium)).foregroundColor(Site.paper)
+                        .padding(.horizontal, 12).frame(height: 26).background(Capsule().fill(Site.ink))
                 }.buttonStyle(PressStyle()).opacity(mode.apps.isEmpty ? 0.5 : 1)
             }
             Text(mode.key).font(Site.font(15)).foregroundColor(Site.muted).frame(minWidth: 30, alignment: .trailing)
         }
         .padding(.horizontal, 12).frame(height: 40)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hover ? Site.surface : Color.clear))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Color.white.opacity(mode.live ? 0.85 : 0), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.ink.opacity(mode.live ? 0.85 : 0), lineWidth: 1))
         .contentShape(Rectangle()).onHover { hover = $0 }
         .onTapGesture { m.selection = mode.id }
     }
@@ -775,7 +798,8 @@ struct Note: View {
 /// With no name, it is just the column name, small, over the list.
 struct SectionLabel: View {
     let left: String, right: String, divider: Bool
-    init(_ left: String, _ right: String = "", divider: Bool = true) { self.left = left; self.right = right; self.divider = divider }
+    var pro = false
+    init(_ left: String, _ right: String = "", divider: Bool = true, pro: Bool = false) { self.left = left; self.right = right; self.divider = divider; self.pro = pro }
     var body: some View {
         if left.isEmpty {
             HStack { Spacer(); Text(right).font(Site.font(15)).foregroundColor(Site.muted).padding(.trailing, 38) }
@@ -784,6 +808,7 @@ struct SectionLabel: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(left).font(Site.font(22, .medium)).tracking(-0.3).foregroundColor(Site.head)
+                    if pro { ProTag().alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 } }
                     Spacer()
                     if !right.isEmpty { Text(right).font(Site.font(15)).foregroundColor(Site.muted).padding(.trailing, 24) }
                 }
@@ -809,11 +834,25 @@ struct SiteButton: View {
     }
 }
 
+/// A small white "Pro" beside something only Pro (and Max) include — shown on Free and during the Pro Preview, so
+/// it's clear what Pro brings; gone once Pro or Max is bought.
+struct ProTag: View {
+    var body: some View {
+        if !DesktopModel.licensed || renderArgs.contains("tags") {
+            Text("Pro").font(Site.font(11, .semibold)).foregroundColor(Site.paper)
+                .padding(.horizontal, 5).frame(height: 16)
+                .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Site.ink))
+                .help("Part of Focus Pro")
+        }
+    }
+}
+
 struct SideRow: View {
     let title: String, trailing: String, live: Bool, selected: Bool, icons: [NSImage], symbol: String?, action: () -> Void
     var hint: String? = nil                                      // under the pointer, said at the right instead of `trailing`
     var state: Bool? = nil                                       // the Session Editor: white "On" in a session, nothing otherwise
     var start: (() -> Void)? = nil                               // a mode: under the pointer, "Start" (or "End") takes the key's place
+    var pro = false                                              // a Pro feature: a small "Pro" tag after the title
     @State private var hover = false
     var body: some View {
         HStack(spacing: 10) {
@@ -826,19 +865,20 @@ struct SideRow: View {
                 }.frame(width: 40, alignment: .leading)
             }
             Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1).truncationMode(.tail)   // never shrinks (e.g. when Start appears)
+            if pro { ProTag() }
             Spacer(minLength: 6)
             if hover, let start {
                 Button(action: start) {
-                    Text(live ? "End" : "Start").font(Site.font(14, .medium)).foregroundColor(.black)
-                        .padding(.horizontal, 10).frame(height: 22).background(Capsule().fill(Color.white))
+                    Text(live ? "End" : "Start").font(Site.font(14, .medium)).foregroundColor(Site.paper)
+                        .padding(.horizontal, 10).frame(height: 22).background(Capsule().fill(Site.ink))
                 }.buttonStyle(PressStyle()).help(live ? "End this session" : "Start this session")
             } else {
-            if live && state == nil { Text("On").font(Site.font(14, .medium)).foregroundColor(.black).padding(.horizontal, 7).frame(height: 18).background(Capsule().fill(Color.white)) }
+            if live && state == nil { Text("On").font(Site.font(14, .medium)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 18).background(Capsule().fill(Site.ink)) }
             if hover, let hint, state != nil { Text(hint).font(Site.font(15)).foregroundColor(Site.head) }
             if let on = state {                                 // "On" in a session; nothing otherwise
                 if on {
-                    Text("On").font(Site.font(14, .medium)).foregroundColor(.black)
-                        .frame(width: 38, height: 20).background(RoundedRectangle(cornerRadius: 10, style: .circular).fill(Color.white))
+                    Text("On").font(Site.font(14, .medium)).foregroundColor(Site.paper)
+                        .frame(width: 38, height: 20).background(RoundedRectangle(cornerRadius: 10, style: .circular).fill(Site.ink))
                 }
             } else { Text(hover && hint != nil ? hint! : trailing).font(Site.font(15)).foregroundColor(live || (hover && hint != nil) ? Site.head : Site.muted) }
             }
@@ -846,7 +886,7 @@ struct SideRow: View {
         .foregroundColor(selected || live ? Site.head : Site.low)
         .padding(.horizontal, 12).frame(height: 34)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(selected ? Site.surface2 : hover || live ? Site.surface : Color.clear))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Color.white.opacity(live ? 0.85 : 0), lineWidth: 1))   // in use: outlined in white
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.ink.opacity(live ? 0.85 : 0), lineWidth: 1))   // in use: outlined in white
         .contentShape(Rectangle()).onHover { hover = $0 }.onTapGesture(perform: action)
     }
 }
@@ -877,9 +917,9 @@ struct DesktopView: View {
                     if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
                     if DesktopModel.licensed || DesktopModel.showBoth {    // bought: Focus Pro (or Max) — a small white box by the name
-                        Text(DesktopModel.tier == .max ? "Max" : "Pro").font(Site.font(15, .semibold)).foregroundColor(.black)
+                        Text(DesktopModel.tier == .max ? "Max" : "Pro").font(Site.font(15, .semibold)).foregroundColor(Site.paper)
                             .padding(.horizontal, 7).frame(height: 24)
-                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.ink))
                             .offset(y: 2)
                     }
                 }.padding(.leading, 16).frame(width: 292, alignment: .leading)
@@ -909,14 +949,15 @@ struct DesktopView: View {
                 .padding(.leading, pageInsets.lead).padding(.trailing, pageInsets.trail)
             }
         }
-        .background(Site.bg).preferredColorScheme(.dark)
+        .background(Site.bg).preferredColorScheme(Site.light ? .light : .dark)
         .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
         .animation(.easeOut(duration: 0.15), value: m.feedbackShown)
     }
     /// The big button wears the colour chosen in Settings ▸ Appearance (the icon's ring, then its dot), white when none is.
     /// Its text is the user's Text colour: black (the standard) or white.
     var buttonColours: (Color, Color, Color) {
-        let a = hexColor(m.f.iconColor) ?? .white, b = hexColor(m.f.iconColor2) ?? a
+        guard let a = hexColor(m.f.iconColor) else { return (Site.ink, Site.ink, Site.paper) }   // no colour: the look's own
+        let b = hexColor(m.f.iconColor2) ?? a
         return (Color(nsColor: a), Color(nsColor: b), Self.buttonInkWhite ? .white : .black)
     }
     /// Settings ▸ Appearance ▸ Text colour (the big button only). Renders: `ink=white`.
@@ -926,14 +967,15 @@ struct DesktopView: View {
             VStack(spacing: 2) {
                 SideRow(title: "Session Editor", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
                         action: { m.selection = nil }, state: m.f.focused)
-                SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
-                SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver") { m.selection = Page.tools }
-                SideRow(title: "History", trailing: m.f.sessions.isEmpty ? "" : "\(m.f.sessions.count)", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath") { m.selection = Page.history }
+                SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard", action: { m.selection = Page.shortcuts }, pro: true)
+                SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver", action: { m.selection = Page.tools }, pro: true)
+                SideRow(title: "History", trailing: m.f.sessions.isEmpty ? "" : "\(m.f.sessions.count)", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath", action: { m.selection = Page.history }, pro: true)
                 SideRow(title: "Settings", trailing: "", live: false, selected: m.selection == Page.settings, icons: [], symbol: "gearshape") { m.selection = Page.settings }
             }.padding(.horizontal, 10)
             Button { withAnimation(.easeOut(duration: 0.15)) { m.modesShown.toggle() } } label: {
                 HStack(spacing: 5) {
                     Text("Modes").font(Site.font(16, .medium))
+                    ProTag()
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(m.modesShown ? 90 : 0)).offset(y: 1.5)   // on the text's middle line
                     Spacer()
                 }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 14).padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())
@@ -960,16 +1002,16 @@ struct DesktopView: View {
                 if DesktopModel.trial && (!DesktopModel.licensed || DesktopModel.showBoth) {   // a trial: one clear way to buy
                     Button { NSWorkspace.shared.open(DesktopModel.buy) } label: {
                         BuyLabel()                                       // the Pro Preview
-                            .foregroundColor(.black)
+                            .foregroundColor(Site.paper)
                             .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(minHeight: 40).padding(.vertical, BuyLabel.style == 4 ? 6 : 0)
-                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.ink))
                     }.buttonStyle(PressStyle()).help("paradoxica.co.uk/focus").linkCursor()
                 }
                 if let u = m.update {
                     Button { NSWorkspace.shared.open(u.url) } label: {
                         HStack(spacing: 7) { Image(systemName: "arrow.down.circle.fill").font(.system(size: 15)); Text("Update available").font(Site.font(15, .medium)) }
-                            .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: 36)
-                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
+                            .foregroundColor(Site.paper).frame(maxWidth: .infinity).frame(height: 36)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Site.ink))
                     }.buttonStyle(.plain).help("Focus \(u.version) is available. Click to get it.")
                 }
                 HStack(spacing: 6) {                                  // one row, the sidebar's width, equal parts
@@ -980,7 +1022,7 @@ struct DesktopView: View {
                 }
                 Button { NSWorkspace.shared.open(DesktopModel.site) } label: {
                     HStack(alignment: .top, spacing: 3) {
-                        if let b = brandLockup { Image(nsImage: b).resizable().interpolation(.high).frame(width: 196, height: 196 * 112.0 / 1080.0) }
+                        if let b = brandLockup { Image(nsImage: Site.light ? tinted(b, .black) : b).resizable().interpolation(.high).frame(width: 196, height: 196 * 112.0 / 1080.0) }
                         else { Text("★★★★★ × PARADOX").font(Site.font(15)).foregroundColor(Site.head) }
                         Text("™").font(Site.font(8, .medium)).foregroundColor(Site.head).offset(x: -3, y: 2)
                     }.fixedSize().frame(maxWidth: .infinity).padding(.top, 12).padding(.bottom, 2).contentShape(Rectangle())
@@ -1027,7 +1069,7 @@ struct SessionDetail: View {
                     }
                     SiteButton("Add or remove…") { f.showNever() }.padding(.top, 8)
                     // Modes follow on, as in the menu. Click one to start it; the sidebar's Modes open each in detail.
-                    SectionLabel("Modes — frequently used sessions").padding(.horizontal, -14).padding(.top, 8)
+                    SectionLabel("Modes — frequently used sessions", pro: true).padding(.horizontal, -14).padding(.top, 8)
                     Note("A mode is a set of apps you keep open. Start one with its button or its key; click its name to edit it.")
                     VStack(spacing: 2) {
                         ForEach(m.modes) { mode in
@@ -1133,10 +1175,10 @@ struct ChoiceOption: View {
     var body: some View {
         let lit = hover && available && !on
         Button { if available { pick() } } label: {
-            Text(title).font(Site.font(16, .medium)).foregroundColor(on ? .black : Site.head).lineLimit(1).fixedSize()
+            Text(title).font(Site.font(16, .medium)).foregroundColor(on ? Site.paper : Site.head).lineLimit(1).fixedSize()
                 .padding(.horizontal, 16).frame(height: 36)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Color.white : lit ? Site.surface2 : Color.clear))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(on ? 0 : lit ? 1 : 0.75), lineWidth: 1))
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Site.ink : lit ? Site.surface2 : Color.clear))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Site.ink.opacity(on ? 0 : lit ? 1 : 0.75), lineWidth: 1))
                 .contentShape(Rectangle())
         }.buttonStyle(PressStyle()).opacity(available ? 1 : 0.35).onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: lit)
@@ -1156,8 +1198,8 @@ struct TextSizeStepper: View {
             key("minus", enabled: Site.scale > 0.801) { desktop.smallerText() }.help("Smaller (⌘−)")
             Button { desktop.setScale(1) } label: {
                 Text(Self.label(Site.scale)).font(Site.font(16, .medium))
-                    .foregroundColor(.black).lineLimit(1).fixedSize().frame(minWidth: 110).frame(height: 36)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white)).contentShape(Rectangle())
+                    .foregroundColor(Site.paper).lineLimit(1).fixedSize().frame(minWidth: 110).frame(height: 36)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Site.ink)).contentShape(Rectangle())
             }.buttonStyle(.plain).help(Self.label(Site.scale) == "Default" ? "The standard size" : "Back to Default")
             key("plus", enabled: Site.scale < 1.599) { desktop.biggerText() }.help("Bigger (⌘+)")
         }
@@ -1175,7 +1217,7 @@ struct StepKey: View {
         Button(action: act) {
             Image(systemName: symbol).font(.system(size: 14, weight: .semibold)).foregroundColor(Site.head).frame(width: 44, height: 36)
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(lit ? Site.surface2 : Color.clear))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(lit ? 1 : 0.75), lineWidth: 1)).contentShape(Rectangle())
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Site.ink.opacity(lit ? 1 : 0.75), lineWidth: 1)).contentShape(Rectangle())
         }.buttonStyle(PressStyle()).disabled(!enabled).opacity(enabled ? 1 : 0.35).onHover { hover = $0 }
         .animation(.easeOut(duration: 0.12), value: lit)
     }
@@ -1194,7 +1236,7 @@ struct ColourTile: View {
                 Spacer(minLength: 0)
             }.padding(.horizontal, 12).frame(height: 38)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on || hover ? Site.surface2 : Site.surface))
-            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(on ? 0.9 : hover ? 0.4 : 0), lineWidth: on ? 1.5 : 1))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Site.ink.opacity(on ? 0.9 : hover ? 0.4 : 0), lineWidth: on ? 1.5 : 1))
             .contentShape(Rectangle())
         }.buttonStyle(.plain).onHover { hover = $0 }.animation(.easeOut(duration: 0.12), value: hover)
     }
@@ -1487,7 +1529,7 @@ struct KeyLine: View {
                 ForEach(keys, id: \.self) { k in
                     Text(k).font(Site.font(16, .medium)).foregroundColor(Site.head).frame(minWidth: 30, minHeight: 30)
                         .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Site.surface))
-                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color.white.opacity(0.35), lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Site.ink.opacity(0.35), lineWidth: 1))
                 }
             }.frame(width: 112, alignment: .leading)
             Text(says).font(Site.font(16)).foregroundColor(Site.low)
@@ -1513,16 +1555,16 @@ struct DesktopSketch: View {
                     if busy || i < 3 {
                         let kept = !busy && i < 3                         // the chosen few only stand out once the rest have gone
                         VStack(alignment: .leading, spacing: H * 0.018) {
-                            HStack(spacing: 3) { ForEach(0..<3, id: \.self) { _ in Circle().fill(Color.white.opacity(kept ? 0.55 : 0.25)).frame(width: 4, height: 4) } }
+                            HStack(spacing: 3) { ForEach(0..<3, id: \.self) { _ in Circle().fill(Site.ink.opacity(kept ? 0.55 : 0.25)).frame(width: 4, height: 4) } }
                             ForEach(0..<4, id: \.self) { l in
-                                Capsule().fill(Color.white.opacity(kept ? 0.4 : 0.14)).frame(width: r.2 * W * [0.7, 0.85, 0.5, 0.75][l] - 12, height: 3)
+                                Capsule().fill(Site.ink.opacity(kept ? 0.4 : 0.14)).frame(width: r.2 * W * [0.7, 0.85, 0.5, 0.75][l] - 12, height: 3)
                             }
                             Spacer(minLength: 0)
                         }
                         .padding(6)
                         .frame(width: r.2 * W, height: r.3 * H, alignment: .topLeading)
                         .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(kept ? Site.surface2 : Site.surface))
-                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Color.white.opacity(kept ? 0.85 : 0.18), lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Site.ink.opacity(kept ? 0.85 : 0.18), lineWidth: 1))
                         .offset(x: r.0 * W, y: r.1 * H)
                     }
                 }
@@ -1582,7 +1624,7 @@ struct IconCell: View {
         }
         .frame(maxWidth: .infinity).frame(height: 76)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(hover || selected ? Site.surface2 : Site.surface))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.white.opacity(selected ? 0.9 : 0), lineWidth: 1.5))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.ink.opacity(selected ? 0.9 : 0), lineWidth: 1.5))
         .contentShape(Rectangle()).onHover { hover = $0 }.onTapGesture(perform: pick)
     }
 }
@@ -1640,8 +1682,8 @@ struct SettingsPage: View {
                 }
             }
             GroupTitle("Appearance")
-            SettingLine(title: "This window", note: "Dark is the standard look. Light and System are coming.") {
-                Choice(options: ["Light", "Dark", "System"], selected: 1, unavailable: [0, 2]) { _ in }
+            SettingLine(title: "This window", note: "Dark is the standard look. System follows your Mac.") {
+                Choice(options: ["Light", "Dark", "System"], selected: Site.look) { i in desktop.setLook(i) }
             }
             SettingLine(title: "Menu", note: "The look of the menu bar menu.") {
                 Choice(options: ["Dark", "Light"], selected: f.lightMenuSetting ? 1 : 0) { i in m.act { f.lightMenuSetting = i == 1 } }
@@ -1719,7 +1761,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             let w = DesktopWindow(contentRect: NSRect(origin: .zero, size: size),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden; w.title = "Focus"
-            w.backgroundColor = .black; w.appearance = NSAppearance(named: .darkAqua)
+            Self.applyLook(to: w)
             w.isMovableByWindowBackground = false; w.isReleasedWhenClosed = false   // drag the top strip to move it: rows are for dragging apps
             w.minSize = NSSize(width: 600, height: 420)
             let host = NSHostingView(rootView: DesktopView(m: m))
@@ -1810,6 +1852,12 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
         return NSSize(width: max(600, min(1100, screen.width - 120) - (minimal ? DesktopView.minimalCut : 0)),
                       height: max(420, min(max(780, sidebar), screen.height - 60)))
     }
+    /// Settings ▸ Appearance ▸ This window. The window's own frame and controls follow at once.
+    func setLook(_ i: Int) { UserDefaults.standard.set(i, forKey: "desktopLook"); if let w = window { Self.applyLook(to: w) }; model?.tick &+= 1 }
+    static func applyLook(to w: NSWindow) {
+        w.backgroundColor = Site.light ? .white : .black
+        w.appearance = Site.look == 2 ? nil : NSAppearance(named: Site.light ? .aqua : .darkAqua)   // System: follow macOS
+    }
     func setWidth(_ i: Int) {
         let was = DesktopView.trial
         UserDefaults.standard.set(i, forKey: "desktopWidthV2"); model?.tick &+= 1
@@ -1880,7 +1928,7 @@ func renderDesktop(to file: String, mode: Bool) {
     if let w = renderArgs.first(where: { $0.hasPrefix("w=") }).flatMap({ Double($0.dropFirst(2)) }) { size.width = CGFloat(w) }
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
-    w.appearance = NSAppearance(named: .darkAqua); w.contentView = host
+    w.appearance = NSAppearance(named: Site.light ? .aqua : .darkAqua); w.contentView = host
     host.frame = NSRect(origin: .zero, size: size); host.layoutSubtreeIfNeeded()
     RunLoop.main.run(until: Date().addingTimeInterval(0.6))
     if let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) {
@@ -1909,13 +1957,13 @@ private func lum(_ r: NSBitmapImageRep, _ x: Int, _ y: Int) -> CGFloat {
 }
 /// In the sidebar (points 20…280 across): the top of the first full-width white button below `from`, and the bottom
 /// of the last drawn thing above it. Their distance is the slack the sidebar has: below a few points, it's squashed.
-private func sidebarSlack(_ r: NSBitmapImageRep, from: CGFloat = 300) -> (gap: CGFloat, buyTop: CGFloat)? {
+private func sidebarSlack(_ r: NSBitmapImageRep, from: CGFloat = 300, light: Bool = false) -> (gap: CGFloat, buyTop: CGFloat)? {
     let s = CGFloat(r.pixelsWide) / 1000.0 * (1000.0 / max(1, CGFloat(r.size.width)))   // pixels per point
     let px = { (p: CGFloat) in Int(p * s) }
     let xs = Array(stride(from: px(20), to: px(280), by: 4))
-    func white(_ y: Int) -> Bool { xs.filter { lum(r, $0, y) > 0.93 }.count > Int(Double(xs.count) * 0.8) }
+    func white(_ y: Int) -> Bool { xs.filter { light ? lum(r, $0, y) < 0.07 : lum(r, $0, y) > 0.93 }.count > Int(Double(xs.count) * 0.8) }   // the solid (ink) button
     guard let buy = (px(from)..<r.pixelsHigh).first(where: white) else { return nil }
-    guard let last = (px(from)..<max(px(from), buy - 2)).last(where: { y in xs.contains { lum(r, $0, y) > 0.24 } }) else { return nil }
+    guard let last = (px(from)..<max(px(from), buy - 2)).last(where: { y in xs.contains { light ? lum(r, $0, y) < 0.76 : lum(r, $0, y) > 0.24 } }) else { return nil }
     return (CGFloat(buy - last) / s, CGFloat(buy) / s)
 }
 
@@ -1937,13 +1985,14 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     //    screen, the sidebar keeps slack between its last row and the foot.
     let screen = NSRect(x: 0, y: 0, width: 1512, height: 945)
     var worst: (Int, CGFloat) = (-1, .infinity), missing = [Int]()
-    for n in [0, 2, 4, 6] {
+    for look in ["dark", "light"] { for n in [0, 2, 4, 6] {
         let size = DesktopController.defaultSize(modes: n, screen: screen, minimal: false)
-        guard let r = guiRender(["modes=\(n)", "w=\(Int(size.width))", "h=\(Int(size.height))", "trial=narrow"]), let sl = sidebarSlack(r) else { missing.append(n); continue }
+        guard let r = guiRender(["modes=\(n)", "w=\(Int(size.width))", "h=\(Int(size.height))", "trial=narrow", "look=\(look)"]),
+              let sl = sidebarSlack(r, light: look == "light") else { missing.append(n); continue }
         if sl.gap < worst.1 { worst = (n, sl.gap) }
-    }
+    } }
     check(1, "sidebar never squashed at the opening size", missing.isEmpty && worst.1 >= 12,
-          missing.isEmpty ? "least slack \(Int(worst.1)) pt (with \(worst.0) modes)" : "no foot found with \(missing) modes")
+          missing.isEmpty ? "Light and Dark: least slack \(Int(worst.1)) pt (with \(worst.0) modes)" : "no foot found with \(missing) modes")
 
     // 2. The opening size stays on screen and is never smaller than the window allows, on small and large screens.
     let screens = [NSRect(x: 0, y: 0, width: 1280, height: 775), screen, NSRect(x: 0, y: 0, width: 2560, height: 1415)]
@@ -2001,22 +2050,26 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     // 8. Focus Pro: the purchase flag is read live; set, the top left gains the white "Pro" box beside the name.
     std.set("max", forKey: "focusTier"); let maxTier = DesktopModel.tier == .max; std.removeObject(forKey: "focusTier")
     std.set(true, forKey: "focusPro"); let on = DesktopModel.licensed && DesktopModel.tier == .pro
-    let proPic = guiRender(["trial=narrow"])
+    var proBox = true
+    for look in ["dark", "light"] {                                  // the box is ink: white in Dark, black in Light
+        guard let r = guiRender(["trial=narrow", "look=\(look)"]) else { proBox = false; continue }
+        let s = CGFloat(r.pixelsWide) / 1000
+        proBox = proBox && (Int(190 * s)..<Int(260 * s)).contains { x in look == "dark" ? lum(r, x, Int(63 * s)) > 0.93 : lum(r, x, Int(63 * s)) < 0.07 }
+    }
     std.removeObject(forKey: "focusPro"); let off = DesktopModel.licensed || renderArgs.contains("licensed")
-    var proBox = false
-    if let r = proPic { let s = CGFloat(r.pixelsWide) / 1000; proBox = (Int(190 * s)..<Int(260 * s)).contains { x in lum(r, x, Int(63 * s)) > 0.93 } }
-    check(8, "Focus Pro / Max from the purchase", on && !off && maxTier && proBox, "Pro flag on → \(on), off → \(off); Max read → \(maxTier); white box by the name: \(proBox)")
+    check(8, "Focus Pro / Max from the purchase", on && !off && maxTier && proBox, "Pro flag on → \(on), off → \(off); Max read → \(maxTier); box by the name in Light and Dark: \(proBox)")
 
     // 9. Button colour and text colour: the Appearance colour reaches the big button, and Text colour is obeyed.
     let violet = hexColor("8B5CF6")?.usingColorSpace(.sRGB)
     std.set(true, forKey: "desktopButtonInkWhite"); let inkWhite = DesktopView.buttonInkWhite
     std.removeObject(forKey: "desktopButtonInkWhite"); let inkBlack = !DesktopView.buttonInkWhite
-    var tinted = false
-    if let r = guiRender(["colour=8B5CF6", "trial=narrow"]) {
+    var tinted = true
+    for look in ["dark", "light"] {                                  // his colour wins in either look
+        guard let r = guiRender(["colour=8B5CF6", "trial=narrow", "look=\(look)"]) else { tinted = false; continue }
         let s = CGFloat(r.pixelsWide) / 1000, c = r.colorAt(x: Int(400 * s), y: Int(45 * s))?.usingColorSpace(.sRGB)
-        tinted = c.map { abs($0.redComponent - 0.545) < 0.06 && abs($0.blueComponent - 0.965) < 0.06 } ?? false
+        tinted = tinted && (c.map { abs($0.redComponent - 0.545) < 0.06 && abs($0.blueComponent - 0.965) < 0.06 } ?? false)
     }
-    check(9, "button colour and text colour", violet != nil && inkWhite && inkBlack && tinted, "violet parsed \(violet != nil); text white/black \(inkWhite)/\(inkBlack); button drawn violet \(tinted)")
+    check(9, "button colour and text colour", violet != nil && inkWhite && inkBlack && tinted, "violet parsed \(violet != nil); text white/black \(inkWhite)/\(inkBlack); button drawn violet in Light and Dark \(tinted)")
 
     // 10. The Manual: nine sections, Contents numbered down (1–5, then 6–9); none of the wording he's removed.
     let secs = ManualPage.sections
@@ -2039,23 +2092,36 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     // 12. Every page draws, at the smallest window and in each width, without coming out blank.
     var blank = [String]()
     for page in ["", "live", "mode", "settings", "shortcuts", "tools", "history", "manual", "feedback"] {
-        for opts in [["w=600", "h=420", "trial=minimal"], ["trial=narrow"], ["trial=wide"]] {
-            guard let r = guiRender((page.isEmpty ? [] : [page]) + opts) else { blank.append("\(page.isEmpty ? "session" : page)/\(opts.last!)"); continue }
+        for opts in [["w=600", "h=420", "trial=minimal"], ["trial=narrow"], ["trial=wide"]] { for look in ["dark", "light"] {
+            guard let r = guiRender((page.isEmpty ? [] : [page]) + opts + ["look=\(look)"]) else { blank.append("\(page.isEmpty ? "session" : page)/\(opts.last!)/\(look)"); continue }
             let s = CGFloat(r.pixelsWide) / CGFloat(max(1, r.size.width))
-            let lit = stride(from: 0, to: r.pixelsWide, by: Int(20 * s)).filter { x in stride(from: 0, to: r.pixelsHigh, by: Int(20 * s)).contains { lum(r, x, $0) > 0.5 } }.count
-            if lit < 3 { blank.append("\(page.isEmpty ? "session" : page)/\(opts.last!)") }
-        }
+            let lit = stride(from: 0, to: r.pixelsWide, by: Int(20 * s)).filter { x in stride(from: 0, to: r.pixelsHigh, by: Int(20 * s)).contains { look == "dark" ? lum(r, x, $0) > 0.5 : lum(r, x, $0) < 0.5 } }.count
+            if lit < 3 { blank.append("\(page.isEmpty ? "session" : page)/\(opts.last!)/\(look)") }
+        } }
     }
-    check(12, "every page draws in every width", blank.isEmpty, blank.isEmpty ? "9 pages × 3 widths" : "blank: \(blank.joined(separator: ", "))")
+    check(12, "every page draws in every width", blank.isEmpty, blank.isEmpty ? "9 pages × 3 widths × Light and Dark" : "blank: \(blank.joined(separator: ", "))")
 
     // 13. The session button's mark and title: in a session the Focus mark sits right of the title, out of it.
-    var mark = false
-    if let r = guiRender(["live", "trial=narrow"]) {
+    var mark = true
+    for look in ["dark", "light"] {                                  // paper-coloured mark on the ink button
+        guard let r = guiRender(["live", "trial=narrow", "look=\(look)"]) else { mark = false; continue }
         let s = CGFloat(r.pixelsWide) / 1000
-        // the mark's ring: dark pixels on the white button, between the title's end and the key
-        mark = (Int(780 * s)..<Int(840 * s)).contains { x in lum(r, x, Int(61 * s)) < 0.2 }
+        mark = mark && (Int(780 * s)..<Int(840 * s)).contains { x in look == "dark" ? lum(r, x, Int(61 * s)) < 0.2 : lum(r, x, Int(61 * s)) > 0.8 }
     }
-    check(13, "Focus mark on the button in a session", mark, "dark mark found right of the title: \(mark)")
+    check(13, "Focus mark on the button in a session", mark, "mark found right of the title in Light and Dark: \(mark)")
+
+    // 14. Light and Dark: every page draws on its own ground — white in Light, black in Dark — with readable ink on it.
+    var wrong = [String]()
+    for look in ["light", "dark"] {
+        for page in ["", "live", "settings", "tools", "manual"] {          // (Feedback shades the page on purpose)
+            guard let r = guiRender((page.isEmpty ? [] : [page]) + ["look=\(look)", "trial=narrow"]) else { wrong.append("\(look)/\(page)"); continue }
+            let s = CGFloat(r.pixelsWide) / 1000
+            let ground = lum(r, Int(990 * s), Int(720 * s))                      // the bottom-right corner is bare ground
+            let inked = stride(from: Int(320 * s), to: r.pixelsWide, by: 6).contains { x in abs(lum(r, x, Int(164 * s)) - ground) > 0.6 }   // the panel title
+            if (look == "light" ? ground < 0.95 : ground > 0.05) || !inked { wrong.append("\(look)/\(page.isEmpty ? "session" : page)") }
+        }
+    }
+    check(14, "Light and Dark draw correctly", wrong.isEmpty, wrong.isEmpty ? "5 pages × 2 looks: right ground, readable title" : "wrong: \(wrong.joined(separator: ", "))")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)
