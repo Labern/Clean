@@ -8,6 +8,7 @@
     "tier": "pro",
     "plan": "monthly"
   },
+  "table_opens_on": "once",
   "duo_heading": "Free, or paid — monthly, or once.",
   "badge": "Best value",
   "badge_alternative": "Most popular",
@@ -21,8 +22,7 @@
       "tagline": "Learn to Focus",
       "monthly": 0,
       "price_note": "Free",
-      "summary": "{free_sessions_per_week} sessions a week",
-      "label": "Basic · Free"
+      "summary": "{free_sessions_per_week} sessions a week"
     },
     "pro": {
       "name": "Pro",

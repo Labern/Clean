@@ -586,6 +586,7 @@ struct Pricing: Decodable {
     let trial_tier: String
     let free_sessions_per_week: Int
     let lead: Lead
+    let table_opens_on: String?                                // which plan the price switch opens on (the site: "once")
     let badge: String?                                         // the best tier's label ("Best value"), when the file has it
     let coming_soon: [Soon]?                                   // tiers shown greyed out, not on sale (Enterprise)
     let tiers: [String: Tier]
@@ -677,7 +678,8 @@ struct UpgradeCard: View {
             }
         }
         .onAppear {
-            plan = plans.firstIndex(of: renderArgs.first { $0.hasPrefix("plan=") }.map { String($0.dropFirst(5)) } ?? Pricing.current?.lead.plan ?? "monthly") ?? 0
+            plan = plans.firstIndex(of: renderArgs.first { $0.hasPrefix("plan=") }.map { String($0.dropFirst(5)) }
+                                    ?? Pricing.current?.table_opens_on ?? Pricing.current?.lead.plan ?? "monthly") ?? 0   // opens where the site does
             if !renderArgs.contains("--render-desktop") { Pricing.refresh { m.tick &+= 1 } }
         }
     }

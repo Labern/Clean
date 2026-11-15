@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.77 — 2026-11-15
+- **The Upgrade window opens on Once,** where the site's switch opens (pricing.json `table_opens_on`), showing the £50 gift with £75 struck through and the EARLY code under Buy Focus Pro. The free tier reads simply **Basic**, £0 / Free.
+
 ## 0.18.76 — 2026-11-15
 - **Upgrade window follows his layout (as on the site):** Basic reads £0 / Free (pricing.json's `price_note`). Pro on Once reads £50 with £75 struck through. Every paid button says **Buy Focus Pro**, and the dashed CODE EARLY · Copy box sits directly under it.
 
