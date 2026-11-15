@@ -162,6 +162,10 @@ These are done and pass their tests, but haven't been seen on your screen in rea
   - **Medium:** Session plus Tools.
   - **Pro:** Session *unlimited* plus Tools plus Modes, plus appearance.
   - Open: what "unlimited" lifts (free-tier session limit not yet defined), Medium's name and price.
+- **His compromise (2026-11-15, latest):** Pro for **£50 one time, or £5 a month** (or similar). Payment choice
+  instead of (or alongside) feature tiers. £5/month breaks even with £50 at month 10, so the one-off reads as the
+  obvious deal; the monthly lowers the barrier to £5. Could replace the Medium tier entirely: Free, or Pro paid
+  monthly or once. Stripe Checkout handles both (one-time Price + recurring Price, same product).
 - The Free | Pro table on the site (`#pricing`, hidden; preview with `?pricing`) is two columns for now. It becomes
   three when he settles the tiers.
 
