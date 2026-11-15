@@ -660,8 +660,8 @@ struct UpgradeCard: View {
                         ForEach(["free", "pro"], id: \.self) { key in
                             if let t = p.tiers[key] { card(key, t, p) }
                         }
-                        ForEach(p.coming_soon ?? [], id: \.name) { soon($0) }
                     }.fixedSize(horizontal: false, vertical: true).padding(.top, 18)
+                    ForEach(p.coming_soon ?? [], id: \.name) { strip($0) }  // Enterprise: a greyed strip below, as on the site
                     HStack {
                         Text("\(p.trial_days) days of Pro come free with every new copy.").font(Site.font(15)).foregroundColor(Site.muted)
                         Spacer()
@@ -671,7 +671,7 @@ struct UpgradeCard: View {
                         }.buttonStyle(.plain).linkCursor()
                     }.padding(.top, 18)
                 }
-                .padding(28).frame(width: 780).fixedSize(horizontal: false, vertical: true)
+                .padding(28).frame(width: 720).fixedSize(horizontal: false, vertical: true)
                 .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Site.bg))
                 .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Site.ink.opacity(0.35), lineWidth: 1))
                 .shadow(color: .black.opacity(0.6), radius: 30, y: 12)
@@ -683,19 +683,18 @@ struct UpgradeCard: View {
             if !renderArgs.contains("--render-desktop") { Pricing.refresh { m.tick &+= 1 } }
         }
     }
-    /// A tier that isn't on sale yet (Enterprise): greyed out, its note ("Coming soon") instead of a price or button.
-    @ViewBuilder func soon(_ t: Pricing.Soon) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)
-            Text(t.tagline).font(Site.font(15)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
-            Text(t.note).font(Site.font(22, .medium)).foregroundColor(Site.head).padding(.top, 14)
-            Text(t.note).font(Site.font(16, .medium)).foregroundColor(Site.muted).frame(maxWidth: .infinity).frame(height: 40)
-                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.line, lineWidth: 1)).padding(.top, 34)
+    /// A tier that isn't on sale yet (Enterprise): a greyed strip under the plans — name · tagline · COMING SOON.
+    @ViewBuilder func strip(_ t: Pricing.Soon) -> some View {
+        HStack(spacing: 10) {
+            Text(t.name).font(Site.font(16, .medium)).foregroundColor(Site.head)
+            Text("·").foregroundColor(Site.muted)
+            Text(t.tagline).font(Site.font(15)).foregroundColor(Site.low)
+            Spacer()
+            Text(t.note.uppercased()).font(Site.font(12, .semibold)).tracking(1).foregroundColor(Site.muted)
         }
-        .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Site.bg))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Site.line, lineWidth: 1))
-        .opacity(0.45).allowsHitTesting(false)
+        .padding(.horizontal, 18).frame(height: 46)
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.line, lineWidth: 1))
+        .opacity(0.55).padding(.top, 14).allowsHitTesting(false)
     }
     @ViewBuilder func card(_ key: String, _ t: Pricing.Tier, _ p: Pricing) -> some View {
         let best = t.best == true, current = DesktopModel.tierKey == key
@@ -706,19 +705,21 @@ struct UpgradeCard: View {
         let per = key == "free" ? (t.price_note ?? "Free") : which == "once" ? "once" : which == "yearly" ? "a year" : "a month"
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)                // "Basic", then "£0 / Free" under it
+                TierBox(name: t.name, solid: key == "pro", size: 20)            // the tier in its box, as beside the Focus name
                 Spacer()
                 if let gift { Text(gift.label).font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
                 else if best { Text(p.badge ?? "Best value").font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
             }
-            Text(t.tagline).font(Site.font(15)).foregroundColor(Site.low)
+            Text(p.fill(t.tagline)).font(Site.font(15)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true).padding(.top, 4)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(price).font(Site.font(32, .medium)).foregroundColor(Site.head)
                 if let gift, let full = t.once { Text("\(p.currency)\(full)").font(Site.font(20)).strikethrough().foregroundColor(Site.muted); if gift.code == nil { Text(gift.then).font(Site.font(15)).foregroundColor(Site.muted) } }
                 else { Text(per).font(Site.font(15)).foregroundColor(Site.muted) }
             }.padding(.top, 8)
+            if !(key == "free" && t.tagline.contains("{free_sessions_per_week}")) {   // said once: the tagline already gives the number
             Text(p.fill(key == "free" ? t.summary : which == "once" ? (gift.map { g in g.line.replacingOccurrences(of: "{launch_once}", with: "\(p.currency)\(g.once)").replacingOccurrences(of: "{once}", with: "\(p.currency)\(t.once ?? 0)").replacingOccurrences(of: "{code}", with: g.code ?? "") } ?? t.once_summary ?? t.summary) : which == "yearly" ? (t.yearly_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
                 .fixedSize(horizontal: false, vertical: true).frame(minHeight: 40, alignment: .top)
+            }
             Button {
                 if key != "free" && !current { NSWorkspace.shared.open(Pricing.checkout(tier: key, plan: which, code: gift?.code)) }   // the code pre-applied
             } label: {
@@ -733,6 +734,18 @@ struct UpgradeCard: View {
         .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(best ? Site.surface : Site.bg))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(best ? Site.ink.opacity(0.9) : Site.line, lineWidth: best ? 1.5 : 1))
+    }
+}
+
+/// A tier's name in its box: solid for Pro (as beside the Focus name), outlined for Basic.
+struct TierBox: View {
+    let name: String, solid: Bool
+    var size: CGFloat = 15
+    var body: some View {
+        Text(name).font(Site.font(size, .semibold)).foregroundColor(solid ? Site.paper : Site.ink)
+            .padding(.horizontal, size * 0.5).frame(height: size * 1.6)
+            .background(RoundedRectangle(cornerRadius: size * 0.33, style: .continuous).fill(solid ? Site.ink : Site.paper))
+            .overlay(RoundedRectangle(cornerRadius: size * 0.33, style: .continuous).strokeBorder(Site.ink, lineWidth: solid ? 0 : 1.2))
     }
 }
 
@@ -993,23 +1006,22 @@ struct ModeListRow: View {
     }
 }
 
-/// Where a Pro feature is locked (viewing as Free): what Pro adds, and Upgrade Now.
+/// Where a Pro feature is locked (viewing as Basic): one quiet line at the right, "Purchase Pro to unlock". The page
+/// itself stays whole and readable, so people can see what Pro does; using a locked control opens Upgrade.
 struct LockedPanel: View {
     @ObservedObject var m: DesktopModel
-    let text: String
+    let text: String                                           // what Pro adds here (shown on hover)
+    @State private var hover = false
     var body: some View {
-        HStack(spacing: 14) {
-            ProTag()
-            Text(text).font(Site.font(16)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 10)
+        HStack {
+            Spacer()
             Button { m.openUpgrade() } label: {
-                Text("Upgrade Now").font(Site.font(15, .medium)).foregroundColor(Site.paper).padding(.horizontal, 14).frame(height: 34)
-                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Site.ink))
-            }.buttonStyle(PressStyle()).linkCursor()
-        }
-        .padding(14).background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.surface))
-        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.line, lineWidth: 1))
-        .padding(.vertical, 10)
+                HStack(spacing: 8) {
+                    Text("Purchase Pro to unlock").font(Site.font(15, .medium)).foregroundColor(hover ? Site.head : Site.low).underline(hover)
+                    ProTag()
+                }.contentShape(Rectangle())
+            }.buttonStyle(.plain).onHover { hover = $0 }.help(text).linkCursor()
+        }.padding(.vertical, 6)
     }
 }
 
@@ -1089,8 +1101,8 @@ struct SectionLabel: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(left).font(Site.font(22, .medium)).tracking(-0.3).foregroundColor(Site.head)
-                    if pro { ProTag().alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 } }
                     Spacer()
+                    if pro { ProTag().alignmentGuide(.firstTextBaseline) { $0[.bottom] - 3 } }
                     if !right.isEmpty { Text(right).font(Site.font(15)).foregroundColor(Site.muted).padding(.trailing, 24) }
                 }
                 HeadingRule()
@@ -1147,8 +1159,8 @@ struct SideRow: View {
                 }.frame(width: 40, alignment: .leading)
             }
             Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1).truncationMode(.tail)   // never shrinks (e.g. when Start appears)
-            if pro { ProTag() }
             Spacer(minLength: 6)
+            if pro && !(hover && start != nil) { ProTag() }             // at the right edge, out of the title's way
             if hover, let start {
                 Button(action: start) {
                     Text(live ? "End" : "Start").font(Site.font(14, .medium)).foregroundColor(Site.paper)
@@ -1266,9 +1278,9 @@ struct DesktopView: View {
             Button { withAnimation(.easeOut(duration: 0.15)) { m.modesShown.toggle() } } label: {
                 HStack(spacing: 5) {
                     Text("Modes").font(Site.font(16, .medium))
-                    ProTag()
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(m.modesShown ? 90 : 0)).offset(y: 1.5)   // on the text's middle line
                     Spacer()
+                    ProTag()
                 }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 14).padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())
             }.buttonStyle(.plain).help(m.modesShown ? "Hide your modes" : "Show your modes")
             if m.modesShown {
@@ -1380,7 +1392,7 @@ struct SessionDetail: View {
                             ModeListRow(m: m, mode: mode).contextMenu { ModeMenu(m: m, mode: mode) }
                         }
                         SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { if DesktopModel.gated { m.openUpgrade() } else { m.newMode() } }
-                    }.padding(.horizontal, -12).opacity(DesktopModel.gated ? 0.45 : 1)
+                    }.padding(.horizontal, -12)
                 }
                 .padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
             }
@@ -1582,16 +1594,16 @@ struct ShortcutsPage: View {
         PageFrame(title: "Shortcuts", text: "The keys that start and end a session, open the menu, open this app, and start your modes.") {
             if DesktopModel.gated { LockedPanel(m: m, text: "Choosing your own keys is part of Pro. \(DesktopModel.freeName) keeps ⌘⇧F, ⌘⇧E and ⌥⇧E.") }
             SettingLine(title: "Start / End Session", note: f.sessionKeyTaken ? "That combination is taken by another app. Pick another." : "") {
-                Choice(options: modifierChoices.map { $0.label + "F" }, selected: modifierChoices.firstIndex { $0.mods == f.sessionMods } ?? 0) { i in if !DesktopModel.gated { m.act { f.sessionMods = modifierChoices[i].mods } } }
+                Choice(options: modifierChoices.map { $0.label + "F" }, selected: modifierChoices.firstIndex { $0.mods == f.sessionMods } ?? 0) { i in if DesktopModel.gated { m.openUpgrade() } else { m.act { f.sessionMods = modifierChoices[i].mods } } }
             }
             SettingLine(title: "Open the Menu", note: f.menuKeyTaken ? "That combination is taken by another app. Pick another." : "") {
-                Choice(options: menuModifierChoices.map { $0.label + "E" }, selected: menuModifierChoices.firstIndex { $0.mods == f.menuMods } ?? 0) { i in if !DesktopModel.gated { m.act { f.menuMods = menuModifierChoices[i].mods } } }
+                Choice(options: menuModifierChoices.map { $0.label + "E" }, selected: menuModifierChoices.firstIndex { $0.mods == f.menuMods } ?? 0) { i in if DesktopModel.gated { m.openUpgrade() } else { m.act { f.menuMods = menuModifierChoices[i].mods } } }
             }
             SettingLine(title: "Open the Desktop App", note: f.appKeyTaken ? "That combination is taken by another app. Pick another." : "From anywhere. Press again to put it away.") {
-                Choice(options: modifierChoices.map { $0.label + "E" }, selected: modifierChoices.firstIndex { $0.mods == f.appMods } ?? 0) { i in if !DesktopModel.gated { m.act { f.appMods = modifierChoices[i].mods } } }
+                Choice(options: modifierChoices.map { $0.label + "E" }, selected: modifierChoices.firstIndex { $0.mods == f.appMods } ?? 0) { i in if DesktopModel.gated { m.openUpgrade() } else { m.act { f.appMods = modifierChoices[i].mods } } }
             }
             SettingLine(title: "Modes", note: "This, plus the number you give each mode.") {
-                Choice(options: modeModifierChoices.map { $0.label + "1" }, selected: modeModifierChoices.firstIndex { $0.mods == f.modeMods } ?? 0) { i in if !DesktopModel.gated { m.act { f.modeMods = modeModifierChoices[i].mods } } }
+                Choice(options: modeModifierChoices.map { $0.label + "1" }, selected: modeModifierChoices.firstIndex { $0.mods == f.modeMods } ?? 0) { i in if DesktopModel.gated { m.openUpgrade() } else { m.act { f.modeMods = modeModifierChoices[i].mods } } }
             }
             SectionLabel("Your modes").padding(.horizontal, -14)
             ForEach(m.modes) { mode in
@@ -1965,12 +1977,12 @@ struct ToolsPage: View {
         PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "Look at what your Mac is doing, or clear everything at once.") {
             if DesktopModel.gated { LockedPanel(m: m, text: "Tools are part of Pro: quit everything at once, restart clean, force quit what's frozen.") }
             SectionLabel("Analyse performance", divider: false).padding(.horizontal, -14)
-            ToolLine(title: "Open Activity Monitor", why: "See which apps are using the most memory and processor right now.", tint: Site.head, enabled: !DesktopModel.gated) { f.openActivityMonitor() }
-            ToolLine(title: "Open System Settings", why: "Change what opens at login, and the battery and display settings that affect how the Mac runs.", tint: Site.head, enabled: !DesktopModel.gated) { f.openSystemSettings() }
+            ToolLine(title: "Open Activity Monitor", why: "See which apps are using the most memory and processor right now.", tint: Site.head, enabled: true) { if DesktopModel.gated { m.openUpgrade() } else { f.openActivityMonitor() } }
+            ToolLine(title: "Open System Settings", why: "Change what opens at login, and the battery and display settings that affect how the Mac runs.", tint: Site.head, enabled: true) { if DesktopModel.gated { m.openUpgrade() } else { f.openSystemSettings() } }
             SectionLabel("Quit Unresponsive Apps").padding(.horizontal, -14)
-            ToolLine(title: "Quit All Apps…", why: "Close every app at once for a clean start. Each app saves first. Critical System Processes stay open.", tint: Site.head, enabled: !busy && !DesktopModel.gated) { f.quitAllApps() }
-            ToolLine(title: "Quit All Apps & Restart Mac…", why: "Close everything, then restart. Clears memory completely when the Mac feels slow.", tint: Site.head, enabled: !busy && !DesktopModel.gated) { f.quitAllRestart() }
-            ToolLine(title: "Force Quit All Apps…", why: "For apps that have frozen and won't quit. Unsaved work in them is lost, so it asks first.", tint: Site.hazard, enabled: !busy && !DesktopModel.gated) { f.forceQuitAllApps() }
+            ToolLine(title: "Quit All Apps…", why: "Close every app at once for a clean start. Each app saves first. Critical System Processes stay open.", tint: Site.head, enabled: !busy) { if DesktopModel.gated { m.openUpgrade() } else { f.quitAllApps() } }
+            ToolLine(title: "Quit All Apps & Restart Mac…", why: "Close everything, then restart. Clears memory completely when the Mac feels slow.", tint: Site.head, enabled: !busy) { if DesktopModel.gated { m.openUpgrade() } else { f.quitAllRestart() } }
+            ToolLine(title: "Force Quit All Apps…", why: "For apps that have frozen and won't quit. Unsaved work in them is lost, so it asks first.", tint: Site.hazard, enabled: !busy) { if DesktopModel.gated { m.openUpgrade() } else { f.forceQuitAllApps() } }
         }
     }
 }
@@ -2022,7 +2034,7 @@ struct SettingsPage: View {
                     let on = f.iconColor == a && (f.iconColor2 == b || (a == b && f.iconColor2.isEmpty) || (a.isEmpty && f.iconColor2.isEmpty))
                     let locked = DesktopModel.gated && (all.firstIndex { $0.0 == name } ?? 0) >= 3      // Free: 3 colour schemes
                     ColourTile(name: name, a: a, b: b, on: on) { if locked { m.openUpgrade() } else { m.act { f.iconColor = a; f.iconColor2 = a == b ? "" : b } } }
-                        .opacity(locked ? 0.4 : 1)
+
                 }
             }
             SettingLine(title: "Text colour", note: "The big button's text, to go with its colour.") {
@@ -2567,8 +2579,9 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     }
     let lockPic = guiRender(["tools", "tier=free", "viewas=free", "trial=narrow"])
     var locked = false
-    if let r = lockPic { let s = CGFloat(r.pixelsWide) / 1000; locked = (Int(780 * s)..<Int(930 * s)).contains { x in lum(r, x, Int(262 * s)) > 0.93 } }   // the panel's Upgrade Now
-    check(21, "Upgrade window and Free locks", upOK && locked, "Upgrade window in Light and Dark: \(upOK); Tools locked with Upgrade Now as Free: \(locked)")
+    // the quiet "Purchase Pro to unlock" line at the right, ending in its white Pro tag
+    if let r = lockPic { let s = CGFloat(r.pixelsWide) / 1000; locked = (Int(900 * s)..<Int(940 * s)).contains { x in (Int(228 * s)..<Int(244 * s)).contains { y in lum(r, x, y) > 0.93 } } }
+    check(21, "Upgrade window and Free locks", upOK && locked, "Upgrade window in Light and Dark: \(upOK); Tools shown whole with 'Purchase Pro to unlock' as Basic: \(locked)")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)

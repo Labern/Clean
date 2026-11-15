@@ -49,7 +49,7 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
     and release. Offline, it's noted, not failed.
 20. **The Pro tags match the site's table:** Tools, Modes, History and custom shortcuts are limited on Free and
     included in Pro and Max; sessions a week reads 10 / Unlimited.
-21. **The Upgrade window** draws in Light and Dark, and as Free (View As) the Tools page is locked with Upgrade Now.
+21. **The Upgrade window** draws in Light and Dark, and as Basic (View As) the Tools page stays whole with a quiet "Purchase Pro to unlock" at the right.
 
 **Not covered** (needs the real screen or a pointer): hover states, the hand cursor, drag to reorder, the pressure
 build and release over time, the click line animating, ⌘Q/⌘H in a live window. Check these by eye.

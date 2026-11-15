@@ -19,14 +19,14 @@
   "tiers": {
     "free": {
       "name": "Basic",
-      "tagline": "Learn to Focus",
+      "tagline": "Start and create {free_sessions_per_week} sessions per week",
       "monthly": 0,
       "price_note": "Free",
       "summary": "{free_sessions_per_week} sessions a week"
     },
     "pro": {
       "name": "Pro",
-      "tagline": "For everyday focus",
+      "tagline": "Unlimited sessions · Everything Focus has to offer",
       "monthly": 5,
       "yearly": 50,
       "once": 75,

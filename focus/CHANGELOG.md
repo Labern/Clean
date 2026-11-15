@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.78 — 2026-11-15
+- **Locked Pro features (viewing as Basic) look normal:** nothing is greyed out and there are no big panels. Pages stay whole so people can see what Pro does, with a quiet right-aligned "Purchase Pro to unlock" (and its Pro tag). Using a locked control opens the Upgrade window. Pro tags sit at the right edge of rows and headings.
+- **Upgrade window mirrors the site:** two wider cards, Basic (outlined name box) and Pro (solid box, as beside the Focus name), with the site's new taglines (`{free_sessions_per_week}` filled in). Enterprise is a greyed "COMING SOON" strip below the cards.
+- Check 21 follows the new lock line. All 21 GUI and 23 menu checks pass.
+
 ## 0.18.77 — 2026-11-15
 - **The Upgrade window opens on Once,** where the site's switch opens (pricing.json `table_opens_on`), showing the £50 gift with £75 struck through and the EARLY code under Buy Focus Pro. The free tier reads simply **Basic**, £0 / Free.
 
