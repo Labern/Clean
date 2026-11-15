@@ -468,10 +468,10 @@ struct SessionButton: View {
 /// up against the title, each new one queuing behind the last; once the pile is full it presses inward in a slow pulse.
 /// On the click everything is let go: the squares fly back out and fade while the line draws. Leaving without a click,
 /// they simply fade.
-/// The Buy button's words: two lines, the countdown quiet over a bold "Buy Now" (his choice, 4). Renders can show the
-/// others with `buy=1…5`.
+/// The Buy button's words: "14 Days of Pro Left — Buy Now" on one line, at full size (his choice, 5). Renders can show
+/// the others with `buy=1…5`.
 struct BuyLabel: View {
-    static var style: Int { CommandLine.arguments.first { $0.hasPrefix("buy=") }.flatMap { Int($0.dropFirst(4)) } ?? 4 }   // he chose 4 (5 a close second)
+    static var style: Int { CommandLine.arguments.first { $0.hasPrefix("buy=") }.flatMap { Int($0.dropFirst(4)) } ?? 5 }   // he chose 5 (4, two lines, was ugly)
     var body: some View {
         let n = DesktopModel.trialDaysLeft, days = "\(n) \(n == 1 ? "Day" : "Days")"
         switch Self.style {

@@ -143,7 +143,7 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - **Teams:** per seat, sold in packs, round figures. Earlier suggestion (at £55): 5 seats £275 · 20 seats £1,000 ·
   50 seats £2,250 — re-derive from £50 if kept.
 - The website still says £5: change it to £50 when the checkout is wired.
-- In the app: during the Pro Preview, the foot of the sidebar shows "N Days of Pro Remaining" small above a bold "Buy Now" (opens /focus#buy). On the
+- In the app: during the Pro Preview, the foot of the sidebar shows "N Days of Pro Left — Buy Now" (opens /focus#buy). On the
   free version the button should invite people back to Pro, e.g. "Get Focus Pro back".
 - Suggested split (not decided):
   - **Free:** sessions (start and end with ⌘⇧F, the menu or the button; choosing apps; Critical System Processes;
