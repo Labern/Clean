@@ -128,7 +128,9 @@ let brandLockup: NSImage? = {
 final class DesktopModel: ObservableObject {
     unowned let f: Focus
     @Published var tick = 0
-    @Published var selection: String? = nil                     // nil = the session; otherwise a mode's id
+    @Published var selection: String? = UserDefaults.standard.string(forKey: "desktopPage") {   // nil = the session; else a page or a mode's id
+        didSet { if let s = selection { UserDefaults.standard.set(s, forKey: "desktopPage") } else { UserDefaults.standard.removeObject(forKey: "desktopPage") } }
+    }
     var still = false                                           // off-screen drawing: no animation
     private var timer: Timer?
     init(_ f: Focus) { self.f = f }
@@ -257,6 +259,39 @@ final class DesktopModel: ObservableObject {
     func refresh() { f.mem = memoryByPid(); if Site.look == 2, let w = desktop.window { DesktopController.applyLook(to: w) }; tick &+= 1 }
     /// Do something to the engine, then show it.
     func act(_ change: () -> Void) { change(); tick &+= 1 }
+
+    // — type to add an app —
+    struct Found: Identifiable { let id: String, path: String, name: String, open: Bool, inSession: Bool
+        var state: String { inSession ? "In the session" : open ? "Open" : "Not open" } }
+    /// Every app on the Mac (read once), for the finder.
+    lazy var installed: [(id: String, path: String, name: String)] = {
+        let dirs = ["/Applications", "/Applications/Utilities", "/System/Applications", "/System/Applications/Utilities",
+                    NSHomeDirectory() + "/Applications"]
+        var seen = Set<String>(), out = [(id: String, path: String, name: String)]()
+        for d in dirs { for n in (try? FileManager.default.contentsOfDirectory(atPath: d)) ?? [] where n.hasSuffix(".app") {
+            let path = d + "/" + n
+            guard let id = Bundle(path: path)?.bundleIdentifier, !seen.contains(id) else { continue }
+            seen.insert(id); out.append((id, path, String(n.dropLast(4))))
+        } }
+        return out
+    }()
+    func find(_ q: String) -> [Found] {
+        let q = q.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return [] }
+        let open = Dictionary(running.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let pool = installed.map { a -> Found in Found(id: a.id, path: a.path, name: open[a.id]?.name ?? a.name, open: open[a.id] != nil, inSession: open[a.id]?.on ?? f.excluded.contains(a.id)) }
+        let hits = pool.filter { $0.name.localizedCaseInsensitiveContains(q) && !f.neverClose.contains($0.id) }
+        return hits.sorted { ($0.name.lowercased().hasPrefix(q.lowercased()) ? 0 : 1, $0.open ? 0 : 1, $0.name) < ($1.name.lowercased().hasPrefix(q.lowercased()) ? 0 : 1, $1.open ? 0 : 1, $1.name) }
+    }
+    /// Adds a found app to the session: an open one is ticked; one that isn't open joins the session's apps
+    /// (and opens, during a session).
+    func add(_ h: Found) {
+        if let line = running.first(where: { $0.id == h.id }) { if !line.on { toggle(line) }; return }
+        act {
+            if !f.excluded.contains(h.id) { f.excluded.append(h.id) }
+            if f.focused { NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: h.path), configuration: NSWorkspace.OpenConfiguration()) }
+        }
+    }
 
     // — the engine, read for the views —
     struct AppLine: Identifiable { let id: String, path: String, name: String, usage: String, on: Bool, note: String; var bytes: UInt64 = 0 }
@@ -711,6 +746,11 @@ struct UpgradeCard: View {
                 else if best { Text(p.badge ?? "Best value").font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
             }
             Text(p.fill(t.tagline)).font(Site.font(15)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true).padding(.top, 4)
+            if key == "pro", let first = p.features.first(where: { $0.group == "Pro" })?.rows.first, case .text(let early)? = first.first {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {                  // early access, near the top (his key Pro point)
+                    Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)); Text(early).font(Site.font(14, .medium))
+                }.foregroundColor(Site.head).fixedSize(horizontal: false, vertical: true)
+            }
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(price).font(Site.font(32, .medium)).foregroundColor(Site.head)
                 if let gift, let full = t.once { Text("\(p.currency)\(full)").font(Site.font(20)).strikethrough().foregroundColor(Site.muted); if gift.code == nil { Text(gift.then).font(Site.font(15)).foregroundColor(Site.muted) } }
@@ -734,6 +774,29 @@ struct UpgradeCard: View {
         .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(best ? Site.surface : Site.bg))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(best ? Site.ink.opacity(0.9) : Site.line, lineWidth: best ? 1.5 : 1))
+    }
+}
+
+/// The tier beside the Focus name. It arrives after the logo's own opening: Basic slides in outlined; Pro comes in
+/// outlined and fills solid. If Pro is bought while the window is open, the outlined Basic fills and becomes Pro.
+struct TierBadge: View {
+    @ObservedObject var m: DesktopModel
+    @State private var shown = false
+    @State private var filled = false
+    var body: some View {
+        let pro = DesktopModel.licensed
+        TierBox(name: filled ? (Pricing.current?.tiers["pro"]?.name ?? "Pro") : DesktopModel.freeBadgeWord, solid: filled, size: 15)
+            .scaleEffect(shown ? 1 : 0.6).opacity(shown ? 1 : 0).offset(x: shown ? 0 : -8, y: 2)
+            .task(id: pro) {
+                if m.still { shown = true; filled = pro; return }      // off-screen renders: the finished state
+                if !shown {                                             // the window opening: after the logo's own animation
+                    try? await Task.sleep(nanoseconds: 900_000_000)
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.75)) { shown = true }
+                    guard pro else { return }
+                    try? await Task.sleep(nanoseconds: 350_000_000)
+                } else { try? await Task.sleep(nanoseconds: 150_000_000) }   // bought (or viewed as) Pro while open
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { filled = pro }
+            }
     }
 }
 
@@ -1008,6 +1071,39 @@ struct ModeListRow: View {
 
 /// Where a Pro feature is locked (viewing as Basic): one quiet line at the right, "Purchase Pro to unlock". The page
 /// itself stays whole and readable, so people can see what Pro does; using a locked control opens Upgrade.
+/// Type to find an app: every app on the Mac, open or not. Return (or a click) adds the first match to the session —
+/// ticked if it's open, added to the session's apps if it isn't (and opened into it, during a session).
+struct AppFinder: View {
+    @ObservedObject var m: DesktopModel
+    @State private var query = ""
+    @FocusState private var focused: Bool
+    var body: some View {
+        let hits = m.find(query)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .medium)).foregroundColor(Site.muted)
+                TextField("Type to add an app", text: $query).textFieldStyle(.plain).font(Site.font(17)).foregroundColor(Site.head)
+                    .focused($focused).onSubmit { if let h = hits.first { add(h) } }
+                if !query.isEmpty { Text("Return to add").font(Site.font(13)).foregroundColor(Site.muted) }
+            }
+            .padding(.horizontal, 12).frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Site.surface))
+            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(focused ? Site.ink.opacity(0.6) : Site.line, lineWidth: 1))
+            ForEach(hits.prefix(5)) { h in
+                Button { add(h) } label: {
+                    HStack(spacing: 10) {
+                        Image(nsImage: m.icon(h.path)).resizable().frame(width: 20, height: 20)
+                        Text(h.name).font(Site.font(16)).foregroundColor(Site.head)
+                        Spacer()
+                        Text(h.state).font(Site.font(13)).foregroundColor(Site.muted)
+                    }.padding(.horizontal, 12).frame(height: 32).contentShape(Rectangle())
+                }.buttonStyle(.plain)
+            }
+        }
+    }
+    func add(_ h: DesktopModel.Found) { m.add(h); query = "" }
+}
+
 struct LockedPanel: View {
     @ObservedObject var m: DesktopModel
     let text: String                                           // what Pro adds here (shown on hover)
@@ -1210,19 +1306,7 @@ struct DesktopView: View {
                 HStack(spacing: 12) {
                     if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
-                    if DesktopModel.licensed {                            // Focus Pro / Max: a solid box by the name
-                        Text(Pricing.current?.tiers["pro"]?.name ?? "Pro").font(Site.font(15, .semibold)).foregroundColor(Site.paper)
-                            .padding(.horizontal, 7).frame(height: 24)
-                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.ink))
-                            .offset(y: 2)
-                    }
-                    if !DesktopModel.licensed && DesktopModel.freeBadge {  // Free copies: the same box, outlined (trying "Basic")
-                        Text(DesktopModel.freeBadgeWord).font(Site.font(15, .semibold)).foregroundColor(Site.ink)
-                            .padding(.horizontal, 7).frame(height: 24)
-                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.paper))
-                            .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Site.ink, lineWidth: 1.2))
-                            .offset(y: 2)
-                    }
+                    if DesktopModel.licensed || DesktopModel.freeBadge { TierBadge(m: m) }   // Basic or Pro, arriving after the logo
                 }.padding(.leading, 16).frame(width: 292, alignment: .leading)
                 VStack(spacing: 9) {
                     let look = buttonColours
@@ -1304,6 +1388,14 @@ struct DesktopView: View {
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
+                if !DesktopModel.licensed, (DesktopModel.week(m.f.sessions, now: Date()).left <= 3 || renderArgs.contains("headsup")) {
+                    let left = renderArgs.contains("headsup") ? 2 : DesktopModel.week(m.f.sessions, now: Date()).left
+                    Text("Heads up — \(left) \(left == 1 ? "session" : "sessions") remaining this week")   // near the weekly limit
+                        .font(Site.font(13, .medium)).foregroundColor(Site.ink).lineLimit(1).minimumScaleFactor(0.85)
+                        .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(height: 34)
+                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.paper))
+                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Site.ink, lineWidth: 1))
+                }
                 if DesktopModel.trial && (!DesktopModel.licensed || DesktopModel.showBoth) {   // a trial: one clear way to buy
                     Button { m.openUpgrade() } label: {
                         BuyLabel()                                       // the Pro Preview
@@ -1362,6 +1454,7 @@ struct SessionDetail: View {
                                    : "Tick the apps you want in the session. Everything else closes when the session starts and comes back when it ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
                     if !f.focused { MemoryBar(apps: m.running).padding(.top, 12) }      // the memory to be saved is shown before a session, never during one
+                    AppFinder(m: m).padding(.top, 14)
                     SectionLabel("", "Usage", divider: false).padding(.horizontal, -14).padding(.top, f.focused ? 0 : 8)
                     ForEach(m.running) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
@@ -2054,6 +2147,10 @@ struct SettingsPage: View {
 /// window is open: Focus takes no such key otherwise.
 final class DesktopWindow: NSWindow {
     override func performKeyEquivalent(with e: NSEvent) -> Bool {
+        if e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command, e.charactersIgnoringModifiers?.lowercased() == "z",
+           !(firstResponder is NSText), desktop.model?.f.canUndoEnd == true {
+            desktop.model?.f.undoEnd(); return true                 // ⌘Z just after ending a session: put it back
+        }
         if e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command, let ch = e.charactersIgnoringModifiers?.lowercased(), ch == "h" || ch == "w" || ch == "q" {
             if ch == "h" { desktop.hideByH() } else { close() }
             return true
@@ -2094,6 +2191,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             w.contentView = host
             w.setContentSize(size)
             w.setFrame(NSRect(x: screen.midX - w.frame.width / 2, y: screen.midY - w.frame.height / 2, width: w.frame.width, height: w.frame.height), display: false)
+            w.setFrameAutosaveName("FocusDesktopWindow")          // where he left it, at the size he left it (else the above)
             w.delegate = self; window = w
         }
         model?.start()
@@ -2128,6 +2226,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
         }
         menu("Edit") { m in
             item(m, "Undo", Selector(("undo:")), "z", mine: false); item(m, "Redo", Selector(("redo:")), "z", [.command, .shift], mine: false)
+            item(m, "Undo End Session", #selector(undoEndSession))
             m.addItem(.separator())
             item(m, "Cut", #selector(NSText.cut(_:)), "x", mine: false); item(m, "Copy", #selector(NSText.copy(_:)), "c", mine: false)
             item(m, "Paste", #selector(NSText.paste(_:)), "v", mine: false); item(m, "Select All", #selector(NSText.selectAll(_:)), "a", mine: false)
@@ -2198,9 +2297,11 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
         w.appearance = Site.look == 2 ? nil : NSAppearance(named: Site.light ? .aqua : .darkAqua)   // System: follow macOS
     }
     @objc func upgrade() { model?.openUpgrade() }
+    @objc func undoEndSession() { model?.f.undoEnd() }
     /// Pro says "Pro" only beside the name: the Upgrade item hides for it.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(upgrade) { item.isHidden = DesktopModel.licensed }
+        if item.action == #selector(undoEndSession) { return model?.f.canUndoEnd == true }
         return true
     }
     @objc func toggleDevPanel(_ sender: NSMenuItem) {
@@ -2339,7 +2440,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     }
     let std = UserDefaults.standard
     // Settings that some checks change, put back afterwards.
-    let keep = ["desktopWidthV2", "desktopTextScale", "focusPro", "focusTier", "desktopButtonInkWhite", "desktopViewAs", "desktopLook"].map { ($0, std.object(forKey: $0)) }
+    let keep = ["desktopWidthV2", "desktopTextScale", "focusPro", "focusTier", "desktopButtonInkWhite", "desktopViewAs", "desktopLook", "desktopPage"].map { ($0, std.object(forKey: $0)) }
     defer { for (k, v) in keep { if let v { std.set(v, forKey: k) } else { std.removeObject(forKey: k) } }; Site.scale = CGFloat(std.double(forKey: "desktopTextScale") == 0 ? 1 : std.double(forKey: "desktopTextScale")) }
     std.removeObject(forKey: "desktopWidthV2"); std.removeObject(forKey: "focusPro"); std.removeObject(forKey: "desktopButtonInkWhite")
     std.removeObject(forKey: "desktopViewAs"); std.removeObject(forKey: "focusTier"); std.removeObject(forKey: "desktopLook")
@@ -2582,6 +2683,33 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     // the quiet "Purchase Pro to unlock" line at the right, ending in its white Pro tag
     if let r = lockPic { let s = CGFloat(r.pixelsWide) / 1000; locked = (Int(900 * s)..<Int(940 * s)).contains { x in (Int(228 * s)..<Int(244 * s)).contains { y in lum(r, x, y) > 0.93 } } }
     check(21, "Upgrade window and Free locks", upOK && locked, "Upgrade window in Light and Dark: \(upOK); Tools shown whole with 'Purchase Pro to unlock' as Basic: \(locked)")
+
+    // 22. Type to add an app: finds apps on the Mac by name (open or not), best match first, and adding one that
+    //     isn't open puts it in the session's apps.
+    let tf = Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!); tf.modes = []; tf.excluded = []
+    let tm = DesktopModel(tf)
+    let hits = tm.find("text").map(\.name)                          // TextEdit ships with every Mac
+    let textEdit = tm.find("textedit").first
+    if let t = textEdit, !t.open { tm.add(t) }
+    let added = textEdit.map { t in t.open || tf.excluded.contains(t.id) } ?? false
+    check(22, "type to add an app", hits.first == "TextEdit" && added && tm.find("").isEmpty,
+          "\"text\" → \(hits.prefix(3)); TextEdit added to the session's apps: \(added); empty search finds nothing")
+    tf.excluded = []; UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+
+    // 23. ⌘Z after ending a session: offered only for a short while after the end, and never during a session.
+    let uf = Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!)
+    uf.lastEnd = (Date(), nil); let fresh = uf.canUndoEnd
+    uf.lastEnd = (Date().addingTimeInterval(-(Focus.undoWindow + 1)), nil); let stale = uf.canUndoEnd
+    uf.lastEnd = nil; let none = uf.canUndoEnd
+    check(23, "⌘Z undoes ending a session", fresh && !stale && !none, "just ended: \(fresh); after \(Int(Focus.undoWindow)) s: \(stale); nothing ended: \(none)")
+    UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+
+    // 24. The window remembers its page: what's chosen is saved and the next window opens on it.
+    let pm = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!)); pm.selection = Page.tools
+    let back = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!)).selection
+    pm.selection = nil; let cleared = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!)).selection
+    check(24, "the window remembers its page", back == Page.tools && cleared == nil, "reopens on \(back ?? "the Session Editor"); back to the Session Editor: \(cleared == nil)")
+    UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)

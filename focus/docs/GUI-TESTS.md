@@ -51,5 +51,11 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
     included in Pro and Max; sessions a week reads 10 / Unlimited.
 21. **The Upgrade window** draws in Light and Dark, and as Basic (View As) the Tools page stays whole with a quiet "Purchase Pro to unlock" at the right.
 
+**New touches**
+22. **Type to add an app** finds apps on the Mac by name, open or not, best match first ("text" → TextEdit), and
+    adding one that isn't open puts it in the session's apps.
+23. **⌘Z** after ending a session is offered only within 20 seconds of the end, and never during a session.
+24. **The window remembers its page** and reopens on it; the Session Editor is the default.
+
 **Not covered** (needs the real screen or a pointer): hover states, the hand cursor, drag to reorder, the pressure
 build and release over time, the click line animating, ⌘Q/⌘H in a live window. Check these by eye.

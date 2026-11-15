@@ -1527,6 +1527,8 @@ final class Focus: NSObject, NSMenuDelegate {
             let was = store.bool(forKey: "focused")
             store.set(newValue, forKey: "focused")
             if newValue != was { animateIcon(to: newValue) } else { setIcon(glyph(focused: newValue)) }
+            guard newValue != was, store == .standard else { return }
+            if was && !newValue { lastEnd = (Date(), sessions.first?["modeID"] as? String) }   // for ⌘Z: put it back
         }
     }
     /// The system's "reopen windows when an app relaunches" (System Settings ▸ Desktop & Dock ▸
@@ -1945,6 +1947,17 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     @objc func quitAgain() { reopened().forEach { $0.terminate() } }
 
+    /// The session that just ended, and when — so ⌘Z can put it straight back.
+    var lastEnd: (date: Date, modeID: String?)?
+    static let undoWindow: TimeInterval = 20
+    var canUndoEnd: Bool { !focused && !clearing && (lastEnd.map { Date().timeIntervalSince($0.date) < Self.undoWindow } ?? false) }
+    /// ⌘Z after ending a session by mistake: the same session again (the same mode if it was one); the apps that had
+    /// started reopening close again, as any session start closes them.
+    @objc func undoEnd() {
+        guard canUndoEnd, let e = lastEnd else { NSSound.beep(); return }
+        lastEnd = nil
+        if let id = e.modeID, mode(id) != nil { _ = startMode(id: id) } else { toggle() }
+    }
     func toggle() {
         item.menu?.cancelTracking()
         if clearing { NSSound.beep(); return }                  // Quit All (& Restart) in progress: never start a session inside it

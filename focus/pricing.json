@@ -80,6 +80,11 @@
       "group": "Pro",
       "rows": [
         [
+          "Early access: new features before anyone else",
+          false,
+          true
+        ],
+        [
           "Customise: icon styles, colours, width",
           "3 colour schemes",
           "Unlimited"
@@ -116,11 +121,6 @@
         ],
         [
           "Hide Focus itself: run with no menu bar icon",
-          false,
-          true
-        ],
-        [
-          "Early access to new features",
           false,
           true
         ],

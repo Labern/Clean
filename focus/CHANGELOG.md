@@ -4,6 +4,16 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.79 — 2026-11-15
+- **Type to add an app:** a field above the app list in the Session Editor searches every app on the Mac. Return or a click adds the best match: an open app is ticked, and one that isn't open joins the session's apps (or opens into the session, during one).
+- **Heads up:** on Basic, with 3 or fewer sessions left this week, a white-bordered "Heads up — N sessions remaining this week" sits above the Pro button.
+- **The tier arrives after the logo:** when the window opens, the Basic or Pro box slides in once the logo's own animation ends, and Pro fills from outlined to solid. If Pro is bought (or viewed) while the window is open, the outlined Basic fills and becomes Pro.
+- **⌘Z undoes ending a session** for 20 seconds afterwards (also Edit ▸ Undo End Session). The same session starts again, the same mode if it was one, and the apps that had reopened close again.
+- **The window remembers where it was,** its size and its page.
+- **The Pro card leads with early access** ("Early access: new features before anyone else"), read from pricing.json's table.
+- **GUI tests:** checks 22–24 cover type-to-add, ⌘Z and the remembered page. All 24 pass.
+- Mockups (not built): mode colours, and showing what will come back.
+
 ## 0.18.78 — 2026-11-15
 - **Locked Pro features (viewing as Basic) look normal:** nothing is greyed out and there are no big panels. Pages stay whole so people can see what Pro does, with a quiet right-aligned "Purchase Pro to unlock" (and its Pro tag). Using a locked control opens the Upgrade window. Pro tags sit at the right edge of rows and headings.
 - **Upgrade window mirrors the site:** two wider cards, Basic (outlined name box) and Pro (solid box, as beside the Focus name), with the site's new taglines (`{free_sessions_per_week}` filled in). Enterprise is a greyed "COMING SOON" strip below the cards.
