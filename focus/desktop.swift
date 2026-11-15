@@ -541,7 +541,7 @@ struct DesktopView: View {
                 // The logo stands level with the session button beside it: the same height, the same top edge.
                 if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                 Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
-            }.padding(.leading, 16).padding(.top, Layout.top).padding(.bottom, 16)      // just clear of the window's three buttons
+            }.padding(.leading, 16).padding(.top, Layout.top).padding(.bottom, 30)       // a clear gap before the pages      // just clear of the window's three buttons
             VStack(spacing: 2) {
                 SideRow(title: "Session", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2") { m.selection = nil }
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }

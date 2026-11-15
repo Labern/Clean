@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.38 — 2026-11-15
+- More space between the logo and the sidebar's first page.
+
 ## 0.18.37 — 2026-11-15
 - The desktop app's standard text size is one step larger (1.0 of the written sizes).
 
