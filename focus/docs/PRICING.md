@@ -3,10 +3,24 @@
 His thinking on how Focus is sold, gathered in one place (2026-11-15). The newest ideas come first. None of it is
 built yet; the app only shows the parts that are visible, and those are placeholders.
 
+## The pricing play (his, 2026-11-15, latest; remember it)
+- **Nominal prices on the site: Pro £5 a month, Max £10 a month.** Free exists but is **very limited**.
+- **Lured in by the cheap price, people go to pay, and only then see they can pay a multiple instead:**
+  **one-off at 10x (Pro £50, Max £100): theirs forever**, or yearly. "For £50 they get it forever": an extremely
+  enticing sell.
+- The site shows only the monthly prices; the checkout offers Monthly (default), Yearly (£40 / £80, placeholder,
+  priced so the one-off looks obvious) and One-off ("Best value").
+- **Max: nobody should ever want to buy it, but it needs full functionality.** It exists to make Pro the obvious buy.
+
+## New features (his, 2026-11-15) — Pro and Max only; for the app session to build
+1. **Open apps at a set time**, e.g. fun apps like Discord at 5:30 PM.
+2. **Block apps you choose** (other apps do this; here it's part of Pro and Max).
+3. **A Max badge**, in the same place as the Pro badge (top left, beside the Focus name), for Max licences.
+- The site's pricing table already lists 1 and 2 under Pro and Max.
+
 ## Decided and live on the site (2026-11-15, evening)
 - **Lead with the subscription: £5 a month.** Buy Now on the site is "Buy Now – £5/month" and opens the checkout on
-  Pro, monthly. **£50 once** is the alternative, offered beside it (and tagged "Best value" in the checkout); once
-  people are using Focus they can see they could buy it outright. Max may go to £100 once (£10 a month on the site).
+  Pro, monthly. The one-off and yearly prices appear only in the checkout (see "The pricing play").
 - **Pro is what we want them on; Max is there to direct them to it.**
 - **Free is partial, and not by much.** Every copy starts with **14 days of Pro**, then drops to Free.
 - **The trial takes an email.** The site's trial dialog collects it (filed on the server as `focus-signup`), then
