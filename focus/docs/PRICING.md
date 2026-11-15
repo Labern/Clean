@@ -132,3 +132,5 @@ built yet; the app only shows the parts that are visible, and those are placehol
   everything for one person; Business is per seat with what companies actually pay for (one invoice, VAT receipts,
   adding/removing seats, deploying to many Macs, priority support). A per-seat column still anchors Pro as the obvious
   choice for individuals. Open: name (Business / Teams / Enterprise), per-seat price, minimum seats.
+- **Latest (2026-11-15): Pro = everything Focus has. Max / Enterprise = for businesses, multiple seats, different
+  pricing entirely.** Still thinking; the site is unchanged until he says go.
