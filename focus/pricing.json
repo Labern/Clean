@@ -13,16 +13,16 @@
   "badge_alternative": "Most popular",
   "_badge": "The owner's note (15 Nov 2026): the Pro badge 'Best value' may become 'Most popular' later. To switch, set badge to the alternative and run bin/focus-pricing.",
   "retired_words": [
-    "Basic",
     "Max"
   ],
   "tiers": {
     "free": {
-      "name": "Free",
+      "name": "Basic",
       "tagline": "Learn to Focus",
       "monthly": 0,
       "price_note": "Free for everyone",
-      "summary": "{free_sessions_per_week} sessions a week"
+      "summary": "{free_sessions_per_week} sessions a week",
+      "label": "Basic · Free"
     },
     "pro": {
       "name": "Pro",
@@ -130,5 +130,5 @@
       "note": "Coming soon"
     }
   ],
-  "_history": "15 Nov 2026: Max scrapped (owner). Tiers are Free and Pro; Pro is £5 a month, £40 a year or £50 once; Enterprise (per seat) shows greyed as Coming soon. Free may later be called Basic."
+  "_history": "15 Nov 2026: Max scrapped (owner). Tiers are Free and Pro; Pro is £5 a month, £40 a year or £50 once; Enterprise (per seat) shows greyed as Coming soon. Free may later be called Basic. 15 Nov 2026 (later): the free tier is named Basic (\"works better on the app\"); shown as \"Basic · Free\" with £0."
 }

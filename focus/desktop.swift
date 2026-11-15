@@ -177,6 +177,8 @@ final class DesktopModel: ObservableObject {
     /// 2026-11-15); the word is "Basic" for him to see, then "Free" when he switches it.
     static var freeBadge: Bool { true }
     /// The free tier's name, from pricing.json (Free now; he may rename it Basic there, and the app follows).
+    /// The free tier's name wherever the app says it (Basic, his choice 2026-11-15), from pricing.json.
+    static var freeName: String { Pricing.current?.tiers["free"]?.name ?? "Basic" }
     static var freeBadgeWord: String { renderArgs.first { $0.hasPrefix("freeword=") }.map { String($0.dropFirst(9)) } ?? Pricing.current?.tiers["free"]?.name ?? "Free" }                                 // replaced by View ▸ View As (0.18.68)
     /// Whether this copy has been bought — read live (the window refreshes every 1.5 s), so the moment a purchase is
     /// recorded the Buy button becomes "Focus Pro". Licences aren't built yet: the purchase flow will set
@@ -571,7 +573,7 @@ extension View { func linkCursor() -> some View { modifier(LinkCursor()) } }
 /// window opens and the site answers. Nothing here is typed by hand.
 struct Pricing: Decodable {
     struct Tier: Decodable {
-        let name: String; let tagline: String; let monthly: Int; let yearly: Int?; let once: Int?; let best: Bool?
+        let name: String; let label: String?; let tagline: String; let monthly: Int; let yearly: Int?; let once: Int?; let best: Bool?
         let summary: String; let yearly_summary: String?; let once_summary: String?
     }
     struct Soon: Decodable { let name: String; let tagline: String; let note: String }
@@ -682,10 +684,10 @@ struct UpgradeCard: View {
         let which = plans[min(plan, plans.count - 1)]
         let amount = which == "once" ? t.once : which == "yearly" ? t.yearly : t.monthly
         let price = key == "free" ? "\(p.currency)0" : "\(p.currency)\(amount ?? t.monthly)"
-        let per = key == "free" ? "Free for everyone" : which == "once" ? "once" : which == "yearly" ? "a year" : "a month"
+        let per = key == "free" ? (t.label == nil ? "Free" : "") : which == "once" ? "once" : which == "yearly" ? "a year" : "a month"
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)
+                Text(t.label ?? t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)   // "Basic · Free" beside its price
                 Spacer()
                 if best { Text(p.badge ?? "Best value").font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
             }
@@ -984,7 +986,7 @@ struct ViewAsPanel: View {
             }.buttonStyle(.plain)
             if open {
                 HStack(spacing: 6) {
-                    ForEach([("Actual", ""), ("Free", "free"), ("Pro", "pro")], id: \.1) { title, key in
+                    ForEach([("Actual", ""), (DesktopModel.freeName, "free"), ("Pro", "pro")], id: \.1) { title, key in
                         let on = now == key
                         Button {
                             m.act { if key.isEmpty { UserDefaults.standard.removeObject(forKey: "desktopViewAs") } else { UserDefaults.standard.set(key, forKey: "desktopViewAs") } }
@@ -1533,7 +1535,7 @@ struct ShortcutsPage: View {
     var body: some View {
         let f = m.f
         PageFrame(title: "Shortcuts", text: "The keys that start and end a session, open the menu, open this app, and start your modes.") {
-            if DesktopModel.gated { LockedPanel(m: m, text: "Choosing your own keys is part of Pro. Free keeps ⌘⇧F, ⌘⇧E and ⌥⇧E.") }
+            if DesktopModel.gated { LockedPanel(m: m, text: "Choosing your own keys is part of Pro. \(DesktopModel.freeName) keeps ⌘⇧F, ⌘⇧E and ⌥⇧E.") }
             SettingLine(title: "Start / End Session", note: f.sessionKeyTaken ? "That combination is taken by another app. Pick another." : "") {
                 Choice(options: modifierChoices.map { $0.label + "F" }, selected: modifierChoices.firstIndex { $0.mods == f.sessionMods } ?? 0) { i in if !DesktopModel.gated { m.act { f.sessionMods = modifierChoices[i].mods } } }
             }
@@ -1857,7 +1859,7 @@ struct HistoryPage: View {
                     }
                 }.padding(.vertical, 7)
             }
-            if DesktopModel.gated && m.history.count > 3 { LockedPanel(m: m, text: "Free keeps your last 3 sessions. Pro keeps all \(m.history.count).") }
+            if DesktopModel.gated && m.history.count > 3 { LockedPanel(m: m, text: "\(DesktopModel.freeName) keeps your last 3 sessions. Pro keeps all \(m.history.count).") }
         }
     }
 }
@@ -2084,7 +2086,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             // Only the look changes: nothing is bought or unlocked. "Actual" goes back to this copy's own licence.
             let viewAs = NSMenuItem(title: "View As", action: nil, keyEquivalent: ""), sub = NSMenu(title: "View As")
             let now = UserDefaults.standard.string(forKey: "desktopViewAs") ?? ""
-            for (title, key) in [("Actual", ""), ("Free", "free"), ("Pro", "pro")] {
+            for (title, key) in [("Actual", ""), (DesktopModel.freeName, "free"), ("Pro", "pro")] {
                 let i = sub.addItem(withTitle: title, action: #selector(viewAs(_:)), keyEquivalent: "")
                 i.target = self; i.representedObject = key; i.state = now == key ? .on : .off
             }
@@ -2457,6 +2459,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     if let p = pr {
         if Set(p.tiers.keys) != ["free", "pro"] { rules.append("tiers aren't just Free and Pro") }
         if p.tiers["pro"]?.name != "Pro" { rules.append("Pro's name") }
+        if p.tiers["free"]?.name != "Basic" { rules.append("the free tier isn't called Basic") }
         if !(p.coming_soon ?? []).contains(where: { $0.name == "Enterprise" }) { rules.append("Enterprise isn't listed as coming soon") }
         if p.tiers.values.contains(where: { $0.tagline.isEmpty }) { rules.append("a tagline is empty") }
         if let t = p.tiers["pro"] {
@@ -2472,7 +2475,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         if p.tiers["pro"]?.best != true { rules.append("Pro not marked best value") }
         if p.lead.tier != "pro" || p.lead.plan != "monthly" { rules.append("lead isn't Pro monthly") }
     } else { rules.append("pricing.json missing or unreadable") }
-    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Free and Pro only; Pro £5 a month, £40 a year, £50 once (10×); round; Enterprise coming soon; 14 days of Pro; Free 10 a week; Pro best value" : rules.joined(separator: "; "))
+    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Basic (free) and Pro only; Pro £5 a month, £40 a year, £50 once (10×); round; Enterprise coming soon; 14 days of Pro; Free 10 a week; Pro best value" : rules.joined(separator: "; "))
 
     // 18. The app takes its numbers from pricing.json, never its own: the weekly count, the Preview's days, the
     //     Upgrade window's prices, and the checkout link for each plan.
