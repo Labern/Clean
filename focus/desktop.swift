@@ -29,13 +29,13 @@ enum Site {
     /// Graphik, the site's face (it ships with macOS as a downloadable system font); Helvetica Neue if it's absent.
     /// The user's text size for the window (View ▸ Bigger Text / Smaller Text): every size is multiplied by it.
     static var scale: CGFloat = {
-        if !UserDefaults.standard.bool(forKey: "desktopTextBase108") {      // the standard size moved up: start everyone from it
-            UserDefaults.standard.set(true, forKey: "desktopTextBase108"); UserDefaults.standard.removeObject(forKey: "desktopTextScale")
+        if !UserDefaults.standard.bool(forKey: "desktopTextBase090") {      // the standard size moved: start everyone from it, at Default
+            UserDefaults.standard.set(true, forKey: "desktopTextBase090"); UserDefaults.standard.removeObject(forKey: "desktopTextScale")
         }
         let s = UserDefaults.standard.double(forKey: "desktopTextScale"); return s >= 0.8 && s <= 1.6 ? CGFloat(s) : 1
     }() { didSet { UserDefaults.standard.set(Double(scale), forKey: "desktopTextScale") } }
     /// The standard text size, as a multiple of the sizes written in this file. 0.9 since 0.18.36 (two steps down from 1.08).
-    static let standard: CGFloat = 1.0                      // 0.9 in 0.18.36; one step up in 0.18.37
+    static let standard: CGFloat = 0.9                      // "Default" in Settings ▸ Text size; 0.18.43 made the size he had chosen (one step under 1.0) the Default
     static func font(_ base: CGFloat, _ w: Weight = .regular) -> Font {
         let size = (base * Site.standard * scale).rounded()
         let name = ["Graphik-Regular", "Graphik-Medium", "Graphik-Semibold"][w == .regular ? 0 : w == .medium ? 1 : 2]
@@ -559,7 +559,7 @@ struct FootButton: View {
     @State private var hover = false
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 7) { Image(systemName: symbol).font(.system(size: 14)); Text(title).font(Site.font(15, .medium)) }
+            HStack(spacing: 6) { Image(systemName: symbol).font(.system(size: 13)); Text(title).font(Site.font(15, .medium)).lineLimit(1).minimumScaleFactor(0.8) }
                 .foregroundColor(enabled ? Site.head : Site.muted)
                 .frame(maxWidth: .infinity).frame(height: 34)
                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill((hover && enabled) || selected ? Site.surface2 : Site.surface))
@@ -730,11 +730,13 @@ struct DesktopView: View {
                             .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
                     }.buttonStyle(.plain).help("Focus \(u.version) is available. Click to get it.")
                 }
-                FootButton(symbol: "bubble.left", title: "Feedback", enabled: true) { m.openFeedback() }
-                    .help("Report a bug, suggest an idea, or say what's working well")
-                FootButton(symbol: "info.circle", title: "About", enabled: true, selected: m.selection == Page.about) { m.selection = Page.about }
-                FootButton(symbol: "book", title: "Manual", enabled: false) {}
-                    .help("The manual isn't written yet.")
+                HStack(spacing: 6) {                                  // one row, the sidebar's width, three equal parts
+                    FootButton(symbol: "bubble.left", title: "Feedback", enabled: true) { m.openFeedback() }
+                        .help("Report a bug, suggest an idea, or say what's working well")
+                    FootButton(symbol: "info.circle", title: "About", enabled: true, selected: m.selection == Page.about) { m.selection = Page.about }
+                    FootButton(symbol: "book", title: "Manual", enabled: false) {}
+                        .help("The manual isn't written yet.")
+                }
                 Button { NSWorkspace.shared.open(DesktopModel.site) } label: {
                     HStack(alignment: .top, spacing: 3) {
                         if let b = brandLockup { Image(nsImage: b).resizable().interpolation(.high).frame(width: 196, height: 196 * 112.0 / 1080.0) }
@@ -875,6 +877,29 @@ struct Choice: View {
                 }.buttonStyle(.plain).opacity(unavailable.contains(i) ? 0.35 : 1)
             }
         }
+    }
+}
+
+/// Text size: − and + either side of where it is now — "Default", or how many steps (one ⌘+ each) above or below.
+/// Clicking the middle goes back to Default. The same steps as ⌘+ and ⌘−.
+struct TextSizeStepper: View {
+    var body: some View {
+        let step = Int(((Site.scale - 1) * 10).rounded())
+        HStack(spacing: 8) {
+            key("minus", enabled: Site.scale > 0.801) { desktop.smallerText() }.help("Smaller (⌘−)")
+            Button { desktop.setScale(1) } label: {
+                Text(step == 0 ? "Default" : "Default \(step > 0 ? "+" : "−")\(abs(step))").font(Site.font(16, .medium))
+                    .foregroundColor(.black).lineLimit(1).fixedSize().frame(minWidth: 110).frame(height: 36)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white)).contentShape(Rectangle())
+            }.buttonStyle(.plain).help(step == 0 ? "The standard size" : "Back to Default")
+            key("plus", enabled: Site.scale < 1.599) { desktop.biggerText() }.help("Bigger (⌘+)")
+        }
+    }
+    private func key(_ symbol: String, enabled: Bool, _ act: @escaping () -> Void) -> some View {
+        Button(action: act) {
+            Image(systemName: symbol).font(.system(size: 14, weight: .semibold)).foregroundColor(Site.head).frame(width: 44, height: 36)
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(0.75), lineWidth: 1)).contentShape(Rectangle())
+        }.buttonStyle(PressStyle()).disabled(!enabled).opacity(enabled ? 1 : 0.35)
     }
 }
 
@@ -1062,9 +1087,7 @@ struct SettingsPage: View {
                 Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
             }
             SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
-                Choice(options: ["Smaller", "Actual", "Bigger"], selected: Site.scale < 0.99 ? 0 : Site.scale > 1.01 ? 2 : 1) { i in
-                    desktop.setScale(i == 1 ? 1 : Site.scale + (i == 2 ? 0.1 : -0.1))
-                }
+                TextSizeStepper()
             }
             SectionLabel("Menu bar icon — hover to see it enter a session").padding(.horizontal, -14).padding(.top, 10)
             let ring = hexColor(f.iconColor) ?? .white, dot = hexColor(f.iconColor2) ?? ring

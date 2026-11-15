@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.43 — 2026-11-15
+- Settings ▸ Text size is now − / Default / +, the same steps as ⌘− and ⌘+. The middle says how far from Default you are (e.g. "Default +2"); click it to go back. The size the window had is now Default.
+- Feedback, About and Manual sit side by side in one row across the sidebar's width.
+
 ## 0.18.42 — 2026-11-15
 - The Start/End Session button, hovered: it lifts, a sheen crosses its face, a soft white glow breathes and sparks flare at its corners.
 - Clicked: it presses in, then a white line draws round it the way the website's Buy square does. It starts at the top centre and takes 2.4 s, quick then settling. It runs anticlockwise when a session starts and clockwise when one ends.
