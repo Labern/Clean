@@ -3,6 +3,14 @@
 His thinking on how Focus is sold, gathered in one place (2026-11-15). The newest ideas come first. None of it is
 built yet; the app only shows the parts that are visible, and those are placeholders.
 
+## Latest from him (2026-11-15, relayed by the app session; site updated to match)
+- **Pro also sells early access and priority support** (on the site under Pro and Max).
+- **Customisation scales with the tier:** Free gets a few set schemes; Pro and Max get almost total freedom.
+- **Max's distinguishing offer is still open.** For now the site says "Everything in Pro, on up to 3 Macs".
+- Scheduled opening and blocking, if built, live in a new sidebar section, suggested name **"Schedule"**.
+- **Sign-up and secure auth** (site-side, the Focus Site session): his words, "the signup page where the user hands
+  over their email and logs in ... we need to have a fully secure auth system." Not started; see the site session.
+
 ## The pricing play (his, 2026-11-15, latest; remember it)
 - **Nominal prices on the site: Pro £5 a month, Max £10 a month.** Free exists but is **very limited**.
 - **Lured in by the cheap price, people go to pay, and only then see they can pay a multiple instead:**
