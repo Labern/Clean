@@ -39,9 +39,10 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
 16. **View As** shows the window as a Free or Pro user (an old "max" reads as Pro); Actual goes back to the real licence.
 
 **Pricing** (pricing.json, from paradoxica.uk/focus/pricing.json, is the one source; the site is built from it)
-17. **His price rules** (decided 2026-11-15) in the shipped copy: Basic (free) and Pro only, with no Max; the free tier is called Basic. Pro is £5 a month,
-    £40 a year or £50 once (once = 10× monthly, yearly under once). Round numbers only. Enterprise is listed as coming
-    soon. 14 days of Pro. Free gets 10 sessions a week. Pro is marked best value.
+17. **His price rules** (decided 2026-11-15) in the shipped copy: Basic (free) and Pro only. Pro is £5 a month,
+    £50 a year (under 12 months) or £75 once (over a year). While the launch is on, the one-off is the early adopter
+    gift at less than £75 (£50). Round numbers. Enterprise is listed as coming soon. 14 days of Pro. 10 sessions a
+    week.
 18. **The app uses the file:** the weekly count and the Preview's days come from it, and each plan's checkout link
     is `paradoxica.uk/focus/checkout/?tier=…&plan=…`.
 19. **The shipped copy matches the live site.** If it differs, the site has moved on: refresh `focus/pricing.json`

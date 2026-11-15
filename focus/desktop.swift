@@ -575,7 +575,10 @@ struct Pricing: Decodable {
     struct Tier: Decodable {
         let name: String; let label: String?; let tagline: String; let monthly: Int; let yearly: Int?; let once: Int?; let best: Bool?
         let summary: String; let yearly_summary: String?; let once_summary: String?
+        let launch: Launch?
     }
+    /// The early adopter gift: while active, the one-off sells at `once` (e.g. £50 instead of £75).
+    struct Launch: Decodable { let active: Bool; let once: Int; let label: String; let line: String; let then: String }
     struct Soon: Decodable { let name: String; let tagline: String; let note: String }
     struct Lead: Decodable { let tier: String; let plan: String }
     let currency: String
@@ -607,7 +610,15 @@ struct Pricing: Decodable {
         return paths.lazy.compactMap { try? JSONDecoder().decode(Pricing.self, from: Data(contentsOf: $0)) }.first
     }
     /// What the app uses: the last live copy if there is one, else the shipped one.
-    static var current: Pricing? = (try? JSONDecoder().decode(Pricing.self, from: Data(contentsOf: cacheFile))) ?? bundled
+    /// (The newer of the two: a copy saved from the site before this version shipped mustn't beat the one inside it.
+    /// Off-screen renders always use the shipped copy.)
+    static var current: Pricing? = {
+        guard !renderArgs.contains("--render-desktop") && !renderArgs.contains("--selftest-gui") else { return bundled }
+        let date = { (u: URL?) in u.flatMap { try? FileManager.default.attributesOfItem(atPath: $0.path)[.modificationDate] as? Date } ?? .distantPast }
+        let shipped = Bundle.main.url(forResource: "pricing", withExtension: "json")
+        if date(cacheFile) > date(shipped), let c = try? JSONDecoder().decode(Pricing.self, from: Data(contentsOf: cacheFile)) { return c }
+        return bundled
+    }()
     /// Fetches the live file; keeps it only if it parses.
     static func refresh(_ done: (() -> Void)? = nil) {
         URLSession.shared.dataTask(with: URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)) { data, _, _ in
@@ -663,7 +674,10 @@ struct UpgradeCard: View {
                 .shadow(color: .black.opacity(0.6), radius: 30, y: 12)
             }
         }
-        .onAppear { plan = plans.firstIndex(of: Pricing.current?.lead.plan ?? "monthly") ?? 0; Pricing.refresh { m.tick &+= 1 } }
+        .onAppear {
+            plan = plans.firstIndex(of: renderArgs.first { $0.hasPrefix("plan=") }.map { String($0.dropFirst(5)) } ?? Pricing.current?.lead.plan ?? "monthly") ?? 0
+            if !renderArgs.contains("--render-desktop") { Pricing.refresh { m.tick &+= 1 } }
+        }
     }
     /// A tier that isn't on sale yet (Enterprise): greyed out, its note ("Coming soon") instead of a price or button.
     @ViewBuilder func soon(_ t: Pricing.Soon) -> some View {
@@ -683,20 +697,23 @@ struct UpgradeCard: View {
         let best = t.best == true, current = DesktopModel.tierKey == key
         let which = plans[min(plan, plans.count - 1)]
         let amount = which == "once" ? t.once : which == "yearly" ? t.yearly : t.monthly
-        let price = key == "free" ? "\(p.currency)0" : "\(p.currency)\(amount ?? t.monthly)"
+        let gift = which == "once" ? t.launch.flatMap { $0.active ? $0 : nil } : nil      // early adopter gift: £50, then £75
+        let price = key == "free" ? "\(p.currency)0" : "\(p.currency)\(gift?.once ?? amount ?? t.monthly)"
         let per = key == "free" ? (t.label == nil ? "Free" : "") : which == "once" ? "once" : which == "yearly" ? "a year" : "a month"
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(t.label ?? t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)   // "Basic · Free" beside its price
                 Spacer()
-                if best { Text(p.badge ?? "Best value").font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
+                if let gift { Text(gift.label).font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
+                else if best { Text(p.badge ?? "Best value").font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
             }
             Text(t.tagline).font(Site.font(15)).foregroundColor(Site.low)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(price).font(Site.font(32, .medium)).foregroundColor(Site.head)
-                Text(per).font(Site.font(15)).foregroundColor(Site.muted)
+                if let gift, let full = t.once { Text("\(p.currency)\(full)").font(Site.font(18)).strikethrough().foregroundColor(Site.muted); Text(gift.then).font(Site.font(15)).foregroundColor(Site.muted) }
+                else { Text(per).font(Site.font(15)).foregroundColor(Site.muted) }
             }.padding(.top, 8)
-            Text(p.fill(key == "free" ? t.summary : which == "once" ? (t.once_summary ?? t.summary) : which == "yearly" ? (t.yearly_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
+            Text(p.fill(key == "free" ? t.summary : which == "once" ? (gift.map { g in g.line.replacingOccurrences(of: "{launch_once}", with: "\(p.currency)\(g.once)").replacingOccurrences(of: "{once}", with: "\(p.currency)\(t.once ?? 0)") } ?? t.once_summary ?? t.summary) : which == "yearly" ? (t.yearly_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
                 .fixedSize(horizontal: false, vertical: true).frame(minHeight: 40, alignment: .top)
             Button {
                 if key != "free" && !current { NSWorkspace.shared.open(Pricing.checkout(tier: key, plan: which)) }
@@ -2452,9 +2469,9 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
 
     // ——— Pricing: pricing.json is the one source; the app must follow it and keep to his rules ———
     let pr = Pricing.bundled
-    // 17. His price rules hold in the shipped copy (decided 2026-11-15): Free and Pro only, no Max; Pro £5 a month,
-    //     £40 a year, £50 once (10× monthly; yearly under once); round numbers; Enterprise coming soon; 14 days of
-    //     Pro; Free at 10 sessions a week; Pro the one marked best; "Max" and "Basic" retired.
+    // 17. His price rules hold in the shipped copy (decided 2026-11-15): Basic and Pro only, no Max; Pro £5 a month,
+    //     £50 a year (under 12 months), £75 once (over a year); while the launch is on, the one-off is the early
+    //     adopter gift at less than £75; round numbers; Enterprise coming soon; 14 days of Pro; 10 sessions a week.
     var rules = [String]()
     if let p = pr {
         if Set(p.tiers.keys) != ["free", "pro"] { rules.append("tiers aren't just Free and Pro") }
@@ -2463,9 +2480,11 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         if !(p.coming_soon ?? []).contains(where: { $0.name == "Enterprise" }) { rules.append("Enterprise isn't listed as coming soon") }
         if p.tiers.values.contains(where: { $0.tagline.isEmpty }) { rules.append("a tagline is empty") }
         if let t = p.tiers["pro"] {
-            if t.monthly != 5 || t.yearly != 40 || t.once != 50 { rules.append("Pro isn't £5 / £40 a year / £50 once") }
-            if t.once != t.monthly * 10 { rules.append("once ≠ 10× monthly") }
-            if (t.yearly ?? 0) >= (t.once ?? 0) { rules.append("yearly isn't under once") }
+            if t.monthly != 5 || t.yearly != 50 || t.once != 75 { rules.append("Pro isn't £5 / £50 a year / £75 once") }
+            if (t.yearly ?? 0) >= t.monthly * 12 { rules.append("yearly isn't under 12 months") }
+            if (t.yearly ?? 0) >= (t.once ?? 0) { rules.append("once isn't over yearly") }
+            if let l = t.launch, l.active, l.once >= (t.once ?? 0) { rules.append("the launch gift isn't below the one-off") }
+            if let l = t.launch, l.once % 5 != 0 { rules.append("the launch gift isn't a round number") }
         }
         if p.tiers["free"]?.monthly != 0 { rules.append("Free isn't free") }
         let all = p.tiers.values.flatMap { [$0.monthly, $0.yearly, $0.once].compactMap { $0 } }
@@ -2475,7 +2494,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         if p.tiers["pro"]?.best != true { rules.append("Pro not marked best value") }
         if p.lead.tier != "pro" || p.lead.plan != "monthly" { rules.append("lead isn't Pro monthly") }
     } else { rules.append("pricing.json missing or unreadable") }
-    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Basic (free) and Pro only; Pro £5 a month, £40 a year, £50 once (10×); round; Enterprise coming soon; 14 days of Pro; Free 10 a week; Pro best value" : rules.joined(separator: "; "))
+    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Basic (free) and Pro only; Pro £5 a month, £50 a year, £75 once (gift £50 while the launch is on); round; Enterprise coming soon; 14 days of Pro; 10 a week" : rules.joined(separator: "; "))
 
     // 18. The app takes its numbers from pricing.json, never its own: the weekly count, the Preview's days, the
     //     Upgrade window's prices, and the checkout link for each plan.
