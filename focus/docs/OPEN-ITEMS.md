@@ -157,6 +157,11 @@ These are done and pass their tests, but haven't been seen on your screen in rea
   1. **A middle tier with Modes**, and Pro above it.
   2. **Three tiers, with the key features held back for Pro** as the third and best tier.
 - Either way the free version stays free forever and the 14-day trial is the full Pro package.
+- **His three-tier sketch (2026-11-15, later the same day):**
+  - **Free:** Session only. No modes, no tools, minimal appearance changes.
+  - **Medium:** Session plus Tools.
+  - **Pro:** Session *unlimited* plus Tools plus Modes, plus appearance.
+  - Open: what "unlimited" lifts (free-tier session limit not yet defined), Medium's name and price.
 - The Free | Pro table on the site (`#pricing`, hidden; preview with `?pricing`) is two columns for now. It becomes
   three when he settles the tiers.
 
