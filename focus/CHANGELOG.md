@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.47 — 2026-11-15
+- **Session button hover:** small dark dots drift in from the right along its lower third. They ease in and out, bunching and stretching like a rubber band being drawn back. They are subtle, and only show while the pointer is on the button.
+- **Manual:** its text is one stop (one ⌘+) larger than the other pages.
+- **Margins:** the space either side of the button and page is down from 110 to 36 points.
+
 ## 0.18.46 — 2026-11-15
 - **Session button hover:** quiet. The button dims a touch and grows a touch; there are no sparkles, sheen, glow or lift. The click still draws the line round it.
 - **Trying equal margins for real:** the sidebar is as it was, with equal space either side of the button and the page. The right sidebar is off; `DesktopView.trial` switches between `.none` (the saved good look), `.right` and `.narrow`.

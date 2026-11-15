@@ -363,7 +363,8 @@ struct DrawnEdge: Shape {
 
 /// The point of the app: one press and you're in a session. As wide as the pane, tall, white, its title centred
 /// and its key at the right — worded as in the menu.
-/// Under the pointer it answers quietly: a touch dimmer, a touch larger.
+/// Under the pointer it answers quietly: a touch dimmer, a touch larger, and a few small dark dots drift in from the
+/// right, gathering and stretching like a rubber band being drawn back — something is about to happen.
 /// Clicked: it sinks, then a white line draws round it the way the website's Buy square does — from the top centre,
 /// 2.4 s, quick then settling — anticlockwise when a session begins, clockwise when one ends.
 struct SessionButton: View {
@@ -382,7 +383,11 @@ struct SessionButton: View {
                 HStack { Spacer(); Text(key).font(Site.font(18)).opacity(hover ? 0.6 : 0.45).lineLimit(1) }.padding(.trailing, 24)
             }
             .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: Layout.button)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.92 : 1)))
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.92 : 1))
+                    .overlay(TensionDots().opacity(hover ? 1 : 0).animation(.easeOut(duration: 0.35), value: hover)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous)))
+            )
             .overlay(
                 DrawnEdge(radius: 16 + Self.gap).trim(from: 0, to: trace)
                     .stroke(Color.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
@@ -410,6 +415,28 @@ struct SessionButton: View {
             withAnimation(.easeOut(duration: 0.5)) { lineShown = false }
         }
         action()
+    }
+}
+
+/// Small dark dots drifting right to left along the button's lower third. Each eases in and out, so they bunch and
+/// stretch apart like a rubber band being drawn back; each fades in from the right and out before the left edge.
+struct TensionDots: View {
+    static let count = 9, cycle = 2.6                             // dots, and seconds for one to cross
+    var body: some View {
+        TimelineView(.animation) { tl in
+            Canvas { c, size in
+                let t = tl.date.timeIntervalSinceReferenceDate / Self.cycle
+                for i in 0..<Self.count {
+                    let p = (t + Double(i) / Double(Self.count)).truncatingRemainder(dividingBy: 1)
+                    let e = p < 0.5 ? 2 * p * p : 1 - pow(-2 * p + 2, 2) / 2          // ease in and out: the band's stretch
+                    let x = size.width * (0.94 - 0.88 * e), y = size.height * 0.8
+                    let side: CGFloat = 3
+                    c.fill(Path(CGRect(x: x - side / 2, y: y - side / 2, width: side, height: side)),
+                           with: .color(Color.black.opacity(0.22 * sin(.pi * p))))
+                }
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -610,7 +637,7 @@ struct DesktopView: View {
     static var trial = Trial.narrow                            // trying equal margins for real (0.18.46); `.none` is the saved good look
     /// Room kept beside the page column: an empty right sidebar (as wide as the left one), or equal margins either side.
     var pageInsets: (lead: CGFloat, trail: CGFloat) {
-        switch Self.trial { case .none: return (0, 0); case .right: return (0, 292); case .narrow: return (110, 110) }
+        switch Self.trial { case .none: return (0, 0); case .right: return (0, 292); case .narrow: return (36, 36) }
     }
     var body: some View {
         let _ = m.tick
@@ -973,31 +1000,35 @@ struct ManualPage: View {
         .text("Focus is made by ★★★★★ × PARADOX™."),
         .text("★★★★★ × PARADOX™ is a trademark of PARADOXICA Ltd. Registered in England and Wales, company no. 17145296."),
     ]
+    static let up: CGFloat = 1.1                                 // the Manual reads one stop (one ⌘+) larger than the other pages
+    static func f(_ base: CGFloat, _ w: Site.Weight = .regular) -> Font { Site.font(base * up, w) }
     var body: some View {
-        PageFrame(title: "Manual", text: "Focus is a simple app. It solves a genuine problem: what to do when you often have many apps open, but temporarily want only a few. It solves this problem exceptionally well.") {
+        PageFrame(title: "Manual", text: "") {
+            Text("Focus is a simple app. It solves a genuine problem: what to do when you often have many apps open, but temporarily want only a few. It solves this problem exceptionally well.")
+                .font(Self.f(17)).foregroundColor(Site.low).lineSpacing(4).fixedSize(horizontal: false, vertical: true).frame(maxWidth: 680, alignment: .leading)
             ForEach(Array(Self.blocks.enumerated()), id: \.offset) { _, b in
                 switch b {
-                case .heading(let t): GroupTitle(t)
+                case .heading(let t): Text(t).font(Self.f(22, .medium)).tracking(-0.3).foregroundColor(Site.head).padding(.top, 30).padding(.bottom, 2)
                 case .text(let t):
-                    Text(t).font(Site.font(17)).foregroundColor(Site.low).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 640, alignment: .leading).padding(.top, 10)
+                    Text(t).font(Self.f(17)).foregroundColor(Site.low).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 680, alignment: .leading).padding(.top, 10)
                 case .bullets(let items):
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(items, id: \.self) { i in
                             HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                Text("—").font(Site.font(17)).foregroundColor(Site.muted)
-                                Text(i).font(Site.font(17)).foregroundColor(Site.head).fixedSize(horizontal: false, vertical: true)
+                                Text("—").font(Self.f(17)).foregroundColor(Site.muted)
+                                Text(i).font(Self.f(17)).foregroundColor(Site.head).fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }.padding(.top, 10).padding(.leading, 4)
                 case .sketch(let busy, let caption):
                     VStack(alignment: .leading, spacing: 8) {
                         DesktopSketch(busy: busy).frame(maxWidth: 640)
-                        Text(caption).font(Site.font(14)).foregroundColor(Site.muted)
+                        Text(caption).font(Self.f(14)).foregroundColor(Site.muted)
                     }.padding(.top, 14)
                 case .link(let t, let url):
                     Button { NSWorkspace.shared.open(url) } label: {
-                        HStack(spacing: 6) { Text(t).font(Site.font(17, .medium)); Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold)) }
+                        HStack(spacing: 6) { Text(t).font(Self.f(17, .medium)); Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold)) }
                             .foregroundColor(Site.head).underline()
                     }.buttonStyle(.plain).padding(.top, 10).help(url.absoluteString)
                 }
