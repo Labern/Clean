@@ -139,7 +139,20 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - The website still says £5: change it to £55 when the checkout is wired.
 - In the app: trial → "N Days Remaining — Buy Now" (opens /focus#buy); bought → the top left reads **Focus Pro**: a small white "Pro" box beside the name, the moment the purchase is recorded (`focusPro` default). Nothing replaces the Buy button.
 
-## Free + Focus Pro? (his idea, 2026-11-15, not decided — ask before building)
+## How Focus is sold — his model (2026-11-15, saved; ask before building)
+1. **Free trial of Focus Pro:** everything unlocked from the first launch, so the whole product is felt.
+2. **When the trial ends, Focus drops to the free version:** it stays usable and free for good, but Pro features lock.
+3. **Pay once to get Focus Pro back.** The price is open: £50 was his figure, £55 the earlier decision, £100 my
+   suggestion after the Wispr Flow comparison (£15/month, £150/year).
+- Why: it shows the full product, allows free use, and makes Pro something people miss and want back.
+- In the app: during the trial, "N Days Remaining — Buy Now" at the foot of the sidebar. Bought, the top left reads
+  Focus Pro. On the free version the button should invite people back to Pro, e.g. "Get Focus Pro back".
+- Suggested split:
+  - **Free:** sessions (start and end with ⌘⇧F, the menu or the button; choosing apps; Critical System Processes;
+    everything reopening as it was).
+  - **Pro:** modes and their keys, History and snapshots, Tools, Appearance, and custom shortcuts.
+
+## Free + Focus Pro? (earlier note, superseded by the model above)
 - The idea: part of Focus is free, and buying Focus Pro (£55) unlocks everything.
 - Suggested split, if he goes ahead:
   - **Free, enough to love it:** start and end a session (⌘⇧F, the menu, the button), choosing apps, Critical System
