@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.70 — 2026-11-15
+- **Upgrade window:** Pro's label comes from pricing.json's `badge` when the site publishes it ("Best value" until then). The checkout pre-selecting the plan from the app's link is confirmed by the Focus Site session (all four combinations tested).
+
 ## 0.18.69 — 2026-11-15
 - **Keys:** ⌘⇧F starts and ends a session; **⌘⇧E opens the desktop app** from anywhere (press again to put it away); the menu moves to **⌥⇧E**. All can be changed in Shortcuts, in the window and the menu.
 - **Upgrade window:** Free / Pro / Max side by side, Monthly or Once, Pro marked "Best value". A plan's button opens the site's checkout in the browser (`paradoxica.uk/focus/checkout/?tier=…&plan=…`). It opens from the sidebar button, which now reads "14 Days of Pro Left — Upgrade Now", and from Focus ▸ Upgrade to Pro….

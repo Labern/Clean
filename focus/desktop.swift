@@ -578,6 +578,7 @@ struct Pricing: Decodable {
     let trial_tier: String
     let free_sessions_per_week: Int
     let lead: Lead
+    let badge: String?                                         // the best tier's label ("Best value"), when the file has it
     let tiers: [String: Tier]
     let features: [Group]
     struct Group: Decodable { let group: String; let rows: [[Cell]] }
@@ -664,7 +665,7 @@ struct UpgradeCard: View {
             HStack {
                 Text(t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)
                 Spacer()
-                if best { Text("Best value").font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
+                if best { Text(p.badge ?? "Best value").font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
             }
             Text(t.tagline).font(Site.font(15)).foregroundColor(Site.low)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
