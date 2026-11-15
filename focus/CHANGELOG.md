@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.55 — 2026-11-15
+- **Settings ▸ Appearance ▸ Width** is now **Default** (space either side of the page; the new standard), **Wide** (the page fills the window, as before) or **Minimal**, which takes a sidebar's width off the window itself, so the whole app is smaller. Switching into or out of Minimal narrows or widens the open window, keeping its left edge where it is.
+- **Hover:** every option you can pick in Settings, and the − / + text-size keys, now show they're under the pointer: they fill a little and the outline brightens.
+
 ## 0.18.54 — 2026-11-15
 - **The session line:** starting a session draws the line round the button (from the top centre, anticlockwise) and it stays for the whole session. Ending the session undraws it, back the way it came. It follows the session itself, so the menu and ⌘⇧F draw and undraw it too.
 - **Modes in the Session Editor:** under the pointer each mode shows a white "Start session" button. A running mode says "On" (hover: "End session"). Clicking a mode's name, or the rest of its row, opens it to edit. Right-click still has the full menu.

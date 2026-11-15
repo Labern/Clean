@@ -752,14 +752,16 @@ struct SideRow: View {
 
 struct DesktopView: View {
     @ObservedObject var m: DesktopModel
-    /// Settings ▸ Appearance ▸ Width: Default (the page fills the window), Narrow (equal space either side), or Space
-    /// (an empty column on the right, kept for later). Off-screen renders can pick one with `trial=none|narrow|right`.
-    enum Trial: Int { case none = 0, narrow = 1, right = 2 }
+    /// Settings ▸ Appearance ▸ Width: Default (equal space either side of the page), Wide (the page fills the window), or
+    /// Minimal (the page fills a window made narrower by a sidebar's width). Renders: `trial=narrow|wide|minimal`.
+    enum Trial: Int { case narrow = 0, wide = 1, minimal = 2 }   // Default, Wide, Minimal (stored under "desktopWidthV2")
     static var renderTrial: Trial?
-    static var trial: Trial { renderTrial ?? Trial(rawValue: UserDefaults.standard.integer(forKey: "desktopWidth")) ?? .none }
+    static var trial: Trial { renderTrial ?? Trial(rawValue: UserDefaults.standard.integer(forKey: "desktopWidthV2")) ?? .narrow }
+    /// Minimal takes the right sidebar's width off the window itself.
+    static let minimalCut: CGFloat = 292
     /// Room kept beside the page column: an empty right sidebar (as wide as the left one), or equal margins either side.
     var pageInsets: (lead: CGFloat, trail: CGFloat) {
-        switch Self.trial { case .none: return (0, 0); case .right: return (0, 292); case .narrow: return (36, 36) }
+        switch Self.trial { case .narrow: return (36, 36); case .wide, .minimal: return (0, 0) }
     }
     var body: some View {
         let _ = m.tick
@@ -797,9 +799,6 @@ struct DesktopView: View {
             }
         }
         .background(Site.bg).preferredColorScheme(.dark)
-        .overlay(alignment: .trailing) {                           // trial only: where the right sidebar would start
-            if Self.trial == .right { Rectangle().fill(Site.line).frame(width: 1).padding(.trailing, 292).padding(.vertical, 20) }
-        }
         .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
         .animation(.easeOut(duration: 0.15), value: m.feedbackShown)
     }
@@ -1006,15 +1005,26 @@ struct Choice: View {
     var body: some View {
         HStack(spacing: 8) {
             ForEach(Array(options.enumerated()), id: \.offset) { i, o in
-                Button { if !unavailable.contains(i) { pick(i) } } label: {
-                    Text(o).font(Site.font(16, .medium)).foregroundColor(i == selected ? .black : Site.head).lineLimit(1).fixedSize()
-                        .padding(.horizontal, 16).frame(height: 36)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(i == selected ? Color.white : Color.clear))
-                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(i == selected ? 0 : 0.75), lineWidth: 1))
-                        .contentShape(Rectangle())
-                }.buttonStyle(.plain).opacity(unavailable.contains(i) ? 0.35 : 1)
+                ChoiceOption(title: o, on: i == selected, available: !unavailable.contains(i)) { pick(i) }
             }
         }
+    }
+}
+/// One option of a Choice. Chosen: solid white. Not chosen: outlined, and under the pointer it fills a little and its
+/// outline brightens, so it's clear it can be picked.
+struct ChoiceOption: View {
+    let title: String, on: Bool, available: Bool, pick: () -> Void
+    @State private var hover = false
+    var body: some View {
+        let lit = hover && available && !on
+        Button { if available { pick() } } label: {
+            Text(title).font(Site.font(16, .medium)).foregroundColor(on ? .black : Site.head).lineLimit(1).fixedSize()
+                .padding(.horizontal, 16).frame(height: 36)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Color.white : lit ? Site.surface2 : Color.clear))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(on ? 0 : lit ? 1 : 0.75), lineWidth: 1))
+                .contentShape(Rectangle())
+        }.buttonStyle(PressStyle()).opacity(available ? 1 : 0.35).onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: lit)
     }
 }
 
@@ -1034,10 +1044,21 @@ struct TextSizeStepper: View {
         }
     }
     private func key(_ symbol: String, enabled: Bool, _ act: @escaping () -> Void) -> some View {
+        StepKey(symbol: symbol, enabled: enabled, act: act)
+    }
+}
+
+struct StepKey: View {
+    let symbol: String, enabled: Bool, act: () -> Void
+    @State private var hover = false
+    var body: some View {
+        let lit = hover && enabled
         Button(action: act) {
             Image(systemName: symbol).font(.system(size: 14, weight: .semibold)).foregroundColor(Site.head).frame(width: 44, height: 36)
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(0.75), lineWidth: 1)).contentShape(Rectangle())
-        }.buttonStyle(PressStyle()).disabled(!enabled).opacity(enabled ? 1 : 0.35)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(lit ? Site.surface2 : Color.clear))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(lit ? 1 : 0.75), lineWidth: 1)).contentShape(Rectangle())
+        }.buttonStyle(PressStyle()).disabled(!enabled).opacity(enabled ? 1 : 0.35).onHover { hover = $0 }
+        .animation(.easeOut(duration: 0.12), value: lit)
     }
 }
 
@@ -1483,10 +1504,8 @@ struct SettingsPage: View {
             SettingLine(title: "Menu headings", note: "How much the menu's headings explain.") {
                 Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
             }
-            SettingLine(title: "Width", note: "Default fills the window. Narrow leaves space either side. Space keeps an empty column on the right.") {
-                Choice(options: ["Default", "Narrow", "Space"], selected: DesktopView.trial.rawValue) { i in
-                    m.act { UserDefaults.standard.set(i, forKey: "desktopWidth") }
-                }
+            SettingLine(title: "Width", note: "Default leaves space either side of the page. Wide fills the window. Minimal makes the window itself smaller.") {
+                Choice(options: ["Default", "Wide", "Minimal"], selected: DesktopView.trial.rawValue) { i in desktop.setWidth(i) }
             }
             SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
                 TextSizeStepper()
@@ -1553,13 +1572,14 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             let m = DesktopModel(f); model = m
             let screen = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 800)
             // A squat rectangle, well inside the screen: no wider or taller than it needs to be.
-            let size = NSSize(width: min(1000, screen.width - 120), height: min(730, screen.height - 110))
+            let size = NSSize(width: min(1000, screen.width - 120) - (DesktopView.trial == .minimal ? DesktopView.minimalCut : 0),
+                              height: min(730, screen.height - 110))
             let w = DesktopWindow(contentRect: NSRect(origin: .zero, size: size),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden; w.title = "Focus"
             w.backgroundColor = .black; w.appearance = NSAppearance(named: .darkAqua)
             w.isMovableByWindowBackground = false; w.isReleasedWhenClosed = false   // drag the top strip to move it: rows are for dragging apps
-            w.minSize = NSSize(width: 720, height: 420)
+            w.minSize = NSSize(width: 600, height: 420)
             let host = NSHostingView(rootView: DesktopView(m: m))
             host.sizingOptions = []                                  // the window sets the size, never the content
             w.contentView = host
@@ -1641,6 +1661,18 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     /// ⌘H arrived while Focus was holding it: the window comes back.
     func reopenFromH() { disarmReopen(); focus.openDesktop() }
     @objc func newMode() { model?.newMode() }
+    /// Settings ▸ Appearance ▸ Width. Into or out of Minimal, the window narrows or widens by a sidebar's width,
+    /// keeping its left edge where it is.
+    func setWidth(_ i: Int) {
+        let was = DesktopView.trial
+        UserDefaults.standard.set(i, forKey: "desktopWidthV2"); model?.tick &+= 1
+        let now = DesktopView.trial, cut = DesktopView.minimalCut
+        let d: CGFloat = (now == .minimal ? -cut : 0) - (was == .minimal ? -cut : 0)
+        if d != 0, let w = window {
+            var f = w.frame; f.size.width = max(w.minSize.width, f.size.width + d)
+            w.setFrame(f, display: true, animate: true)
+        }
+    }
     func setScale(_ s: CGFloat) { Site.scale = min(max((s * 20).rounded() / 20, 0.8), 1.6); model?.tick &+= 1 }
     @objc func biggerText() { setScale(Site.scale + 0.1) }
     @objc func smallerText() { setScale(Site.scale - 0.1) }
@@ -1686,13 +1718,14 @@ func renderDesktop(to file: String, mode: Bool) {
     if let c = CommandLine.arguments.first(where: { $0.hasPrefix("colour=") }) {          // e.g. colour=8B5CF6 or colour=8B5CF6,F472B6
         let p = c.dropFirst(7).split(separator: ","); f.store.set(String(p[0]), forKey: "iconColor"); f.store.set(p.count > 1 ? String(p[1]) : "", forKey: "iconColor2")
     }
-    if CommandLine.arguments.contains("trial=none") { DesktopView.renderTrial = DesktopView.Trial.none }
-    if CommandLine.arguments.contains("trial=right") { DesktopView.renderTrial = .right }
     if CommandLine.arguments.contains("trial=narrow") { DesktopView.renderTrial = .narrow }
+    if CommandLine.arguments.contains("trial=wide") { DesktopView.renderTrial = .wide }
+    if CommandLine.arguments.contains("trial=minimal") { DesktopView.renderTrial = .minimal }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
-    let size = CommandLine.arguments.contains("wide") ? NSSize(width: 1320, height: 880)
+    var size = CommandLine.arguments.contains("wide") ? NSSize(width: 1320, height: 880)
         : NSSize(width: 1000, height: CommandLine.arguments.first { $0.hasPrefix("h=") }.flatMap { Double($0.dropFirst(2)) }.map { CGFloat($0) }
                                        ?? (CommandLine.arguments.contains("tall") ? 1500 : 730))
+    if DesktopView.trial == .minimal { size.width -= DesktopView.minimalCut }
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: .darkAqua); w.contentView = host
