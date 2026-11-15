@@ -135,15 +135,15 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 ## Price and model — his current thinking (2026-11-15, latest; supersedes the £55 / no-free-tier note)
 - **Focus Pro is premium: £50**, one-off. Round numbers only (5s and 0s); no prices ending in 9.
 - **Buying unlocks the Pro features.**
-- **The 14-day free trial is a trial of Pro mode:** everything unlocked from the first launch.
-- **When the trial ends, Focus drops to the free version:** a limited subset, free to use forever.
+- **The Pro Preview** (the name for the 14-day free trial of Pro): everything unlocked from the first launch.
+- **When the Pro Preview ends, Focus drops to the free version:** a limited subset, free to use forever.
 - **Pay £50 (or the team price) → Pro licence, shown in the app:** the top left reads **Focus Pro** (white "Pro"
   box beside the name, from the `focusPro` purchase flag).
 - Why it's a bargain: Wispr Flow does one thing and costs £15 a month or £150 a year, every year. Focus Pro is £50 once.
 - **Teams:** per seat, sold in packs, round figures. Earlier suggestion (at £55): 5 seats £275 · 20 seats £1,000 ·
   50 seats £2,250 — re-derive from £50 if kept.
 - The website still says £5: change it to £50 when the checkout is wired.
-- In the app: during the trial, "N Days Remaining — Buy Now" at the foot of the sidebar (opens /focus#buy). On the
+- In the app: during the Pro Preview, "N Days of Pro — Buy Now" at the foot of the sidebar (opens /focus#buy). On the
   free version the button should invite people back to Pro, e.g. "Get Focus Pro back".
 - Suggested split (not decided):
   - **Free:** sessions (start and end with ⌘⇧F, the menu or the button; choosing apps; Critical System Processes;

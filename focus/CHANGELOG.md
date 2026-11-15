@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.61 — 2026-11-15
+- **The free trial is now called the Pro Preview.** The button reads "14 Days of Pro — Buy Now". The days aren't counted yet.
+
 ## 0.18.60 — 2026-11-15
 - **Focus Pro sits at the top left:** a bought copy shows a small white "Pro" box beside the Focus name. The badge at the foot of the sidebar is gone. For review, your build shows Pro at the top and the Buy button at the bottom together.
 

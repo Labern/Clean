@@ -141,7 +141,7 @@ final class DesktopModel: ObservableObject {
     /// recorded the Buy button becomes "Focus Pro". Licences aren't built yet: the purchase flow will set
     /// `focusPro` in Focus's defaults. A render can show it with `licensed`.
     static var licensed: Bool { CommandLine.arguments.contains("licensed") || UserDefaults.standard.bool(forKey: "focusPro") }
-    /// Days left in the trial. Not counted yet (licences come later): the planned 14, to see the button as it will read.
+    /// Days left in the Pro Preview (what the free trial of Focus Pro is called). Not counted yet (licences come later): the planned 14, to see the button as it will read.
     static let trialDaysLeft = 14
 
     // — feedback, written here and sent straight to the developer —
@@ -903,7 +903,7 @@ struct DesktopView: View {
             VStack(spacing: 8) {
                 if DesktopModel.trial && (!DesktopModel.licensed || DesktopModel.showBoth) {   // a trial: one clear way to buy
                     Button { NSWorkspace.shared.open(DesktopModel.buy) } label: {
-                        Text("\(DesktopModel.trialDaysLeft) \(DesktopModel.trialDaysLeft == 1 ? "Day" : "Days") Remaining — Buy Now")
+                        Text("\(DesktopModel.trialDaysLeft) \(DesktopModel.trialDaysLeft == 1 ? "Day" : "Days") of Pro — Buy Now")   // the Pro Preview
                             .font(Site.font(17, .medium)).foregroundColor(.black).lineLimit(1).minimumScaleFactor(0.8)
                             .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(height: 40)
                             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
