@@ -1265,6 +1265,10 @@ final class Focus: NSObject, NSMenuDelegate {
     var sessionMods: Int { get { store.object(forKey: "sessionMods") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "sessionMods"); applyShortcuts() } }
     var menuMods: Int { get { store.object(forKey: "menuMods") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "menuMods"); applyShortcuts() } }
     var modeMods: Int { get { store.object(forKey: "modeMods") as? Int ?? modeModifierChoices[0].mods } set { store.set(newValue, forKey: "modeMods"); applyShortcuts() } }
+    /// Opens the desktop app from anywhere (and puts it away again when it's in front). ⌃⌥D by default: every ⌘⇧
+    /// letter is already taken somewhere (⌘⇧D sends in Mail), ⌃⌥ almost never is.
+    var appMods: Int { get { store.object(forKey: "appMods") as? Int ?? modifierChoices[1].mods } set { store.set(newValue, forKey: "appMods"); applyShortcuts() } }
+    var appKeyTaken = false
     var takenModeKeys: Set<Int> = []                            // digits macOS refused (another app holds them)
     var keyRefs: [EventHotKeyRef?] = []
     var sessionKeyTaken = false, menuKeyTaken = false
@@ -1273,8 +1277,8 @@ final class Focus: NSObject, NSMenuDelegate {
     /// (Re)registers both shortcuts. Takes effect at once; reports a combination another app already holds.
     func applyShortcuts() {
         keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }
-        let s = hotkey(1, kVK_ANSI_F, sessionMods), m = hotkey(2, kVK_ANSI_E, menuMods)
-        keyRefs = [s, m]; sessionKeyTaken = s == nil; menuKeyTaken = m == nil
+        let s = hotkey(1, kVK_ANSI_F, sessionMods), m = hotkey(2, kVK_ANSI_E, menuMods), a = hotkey(3, kVK_ANSI_D, appMods)
+        keyRefs = [s, m, a]; sessionKeyTaken = s == nil; menuKeyTaken = m == nil; appKeyTaken = a == nil
         takenModeKeys = []
         for md in modes { if let d = md["key"] as? Int, digitKeys.indices.contains(d) {   // only the keys the user set
             let r = hotkey(UInt32(100 + d), digitKeys[d], modeMods); keyRefs.append(r); if r == nil { takenModeKeys.insert(d) }
@@ -1285,6 +1289,7 @@ final class Focus: NSObject, NSMenuDelegate {
     func releaseShortcuts() { keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }; keyRefs = [] }
     @objc func pickSessionKey(_ s: NSMenuItem) { sessionMods = s.tag }
     @objc func pickMenuKey(_ s: NSMenuItem) { menuMods = s.tag }
+    @objc func pickAppKey(_ s: NSMenuItem) { appMods = s.tag }
     @objc func pickModeMods(_ s: NSMenuItem) { modeMods = s.tag }
     let when: DateFormatter = {
         let f = DateFormatter(); f.dateStyle = .short; f.timeStyle = .short; f.doesRelativeDateFormatting = true; return f
@@ -2743,6 +2748,12 @@ final class Focus: NSObject, NSMenuDelegate {
         }
         if menuKeyTaken { add("⚠︎ " + label(menuMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
         km.addItem(.separator())
+        km.addItem(headingItem("Open the Desktop App"))
+        for c in modifierChoices {
+            let i = add(c.label + "D", #selector(pickAppKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == appMods ? .on : .off
+        }
+        if appKeyTaken { add("⚠︎ " + label(appMods) + "D is taken by another app — pick another", nil, to: km).isEnabled = false }
+        km.addItem(.separator())
         km.addItem(headingItem("Modes — this plus a number you give each mode"))
         for c in modeModifierChoices {
             let i = add(c.label + "1  ·  " + c.clash, #selector(pickModeMods(_:)), to: km); i.tag = c.mods; i.state = c.mods == modeMods ? .on : .off
@@ -3879,6 +3890,7 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
         switch hk.id {
         case 1: focus.toggle()
         case 2: focus.showMenu()
+        case 3: if desktop.shown && NSApp.isActive && desktop.window?.isKeyWindow == true { desktop.hide() } else { focus.openDesktop() }
         case 100...109: focus.modeKey(Int(hk.id) - 100)
         case 200: desktop.reopenFromH()                         // ⌘H straight after hiding the desktop app
         default: break

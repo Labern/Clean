@@ -36,5 +36,7 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
 15. **Basic's weekly sessions** are counted since Monday 00:00 (Quit All clean-ups don't count), reset next Monday
     00:00, and never go below zero.
 
+16. **View As** (View menu) shows the window as a Free, Pro or Max user; Actual goes back to the real licence.
+
 **Not covered** (needs the real screen or a pointer): hover states, the hand cursor, drag to reorder, the pressure
 build and release over time, the click line animating, ⌘Q/⌘H in a live window. Check these by eye.

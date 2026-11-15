@@ -4,8 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.68 — 2026-11-15
+- **View ▸ View As ▸ Free / Pro / Max:** the window as each kind of user sees it (badge by the name, Buy button, weekly count, Pro tags). Only the look changes; nothing is bought or unlocked. "Actual" goes back to this copy's own licence. This replaces the temporary "show both".
+- **⌃⌥D opens the desktop app from anywhere,** and puts it away when it's in front. You can change it (⌘⇧D, ⌃⇧D, ⌃⌥⌘D) in Shortcuts, in both the window and the menu. It's also in the Manual's keys.
+- **The free tier is called Free** again (he tried "Basic").
+- **GUI tests:** check 16 covers View As. All 16 pass.
+
 ## 0.18.67 — 2026-11-15
-- **Basic's weekly sessions:** right of "Apps in Session" on Basic copies, "X Sessions remaining this week" with "Resets 00:00 on Monday" under it. It counts the sessions in Focus's history since 00:00 on Monday (Quit All clean-ups don't count) out of Basic's 10, and is hidden for Pro and Max. Nothing stops at 0 yet; that comes with licences.
+- **Free's weekly sessions:** right of "Apps in Session" on Free copies, "X Sessions remaining this week" with "Resets 00:00 on Monday" under it. It counts the sessions in Focus's history since 00:00 on Monday (Quit All clean-ups don't count) out of Free's 10, and is hidden for Pro and Max. Nothing stops at 0 yet; that comes with licences.
 - **GUI tests:** check 15 covers the weekly count. All 15 pass.
 
 ## 0.18.66 — 2026-11-15

@@ -21,9 +21,9 @@ built yet; the app only shows the parts that are visible, and those are placehol
 - **Max: nobody should ever want to buy it, but it needs full functionality.** It exists to make Pro the obvious buy.
 
 ## What each tier gets — his latest (2026-11-15)
-- **The free tier is called Basic** (his idea; agreed): **Basic / Pro / Max**. Wherever a price shows, write
-  "Basic · free" so nobody has to wonder whether it costs anything.
-- **Basic keeps the last 3 sessions in History** (not none). Pro and Max keep all of it. Like the weekly limit,
+- **The free tier is called Free** (2026-11-15: he tried "Basic", then chose Free, as Claude's own pricing does):
+  **Free / Pro / Max**.
+- **Free keeps the last 3 sessions in History** (not none). Pro and Max keep all of it. Like the weekly limit,
   people see it working and hit the edge just when they want more.
 - **Pro and Max: Focus can hide itself.** It runs with no menu bar icon, and is driven by ⌘⇧F and the other keys.
   Free always shows its icon. Not built yet; it needs a sure way back to the icon (e.g. opening Focus again shows

@@ -159,9 +159,9 @@ final class DesktopModel: ObservableObject {
     static let buy = URL(string: "https://paradoxica.co.uk/focus#buy")!
     /// Whether this copy is on a trial. Licences aren't built yet, so it's shown for now to see the button in place.
     static let trial = true
-    /// Basic's weekly sessions (PRICING.md: 10 a week; Pro and Max unlimited).
-    static let basicWeekly = 10
-    /// Sessions started since 00:00 on Monday (Quit All clean-ups don't count), how many of Basic's are left, and the
+    /// Free's weekly sessions (PRICING.md: 10 a week; Pro and Max unlimited).
+    static let freeWeekly = 10
+    /// Sessions started since 00:00 on Monday (Quit All clean-ups don't count), how many of Free's are left, and the
     /// day it resets (next Monday, 00:00 local time).
     static func week(_ sessions: [[String: Any]], now: Date, calendar: Calendar = .current) -> (used: Int, left: Int, reset: Date, resetDay: String) {
         var cal = calendar; cal.firstWeekday = 2                       // weeks start on Monday
@@ -169,10 +169,10 @@ final class DesktopModel: ObservableObject {
         let reset = cal.date(byAdding: .day, value: 7, to: start) ?? now
         let used = sessions.filter { ($0["kind"] as? String) != "quit all" && (($0["date"] as? Date).map { $0 >= start && $0 <= now } ?? false) }.count
         let f = DateFormatter(); f.calendar = cal; f.locale = Locale(identifier: "en_GB"); f.dateFormat = "EEEE"
-        return (used, max(0, basicWeekly - used), reset, f.string(from: reset))
+        return (used, max(0, freeWeekly - used), reset, f.string(from: reset))
     }
     /// Temporary, for looking at the design: show the Focus Pro badge and the Buy button together. Remove with licences.
-    static let showBoth = true
+    static let showBoth = false                                 // replaced by View ▸ View As (0.18.68)
     /// Whether this copy has been bought — read live (the window refreshes every 1.5 s), so the moment a purchase is
     /// recorded the Buy button becomes "Focus Pro". Licences aren't built yet: the purchase flow will set
     /// `focusPro` in Focus's defaults. A render can show it with `licensed`.
@@ -184,6 +184,13 @@ final class DesktopModel: ObservableObject {
     static var tier: Tier {
         if renderArgs.contains("tier=max") { return .max }
         if renderArgs.contains("licensed") { return .pro }
+        if renderArgs.contains("tier=free") { return .free }
+        switch UserDefaults.standard.string(forKey: "desktopViewAs") {   // View ▸ View As: see the app as each user would
+        case "free": return .free
+        case "pro": return .pro
+        case "max": return .max
+        default: break
+        }
         switch UserDefaults.standard.string(forKey: "focusTier") {
         case "max": return .max
         case "pro": return .pro
@@ -1056,7 +1063,7 @@ struct SessionDetail: View {
                     HStack(alignment: .firstTextBaseline) {
                         Text("Apps in Session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)   // the menu's own headings
                         Spacer(minLength: 12)
-                        if !DesktopModel.licensed {                       // Basic: sessions left this week, and when it resets
+                        if !DesktopModel.licensed {                       // Free: sessions left this week, and when it resets
                             let w = DesktopModel.week(f.sessions, now: Date())
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text("\(w.left) \(w.left == 1 ? "Session" : "Sessions") remaining this week").font(Site.font(16, .medium)).foregroundColor(Site.head)
@@ -1297,12 +1304,15 @@ struct ShortcutsPage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
         let f = m.f
-        PageFrame(title: "Shortcuts", text: "The keys that start and end a session, open the menu, and start your modes.") {
+        PageFrame(title: "Shortcuts", text: "The keys that start and end a session, open the menu, open this app, and start your modes.") {
             SettingLine(title: "Start / End Session", note: f.sessionKeyTaken ? "That combination is taken by another app. Pick another." : "") {
                 Choice(options: modifierChoices.map { $0.label + "F" }, selected: modifierChoices.firstIndex { $0.mods == f.sessionMods } ?? 0) { i in m.act { f.sessionMods = modifierChoices[i].mods } }
             }
             SettingLine(title: "Open the Menu", note: f.menuKeyTaken ? "That combination is taken by another app. Pick another." : "") {
                 Choice(options: modifierChoices.map { $0.label + "E" }, selected: modifierChoices.firstIndex { $0.mods == f.menuMods } ?? 0) { i in m.act { f.menuMods = modifierChoices[i].mods } }
+            }
+            SettingLine(title: "Open the Desktop App", note: f.appKeyTaken ? "That combination is taken by another app. Pick another." : "From anywhere. Press again to put it away.") {
+                Choice(options: modifierChoices.map { $0.label + "D" }, selected: modifierChoices.firstIndex { $0.mods == f.appMods } ?? 1) { i in m.act { f.appMods = modifierChoices[i].mods } }
             }
             SettingLine(title: "Modes", note: "This, plus the number you give each mode.") {
                 Choice(options: modeModifierChoices.map { $0.label + "1" }, selected: modeModifierChoices.firstIndex { $0.mods == f.modeMods } ?? 0) { i in m.act { f.modeMods = modeModifierChoices[i].mods } }
@@ -1523,6 +1533,7 @@ struct ManualFigure: View {
             case .keys:
                 VStack(alignment: .leading, spacing: 10) {
                     KeyLine(keys: ["⌘", "⇧", "F"], says: "Start or end a session, from anywhere")
+                    KeyLine(keys: ["⌃", "⌥", "D"], says: "Open the app from anywhere (and put it away)")
                     KeyLine(keys: ["⌘", "H"], says: "Hide the app; press again straight away to bring it back")
                     KeyLine(keys: ["⌘", "Q"], says: "Close the app. The menu keeps running")
                     KeyLine(keys: ["⌘", "+"], says: "Bigger text (⌘− for smaller)")
@@ -1834,6 +1845,16 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             item(m, "Actual Size", #selector(actualText))
             let eq = m.addItem(withTitle: "Increase Font Size", action: #selector(biggerText), keyEquivalent: "="); eq.target = self   // ⌘= without Shift
             eq.isHidden = true; eq.allowsKeyEquivalentWhenHidden = true
+            m.addItem(.separator())
+            // View As: the window as a Free, Pro or Max user sees it (badge, Buy button, weekly count, Pro tags).
+            // Only the look changes: nothing is bought or unlocked. "Actual" goes back to this copy's own licence.
+            let viewAs = NSMenuItem(title: "View As", action: nil, keyEquivalent: ""), sub = NSMenu(title: "View As")
+            let now = UserDefaults.standard.string(forKey: "desktopViewAs") ?? ""
+            for (title, key) in [("Actual", ""), ("Free", "free"), ("Pro", "pro"), ("Max", "max")] {
+                let i = sub.addItem(withTitle: title, action: #selector(viewAs(_:)), keyEquivalent: "")
+                i.target = self; i.representedObject = key; i.state = now == key ? .on : .off
+            }
+            viewAs.submenu = sub; m.addItem(viewAs)
         }
         menu("Window") { m in
             item(m, "Minimize", #selector(NSWindow.performMiniaturize(_:)), "m", mine: false)
@@ -1879,6 +1900,12 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     static func applyLook(to w: NSWindow) {
         w.backgroundColor = Site.light ? .white : .black
         w.appearance = Site.look == 2 ? nil : NSAppearance(named: Site.light ? .aqua : .darkAqua)   // System: follow macOS
+    }
+    @objc func viewAs(_ sender: NSMenuItem) {
+        let key = sender.representedObject as? String ?? ""
+        if key.isEmpty { UserDefaults.standard.removeObject(forKey: "desktopViewAs") } else { UserDefaults.standard.set(key, forKey: "desktopViewAs") }
+        sender.menu?.items.forEach { $0.state = ($0.representedObject as? String ?? "") == key ? .on : .off }
+        model?.tick &+= 1
     }
     func setWidth(_ i: Int) {
         let was = DesktopView.trial
@@ -1999,9 +2026,10 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     }
     let std = UserDefaults.standard
     // Settings that some checks change, put back afterwards.
-    let keep = ["desktopWidthV2", "desktopTextScale", "focusPro", "focusTier", "desktopButtonInkWhite"].map { ($0, std.object(forKey: $0)) }
+    let keep = ["desktopWidthV2", "desktopTextScale", "focusPro", "focusTier", "desktopButtonInkWhite", "desktopViewAs", "desktopLook"].map { ($0, std.object(forKey: $0)) }
     defer { for (k, v) in keep { if let v { std.set(v, forKey: k) } else { std.removeObject(forKey: k) } }; Site.scale = CGFloat(std.double(forKey: "desktopTextScale") == 0 ? 1 : std.double(forKey: "desktopTextScale")) }
     std.removeObject(forKey: "desktopWidthV2"); std.removeObject(forKey: "focusPro"); std.removeObject(forKey: "desktopButtonInkWhite")
+    std.removeObject(forKey: "desktopViewAs"); std.removeObject(forKey: "focusTier"); std.removeObject(forKey: "desktopLook")
 
     // 1. The window opens big enough for the sidebar: for 0…6 modes, drawn at the size it opens at on a 14" MacBook
     //    screen, the sidebar keeps slack between its last row and the foot.
@@ -2145,7 +2173,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     }
     check(14, "Light and Dark draw correctly", wrong.isEmpty, wrong.isEmpty ? "5 pages × 2 looks: right ground, readable title" : "wrong: \(wrong.joined(separator: ", "))")
 
-    // 15. Basic's weekly sessions: counted since Monday 00:00 (Quit All clean-ups don't count), resetting next Monday.
+    // 15. Free's weekly sessions: counted since Monday 00:00 (Quit All clean-ups don't count), resetting next Monday.
     var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/London")!
     let wed = cal.date(from: DateComponents(year: 2026, month: 11, day: 18, hour: 15))!          // a Wednesday
     let mon = cal.date(from: DateComponents(year: 2026, month: 11, day: 16, hour: 0, minute: 5))!
@@ -2154,8 +2182,17 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     let wk = DesktopModel.week(fake, now: wed, calendar: cal)
     let resetOK = cal.dateComponents([.weekday, .hour, .minute], from: wk.reset) == DateComponents(hour: 0, minute: 0, weekday: 2)
     let full = DesktopModel.week((0..<14).map { _ in ["date": wed.addingTimeInterval(-10)] }, now: wed, calendar: cal).left
-    check(15, "Basic's weekly sessions", wk.used == 2 && wk.left == 8 && wk.resetDay == "Monday" && resetOK && full == 0,
+    check(15, "Free's weekly sessions", wk.used == 2 && wk.left == 8 && wk.resetDay == "Monday" && resetOK && full == 0,
           "used \(wk.used), left \(wk.left), resets \(wk.resetDay) 00:00 \(resetOK); never below 0: \(full)")
+
+    // 16. View As: Free, Pro and Max each change what the window shows, and Actual goes back to the real licence.
+    var seen = [String]()
+    for k in ["free", "pro", "max", ""] {
+        if k.isEmpty { std.removeObject(forKey: "desktopViewAs") } else { std.set(k, forKey: "desktopViewAs") }
+        seen.append("\(k.isEmpty ? "actual" : k)=\(DesktopModel.tier)/\(DesktopModel.licensed ? "paid" : "free")")
+    }
+    std.removeObject(forKey: "desktopViewAs")
+    check(16, "View As Free / Pro / Max", seen == ["free=free/free", "pro=pro/paid", "max=max/paid", "actual=free/free"], seen.joined(separator: ", "))
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)

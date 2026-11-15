@@ -195,7 +195,7 @@ These are done and pass their tests, but haven't been seen on your screen in rea
   opening Focus.app again, or a key, brings the icon back.
 - These would live in a new sidebar section; the suggested name is **Schedule** (timed opening and blocking).
 - **Gating to match the site's table** (Focus Site session, PRICING.md). His rule: **never limit what a session can
-  do, only how often.** Free — now called **Basic** — gets **10 sessions a week** (his decision, 2026-11-15; Pro and Max unlimited) with any
+  do, only how often.** Free gets **10 sessions a week** (his decision, 2026-11-15; Pro and Max unlimited) with any
   apps kept open, basic appearance (a few set schemes), **History of the last 3 sessions**, and no Tools, Modes,
   custom shortcuts, scheduling, blocking or hiding Focus itself. Pro and Max have
   unlimited sessions and everything. The app gates nothing yet: it waits for licences. The small white "Pro" tags
