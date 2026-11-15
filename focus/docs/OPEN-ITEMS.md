@@ -179,3 +179,11 @@ These are done and pass their tests, but haven't been seen on your screen in rea
   - **Focus Pro:** modes and their keys, History and snapshots, Tools, Appearance (icon styles, colours, text colour,
     width), and custom shortcuts.
 - Until he decides, the 14-day trial stays the plan.
+
+## Price — his compromise (2026-11-15, latest)
+- **Focus Pro: £50 once, or £5 a month.** Ten months of £5 equals buying it outright, so the one-off price becomes
+  the obvious deal for anyone who stays, while £5 lets people in without a big decision.
+- Round numbers only. Team pricing to follow the same pair (per seat once, or per seat monthly).
+
+## Pricing — see docs/PRICING.md
+- Everything on pricing and tiers now lives in `docs/PRICING.md` (Free / Pro / Max, £50 up front or monthly).
