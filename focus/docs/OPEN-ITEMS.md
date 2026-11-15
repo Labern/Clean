@@ -125,3 +125,9 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - The Manual (the sidebar button is there, greyed, until it's written).
 - The window's outer edge: macOS draws a thin light rim on dark windows. Only a borderless window removes it.
 - Desktop window light mode (asked 2026-11-14, "don't build it yet"): Light, Dark (default), System. The choice is in Settings ▸ Appearance ▸ This window with Light and System dimmed. Building it means a second token set in `Site` and following the system appearance.
+
+## Menu bar icon — out-of-session default (his idea, 2026-11-15, not decided)
+- He's thinking the default **out-of-session** icon should be a plain **empty circle with a border**, not the current
+  reticle-like mark. In a session it would stay as it is.
+- Noted only: nothing is changed yet. Ask before building, and remember that the icon set feeds the menu bar, the
+  icon picker and (via siteLogo) the app icon.
