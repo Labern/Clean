@@ -1,5 +1,13 @@
 # Focus — pricing thoughts
 
+## DECIDED 2026-11-15 (latest; overrides everything below about Max)
+- **Max is scrapped.** Tiers: **Free and Pro** (Free may later be called Basic).
+- **Pro: £5 a month, £40 a year, or £50 once.** His words: "I know it's extreme, but I think it's such a good deal it
+  might work." (£40 a year = four months free; £50 once = ten months' price, forever.)
+- **Enterprise** (businesses, per seat) is shown **greyed out as "Coming soon"**.
+- Live on the site; the numbers come from paradoxica-hub `sites/paradoxica.uk/focus/pricing.json` (`coming_soon` holds
+  Enterprise; Pro gains `yearly` and `yearly_summary`).
+
 His thinking on how Focus is sold, gathered in one place (2026-11-15). The newest ideas come first. None of it is
 built yet; the app only shows the parts that are visible, and those are placeholders.
 
