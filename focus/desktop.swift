@@ -131,6 +131,10 @@ final class DesktopModel: ObservableObject {
     }
 
     static let site = URL(string: "https://paradoxica.co.uk")!
+    /// Where Buy Now goes: the Focus page's buy section, as the site's own Buy link does (#buy).
+    static let buy = URL(string: "https://paradoxica.co.uk/focus#buy")!
+    /// Whether this copy is on a trial. Licences aren't built yet, so it's shown for now to see the button in place.
+    static let trial = true
 
     // — feedback, written here and sent straight to the developer —
     enum FeedbackState: Equatable { case writing, sending, sent, emailed }
@@ -602,6 +606,12 @@ struct FootButton: View {
     }
 }
 
+/// The line under a heading inside a panel (Behaviour, Appearance, the Manual's sections): white, full width, finer
+/// than the panel's own.
+struct HeadingRule: View {
+    var body: some View { Rectangle().fill(Color.white.opacity(0.85)).frame(height: 0.75).frame(maxWidth: .infinity) }
+}
+
 /// The line under a panel's name: white, full width — the panel's one strong rule.
 struct PanelRule: View {
     var body: some View { Rectangle().fill(Color.white).frame(height: 1).frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 12) }
@@ -793,6 +803,13 @@ struct DesktopView: View {
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
+                if DesktopModel.trial {                             // a trial: one clear way to buy, the website's own buy section
+                    Button { NSWorkspace.shared.open(DesktopModel.buy) } label: {
+                        Text("Buy Now").font(Site.font(16, .medium)).foregroundColor(.black)
+                            .frame(maxWidth: .infinity).frame(height: 38)
+                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
+                    }.buttonStyle(PressStyle()).help("paradoxica.co.uk/focus")
+                }
                 if let u = m.update {
                     Button { NSWorkspace.shared.open(u.url) } label: {
                         HStack(spacing: 7) { Image(systemName: "arrow.down.circle.fill").font(.system(size: 15)); Text("Update available").font(Site.font(15, .medium)) }
@@ -991,7 +1008,12 @@ struct TextSizeStepper: View {
 struct GroupTitle: View {
     let title: String
     init(_ t: String) { title = t }
-    var body: some View { Text(title).font(Site.font(22, .medium)).tracking(-0.3).foregroundColor(Site.head).padding(.top, 30).padding(.bottom, 2) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(Site.font(22, .medium)).tracking(-0.3).foregroundColor(Site.head)
+            HeadingRule()
+        }.padding(.top, 30).padding(.bottom, 2)
+    }
 }
 
 struct SettingLine<Control: View>: View {
@@ -1122,6 +1144,7 @@ struct ManualPage: View {
                     Text("Contents ↑").font(Self.f(13)).foregroundColor(Site.muted)
                 }.buttonStyle(.plain).help("Back to the contents")
             }.frame(maxWidth: 680).padding(.top, 34).padding(.bottom, 2).id(t)
+            HeadingRule().frame(maxWidth: 680).padding(.top, 6).padding(.bottom, 4)
         case .text(let t):
             Text(t).font(Self.f(17)).foregroundColor(Site.low).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 680, alignment: .leading).padding(.top, 10)

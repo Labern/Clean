@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.52 — 2026-11-15
+- **Buy Now** (white) sits above Feedback · Manual and opens paradoxica.co.uk/focus#buy, the same place as the site's own Buy link. It shows while on a trial; licences aren't built yet, so for now it always shows (`DesktopModel.trial`).
+- **Headings inside a panel** (Behaviour, Appearance, the Manual's sections) have a fine white line under them, full width.
+
 ## 0.18.51 — 2026-11-15
 - **Manual:** text can be selected and copied, a paragraph, heading or caption at a time. "This window" wording is gone: the button is "at the top of the app", the Feedback button is just the Feedback button, and the keys say "Hide the app" and "Close the app".
 
