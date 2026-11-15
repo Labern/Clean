@@ -820,6 +820,12 @@ struct DesktopView: View {
                 HStack(spacing: 12) {
                     if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
+                    if DesktopModel.licensed || DesktopModel.showBoth {    // bought: Focus Pro — a small white "Pro" by the name
+                        Text("Pro").font(Site.font(15, .semibold)).foregroundColor(.black)
+                            .padding(.horizontal, 7).frame(height: 24)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
+                            .offset(y: 2)
+                    }
                 }.padding(.leading, 16).frame(width: 292, alignment: .leading)
                 VStack(spacing: 9) {
                     let look = buttonColours
@@ -895,18 +901,6 @@ struct DesktopView: View {
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
-                if DesktopModel.licensed || DesktopModel.showBoth {   // bought: the Buy button's place says so, quietly proud
-                    HStack(spacing: 9) {
-                        ZStack {                                        // a white tick in a black circle, ringed so it reads on black
-                            Circle().fill(Color.black).overlay(Circle().stroke(Color.white, lineWidth: 1.2))
-                            Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundColor(.white)
-                        }.frame(width: 18, height: 18)
-                        Text("Focus Pro").font(Site.font(17, .medium)).foregroundColor(Site.head)
-                    }
-                    .frame(maxWidth: .infinity).frame(height: 40)
-                    .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Color.white.opacity(0.9), lineWidth: 1))
-                    .help("Focus is yours")
-                }
                 if DesktopModel.trial && (!DesktopModel.licensed || DesktopModel.showBoth) {   // a trial: one clear way to buy
                     Button { NSWorkspace.shared.open(DesktopModel.buy) } label: {
                         Text("\(DesktopModel.trialDaysLeft) \(DesktopModel.trialDaysLeft == 1 ? "Day" : "Days") Remaining — Buy Now")

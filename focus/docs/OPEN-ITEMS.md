@@ -137,7 +137,7 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - **Round numbers only** (5s and 0s, as Tesla and Apple do). No prices ending in 9.
 - **Teams:** per seat, sold in packs, round figures. Suggested: 5 seats £275 · 20 seats £1,000 · 50 seats £2,250.
 - The website still says £5: change it to £55 when the checkout is wired.
-- In the app: trial → "N Days Remaining — Buy Now" (opens /focus#buy); bought → "Focus Pro" with a white tick in a black circle, in the same place, the moment the purchase is recorded (`focusPro` default).
+- In the app: trial → "N Days Remaining — Buy Now" (opens /focus#buy); bought → the top left reads **Focus Pro**: a small white "Pro" box beside the name, the moment the purchase is recorded (`focusPro` default). Nothing replaces the Buy button.
 
 ## Free + Focus Pro? (his idea, 2026-11-15, not decided — ask before building)
 - The idea: part of Focus is free, and buying Focus Pro (£55) unlocks everything.
