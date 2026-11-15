@@ -4,6 +4,9 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.76 — 2026-11-15
+- **Upgrade window follows his layout (as on the site):** Basic reads £0 / Free (pricing.json's `price_note`). Pro on Once reads £50 with £75 struck through. Every paid button says **Buy Focus Pro**, and the dashed CODE EARLY · Copy box sits directly under it.
+
 ## 0.18.75 — 2026-11-15
 - **Early adopter code:** the gift is claimed with code **EARLY**, as on the site. Once shows the listed £75 with the site's line ("…forever for £50 with code EARLY. After that it's £75.") and a dashed "CODE EARLY · Copy" box. Choose Pro opens the checkout with the code already applied (`&code=EARLY`). Everything comes from pricing.json's `launch` (`code`, `short`).
 - **Check 17** also requires the active launch to have a code. All 21 GUI and 23 menu checks pass.

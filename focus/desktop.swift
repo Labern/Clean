@@ -573,7 +573,7 @@ extension View { func linkCursor() -> some View { modifier(LinkCursor()) } }
 /// window opens and the site answers. Nothing here is typed by hand.
 struct Pricing: Decodable {
     struct Tier: Decodable {
-        let name: String; let label: String?; let tagline: String; let monthly: Int; let yearly: Int?; let once: Int?; let best: Bool?
+        let name: String; let label: String?; let price_note: String?; let tagline: String; let monthly: Int; let yearly: Int?; let once: Int?; let best: Bool?
         let summary: String; let yearly_summary: String?; let once_summary: String?
         let launch: Launch?
     }
@@ -700,11 +700,11 @@ struct UpgradeCard: View {
         let which = plans[min(plan, plans.count - 1)]
         let amount = which == "once" ? t.once : which == "yearly" ? t.yearly : t.monthly
         let gift = which == "once" ? t.launch.flatMap { $0.active ? $0 : nil } : nil      // early adopter gift: £50, then £75
-        let price = key == "free" ? "\(p.currency)0" : "\(p.currency)\(gift?.code == nil ? (gift?.once ?? amount ?? t.monthly) : (amount ?? t.monthly))"   // with a code, the listed price shows
-        let per = key == "free" ? (t.label == nil ? "Free" : "") : which == "once" ? "once" : which == "yearly" ? "a year" : "a month"
+        let price = key == "free" ? "\(p.currency)0" : "\(p.currency)\(gift?.once ?? amount ?? t.monthly)"   // the gift: £50, with £75 struck through
+        let per = key == "free" ? (t.price_note ?? "Free") : which == "once" ? "once" : which == "yearly" ? "a year" : "a month"
         VStack(alignment: .leading, spacing: 6) {
             HStack {
-                Text(t.label ?? t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)   // "Basic · Free" beside its price
+                Text(t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)                // "Basic", then "£0 / Free" under it
                 Spacer()
                 if let gift { Text(gift.label).font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
                 else if best { Text(p.badge ?? "Best value").font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
@@ -712,21 +712,21 @@ struct UpgradeCard: View {
             Text(t.tagline).font(Site.font(15)).foregroundColor(Site.low)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(price).font(Site.font(32, .medium)).foregroundColor(Site.head)
-                if let gift, gift.code == nil, let full = t.once { Text("\(p.currency)\(full)").font(Site.font(18)).strikethrough().foregroundColor(Site.muted); Text(gift.then).font(Site.font(15)).foregroundColor(Site.muted) }
+                if let gift, let full = t.once { Text("\(p.currency)\(full)").font(Site.font(20)).strikethrough().foregroundColor(Site.muted); if gift.code == nil { Text(gift.then).font(Site.font(15)).foregroundColor(Site.muted) } }
                 else { Text(per).font(Site.font(15)).foregroundColor(Site.muted) }
             }.padding(.top, 8)
             Text(p.fill(key == "free" ? t.summary : which == "once" ? (gift.map { g in g.line.replacingOccurrences(of: "{launch_once}", with: "\(p.currency)\(g.once)").replacingOccurrences(of: "{once}", with: "\(p.currency)\(t.once ?? 0)").replacingOccurrences(of: "{code}", with: g.code ?? "") } ?? t.once_summary ?? t.summary) : which == "yearly" ? (t.yearly_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
                 .fixedSize(horizontal: false, vertical: true).frame(minHeight: 40, alignment: .top)
-            if let code = gift?.code { CodeBox(code: code).padding(.top, 4) }
             Button {
                 if key != "free" && !current { NSWorkspace.shared.open(Pricing.checkout(tier: key, plan: which, code: gift?.code)) }   // the code pre-applied
             } label: {
-                Text(current ? "Your plan" : key == "free" ? "Included" : "Choose \(t.name)").font(Site.font(16, .medium))
+                Text(current ? "Your plan" : key == "free" ? "Included" : "Buy Focus \(t.name)").font(Site.font(16, .medium))
                     .foregroundColor(best && !current ? Site.paper : Site.head).frame(maxWidth: .infinity).frame(height: 40)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(best && !current ? Site.ink : Color.clear))
                     .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.ink.opacity(best && !current ? 0 : 0.6), lineWidth: 1))
                     .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))   // the whole button takes the click
             }.buttonStyle(PressStyle()).disabled(key == "free" || current).linkCursor().padding(.top, 10)
+            if let code = gift?.code { CodeBox(code: code).padding(.top, 8) }    // right under Buy Focus Pro, as on the site
         }
         .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(best ? Site.surface : Site.bg))

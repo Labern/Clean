@@ -20,7 +20,7 @@
       "name": "Basic",
       "tagline": "Learn to Focus",
       "monthly": 0,
-      "price_note": "Free for everyone",
+      "price_note": "Free",
       "summary": "{free_sessions_per_week} sessions a week",
       "label": "Basic · Free"
     },
