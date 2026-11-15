@@ -363,7 +363,7 @@ struct DrawnEdge: Shape {
 
 /// The point of the app: one press and you're in a session. As wide as the pane, tall, white, its title centred
 /// and its key at the right — worded as in the menu.
-/// Under the pointer: it lifts, a sheen crosses its face, a soft glow breathes and sparks flare at its corners.
+/// Under the pointer it answers quietly: a touch dimmer, a touch larger.
 /// Clicked: it sinks, then a white line draws round it the way the website's Buy square does — from the top centre,
 /// 2.4 s, quick then settling — anticlockwise when a session begins, clockwise when one ends.
 struct SessionButton: View {
@@ -372,28 +372,17 @@ struct SessionButton: View {
     @State private var trace: CGFloat = 0
     @State private var clockwise = false
     @State private var lineShown = false
-    @State private var spark = false
-    @State private var sheen: CGFloat = -0.4
-    @State private var glow = false
-    @State private var gen = 0
     @State private var drawGen = 0
     static let gap: CGFloat = 6                                   // the drawn line sits this far outside the button
     static var still: (hover: Bool, trace: CGFloat, clockwise: Bool)?   // off-screen renders only: freeze a moment
     var body: some View {
         Button(action: click) {
             ZStack {
-                Text(title).font(Site.font(25, .medium)).tracking(hover ? -0.1 : -0.4).lineLimit(1)
-                HStack { Spacer(); Text(key).font(Site.font(18)).opacity(hover ? 0.7 : 0.45).lineLimit(1) }.padding(.trailing, 24)
+                Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
+                HStack { Spacer(); Text(key).font(Site.font(18)).opacity(hover ? 0.6 : 0.45).lineLimit(1) }.padding(.trailing, 24)
             }
             .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: Layout.button)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white)
-                    .overlay(GeometryReader { g in                     // the sheen: a soft band of light crossing once
-                        LinearGradient(colors: [.clear, Color.black.opacity(0.07), .clear], startPoint: .leading, endPoint: .trailing)
-                            .frame(width: g.size.width * 0.35).offset(x: g.size.width * sheen)
-                    }.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous)))
-            )
-            .shadow(color: Color.white.opacity(hover ? (glow ? 0.34 : 0.12) : 0), radius: hover ? 22 : 0)
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.92 : 1)))
             .overlay(
                 DrawnEdge(radius: 16 + Self.gap).trim(from: 0, to: trace)
                     .stroke(Color.white, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
@@ -401,40 +390,15 @@ struct SessionButton: View {
                     .opacity(lineShown ? 1 : 0)
                     .padding(-Self.gap).allowsHitTesting(false)
             )
-            .overlay(GeometryReader { g in
-                let w = g.size.width, h = g.size.height, o = Self.gap
-                ForEach(0..<6, id: \.self) { i in
-                    let p = [CGPoint(x: -o, y: -o), CGPoint(x: -o, y: h + o), CGPoint(x: w + o, y: h + o), CGPoint(x: w + o, y: -o),
-                             CGPoint(x: w / 2, y: -o), CGPoint(x: w / 2, y: h + o)][i]
-                    Image(systemName: "sparkle").font(.system(size: i < 4 ? 14 : 10, weight: .semibold)).foregroundColor(.white)
-                        .shadow(color: .white, radius: 5)
-                        .scaleEffect(spark ? 1 : 0.1).opacity(spark ? 1 : 0).rotationEffect(.degrees(spark ? 90 : 0))
-                        .animation(.easeOut(duration: 0.4).delay(Double(i) * 0.06), value: spark)
-                        .position(p)
-                }
-            }.allowsHitTesting(false))
-            .scaleEffect(hover ? 1.012 : 1).offset(y: hover ? -1.5 : 0)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hover)
+            .scaleEffect(hover ? 1.005 : 1)
+            .animation(.easeOut(duration: 0.18), value: hover)
         }
         .buttonStyle(PressStyle())
         .onAppear {
             guard let s = Self.still else { return }
-            hover = s.hover; glow = s.hover; spark = s.hover; sheen = s.hover ? 0.3 : -0.4
-            trace = s.trace; clockwise = s.clockwise; lineShown = s.trace > 0
+            hover = s.hover; trace = s.trace; clockwise = s.clockwise; lineShown = s.trace > 0
         }
-        .onHover { on in
-            hover = on; gen += 1; let g = gen
-            if on {
-                spark = false; sheen = -0.4; glow = false
-                withAnimation(.easeInOut(duration: 0.9)) { sheen = 1.05 }
-                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) { glow = true }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { if gen == g { spark = true } }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { if gen == g { spark = false } }
-            } else {
-                withAnimation(.easeOut(duration: 0.25)) { glow = false }
-                spark = false; sheen = -0.4
-            }
-        }
+        .onHover { hover = $0 }
     }
 
     private func click() {
@@ -643,7 +607,7 @@ struct DesktopView: View {
     @ObservedObject var m: DesktopModel
     /// Layout trials (`--render-desktop … trial=none|right|narrow`). The app uses `trial` as set here.
     enum Trial { case none, right, narrow }
-    static var trial = Trial.right                             // trying the right sidebar for real (0.18.45); `.none` is the saved good look
+    static var trial = Trial.narrow                            // trying equal margins for real (0.18.46); `.none` is the saved good look
     /// Room kept beside the page column: an empty right sidebar (as wide as the left one), or equal margins either side.
     var pageInsets: (lead: CGFloat, trail: CGFloat) {
         switch Self.trial { case .none: return (0, 0); case .right: return (0, 292); case .narrow: return (110, 110) }
@@ -1046,21 +1010,19 @@ struct ManualPage: View {
 /// (An abstraction of his two screenshots — nothing from anyone's real screen goes into the app.)
 struct DesktopSketch: View {
     let busy: Bool
-    /// Windows as fractions of the desktop: x, y, width, height. The first two are the ones a session keeps.
+    /// Windows as fractions of the desktop: x, y, width, height. The first three are the ones a session keeps.
     static let windows: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [
-        (0.27, 0.05, 0.47, 0.55), (0.03, 0.46, 0.22, 0.5),
-        (0.02, 0.05, 0.21, 0.24), (0.24, 0.04, 0.22, 0.2), (0.48, 0.05, 0.14, 0.13), (0.63, 0.05, 0.13, 0.16),
-        (0.79, 0.2, 0.19, 0.24), (0.36, 0.33, 0.2, 0.45), (0.57, 0.25, 0.22, 0.24), (0.13, 0.54, 0.21, 0.23),
-        (0.57, 0.5, 0.2, 0.25), (0.8, 0.48, 0.18, 0.25), (0.02, 0.78, 0.15, 0.2), (0.35, 0.77, 0.19, 0.21),
-        (0.55, 0.78, 0.18, 0.2), (0.78, 0.77, 0.2, 0.2),
+        (0.05, 0.07, 0.42, 0.5), (0.53, 0.07, 0.42, 0.5), (0.28, 0.63, 0.44, 0.31),     // the three a session keeps
+        (0.17, 0.2, 0.3, 0.42), (0.6, 0.3, 0.3, 0.38), (0.03, 0.56, 0.27, 0.38),
+        (0.7, 0.58, 0.27, 0.36), (0.4, 0.03, 0.24, 0.32),
     ]
     var body: some View {
         GeometryReader { g in
             let W = g.size.width, H = g.size.height
             ZStack(alignment: .topLeading) {
                 ForEach(Array(Self.windows.enumerated()), id: \.offset) { i, r in
-                    if busy || i < 2 {
-                        let kept = !busy && i < 2                         // the chosen few only stand out once the rest have gone
+                    if busy || i < 3 {
+                        let kept = !busy && i < 3                         // the chosen few only stand out once the rest have gone
                         VStack(alignment: .leading, spacing: H * 0.018) {
                             HStack(spacing: 3) { ForEach(0..<3, id: \.self) { _ in Circle().fill(Color.white.opacity(kept ? 0.55 : 0.25)).frame(width: 4, height: 4) } }
                             ForEach(0..<4, id: \.self) { l in

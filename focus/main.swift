@@ -2884,8 +2884,12 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-banner"), CommandLine.
 
 /// `Focus --open-desktop`: asks the running Focus to show its desktop window, then exits (no second Focus).
 if CommandLine.arguments.contains("--open-desktop") {
-    DistributedNotificationCenter.default().postNotificationName(.init("com.labern.focus.openDesktop"), object: nil, userInfo: nil, deliverImmediately: true)
-    RunLoop.main.run(until: Date().addingTimeInterval(0.3)); exit(0)
+    // Asked again over the next few seconds: a Focus that has only just launched may not be listening yet.
+    for wait in [0.3, 1.0, 2.0] {
+        DistributedNotificationCenter.default().postNotificationName(.init("com.labern.focus.openDesktop"), object: nil, userInfo: nil, deliverImmediately: true)
+        RunLoop.main.run(until: Date().addingTimeInterval(wait))
+    }
+    exit(0)
 }
 /// `Focus --render-desktop FILE [mode]`: the desktop window's content, drawn off-screen.
 if let i = CommandLine.arguments.firstIndex(of: "--render-desktop"), CommandLine.arguments.count > i + 1 {
