@@ -41,7 +41,7 @@ built yet; the app only shows the parts that are visible, and those are placehol
 - **Free is partial, and not by much.** Every copy starts with **14 days of Pro**, then drops to Free.
 - **The trial takes an email.** The site's trial dialog collects it (filed on the server as `focus-signup`), then
   promises the download link by email.
-- **What Free gets (on the site now): 3 sessions a week** (number open), any apps kept open, basic appearance; no
+- **What Free gets (on the site now): 30 sessions a week** (real use is around 10 sessions a day, so a heavy user hits it in about 3 days; number open), any apps kept open, basic appearance; no
   Tools, Modes, History, shortcuts, scheduling or blocking. Pro and Max: unlimited sessions.
   - His rule (2026-11-15): **never limit what a session can do** ("2 apps per session is unbelievably toxic and
     unacceptable"). Limit how often instead: the user hits the weekly limit and thinks "I'll buy".
