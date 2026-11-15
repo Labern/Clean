@@ -135,6 +135,9 @@ final class DesktopModel: ObservableObject {
     static let buy = URL(string: "https://paradoxica.co.uk/focus#buy")!
     /// Whether this copy is on a trial. Licences aren't built yet, so it's shown for now to see the button in place.
     static let trial = true
+    /// Whether this copy has been bought. Licences aren't built yet, so it's never true in the app; a render can show
+    /// it with `licensed`.
+    static var licensed: Bool { CommandLine.arguments.contains("licensed") }
     /// Days left in the trial. Not counted yet (licences come later): the planned 14, to see the button as it will read.
     static let trialDaysLeft = 14
 
@@ -889,7 +892,15 @@ struct DesktopView: View {
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
-                if DesktopModel.trial {                             // a trial: one clear way to buy, the website's own buy section
+                if DesktopModel.licensed {                          // bought: the Buy button's place says so, quietly proud
+                    HStack(spacing: 9) {
+                        FocusMark(ink: .white).frame(width: 16, height: 16)
+                        Text("Pro User").font(Site.font(17, .medium)).foregroundColor(Site.head)
+                    }
+                    .frame(maxWidth: .infinity).frame(height: 40)
+                    .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Color.white.opacity(0.9), lineWidth: 1))
+                    .help("Focus is yours")
+                } else if DesktopModel.trial {                      // a trial: one clear way to buy, the website's own buy section
                     Button { NSWorkspace.shared.open(DesktopModel.buy) } label: {
                         Text("\(DesktopModel.trialDaysLeft) \(DesktopModel.trialDaysLeft == 1 ? "Day" : "Days") Remaining — Buy Now")
                             .font(Site.font(17, .medium)).foregroundColor(.black).lineLimit(1).minimumScaleFactor(0.8)

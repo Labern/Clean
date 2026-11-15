@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.57 — 2026-11-15
+- **Bought copies:** a "Pro User" badge (outlined, with the Focus mark) takes the Buy button's place. Licences aren't built yet, so it only shows in renders (`licensed`).
+- **Price decided:** £55 per person; team packs in round figures (docs/OPEN-ITEMS.md).
+
 ## 0.18.56 — 2026-11-15
 - **In a session the big button shows the Focus mark** (ring and dot, in the button's text colour) at its right, beside the key.
 - **Trying it without the lasting border** (`SessionButton.keepBorder = false`): starting a session still draws the line round the button, which then fades; ending one shows the whole line and undraws it.
