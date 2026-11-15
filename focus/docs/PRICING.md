@@ -21,6 +21,9 @@ built yet; the app only shows the parts that are visible, and those are placehol
 - **Max: nobody should ever want to buy it, but it needs full functionality.** It exists to make Pro the obvious buy.
 
 ## What each tier gets — his latest (2026-11-15)
+- **Pro and Max: Focus can hide itself.** It runs with no menu bar icon, and is driven by ⌘⇧F and the other keys.
+  Free always shows its icon. Not built yet; it needs a sure way back to the icon (e.g. opening Focus again shows
+  it, or a key brings it back).
 - **Pro also sells early access and priority support:** new features first, and help first.
 - **Customisation grows with the tier.** Free has a limited subset (e.g. a few set schemes). Pro opens it up to almost
   total freedom (unlimited schemes, colours, icons, layouts), and so does Max.

@@ -191,6 +191,9 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 ## Planned for Pro and Max (2026-11-15, not built; ask before building)
 - **Open apps at a set time:** e.g. Discord at 5:30pm.
 - **Block apps:** keep chosen apps from opening.
+- **Focus hides itself** (Pro and Max): no menu bar icon; driven by its keys. It must always have a sure way back:
+  opening Focus.app again, or a key, brings the icon back.
+- These would live in a new sidebar section; the suggested name is **Schedule** (timed opening and blocking).
 - **Gating to match the site's table** (Focus Site session, PRICING.md). His rule: **never limit what a session can
   do, only how often.** Free gets **10 sessions a week** (his decision, 2026-11-15; Pro and Max unlimited) with any apps kept open, basic appearance
   (a few set schemes), and no Tools, Modes, History, custom shortcuts, scheduling or blocking. Pro and Max have
