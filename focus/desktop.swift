@@ -13,6 +13,8 @@
 // Design: the website's (paradoxica.co.uk/focus) — black ground, white ink, the Graphik face, the same greys.
 import AppKit
 import SwiftUI
+/// The options off-screen renders read (`--render-desktop FILE mode live …`): the command line, or what a test sets.
+var renderArgs: [String] = CommandLine.arguments
 import ServiceManagement
 import UniformTypeIdentifiers
 import Carbon.HIToolbox
@@ -140,7 +142,7 @@ final class DesktopModel: ObservableObject {
     /// Whether this copy has been bought — read live (the window refreshes every 1.5 s), so the moment a purchase is
     /// recorded the Buy button becomes "Focus Pro". Licences aren't built yet: the purchase flow will set
     /// `focusPro` in Focus's defaults. A render can show it with `licensed`.
-    static var licensed: Bool { CommandLine.arguments.contains("licensed") || UserDefaults.standard.bool(forKey: "focusPro") }
+    static var licensed: Bool { renderArgs.contains("licensed") || UserDefaults.standard.bool(forKey: "focusPro") }
     /// Days left in the Pro Preview (what the free trial of Focus Pro is called). Not counted yet (licences come later): the planned 14, to see the button as it will read.
     static let trialDaysLeft = 14
 
@@ -471,19 +473,33 @@ struct SessionButton: View {
 /// The Buy button's words: "14 Days of Pro Left — Buy Now" on one line, at full size (his choice, 5). Renders can show
 /// the others with `buy=1…5`.
 struct BuyLabel: View {
-    static var style: Int { CommandLine.arguments.first { $0.hasPrefix("buy=") }.flatMap { Int($0.dropFirst(4)) } ?? 5 }   // he chose 5 (4, two lines, was ugly)
-    var body: some View {
-        let n = DesktopModel.trialDaysLeft, days = "\(n) \(n == 1 ? "Day" : "Days")"
-        switch Self.style {
-        case 2: line("\(days) of Pro Remaining — Buy Now")
-        case 3: line("\(days) of Pro Remaining")
-        case 4: VStack(spacing: 1) { Text("\(days) of Pro Remaining").font(Site.font(14)).opacity(0.7); Text("Buy Now").font(Site.font(18, .semibold)) }
-        case 5: line("\(days) of Pro Left — Buy Now")
-        default: line("\(days) of Pro — Buy Now")
+    static var style: Int { renderArgs.first { $0.hasPrefix("buy=") }.flatMap { Int($0.dropFirst(4)) } ?? 5 }   // he chose 5 (4, two lines, was ugly)
+    /// The words for `days` left, in each wording (4's are its top line; "Buy Now" sits under them).
+    static func words(days n: Int, style: Int) -> String {
+        let days = "\(n) \(n == 1 ? "Day" : "Days")"
+        switch style {
+        case 2: return "\(days) of Pro Remaining — Buy Now"
+        case 3, 4: return "\(days) of Pro Remaining"
+        case 5: return "\(days) of Pro Left — Buy Now"
+        default: return "\(days) of Pro — Buy Now"
         }
+    }
+    var body: some View {
+        let t = Self.words(days: DesktopModel.trialDaysLeft, style: Self.style)
+        if Self.style == 4 {
+            VStack(spacing: 1) { Text(t).font(Site.font(14)).opacity(0.7); Text("Buy Now").font(Site.font(18, .semibold)) }
+        } else { line(t) }
     }
     func line(_ t: String) -> some View { Text(t).font(Site.font(17, .medium)).lineLimit(1).minimumScaleFactor(0.8) }
 }
+
+/// Links show the pointing hand, always.
+struct LinkCursor: ViewModifier {
+    func body(content: Content) -> some View {
+        content.onHover { inside in if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() } }
+    }
+}
+extension View { func linkCursor() -> some View { modifier(LinkCursor()) } }
 
 /// The Focus mark — a ring and its dot, as the app icon draws them — in the button's ink.
 struct FocusMark: View {
@@ -508,6 +524,15 @@ struct PressureDots: View {
     let ink: Color, titleWidth: CGFloat
     let start: Date, end: Date?, release: Date?
     static let side: CGFloat = 9, step: CGFloat = 15, every = 0.26, travel = 0.5, perSide = 8
+    static let edgeL: CGFloat = 16, keyRoom: CGFloat = 92, titleGap: CGFloat = 20     // the key sits at the right edge
+    /// Where the squares come to rest: as many as fit between each edge and the title, the same number both sides,
+    /// nearest the title first.
+    static func slots(width: CGFloat, titleWidth: CGFloat) -> (left: [CGFloat], right: [CGFloat]) {
+        let midX = width / 2, innerL = midX - titleWidth / 2 - titleGap, innerR = midX + titleWidth / 2 + titleGap
+        let room = Int(max(0, min(innerL - edgeL, width - keyRoom - innerR)) / step)
+        let count = max(0, min(perSide, room))
+        return ((0..<count).map { innerL - CGFloat($0) * step }, (0..<count).map { innerR + CGFloat($0) * step })
+    }
     var body: some View {
         TimelineView(.animation) { tl in
             Canvas { c, size in
@@ -516,11 +541,10 @@ struct PressureDots: View {
                 let gone = release.map { now.timeIntervalSince($0) / 0.45 } ?? 0  // 0…1 after the click
                 let fade = end.map { 1 - now.timeIntervalSince($0) / 0.25 } ?? 1  // leaving without a click
                 guard gone < 1, fade > 0, built > 0 else { return }
-                let midX = size.width / 2, y = size.height / 2, s = Self.side
-                let innerL = midX - titleWidth / 2 - 20, innerR = midX + titleWidth / 2 + 20
-                let edgeL: CGFloat = 16, edgeR = size.width - 92                   // the key sits at the right edge
-                let room = Int(min(innerL - edgeL, edgeR - innerR) / Self.step)            // the same count both sides
-                let count = max(0, min(Self.perSide, room))
+                let y = size.height / 2, s = Self.side
+                let slots = Self.slots(width: size.width, titleWidth: titleWidth)
+                let edgeL = Self.edgeL, edgeR = size.width - Self.keyRoom
+                let count = slots.left.count
                 let full = built > Double(count) * Self.every + Self.travel
                 let squeeze = full ? CGFloat(sin(now.timeIntervalSinceReferenceDate * 3)) * 1.6 : 0
                 for k in 0..<count {
@@ -528,7 +552,7 @@ struct PressureDots: View {
                     guard built > born else { break }
                     var p = min(1, (built - born) / Self.travel); p = 1 - pow(1 - p, 3)        // ease out: arrives and settles
                     for left in [true, false] {
-                        let slot = left ? innerL - CGFloat(k) * Self.step : innerR + CGFloat(k) * Self.step
+                        let slot = left ? slots.left[k] : slots.right[k]
                         let from = left ? edgeL : edgeR
                         var x = from + (slot - from) * CGFloat(p)
                         x += (left ? 1 : -1) * squeeze * CGFloat(count - k) / CGFloat(max(count, 1))   // the pile presses in
@@ -825,6 +849,8 @@ struct DesktopView: View {
     static var trial: Trial { renderTrial ?? Trial(rawValue: UserDefaults.standard.integer(forKey: "desktopWidthV2")) ?? .narrow }
     /// Minimal takes the right sidebar's width off the window itself.
     static let minimalCut: CGFloat = 292
+    /// How much the window's width changes going from one Width to another: only Minimal moves it.
+    static func minimalDelta(was: Trial, now: Trial) -> CGFloat { (now == .minimal ? -minimalCut : 0) - (was == .minimal ? -minimalCut : 0) }
     /// Room kept beside the page column: an empty right sidebar (as wide as the left one), or equal margins either side.
     var pageInsets: (lead: CGFloat, trail: CGFloat) {
         switch Self.trial { case .narrow: return (36, 36); case .wide, .minimal: return (0, 0) }
@@ -881,7 +907,7 @@ struct DesktopView: View {
         return (Color(nsColor: a), Color(nsColor: b), Self.buttonInkWhite ? .white : .black)
     }
     /// Settings ▸ Appearance ▸ Text colour (the big button only). Renders: `ink=white`.
-    static var buttonInkWhite: Bool { CommandLine.arguments.contains("ink=white") || UserDefaults.standard.bool(forKey: "desktopButtonInkWhite") }
+    static var buttonInkWhite: Bool { renderArgs.contains("ink=white") || UserDefaults.standard.bool(forKey: "desktopButtonInkWhite") }
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 2) {
@@ -924,7 +950,7 @@ struct DesktopView: View {
                             .foregroundColor(.black)
                             .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(minHeight: 40).padding(.vertical, BuyLabel.style == 4 ? 6 : 0)
                             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
-                    }.buttonStyle(PressStyle()).help("paradoxica.co.uk/focus")
+                    }.buttonStyle(PressStyle()).help("paradoxica.co.uk/focus").linkCursor()
                 }
                 if let u = m.update {
                     Button { NSWorkspace.shared.open(u.url) } label: {
@@ -945,7 +971,7 @@ struct DesktopView: View {
                         else { Text("★★★★★ × PARADOX").font(Site.font(15)).foregroundColor(Site.head) }
                         Text("™").font(Site.font(8, .medium)).foregroundColor(Site.head).offset(x: -3, y: 2)
                     }.fixedSize().frame(maxWidth: .infinity).padding(.top, 12).padding(.bottom, 2).contentShape(Rectangle())
-                }.buttonStyle(.plain).help("paradoxica.co.uk")
+                }.buttonStyle(.plain).help("paradoxica.co.uk").linkCursor()
             }.padding(.horizontal, 12).padding(.bottom, 24)
         }
     }
@@ -1107,15 +1133,19 @@ struct ChoiceOption: View {
 /// Text size: − and + either side of where it is now — "Default", or how many steps (one ⌘+ each) above or below.
 /// Clicking the middle goes back to Default. The same steps as ⌘+ and ⌘−.
 struct TextSizeStepper: View {
+    /// "Default", or how many steps (one ⌘+ each) above or below it: "Default +2", "Default −1".
+    static func label(_ scale: CGFloat) -> String {
+        let step = Int(((scale - 1) * 10).rounded())
+        return step == 0 ? "Default" : "Default \(step > 0 ? "+" : "−")\(abs(step))"
+    }
     var body: some View {
-        let step = Int(((Site.scale - 1) * 10).rounded())
         HStack(spacing: 8) {
             key("minus", enabled: Site.scale > 0.801) { desktop.smallerText() }.help("Smaller (⌘−)")
             Button { desktop.setScale(1) } label: {
-                Text(step == 0 ? "Default" : "Default \(step > 0 ? "+" : "−")\(abs(step))").font(Site.font(16, .medium))
+                Text(Self.label(Site.scale)).font(Site.font(16, .medium))
                     .foregroundColor(.black).lineLimit(1).fixedSize().frame(minWidth: 110).frame(height: 36)
                     .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white)).contentShape(Rectangle())
-            }.buttonStyle(.plain).help(step == 0 ? "The standard size" : "Back to Default")
+            }.buttonStyle(.plain).help(Self.label(Site.scale) == "Default" ? "The standard size" : "Back to Default")
             key("plus", enabled: Site.scale < 1.599) { desktop.biggerText() }.help("Bigger (⌘+)")
         }
     }
@@ -1295,7 +1325,7 @@ struct ManualPage: View {
                 Spacer()
                 Button { withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(Self.top, anchor: .top) } } label: {
                     Text("Contents ↑").font(Self.f(13)).foregroundColor(Site.muted)
-                }.buttonStyle(.plain).help("Back to the contents")
+                }.buttonStyle(.plain).help("Back to the contents").linkCursor()
             }.frame(maxWidth: 680).padding(.top, 34).padding(.bottom, 2).id(t)
             HeadingRule().frame(maxWidth: 680).padding(.top, 6).padding(.bottom, 4)
         case .text(let t):
@@ -1319,19 +1349,26 @@ struct ManualPage: View {
             Button { NSWorkspace.shared.open(url) } label: {
                 HStack(spacing: 6) { Text(t).font(Self.f(17, .medium)); Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold)) }
                     .foregroundColor(Site.head).underline()
-            }.buttonStyle(.plain).padding(.top, 10).help(url.absoluteString)
+            }.buttonStyle(.plain).padding(.top, 10).help(url.absoluteString).linkCursor()
         }
     }
 }
 
-/// The Manual's contents: every section, numbered in reading order; click one to go to it.
+/// The Manual's contents: every section, numbered down each column (1–5, then 6 on); click one to go to it.
 struct Contents: View {
     let titles: [String], go: (String) -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Contents").font(ManualPage.f(14, .medium)).foregroundColor(Site.muted).padding(.bottom, 8)
-            LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 4) {
-                ForEach(Array(titles.enumerated()), id: \.offset) { i, t in ContentsLine(number: i + 1, title: t) { go(t) } }
+            let half = (titles.count + 1) / 2
+            HStack(alignment: .top, spacing: 16) {
+                ForEach([0, 1], id: \.self) { col in
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(titles.enumerated()).filter { col == 0 ? $0.offset < half : $0.offset >= half }, id: \.offset) { i, t in
+                            ContentsLine(number: i + 1, title: t) { go(t) }
+                        }
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .padding(16).frame(maxWidth: 680, alignment: .leading)
@@ -1344,11 +1381,11 @@ struct ContentsLine: View {
     @State private var hover = false
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text("\(number)").font(ManualPage.f(15)).foregroundColor(Site.muted).frame(width: 18, alignment: .trailing).monospacedDigit()
                 Text(title).font(ManualPage.f(16, .medium)).foregroundColor(hover ? Site.head : Site.low).underline(hover)
             }.padding(.vertical, 4).contentShape(Rectangle())
-        }.buttonStyle(.plain).onHover { hover = $0 }
+        }.buttonStyle(.plain).onHover { hover = $0 }.linkCursor()
     }
 }
 
@@ -1663,8 +1700,9 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             let m = DesktopModel(f); model = m
             let screen = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 800)
             // A squat rectangle, well inside the screen: no wider or taller than it needs to be.
-            let size = NSSize(width: min(1000, screen.width - 120) - (DesktopView.trial == .minimal ? DesktopView.minimalCut : 0),
-                              height: min(730, screen.height - 110))
+            // Big enough that the sidebar never squashes: its rows, every mode (36 pt each), and the foot (with room for
+            // Update available), measured off-screen; at least 1100 × 780, never more than the screen.
+            let size = Self.defaultSize(modes: f.modes.count, screen: screen, minimal: DesktopView.trial == .minimal)
             let w = DesktopWindow(contentRect: NSRect(origin: .zero, size: size),
                              styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
             w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden; w.title = "Focus"
@@ -1754,11 +1792,15 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     @objc func newMode() { model?.newMode() }
     /// Settings ▸ Appearance ▸ Width. Into or out of Minimal, the window narrows or widens by a sidebar's width,
     /// keeping its left edge where it is.
+    static func defaultSize(modes: Int, screen: NSRect, minimal: Bool) -> NSSize {
+        let sidebar = 600 + 36 * CGFloat(modes + 1) + 44
+        return NSSize(width: max(600, min(1100, screen.width - 120) - (minimal ? DesktopView.minimalCut : 0)),
+                      height: max(420, min(max(780, sidebar), screen.height - 60)))
+    }
     func setWidth(_ i: Int) {
         let was = DesktopView.trial
         UserDefaults.standard.set(i, forKey: "desktopWidthV2"); model?.tick &+= 1
-        let now = DesktopView.trial, cut = DesktopView.minimalCut
-        let d: CGFloat = (now == .minimal ? -cut : 0) - (was == .minimal ? -cut : 0)
+        let d = DesktopView.minimalDelta(was: was, now: DesktopView.trial)
         if d != 0, let w = window {
             var f = w.frame; f.size.width = max(w.minSize.width, f.size.width + d)
             w.setFrame(f, display: true, animate: true)
@@ -1794,29 +1836,35 @@ func renderDesktop(to file: String, mode: Bool) {
     f.createMode("AI", apps: have(["com.apple.Terminal", "com.apple.Safari"]))
     let second = f.createMode("Research", apps: have(["com.apple.Safari", "com.apple.Notes", "com.apple.Preview"]))
     f.createMode("", apps: have(["com.apple.TextEdit"]))
+    if let n = renderArgs.first(where: { $0.hasPrefix("modes=") }).flatMap({ Int($0.dropFirst(6)) }) {
+        f.modes = []                                              // a given number of modes (sizing checks)
+        for i in 0..<n { f.createMode("Mode \(i + 1)", apps: have(["com.apple.TextEdit", "com.apple.Safari"])) }
+    }
     f.neverClose = have(["com.apple.Terminal"]); f.excluded = have(["com.apple.Safari", "com.apple.Terminal"])
     let m = DesktopModel(f); m.still = true; m.refresh(); if mode { m.selection = second }
-    if CommandLine.arguments.contains("feedback") { m.openFeedback() }
-    if CommandLine.arguments.contains("live") {
+    if renderArgs.contains("feedback") { m.openFeedback() }
+    if renderArgs.contains("live") {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
         f.store.set(true, forKey: "focused")
     }
-    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history, Page.manual] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
-    if !CommandLine.arguments.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
-    if CommandLine.arguments.contains("hover") { SessionButton.still = (true, 0, false) }
-    if let a = CommandLine.arguments.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {
+    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history, Page.manual] where renderArgs.contains(String(p.dropFirst())) { m.selection = p }
+    if !renderArgs.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
+    if renderArgs.contains("hover") { SessionButton.still = (true, 0, false) }
+    if let a = renderArgs.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {
         SessionButton.still = (false, CGFloat(abs(t)), false) }
-    if let c = CommandLine.arguments.first(where: { $0.hasPrefix("colour=") }) {          // e.g. colour=8B5CF6 or colour=8B5CF6,F472B6
+    if let c = renderArgs.first(where: { $0.hasPrefix("colour=") }) {          // e.g. colour=8B5CF6 or colour=8B5CF6,F472B6
         let p = c.dropFirst(7).split(separator: ","); f.store.set(String(p[0]), forKey: "iconColor"); f.store.set(p.count > 1 ? String(p[1]) : "", forKey: "iconColor2")
     }
-    if CommandLine.arguments.contains("trial=narrow") { DesktopView.renderTrial = .narrow }
-    if CommandLine.arguments.contains("trial=wide") { DesktopView.renderTrial = .wide }
-    if CommandLine.arguments.contains("trial=minimal") { DesktopView.renderTrial = .minimal }
+    DesktopView.renderTrial = nil                                 // each render starts from the saved Width
+    if renderArgs.contains("trial=narrow") { DesktopView.renderTrial = .narrow }
+    if renderArgs.contains("trial=wide") { DesktopView.renderTrial = .wide }
+    if renderArgs.contains("trial=minimal") { DesktopView.renderTrial = .minimal }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
-    var size = CommandLine.arguments.contains("wide") ? NSSize(width: 1320, height: 880)
-        : NSSize(width: 1000, height: CommandLine.arguments.first { $0.hasPrefix("h=") }.flatMap { Double($0.dropFirst(2)) }.map { CGFloat($0) }
-                                       ?? (CommandLine.arguments.contains("tall") ? 1500 : 730))
+    var size = renderArgs.contains("wide") ? NSSize(width: 1320, height: 880)
+        : NSSize(width: 1000, height: renderArgs.first { $0.hasPrefix("h=") }.flatMap { Double($0.dropFirst(2)) }.map { CGFloat($0) }
+                                       ?? (renderArgs.contains("tall") ? 1500 : 730))
     if DesktopView.trial == .minimal { size.width -= DesktopView.minimalCut }
+    if let w = renderArgs.first(where: { $0.hasPrefix("w=") }).flatMap({ Double($0.dropFirst(2)) }) { size.width = CGFloat(w) }
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: .darkAqua); w.contentView = host
@@ -1827,4 +1875,174 @@ func renderDesktop(to file: String, mode: Bool) {
         try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: file))
     }
     f.modes = []; UserDefaults.standard.removePersistentDomain(forName: suite)
+}
+
+// MARK: the desktop app's own tests — `Focus --selftest-gui`
+// Off-screen only: nothing is shown, no session is started, no app is closed. Safe to run while he's at the Mac.
+// Each check prints "gui: PASS|FAIL  n. what — detail"; the exit code is the number of failures.
+
+/// Renders the window off-screen with the given render options and returns the picture (2× pixels).
+private func guiRender(_ opts: [String]) -> NSBitmapImageRep? {
+    let file = NSTemporaryDirectory() + "focus-gui-\(UUID().uuidString).png"
+    let saved = renderArgs
+    renderArgs = ["Focus", "--render-desktop", file] + opts
+    defer { renderArgs = saved; try? FileManager.default.removeItem(atPath: file) }
+    renderDesktop(to: file, mode: opts.contains("mode"))
+    return NSBitmapImageRep(data: (try? Data(contentsOf: URL(fileURLWithPath: file))) ?? Data())
+}
+private func lum(_ r: NSBitmapImageRep, _ x: Int, _ y: Int) -> CGFloat {
+    guard let c = r.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return 0 }
+    return 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent
+}
+/// In the sidebar (points 20…280 across): the top of the first full-width white button below `from`, and the bottom
+/// of the last drawn thing above it. Their distance is the slack the sidebar has: below a few points, it's squashed.
+private func sidebarSlack(_ r: NSBitmapImageRep, from: CGFloat = 300) -> (gap: CGFloat, buyTop: CGFloat)? {
+    let s = CGFloat(r.pixelsWide) / 1000.0 * (1000.0 / max(1, CGFloat(r.size.width)))   // pixels per point
+    let px = { (p: CGFloat) in Int(p * s) }
+    let xs = Array(stride(from: px(20), to: px(280), by: 4))
+    func white(_ y: Int) -> Bool { xs.filter { lum(r, $0, y) > 0.93 }.count > Int(Double(xs.count) * 0.8) }
+    guard let buy = (px(from)..<r.pixelsHigh).first(where: white) else { return nil }
+    guard let last = (px(from)..<max(px(from), buy - 2)).last(where: { y in xs.contains { lum(r, $0, y) > 0.24 } }) else { return nil }
+    return (CGFloat(buy - last) / s, CGFloat(buy) / s)
+}
+
+func guiSelfTest(only: Set<Int>?) -> Int32 {
+    _ = NSApplication.shared
+    var failures = 0
+    func check(_ n: Int, _ name: String, _ ok: Bool, _ detail: String) {
+        guard only == nil || only!.contains(n) else { return }
+        if !ok { failures += 1 }
+        print("gui: \(ok ? "PASS" : "FAIL")  \(n). \(name) — \(detail)")
+    }
+    let std = UserDefaults.standard
+    // Settings that some checks change, put back afterwards.
+    let keep = ["desktopWidthV2", "desktopTextScale", "focusPro", "desktopButtonInkWhite"].map { ($0, std.object(forKey: $0)) }
+    defer { for (k, v) in keep { if let v { std.set(v, forKey: k) } else { std.removeObject(forKey: k) } }; Site.scale = CGFloat(std.double(forKey: "desktopTextScale") == 0 ? 1 : std.double(forKey: "desktopTextScale")) }
+    std.removeObject(forKey: "desktopWidthV2"); std.removeObject(forKey: "focusPro"); std.removeObject(forKey: "desktopButtonInkWhite")
+
+    // 1. The window opens big enough for the sidebar: for 0…6 modes, drawn at the size it opens at on a 14" MacBook
+    //    screen, the sidebar keeps slack between its last row and the foot.
+    let screen = NSRect(x: 0, y: 0, width: 1512, height: 945)
+    var worst: (Int, CGFloat) = (-1, .infinity), missing = [Int]()
+    for n in [0, 2, 4, 6] {
+        let size = DesktopController.defaultSize(modes: n, screen: screen, minimal: false)
+        guard let r = guiRender(["modes=\(n)", "w=\(Int(size.width))", "h=\(Int(size.height))", "trial=narrow"]), let sl = sidebarSlack(r) else { missing.append(n); continue }
+        if sl.gap < worst.1 { worst = (n, sl.gap) }
+    }
+    check(1, "sidebar never squashed at the opening size", missing.isEmpty && worst.1 >= 12,
+          missing.isEmpty ? "least slack \(Int(worst.1)) pt (with \(worst.0) modes)" : "no foot found with \(missing) modes")
+
+    // 2. The opening size stays on screen and is never smaller than the window allows, on small and large screens.
+    let screens = [NSRect(x: 0, y: 0, width: 1280, height: 775), screen, NSRect(x: 0, y: 0, width: 2560, height: 1415)]
+    let sizes = screens.flatMap { sc in [false, true].flatMap { mini in [0, 4, 10].map { (sc, DesktopController.defaultSize(modes: $0, screen: sc, minimal: mini)) } } }
+    let bad = sizes.filter { sc, sz in sz.width > sc.width || sz.height > sc.height || sz.width < 600 || sz.height < 420 }
+    let big = DesktopController.defaultSize(modes: 4, screen: screens[2], minimal: false)
+    check(2, "opening size fits the screen", bad.isEmpty && big.width >= 1100 && big.height >= 780,
+          bad.isEmpty ? "all \(sizes.count) cases fit; large screen opens at \(Int(big.width)) × \(Int(big.height))" : "\(bad.count) off-screen or too small")
+
+    // 3. Width: Default leaves equal margins, Wide and Minimal fill; only Minimal changes the window, by a sidebar.
+    var insets = [String]()
+    DesktopView.renderTrial = nil
+    for (i, t) in [(0, DesktopView.Trial.narrow), (1, .wide), (2, .minimal)] {
+        std.set(i, forKey: "desktopWidthV2")
+        let e = DesktopView(m: DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!))).pageInsets
+        insets.append("\(t)=\(Int(e.lead))/\(Int(e.trail))")
+    }
+    std.removeObject(forKey: "desktopWidthV2")
+    let deltas = [DesktopView.minimalDelta(was: .narrow, now: .minimal), DesktopView.minimalDelta(was: .minimal, now: .wide), DesktopView.minimalDelta(was: .wide, now: .narrow)]
+    check(3, "Width options", insets == ["narrow=36/36", "wide=0/0", "minimal=0/0"] && deltas == [-292, 292, 0] && DesktopView.trial == .narrow,
+          "\(insets.joined(separator: " ")); window change \(deltas.map { Int($0) }); unset = \(DesktopView.trial)")
+
+    // 4. Text size: one stop is one ⌘+; the label says how far from Default; it stops at 0.8 and 1.6.
+    let labels = [1.0, 1.2, 0.9, 1.6].map { TextSizeStepper.label(CGFloat($0)) }
+    desktop.setScale(1); for _ in 0..<12 { desktop.biggerText() }; let top = Site.scale
+    for _ in 0..<20 { desktop.smallerText() }; let bottom = Site.scale; desktop.setScale(1)
+    check(4, "text size steps", labels == ["Default", "Default +2", "Default −1", "Default +6"] && abs(top - 1.6) < 0.001 && abs(bottom - 0.8) < 0.001,
+          "labels \(labels); clamps at \(top) and \(bottom)")
+
+    // 5. The session line starts at the top centre, sets off anticlockwise (left along the top), and ends 2 pt past
+    //    its start so the ends meet.
+    var pts = [CGPoint]()
+    DrawnEdge(radius: 22).path(in: CGRect(x: 0, y: 0, width: 400, height: 76)).forEach { el in
+        switch el { case .move(let p), .line(let p): pts.append(p); case .quadCurve(let p, _), .curve(let p, _, _): pts.append(p); default: break }
+    }
+    check(5, "session line path", pts.count > 3 && pts[0] == CGPoint(x: 200, y: 0) && pts[1].x < 200 && pts[1].y == 0 && abs(pts.last!.x - 198) < 0.01 && pts.last!.y == 0,
+          "starts \(pts.first.map { "(\(Int($0.x)),\(Int($0.y)))" } ?? "-"), heads to x=\(pts.count > 1 ? Int(pts[1].x) : -1), ends x=\(pts.last.map { String(format: "%.0f", $0.x) } ?? "-")")
+
+    // 6. The Buy button's words, in the wording he chose (5), singular and plural.
+    let buy14 = BuyLabel.words(days: 14, style: BuyLabel.style), buy1 = BuyLabel.words(days: 1, style: BuyLabel.style)
+    check(6, "Buy button words", buy14 == "14 Days of Pro Left — Buy Now" && buy1 == "1 Day of Pro Left — Buy Now", "\"\(buy14)\" / \"\(buy1)\"")
+
+    // 7. Pressure squares: the same number each side, all between the edge and the title, clear of the key; still
+    //    at least one each side on the narrowest button (Minimal at the smallest window).
+    var sq = [String](), sqOK = true
+    for (w, title) in [(CGFloat(1060), CGFloat(210)), (CGFloat(640), CGFloat(210)), (CGFloat(400), CGFloat(140))] {
+        let s = PressureDots.slots(width: w, titleWidth: title)
+        let l = s.left, r = s.right, inner = w / 2 - title / 2
+        let ok = l.count == r.count && l.count >= 1 && l.allSatisfy { $0 >= PressureDots.edgeL && $0 < inner } &&
+                 r.allSatisfy { $0 > w / 2 + title / 2 && $0 <= w - PressureDots.keyRoom }
+        sqOK = sqOK && ok; sq.append("\(Int(w))pt: \(l.count)+\(r.count)")
+    }
+    check(7, "pressure squares symmetric and clear", sqOK, sq.joined(separator: ", "))
+
+    // 8. Focus Pro: the purchase flag is read live; set, the top left gains the white "Pro" box beside the name.
+    std.set(true, forKey: "focusPro"); let on = DesktopModel.licensed
+    let proPic = guiRender(["trial=narrow"])
+    std.removeObject(forKey: "focusPro"); let off = DesktopModel.licensed || renderArgs.contains("licensed")
+    var proBox = false
+    if let r = proPic { let s = CGFloat(r.pixelsWide) / 1000; proBox = (Int(190 * s)..<Int(260 * s)).contains { x in lum(r, x, Int(63 * s)) > 0.93 } }
+    check(8, "Focus Pro from the purchase flag", on && !off && proBox, "flag on → \(on), off → \(off); white Pro box by the name: \(proBox)")
+
+    // 9. Button colour and text colour: the Appearance colour reaches the big button, and Text colour is obeyed.
+    let violet = hexColor("8B5CF6")?.usingColorSpace(.sRGB)
+    std.set(true, forKey: "desktopButtonInkWhite"); let inkWhite = DesktopView.buttonInkWhite
+    std.removeObject(forKey: "desktopButtonInkWhite"); let inkBlack = !DesktopView.buttonInkWhite
+    var tinted = false
+    if let r = guiRender(["colour=8B5CF6", "trial=narrow"]) {
+        let s = CGFloat(r.pixelsWide) / 1000, c = r.colorAt(x: Int(400 * s), y: Int(45 * s))?.usingColorSpace(.sRGB)
+        tinted = c.map { abs($0.redComponent - 0.545) < 0.06 && abs($0.blueComponent - 0.965) < 0.06 } ?? false
+    }
+    check(9, "button colour and text colour", violet != nil && inkWhite && inkBlack && tinted, "violet parsed \(violet != nil); text white/black \(inkWhite)/\(inkBlack); button drawn violet \(tinted)")
+
+    // 10. The Manual: nine sections, Contents numbered down (1–5, then 6–9); none of the wording he's removed.
+    let secs = ManualPage.sections
+    var text = [String]()
+    for b in ManualPage.blocks {
+        switch b { case .heading(let t), .text(let t): text.append(t); case .bullets(let a): text += a; case .figure(_, let c): text.append(c); case .link(let t, _): text.append(t) }
+    }
+    let banned = ["this window", "Then F.", "Then E.", "Click to", "trial"].filter { w in text.contains { $0.localizedCaseInsensitiveContains(w) } }
+    check(10, "Manual sections and wording", secs.count == 9 && (secs.count + 1) / 2 == 5 && banned.isEmpty,
+          "\(secs.count) sections, first column \((secs.count + 1) / 2); banned wording found: \(banned.isEmpty ? "none" : banned.joined(separator: ", "))")
+
+    // 11. Modes reorder without starting anything: dragging changes the order the window (and menu) lists.
+    let f = Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!); f.modes = []
+    let a = f.createMode("A", apps: []), b = f.createMode("B", apps: []), c = f.createMode("C", apps: [])
+    f.moveMode(c, before: a)
+    let order = DesktopModel(f).modes.map(\.name)
+    check(11, "modes reorder, nothing starts", order == ["C", "A", "B"] && !f.focused, "order \(order); in a session: \(f.focused)")
+    _ = b; f.modes = []; UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+
+    // 12. Every page draws, at the smallest window and in each width, without coming out blank.
+    var blank = [String]()
+    for page in ["", "live", "mode", "settings", "shortcuts", "tools", "history", "manual", "feedback"] {
+        for opts in [["w=600", "h=420", "trial=minimal"], ["trial=narrow"], ["trial=wide"]] {
+            guard let r = guiRender((page.isEmpty ? [] : [page]) + opts) else { blank.append("\(page.isEmpty ? "session" : page)/\(opts.last!)"); continue }
+            let s = CGFloat(r.pixelsWide) / CGFloat(max(1, r.size.width))
+            let lit = stride(from: 0, to: r.pixelsWide, by: Int(20 * s)).filter { x in stride(from: 0, to: r.pixelsHigh, by: Int(20 * s)).contains { lum(r, x, $0) > 0.5 } }.count
+            if lit < 3 { blank.append("\(page.isEmpty ? "session" : page)/\(opts.last!)") }
+        }
+    }
+    check(12, "every page draws in every width", blank.isEmpty, blank.isEmpty ? "9 pages × 3 widths" : "blank: \(blank.joined(separator: ", "))")
+
+    // 13. The session button's mark and title: in a session the Focus mark sits right of the title, out of it.
+    var mark = false
+    if let r = guiRender(["live", "trial=narrow"]) {
+        let s = CGFloat(r.pixelsWide) / 1000
+        // the mark's ring: dark pixels on the white button, between the title's end and the key
+        mark = (Int(780 * s)..<Int(840 * s)).contains { x in lum(r, x, Int(61 * s)) < 0.2 }
+    }
+    check(13, "Focus mark on the button in a session", mark, "dark mark found right of the title: \(mark)")
+
+    print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
+    return Int32(failures)
 }

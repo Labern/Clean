@@ -2891,6 +2891,11 @@ if CommandLine.arguments.contains("--open-desktop") {
     }
     exit(0)
 }
+/// `Focus --selftest-gui [--only=1,2,…]`: the desktop app's own tests, all off-screen (see guiSelfTest).
+if CommandLine.arguments.contains("--selftest-gui") {
+    let only = CommandLine.arguments.first { $0.hasPrefix("--only=") }.map { Set($0.dropFirst(7).split(separator: ",").compactMap { Int($0) }) }
+    exit(guiSelfTest(only: only))
+}
 /// `Focus --render-desktop FILE [mode]`: the desktop window's content, drawn off-screen.
 if let i = CommandLine.arguments.firstIndex(of: "--render-desktop"), CommandLine.arguments.count > i + 1 {
     _ = NSApplication.shared

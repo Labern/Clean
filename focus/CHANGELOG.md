@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.64 — 2026-11-15
+- **GUI tests:** `Focus --selftest-gui`, 13 checks covering sizing, widths, text size, the session line, the Buy words, pressure squares, Focus Pro, colours, the Manual, mode order, every page drawing, and the Focus mark. All run off-screen. See docs/GUI-TESTS.md. All pass.
+- **The window opens big enough for the sidebar:** at least 1100 × 780, taller with more modes (36 pt each), never bigger than the screen.
+- **Links show the pointing hand:** Buy, the PARADOX mark, the Manual's link, its Contents entries and "Contents ↑".
+- **Manual Contents** are numbered down each column (1–5, then 6–9), and wrapped titles line up with their numbers.
+- Pricing thoughts now live in docs/PRICING.md (merged with the Focus Site session's notes).
+
 ## 0.18.63 — 2026-11-15
 - **Buy button:** "14 Days of Pro Left — Buy Now" on one line, at full size. The two-line version is gone.
 
