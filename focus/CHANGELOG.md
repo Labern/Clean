@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.53 — 2026-11-15
+- **Headings inside every panel** (Apps Outside Session, Critical System Processes, Modes, and those on the mode, Tools and Settings pages) are large and white with a fine white line under them, the same as Behaviour and Appearance. They replace the small grey labels; "Usage" stays a small column name.
+- Noted, not built: the idea of an empty bordered circle as the out-of-session icon (docs/OPEN-ITEMS.md).
+
 ## 0.18.52 — 2026-11-15
 - **Buy Now** (white) sits above Feedback · Manual and opens paradoxica.co.uk/focus#buy, the same place as the site's own Buy link. It shows while on a trial; licences aren't built yet, so for now it always shows (`DesktopModel.trial`).
 - **Headings inside a panel** (Behaviour, Appearance, the Manual's sections) have a fine white line under them, full width.

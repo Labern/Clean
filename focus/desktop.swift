@@ -640,18 +640,26 @@ struct Note: View {
     var body: some View { Text(text).font(Site.font(16)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true).padding(.bottom, 4) }
 }
 
+/// A heading inside a panel (Apps Outside Session, Critical System Processes, Modes…): large and white, with a fine
+/// white line under it — the same as Behaviour and Appearance. A column name (Usage) can sit at its right.
+/// With no name, it is just the column name, small, over the list.
 struct SectionLabel: View {
     let left: String, right: String, divider: Bool
     init(_ left: String, _ right: String = "", divider: Bool = true) { self.left = left; self.right = right; self.divider = divider }
     var body: some View {
-        VStack(spacing: 0) {
-            if divider { Rectangle().fill(Site.line).frame(height: 1).padding(.horizontal, 14).padding(.top, 14) }   // a quiet line between sub-sections
-            sectionRow
+        if left.isEmpty {
+            HStack { Spacer(); Text(right).font(Site.font(15)).foregroundColor(Site.muted).padding(.trailing, 38) }
+                .padding(.horizontal, 14).padding(.top, 14).padding(.bottom, 2)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(left).font(Site.font(22, .medium)).tracking(-0.3).foregroundColor(Site.head)
+                    Spacer()
+                    if !right.isEmpty { Text(right).font(Site.font(15)).foregroundColor(Site.muted).padding(.trailing, 24) }
+                }
+                HeadingRule()
+            }.padding(.horizontal, 14).padding(.top, divider ? 30 : 20).padding(.bottom, 8)
         }
-    }
-    var sectionRow: some View {
-        HStack { Text(left); Spacer(); Text(right).padding(.trailing, 38) }
-            .font(Site.font(16, .medium)).foregroundColor(Site.muted).padding(.horizontal, 14).padding(.top, 18).padding(.bottom, 6)
     }
 }
 
