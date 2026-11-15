@@ -2963,14 +2963,20 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-icons"), CommandLine.a
     exit(0)
 }
 
-/// `Focus --make-icon DIR`: writes the app icon set (the menu bar mark at rest, white on the pill's near-black,
-/// on the macOS icon grid) so the icon is always drawn by the same glyph() as the menu bar and the pill.
+/// `Focus --make-icon DIR`: writes the app icon set — the site's logo on the macOS icon grid, drawn by the same
+/// siteLogo() the window gives the Dock (until 0.18.45 it was the menu bar mark, so Spotlight showed a different icon).
 if let i = CommandLine.arguments.firstIndex(of: "--make-icon"), CommandLine.arguments.count > i + 1 {
     let dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     for (px, name) in [(16, "16x16"), (32, "16x16@2x"), (32, "32x32"), (64, "32x32@2x"), (128, "128x128"), (256, "128x128@2x"),
                        (256, "256x256"), (512, "256x256@2x"), (512, "512x512"), (1024, "512x512@2x")] {
-        let rep = appIconRep(px, bg: nil, mark: nil)
+        // The site's logo, as the Dock shows it once Focus is running — so Finder and Spotlight show the same icon.
+        let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: px, pixelsHigh: px, bitsPerSample: 8, samplesPerPixel: 4,
+                                   hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+        rep.size = NSSize(width: px, height: px)
+        NSGraphicsContext.saveGraphicsState(); NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        siteLogo(CGFloat(px), grid: true).draw(in: NSRect(x: 0, y: 0, width: px, height: px))
+        NSGraphicsContext.restoreGraphicsState()
         try? rep.representation(using: .png, properties: [:])!.write(to: dir.appendingPathComponent("icon_\(name).png"))
     }
     exit(0)

@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.45 — 2026-11-15
+- **Manual:** the Manual button opens the Manual, his own text with typos corrected. It covers starting and ending a session, modes, snapshots and previous sessions, tools, appearance, the menu and the app, feedback, and about. His before/after screenshots are drawn as abstractions: a crowded desktop, then the chosen few windows.
+- **Trying the right sidebar for real:** an empty column on the right, as wide as the left one, at all times. To go back, set `DesktopView.trial = .none` (the saved good look, tag `focus-look-good`).
+- **Icon:** Finder and Spotlight show the same logo as the Dock and the window. The bundle icon was still the menu bar mark.
+
 ## 0.18.44 — 2026-11-15
 - The About button and panel are gone (to be folded into the Manual). The sidebar foot is Feedback · Manual.
 - 0.18.43's look is saved as the good version: renders in `docs/looks/`, tag `focus-look-good`.

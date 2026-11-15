@@ -641,9 +641,9 @@ struct SideRow: View {
 
 struct DesktopView: View {
     @ObservedObject var m: DesktopModel
-    /// Layout trials, drawn off-screen only (`--render-desktop … trial=right|narrow`); the app itself always uses `.none`.
+    /// Layout trials (`--render-desktop … trial=none|right|narrow`). The app uses `trial` as set here.
     enum Trial { case none, right, narrow }
-    static var trial = Trial.none
+    static var trial = Trial.right                             // trying the right sidebar for real (0.18.45); `.none` is the saved good look
     /// Room kept beside the page column: an empty right sidebar (as wide as the left one), or equal margins either side.
     var pageInsets: (lead: CGFloat, trail: CGFloat) {
         switch Self.trial { case .none: return (0, 0); case .right: return (0, 292); case .narrow: return (110, 110) }
@@ -672,6 +672,7 @@ struct DesktopView: View {
                     else if m.selection == Page.settings { SettingsPage(m: m) }
                     else if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) }
                     else if m.selection == Page.history { HistoryPage(m: m) }
+                    else if m.selection == Page.manual { ManualPage() }
                     else { SessionDetail(m: m) }
                 }
                 .id(m.selection ?? "session").transition(.opacity)
@@ -741,8 +742,8 @@ struct DesktopView: View {
                 HStack(spacing: 6) {                                  // one row, the sidebar's width, equal parts
                     FootButton(symbol: "bubble.left", title: "Feedback", enabled: true) { m.openFeedback() }
                         .help("Report a bug, suggest an idea, or say what's working well")
-                    FootButton(symbol: "book", title: "Manual", enabled: false) {}
-                        .help("The manual isn't written yet.")
+                    FootButton(symbol: "book", title: "Manual", enabled: true) { m.selection = Page.manual }
+                        .help("How Focus works")
                 }
                 Button { NSWorkspace.shared.open(DesktopModel.site) } label: {
                     HStack(alignment: .top, spacing: 3) {
@@ -850,7 +851,7 @@ struct ModeDetail: View {
 // MARK: the other pages — the same settings the menu has, read from and written to the same place
 
 /// Sidebar pages that aren't a mode (a mode's id is a UUID, so these can't collide).
-enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history" }
+enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history", manual = "§manual" }
 
 struct PageFrame<Content: View>: View {
     let title: String, text: String
@@ -966,6 +967,123 @@ struct ShortcutsPage: View {
 }
 
 /// Past sessions: when, what was kept, how many apps were closed. Any of them can become a mode.
+/// The Manual: the maker's own words (written by him, 2026-11-15; typos corrected), set as a page.
+struct ManualPage: View {
+    enum Block { case heading(String), text(String), bullets([String]), sketch(busy: Bool, caption: String), link(String, URL) }
+    static let blocks: [Block] = [
+        .heading("Start a session"),
+        .text("Start a session by choosing which apps you want in it: just click the apps you currently have open. Anything not chosen will be closed — safely, one at a time, making sure all of your data is saved — and you will be left with the apps you chose."),
+        .text("You can now get your work done with:"),
+        .bullets(["Total focus (the name really is Focus for a reason).", "The most possible RAM.", "The least possible CPU usage."]),
+        .text("The moment you're done, or if you temporarily want to do something else, just end the session."),
+        .heading("End a session"),
+        .text("The beauty of Focus is that whether you use the button (in the menu, and at the top of this window) or the keyboard shortcut (⌘⇧F by default, and yours to change), you can press it and instantly get everything back."),
+        .text("All apps will be reopened as they were. Wherever possible, they will be returned to where they were. If an app's defaults do not allow this, it will reopen as if you had opened it yourself."),
+        .text("The main advantage is that you don't have to make a mental note of which apps you had open, which files you had open in which app, and so on."),
+        .text("For example, if you have 10+ apps open (it happens — you know it), each with several things open in it (writing, projects), all of them will be ready to go. What once looked like this:"),
+        .sketch(busy: true, caption: "Before a session: everything open."),
+        .text("will temporarily look like this:"),
+        .sketch(busy: false, caption: "In a session: only what you chose."),
+        .text("And, when you're ready, it will return to its former, gloriously chaotic state."),
+        .heading("Modes"),
+        .text("Though the core of the app is simplicity — turn these apps off while I work in a few of them, then bring them back again — it is simply too useful not to be able to create and edit common modes."),
+        .text("Common examples are:"),
+        .bullets(["Research (web browser, writing tool).", "Programming (IDE, Chrome, AI).", "Writing (Word).", "Game development (game engine, web browser)."]),
+        .text("And so on. Modes are entirely optional and defined by you. Each is given a simple shortcut (⌘0 and so on), which you can change or ignore as you choose."),
+        .heading("Snapshots and previous sessions"),
+        .text("Each time you start a session, Focus notes the time and the apps involved. If you accidentally lose work or forget what you were doing, you can use this to find out what you were working on."),
+        .text("If you like, you can allow the app to take a screenshot of the apps you are using when you start a session — it is stored only on this Mac — so that you can see, at a glance, what you were working on."),
+        .text("This is particularly useful if you are swapping between different kinds of work and want a visual reminder of what you were doing."),
+        .heading("Tools"),
+        .text("There is a range of other tools built into Focus."),
+        .text("Since the app is about helping both you and your computer focus, there are tools to help you watch the apps you are using and the resources they are taking up: simple links to tools that show RAM and CPU usage, and a way to force quit all apps."),
+        .text("As with sessions, the idea is to save you from having to search for apps and close them one by one, and to let you do it all at once."),
+        .heading("Appearance"),
+        .text("There is a range of options to change the look and style of the app: play around and see which one you like."),
+        .heading("Menu and app"),
+        .text("Focus is primarily a menu tool — it's intended for power users who like to keep their hands on the keyboard and stay in flow. But there is also a fully working app: this window, which you can hide with ⌘H or close with ⌘Q (which does not stop the menu from running). Use one or both, as you like. The menu always runs: that's where the work is done."),
+        .heading("Feedback"),
+        .text("If you have any ideas or feedback, please use the Feedback button in this window."),
+        .heading("About"),
+        .link("paradoxica.co.uk/focus", URL(string: "https://paradoxica.co.uk/focus")!),
+        .text("Focus is made by ★★★★★ × PARADOX™."),
+        .text("★★★★★ × PARADOX™ is a trademark of PARADOXICA Ltd. Registered in England and Wales, company no. 17145296."),
+    ]
+    var body: some View {
+        PageFrame(title: "Manual", text: "Focus is a simple app. It solves a genuine problem: what to do when you often have many apps open, but temporarily want only a few. It solves this problem exceptionally well.") {
+            ForEach(Array(Self.blocks.enumerated()), id: \.offset) { _, b in
+                switch b {
+                case .heading(let t): GroupTitle(t)
+                case .text(let t):
+                    Text(t).font(Site.font(17)).foregroundColor(Site.low).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 640, alignment: .leading).padding(.top, 10)
+                case .bullets(let items):
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(items, id: \.self) { i in
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                Text("—").font(Site.font(17)).foregroundColor(Site.muted)
+                                Text(i).font(Site.font(17)).foregroundColor(Site.head).fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }.padding(.top, 10).padding(.leading, 4)
+                case .sketch(let busy, let caption):
+                    VStack(alignment: .leading, spacing: 8) {
+                        DesktopSketch(busy: busy).frame(maxWidth: 640)
+                        Text(caption).font(Site.font(14)).foregroundColor(Site.muted)
+                    }.padding(.top, 14)
+                case .link(let t, let url):
+                    Button { NSWorkspace.shared.open(url) } label: {
+                        HStack(spacing: 6) { Text(t).font(Site.font(17, .medium)); Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold)) }
+                            .foregroundColor(Site.head).underline()
+                    }.buttonStyle(.plain).padding(.top, 10).help(url.absoluteString)
+                }
+            }
+        }
+    }
+}
+
+/// A drawing of a Mac's desktop for the Manual: crowded with windows before a session, down to the chosen few in one.
+/// (An abstraction of his two screenshots — nothing from anyone's real screen goes into the app.)
+struct DesktopSketch: View {
+    let busy: Bool
+    /// Windows as fractions of the desktop: x, y, width, height. The first two are the ones a session keeps.
+    static let windows: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [
+        (0.27, 0.05, 0.47, 0.55), (0.03, 0.46, 0.22, 0.5),
+        (0.02, 0.05, 0.21, 0.24), (0.24, 0.04, 0.22, 0.2), (0.48, 0.05, 0.14, 0.13), (0.63, 0.05, 0.13, 0.16),
+        (0.79, 0.2, 0.19, 0.24), (0.36, 0.33, 0.2, 0.45), (0.57, 0.25, 0.22, 0.24), (0.13, 0.54, 0.21, 0.23),
+        (0.57, 0.5, 0.2, 0.25), (0.8, 0.48, 0.18, 0.25), (0.02, 0.78, 0.15, 0.2), (0.35, 0.77, 0.19, 0.21),
+        (0.55, 0.78, 0.18, 0.2), (0.78, 0.77, 0.2, 0.2),
+    ]
+    var body: some View {
+        GeometryReader { g in
+            let W = g.size.width, H = g.size.height
+            ZStack(alignment: .topLeading) {
+                ForEach(Array(Self.windows.enumerated()), id: \.offset) { i, r in
+                    if busy || i < 2 {
+                        let kept = !busy && i < 2                         // the chosen few only stand out once the rest have gone
+                        VStack(alignment: .leading, spacing: H * 0.018) {
+                            HStack(spacing: 3) { ForEach(0..<3, id: \.self) { _ in Circle().fill(Color.white.opacity(kept ? 0.55 : 0.25)).frame(width: 4, height: 4) } }
+                            ForEach(0..<4, id: \.self) { l in
+                                Capsule().fill(Color.white.opacity(kept ? 0.4 : 0.14)).frame(width: r.2 * W * [0.7, 0.85, 0.5, 0.75][l] - 12, height: 3)
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(6)
+                        .frame(width: r.2 * W, height: r.3 * H, alignment: .topLeading)
+                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(kept ? Site.surface2 : Site.surface))
+                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Color.white.opacity(kept ? 0.85 : 0.18), lineWidth: 1))
+                        .offset(x: r.0 * W, y: r.1 * H)
+                    }
+                }
+            }
+        }
+        .aspectRatio(16 / 9, contentMode: .fit)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.bg))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.line, lineWidth: 1))
+    }
+}
+
 struct HistoryPage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
@@ -1270,11 +1388,12 @@ func renderDesktop(to file: String, mode: Bool) {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
         f.store.set(true, forKey: "focused")
     }
-    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
+    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history, Page.manual] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
     if !CommandLine.arguments.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
     if CommandLine.arguments.contains("hover") { SessionButton.still = (true, 0, false) }
     if let a = CommandLine.arguments.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {
         SessionButton.still = (false, CGFloat(abs(t)), t < 0) }                          // line=-0.3: drawn clockwise
+    if CommandLine.arguments.contains("trial=none") { DesktopView.trial = .none }
     if CommandLine.arguments.contains("trial=right") { DesktopView.trial = .right }
     if CommandLine.arguments.contains("trial=narrow") { DesktopView.trial = .narrow }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
