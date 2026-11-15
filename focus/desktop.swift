@@ -138,6 +138,11 @@ final class DesktopModel: ObservableObject {
     /// Whether this copy has been bought. Licences aren't built yet, so it's never true in the app; a render can show
     /// it with `licensed`.
     static var licensed: Bool { CommandLine.arguments.contains("licensed") }
+    /// How a bought copy says so — trying three: the outlined badge with the mark, with a tick, or "Pro" by the name.
+    enum ProStyle { case mark, tick, wordmark }
+    static var proStyle: ProStyle {
+        CommandLine.arguments.contains("pro=tick") ? .tick : CommandLine.arguments.contains("pro=wordmark") ? .wordmark : .mark
+    }
     /// Days left in the trial. Not counted yet (licences come later): the planned 14, to see the button as it will read.
     static let trialDaysLeft = 14
 
@@ -817,6 +822,12 @@ struct DesktopView: View {
                 HStack(spacing: 12) {
                     if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
+                    if DesktopModel.licensed && DesktopModel.proStyle == .wordmark {   // bought: a small white "Pro" beside the name
+                        Text("Pro").font(Site.font(15, .semibold)).foregroundColor(.black)
+                            .padding(.horizontal, 7).frame(height: 24)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
+                            .offset(y: 2)
+                    }
                 }.padding(.leading, 16).frame(width: 292, alignment: .leading)
                 VStack(spacing: 9) {
                     let look = buttonColours
@@ -892,9 +903,16 @@ struct DesktopView: View {
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
-                if DesktopModel.licensed {                          // bought: the Buy button's place says so, quietly proud
+                if DesktopModel.licensed && DesktopModel.proStyle == .wordmark {
+                    EmptyView()                                         // the "Pro" sits by the name instead
+                } else if DesktopModel.licensed {                   // bought: the Buy button's place says so, quietly proud
                     HStack(spacing: 9) {
-                        FocusMark(ink: .white).frame(width: 16, height: 16)
+                        if DesktopModel.proStyle == .tick {
+                            ZStack {                                    // a white tick in a black circle, ringed so it reads on black
+                                Circle().fill(Color.black).overlay(Circle().stroke(Color.white, lineWidth: 1.2))
+                                Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundColor(.white)
+                            }.frame(width: 18, height: 18)
+                        } else { FocusMark(ink: .white).frame(width: 16, height: 16) }
                         Text("Pro User").font(Site.font(17, .medium)).foregroundColor(Site.head)
                     }
                     .frame(maxWidth: .infinity).frame(height: 40)
