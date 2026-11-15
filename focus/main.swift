@@ -2009,6 +2009,11 @@ final class Focus: NSObject, NSMenuDelegate {
     @objc func createDraftMode() { guard !draftApps.isEmpty else { return }; createMode("", apps: draftApps); draftApps = [] }
     func renameMode(_ id: String, to name: String) { if let i = modeIndex(id), !name.isEmpty { modes[i]["name"] = name } }
     func removeMode(_ id: String) { if let i = modeIndex(id) { modes.remove(at: i) } }
+    /// Moves a mode to sit where another one is (the order modes are listed in, in the menu and the window).
+    func moveMode(_ id: String, before target: String) {
+        guard id != target, let from = modeIndex(id), let to = modeIndex(target) else { return }
+        var list = modes; let m = list.remove(at: from); list.insert(m, at: to); modes = list
+    }
     /// Suggested modes: a starting point for anyone, built only from apps this Mac actually has. Each lists
     /// candidates by kind; the first installed ones are used. "browser" = whatever the default browser is.
     static let suggestions: [(name: String, groups: [[String]])] = [

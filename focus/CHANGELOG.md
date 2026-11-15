@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.41 — 2026-11-15
+- The Start/End Session button: under the pointer, a white line traces round it anticlockwise and sparks flare at its corners. The line stays while the pointer is on the button.
+- Clicking it: the button presses in, and a ring of light leaves its edge.
+- Modes in the sidebar can be dragged to reorder (the menu shows the same order). Right-click a mode to start or end it, edit it, set its shortcut or delete it.
+- Each panel's name has a single white line under it, full width. Sub-sections are divided by a quiet grey line, as in the menu.
+- The sidebar's Session row says what a click does when the pointer is on it: "Open" from another page; on the Session page, "Click to start" (or "Click to end"), and a click does that.
+
 ## 0.18.40 — 2026-11-15
 - **Desktop app:** one top row across the whole window, with the logo and the Start/End Session button. Below it the sidebar and the page start on the same line. The button stays on every page, modes included.
 - What 0.18.39 looked like is kept in docs/looks/.

@@ -222,6 +222,7 @@ final class DesktopModel: ObservableObject {
     }
     // — the user's own order for the app list (drag a row; it changes nothing but how the list looks) —
     @Published var dragging: String?
+    @Published var draggingMode: String?
     var order: [String] {
         get { UserDefaults.standard.stringArray(forKey: "desktopAppOrder") ?? [] }
         set { UserDefaults.standard.set(newValue, forKey: "desktopAppOrder") }
@@ -299,6 +300,14 @@ struct RowDrop: DropDelegate {
     func performDrop(info: DropInfo) -> Bool { m.dragging = nil; return true }
 }
 
+/// Dragging one mode over another in the sidebar puts it there (the menu shows the same order).
+struct ModeDrop: DropDelegate {
+    let id: String, m: DesktopModel
+    func dropEntered(info: DropInfo) { if let d = m.draggingMode { withAnimation(.easeOut(duration: 0.15)) { m.act { m.f.moveMode(d, before: id) } } } }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+    func performDrop(info: DropInfo) -> Bool { m.draggingMode = nil; return true }
+}
+
 /// What the open apps are holding, as one bar: each app a segment as wide as its memory. White = stays in the
 /// session, grey = would close. Hover a segment to see whose it is.
 struct MemoryBar: View {
@@ -325,22 +334,74 @@ struct MemoryBar: View {
 }
 
 /// The point of the app: one press and you're in a session. As wide as the pane, tall, white, its title centred
-/// and its key at the right — worded as in the menu.
+/// and its key at the right — worded as in the menu. Under the pointer a white line traces round it anticlockwise,
+/// then sparks flare at its corners.
 struct SessionButton: View {
     let title: String, key: String, action: () -> Void
     @State private var hover = false
+    @State private var trace: CGFloat = 0
+    @State private var spark = false
+    @State private var gen = 0
+    @State private var burst = 0
     var body: some View {
-        Button(action: action) {
+        Button(action: { burst += 1; action() }) {
             ZStack {
                 Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
                 HStack { Spacer(); Text(key).font(Site.font(18)).opacity(0.45).lineLimit(1) }.padding(.trailing, 24)
             }
             .foregroundColor(.black).frame(maxWidth: .infinity).frame(height: Layout.button)
-            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.92 : 1)))
-            .shadow(color: Color.white.opacity(hover ? 0.20 : 0), radius: 16)           // a soft glow under the pointer
+            .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Color.white.opacity(hover ? 0.94 : 1)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous).trim(from: 0, to: trace)
+                    .stroke(Color.white, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                    .scaleEffect(x: -1, y: 1)                              // drawn the other way round: anticlockwise
+                    .padding(-5).allowsHitTesting(false)
+            )
+            .overlay(GeometryReader { g in
+                let w = g.size.width + 10, h = g.size.height + 10
+                ForEach(0..<6, id: \.self) { i in
+                    let p = [CGPoint(x: -5, y: -5), CGPoint(x: w - 5, y: -5), CGPoint(x: w - 5, y: h - 5), CGPoint(x: -5, y: h - 5), CGPoint(x: w / 2 - 5, y: -5), CGPoint(x: w / 2 - 5, y: h - 5)][i]
+                    Image(systemName: "sparkle").font(.system(size: i < 4 ? 13 : 9, weight: .semibold)).foregroundColor(.white)
+                        .shadow(color: .white, radius: 4)
+                        .scaleEffect(spark ? 1 : 0.2).opacity(spark ? 1 : 0).rotationEffect(.degrees(spark ? 45 : 0))
+                        .animation(.easeOut(duration: 0.35).delay(Double(i) * 0.04), value: spark)
+                        .position(p)
+                }
+            }.allowsHitTesting(false))
             .scaleEffect(hover ? 1.006 : 1).animation(.easeOut(duration: 0.15), value: hover)
+            .overlay(BurstRing(trigger: burst).allowsHitTesting(false))
         }
-        .buttonStyle(.plain).onHover { hover = $0 }
+        .buttonStyle(PressStyle())
+        .onHover { on in
+            hover = on; gen += 1; let g = gen
+            if on {
+                trace = 0; spark = false
+                withAnimation(.easeInOut(duration: 0.65)) { trace = 1 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.62) { if gen == g { spark = true } }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.25) { if gen == g { spark = false } }   // sparks flare, then settle; the line stays
+            } else {
+                withAnimation(.easeOut(duration: 0.2)) { trace = 0 }; spark = false
+            }
+        }
+    }
+}
+
+/// Pressing: the button sinks a little and dims, the way a physical key gives.
+struct PressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.scaleEffect(configuration.isPressed ? 0.975 : 1).brightness(configuration.isPressed ? -0.06 : 0)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
+    }
+}
+/// On a click: a ring of white light leaves the button's edge and fades as it grows.
+struct BurstRing: View {
+    let trigger: Int
+    @State private var t: CGFloat = 1
+    var body: some View {
+        RoundedRectangle(cornerRadius: 16 + 14 * t, style: .continuous)
+            .stroke(Color.white.opacity(Double(1 - t) * 0.9), lineWidth: 2 + 4 * (1 - t))
+            .padding(-22 * t)
+            .onChange(of: trigger) { _, _ in t = 0; withAnimation(.easeOut(duration: 0.55)) { t = 1 } }
     }
 }
 
@@ -452,10 +513,21 @@ struct FootButton: View {
     }
 }
 
+/// The line under a panel's name: white, full width — the panel's one strong rule.
+struct PanelRule: View {
+    var body: some View { Rectangle().fill(Color.white).frame(height: 1).frame(maxWidth: .infinity).padding(.top, 10).padding(.bottom, 12) }
+}
+
 struct SectionLabel: View {
-    let left: String, right: String
-    init(_ left: String, _ right: String = "") { self.left = left; self.right = right }
+    let left: String, right: String, divider: Bool
+    init(_ left: String, _ right: String = "", divider: Bool = true) { self.left = left; self.right = right; self.divider = divider }
     var body: some View {
+        VStack(spacing: 0) {
+            if divider { Rectangle().fill(Site.line).frame(height: 1).padding(.horizontal, 14).padding(.top, 14) }   // a quiet line between sub-sections
+            sectionRow
+        }
+    }
+    var sectionRow: some View {
         HStack { Text(left); Spacer(); Text(right).padding(.trailing, 38) }
             .font(Site.font(16, .medium)).foregroundColor(Site.muted).padding(.horizontal, 14).padding(.top, 18).padding(.bottom, 6)
     }
@@ -479,6 +551,7 @@ struct SiteButton: View {
 
 struct SideRow: View {
     let title: String, trailing: String, live: Bool, selected: Bool, icons: [NSImage], symbol: String?, action: () -> Void
+    var hint: String? = nil                                      // under the pointer, said at the right instead of `trailing`
     @State private var hover = false
     var body: some View {
         HStack(spacing: 10) {
@@ -493,7 +566,7 @@ struct SideRow: View {
             Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1).minimumScaleFactor(0.85)
             Spacer(minLength: 6)
             if live { Text("On").font(Site.font(14, .medium)).foregroundColor(.black).padding(.horizontal, 7).frame(height: 18).background(Capsule().fill(Color.white)) }
-            Text(trailing).font(Site.font(15)).foregroundColor(live ? Site.head : Site.muted)
+            Text(hover && hint != nil ? hint! : trailing).font(Site.font(15)).foregroundColor(live || (hover && hint != nil) ? Site.head : Site.muted)
         }
         .foregroundColor(selected || live ? Site.head : Site.low)
         .padding(.horizontal, 12).frame(height: 34)
@@ -545,7 +618,9 @@ struct DesktopView: View {
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 2) {
-                SideRow(title: "Session", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2") { m.selection = nil }
+                SideRow(title: "Session", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
+                        action: { if m.selection == nil { m.act { m.f.toggle() } } else { m.selection = nil } },
+                        hint: m.selection != nil ? "Open" : m.f.focused ? "Click to end" : "Click to start")
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard") { m.selection = Page.shortcuts }
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver") { m.selection = Page.tools }
                 SideRow(title: "History", trailing: m.f.sessions.isEmpty ? "" : "\(m.f.sessions.count)", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath") { m.selection = Page.history }
@@ -564,6 +639,19 @@ struct DesktopView: View {
                         ForEach(m.modes) { mode in
                             SideRow(title: mode.name, trailing: mode.key, live: mode.live, selected: m.selection == mode.id,
                                     icons: mode.apps.compactMap { m.f.path($0) }.map(m.icon), symbol: nil) { m.selection = mode.id }
+                                .opacity(m.draggingMode == mode.id ? 0.4 : 1)
+                                .onDrag { m.draggingMode = mode.id; return NSItemProvider(object: mode.id as NSString) }
+                                .onDrop(of: [UTType.text], delegate: ModeDrop(id: mode.id, m: m))
+                                .contextMenu {
+                                    Button(mode.live ? "End \(mode.name)" : "Start \(mode.name)") { m.act { m.f.startOrSwitch(mode.id) } }
+                                    Button("Edit…") { m.selection = mode.id }
+                                    Menu("Shortcut") {
+                                        Button("None") { m.act { m.f.setModeKey(mode.id, nil) } }
+                                        ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], id: \.self) { d in Button(m.f.label(forMode: d)) { m.act { m.f.setModeKey(mode.id, d) } } }
+                                    }
+                                    Divider()
+                                    Button("Delete \(mode.name)", role: .destructive) { m.act { m.f.removeMode(mode.id); if m.selection == mode.id { m.selection = nil } } }
+                                }
                         }
                         SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { m.newMode() }
                     }.padding(.horizontal, 10)
@@ -607,11 +695,12 @@ struct SessionDetail: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Text(f.focused ? (f.displayName ?? "In Session") : "Keep open this session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
+                    PanelRule()
                     Text(f.focused ? "Click an app to take it out of the session, or to bring one back."
                                    : "Tick the apps you want to keep. Everything else closes when the session starts and comes back when it ends.")
-                        .font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
+                        .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
                     if !f.focused { MemoryBar(apps: m.running).padding(.top, 12) }      // the memory to be saved is shown before a session, never during one
-                    SectionLabel("Apps in Session", "Usage").padding(.horizontal, -14)
+                    SectionLabel("Apps in Session", "Usage", divider: false).padding(.horizontal, -14)
                     ForEach(m.running) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
                                    quit: { m.quit(app.id, force: $0) }).padding(.horizontal, -14)
@@ -661,9 +750,10 @@ struct ModeDetail: View {
                             SiteButton(mode.apps.isEmpty ? "Add an app to start" : "Start \(mode.name)") { if !mode.apps.isEmpty { m.act { f.startOrSwitch(mode.id) } } }
                         }
                     }
+                    PanelRule()
                     Text("A mode is a set of apps you keep open. Starting it closes everything else until the session ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
-                    SectionLabel("Keeps open").padding(.horizontal, -14)
+                    SectionLabel("Keeps open", divider: false).padding(.horizontal, -14)
                     ForEach(inMode) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: "checkmark.circle.fill") { m.act { f.removeApp(app.id, fromMode: mode.id) } }.padding(.horizontal, -14)
                     }
@@ -698,7 +788,8 @@ struct PageFrame<Content: View>: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text(title).font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
-                Text(text).font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
+                PanelRule()
+                Text(text).font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
                 content
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
         }
@@ -857,7 +948,7 @@ struct ToolsPage: View {
     var body: some View {
         let f = m.f, busy = f.focused || f.clearing
         PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "Look at what your Mac is doing, or clear everything at once.") {
-            SectionLabel("Analyse performance").padding(.horizontal, -14)
+            SectionLabel("Analyse performance", divider: false).padding(.horizontal, -14)
             ToolLine(title: "Open Activity Monitor", why: "See which apps are using the most memory and processor right now.", tint: Site.head, enabled: true) { f.openActivityMonitor() }
             ToolLine(title: "Open System Settings", why: "Change what opens at login, and the battery and display settings that affect how the Mac runs.", tint: Site.head, enabled: true) { f.openSystemSettings() }
             SectionLabel("Quit Unresponsive Apps").padding(.horizontal, -14)
