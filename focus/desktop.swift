@@ -468,6 +468,22 @@ struct SessionButton: View {
 /// up against the title, each new one queuing behind the last; once the pile is full it presses inward in a slow pulse.
 /// On the click everything is let go: the squares fly back out and fade while the line draws. Leaving without a click,
 /// they simply fade.
+/// The Buy button's words. Trying five (renders: `buy=1…5`); the app uses 1 until he chooses.
+struct BuyLabel: View {
+    static var style: Int { CommandLine.arguments.first { $0.hasPrefix("buy=") }.flatMap { Int($0.dropFirst(4)) } ?? 1 }
+    var body: some View {
+        let n = DesktopModel.trialDaysLeft, days = "\(n) \(n == 1 ? "Day" : "Days")"
+        switch Self.style {
+        case 2: line("\(days) of Pro Remaining — Buy Now")
+        case 3: line("\(days) of Pro Remaining")
+        case 4: VStack(spacing: 1) { Text("\(days) of Pro Remaining").font(Site.font(14)).opacity(0.7); Text("Buy Now").font(Site.font(18, .semibold)) }
+        case 5: line("\(days) of Pro Left — Buy Now")
+        default: line("\(days) of Pro — Buy Now")
+        }
+    }
+    func line(_ t: String) -> some View { Text(t).font(Site.font(17, .medium)).lineLimit(1).minimumScaleFactor(0.8) }
+}
+
 /// The Focus mark — a ring and its dot, as the app icon draws them — in the button's ink.
 struct FocusMark: View {
     let ink: Color
@@ -903,9 +919,9 @@ struct DesktopView: View {
             VStack(spacing: 8) {
                 if DesktopModel.trial && (!DesktopModel.licensed || DesktopModel.showBoth) {   // a trial: one clear way to buy
                     Button { NSWorkspace.shared.open(DesktopModel.buy) } label: {
-                        Text("\(DesktopModel.trialDaysLeft) \(DesktopModel.trialDaysLeft == 1 ? "Day" : "Days") of Pro — Buy Now")   // the Pro Preview
-                            .font(Site.font(17, .medium)).foregroundColor(.black).lineLimit(1).minimumScaleFactor(0.8)
-                            .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(height: 40)
+                        BuyLabel()                                       // the Pro Preview
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(minHeight: 40).padding(.vertical, BuyLabel.style == 4 ? 6 : 0)
                             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
                     }.buttonStyle(PressStyle()).help("paradoxica.co.uk/focus")
                 }
