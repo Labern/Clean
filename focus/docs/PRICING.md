@@ -21,6 +21,10 @@ built yet; the app only shows the parts that are visible, and those are placehol
 - **Max: nobody should ever want to buy it, but it needs full functionality.** It exists to make Pro the obvious buy.
 
 ## What each tier gets — his latest (2026-11-15)
+- **Limiting how many Macs a licence covers:** he doesn't mind a limit, but wants it handled very carefully. It could be
+  tied to the Apple ID. It's something that annoys him as a user ("pisses me off"), so any limit must be generous,
+  invisible in normal use, and easy to move between Macs (e.g. sign out of an old Mac from the new one). Never lock
+  someone out of an app they paid for.
 - **The free tier is called Free** (2026-11-15: he tried "Basic", then chose Free, as Claude's own pricing does):
   **Free / Pro / Max**.
 - **Free keeps the last 3 sessions in History** (not none). Pro and Max keep all of it. Like the weekly limit,

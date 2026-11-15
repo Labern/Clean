@@ -13,6 +13,7 @@ C="$OUT/Focus.app/Contents"
 mkdir -p "$C/MacOS"
 swiftc -O -swift-version 5 main.swift desktop.swift -o "$C/MacOS/Focus"
 mkdir -p "$C/Resources"                                  # app icon, drawn by the app's own glyph()
+cp pricing.json "$C/Resources/pricing.json"              # prices and tiers: a copy of paradoxica.uk/focus/pricing.json
 "$C/MacOS/Focus" --make-icon "$OUT/Focus.iconset" && iconutil -c icns "$OUT/Focus.iconset" -o "$C/Resources/Focus.icns"
 cat > "$C/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>

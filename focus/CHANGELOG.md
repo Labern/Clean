@@ -4,6 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.69 — 2026-11-15
+- **Keys:** ⌘⇧F starts and ends a session; **⌘⇧E opens the desktop app** from anywhere (press again to put it away); the menu moves to **⌥⇧E**. All can be changed in Shortcuts, in the window and the menu.
+- **Upgrade window:** Free / Pro / Max side by side, Monthly or Once, Pro marked "Best value". A plan's button opens the site's checkout in the browser (`paradoxica.uk/focus/checkout/?tier=…&plan=…`). It opens from the sidebar button, which now reads "14 Days of Pro Left — Upgrade Now", and from Focus ▸ Upgrade to Pro….
+- **Prices come from pricing.json,** the site's one source (paradoxica.uk/focus/pricing.json). A copy ships in the app and the live file refreshes it. The weekly count, the Preview's days and every price follow it.
+- **View As (developer panel under Modes, with View ▸ Developer Panel to show or hide it):** Actual / Free / Pro / Max. As Free, the Pro parts really lock: Tools and Modes show an Upgrade Now panel, History keeps the last 3, Shortcuts are fixed, and Icon colour offers 3 schemes. Your real copy ("Actual") locks nothing until licences exist.
+- **Trying:** a "Free" box by the name on Free copies (render `freebadge`; off).
+- **GUI tests:** 21 checks. New pricing checks (17–21) cover his price rules, the app using pricing.json, the shipped copy matching the live site, the Pro tags matching the site's table, and the Upgrade window and Free locks. All pass. Menu check 23 now expects the new keys.
+
 ## 0.18.68 — 2026-11-15
 - **View ▸ View As ▸ Free / Pro / Max:** the window as each kind of user sees it (badge by the name, Buy button, weekly count, Pro tags). Only the look changes; nothing is bought or unlocked. "Actual" goes back to this copy's own licence. This replaces the temporary "show both".
 - **⌃⌥D opens the desktop app from anywhere,** and puts it away when it's in front. You can change it (⌘⇧D, ⌃⇧D, ⌃⌥⌘D) in Shortcuts, in both the window and the menu. It's also in the Manual's keys.

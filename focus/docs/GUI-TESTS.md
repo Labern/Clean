@@ -38,5 +38,17 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
 
 16. **View As** (View menu) shows the window as a Free, Pro or Max user; Actual goes back to the real licence.
 
+**Pricing** (pricing.json, from paradoxica.uk/focus/pricing.json, is the one source; the site is built from it)
+17. **His price rules** in the shipped copy: Free / Pro / Max with taglines; £0 / £5 / £10 a month; once = 10× monthly
+    (£50 / £100); round numbers only; 14 days of Pro; Free at 10 sessions a week; Pro marked best value; the lead is
+    Pro monthly.
+18. **The app uses the file:** the weekly count and the Preview's days come from it, and each plan's checkout link
+    is `paradoxica.uk/focus/checkout/?tier=…&plan=…`.
+19. **The shipped copy matches the live site.** If it differs, the site has moved on: refresh `focus/pricing.json`
+    and release. Offline, it's noted, not failed.
+20. **The Pro tags match the site's table:** Tools, Modes, History and custom shortcuts are limited on Free and
+    included in Pro and Max; sessions a week reads 10 / Unlimited.
+21. **The Upgrade window** draws in Light and Dark, and as Free (View As) the Tools page is locked with Upgrade Now.
+
 **Not covered** (needs the real screen or a pointer): hover states, the hand cursor, drag to reorder, the pressure
 build and release over time, the click line animating, ⌘Q/⌘H in a live window. Check these by eye.

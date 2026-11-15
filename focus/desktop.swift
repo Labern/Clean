@@ -160,7 +160,7 @@ final class DesktopModel: ObservableObject {
     /// Whether this copy is on a trial. Licences aren't built yet, so it's shown for now to see the button in place.
     static let trial = true
     /// Free's weekly sessions (PRICING.md: 10 a week; Pro and Max unlimited).
-    static let freeWeekly = 10
+    static var freeWeekly: Int { Pricing.current?.free_sessions_per_week ?? 10 }   // from pricing.json
     /// Sessions started since 00:00 on Monday (Quit All clean-ups don't count), how many of Free's are left, and the
     /// day it resets (next Monday, 00:00 local time).
     static func week(_ sessions: [[String: Any]], now: Date, calendar: Calendar = .current) -> (used: Int, left: Int, reset: Date, resetDay: String) {
@@ -172,7 +172,9 @@ final class DesktopModel: ObservableObject {
         return (used, max(0, freeWeekly - used), reset, f.string(from: reset))
     }
     /// Temporary, for looking at the design: show the Focus Pro badge and the Buy button together. Remove with licences.
-    static let showBoth = false                                 // replaced by View ▸ View As (0.18.68)
+    static let showBoth = false
+    /// Trying (his idea): Free copies show a "Free" box by the name too. Off until he chooses; renders: `freebadge`.
+    static var freeBadge: Bool { renderArgs.contains("freebadge") || UserDefaults.standard.bool(forKey: "desktopFreeBadge") }                                 // replaced by View ▸ View As (0.18.68)
     /// Whether this copy has been bought — read live (the window refreshes every 1.5 s), so the moment a purchase is
     /// recorded the Buy button becomes "Focus Pro". Licences aren't built yet: the purchase flow will set
     /// `focusPro` in Focus's defaults. A render can show it with `licensed`.
@@ -181,6 +183,10 @@ final class DesktopModel: ObservableObject {
     /// flag counts as Pro). Max has everything and shows "Max" where Pro shows "Pro"; it's priced so Pro is the one
     /// people buy. Renders: `licensed` (Pro) or `tier=max`.
     enum Tier { case free, pro, max }
+    /// Whether Pro parts lock right now: only while viewing as Free (View As). A real copy never locks anything
+    /// until licences exist, so his own use is untouched.
+    static var gated: Bool { renderArgs.contains("viewas=free") || (UserDefaults.standard.string(forKey: "desktopViewAs") != nil && tier == .free) }
+    static var tierKey: String { switch tier { case .free: return "free"; case .pro: return "pro"; case .max: return "max" } }
     static var tier: Tier {
         if renderArgs.contains("tier=max") { return .max }
         if renderArgs.contains("licensed") { return .pro }
@@ -198,11 +204,13 @@ final class DesktopModel: ObservableObject {
         }
     }
     /// Days left in the Pro Preview (what the free trial of Focus Pro is called). Not counted yet (licences come later): the planned 14, to see the button as it will read.
-    static let trialDaysLeft = 14
+    static var trialDaysLeft: Int { Pricing.current?.trial_days ?? 14 }    // the Preview's length, from pricing.json
 
     // — feedback, written here and sent straight to the developer —
     enum FeedbackState: Equatable { case writing, sending, sent, emailed }
     @Published var feedbackShown = false
+    @Published var upgradeShown = false
+    func openUpgrade() { upgradeShown = true }
     @Published var feedbackText = ""
     @Published var feedbackState = FeedbackState.writing
     /// Where feedback is posted. Until the site answers there, the message goes into an email instead.
@@ -527,7 +535,7 @@ struct SessionButton: View {
 /// The Buy button's words: "14 Days of Pro Left — Buy Now" on one line, at full size (his choice, 5). Renders can show
 /// the others with `buy=1…5`.
 struct BuyLabel: View {
-    static var style: Int { renderArgs.first { $0.hasPrefix("buy=") }.flatMap { Int($0.dropFirst(4)) } ?? 5 }   // he chose 5 (4, two lines, was ugly)
+    static var style: Int { renderArgs.first { $0.hasPrefix("buy=") }.flatMap { Int($0.dropFirst(4)) } ?? 7 }   // he chose 5 (4, two lines, was ugly)
     /// The words for `days` left, in each wording (4's are its top line; "Buy Now" sits under them).
     static func words(days n: Int, style: Int) -> String {
         let days = "\(n) \(n == 1 ? "Day" : "Days")"
@@ -535,6 +543,8 @@ struct BuyLabel: View {
         case 2: return "\(days) of Pro Remaining — Buy Now"
         case 3, 4: return "\(days) of Pro Remaining"
         case 5: return "\(days) of Pro Left — Buy Now"
+        case 6: return "\(days) of Pro Left — Upgrade"
+        case 7: return "\(days) of Pro Left — Upgrade Now"
         default: return "\(days) of Pro — Buy Now"
         }
     }
@@ -554,6 +564,129 @@ struct LinkCursor: ViewModifier {
     }
 }
 extension View { func linkCursor() -> some View { modifier(LinkCursor()) } }
+
+// MARK: prices and tiers — one source, the site's pricing.json
+
+/// Focus's prices and tiers, from paradoxica.uk/focus/pricing.json: the one source the site is built from, so the app
+/// and the site can never disagree. A copy ships inside the app (works offline); the live file replaces it when the
+/// window opens and the site answers. Nothing here is typed by hand.
+struct Pricing: Decodable {
+    struct Tier: Decodable { let name: String; let tagline: String; let monthly: Int; let once: Int?; let best: Bool?; let summary: String; let once_summary: String? }
+    struct Lead: Decodable { let tier: String; let plan: String }
+    let currency: String
+    let trial_days: Int
+    let trial_tier: String
+    let free_sessions_per_week: Int
+    let lead: Lead
+    let tiers: [String: Tier]
+    let features: [Group]
+    struct Group: Decodable { let group: String; let rows: [[Cell]] }
+    enum Cell: Decodable {
+        case text(String), yes(Bool)
+        init(from d: Decoder) throws { let c = try d.singleValueContainer(); if let b = try? c.decode(Bool.self) { self = .yes(b) } else { self = .text(try c.decode(String.self)) } }
+    }
+    static let url = URL(string: "https://paradoxica.uk/focus/pricing.json")!
+    static let page = URL(string: "https://paradoxica.uk/focus#pricing")!
+    /// Where a plan is bought: the site's checkout, in the browser (Apple Pay, the padlock, Stripe).
+    static func checkout(tier: String, plan: String) -> URL { URL(string: "https://paradoxica.uk/focus/checkout/?tier=\(tier)&plan=\(plan)")! }
+    static var cacheFile: URL {
+        let d = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Focus")
+        try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
+        return d.appendingPathComponent("pricing.json")
+    }
+    /// The copy inside the app, as shipped.
+    static var bundled: Pricing? {
+        let paths = [Bundle.main.url(forResource: "pricing", withExtension: "json"), URL(fileURLWithPath: "pricing.json")].compactMap { $0 }
+        return paths.lazy.compactMap { try? JSONDecoder().decode(Pricing.self, from: Data(contentsOf: $0)) }.first
+    }
+    /// What the app uses: the last live copy if there is one, else the shipped one.
+    static var current: Pricing? = (try? JSONDecoder().decode(Pricing.self, from: Data(contentsOf: cacheFile))) ?? bundled
+    /// Fetches the live file; keeps it only if it parses.
+    static func refresh(_ done: (() -> Void)? = nil) {
+        URLSession.shared.dataTask(with: URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)) { data, _, _ in
+            guard let data, let p = try? JSONDecoder().decode(Pricing.self, from: data) else { return }
+            try? data.write(to: cacheFile)
+            DispatchQueue.main.async { current = p; done?() }
+        }.resume()
+    }
+    /// "{free_sessions_per_week}" in the file's words, filled in.
+    func fill(_ t: String) -> String { t.replacingOccurrences(of: "{free_sessions_per_week}", with: "\(free_sessions_per_week)") }
+}
+
+/// Upgrade: the plans, side by side, the way Mac apps sell from inside themselves — Monthly or Once, Pro marked as
+/// the best value, and the plan's button opening the site's checkout in the browser. Everything comes from pricing.json.
+struct UpgradeCard: View {
+    @ObservedObject var m: DesktopModel
+    @State private var once = false
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.6).onTapGesture { m.upgradeShown = false }
+            if let p = Pricing.current {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Upgrade Focus").font(Site.font(30, .medium)).tracking(-0.5).foregroundColor(Site.head)
+                        Spacer()
+                        Button { m.upgradeShown = false } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(Site.low).frame(width: 28, height: 28).contentShape(Rectangle()) }.buttonStyle(.plain)
+                    }
+                    PanelRule()
+                    HStack {
+                        Text(p.lead.tier == "pro" ? "Pay monthly, or once and keep it forever." : "").font(Site.font(17)).foregroundColor(Site.low)
+                        Spacer()
+                        Choice(options: ["Monthly", "Once"], selected: once ? 1 : 0) { i in once = i == 1 }
+                    }
+                    HStack(alignment: .top, spacing: 14) {
+                        ForEach(["free", "pro", "max"], id: \.self) { key in
+                            if let t = p.tiers[key] { plan(key, t, p) }
+                        }
+                    }.fixedSize(horizontal: false, vertical: true).padding(.top, 18)
+                    HStack {
+                        Text("\(p.trial_days) days of Pro come free with every new copy.").font(Site.font(15)).foregroundColor(Site.muted)
+                        Spacer()
+                        Button { NSWorkspace.shared.open(Pricing.page) } label: {
+                            HStack(spacing: 5) { Text("Compare every feature").font(Site.font(15, .medium)); Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .semibold)) }
+                                .foregroundColor(Site.head).underline()
+                        }.buttonStyle(.plain).linkCursor()
+                    }.padding(.top, 18)
+                }
+                .padding(28).frame(width: 780).fixedSize(horizontal: false, vertical: true)
+                .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Site.bg))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Site.ink.opacity(0.35), lineWidth: 1))
+                .shadow(color: .black.opacity(0.6), radius: 30, y: 12)
+            }
+        }
+        .onAppear { once = (Pricing.current?.lead.plan ?? "monthly") == "once"; Pricing.refresh { m.tick &+= 1 } }
+    }
+    @ViewBuilder func plan(_ key: String, _ t: Pricing.Tier, _ p: Pricing) -> some View {
+        let best = t.best == true, current = DesktopModel.tierKey == key
+        let price = key == "free" ? "\(p.currency)0" : once ? "\(p.currency)\(t.once ?? t.monthly * 10)" : "\(p.currency)\(t.monthly)"
+        let per = key == "free" ? "Free for everyone" : once ? "once" : "a month"
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)
+                Spacer()
+                if best { Text("Best value").font(Site.font(12, .semibold)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 20).background(RoundedRectangle(cornerRadius: 5).fill(Site.ink)) }
+            }
+            Text(t.tagline).font(Site.font(15)).foregroundColor(Site.low)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(price).font(Site.font(32, .medium)).foregroundColor(Site.head)
+                Text(per).font(Site.font(15)).foregroundColor(Site.muted)
+            }.padding(.top, 8)
+            Text(p.fill(once && key != "free" ? (t.once_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
+                .fixedSize(horizontal: false, vertical: true).frame(minHeight: 40, alignment: .top)
+            Button {
+                if key != "free" && !current { NSWorkspace.shared.open(Pricing.checkout(tier: key, plan: once ? "once" : "monthly")) }
+            } label: {
+                Text(current ? "Your plan" : key == "free" ? "Included" : "Choose \(t.name)").font(Site.font(16, .medium))
+                    .foregroundColor(best && !current ? Site.paper : Site.head).frame(maxWidth: .infinity).frame(height: 40)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(best && !current ? Site.ink : Color.clear))
+                    .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.ink.opacity(best && !current ? 0 : 0.6), lineWidth: 1))
+            }.buttonStyle(PressStyle()).disabled(key == "free" || current).linkCursor().padding(.top, 10)
+        }
+        .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(best ? Site.surface : Site.bg))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(best ? Site.ink.opacity(0.9) : Site.line, lineWidth: best ? 1.5 : 1))
+    }
+}
 
 /// The Focus mark — a ring and its dot, as the app icon draws them — in the button's ink.
 struct FocusMark: View {
@@ -769,12 +902,12 @@ struct ModeListRow: View {
                 .underline(nameHover).onHover { nameHover = $0 }.help("Edit \(mode.name)")
             Spacer(minLength: 8)
             if mode.live {
-                Button { m.act { m.f.startOrSwitch(mode.id) } } label: {
+                Button { if DesktopModel.gated { m.openUpgrade() } else { m.act { m.f.startOrSwitch(mode.id) } } } label: {
                     Text(hover ? "End session" : "On").font(Site.font(14, .medium)).foregroundColor(Site.paper)
                         .padding(.horizontal, 12).frame(height: 26).background(Capsule().fill(Site.ink))
                 }.buttonStyle(PressStyle())
             } else if hover {
-                Button { if !mode.apps.isEmpty { m.act { m.f.startOrSwitch(mode.id) } } } label: {
+                Button { if DesktopModel.gated { m.openUpgrade() } else if !mode.apps.isEmpty { m.act { m.f.startOrSwitch(mode.id) } } } label: {
                     Text(mode.apps.isEmpty ? "Add apps first" : "Start session").font(Site.font(14, .medium)).foregroundColor(Site.paper)
                         .padding(.horizontal, 12).frame(height: 26).background(Capsule().fill(Site.ink))
                 }.buttonStyle(PressStyle()).opacity(mode.apps.isEmpty ? 0.5 : 1)
@@ -786,6 +919,60 @@ struct ModeListRow: View {
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.ink.opacity(mode.live ? 0.85 : 0), lineWidth: 1))
         .contentShape(Rectangle()).onHover { hover = $0 }
         .onTapGesture { m.selection = mode.id }
+    }
+}
+
+/// Where a Pro feature is locked (viewing as Free): what Pro adds, and Upgrade Now.
+struct LockedPanel: View {
+    @ObservedObject var m: DesktopModel
+    let text: String
+    var body: some View {
+        HStack(spacing: 14) {
+            ProTag()
+            Text(text).font(Site.font(16)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 10)
+            Button { m.openUpgrade() } label: {
+                Text("Upgrade Now").font(Site.font(15, .medium)).foregroundColor(Site.paper).padding(.horizontal, 14).frame(height: 34)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Site.ink))
+            }.buttonStyle(PressStyle()).linkCursor()
+        }
+        .padding(14).background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.surface))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.line, lineWidth: 1))
+        .padding(.vertical, 10)
+    }
+}
+
+/// For development: see the window as a Free, Pro or Max user, with the Pro parts locking and unlocking for real.
+/// Sits under the modes; collapses with its chevron; View ▸ Developer Panel shows or hides it altogether.
+struct ViewAsPanel: View {
+    @ObservedObject var m: DesktopModel
+    @State private var open = UserDefaults.standard.object(forKey: "desktopViewAsOpen") as? Bool ?? true
+    var body: some View {
+        let now = renderArgs.contains("viewas=free") ? "free" : UserDefaults.standard.string(forKey: "desktopViewAs") ?? ""
+        VStack(alignment: .leading, spacing: 8) {
+            Button { open.toggle(); UserDefaults.standard.set(open, forKey: "desktopViewAsOpen") } label: {
+                HStack(spacing: 5) {
+                    Text("View As").font(Site.font(16, .medium))
+                    Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(open ? 90 : 0)).offset(y: 1.5)
+                    Spacer()
+                    Text("Developer").font(Site.font(12)).foregroundColor(Site.muted)
+                }.foregroundColor(Site.muted).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+            if open {
+                HStack(spacing: 6) {
+                    ForEach([("Actual", ""), ("Free", "free"), ("Pro", "pro"), ("Max", "max")], id: \.1) { title, key in
+                        let on = now == key
+                        Button {
+                            m.act { if key.isEmpty { UserDefaults.standard.removeObject(forKey: "desktopViewAs") } else { UserDefaults.standard.set(key, forKey: "desktopViewAs") } }
+                        } label: {
+                            Text(title).font(Site.font(14, .medium)).foregroundColor(on ? Site.paper : Site.head).lineLimit(1).frame(maxWidth: .infinity).frame(height: 30)
+                                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Site.ink : Color.clear))
+                                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Site.ink.opacity(on ? 0 : 0.5), lineWidth: 1))
+                        }.buttonStyle(PressStyle())
+                    }
+                }
+            }
+        }.padding(.leading, 22).padding(.trailing, 14).padding(.top, 14)
     }
 }
 
@@ -935,8 +1122,8 @@ struct DesktopView: View {
                 HStack(spacing: 12) {
                     if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
-                    if DesktopModel.licensed || DesktopModel.showBoth {    // bought: Focus Pro (or Max) — a small white box by the name
-                        Text(DesktopModel.tier == .max ? "Max" : "Pro").font(Site.font(15, .semibold)).foregroundColor(Site.paper)
+                    if DesktopModel.licensed || DesktopModel.showBoth || DesktopModel.freeBadge {   // Focus Pro / Max (or, trying, Free)
+                        Text(DesktopModel.tier == .max ? "Max" : DesktopModel.tier == .pro ? "Pro" : "Free").font(Site.font(15, .semibold)).foregroundColor(Site.paper)
                             .padding(.horizontal, 7).frame(height: 24)
                             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.ink))
                             .offset(y: 2)
@@ -970,6 +1157,8 @@ struct DesktopView: View {
         }
         .background(Site.bg).preferredColorScheme(Site.light ? .light : .dark)
         .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
+        .overlay { if m.upgradeShown { UpgradeCard(m: m).transition(.opacity) } }
+        .animation(.easeOut(duration: 0.15), value: m.upgradeShown)
         .animation(.easeOut(duration: 0.15), value: m.feedbackShown)
     }
     /// The big button wears the colour chosen in Settings ▸ Appearance (the icon's ring, then its dot), white when none is.
@@ -1006,25 +1195,26 @@ struct DesktopView: View {
                             SideRow(title: mode.name, trailing: mode.key, live: mode.live, selected: m.selection == mode.id,
                                     icons: mode.apps.compactMap { m.f.path($0) }.map(m.icon), symbol: nil,
                                     action: { m.selection = mode.id },                       // the name (the row): edit it
-                                    start: mode.apps.isEmpty ? nil : { m.act { m.f.startOrSwitch(mode.id) } })
+                                    start: mode.apps.isEmpty ? nil : { if DesktopModel.gated { m.openUpgrade() } else { m.act { m.f.startOrSwitch(mode.id) } } })
                                 .onDrag { m.draggingMode = mode.id; return NSItemProvider(object: mode.id as NSString) }
                                 .onDrop(of: [UTType.text], delegate: ModeDrop(id: mode.id, m: m))
                                 .contextMenu { ModeMenu(m: m, mode: mode) }
                         }
-                        SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { m.newMode() }
+                        SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { if DesktopModel.gated { m.openUpgrade() } else { m.newMode() } }
                     }.padding(.horizontal, 10)
                 }
             }
+            if UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true { ViewAsPanel(m: m) }
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
                 if DesktopModel.trial && (!DesktopModel.licensed || DesktopModel.showBoth) {   // a trial: one clear way to buy
-                    Button { NSWorkspace.shared.open(DesktopModel.buy) } label: {
+                    Button { m.openUpgrade() } label: {
                         BuyLabel()                                       // the Pro Preview
                             .foregroundColor(Site.paper)
                             .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(minHeight: 40).padding(.vertical, BuyLabel.style == 4 ? 6 : 0)
                             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.ink))
-                    }.buttonStyle(PressStyle()).help("paradoxica.co.uk/focus").linkCursor()
+                    }.buttonStyle(PressStyle()).help("See the plans").linkCursor()
                 }
                 if let u = m.update {
                     Button { NSWorkspace.shared.open(u.url) } label: {
@@ -1100,12 +1290,13 @@ struct SessionDetail: View {
                     // Modes follow on, as in the menu. Click one to start it; the sidebar's Modes open each in detail.
                     SectionLabel("Modes — frequently used sessions", pro: true).padding(.horizontal, -14).padding(.top, 8)
                     Note("A mode is a set of apps you keep open. Start one with its button or its key; click its name to edit it.")
+                    if DesktopModel.gated { LockedPanel(m: m, text: "Modes are part of Pro: a set of apps you start with one key.") }
                     VStack(spacing: 2) {
                         ForEach(m.modes) { mode in
                             ModeListRow(m: m, mode: mode).contextMenu { ModeMenu(m: m, mode: mode) }
                         }
-                        SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { m.newMode() }
-                    }.padding(.horizontal, -12)
+                        SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { if DesktopModel.gated { m.openUpgrade() } else { m.newMode() } }
+                    }.padding(.horizontal, -12).opacity(DesktopModel.gated ? 0.45 : 1)
                 }
                 .padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
             }
@@ -1305,17 +1496,18 @@ struct ShortcutsPage: View {
     var body: some View {
         let f = m.f
         PageFrame(title: "Shortcuts", text: "The keys that start and end a session, open the menu, open this app, and start your modes.") {
+            if DesktopModel.gated { LockedPanel(m: m, text: "Choosing your own keys is part of Pro. Free keeps ⌘⇧F, ⌘⇧E and ⌥⇧E.") }
             SettingLine(title: "Start / End Session", note: f.sessionKeyTaken ? "That combination is taken by another app. Pick another." : "") {
-                Choice(options: modifierChoices.map { $0.label + "F" }, selected: modifierChoices.firstIndex { $0.mods == f.sessionMods } ?? 0) { i in m.act { f.sessionMods = modifierChoices[i].mods } }
+                Choice(options: modifierChoices.map { $0.label + "F" }, selected: modifierChoices.firstIndex { $0.mods == f.sessionMods } ?? 0) { i in if !DesktopModel.gated { m.act { f.sessionMods = modifierChoices[i].mods } } }
             }
             SettingLine(title: "Open the Menu", note: f.menuKeyTaken ? "That combination is taken by another app. Pick another." : "") {
-                Choice(options: modifierChoices.map { $0.label + "E" }, selected: modifierChoices.firstIndex { $0.mods == f.menuMods } ?? 0) { i in m.act { f.menuMods = modifierChoices[i].mods } }
+                Choice(options: menuModifierChoices.map { $0.label + "E" }, selected: menuModifierChoices.firstIndex { $0.mods == f.menuMods } ?? 0) { i in if !DesktopModel.gated { m.act { f.menuMods = menuModifierChoices[i].mods } } }
             }
             SettingLine(title: "Open the Desktop App", note: f.appKeyTaken ? "That combination is taken by another app. Pick another." : "From anywhere. Press again to put it away.") {
-                Choice(options: modifierChoices.map { $0.label + "D" }, selected: modifierChoices.firstIndex { $0.mods == f.appMods } ?? 1) { i in m.act { f.appMods = modifierChoices[i].mods } }
+                Choice(options: modifierChoices.map { $0.label + "E" }, selected: modifierChoices.firstIndex { $0.mods == f.appMods } ?? 0) { i in if !DesktopModel.gated { m.act { f.appMods = modifierChoices[i].mods } } }
             }
             SettingLine(title: "Modes", note: "This, plus the number you give each mode.") {
-                Choice(options: modeModifierChoices.map { $0.label + "1" }, selected: modeModifierChoices.firstIndex { $0.mods == f.modeMods } ?? 0) { i in m.act { f.modeMods = modeModifierChoices[i].mods } }
+                Choice(options: modeModifierChoices.map { $0.label + "1" }, selected: modeModifierChoices.firstIndex { $0.mods == f.modeMods } ?? 0) { i in if !DesktopModel.gated { m.act { f.modeMods = modeModifierChoices[i].mods } } }
             }
             SectionLabel("Your modes").padding(.horizontal, -14)
             ForEach(m.modes) { mode in
@@ -1533,7 +1725,7 @@ struct ManualFigure: View {
             case .keys:
                 VStack(alignment: .leading, spacing: 10) {
                     KeyLine(keys: ["⌘", "⇧", "F"], says: "Start or end a session, from anywhere")
-                    KeyLine(keys: ["⌃", "⌥", "D"], says: "Open the app from anywhere (and put it away)")
+                    KeyLine(keys: ["⌘", "⇧", "E"], says: "Open the app from anywhere (and put it away)")
                     KeyLine(keys: ["⌘", "H"], says: "Hide the app; press again straight away to bring it back")
                     KeyLine(keys: ["⌘", "Q"], says: "Close the app. The menu keeps running")
                     KeyLine(keys: ["⌘", "+"], says: "Bigger text (⌘− for smaller)")
@@ -1616,7 +1808,7 @@ struct HistoryPage: View {
         let f = m.f
         PageFrame(title: "History", text: "Your past sessions. Save one as a mode to start it again with a key.") {
             if m.history.isEmpty { Text("No sessions yet.").font(Site.font(16)).foregroundColor(Site.muted).padding(.vertical, 10) }
-            ForEach(m.history) { s in
+            ForEach(DesktopModel.gated ? Array(m.history.prefix(3)) : m.history) { s in
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) { if s.live { PulseDot() }; Text(s.title).font(Site.font(18, .medium)).foregroundColor(Site.head).lineLimit(1) }
@@ -1628,6 +1820,7 @@ struct HistoryPage: View {
                     }
                 }.padding(.vertical, 7)
             }
+            if DesktopModel.gated && m.history.count > 3 { LockedPanel(m: m, text: "Free keeps your last 3 sessions. Pro keeps all \(m.history.count).") }
         }
     }
 }
@@ -1686,13 +1879,14 @@ struct ToolsPage: View {
     var body: some View {
         let f = m.f, busy = f.focused || f.clearing
         PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "Look at what your Mac is doing, or clear everything at once.") {
+            if DesktopModel.gated { LockedPanel(m: m, text: "Tools are part of Pro: quit everything at once, restart clean, force quit what's frozen.") }
             SectionLabel("Analyse performance", divider: false).padding(.horizontal, -14)
-            ToolLine(title: "Open Activity Monitor", why: "See which apps are using the most memory and processor right now.", tint: Site.head, enabled: true) { f.openActivityMonitor() }
-            ToolLine(title: "Open System Settings", why: "Change what opens at login, and the battery and display settings that affect how the Mac runs.", tint: Site.head, enabled: true) { f.openSystemSettings() }
+            ToolLine(title: "Open Activity Monitor", why: "See which apps are using the most memory and processor right now.", tint: Site.head, enabled: !DesktopModel.gated) { f.openActivityMonitor() }
+            ToolLine(title: "Open System Settings", why: "Change what opens at login, and the battery and display settings that affect how the Mac runs.", tint: Site.head, enabled: !DesktopModel.gated) { f.openSystemSettings() }
             SectionLabel("Quit Unresponsive Apps").padding(.horizontal, -14)
-            ToolLine(title: "Quit All Apps…", why: "Close every app at once for a clean start. Each app saves first. Critical System Processes stay open.", tint: Site.head, enabled: !busy) { f.quitAllApps() }
-            ToolLine(title: "Quit All Apps & Restart Mac…", why: "Close everything, then restart. Clears memory completely when the Mac feels slow.", tint: Site.head, enabled: !busy) { f.quitAllRestart() }
-            ToolLine(title: "Force Quit All Apps…", why: "For apps that have frozen and won't quit. Unsaved work in them is lost, so it asks first.", tint: Site.hazard, enabled: !busy) { f.forceQuitAllApps() }
+            ToolLine(title: "Quit All Apps…", why: "Close every app at once for a clean start. Each app saves first. Critical System Processes stay open.", tint: Site.head, enabled: !busy && !DesktopModel.gated) { f.quitAllApps() }
+            ToolLine(title: "Quit All Apps & Restart Mac…", why: "Close everything, then restart. Clears memory completely when the Mac feels slow.", tint: Site.head, enabled: !busy && !DesktopModel.gated) { f.quitAllRestart() }
+            ToolLine(title: "Force Quit All Apps…", why: "For apps that have frozen and won't quit. Unsaved work in them is lost, so it asks first.", tint: Site.hazard, enabled: !busy && !DesktopModel.gated) { f.forceQuitAllApps() }
         }
     }
 }
@@ -1742,7 +1936,9 @@ struct SettingsPage: View {
                 let all = [("White", "", "")] + theme.iconPresets + theme.evaPresets
                 ForEach(all, id: \.0) { name, a, b in
                     let on = f.iconColor == a && (f.iconColor2 == b || (a == b && f.iconColor2.isEmpty) || (a.isEmpty && f.iconColor2.isEmpty))
-                    ColourTile(name: name, a: a, b: b, on: on) { m.act { f.iconColor = a; f.iconColor2 = a == b ? "" : b } }
+                    let locked = DesktopModel.gated && (all.firstIndex { $0.0 == name } ?? 0) >= 3      // Free: 3 colour schemes
+                    ColourTile(name: name, a: a, b: b, on: on) { if locked { m.openUpgrade() } else { m.act { f.iconColor = a; f.iconColor2 = a == b ? "" : b } } }
+                        .opacity(locked ? 0.4 : 1)
                 }
             }
             SettingLine(title: "Text colour", note: "The big button's text, to go with its colour.") {
@@ -1825,6 +2021,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
         }
         menu("Focus") { m in
             item(m, "About Focus", #selector(about))
+            item(m, "Upgrade to Pro…", #selector(upgrade))
             m.addItem(.separator())
             item(m, "Hide Desktop App", #selector(hideByH), "h")
             item(m, "Quit Desktop App", #selector(closeWindow), "q")             // back to the menu bar: Focus itself keeps running
@@ -1855,6 +2052,8 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
                 i.target = self; i.representedObject = key; i.state = now == key ? .on : .off
             }
             viewAs.submenu = sub; m.addItem(viewAs)
+            let dev = m.addItem(withTitle: "Developer Panel", action: #selector(toggleDevPanel(_:)), keyEquivalent: ""); dev.target = self
+            dev.state = (UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true) ? .on : .off
         }
         menu("Window") { m in
             item(m, "Minimize", #selector(NSWindow.performMiniaturize(_:)), "m", mine: false)
@@ -1891,7 +2090,8 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     /// Settings ▸ Appearance ▸ Width. Into or out of Minimal, the window narrows or widens by a sidebar's width,
     /// keeping its left edge where it is.
     static func defaultSize(modes: Int, screen: NSRect, minimal: Bool) -> NSSize {
-        let sidebar = 600 + 36 * CGFloat(modes + 1) + 44
+        let devPanel: CGFloat = (UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true) ? 90 : 0   // View As, when shown
+        let sidebar = 600 + 36 * CGFloat(modes + 1) + 44 + devPanel
         return NSSize(width: max(600, min(1100, screen.width - 120) - (minimal ? DesktopView.minimalCut : 0)),
                       height: max(420, min(max(780, sidebar), screen.height - 60)))
     }
@@ -1900,6 +2100,11 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     static func applyLook(to w: NSWindow) {
         w.backgroundColor = Site.light ? .white : .black
         w.appearance = Site.look == 2 ? nil : NSAppearance(named: Site.light ? .aqua : .darkAqua)   // System: follow macOS
+    }
+    @objc func upgrade() { model?.openUpgrade() }
+    @objc func toggleDevPanel(_ sender: NSMenuItem) {
+        let on = !(UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true)
+        UserDefaults.standard.set(on, forKey: "desktopDevPanel"); sender.state = on ? .on : .off; model?.tick &+= 1
     }
     @objc func viewAs(_ sender: NSMenuItem) {
         let key = sender.representedObject as? String ?? ""
@@ -1953,6 +2158,7 @@ func renderDesktop(to file: String, mode: Bool) {
     f.neverClose = have(["com.apple.Terminal"]); f.excluded = have(["com.apple.Safari", "com.apple.Terminal"])
     let m = DesktopModel(f); m.still = true; m.refresh(); if mode { m.selection = second }
     if renderArgs.contains("feedback") { m.openFeedback() }
+    if renderArgs.contains("upgrade") { m.upgradeShown = true }
     if renderArgs.contains("live") {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
         f.store.set(true, forKey: "focused")
@@ -2012,8 +2218,14 @@ private func sidebarSlack(_ r: NSBitmapImageRep, from: CGFloat = 300, light: Boo
     let xs = Array(stride(from: px(20), to: px(280), by: 4))
     func white(_ y: Int) -> Bool { xs.filter { light ? lum(r, $0, y) < 0.07 : lum(r, $0, y) > 0.93 }.count > Int(Double(xs.count) * 0.8) }   // the solid (ink) button
     guard let buy = (px(from)..<r.pixelsHigh).first(where: white) else { return nil }
-    guard let last = (px(from)..<max(px(from), buy - 2)).last(where: { y in xs.contains { light ? lum(r, $0, y) < 0.76 : lum(r, $0, y) > 0.24 } }) else { return nil }
-    return (CGFloat(buy - last) / s, CGFloat(buy) / s)
+    // the largest empty stretch between the rows and the foot (the View As panel sits just above the foot, so the
+    // room shows up between the modes and it rather than right above the button)
+    var best = 0, run = 0
+    for y in px(from)..<max(px(from), buy - 2) {
+        if xs.contains(where: { light ? lum(r, $0, y) < 0.76 : lum(r, $0, y) > 0.24 }) { best = max(best, run); run = 0 } else { run += 1 }
+    }
+    best = max(best, run)
+    return (CGFloat(best) / s, CGFloat(buy) / s)
 }
 
 func guiSelfTest(only: Set<Int>?) -> Int32 {
@@ -2083,7 +2295,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
 
     // 6. The Buy button's words, in the wording he chose (5), singular and plural.
     let buy14 = BuyLabel.words(days: 14, style: BuyLabel.style), buy1 = BuyLabel.words(days: 1, style: BuyLabel.style)
-    check(6, "Buy button words", buy14 == "14 Days of Pro Left — Buy Now" && buy1 == "1 Day of Pro Left — Buy Now", "\"\(buy14)\" / \"\(buy1)\"")
+    check(6, "Buy button words", buy14 == "14 Days of Pro Left — Upgrade Now" && buy1 == "1 Day of Pro Left — Upgrade Now", "\"\(buy14)\" / \"\(buy1)\"")
 
     // 7. Pressure squares: the same number each side, all between the edge and the title, clear of the key; still
     //    at least one each side on the narrowest button (Minimal at the smallest window).
@@ -2193,6 +2405,70 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     }
     std.removeObject(forKey: "desktopViewAs")
     check(16, "View As Free / Pro / Max", seen == ["free=free/free", "pro=pro/paid", "max=max/paid", "actual=free/free"], seen.joined(separator: ", "))
+
+    // ——— Pricing: pricing.json is the one source; the app must follow it and keep to his rules ———
+    let pr = Pricing.bundled
+    // 17. His price rules hold in the shipped copy: Free / Pro / Max with their taglines, monthly £5 / £10, once = 10×
+    //     monthly, round numbers only (5s and 0s), 14 days of Pro, Free at 10 sessions a week, Pro the one marked best.
+    var rules = [String]()
+    if let p = pr {
+        if ["free", "pro", "max"].map({ p.tiers[$0]?.name ?? "" }) != ["Free", "Pro", "Max"] { rules.append("tier names") }
+        if p.tiers.values.contains(where: { $0.tagline.isEmpty }) { rules.append("a tagline is empty") }
+        if p.tiers["pro"]?.monthly != 5 || p.tiers["max"]?.monthly != 10 || p.tiers["free"]?.monthly != 0 { rules.append("monthly prices") }
+        for k in ["pro", "max"] { if let t = p.tiers[k], t.once != t.monthly * 10 { rules.append("\(k) once ≠ 10× monthly") } }
+        let all = p.tiers.values.flatMap { [$0.monthly] + ($0.once.map { [$0] } ?? []) }
+        if all.contains(where: { $0 % 5 != 0 }) { rules.append("a price that isn't a round number") }
+        if p.trial_days != 14 || p.trial_tier != "pro" { rules.append("trial") }
+        if p.free_sessions_per_week != 10 { rules.append("Free sessions a week") }
+        if p.tiers["pro"]?.best != true || p.tiers["max"]?.best == true { rules.append("Pro not the best value") }
+        if p.lead.tier != "pro" || p.lead.plan != "monthly" { rules.append("lead isn't Pro monthly") }
+    } else { rules.append("pricing.json missing or unreadable") }
+    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Free/Pro/Max; £0/£5/£10 a month; £50/£100 once (10×); round; 14 days of Pro; Free 10 a week; Pro is best value" : rules.joined(separator: "; "))
+
+    // 18. The app takes its numbers from pricing.json, never its own: the weekly count, the Preview's days, the
+    //     Upgrade window's prices, and the checkout link for each plan.
+    let co = Pricing.checkout(tier: "pro", plan: "once").absoluteString
+    let usesFile = pr.map { DesktopModel.freeWeekly == $0.free_sessions_per_week && DesktopModel.trialDaysLeft == $0.trial_days } ?? false
+    check(18, "the app uses pricing.json", usesFile && co == "https://paradoxica.uk/focus/checkout/?tier=pro&plan=once",
+          "weekly count and Preview days from the file: \(usesFile); checkout link \(co)")
+
+    // 19. The shipped copy matches the live site (paradoxica.uk/focus/pricing.json). A difference means the site has
+    //     moved on: refresh focus/pricing.json and release. Offline: noted, not failed.
+    var live: Any?, liveNote = "offline: not compared"
+    let sem = DispatchSemaphore(value: 0)
+    URLSession.shared.dataTask(with: URLRequest(url: Pricing.url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)) { d, _, _ in
+        live = d.flatMap { try? JSONSerialization.jsonObject(with: $0) }; sem.signal()
+    }.resume()
+    _ = sem.wait(timeout: .now() + 12)
+    let shipped = (try? Data(contentsOf: Bundle.main.url(forResource: "pricing", withExtension: "json") ?? URL(fileURLWithPath: "pricing.json"))).flatMap { try? JSONSerialization.jsonObject(with: $0) }
+    var same = true
+    if let l = live as? NSDictionary, let b = shipped as? NSDictionary { same = l.isEqual(b); liveNote = same ? "identical to the live site" : "the live site differs: refresh focus/pricing.json" }
+    check(19, "shipped prices match the site", same, liveNote)
+
+    // 20. The Pro tags in the app match the site's table: Tools, Modes, History and custom shortcuts are limited or
+    //     absent on Free and present on Pro and Max; sessions a week is the Free figure on Free and Unlimited on Pro.
+    var table = [String: [Pricing.Cell]]()
+    pr?.features.forEach { g in g.rows.forEach { r in if case .text(let name) = r.first { table[name] = Array(r.dropFirst()) } } }
+    func row(_ starts: String) -> [Pricing.Cell]? { table.first { $0.key.hasPrefix(starts) }?.value }
+    func freeLimited(_ c: [Pricing.Cell]?) -> Bool { guard let c, c.count == 3 else { return false }
+        if case .yes(true) = c[0] { return false }; if case .yes(false) = c[1] { return false }; if case .yes(false) = c[2] { return false }; return true }
+    let tagged = ["Tools", "Modes", "History", "Custom shortcuts"].filter { !freeLimited(row($0)) }
+    var weekly = false
+    if let w = row("Sessions a week"), w.count == 3, case .text(let f0) = w[0], case .text(let f1) = w[1] { weekly = pr.map { $0.fill(f0) } == "10" && f1 == "Unlimited" }
+    check(20, "Pro tags match the site's table", tagged.isEmpty && weekly, tagged.isEmpty ? "Tools, Modes, History, custom shortcuts: limited on Free, in Pro and Max; sessions a week 10 / Unlimited: \(weekly)" : "not limited on Free in the table: \(tagged.joined(separator: ", "))")
+
+    // 21. The Upgrade window draws in Light and Dark with all three plans, and Free locks (View As) show their panel.
+    var upOK = true
+    for look in ["dark", "light"] {
+        guard let r = guiRender(["upgrade", "trial=narrow", "look=\(look)"]) else { upOK = false; continue }
+        let s = CGFloat(r.pixelsWide) / 1000
+        // the Pro card's solid button sits in the middle of the window, in ink
+        upOK = upOK && (Int(440 * s)..<Int(560 * s)).contains { x in (Int(380 * s)..<Int(520 * s)).contains { y in look == "dark" ? lum(r, x, y) > 0.93 : lum(r, x, y) < 0.07 } }
+    }
+    let lockPic = guiRender(["tools", "tier=free", "viewas=free", "trial=narrow"])
+    var locked = false
+    if let r = lockPic { let s = CGFloat(r.pixelsWide) / 1000; locked = (Int(780 * s)..<Int(930 * s)).contains { x in lum(r, x, Int(262 * s)) > 0.93 } }   // the panel's Upgrade Now
+    check(21, "Upgrade window and Free locks", upOK && locked, "Upgrade window in Light and Dark: \(upOK); Tools locked with Upgrade Now as Free: \(locked)")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)

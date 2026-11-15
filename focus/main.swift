@@ -51,6 +51,13 @@ let modifierChoices: [KeyChoice] = [
     KeyChoice(label: "⌃⇧", mods: controlKey | shiftKey, clash: "rarely used on a Mac"),
     KeyChoice(label: "⌃⌥⌘", mods: controlKey | optionKey | cmdKey, clash: "free — three keys, nothing else uses it"),
 ]
+/// Opening the menu: a modifier + E. ⌥⇧E by default, since ⌘⇧E opens the desktop app.
+let menuModifierChoices: [KeyChoice] = [
+    KeyChoice(label: "⌥⇧", mods: optionKey | shiftKey, clash: "types Ï in text, which few people need"),
+    KeyChoice(label: "⌃⌥", mods: controlKey | optionKey, clash: "free, except while VoiceOver is on"),
+    KeyChoice(label: "⌃⇧", mods: controlKey | shiftKey, clash: "rarely used on a Mac"),
+    KeyChoice(label: "⌃⌥⌘", mods: controlKey | optionKey | cmdKey, clash: "free — three keys, nothing else uses it"),
+]
 /// Mode shortcuts are a modifier + a digit (0–9), the digit chosen per mode by the user. The modifier is shared.
 let modeModifierChoices: [KeyChoice] = [
     KeyChoice(label: "⌘", mods: cmdKey, clash: "while set, apps don't get it: browsers use ⌘1–9 for tabs"),
@@ -1263,11 +1270,14 @@ final class Focus: NSObject, NSMenuDelegate {
     var neverWindow: NSWindow?
     // MARK: shortcuts
     var sessionMods: Int { get { store.object(forKey: "sessionMods") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "sessionMods"); applyShortcuts() } }
-    var menuMods: Int { get { store.object(forKey: "menuMods") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "menuMods"); applyShortcuts() } }
+    /// Opens the menu: ⌥⇧E by default since 0.18.69, when ⌘⇧E went to the desktop app (new storage key, so it moves).
+    var menuMods: Int { get { store.object(forKey: "menuModsV2") as? Int ?? menuModifierChoices[0].mods } set { store.set(newValue, forKey: "menuModsV2"); applyShortcuts() } }
+    func menuLabel(_ mods: Int) -> String { menuModifierChoices.first { $0.mods == mods }?.label ?? "⌥⇧" }
     var modeMods: Int { get { store.object(forKey: "modeMods") as? Int ?? modeModifierChoices[0].mods } set { store.set(newValue, forKey: "modeMods"); applyShortcuts() } }
-    /// Opens the desktop app from anywhere (and puts it away again when it's in front). ⌃⌥D by default: every ⌘⇧
-    /// letter is already taken somewhere (⌘⇧D sends in Mail), ⌃⌥ almost never is.
-    var appMods: Int { get { store.object(forKey: "appMods") as? Int ?? modifierChoices[1].mods } set { store.set(newValue, forKey: "appMods"); applyShortcuts() } }
+    /// Opens the desktop app from anywhere (and puts it away again when it's in front): ⌘⇧E by default (his choice,
+    /// 2026-11-15), beside ⌘⇧F for sessions. Stored under its own key so the brief ⌃⌥D and ⌥⇧F trials never linger.
+    var appMods: Int { get { store.object(forKey: "appModsE") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "appModsE"); applyShortcuts() } }
+    func appLabel(_ mods: Int) -> String { label(mods) }
     var appKeyTaken = false
     var takenModeKeys: Set<Int> = []                            // digits macOS refused (another app holds them)
     var keyRefs: [EventHotKeyRef?] = []
@@ -1277,7 +1287,7 @@ final class Focus: NSObject, NSMenuDelegate {
     /// (Re)registers both shortcuts. Takes effect at once; reports a combination another app already holds.
     func applyShortcuts() {
         keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }
-        let s = hotkey(1, kVK_ANSI_F, sessionMods), m = hotkey(2, kVK_ANSI_E, menuMods), a = hotkey(3, kVK_ANSI_D, appMods)
+        let s = hotkey(1, kVK_ANSI_F, sessionMods), m = hotkey(2, kVK_ANSI_E, menuMods), a = hotkey(3, kVK_ANSI_E, appMods)
         keyRefs = [s, m, a]; sessionKeyTaken = s == nil; menuKeyTaken = m == nil; appKeyTaken = a == nil
         takenModeKeys = []
         for md in modes { if let d = md["key"] as? Int, digitKeys.indices.contains(d) {   // only the keys the user set
@@ -2743,16 +2753,16 @@ final class Focus: NSObject, NSMenuDelegate {
         if sessionKeyTaken { add("⚠︎ " + label(sessionMods) + "F is taken by another app — pick another", nil, to: km).isEnabled = false }
         km.addItem(.separator())
         km.addItem(headingItem("Open This Menu"))
-        for c in modifierChoices {
+        for c in menuModifierChoices {
             let i = add(c.label + "E", #selector(pickMenuKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == menuMods ? .on : .off
         }
-        if menuKeyTaken { add("⚠︎ " + label(menuMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
+        if menuKeyTaken { add("⚠︎ " + menuLabel(menuMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
         km.addItem(.separator())
         km.addItem(headingItem("Open the Desktop App"))
         for c in modifierChoices {
-            let i = add(c.label + "D", #selector(pickAppKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == appMods ? .on : .off
+            let i = add(c.label + "E", #selector(pickAppKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == appMods ? .on : .off
         }
-        if appKeyTaken { add("⚠︎ " + label(appMods) + "D is taken by another app — pick another", nil, to: km).isEnabled = false }
+        if appKeyTaken { add("⚠︎ " + appLabel(appMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
         km.addItem(.separator())
         km.addItem(headingItem("Modes — this plus a number you give each mode"))
         for c in modeModifierChoices {
@@ -2791,7 +2801,7 @@ final class Focus: NSObject, NSMenuDelegate {
         add("Reopen windows as they were", #selector(windows), image: onOff(keepWindows), to: sub)
         add("Open at login", #selector(login), image: onOff(SMAppService.mainApp.status == .enabled), to: sub)
         sub.addItem(.separator())
-        add(label(menuMods) + "E opens this menu", nil, to: sub).isEnabled = false
+        add(menuLabel(menuMods) + "E opens this menu", nil, to: sub).isEnabled = false
         add("Focus " + ((Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"), nil, to: sub).isEnabled = false
         add("Quit Focus", #selector(bye), image: symbol("power"), to: sub)
         settings.submenu = sub
@@ -3330,16 +3340,16 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
             }
         } }
     }))
-    steps.append(("23. shortcuts: switching registers the new keys at once; the default is ⌘⇧F / ⌘⇧E", { done in
-        let defaultOK = t.label(t.sessionMods) == "⌘⇧" && t.label(t.menuMods) == "⌘⇧"
+    steps.append(("23. shortcuts: switching registers the new keys at once; the defaults are ⌘⇧F (session), ⌘⇧E (desktop app), ⌥⇧E (menu)", { done in
+        let defaultOK = t.label(t.sessionMods) == "⌘⇧" && t.menuLabel(t.menuMods) == "⌥⇧" && t.appLabel(t.appMods) == "⌘⇧"
         t.sessionMods = controlKey | shiftKey                  // ⌃⇧F (the real Focus keeps its own keys)
-        let s1 = !t.sessionKeyTaken && sessionKey == "⌃⇧F" && t.keyRefs.count == 2
+        let s1 = !t.sessionKeyTaken && sessionKey == "⌃⇧F" && t.keyRefs.count == 3   // session, menu, desktop app
         let m = NSMenu(); t.menuNeedsUpdate(m)
         let keysMenu = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Shortcuts" }?.submenu
         let ticked = keysMenu?.items.first { $0.state == .on }?.title.hasPrefix("⌃⇧F") == true
         t.releaseShortcuts()
         UserDefaults(suiteName: suite)!.removeObject(forKey: "sessionMods"); sessionKey = "⌘⇧F"
-        done(defaultOK && s1 && ticked, "default ⌘⇧F/⌘⇧E: \(defaultOK); ⌃⇧F registered live: \(s1); ticked in the menu: \(ticked)")
+        done(defaultOK && s1 && ticked, "defaults ⌘⇧F / ⌘⇧E app / ⌥⇧E menu: \(defaultOK); ⌃⇧F registered live: \(s1); ticked in the menu: \(ticked)")
     }))
     steps.append(("24. animation speed: Normal is the default and keeps the original timing; Slow/Fast change only the holds", { done in
         let d = UserDefaults(suiteName: suite)!
