@@ -3,6 +3,21 @@
 His thinking on how Focus is sold, gathered in one place (2026-11-15). The newest ideas come first. None of it is
 built yet; the app only shows the parts that are visible, and those are placeholders.
 
+## Decided and live on the site (2026-11-15, evening)
+- **Lead with the subscription: £5 a month.** Buy Now on the site is "Buy Now – £5/month" and opens the checkout on
+  Pro, monthly. **£50 once** is the alternative, offered beside it (and tagged "Best value" in the checkout); once
+  people are using Focus they can see they could buy it outright. Max may go to £100 once (£10 a month on the site).
+- **Pro is what we want them on; Max is there to direct them to it.**
+- **Free is partial, and not by much.** Every copy starts with **14 days of Pro**, then drops to Free.
+- **The trial takes an email.** The site's trial dialog collects it (filed on the server as `focus-signup`), then
+  promises the download link by email.
+- **What Free gets (on the site now):** sessions, but **only up to 2 apps kept open** during a session; Basic
+  appearance; no Tools, Modes, History or custom shortcuts. Pro and Max: any number of apps.
+  - Why "apps kept open" and not "one session": a session is one start→end cycle; you're either in one or not, so
+    "one session" vs "unlimited sessions" limits nothing real (a daily cap would punish the habit). The number of
+    apps you can keep is felt every time and tightens as you rely on it. Easy to change if he prefers another lever.
+- The pricing table (Free / Pro / Max, Monthly | One-off switch, Monthly first) and the header Pricing link are live.
+
 ## Tiers: Free, Pro, Max (latest)
 - **Three tiers: Free, Pro and Max.**
 - **Pro is the one to buy.** The tiers are arranged so that Pro reads as the better deal, because it is. Max sits above
@@ -21,10 +36,9 @@ built yet; the app only shows the parts that are visible, and those are placehol
   (suggestion: not; it muddies "once or monthly")?
 
 ## On the site now (paradoxica.uk/focus; the "Focus Site" session owns it)
-- £50. Buy Now → a dummy Stripe checkout at `/focus/checkout/` (nothing is charged). Trial button: "14-Day Free
+- £5 a month first, £50 once beside it. Buy Now → a dummy Stripe checkout at `/focus/checkout/` (nothing is charged). Trial button: "14-Day Free
   Trial · Everything in Pro" (to align with the app's "Pro Preview" naming once he confirms).
-- A Free | Pro table and a header "Pricing" link, built but **off** behind `SHOW_PRICING` (preview: `?pricing`).
-  Becomes Free / Pro / Max with a once/monthly toggle when he settles this. `#buy` stays the buy anchor.
+- Free / Pro / Max table with a Monthly | One-off switch, and a header "Pricing" link: **live**. `#buy` stays the buy anchor.
 
 ## Earlier tier sketches (kept for the record)
 - **Free / Medium / Pro:** Free is a session only (no modes, no tools, minimal appearance changes). Medium is session
