@@ -38,8 +38,10 @@
         "active": true,
         "once": 50,
         "label": "Early adopter gift",
-        "line": "A gift to early adopters: {launch_once}, yours forever. After launch it's {once}.",
-        "then": "after launch"
+        "line": "For a limited time, early adopters get it forever for {launch_once} with code {code}. After that it's {once}.",
+        "then": "after launch",
+        "code": "EARLY",
+        "short": "Limited time: {launch_once} with code {code}"
       }
     }
   },
@@ -137,5 +139,5 @@
       "note": "Coming soon"
     }
   ],
-  "_history": "15 Nov 2026: Max scrapped (owner). Tiers are Free and Pro; Pro is £5 a month, £40 a year or £50 once; Enterprise (per seat) shows greyed as Coming soon. Free may later be called Basic. 15 Nov 2026 (later): the free tier is named Basic (\"works better on the app\"); shown as \"Basic · Free\" with £0. 15 Nov 2026 (later): Pro £5 a month, £50 a year, £75 forever; early adopters get it forever for £50, as a gift (tiers.pro.launch). Set launch.active to false to end it."
+  "_history": "15 Nov 2026: Max scrapped (owner). Tiers are Free and Pro; Pro is £5 a month, £40 a year or £50 once; Enterprise (per seat) shows greyed as Coming soon. Free may later be called Basic. 15 Nov 2026 (later): the free tier is named Basic (\"works better on the app\"); shown as \"Basic · Free\" with £0. 15 Nov 2026 (later): Pro £5 a month, £50 a year, £75 forever; early adopters get it forever for £50, as a gift (tiers.pro.launch). Set launch.active to false to end it. Later: the gift is claimed with code EARLY at checkout (limited time); the one-off shows £75 with the code underneath."
 }

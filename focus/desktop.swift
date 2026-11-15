@@ -578,7 +578,7 @@ struct Pricing: Decodable {
         let launch: Launch?
     }
     /// The early adopter gift: while active, the one-off sells at `once` (e.g. £50 instead of £75).
-    struct Launch: Decodable { let active: Bool; let once: Int; let label: String; let line: String; let then: String }
+    struct Launch: Decodable { let active: Bool; let once: Int; let label: String; let line: String; let then: String; let code: String?; let short: String? }
     struct Soon: Decodable { let name: String; let tagline: String; let note: String }
     struct Lead: Decodable { let tier: String; let plan: String }
     let currency: String
@@ -598,7 +598,9 @@ struct Pricing: Decodable {
     static let url = URL(string: "https://paradoxica.uk/focus/pricing.json")!
     static let page = URL(string: "https://paradoxica.uk/focus#pricing")!
     /// Where a plan is bought: the site's checkout, in the browser (Apple Pay, the padlock, Stripe).
-    static func checkout(tier: String, plan: String) -> URL { URL(string: "https://paradoxica.uk/focus/checkout/?tier=\(tier)&plan=\(plan)")! }
+    static func checkout(tier: String, plan: String, code: String? = nil) -> URL {
+        URL(string: "https://paradoxica.uk/focus/checkout/?tier=\(tier)&plan=\(plan)" + (code.map { "&code=\($0)" } ?? ""))!
+    }
     static var cacheFile: URL {
         let d = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Focus")
         try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
@@ -698,7 +700,7 @@ struct UpgradeCard: View {
         let which = plans[min(plan, plans.count - 1)]
         let amount = which == "once" ? t.once : which == "yearly" ? t.yearly : t.monthly
         let gift = which == "once" ? t.launch.flatMap { $0.active ? $0 : nil } : nil      // early adopter gift: £50, then £75
-        let price = key == "free" ? "\(p.currency)0" : "\(p.currency)\(gift?.once ?? amount ?? t.monthly)"
+        let price = key == "free" ? "\(p.currency)0" : "\(p.currency)\(gift?.code == nil ? (gift?.once ?? amount ?? t.monthly) : (amount ?? t.monthly))"   // with a code, the listed price shows
         let per = key == "free" ? (t.label == nil ? "Free" : "") : which == "once" ? "once" : which == "yearly" ? "a year" : "a month"
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -710,13 +712,14 @@ struct UpgradeCard: View {
             Text(t.tagline).font(Site.font(15)).foregroundColor(Site.low)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(price).font(Site.font(32, .medium)).foregroundColor(Site.head)
-                if let gift, let full = t.once { Text("\(p.currency)\(full)").font(Site.font(18)).strikethrough().foregroundColor(Site.muted); Text(gift.then).font(Site.font(15)).foregroundColor(Site.muted) }
+                if let gift, gift.code == nil, let full = t.once { Text("\(p.currency)\(full)").font(Site.font(18)).strikethrough().foregroundColor(Site.muted); Text(gift.then).font(Site.font(15)).foregroundColor(Site.muted) }
                 else { Text(per).font(Site.font(15)).foregroundColor(Site.muted) }
             }.padding(.top, 8)
-            Text(p.fill(key == "free" ? t.summary : which == "once" ? (gift.map { g in g.line.replacingOccurrences(of: "{launch_once}", with: "\(p.currency)\(g.once)").replacingOccurrences(of: "{once}", with: "\(p.currency)\(t.once ?? 0)") } ?? t.once_summary ?? t.summary) : which == "yearly" ? (t.yearly_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
+            Text(p.fill(key == "free" ? t.summary : which == "once" ? (gift.map { g in g.line.replacingOccurrences(of: "{launch_once}", with: "\(p.currency)\(g.once)").replacingOccurrences(of: "{once}", with: "\(p.currency)\(t.once ?? 0)").replacingOccurrences(of: "{code}", with: g.code ?? "") } ?? t.once_summary ?? t.summary) : which == "yearly" ? (t.yearly_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
                 .fixedSize(horizontal: false, vertical: true).frame(minHeight: 40, alignment: .top)
+            if let code = gift?.code { CodeBox(code: code).padding(.top, 4) }
             Button {
-                if key != "free" && !current { NSWorkspace.shared.open(Pricing.checkout(tier: key, plan: which)) }
+                if key != "free" && !current { NSWorkspace.shared.open(Pricing.checkout(tier: key, plan: which, code: gift?.code)) }   // the code pre-applied
             } label: {
                 Text(current ? "Your plan" : key == "free" ? "Included" : "Choose \(t.name)").font(Site.font(16, .medium))
                     .foregroundColor(best && !current ? Site.paper : Site.head).frame(maxWidth: .infinity).frame(height: 40)
@@ -728,6 +731,29 @@ struct UpgradeCard: View {
         .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(best ? Site.surface : Site.bg))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(best ? Site.ink.opacity(0.9) : Site.line, lineWidth: best ? 1.5 : 1))
+    }
+}
+
+/// The early adopter code, as the site shows it: a dashed box, CODE and the code, and Copy.
+struct CodeBox: View {
+    let code: String
+    @State private var copied = false
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("CODE").font(Site.font(11, .semibold)).tracking(0.8).foregroundColor(Site.muted).fixedSize()
+            Text(code).font(Site.font(16, .semibold)).tracking(1).foregroundColor(Site.head).lineLimit(1).minimumScaleFactor(0.8).textSelection(.enabled)
+            Spacer(minLength: 4)
+            Button {
+                NSPasteboard.general.clearContents(); NSPasteboard.general.setString(code, forType: .string)
+                copied = true; DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) { copied = false }
+            } label: {
+                Text(copied ? "Copied" : "Copy").font(Site.font(13, .medium)).foregroundColor(Site.head).fixedSize().padding(.horizontal, 9).frame(height: 24)
+                    .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Site.ink.opacity(0.5), lineWidth: 1))
+                    .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+            }.buttonStyle(PressStyle())
+        }
+        .padding(.leading, 12).padding(.trailing, 8).frame(height: 40)
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Site.ink.opacity(0.6), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
     }
 }
 
@@ -2485,6 +2511,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
             if (t.yearly ?? 0) >= (t.once ?? 0) { rules.append("once isn't over yearly") }
             if let l = t.launch, l.active, l.once >= (t.once ?? 0) { rules.append("the launch gift isn't below the one-off") }
             if let l = t.launch, l.once % 5 != 0 { rules.append("the launch gift isn't a round number") }
+            if let l = t.launch, l.active, (l.code ?? "").isEmpty { rules.append("the launch gift has no code") }
         }
         if p.tiers["free"]?.monthly != 0 { rules.append("Free isn't free") }
         let all = p.tiers.values.flatMap { [$0.monthly, $0.yearly, $0.once].compactMap { $0 } }
@@ -2494,7 +2521,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         if p.tiers["pro"]?.best != true { rules.append("Pro not marked best value") }
         if p.lead.tier != "pro" || p.lead.plan != "monthly" { rules.append("lead isn't Pro monthly") }
     } else { rules.append("pricing.json missing or unreadable") }
-    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Basic (free) and Pro only; Pro £5 a month, £50 a year, £75 once (gift £50 while the launch is on); round; Enterprise coming soon; 14 days of Pro; 10 a week" : rules.joined(separator: "; "))
+    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Basic (free) and Pro only; Pro £5 a month, £50 a year, £75 once (£50 with the launch code); round; Enterprise coming soon; 14 days of Pro; 10 a week" : rules.joined(separator: "; "))
 
     // 18. The app takes its numbers from pricing.json, never its own: the weekly count, the Preview's days, the
     //     Upgrade window's prices, and the checkout link for each plan.

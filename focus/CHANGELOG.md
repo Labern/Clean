@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.75 — 2026-11-15
+- **Early adopter code:** the gift is claimed with code **EARLY**, as on the site. Once shows the listed £75 with the site's line ("…forever for £50 with code EARLY. After that it's £75.") and a dashed "CODE EARLY · Copy" box. Choose Pro opens the checkout with the code already applied (`&code=EARLY`). Everything comes from pricing.json's `launch` (`code`, `short`).
+- **Check 17** also requires the active launch to have a code. All 21 GUI and 23 menu checks pass.
+
 ## 0.18.74 — 2026-11-15
 - **Pro pricing (his, live on the site): £5 a month, £50 a year, £75 once, and during launch the one-off is an early adopter gift at £50.** In the Upgrade window, Once shows £50 with £75 struck through ("after launch"), an "Early adopter gift" label, and the site's line ("A gift to early adopters: £50, yours forever. After launch it's £75."). It all comes from pricing.json's `launch`; when he switches it off, the one-off shows £75.
 - **Fix:** the app uses whichever copy of pricing.json is newer, the one shipped inside it or the one last fetched. Before, an older fetched copy could beat a newer shipped one and show stale prices. Renders always use the shipped copy.
