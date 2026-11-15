@@ -35,7 +35,7 @@ enum Site {
         let s = UserDefaults.standard.double(forKey: "desktopTextScale"); return s >= 0.8 && s <= 1.6 ? CGFloat(s) : 1
     }() { didSet { UserDefaults.standard.set(Double(scale), forKey: "desktopTextScale") } }
     /// The standard text size, as a multiple of the sizes written in this file. 0.9 since 0.18.36 (two steps down from 1.08).
-    static let standard: CGFloat = 0.9
+    static let standard: CGFloat = 1.0                      // 0.9 in 0.18.36; one step up in 0.18.37
     static func font(_ base: CGFloat, _ w: Weight = .regular) -> Font {
         let size = (base * Site.standard * scale).rounded()
         let name = ["Graphik-Regular", "Graphik-Medium", "Graphik-Semibold"][w == .regular ? 0 : w == .medium ? 1 : 2]
