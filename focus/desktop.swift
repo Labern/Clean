@@ -517,7 +517,7 @@ struct DesktopView: View {
                 VStack(spacing: 9) {
                     SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey) { m.act { m.f.toggle() } }
                     Text(m.caption).font(Site.font(17)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                }.padding(.horizontal, 28).padding(.top, Layout.top).padding(.bottom, 8)
+                }.padding(.horizontal, 28).padding(.top, Layout.top).padding(.bottom, 26)    // the top row stands apart from the page below
                 Group {
                     if m.selection == Page.shortcuts { ShortcutsPage(m: m) }
                     else if m.selection == Page.tools { ToolsPage(m: m) }
