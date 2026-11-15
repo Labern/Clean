@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.56 — 2026-11-15
+- **In a session the big button shows the Focus mark** (ring and dot, in the button's text colour) at its right, beside the key.
+- **Trying it without the lasting border** (`SessionButton.keepBorder = false`): starting a session still draws the line round the button, which then fades; ending one shows the whole line and undraws it.
+- **Sidebar modes:** under the pointer, "Start" (or "End" for the running mode) takes the key's place. Clicking the name opens the mode to edit.
+- **Session Editor row:** "On" during a session, nothing otherwise; "Off" is gone.
+- **Shortcuts:** the stray "Then F." and "Then E." notes are gone.
+- **Settings ▸ Appearance ▸ Text colour:** White or Black for the big button's text (Black by default). The Icon colour tiles now show hover.
+- **Buy button:** "14 Days Remaining — Buy Now", with squarer corners and slightly larger text. The days aren't counted yet; it shows the planned 14 until licences exist.
+
 ## 0.18.55 — 2026-11-15
 - **Settings ▸ Appearance ▸ Width** is now **Default** (space either side of the page; the new standard), **Wide** (the page fills the window, as before) or **Minimal**, which takes a sidebar's width off the window itself, so the whole app is smaller. Switching into or out of Minimal narrows or widens the open window, keeping its left edge where it is.
 - **Hover:** every option you can pick in Settings, and the − / + text-size keys, now show they're under the pointer: they fill a little and the outline brightens.

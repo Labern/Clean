@@ -135,6 +135,8 @@ final class DesktopModel: ObservableObject {
     static let buy = URL(string: "https://paradoxica.co.uk/focus#buy")!
     /// Whether this copy is on a trial. Licences aren't built yet, so it's shown for now to see the button in place.
     static let trial = true
+    /// Days left in the trial. Not counted yet (licences come later): the planned 14, to see the button as it will read.
+    static let trialDaysLeft = 14
 
     // — feedback, written here and sent straight to the developer —
     enum FeedbackState: Equatable { case writing, sending, sent, emailed }
@@ -378,6 +380,9 @@ struct SessionButton: View {
     @State private var hover = false
     @State private var trace: CGFloat = 0
     @State private var drawn = false                              // the first look: the line is simply there (or not)
+    @State private var lineAlpha: Double = 1
+    /// Whether the line stays round the button for the whole session (0.18.54), or only draws and goes (trying, 0.18.56).
+    static let keepBorder = false
     @State private var pressStart: Date?
     @State private var pressEnd: Date?
     @State private var pressRelease: Date?
@@ -390,7 +395,13 @@ struct SessionButton: View {
                 Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
                     .background(GeometryReader { g in Color.clear.preference(key: TitleWidth.self, value: g.size.width) })
                     .onPreferenceChange(TitleWidth.self) { titleWidth = $0 }
-                HStack { Spacer(); Text(key).font(Site.font(18)).opacity(hover ? 0.6 : 0.45).lineLimit(1) }.padding(.trailing, 24)
+                HStack(spacing: 14) {
+                    Spacer()
+                    if !starting {                                        // in a session: the Focus mark, beside the key
+                        FocusMark(ink: ink).frame(width: 24, height: 24).transition(.scale(scale: 0.3).combined(with: .opacity))
+                    }
+                    Text(key).font(Site.font(18)).opacity(hover ? 0.6 : 0.45).lineLimit(1)
+                }.padding(.trailing, 24).animation(.spring(response: 0.45, dampingFraction: 0.7), value: starting)
             }
             .foregroundColor(ink).frame(maxWidth: .infinity).frame(height: Layout.button)
             .background(
@@ -403,7 +414,7 @@ struct SessionButton: View {
             .overlay(
                 DrawnEdge(radius: 16 + Self.gap).trim(from: 0, to: trace)
                     .stroke(tint, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
-                    .opacity(trace > 0.001 ? 1 : 0)
+                    .opacity(trace > 0.001 ? lineAlpha : 0)
                     .padding(-Self.gap).allowsHitTesting(false)
             )
             .scaleEffect(hover ? 1.005 : 1)
@@ -417,8 +428,19 @@ struct SessionButton: View {
         }
         .task(id: starting) {                                       // the session started or ended: draw or undraw
             let on = !starting
-            if !drawn || Self.still != nil { drawn = true; if Self.still?.trace ?? 0 == 0 { trace = on ? 1 : 0 }; return }
-            withAnimation(.timingCurve(0.5, 0, 0, 0.75, duration: 2.4)) { trace = on ? 1 : 0 }   // the website's curve and time
+            if !drawn || Self.still != nil { drawn = true; if Self.still?.trace ?? 0 == 0 { trace = on && Self.keepBorder ? 1 : 0 }; return }
+            if on {
+                lineAlpha = 1; trace = 0
+                withAnimation(.timingCurve(0.5, 0, 0, 0.75, duration: 2.4)) { trace = 1 }        // the website's curve and time
+                if !Self.keepBorder {                                                            // drawn, then let go
+                    try? await Task.sleep(nanoseconds: 2_700_000_000)
+                    withAnimation(.easeOut(duration: 0.6)) { lineAlpha = 0 }
+                    try? await Task.sleep(nanoseconds: 650_000_000); trace = 0; lineAlpha = 1
+                }
+            } else {
+                if !Self.keepBorder { lineAlpha = 1; trace = 1 }                                 // the whole line, then undrawn
+                withAnimation(.timingCurve(0.5, 0, 0, 0.75, duration: 2.4)) { trace = 0 }
+            }
         }
         .onHover { on in
             hover = on
@@ -440,6 +462,20 @@ struct SessionButton: View {
 /// up against the title, each new one queuing behind the last; once the pile is full it presses inward in a slow pulse.
 /// On the click everything is let go: the squares fly back out and fade while the line draws. Leaving without a click,
 /// they simply fade.
+/// The Focus mark — a ring and its dot, as the app icon draws them — in the button's ink.
+struct FocusMark: View {
+    let ink: Color
+    var body: some View {
+        GeometryReader { g in
+            let d = min(g.size.width, g.size.height)
+            ZStack {
+                Circle().stroke(ink, lineWidth: d * 0.12).padding(d * 0.06)
+                Circle().fill(ink).frame(width: d * 0.42, height: d * 0.42)
+            }
+        }
+    }
+}
+
 struct TitleWidth: PreferenceKey {
     static let defaultValue: CGFloat = 200
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
@@ -716,7 +752,8 @@ struct SiteButton: View {
 struct SideRow: View {
     let title: String, trailing: String, live: Bool, selected: Bool, icons: [NSImage], symbol: String?, action: () -> Void
     var hint: String? = nil                                      // under the pointer, said at the right instead of `trailing`
-    var state: Bool? = nil                                       // a switch at the right: white "On", or outlined "Off"
+    var state: Bool? = nil                                       // the Session Editor: white "On" in a session, nothing otherwise
+    var start: (() -> Void)? = nil                               // a mode: under the pointer, "Start" (or "End") takes the key's place
     @State private var hover = false
     var body: some View {
         HStack(spacing: 10) {
@@ -730,15 +767,21 @@ struct SideRow: View {
             }
             Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1).minimumScaleFactor(0.85)
             Spacer(minLength: 6)
+            if hover, let start {
+                Button(action: start) {
+                    Text(live ? "End" : "Start").font(Site.font(14, .medium)).foregroundColor(.black)
+                        .padding(.horizontal, 10).frame(height: 22).background(Capsule().fill(Color.white))
+                }.buttonStyle(PressStyle()).help(live ? "End this session" : "Start this session")
+            } else {
             if live && state == nil { Text("On").font(Site.font(14, .medium)).foregroundColor(.black).padding(.horizontal, 7).frame(height: 18).background(Capsule().fill(Color.white)) }
             if hover, let hint, state != nil { Text(hint).font(Site.font(15)).foregroundColor(Site.head) }
-            if let on = state {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .circular).fill(on ? Color.white : Color.black)
-                    RoundedRectangle(cornerRadius: 10, style: .circular).strokeBorder(Color.white, lineWidth: 1.2)
-                    Text(on ? "On" : "Off").font(Site.font(14, .medium)).foregroundColor(on ? .black : .white)
-                }.frame(width: 38, height: 20).compositingGroup()
+            if let on = state {                                 // "On" in a session; nothing otherwise
+                if on {
+                    Text("On").font(Site.font(14, .medium)).foregroundColor(.black)
+                        .frame(width: 38, height: 20).background(RoundedRectangle(cornerRadius: 10, style: .circular).fill(Color.white))
+                }
             } else { Text(hover && hint != nil ? hint! : trailing).font(Site.font(15)).foregroundColor(live || (hover && hint != nil) ? Site.head : Site.muted) }
+            }
         }
         .foregroundColor(selected || live ? Site.head : Site.low)
         .padding(.horizontal, 12).frame(height: 34)
@@ -803,12 +846,13 @@ struct DesktopView: View {
         .animation(.easeOut(duration: 0.15), value: m.feedbackShown)
     }
     /// The big button wears the colour chosen in Settings ▸ Appearance (the icon's ring, then its dot), white when none is.
-    /// Its text is black on light colours and white on dark ones.
+    /// Its text is the user's Text colour: black (the standard) or white.
     var buttonColours: (Color, Color, Color) {
         let a = hexColor(m.f.iconColor) ?? .white, b = hexColor(m.f.iconColor2) ?? a
-        func light(_ c: NSColor) -> Bool { let s = c.usingColorSpace(.sRGB) ?? c; return 0.2126 * s.redComponent + 0.7152 * s.greenComponent + 0.0722 * s.blueComponent > 0.55 }
-        return (Color(nsColor: a), Color(nsColor: b), light(a) || light(b) ? .black : .white)
+        return (Color(nsColor: a), Color(nsColor: b), Self.buttonInkWhite ? .white : .black)
     }
+    /// Settings ▸ Appearance ▸ Text colour (the big button only). Renders: `ink=white`.
+    static var buttonInkWhite: Bool { CommandLine.arguments.contains("ink=white") || UserDefaults.standard.bool(forKey: "desktopButtonInkWhite") }
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 2) {
@@ -831,7 +875,9 @@ struct DesktopView: View {
                     VStack(spacing: 2) {
                         ForEach(m.modes) { mode in
                             SideRow(title: mode.name, trailing: mode.key, live: mode.live, selected: m.selection == mode.id,
-                                    icons: mode.apps.compactMap { m.f.path($0) }.map(m.icon), symbol: nil) { m.selection = mode.id }
+                                    icons: mode.apps.compactMap { m.f.path($0) }.map(m.icon), symbol: nil,
+                                    action: { m.selection = mode.id },                       // the name (the row): edit it
+                                    start: mode.apps.isEmpty ? nil : { m.act { m.f.startOrSwitch(mode.id) } })
                                 .onDrag { m.draggingMode = mode.id; return NSItemProvider(object: mode.id as NSString) }
                                 .onDrop(of: [UTType.text], delegate: ModeDrop(id: mode.id, m: m))
                                 .contextMenu { ModeMenu(m: m, mode: mode) }
@@ -845,9 +891,10 @@ struct DesktopView: View {
             VStack(spacing: 8) {
                 if DesktopModel.trial {                             // a trial: one clear way to buy, the website's own buy section
                     Button { NSWorkspace.shared.open(DesktopModel.buy) } label: {
-                        Text("Buy Now").font(Site.font(16, .medium)).foregroundColor(.black)
-                            .frame(maxWidth: .infinity).frame(height: 38)
-                            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
+                        Text("\(DesktopModel.trialDaysLeft) \(DesktopModel.trialDaysLeft == 1 ? "Day" : "Days") Remaining — Buy Now")
+                            .font(Site.font(17, .medium)).foregroundColor(.black).lineLimit(1).minimumScaleFactor(0.8)
+                            .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(height: 40)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
                     }.buttonStyle(PressStyle()).help("paradoxica.co.uk/focus")
                 }
                 if let u = m.update {
@@ -1062,6 +1109,25 @@ struct StepKey: View {
     }
 }
 
+/// One colour in Settings ▸ Appearance ▸ Icon colour. Chosen: outlined in white. Under the pointer: lifts a shade.
+struct ColourTile: View {
+    let name: String, a: String, b: String, on: Bool, pick: () -> Void
+    @State private var hover = false
+    var body: some View {
+        Button(action: pick) {
+            HStack(spacing: 8) {
+                ZStack { Circle().fill(Color(nsColor: hexColor(a) ?? .white)).frame(width: 16, height: 16)
+                         Circle().fill(Color(nsColor: hexColor(b) ?? hexColor(a) ?? .white)).frame(width: 7, height: 7) }
+                Text(name).font(Site.font(15, on ? .medium : .regular)).foregroundColor(on || hover ? Site.head : Site.low).lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+            }.padding(.horizontal, 12).frame(height: 38)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on || hover ? Site.surface2 : Site.surface))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(on ? 0.9 : hover ? 0.4 : 0), lineWidth: on ? 1.5 : 1))
+            .contentShape(Rectangle())
+        }.buttonStyle(.plain).onHover { hover = $0 }.animation(.easeOut(duration: 0.12), value: hover)
+    }
+}
+
 /// The name of a group of settings: larger than a section label, with room above it.
 struct GroupTitle: View {
     let title: String
@@ -1096,10 +1162,10 @@ struct ShortcutsPage: View {
     var body: some View {
         let f = m.f
         PageFrame(title: "Shortcuts", text: "The keys that start and end a session, open the menu, and start your modes.") {
-            SettingLine(title: "Start / End Session", note: f.sessionKeyTaken ? "That combination is taken by another app. Pick another." : "Then F.") {
+            SettingLine(title: "Start / End Session", note: f.sessionKeyTaken ? "That combination is taken by another app. Pick another." : "") {
                 Choice(options: modifierChoices.map { $0.label + "F" }, selected: modifierChoices.firstIndex { $0.mods == f.sessionMods } ?? 0) { i in m.act { f.sessionMods = modifierChoices[i].mods } }
             }
-            SettingLine(title: "Open the Menu", note: f.menuKeyTaken ? "That combination is taken by another app. Pick another." : "Then E.") {
+            SettingLine(title: "Open the Menu", note: f.menuKeyTaken ? "That combination is taken by another app. Pick another." : "") {
                 Choice(options: modifierChoices.map { $0.label + "E" }, selected: modifierChoices.firstIndex { $0.mods == f.menuMods } ?? 0) { i in m.act { f.menuMods = modifierChoices[i].mods } }
             }
             SettingLine(title: "Modes", note: "This, plus the number you give each mode.") {
@@ -1522,18 +1588,14 @@ struct SettingsPage: View {
                 let all = [("White", "", "")] + theme.iconPresets + theme.evaPresets
                 ForEach(all, id: \.0) { name, a, b in
                     let on = f.iconColor == a && (f.iconColor2 == b || (a == b && f.iconColor2.isEmpty) || (a.isEmpty && f.iconColor2.isEmpty))
-                    Button { m.act { f.iconColor = a; f.iconColor2 = a == b ? "" : b } } label: {
-                        HStack(spacing: 8) {
-                            ZStack { Circle().fill(Color(nsColor: hexColor(a) ?? .white)).frame(width: 16, height: 16)
-                                     Circle().fill(Color(nsColor: hexColor(b) ?? hexColor(a) ?? .white)).frame(width: 7, height: 7) }
-                            Text(name).font(Site.font(15, on ? .medium : .regular)).foregroundColor(on ? Site.head : Site.low).lineLimit(1).minimumScaleFactor(0.8)
-                            Spacer(minLength: 0)
-                        }.padding(.horizontal, 12).frame(height: 38)
-                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Site.surface2 : Site.surface))
-                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.white.opacity(on ? 0.9 : 0), lineWidth: 1.5))
-                    }.buttonStyle(.plain)
+                    ColourTile(name: name, a: a, b: b, on: on) { m.act { f.iconColor = a; f.iconColor2 = a == b ? "" : b } }
                 }
             }
+            SettingLine(title: "Text colour", note: "The big button's text, to go with its colour.") {
+                Choice(options: ["White", "Black"], selected: DesktopView.buttonInkWhite ? 0 : 1) { i in
+                    m.act { UserDefaults.standard.set(i == 0, forKey: "desktopButtonInkWhite") }
+                }
+            }.padding(.top, 14)
         }
     }
 }
