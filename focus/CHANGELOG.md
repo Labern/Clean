@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.50 — 2026-11-15
+- **Manual:** a Contents box at the top, numbered; click a section to go to it, and "Contents ↑" beside each heading goes back. Each section has a figure built from the window's own parts, with sample Mac apps: choosing apps beside the Start button, the Modes list with keys, a History row with Save as Mode, two of the Tools, the button in three colours, and the keys that matter. End a session keeps its two drawings, before and in a session.
+- **Settings ▸ Appearance ▸ Width:** Default (fills the window, as before), Narrow (space either side) or Space (an empty column on the right). Default is the standard.
+
 ## 0.18.49 — 2026-11-15
 - **Session button hover:** pressure builds. Thick dark squares slide in from both outer edges along the button's middle and pile up against the title, the same number each side. Once the pile is full it presses inward in a slow pulse. Clicking lets it all go: the squares fly out and fade while the line draws. Leaving without a click fades them. They replace the faint dots.
 - **Session Editor:** the sidebar's "Session Manager" is renamed. Its page now ends with **Modes — frequently used sessions**, as the menu does: click a mode to start it, right-click to edit, or Create New Mode. The sidebar's Modes open each one in detail.

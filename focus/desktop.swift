@@ -700,9 +700,11 @@ struct SideRow: View {
 
 struct DesktopView: View {
     @ObservedObject var m: DesktopModel
-    /// Layout trials (`--render-desktop … trial=none|right|narrow`). The app uses `trial` as set here.
-    enum Trial { case none, right, narrow }
-    static var trial = Trial.narrow                            // trying equal margins for real (0.18.46); `.none` is the saved good look
+    /// Settings ▸ Appearance ▸ Width: Default (the page fills the window), Narrow (equal space either side), or Space
+    /// (an empty column on the right, kept for later). Off-screen renders can pick one with `trial=none|narrow|right`.
+    enum Trial: Int { case none = 0, narrow = 1, right = 2 }
+    static var renderTrial: Trial?
+    static var trial: Trial { renderTrial ?? Trial(rawValue: UserDefaults.standard.integer(forKey: "desktopWidth")) ?? .none }
     /// Room kept beside the page column: an empty right sidebar (as wide as the left one), or equal margins either side.
     var pageInsets: (lead: CGFloat, trail: CGFloat) {
         switch Self.trial { case .none: return (0, 0); case .right: return (0, 292); case .narrow: return (36, 36) }
@@ -1041,12 +1043,15 @@ struct ShortcutsPage: View {
 }
 
 /// Past sessions: when, what was kept, how many apps were closed. Any of them can become a mode.
-/// The Manual: the maker's own words (written by him, 2026-11-15; typos corrected), set as a page.
+/// The Manual: the maker's own words (written by him, 2026-11-15; typos corrected), set as a page — contents at the
+/// top, and figures drawn from the app's own parts so it always matches what's on screen.
 struct ManualPage: View {
-    enum Block { case heading(String), text(String), bullets([String]), sketch(busy: Bool, caption: String), link(String, URL) }
+    enum Figure { case choose, before, after, modes, history, tools, colours, keys }
+    enum Block { case heading(String), text(String), bullets([String]), figure(Figure, String), link(String, URL) }
     static let blocks: [Block] = [
         .heading("Start a session"),
         .text("Start a session by choosing which apps you want in it: just click the apps you currently have open. Anything not chosen will be closed — safely, one at a time, making sure all of your data is saved — and you will be left with the apps you chose."),
+        .figure(.choose, "Tick the apps that stay, then press Start New Session."),
         .text("You can now get your work done with:"),
         .bullets(["Total focus (the name really is Focus for a reason).", "The most possible RAM.", "The least possible CPU usage."]),
         .text("The moment you're done, or if you temporarily want to do something else, just end the session."),
@@ -1055,27 +1060,32 @@ struct ManualPage: View {
         .text("All apps will be reopened as they were. Wherever possible, they will be returned to where they were. If an app's defaults do not allow this, it will reopen as if you had opened it yourself."),
         .text("The main advantage is that you don't have to make a mental note of which apps you had open, which files you had open in which app, and so on."),
         .text("For example, if you have 10+ apps open (it happens — you know it), each with several things open in it (writing, projects), all of them will be ready to go. What once looked like this:"),
-        .sketch(busy: true, caption: "Before a session: everything open."),
+        .figure(.before, "Before a session: everything open."),
         .text("will temporarily look like this:"),
-        .sketch(busy: false, caption: "In a session: only what you chose."),
+        .figure(.after, "In a session: only what you chose."),
         .text("And, when you're ready, it will return to its former, gloriously chaotic state."),
         .heading("Modes"),
         .text("Though the core of the app is simplicity — turn these apps off while I work in a few of them, then bring them back again — it is simply too useful not to be able to create and edit common modes."),
         .text("Common examples are:"),
         .bullets(["Research (web browser, writing tool).", "Programming (IDE, Chrome, AI).", "Writing (Word).", "Game development (game engine, web browser)."]),
         .text("And so on. Modes are entirely optional and defined by you. Each is given a simple shortcut (⌘0 and so on), which you can change or ignore as you choose."),
+        .figure(.modes, "Modes, each with its own key. Click one, or press its key, to start it."),
         .heading("Snapshots and previous sessions"),
         .text("Each time you start a session, Focus notes the time and the apps involved. If you accidentally lose work or forget what you were doing, you can use this to find out what you were working on."),
+        .figure(.history, "History lists your past sessions. Save one as a mode to start it again with a key."),
         .text("If you like, you can allow the app to take a screenshot of the apps you are using when you start a session — it is stored only on this Mac — so that you can see, at a glance, what you were working on."),
         .text("This is particularly useful if you are swapping between different kinds of work and want a visual reminder of what you were doing."),
         .heading("Tools"),
         .text("There is a range of other tools built into Focus."),
         .text("Since the app is about helping both you and your computer focus, there are tools to help you watch the apps you are using and the resources they are taking up: simple links to tools that show RAM and CPU usage, and a way to force quit all apps."),
+        .figure(.tools, "Two of the tools, as they appear under Tools."),
         .text("As with sessions, the idea is to save you from having to search for apps and close them one by one, and to let you do it all at once."),
         .heading("Appearance"),
         .text("There is a range of options to change the look and style of the app: play around and see which one you like."),
+        .figure(.colours, "The colour you choose in Settings ▸ Appearance colours the menu bar icon and this button."),
         .heading("Menu and app"),
         .text("Focus is primarily a menu tool — it's intended for power users who like to keep their hands on the keyboard and stay in flow. But there is also a fully working app: this window, which you can hide with ⌘H or close with ⌘Q (which does not stop the menu from running). Use one or both, as you like. The menu always runs: that's where the work is done."),
+        .figure(.keys, "The keys that matter."),
         .heading("Feedback"),
         .text("If you have any ideas or feedback, please use the Feedback button in this window."),
         .heading("About"),
@@ -1083,39 +1093,177 @@ struct ManualPage: View {
         .text("Focus is made by ★★★★★ × PARADOX™."),
         .text("★★★★★ × PARADOX™ is a trademark of PARADOXICA Ltd. Registered in England and Wales, company no. 17145296."),
     ]
+    static var sections: [String] { blocks.compactMap { if case .heading(let t) = $0 { return t } else { return nil } } }
     static let up: CGFloat = 1.1                                 // the Manual reads one stop (one ⌘+) larger than the other pages
     static func f(_ base: CGFloat, _ w: Site.Weight = .regular) -> Font { Site.font(base * up, w) }
+    static let top = "§manual-top"
     var body: some View {
-        PageFrame(title: "Manual", text: "") {
-            Text("Focus is a simple app. It solves a genuine problem: what to do when you often have many apps open, but temporarily want only a few. It solves this problem exceptionally well.")
-                .font(Self.f(17)).foregroundColor(Site.low).lineSpacing(4).fixedSize(horizontal: false, vertical: true).frame(maxWidth: 680, alignment: .leading)
-            ForEach(Array(Self.blocks.enumerated()), id: \.offset) { _, b in
-                switch b {
-                case .heading(let t): Text(t).font(Self.f(22, .medium)).tracking(-0.3).foregroundColor(Site.head).padding(.top, 30).padding(.bottom, 2)
-                case .text(let t):
-                    Text(t).font(Self.f(17)).foregroundColor(Site.low).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: 680, alignment: .leading).padding(.top, 10)
-                case .bullets(let items):
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(items, id: \.self) { i in
-                            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                Text("—").font(Self.f(17)).foregroundColor(Site.muted)
-                                Text(i).font(Self.f(17)).foregroundColor(Site.head).fixedSize(horizontal: false, vertical: true)
-                            }
-                        }
-                    }.padding(.top, 10).padding(.leading, 4)
-                case .sketch(let busy, let caption):
-                    VStack(alignment: .leading, spacing: 8) {
-                        DesktopSketch(busy: busy).frame(maxWidth: 640)
-                        Text(caption).font(Self.f(14)).foregroundColor(Site.muted)
-                    }.padding(.top, 14)
-                case .link(let t, let url):
-                    Button { NSWorkspace.shared.open(url) } label: {
-                        HStack(spacing: 6) { Text(t).font(Self.f(17, .medium)); Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold)) }
-                            .foregroundColor(Site.head).underline()
-                    }.buttonStyle(.plain).padding(.top, 10).help(url.absoluteString)
-                }
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Manual").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head).id(Self.top)
+                    PanelRule()
+                    Text("Focus is a simple app. It solves a genuine problem: what to do when you often have many apps open, but temporarily want only a few. It solves this problem exceptionally well.")
+                        .font(Self.f(17)).foregroundColor(Site.low).lineSpacing(4).fixedSize(horizontal: false, vertical: true).frame(maxWidth: 680, alignment: .leading)
+                    Contents(titles: Self.sections) { t in withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(t, anchor: .top) } }
+                    ForEach(Array(Self.blocks.enumerated()), id: \.offset) { _, b in block(b, proxy) }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.bottom, 30)
             }
+        }
+    }
+    @ViewBuilder func block(_ b: Block, _ proxy: ScrollViewProxy) -> some View {
+        switch b {
+        case .heading(let t):
+            HStack(alignment: .firstTextBaseline) {
+                Text(t).font(Self.f(22, .medium)).tracking(-0.3).foregroundColor(Site.head)
+                Spacer()
+                Button { withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo(Self.top, anchor: .top) } } label: {
+                    Text("Contents ↑").font(Self.f(13)).foregroundColor(Site.muted)
+                }.buttonStyle(.plain).help("Back to the contents")
+            }.frame(maxWidth: 680).padding(.top, 34).padding(.bottom, 2).id(t)
+        case .text(let t):
+            Text(t).font(Self.f(17)).foregroundColor(Site.low).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 680, alignment: .leading).padding(.top, 10)
+        case .bullets(let items):
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(items, id: \.self) { i in
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text("—").font(Self.f(17)).foregroundColor(Site.muted)
+                        Text(i).font(Self.f(17)).foregroundColor(Site.head).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }.padding(.top, 10).padding(.leading, 4)
+        case .figure(let fig, let caption):
+            VStack(alignment: .leading, spacing: 8) {
+                ManualFigure(figure: fig).frame(maxWidth: 680)
+                Text(caption).font(Self.f(14)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true)
+            }.padding(.top, 16).padding(.bottom, 4)
+        case .link(let t, let url):
+            Button { NSWorkspace.shared.open(url) } label: {
+                HStack(spacing: 6) { Text(t).font(Self.f(17, .medium)); Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold)) }
+                    .foregroundColor(Site.head).underline()
+            }.buttonStyle(.plain).padding(.top, 10).help(url.absoluteString)
+        }
+    }
+}
+
+/// The Manual's contents: every section, numbered in reading order; click one to go to it.
+struct Contents: View {
+    let titles: [String], go: (String) -> Void
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Contents").font(ManualPage.f(14, .medium)).foregroundColor(Site.muted).padding(.bottom, 8)
+            LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 4) {
+                ForEach(Array(titles.enumerated()), id: \.offset) { i, t in ContentsLine(number: i + 1, title: t) { go(t) } }
+            }
+        }
+        .padding(16).frame(maxWidth: 680, alignment: .leading)
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.line, lineWidth: 1))
+        .padding(.top, 18)
+    }
+}
+struct ContentsLine: View {
+    let number: Int, title: String, action: () -> Void
+    @State private var hover = false
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Text("\(number)").font(ManualPage.f(15)).foregroundColor(Site.muted).frame(width: 18, alignment: .trailing).monospacedDigit()
+                Text(title).font(ManualPage.f(16, .medium)).foregroundColor(hover ? Site.head : Site.low).underline(hover)
+            }.padding(.vertical, 4).contentShape(Rectangle())
+        }.buttonStyle(.plain).onHover { hover = $0 }
+    }
+}
+
+/// The Manual's figures: close-ups built from the window's own parts with sample apps that come with every Mac, so a
+/// figure always shows what the window shows. Framed and inert — they illustrate, they don't act.
+struct ManualFigure: View {
+    let figure: ManualPage.Figure
+    static func app(_ path: String, _ name: String, _ usage: String, _ on: Bool) -> DesktopModel.AppLine {
+        DesktopModel.AppLine(id: path, path: path, name: name, usage: usage, on: on, note: "")
+    }
+    static func icon(_ path: String) -> NSImage { let i = NSWorkspace.shared.icon(forFile: path); i.size = NSSize(width: 128, height: 128); return i }
+    static let safari = "/Applications/Safari.app", notes = "/System/Applications/Notes.app", calendar = "/System/Applications/Calendar.app",
+               music = "/System/Applications/Music.app", textEdit = "/System/Applications/TextEdit.app", terminal = "/System/Applications/Utilities/Terminal.app"
+    var body: some View {
+        Group {
+            switch figure {
+            case .choose:
+                VStack(alignment: .leading, spacing: 10) {
+                    SessionButton(title: "Start New Session", key: "⌘⇧F", starting: true) {}
+                    VStack(spacing: 0) {
+                        ForEach([Self.app(Self.safari, "Safari", "1.2 GB", true), Self.app(Self.notes, "Notes", "310 MB", true),
+                                 Self.app(Self.music, "Music", "640 MB", false), Self.app(Self.calendar, "Calendar", "180 MB", false)]) { a in
+                            AppRowView(app: a, icon: Self.icon(a.path), mark: a.on ? "checkmark.circle.fill" : "circle", action: nil).padding(.horizontal, -14)
+                        }
+                    }.padding(.horizontal, 14)
+                }
+            case .before: DesktopSketch(busy: true)
+            case .after: DesktopSketch(busy: false)
+            case .modes:
+                VStack(spacing: 2) {
+                    SideRow(title: "Research", trailing: "⌘1", live: true, selected: false, icons: [Self.safari, Self.notes].map(Self.icon), symbol: nil) {}
+                    SideRow(title: "Programming", trailing: "⌘2", live: false, selected: false, icons: [Self.terminal, Self.safari].map(Self.icon), symbol: nil) {}
+                    SideRow(title: "Writing", trailing: "⌘3", live: false, selected: false, icons: [Self.textEdit].map(Self.icon), symbol: nil) {}
+                }
+            case .history:
+                HStack(spacing: 12) {
+                    DesktopSketch(busy: false).frame(width: 120)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Research").font(Site.font(18, .medium)).foregroundColor(Site.head)
+                        Text("Today, 10:42 · Safari, Notes").font(Site.font(15)).foregroundColor(Site.muted)
+                    }
+                    Spacer(minLength: 10)
+                    SiteButton("Save as Mode") {}
+                }
+            case .tools:
+                VStack(spacing: 0) {
+                    ToolLine(title: "Open Activity Monitor", why: "See which apps are using the most memory and processor right now.", tint: Site.head, enabled: true) {}
+                    ToolLine(title: "Force Quit All Apps…", why: "For apps that have frozen and won't quit. Unsaved work in them is lost, so it asks first.", tint: Site.hazard, enabled: true) {}
+                }
+            case .colours:
+                VStack(spacing: 12) {
+                    SessionButton(title: "Start New Session", key: "⌘⇧F", starting: true) {}
+                    SessionButton(title: "Start New Session", key: "⌘⇧F", starting: true, tint: Color(red: 0.55, green: 0.36, blue: 0.96),
+                                  tint2: Color(red: 0.55, green: 0.36, blue: 0.96), ink: .white) {}
+                    SessionButton(title: "Start New Session", key: "⌘⇧F", starting: true, tint: Color(red: 1, green: 0.84, blue: 0.37),
+                                  tint2: Color(red: 1, green: 0.53, blue: 1), ink: .black) {}
+                }
+            case .keys:
+                VStack(alignment: .leading, spacing: 10) {
+                    KeyLine(keys: ["⌘", "⇧", "F"], says: "Start or end a session, from anywhere")
+                    KeyLine(keys: ["⌘", "H"], says: "Hide this window; press again straight away to bring it back")
+                    KeyLine(keys: ["⌘", "Q"], says: "Close this window. The menu keeps running")
+                    KeyLine(keys: ["⌘", "+"], says: "Bigger text (⌘− for smaller)")
+                }.frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .allowsHitTesting(false)
+        .modifier(FigureFrame(on: figure != .before && figure != .after))    // the desktop drawings carry their own frame
+    }
+}
+struct FigureFrame: ViewModifier {
+    let on: Bool
+    func body(content: Content) -> some View {
+        if on {
+            content.padding(18)
+                .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Site.bg))
+                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Site.line, lineWidth: 1))
+        } else { content }
+    }
+}
+struct KeyLine: View {
+    let keys: [String], says: String
+    var body: some View {
+        HStack(spacing: 14) {
+            HStack(spacing: 5) {
+                ForEach(keys, id: \.self) { k in
+                    Text(k).font(Site.font(16, .medium)).foregroundColor(Site.head).frame(minWidth: 30, minHeight: 30)
+                        .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Site.surface))
+                        .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Color.white.opacity(0.35), lineWidth: 1))
+                }
+            }.frame(width: 112, alignment: .leading)
+            Text(says).font(Site.font(16)).foregroundColor(Site.low)
         }
     }
 }
@@ -1273,6 +1421,11 @@ struct SettingsPage: View {
             }
             SettingLine(title: "Menu headings", note: "How much the menu's headings explain.") {
                 Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
+            }
+            SettingLine(title: "Width", note: "Default fills the window. Narrow leaves space either side. Space keeps an empty column on the right.") {
+                Choice(options: ["Default", "Narrow", "Space"], selected: DesktopView.trial.rawValue) { i in
+                    m.act { UserDefaults.standard.set(i, forKey: "desktopWidth") }
+                }
             }
             SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
                 TextSizeStepper()
@@ -1472,12 +1625,13 @@ func renderDesktop(to file: String, mode: Bool) {
     if let c = CommandLine.arguments.first(where: { $0.hasPrefix("colour=") }) {          // e.g. colour=8B5CF6 or colour=8B5CF6,F472B6
         let p = c.dropFirst(7).split(separator: ","); f.store.set(String(p[0]), forKey: "iconColor"); f.store.set(p.count > 1 ? String(p[1]) : "", forKey: "iconColor2")
     }
-    if CommandLine.arguments.contains("trial=none") { DesktopView.trial = .none }
-    if CommandLine.arguments.contains("trial=right") { DesktopView.trial = .right }
-    if CommandLine.arguments.contains("trial=narrow") { DesktopView.trial = .narrow }
+    if CommandLine.arguments.contains("trial=none") { DesktopView.renderTrial = DesktopView.Trial.none }
+    if CommandLine.arguments.contains("trial=right") { DesktopView.renderTrial = .right }
+    if CommandLine.arguments.contains("trial=narrow") { DesktopView.renderTrial = .narrow }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
     let size = CommandLine.arguments.contains("wide") ? NSSize(width: 1320, height: 880)
-        : NSSize(width: 1000, height: CommandLine.arguments.contains("tall") ? 1500 : 730)
+        : NSSize(width: 1000, height: CommandLine.arguments.first { $0.hasPrefix("h=") }.flatMap { Double($0.dropFirst(2)) }.map { CGFloat($0) }
+                                       ?? (CommandLine.arguments.contains("tall") ? 1500 : 730))
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: .darkAqua); w.contentView = host
