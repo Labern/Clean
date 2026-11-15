@@ -1,5 +1,12 @@
 # Focus — pricing thoughts
 
+## DECIDED 2026-11-15, later (overrides the £40 / £50 below)
+- **Pro: £5 a month, £50 a year (two months free), £75 forever.**
+- **Early adopters: £50 forever, framed as a gift** ("I want it to be a gift"). Shown as "A gift to early adopters: £50,
+  yours forever. After launch it's £75." Ends when `tiers.pro.launch.active` is set to false (when is his call: a date or
+  a number of buyers, and it must be honoured).
+- Free tier is named **Basic** ("Basic · Free", £0).
+
 ## DECIDED 2026-11-15 (latest; overrides everything below about Max)
 - **Max is scrapped.** Tiers: **Free and Pro** (Free may later be called Basic).
 - **Pro: £5 a month, £40 a year, or £50 once.** His words: "I know it's extreme, but I think it's such a good deal it
