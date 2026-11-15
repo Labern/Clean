@@ -32,6 +32,20 @@ built yet; the app only shows the parts that are visible, and those are placehol
     apps you can keep is felt every time and tightens as you rely on it. Easy to change if he prefers another lever.
 - The pricing table (Free / Pro / Max, Monthly | One-off switch, Monthly first) and the header Pricing link are live.
 
+## The sell — his logic (2026-11-15, latest; remember this)
+- **Nominal prices are monthly and low:** **Pro £5 a month**, **Max £10 a month**. **Free exists, but is very limited.**
+- **The cheap monthly price is the lure.** At the point of paying, people see they can instead pay **a multiple
+  (10×) once**, or **yearly**:
+  - **Pro: £50 once, and it's theirs forever.** That's the extremely enticing sell.
+  - **Max: £100 once.**
+  - Yearly is offered at the same step (his words: "a one-off, or yearly"). This supersedes the earlier suggestion of
+    no yearly option.
+- **Max is never meant to be bought,** but it has **full functionality.** It exists to make Pro the obvious choice. A
+  bought Max shows a **Max** badge where Pro's goes.
+- **Pro and Max only, planned features (not built):**
+  1. **Open apps at a set time:** e.g. fun apps like Discord at 5:30pm, so they come back on a schedule.
+  2. **Block apps:** keep chosen apps from opening (other apps do this; here it's part of Pro and Max).
+
 ## Tiers: Free, Pro, Max (latest)
 - **Three tiers: Free, Pro and Max.**
 - **Pro is the one to buy.** The tiers are arranged so that Pro reads as the better deal, because it is. Max sits above

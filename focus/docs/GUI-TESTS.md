@@ -22,7 +22,7 @@ touches (Width, text size, the Focus Pro flag, text colour) are put back afterwa
 6. **The Buy button's words** in his chosen wording, singular and plural.
 7. **The pressure squares** come in the same number each side, all between the edge and the title and clear of the
    key, with at least one each side on the narrowest button.
-8. **Focus Pro** reads the purchase flag live, and the white "Pro" box appears by the name in the drawn window.
+8. **Focus Pro / Max** read the purchase live (`focusTier`, or the older `focusPro`), and the white box appears by the name in the drawn window.
 9. **Colour.** The Appearance colour reaches the big button (measured in the picture), and Text colour is obeyed.
 10. **The Manual** has nine sections, numbered down the Contents (1–5, then 6–9), and none of the wording he's
     removed ("this window", "Then F.", "Click to", "trial").

@@ -142,7 +142,20 @@ final class DesktopModel: ObservableObject {
     /// Whether this copy has been bought — read live (the window refreshes every 1.5 s), so the moment a purchase is
     /// recorded the Buy button becomes "Focus Pro". Licences aren't built yet: the purchase flow will set
     /// `focusPro` in Focus's defaults. A render can show it with `licensed`.
-    static var licensed: Bool { renderArgs.contains("licensed") || UserDefaults.standard.bool(forKey: "focusPro") }
+    static var licensed: Bool { tier != .free }
+    /// Which Focus this copy is: Free, Pro or Max — read live from `focusTier` ("pro" / "max"; the older `focusPro`
+    /// flag counts as Pro). Max has everything and shows "Max" where Pro shows "Pro"; it's priced so Pro is the one
+    /// people buy. Renders: `licensed` (Pro) or `tier=max`.
+    enum Tier { case free, pro, max }
+    static var tier: Tier {
+        if renderArgs.contains("tier=max") { return .max }
+        if renderArgs.contains("licensed") { return .pro }
+        switch UserDefaults.standard.string(forKey: "focusTier") {
+        case "max": return .max
+        case "pro": return .pro
+        default: return UserDefaults.standard.bool(forKey: "focusPro") ? .pro : .free
+        }
+    }
     /// Days left in the Pro Preview (what the free trial of Focus Pro is called). Not counted yet (licences come later): the planned 14, to see the button as it will read.
     static let trialDaysLeft = 14
 
@@ -863,8 +876,8 @@ struct DesktopView: View {
                 HStack(spacing: 12) {
                     if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
-                    if DesktopModel.licensed || DesktopModel.showBoth {    // bought: Focus Pro — a small white "Pro" by the name
-                        Text("Pro").font(Site.font(15, .semibold)).foregroundColor(.black)
+                    if DesktopModel.licensed || DesktopModel.showBoth {    // bought: Focus Pro (or Max) — a small white box by the name
+                        Text(DesktopModel.tier == .max ? "Max" : "Pro").font(Site.font(15, .semibold)).foregroundColor(.black)
                             .padding(.horizontal, 7).frame(height: 24)
                             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
                             .offset(y: 2)
@@ -1916,7 +1929,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     }
     let std = UserDefaults.standard
     // Settings that some checks change, put back afterwards.
-    let keep = ["desktopWidthV2", "desktopTextScale", "focusPro", "desktopButtonInkWhite"].map { ($0, std.object(forKey: $0)) }
+    let keep = ["desktopWidthV2", "desktopTextScale", "focusPro", "focusTier", "desktopButtonInkWhite"].map { ($0, std.object(forKey: $0)) }
     defer { for (k, v) in keep { if let v { std.set(v, forKey: k) } else { std.removeObject(forKey: k) } }; Site.scale = CGFloat(std.double(forKey: "desktopTextScale") == 0 ? 1 : std.double(forKey: "desktopTextScale")) }
     std.removeObject(forKey: "desktopWidthV2"); std.removeObject(forKey: "focusPro"); std.removeObject(forKey: "desktopButtonInkWhite")
 
@@ -1986,12 +1999,13 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     check(7, "pressure squares symmetric and clear", sqOK, sq.joined(separator: ", "))
 
     // 8. Focus Pro: the purchase flag is read live; set, the top left gains the white "Pro" box beside the name.
-    std.set(true, forKey: "focusPro"); let on = DesktopModel.licensed
+    std.set("max", forKey: "focusTier"); let maxTier = DesktopModel.tier == .max; std.removeObject(forKey: "focusTier")
+    std.set(true, forKey: "focusPro"); let on = DesktopModel.licensed && DesktopModel.tier == .pro
     let proPic = guiRender(["trial=narrow"])
     std.removeObject(forKey: "focusPro"); let off = DesktopModel.licensed || renderArgs.contains("licensed")
     var proBox = false
     if let r = proPic { let s = CGFloat(r.pixelsWide) / 1000; proBox = (Int(190 * s)..<Int(260 * s)).contains { x in lum(r, x, Int(63 * s)) > 0.93 } }
-    check(8, "Focus Pro from the purchase flag", on && !off && proBox, "flag on → \(on), off → \(off); white Pro box by the name: \(proBox)")
+    check(8, "Focus Pro / Max from the purchase", on && !off && maxTier && proBox, "Pro flag on → \(on), off → \(off); Max read → \(maxTier); white box by the name: \(proBox)")
 
     // 9. Button colour and text colour: the Appearance colour reaches the big button, and Text colour is obeyed.
     let violet = hexColor("8B5CF6")?.usingColorSpace(.sRGB)

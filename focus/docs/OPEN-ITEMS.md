@@ -187,3 +187,10 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 
 ## Pricing — see docs/PRICING.md
 - Everything on pricing and tiers now lives in `docs/PRICING.md` (Free / Pro / Max, £50 up front or monthly).
+
+## Planned for Pro and Max (2026-11-15, not built; ask before building)
+- **Open apps at a set time:** e.g. Discord at 5:30pm.
+- **Block apps:** keep chosen apps from opening.
+- **Gating to match the site's table** (Focus Site session, PRICING.md): Free keeps at most 2 apps open in a session,
+  with basic appearance and no Tools, Modes, History or custom shortcuts. Pro and Max have everything. The app gates
+  nothing yet: it waits for licences.

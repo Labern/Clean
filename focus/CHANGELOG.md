@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.65 — 2026-11-15
+- **Tiers in the app: Free, Pro or Max,** read live from the purchase (`focusTier`; the older `focusPro` flag counts as Pro). A bought Max shows a white **Max** box by the name, where Pro shows **Pro**. Max has full functionality; it's priced to make Pro the one people buy.
+- **Pricing (docs/PRICING.md):** his sales logic. The low monthly price is the lure: Pro £5/month, Max £10/month, and a very limited Free. Checkout then reveals 10× once (Pro £50 forever, Max £100) or yearly. Planned for Pro and Max: opening apps at a set time, and blocking apps.
+- The GUI tests cover Max (check 8). All 13 pass.
+
 ## 0.18.64 — 2026-11-15
 - **GUI tests:** `Focus --selftest-gui`, 13 checks covering sizing, widths, text size, the session line, the Buy words, pressure squares, Focus Pro, colours, the Manual, mode order, every page drawing, and the Focus mark. All run off-screen. See docs/GUI-TESTS.md. All pass.
 - **The window opens big enough for the sidebar:** at least 1100 × 780, taller with more modes (36 pt each), never bigger than the screen.
