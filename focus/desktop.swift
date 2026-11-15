@@ -135,14 +135,10 @@ final class DesktopModel: ObservableObject {
     static let buy = URL(string: "https://paradoxica.co.uk/focus#buy")!
     /// Whether this copy is on a trial. Licences aren't built yet, so it's shown for now to see the button in place.
     static let trial = true
-    /// Whether this copy has been bought. Licences aren't built yet, so it's never true in the app; a render can show
-    /// it with `licensed`.
-    static var licensed: Bool { CommandLine.arguments.contains("licensed") }
-    /// How a bought copy says so — trying three: the outlined badge with the mark, with a tick, or "Pro" by the name.
-    enum ProStyle { case mark, tick, wordmark }
-    static var proStyle: ProStyle {
-        CommandLine.arguments.contains("pro=tick") ? .tick : CommandLine.arguments.contains("pro=wordmark") ? .wordmark : .mark
-    }
+    /// Whether this copy has been bought — read live (the window refreshes every 1.5 s), so the moment a purchase is
+    /// recorded the Buy button becomes "Focus Pro". Licences aren't built yet: the purchase flow will set
+    /// `focusPro` in Focus's defaults. A render can show it with `licensed`.
+    static var licensed: Bool { CommandLine.arguments.contains("licensed") || UserDefaults.standard.bool(forKey: "focusPro") }
     /// Days left in the trial. Not counted yet (licences come later): the planned 14, to see the button as it will read.
     static let trialDaysLeft = 14
 
@@ -773,7 +769,7 @@ struct SideRow: View {
                     }
                 }.frame(width: 40, alignment: .leading)
             }
-            Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1).minimumScaleFactor(0.85)
+            Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1).truncationMode(.tail)   // never shrinks (e.g. when Start appears)
             Spacer(minLength: 6)
             if hover, let start {
                 Button(action: start) {
@@ -822,12 +818,6 @@ struct DesktopView: View {
                 HStack(spacing: 12) {
                     if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
-                    if DesktopModel.licensed && DesktopModel.proStyle == .wordmark {   // bought: a small white "Pro" beside the name
-                        Text("Pro").font(Site.font(15, .semibold)).foregroundColor(.black)
-                            .padding(.horizontal, 7).frame(height: 24)
-                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.white))
-                            .offset(y: 2)
-                    }
                 }.padding(.leading, 16).frame(width: 292, alignment: .leading)
                 VStack(spacing: 9) {
                     let look = buttonColours
@@ -903,17 +893,13 @@ struct DesktopView: View {
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
-                if DesktopModel.licensed && DesktopModel.proStyle == .wordmark {
-                    EmptyView()                                         // the "Pro" sits by the name instead
-                } else if DesktopModel.licensed {                   // bought: the Buy button's place says so, quietly proud
+                if DesktopModel.licensed {                          // bought: the Buy button's place says so, quietly proud
                     HStack(spacing: 9) {
-                        if DesktopModel.proStyle == .tick {
-                            ZStack {                                    // a white tick in a black circle, ringed so it reads on black
-                                Circle().fill(Color.black).overlay(Circle().stroke(Color.white, lineWidth: 1.2))
-                                Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundColor(.white)
-                            }.frame(width: 18, height: 18)
-                        } else { FocusMark(ink: .white).frame(width: 16, height: 16) }
-                        Text("Pro User").font(Site.font(17, .medium)).foregroundColor(Site.head)
+                        ZStack {                                        // a white tick in a black circle, ringed so it reads on black
+                            Circle().fill(Color.black).overlay(Circle().stroke(Color.white, lineWidth: 1.2))
+                            Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundColor(.white)
+                        }.frame(width: 18, height: 18)
+                        Text("Focus Pro").font(Site.font(17, .medium)).foregroundColor(Site.head)
                     }
                     .frame(maxWidth: .infinity).frame(height: 40)
                     .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Color.white.opacity(0.9), lineWidth: 1))

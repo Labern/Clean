@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.58 — 2026-11-15
+- **Focus Pro:** a bought copy shows "Focus Pro" beside a white tick in a black circle, where the Buy button was. It reads the purchase live, so it changes as soon as a purchase is recorded. Licences aren't built yet.
+- **Sidebar mode names** keep their size when "Start" appears on hover; a long name is shortened with "…" rather than shrunk.
+
 ## 0.18.57 — 2026-11-15
 - **Bought copies:** a "Pro User" badge (outlined, with the Focus mark) takes the Buy button's place. Licences aren't built yet, so it only shows in renders (`licensed`).
 - **Price decided:** £55 per person; team packs in round figures (docs/OPEN-ITEMS.md).
