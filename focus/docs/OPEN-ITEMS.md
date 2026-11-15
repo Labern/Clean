@@ -151,6 +151,15 @@ These are done and pass their tests, but haven't been seen on your screen in rea
   - **Pro:** modes and their keys, History and snapshots, Tools, Appearance, and custom shortcuts.
 - Earlier figures, for the record: £55 (first decision), £100 (suggested after the Wispr Flow comparison).
 
+## Tiers — his concept (2026-11-15, keep; he's working on it, don't build)
+- **Modes aren't strong enough to carry Pro on their own** ("not that good and not worth the money").
+- Two directions he's weighing:
+  1. **A middle tier with Modes**, and Pro above it.
+  2. **Three tiers, with the key features held back for Pro** as the third and best tier.
+- Either way the free version stays free forever and the 14-day trial is the full Pro package.
+- The Free | Pro table on the site (`#pricing`, hidden; preview with `?pricing`) is two columns for now. It becomes
+  three when he settles the tiers.
+
 ## Free + Focus Pro? (earlier note, superseded by the model above)
 - The idea: part of Focus is free, and buying Focus Pro (£55) unlocks everything.
 - Suggested split, if he goes ahead:
