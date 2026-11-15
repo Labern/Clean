@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.71 — 2026-11-15
+- **Pro and Max say so only beside the name:** no Pro tags, no Upgrade panels, and Focus ▸ Upgrade to Pro… hides for them.
+- **Free copies show their tier by the name too:** the same box, outlined in white on black, reading **Basic** for him to judge (renders can show **Lite** with `freeword=Lite`), before he settles the word (Free).
+- **View As (developer panel):** a dashed border, and it sits right under the modes instead of down by the foot.
+- **Clicks:** View As buttons, the Upgrade window's plan buttons and every outlined button (Add or remove…, Save as Mode, Close…) now take a click anywhere on the button, not just on their text. That was why they felt unresponsive.
+
 ## 0.18.70 — 2026-11-15
 - **Upgrade window:** Pro's label comes from pricing.json's `badge` when the site publishes it ("Best value" until then). The checkout pre-selecting the plan from the app's link is confirmed by the Focus Site session (all four combinations tested).
 

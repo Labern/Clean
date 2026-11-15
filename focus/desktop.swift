@@ -173,8 +173,10 @@ final class DesktopModel: ObservableObject {
     }
     /// Temporary, for looking at the design: show the Focus Pro badge and the Buy button together. Remove with licences.
     static let showBoth = false
-    /// Trying (his idea): Free copies show a "Free" box by the name too. Off until he chooses; renders: `freebadge`.
-    static var freeBadge: Bool { renderArgs.contains("freebadge") || UserDefaults.standard.bool(forKey: "desktopFreeBadge") }                                 // replaced by View ▸ View As (0.18.68)
+    /// Free copies show their tier by the name too: the paid box's shape, outlined instead of solid. On (his ask,
+    /// 2026-11-15); the word is "Basic" for him to see, then "Free" when he switches it.
+    static var freeBadge: Bool { true }
+    static var freeBadgeWord: String { renderArgs.first { $0.hasPrefix("freeword=") }.map { String($0.dropFirst(9)) } ?? "Basic" }                                 // replaced by View ▸ View As (0.18.68)
     /// Whether this copy has been bought — read live (the window refreshes every 1.5 s), so the moment a purchase is
     /// recorded the Buy button becomes "Focus Pro". Licences aren't built yet: the purchase flow will set
     /// `focusPro` in Focus's defaults. A render can show it with `licensed`.
@@ -681,6 +683,7 @@ struct UpgradeCard: View {
                     .foregroundColor(best && !current ? Site.paper : Site.head).frame(maxWidth: .infinity).frame(height: 40)
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(best && !current ? Site.ink : Color.clear))
                     .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.ink.opacity(best && !current ? 0 : 0.6), lineWidth: 1))
+                    .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))   // the whole button takes the click
             }.buttonStyle(PressStyle()).disabled(key == "free" || current).linkCursor().padding(.top, 10)
         }
         .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
@@ -953,7 +956,7 @@ struct ViewAsPanel: View {
         VStack(alignment: .leading, spacing: 8) {
             Button { open.toggle(); UserDefaults.standard.set(open, forKey: "desktopViewAsOpen") } label: {
                 HStack(spacing: 5) {
-                    Text("View As").font(Site.font(16, .medium))
+                    Text("View As").font(Site.font(15, .medium))
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(open ? 90 : 0)).offset(y: 1.5)
                     Spacer()
                     Text("Developer").font(Site.font(12)).foregroundColor(Site.muted)
@@ -969,11 +972,15 @@ struct ViewAsPanel: View {
                             Text(title).font(Site.font(14, .medium)).foregroundColor(on ? Site.paper : Site.head).lineLimit(1).frame(maxWidth: .infinity).frame(height: 30)
                                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Site.ink : Color.clear))
                                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Site.ink.opacity(on ? 0 : 0.5), lineWidth: 1))
+                                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))   // the whole button takes the click
                         }.buttonStyle(PressStyle())
                     }
                 }
             }
-        }.padding(.leading, 22).padding(.trailing, 14).padding(.top, 14)
+        }
+        .padding(12)
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Site.muted, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+        .padding(.leading, 12).padding(.trailing, 12).padding(.top, 10)
     }
 }
 
@@ -1036,6 +1043,7 @@ struct SiteButton: View {
                 .padding(.horizontal, 14).frame(height: 30)
                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hover ? Site.surface : Color.clear))
                 .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.line, lineWidth: 1))
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))   // the whole button takes the click
         }
         .buttonStyle(.plain).onHover { hover = $0 }
     }
@@ -1123,10 +1131,17 @@ struct DesktopView: View {
                 HStack(spacing: 12) {
                     if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
-                    if DesktopModel.licensed || DesktopModel.showBoth || DesktopModel.freeBadge {   // Focus Pro / Max (or, trying, Free)
-                        Text(DesktopModel.tier == .max ? "Max" : DesktopModel.tier == .pro ? "Pro" : "Free").font(Site.font(15, .semibold)).foregroundColor(Site.paper)
+                    if DesktopModel.licensed {                            // Focus Pro / Max: a solid box by the name
+                        Text(DesktopModel.tier == .max ? "Max" : "Pro").font(Site.font(15, .semibold)).foregroundColor(Site.paper)
                             .padding(.horizontal, 7).frame(height: 24)
                             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.ink))
+                            .offset(y: 2)
+                    }
+                    if !DesktopModel.licensed && DesktopModel.freeBadge {  // Free copies: the same box, outlined (trying "Basic")
+                        Text(DesktopModel.freeBadgeWord).font(Site.font(15, .semibold)).foregroundColor(Site.ink)
+                            .padding(.horizontal, 7).frame(height: 24)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.paper))
+                            .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Site.ink, lineWidth: 1.2))
                             .offset(y: 2)
                     }
                 }.padding(.leading, 16).frame(width: 292, alignment: .leading)
@@ -1204,6 +1219,7 @@ struct DesktopView: View {
                         SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { if DesktopModel.gated { m.openUpgrade() } else { m.newMode() } }
                     }.padding(.horizontal, 10)
                 }
+                .frame(maxHeight: CGFloat(m.modes.count + 1) * 36 + 4)    // only as tall as the modes: what follows sits right under them
             }
             if UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true { ViewAsPanel(m: m) }
             Spacer(minLength: 8)
@@ -2103,6 +2119,11 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
         w.appearance = Site.look == 2 ? nil : NSAppearance(named: Site.light ? .aqua : .darkAqua)   // System: follow macOS
     }
     @objc func upgrade() { model?.openUpgrade() }
+    /// Pro and Max say "Pro"/"Max" only beside the name: the Upgrade item hides for them.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(upgrade) { item.isHidden = DesktopModel.licensed }
+        return true
+    }
     @objc func toggleDevPanel(_ sender: NSMenuItem) {
         let on = !(UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true)
         UserDefaults.standard.set(on, forKey: "desktopDevPanel"); sender.state = on ? .on : .off; model?.tick &+= 1
