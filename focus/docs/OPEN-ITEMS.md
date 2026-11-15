@@ -140,12 +140,12 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - In the app: trial → "N Days Remaining — Buy Now" (opens /focus#buy); bought → the top left reads **Focus Pro**: a small white "Pro" box beside the name, the moment the purchase is recorded (`focusPro` default). Nothing replaces the Buy button.
 
 ## How Focus is sold — his model (2026-11-15, saved; ask before building)
-1. **Free trial of Focus Pro:** everything unlocked from the first launch, so the whole product is felt.
+1. **Pro Preview** (the name for the free trial of Focus Pro): everything unlocked from the first launch, so the whole product is felt.
 2. **When the trial ends, Focus drops to the free version:** it stays usable and free for good, but Pro features lock.
 3. **Pay once to get Focus Pro back.** The price is open: £50 was his figure, £55 the earlier decision, £100 my
    suggestion after the Wispr Flow comparison (£15/month, £150/year).
 - Why: it shows the full product, allows free use, and makes Pro something people miss and want back.
-- In the app: during the trial, "N Days Remaining — Buy Now" at the foot of the sidebar. Bought, the top left reads
+- In the app: during the Pro Preview, "N Days of Pro — Buy Now" at the foot of the sidebar. Bought, the top left reads
   Focus Pro. On the free version the button should invite people back to Pro, e.g. "Get Focus Pro back".
 - Suggested split:
   - **Free:** sessions (start and end with ⌘⇧F, the menu or the button; choosing apps; Critical System Processes;
