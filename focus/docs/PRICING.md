@@ -8,8 +8,8 @@ built yet; the app only shows the parts that are visible, and those are placehol
 - **Lured in by the cheap price, people go to pay, and only then see they can pay a multiple instead:**
   **one-off at 10x (Pro £50, Max £100): theirs forever**, or yearly. "For £50 they get it forever": an extremely
   enticing sell.
-- The site shows only the monthly prices; the checkout offers Monthly (default), Yearly (£40 / £80, placeholder,
-  priced so the one-off looks obvious) and One-off ("Best value").
+- The site shows only the monthly prices; the checkout offers Monthly (default) and One-off ("Best value").
+- **Yearly: undecided, removed from the checkout.** He's weighing **£50 a year**, with the one-off at some higher **£X**.
 - **Max: nobody should ever want to buy it, but it needs full functionality.** It exists to make Pro the obvious buy.
 
 ## New features (his, 2026-11-15) — Pro and Max only; for the app session to build
