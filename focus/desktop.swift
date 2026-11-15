@@ -553,16 +553,14 @@ struct FeedbackCard: View {
 
 /// A small labelled button for the foot of the sidebar (Help, Manual).
 struct FootButton: View {
-    let symbol: String, title: String, enabled: Bool
-    var selected = false
-    let action: () -> Void
+    let symbol: String, title: String, enabled: Bool, action: () -> Void
     @State private var hover = false
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) { Image(systemName: symbol).font(.system(size: 13)); Text(title).font(Site.font(15, .medium)).lineLimit(1).minimumScaleFactor(0.8) }
                 .foregroundColor(enabled ? Site.head : Site.muted)
                 .frame(maxWidth: .infinity).frame(height: 34)
-                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill((hover && enabled) || selected ? Site.surface2 : Site.surface))
+                .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hover && enabled ? Site.surface2 : Site.surface))
         }
         .buttonStyle(.plain).onHover { hover = $0 }
     }
@@ -643,6 +641,13 @@ struct SideRow: View {
 
 struct DesktopView: View {
     @ObservedObject var m: DesktopModel
+    /// Layout trials, drawn off-screen only (`--render-desktop … trial=right|narrow`); the app itself always uses `.none`.
+    enum Trial { case none, right, narrow }
+    static var trial = Trial.none
+    /// Room kept beside the page column: an empty right sidebar (as wide as the left one), or equal margins either side.
+    var pageInsets: (lead: CGFloat, trail: CGFloat) {
+        switch Self.trial { case .none: return (0, 0); case .right: return (0, 292); case .narrow: return (110, 110) }
+    }
     var body: some View {
         let _ = m.tick
         VStack(spacing: 0) {
@@ -655,7 +660,7 @@ struct DesktopView: View {
                 VStack(spacing: 9) {
                     SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey, starting: !m.f.focused) { m.act { m.f.toggle() } }
                     Text(m.caption).font(Site.font(17)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                }.padding(.horizontal, 28)
+                }.padding(.horizontal, 28).padding(.leading, pageInsets.lead).padding(.trailing, pageInsets.trail)
             }
             .padding(.top, Layout.top).padding(.bottom, 26)                 // the top row stands apart from everything below
             // Below it, the sidebar and the page start on the same line.
@@ -667,15 +672,18 @@ struct DesktopView: View {
                     else if m.selection == Page.settings { SettingsPage(m: m) }
                     else if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) }
                     else if m.selection == Page.history { HistoryPage(m: m) }
-                    else if m.selection == Page.about { AboutPage() }
                     else { SessionDetail(m: m) }
                 }
                 .id(m.selection ?? "session").transition(.opacity)
                 .animation(.easeOut(duration: 0.16), value: m.selection)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.leading, pageInsets.lead).padding(.trailing, pageInsets.trail)
             }
         }
         .background(Site.bg).preferredColorScheme(.dark)
+        .overlay(alignment: .trailing) {                           // trial only: where the right sidebar would start
+            if Self.trial == .right { Rectangle().fill(Site.line).frame(width: 1).padding(.trailing, 292).padding(.vertical, 20) }
+        }
         .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
         .animation(.easeOut(duration: 0.15), value: m.feedbackShown)
     }
@@ -730,10 +738,9 @@ struct DesktopView: View {
                             .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Color.white))
                     }.buttonStyle(.plain).help("Focus \(u.version) is available. Click to get it.")
                 }
-                HStack(spacing: 6) {                                  // one row, the sidebar's width, three equal parts
+                HStack(spacing: 6) {                                  // one row, the sidebar's width, equal parts
                     FootButton(symbol: "bubble.left", title: "Feedback", enabled: true) { m.openFeedback() }
                         .help("Report a bug, suggest an idea, or say what's working well")
-                    FootButton(symbol: "info.circle", title: "About", enabled: true, selected: m.selection == Page.about) { m.selection = Page.about }
                     FootButton(symbol: "book", title: "Manual", enabled: false) {}
                         .help("The manual isn't written yet.")
                 }
@@ -843,7 +850,7 @@ struct ModeDetail: View {
 // MARK: the other pages — the same settings the menu has, read from and written to the same place
 
 /// Sidebar pages that aren't a mode (a mode's id is a UUID, so these can't collide).
-enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history", about = "§about" }
+enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history" }
 
 struct PageFrame<Content: View>: View {
     let title: String, text: String
@@ -959,19 +966,6 @@ struct ShortcutsPage: View {
 }
 
 /// Past sessions: when, what was kept, how many apps were closed. Any of them can become a mode.
-/// About: the maker's own words. Written by hand — put the text in `words` (blank lines start new paragraphs).
-struct AboutPage: View {
-    static let words = """
-    """
-    var body: some View {
-        PageFrame(title: "About", text: "") {
-            ForEach(Array(Self.words.components(separatedBy: "\n\n").filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.enumerated()), id: \.offset) { _, para in
-                Text(para).font(Site.font(18)).foregroundColor(Site.low).lineSpacing(5).fixedSize(horizontal: false, vertical: true).padding(.bottom, 12)
-            }
-        }
-    }
-}
-
 struct HistoryPage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
@@ -1276,13 +1270,16 @@ func renderDesktop(to file: String, mode: Bool) {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
         f.store.set(true, forKey: "focused")
     }
-    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history, Page.about] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
+    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history] where CommandLine.arguments.contains(String(p.dropFirst())) { m.selection = p }
     if !CommandLine.arguments.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
     if CommandLine.arguments.contains("hover") { SessionButton.still = (true, 0, false) }
     if let a = CommandLine.arguments.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {
         SessionButton.still = (false, CGFloat(abs(t)), t < 0) }                          // line=-0.3: drawn clockwise
+    if CommandLine.arguments.contains("trial=right") { DesktopView.trial = .right }
+    if CommandLine.arguments.contains("trial=narrow") { DesktopView.trial = .narrow }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
-    let size = NSSize(width: 1000, height: CommandLine.arguments.contains("tall") ? 1500 : 730)
+    let size = CommandLine.arguments.contains("wide") ? NSSize(width: 1320, height: 880)
+        : NSSize(width: 1000, height: CommandLine.arguments.contains("tall") ? 1500 : 730)
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: .darkAqua); w.contentView = host

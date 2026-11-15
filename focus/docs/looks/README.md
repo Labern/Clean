@@ -17,3 +17,13 @@ current version so we know what this looked like, before changing it").
 - One top row across the whole window: the logo and "Focus" on the left, the Start/End Session button and its line on
   the right, on every page (modes included).
 - Below it the sidebar and the page start on the same line.
+
+## 0.18.43 — "a very good version" (his words, 2026-11-15)
+- `0.18.43-session.png`, `0.18.43-session-live.png`, `0.18.43-mode.png`, `0.18.43-settings.png`: drawn off-screen.
+- The look he approved:
+  - The top row is the logo and "Focus" plus the full-width white Start/End Session button. Clicking it draws the website's line round the button; hovering lifts it, with a sheen and sparks.
+  - The sidebar has Session Manager with an On/Off switch, Shortcuts, Tools, History and Settings, then Modes.
+  - The sidebar foot is one row of Feedback · About · Manual, then the ★★★★★ × PARADOX™ lockup.
+  - Panel names have a white full-width rule under them; there are no scroll bars; Text size is − / Default / +.
+- Code: tag `focus-v0.18.43` (also tagged `focus-look-good`), branch `focus/feat-desktop-app`. To go back to exactly this:
+  `git checkout focus-look-good -- focus/desktop.swift`.

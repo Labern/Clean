@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.44 — 2026-11-15
+- The About button and panel are gone (to be folded into the Manual). The sidebar foot is Feedback · Manual.
+- 0.18.43's look is saved as the good version: renders in `docs/looks/`, tag `focus-look-good`.
+- Layout trials for comparison, drawn off-screen only (`--render-desktop FILE trial=right|narrow wide`): an empty right sidebar, or equal margins either side of the page. The app itself is unchanged.
+
 ## 0.18.43 — 2026-11-15
 - Settings ▸ Text size is now − / Default / +, the same steps as ⌘− and ⌘+. The middle says how far from Default you are (e.g. "Default +2"); click it to go back. The size the window had is now Default.
 - Feedback, About and Manual sit side by side in one row across the sidebar's width.
