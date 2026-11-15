@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.72 — 2026-11-15
+- **Pricing, decided (his): Free and Pro; Max is scrapped.** Pro is £5 a month, £40 a year or £50 once. The Upgrade window offers Monthly / Yearly / Once, and Enterprise ("For businesses, per seat") sits greyed out as "Coming soon". The checkout link carries the plan (`plan=monthly|yearly|once`). It all comes from the site's pricing.json, refreshed in the app's copy.
+- **Max is gone from the app:** no Max badge, no Max in View As (Actual / Free / Pro). Any old "max" licence counts as Pro.
+- **The free tier's name comes from pricing.json** (Free now; if he renames it Basic there, the app follows), including the outlined box by the name.
+- **Tests:** pricing rules (17) and the table check (20) follow the decision; "Max" joins the Manual's banned words. All 21 GUI and 23 menu checks pass.
+
 ## 0.18.71 — 2026-11-15
 - **Pro and Max say so only beside the name:** no Pro tags, no Upgrade panels, and Focus ▸ Upgrade to Pro… hides for them.
 - **Free copies show their tier by the name too:** the same box, outlined in white on black, reading **Basic** for him to judge (renders can show **Lite** with `freeword=Lite`), before he settles the word (Free).

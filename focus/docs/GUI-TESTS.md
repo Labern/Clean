@@ -24,7 +24,7 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
 6. **The Buy button's words** in his chosen wording, singular and plural.
 7. **The pressure squares** come in the same number each side, all between the edge and the title and clear of the
    key, with at least one each side on the narrowest button.
-8. **Focus Pro / Max** read the purchase live (`focusTier`, or the older `focusPro`), and the white box appears by the name in the drawn window.
+8. **Focus Pro** reads the purchase live (`focusTier`, the older `focusPro`, or an old "max" licence, which counts as Pro), and the box appears by the name in the drawn window.
 9. **Colour.** The Appearance colour reaches the big button (measured in the picture), and Text colour is obeyed.
 10. **The Manual** has nine sections, numbered down the Contents (1–5, then 6–9), and none of the wording he's
     removed ("this window", "Then F.", "Click to", "trial").
@@ -36,12 +36,12 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
 15. **Basic's weekly sessions** are counted since Monday 00:00 (Quit All clean-ups don't count), reset next Monday
     00:00, and never go below zero.
 
-16. **View As** (View menu) shows the window as a Free, Pro or Max user; Actual goes back to the real licence.
+16. **View As** shows the window as a Free or Pro user (an old "max" reads as Pro); Actual goes back to the real licence.
 
 **Pricing** (pricing.json, from paradoxica.uk/focus/pricing.json, is the one source; the site is built from it)
-17. **His price rules** in the shipped copy: Free / Pro / Max with taglines; £0 / £5 / £10 a month; once = 10× monthly
-    (£50 / £100); round numbers only; 14 days of Pro; Free at 10 sessions a week; Pro marked best value; the lead is
-    Pro monthly.
+17. **His price rules** (decided 2026-11-15) in the shipped copy: Free and Pro only, with no Max. Pro is £5 a month,
+    £40 a year or £50 once (once = 10× monthly, yearly under once). Round numbers only. Enterprise is listed as coming
+    soon. 14 days of Pro. Free gets 10 sessions a week. Pro is marked best value.
 18. **The app uses the file:** the weekly count and the Preview's days come from it, and each plan's checkout link
     is `paradoxica.uk/focus/checkout/?tier=…&plan=…`.
 19. **The shipped copy matches the live site.** If it differs, the site has moved on: refresh `focus/pricing.json`

@@ -9,8 +9,12 @@
     "plan": "monthly"
   },
   "duo_heading": "Free, or paid — monthly, or once.",
+  "badge": "Best value",
+  "badge_alternative": "Most popular",
+  "_badge": "The owner's note (15 Nov 2026): the Pro badge 'Best value' may become 'Most popular' later. To switch, set badge to the alternative and run bin/focus-pricing.",
   "retired_words": [
-    "Basic"
+    "Basic",
+    "Max"
   ],
   "tiers": {
     "free": {
@@ -24,18 +28,12 @@
       "name": "Pro",
       "tagline": "For everyday focus",
       "monthly": 5,
+      "yearly": 40,
       "once": 50,
       "best": true,
       "summary": "Everything Focus does",
+      "yearly_summary": "Four months free, billed yearly",
       "once_summary": "Ten months' price, yours forever"
-    },
-    "max": {
-      "name": "Max",
-      "tagline": "For total control",
-      "monthly": 10,
-      "once": 100,
-      "summary": "Everything in Pro, on up to 3 Macs",
-      "once_summary": "Everything in Max, yours forever"
     }
   },
   "features": [
@@ -45,30 +43,25 @@
         [
           "Start and end a session: ⌘⇧F, the menu bar or the button",
           true,
-          true,
           true
         ],
         [
           "Sessions a week",
           "{free_sessions_per_week}",
-          "Unlimited",
           "Unlimited"
         ],
         [
           "Choose which apps stay open",
-          true,
           true,
           true
         ],
         [
           "Every app comes back as it was, windows and all",
           true,
-          true,
           true
         ],
         [
           "Critical System Processes are never quit",
-          true,
           true,
           true
         ]
@@ -80,75 +73,62 @@
         [
           "Customise: icon styles, colours, width",
           "3 colour schemes",
-          "Unlimited",
           "Unlimited"
         ],
         [
           "Tools: Quit All Apps, Quit All & Restart, Force Quit All",
           false,
-          true,
           true
         ],
         [
           "Modes, each with its own key",
           false,
-          true,
           true
         ],
         [
           "History and snapshots",
           "Last 3 sessions",
-          "All",
           "All"
         ],
         [
           "Custom shortcuts",
           false,
-          true,
           true
         ],
         [
           "Open apps at a set time, e.g. Discord at 5:30 PM",
           false,
-          true,
           true
         ],
         [
           "Block apps you choose",
           false,
-          true,
           true
         ],
         [
           "Hide Focus itself: run with no menu bar icon",
           false,
-          true,
           true
         ],
         [
           "Early access to new features",
           false,
-          true,
           true
         ],
         [
           "Priority support, answered by a person",
           false,
-          true,
-          true
-        ]
-      ]
-    },
-    {
-      "group": "Max",
-      "rows": [
-        [
-          "Licences for up to 3 Macs",
-          false,
-          false,
           true
         ]
       ]
     }
-  ]
+  ],
+  "coming_soon": [
+    {
+      "name": "Enterprise",
+      "tagline": "For businesses, per seat",
+      "note": "Coming soon"
+    }
+  ],
+  "_history": "15 Nov 2026: Max scrapped (owner). Tiers are Free and Pro; Pro is £5 a month, £40 a year or £50 once; Enterprise (per seat) shows greyed as Coming soon. Free may later be called Basic."
 }

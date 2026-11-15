@@ -176,32 +176,29 @@ final class DesktopModel: ObservableObject {
     /// Free copies show their tier by the name too: the paid box's shape, outlined instead of solid. On (his ask,
     /// 2026-11-15); the word is "Basic" for him to see, then "Free" when he switches it.
     static var freeBadge: Bool { true }
-    static var freeBadgeWord: String { renderArgs.first { $0.hasPrefix("freeword=") }.map { String($0.dropFirst(9)) } ?? "Basic" }                                 // replaced by View ▸ View As (0.18.68)
+    /// The free tier's name, from pricing.json (Free now; he may rename it Basic there, and the app follows).
+    static var freeBadgeWord: String { renderArgs.first { $0.hasPrefix("freeword=") }.map { String($0.dropFirst(9)) } ?? Pricing.current?.tiers["free"]?.name ?? "Free" }                                 // replaced by View ▸ View As (0.18.68)
     /// Whether this copy has been bought — read live (the window refreshes every 1.5 s), so the moment a purchase is
     /// recorded the Buy button becomes "Focus Pro". Licences aren't built yet: the purchase flow will set
     /// `focusPro` in Focus's defaults. A render can show it with `licensed`.
     static var licensed: Bool { tier != .free }
-    /// Which Focus this copy is: Free, Pro or Max — read live from `focusTier` ("pro" / "max"; the older `focusPro`
-    /// flag counts as Pro). Max has everything and shows "Max" where Pro shows "Pro"; it's priced so Pro is the one
-    /// people buy. Renders: `licensed` (Pro) or `tier=max`.
-    enum Tier { case free, pro, max }
+    /// Which Focus this copy is: Free or Pro — read live from `focusTier` ("pro"; an old "max" or the older `focusPro`
+    /// flag also count as Pro). Renders: `licensed` (Pro) or `tier=free`.
+    enum Tier { case free, pro }                                   // Max is retired (2026-11-15): any Max licence is Pro
     /// Whether Pro parts lock right now: only while viewing as Free (View As). A real copy never locks anything
     /// until licences exist, so his own use is untouched.
     static var gated: Bool { renderArgs.contains("viewas=free") || (UserDefaults.standard.string(forKey: "desktopViewAs") != nil && tier == .free) }
-    static var tierKey: String { switch tier { case .free: return "free"; case .pro: return "pro"; case .max: return "max" } }
+    static var tierKey: String { tier == .pro ? "pro" : "free" }
     static var tier: Tier {
-        if renderArgs.contains("tier=max") { return .max }
-        if renderArgs.contains("licensed") { return .pro }
+        if renderArgs.contains("licensed") || renderArgs.contains("tier=max") { return .pro }
         if renderArgs.contains("tier=free") { return .free }
         switch UserDefaults.standard.string(forKey: "desktopViewAs") {   // View ▸ View As: see the app as each user would
         case "free": return .free
-        case "pro": return .pro
-        case "max": return .max
+        case "pro", "max": return .pro
         default: break
         }
         switch UserDefaults.standard.string(forKey: "focusTier") {
-        case "max": return .max
-        case "pro": return .pro
+        case "pro", "max": return .pro
         default: return UserDefaults.standard.bool(forKey: "focusPro") ? .pro : .free
         }
     }
@@ -573,7 +570,11 @@ extension View { func linkCursor() -> some View { modifier(LinkCursor()) } }
 /// and the site can never disagree. A copy ships inside the app (works offline); the live file replaces it when the
 /// window opens and the site answers. Nothing here is typed by hand.
 struct Pricing: Decodable {
-    struct Tier: Decodable { let name: String; let tagline: String; let monthly: Int; let once: Int?; let best: Bool?; let summary: String; let once_summary: String? }
+    struct Tier: Decodable {
+        let name: String; let tagline: String; let monthly: Int; let yearly: Int?; let once: Int?; let best: Bool?
+        let summary: String; let yearly_summary: String?; let once_summary: String?
+    }
+    struct Soon: Decodable { let name: String; let tagline: String; let note: String }
     struct Lead: Decodable { let tier: String; let plan: String }
     let currency: String
     let trial_days: Int
@@ -581,6 +582,7 @@ struct Pricing: Decodable {
     let free_sessions_per_week: Int
     let lead: Lead
     let badge: String?                                         // the best tier's label ("Best value"), when the file has it
+    let coming_soon: [Soon]?                                   // tiers shown greyed out, not on sale (Enterprise)
     let tiers: [String: Tier]
     let features: [Group]
     struct Group: Decodable { let group: String; let rows: [[Cell]] }
@@ -616,11 +618,12 @@ struct Pricing: Decodable {
     func fill(_ t: String) -> String { t.replacingOccurrences(of: "{free_sessions_per_week}", with: "\(free_sessions_per_week)") }
 }
 
-/// Upgrade: the plans, side by side, the way Mac apps sell from inside themselves — Monthly or Once, Pro marked as
+/// Upgrade: the plans, side by side, the way Mac apps sell from inside themselves — Monthly, Yearly or Once, Pro marked as
 /// the best value, and the plan's button opening the site's checkout in the browser. Everything comes from pricing.json.
 struct UpgradeCard: View {
     @ObservedObject var m: DesktopModel
-    @State private var once = false
+    @State private var plan = 0                                  // monthly, yearly, once (as the file offers them)
+    var plans: [String] { (Pricing.current?.tiers["pro"]?.yearly != nil) ? ["monthly", "yearly", "once"] : ["monthly", "once"] }
     var body: some View {
         ZStack {
             Color.black.opacity(0.6).onTapGesture { m.upgradeShown = false }
@@ -633,14 +636,15 @@ struct UpgradeCard: View {
                     }
                     PanelRule()
                     HStack {
-                        Text(p.lead.tier == "pro" ? "Pay monthly, or once and keep it forever." : "").font(Site.font(17)).foregroundColor(Site.low)
+                        Text(plans.count == 3 ? "Pay monthly, yearly, or once and keep it forever." : "Pay monthly, or once and keep it forever.").font(Site.font(17)).foregroundColor(Site.low)
                         Spacer()
-                        Choice(options: ["Monthly", "Once"], selected: once ? 1 : 0) { i in once = i == 1 }
+                        Choice(options: plans.map { $0.capitalized }, selected: min(plan, plans.count - 1)) { i in plan = i }
                     }
                     HStack(alignment: .top, spacing: 14) {
-                        ForEach(["free", "pro", "max"], id: \.self) { key in
-                            if let t = p.tiers[key] { plan(key, t, p) }
+                        ForEach(["free", "pro"], id: \.self) { key in
+                            if let t = p.tiers[key] { card(key, t, p) }
                         }
+                        ForEach(p.coming_soon ?? [], id: \.name) { soon($0) }
                     }.fixedSize(horizontal: false, vertical: true).padding(.top, 18)
                     HStack {
                         Text("\(p.trial_days) days of Pro come free with every new copy.").font(Site.font(15)).foregroundColor(Site.muted)
@@ -657,12 +661,28 @@ struct UpgradeCard: View {
                 .shadow(color: .black.opacity(0.6), radius: 30, y: 12)
             }
         }
-        .onAppear { once = (Pricing.current?.lead.plan ?? "monthly") == "once"; Pricing.refresh { m.tick &+= 1 } }
+        .onAppear { plan = plans.firstIndex(of: Pricing.current?.lead.plan ?? "monthly") ?? 0; Pricing.refresh { m.tick &+= 1 } }
     }
-    @ViewBuilder func plan(_ key: String, _ t: Pricing.Tier, _ p: Pricing) -> some View {
+    /// A tier that isn't on sale yet (Enterprise): greyed out, its note ("Coming soon") instead of a price or button.
+    @ViewBuilder func soon(_ t: Pricing.Soon) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)
+            Text(t.tagline).font(Site.font(15)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
+            Text(t.note).font(Site.font(22, .medium)).foregroundColor(Site.head).padding(.top, 14)
+            Text(t.note).font(Site.font(16, .medium)).foregroundColor(Site.muted).frame(maxWidth: .infinity).frame(height: 40)
+                .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(Site.line, lineWidth: 1)).padding(.top, 34)
+        }
+        .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Site.bg))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Site.line, lineWidth: 1))
+        .opacity(0.45).allowsHitTesting(false)
+    }
+    @ViewBuilder func card(_ key: String, _ t: Pricing.Tier, _ p: Pricing) -> some View {
         let best = t.best == true, current = DesktopModel.tierKey == key
-        let price = key == "free" ? "\(p.currency)0" : once ? "\(p.currency)\(t.once ?? t.monthly * 10)" : "\(p.currency)\(t.monthly)"
-        let per = key == "free" ? "Free for everyone" : once ? "once" : "a month"
+        let which = plans[min(plan, plans.count - 1)]
+        let amount = which == "once" ? t.once : which == "yearly" ? t.yearly : t.monthly
+        let price = key == "free" ? "\(p.currency)0" : "\(p.currency)\(amount ?? t.monthly)"
+        let per = key == "free" ? "Free for everyone" : which == "once" ? "once" : which == "yearly" ? "a year" : "a month"
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text(t.name).font(Site.font(24, .medium)).foregroundColor(Site.head)
@@ -674,10 +694,10 @@ struct UpgradeCard: View {
                 Text(price).font(Site.font(32, .medium)).foregroundColor(Site.head)
                 Text(per).font(Site.font(15)).foregroundColor(Site.muted)
             }.padding(.top, 8)
-            Text(p.fill(once && key != "free" ? (t.once_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
+            Text(p.fill(key == "free" ? t.summary : which == "once" ? (t.once_summary ?? t.summary) : which == "yearly" ? (t.yearly_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
                 .fixedSize(horizontal: false, vertical: true).frame(minHeight: 40, alignment: .top)
             Button {
-                if key != "free" && !current { NSWorkspace.shared.open(Pricing.checkout(tier: key, plan: once ? "once" : "monthly")) }
+                if key != "free" && !current { NSWorkspace.shared.open(Pricing.checkout(tier: key, plan: which)) }
             } label: {
                 Text(current ? "Your plan" : key == "free" ? "Included" : "Choose \(t.name)").font(Site.font(16, .medium))
                     .foregroundColor(best && !current ? Site.paper : Site.head).frame(maxWidth: .infinity).frame(height: 40)
@@ -964,7 +984,7 @@ struct ViewAsPanel: View {
             }.buttonStyle(.plain)
             if open {
                 HStack(spacing: 6) {
-                    ForEach([("Actual", ""), ("Free", "free"), ("Pro", "pro"), ("Max", "max")], id: \.1) { title, key in
+                    ForEach([("Actual", ""), ("Free", "free"), ("Pro", "pro")], id: \.1) { title, key in
                         let on = now == key
                         Button {
                             m.act { if key.isEmpty { UserDefaults.standard.removeObject(forKey: "desktopViewAs") } else { UserDefaults.standard.set(key, forKey: "desktopViewAs") } }
@@ -1132,7 +1152,7 @@ struct DesktopView: View {
                     if m.still { Image(nsImage: siteLogo(160)).resizable().interpolation(.high).frame(width: Layout.button, height: Layout.button) } else { LogoView(side: Layout.button) }
                     Text("Focus").font(Site.font(38, .medium)).tracking(-0.8).foregroundColor(Site.head)
                     if DesktopModel.licensed {                            // Focus Pro / Max: a solid box by the name
-                        Text(DesktopModel.tier == .max ? "Max" : "Pro").font(Site.font(15, .semibold)).foregroundColor(Site.paper)
+                        Text(Pricing.current?.tiers["pro"]?.name ?? "Pro").font(Site.font(15, .semibold)).foregroundColor(Site.paper)
                             .padding(.horizontal, 7).frame(height: 24)
                             .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.ink))
                             .offset(y: 2)
@@ -2064,7 +2084,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             // Only the look changes: nothing is bought or unlocked. "Actual" goes back to this copy's own licence.
             let viewAs = NSMenuItem(title: "View As", action: nil, keyEquivalent: ""), sub = NSMenu(title: "View As")
             let now = UserDefaults.standard.string(forKey: "desktopViewAs") ?? ""
-            for (title, key) in [("Actual", ""), ("Free", "free"), ("Pro", "pro"), ("Max", "max")] {
+            for (title, key) in [("Actual", ""), ("Free", "free"), ("Pro", "pro")] {
                 let i = sub.addItem(withTitle: title, action: #selector(viewAs(_:)), keyEquivalent: "")
                 i.target = self; i.representedObject = key; i.state = now == key ? .on : .off
             }
@@ -2119,7 +2139,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
         w.appearance = Site.look == 2 ? nil : NSAppearance(named: Site.light ? .aqua : .darkAqua)   // System: follow macOS
     }
     @objc func upgrade() { model?.openUpgrade() }
-    /// Pro and Max say "Pro"/"Max" only beside the name: the Upgrade item hides for them.
+    /// Pro says "Pro" only beside the name: the Upgrade item hides for it.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(upgrade) { item.isHidden = DesktopModel.licensed }
         return true
@@ -2332,7 +2352,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     check(7, "pressure squares symmetric and clear", sqOK, sq.joined(separator: ", "))
 
     // 8. Focus Pro: the purchase flag is read live; set, the top left gains the white "Pro" box beside the name.
-    std.set("max", forKey: "focusTier"); let maxTier = DesktopModel.tier == .max; std.removeObject(forKey: "focusTier")
+    std.set("max", forKey: "focusTier"); let maxTier = DesktopModel.tier == .pro; std.removeObject(forKey: "focusTier")   // Max retired: reads as Pro
     std.set(true, forKey: "focusPro"); let on = DesktopModel.licensed && DesktopModel.tier == .pro
     var proBox = true
     for look in ["dark", "light"] {                                  // the box is ink: white in Dark, black in Light
@@ -2341,7 +2361,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         proBox = proBox && (Int(190 * s)..<Int(260 * s)).contains { x in look == "dark" ? lum(r, x, Int(63 * s)) > 0.93 : lum(r, x, Int(63 * s)) < 0.07 }
     }
     std.removeObject(forKey: "focusPro"); let off = DesktopModel.licensed || renderArgs.contains("licensed")
-    check(8, "Focus Pro / Max from the purchase", on && !off && maxTier && proBox, "Pro flag on → \(on), off → \(off); Max read → \(maxTier); box by the name in Light and Dark: \(proBox)")
+    check(8, "Focus Pro from the purchase", on && !off && maxTier && proBox, "Pro flag on → \(on), off → \(off); an old Max licence reads as Pro → \(maxTier); box by the name in Light and Dark: \(proBox)")
 
     // 9. Button colour and text colour: the Appearance colour reaches the big button, and Text colour is obeyed.
     let violet = hexColor("8B5CF6")?.usingColorSpace(.sRGB)
@@ -2361,7 +2381,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     for b in ManualPage.blocks {
         switch b { case .heading(let t), .text(let t): text.append(t); case .bullets(let a): text += a; case .figure(_, let c): text.append(c); case .link(let t, _): text.append(t) }
     }
-    let banned = ["this window", "Then F.", "Then E.", "Click to", "trial"].filter { w in text.contains { $0.localizedCaseInsensitiveContains(w) } }
+    let banned = ["this window", "Then F.", "Then E.", "Click to", "trial", " Max"].filter { w in text.contains { $0.localizedCaseInsensitiveContains(w) } }
     check(10, "Manual sections and wording", secs.count == 9 && (secs.count + 1) / 2 == 5 && banned.isEmpty,
           "\(secs.count) sections, first column \((secs.count + 1) / 2); banned wording found: \(banned.isEmpty ? "none" : banned.joined(separator: ", "))")
 
@@ -2426,26 +2446,33 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         seen.append("\(k.isEmpty ? "actual" : k)=\(DesktopModel.tier)/\(DesktopModel.licensed ? "paid" : "free")")
     }
     std.removeObject(forKey: "desktopViewAs")
-    check(16, "View As Free / Pro / Max", seen == ["free=free/free", "pro=pro/paid", "max=max/paid", "actual=free/free"], seen.joined(separator: ", "))
+    check(16, "View As Free / Pro", seen == ["free=free/free", "pro=pro/paid", "max=pro/paid", "actual=free/free"], seen.joined(separator: ", "))
 
     // ——— Pricing: pricing.json is the one source; the app must follow it and keep to his rules ———
     let pr = Pricing.bundled
-    // 17. His price rules hold in the shipped copy: Free / Pro / Max with their taglines, monthly £5 / £10, once = 10×
-    //     monthly, round numbers only (5s and 0s), 14 days of Pro, Free at 10 sessions a week, Pro the one marked best.
+    // 17. His price rules hold in the shipped copy (decided 2026-11-15): Free and Pro only, no Max; Pro £5 a month,
+    //     £40 a year, £50 once (10× monthly; yearly under once); round numbers; Enterprise coming soon; 14 days of
+    //     Pro; Free at 10 sessions a week; Pro the one marked best; "Max" and "Basic" retired.
     var rules = [String]()
     if let p = pr {
-        if ["free", "pro", "max"].map({ p.tiers[$0]?.name ?? "" }) != ["Free", "Pro", "Max"] { rules.append("tier names") }
+        if Set(p.tiers.keys) != ["free", "pro"] { rules.append("tiers aren't just Free and Pro") }
+        if p.tiers["pro"]?.name != "Pro" { rules.append("Pro's name") }
+        if !(p.coming_soon ?? []).contains(where: { $0.name == "Enterprise" }) { rules.append("Enterprise isn't listed as coming soon") }
         if p.tiers.values.contains(where: { $0.tagline.isEmpty }) { rules.append("a tagline is empty") }
-        if p.tiers["pro"]?.monthly != 5 || p.tiers["max"]?.monthly != 10 || p.tiers["free"]?.monthly != 0 { rules.append("monthly prices") }
-        for k in ["pro", "max"] { if let t = p.tiers[k], t.once != t.monthly * 10 { rules.append("\(k) once ≠ 10× monthly") } }
-        let all = p.tiers.values.flatMap { [$0.monthly] + ($0.once.map { [$0] } ?? []) }
+        if let t = p.tiers["pro"] {
+            if t.monthly != 5 || t.yearly != 40 || t.once != 50 { rules.append("Pro isn't £5 / £40 a year / £50 once") }
+            if t.once != t.monthly * 10 { rules.append("once ≠ 10× monthly") }
+            if (t.yearly ?? 0) >= (t.once ?? 0) { rules.append("yearly isn't under once") }
+        }
+        if p.tiers["free"]?.monthly != 0 { rules.append("Free isn't free") }
+        let all = p.tiers.values.flatMap { [$0.monthly, $0.yearly, $0.once].compactMap { $0 } }
         if all.contains(where: { $0 % 5 != 0 }) { rules.append("a price that isn't a round number") }
         if p.trial_days != 14 || p.trial_tier != "pro" { rules.append("trial") }
         if p.free_sessions_per_week != 10 { rules.append("Free sessions a week") }
-        if p.tiers["pro"]?.best != true || p.tiers["max"]?.best == true { rules.append("Pro not the best value") }
+        if p.tiers["pro"]?.best != true { rules.append("Pro not marked best value") }
         if p.lead.tier != "pro" || p.lead.plan != "monthly" { rules.append("lead isn't Pro monthly") }
     } else { rules.append("pricing.json missing or unreadable") }
-    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Free/Pro/Max; £0/£5/£10 a month; £50/£100 once (10×); round; 14 days of Pro; Free 10 a week; Pro is best value" : rules.joined(separator: "; "))
+    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Free and Pro only; Pro £5 a month, £40 a year, £50 once (10×); round; Enterprise coming soon; 14 days of Pro; Free 10 a week; Pro best value" : rules.joined(separator: "; "))
 
     // 18. The app takes its numbers from pricing.json, never its own: the weekly count, the Preview's days, the
     //     Upgrade window's prices, and the checkout link for each plan.
@@ -2472,12 +2499,12 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     var table = [String: [Pricing.Cell]]()
     pr?.features.forEach { g in g.rows.forEach { r in if case .text(let name) = r.first { table[name] = Array(r.dropFirst()) } } }
     func row(_ starts: String) -> [Pricing.Cell]? { table.first { $0.key.hasPrefix(starts) }?.value }
-    func freeLimited(_ c: [Pricing.Cell]?) -> Bool { guard let c, c.count == 3 else { return false }
-        if case .yes(true) = c[0] { return false }; if case .yes(false) = c[1] { return false }; if case .yes(false) = c[2] { return false }; return true }
+    func freeLimited(_ c: [Pricing.Cell]?) -> Bool { guard let c, c.count == 2 else { return false }   // [Free, Pro]
+        if case .yes(true) = c[0] { return false }; if case .yes(false) = c[1] { return false }; return true }
     let tagged = ["Tools", "Modes", "History", "Custom shortcuts"].filter { !freeLimited(row($0)) }
     var weekly = false
-    if let w = row("Sessions a week"), w.count == 3, case .text(let f0) = w[0], case .text(let f1) = w[1] { weekly = pr.map { $0.fill(f0) } == "10" && f1 == "Unlimited" }
-    check(20, "Pro tags match the site's table", tagged.isEmpty && weekly, tagged.isEmpty ? "Tools, Modes, History, custom shortcuts: limited on Free, in Pro and Max; sessions a week 10 / Unlimited: \(weekly)" : "not limited on Free in the table: \(tagged.joined(separator: ", "))")
+    if let w = row("Sessions a week"), w.count == 2, case .text(let f0) = w[0], case .text(let f1) = w[1] { weekly = pr.map { $0.fill(f0) } == "10" && f1 == "Unlimited" }
+    check(20, "Pro tags match the site's table", tagged.isEmpty && weekly, tagged.isEmpty ? "Tools, Modes, History, custom shortcuts: limited on Free, in Pro; sessions a week 10 / Unlimited: \(weekly)" : "not limited on Free in the table: \(tagged.joined(separator: ", "))")
 
     // 21. The Upgrade window draws in Light and Dark with all three plans, and Free locks (View As) show their panel.
     var upOK = true
