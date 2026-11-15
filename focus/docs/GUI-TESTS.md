@@ -33,6 +33,8 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
     smallest window and in each Width, without coming out blank.
 13. **The Focus mark** shows on the big button, right of the title, during a session.
 14. **Light and Dark:** five pages (Feedback shades the page on purpose, so it is left out) in each look draw on the right ground (white or black), with a readable title.
+15. **Basic's weekly sessions** are counted since Monday 00:00 (Quit All clean-ups don't count), reset next Monday
+    00:00, and never go below zero.
 
 **Not covered** (needs the real screen or a pointer): hover states, the hand cursor, drag to reorder, the pressure
 build and release over time, the click line animating, ⌘Q/⌘H in a live window. Check these by eye.

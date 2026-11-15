@@ -159,6 +159,18 @@ final class DesktopModel: ObservableObject {
     static let buy = URL(string: "https://paradoxica.co.uk/focus#buy")!
     /// Whether this copy is on a trial. Licences aren't built yet, so it's shown for now to see the button in place.
     static let trial = true
+    /// Basic's weekly sessions (PRICING.md: 10 a week; Pro and Max unlimited).
+    static let basicWeekly = 10
+    /// Sessions started since 00:00 on Monday (Quit All clean-ups don't count), how many of Basic's are left, and the
+    /// day it resets (next Monday, 00:00 local time).
+    static func week(_ sessions: [[String: Any]], now: Date, calendar: Calendar = .current) -> (used: Int, left: Int, reset: Date, resetDay: String) {
+        var cal = calendar; cal.firstWeekday = 2                       // weeks start on Monday
+        let start = cal.dateInterval(of: .weekOfYear, for: now)?.start ?? cal.startOfDay(for: now)
+        let reset = cal.date(byAdding: .day, value: 7, to: start) ?? now
+        let used = sessions.filter { ($0["kind"] as? String) != "quit all" && (($0["date"] as? Date).map { $0 >= start && $0 <= now } ?? false) }.count
+        let f = DateFormatter(); f.calendar = cal; f.locale = Locale(identifier: "en_GB"); f.dateFormat = "EEEE"
+        return (used, max(0, basicWeekly - used), reset, f.string(from: reset))
+    }
     /// Temporary, for looking at the design: show the Focus Pro badge and the Buy button together. Remove with licences.
     static let showBoth = true
     /// Whether this copy has been bought — read live (the window refreshes every 1.5 s), so the moment a purchase is
@@ -1041,7 +1053,17 @@ struct SessionDetail: View {
         VStack(spacing: 0) {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text("Apps in Session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)   // the menu's own headings
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Apps in Session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)   // the menu's own headings
+                        Spacer(minLength: 12)
+                        if !DesktopModel.licensed {                       // Basic: sessions left this week, and when it resets
+                            let w = DesktopModel.week(f.sessions, now: Date())
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("\(w.left) \(w.left == 1 ? "Session" : "Sessions") remaining this week").font(Site.font(16, .medium)).foregroundColor(Site.head)
+                                Text("Resets 00:00 on \(w.resetDay)").font(Site.font(14)).foregroundColor(Site.muted)
+                            }
+                        }
+                    }
                     PanelRule()
                     Text(f.focused ? "These apps are in your session. Click one to take it out."
                                    : "Tick the apps you want in the session. Everything else closes when the session starts and comes back when it ends.")
@@ -2122,6 +2144,18 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         }
     }
     check(14, "Light and Dark draw correctly", wrong.isEmpty, wrong.isEmpty ? "5 pages × 2 looks: right ground, readable title" : "wrong: \(wrong.joined(separator: ", "))")
+
+    // 15. Basic's weekly sessions: counted since Monday 00:00 (Quit All clean-ups don't count), resetting next Monday.
+    var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/London")!
+    let wed = cal.date(from: DateComponents(year: 2026, month: 11, day: 18, hour: 15))!          // a Wednesday
+    let mon = cal.date(from: DateComponents(year: 2026, month: 11, day: 16, hour: 0, minute: 5))!
+    let sun = cal.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: 23))!          // last week
+    let fake: [[String: Any]] = [["date": mon], ["date": wed.addingTimeInterval(-60)], ["date": wed.addingTimeInterval(-30), "kind": "quit all"], ["date": sun]]
+    let wk = DesktopModel.week(fake, now: wed, calendar: cal)
+    let resetOK = cal.dateComponents([.weekday, .hour, .minute], from: wk.reset) == DateComponents(hour: 0, minute: 0, weekday: 2)
+    let full = DesktopModel.week((0..<14).map { _ in ["date": wed.addingTimeInterval(-10)] }, now: wed, calendar: cal).left
+    check(15, "Basic's weekly sessions", wk.used == 2 && wk.left == 8 && wk.resetDay == "Monday" && resetOK && full == 0,
+          "used \(wk.used), left \(wk.left), resets \(wk.resetDay) 00:00 \(resetOK); never below 0: \(full)")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)

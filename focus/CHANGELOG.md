@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.67 — 2026-11-15
+- **Basic's weekly sessions:** right of "Apps in Session" on Basic copies, "X Sessions remaining this week" with "Resets 00:00 on Monday" under it. It counts the sessions in Focus's history since 00:00 on Monday (Quit All clean-ups don't count) out of Basic's 10, and is hidden for Pro and Max. Nothing stops at 0 yet; that comes with licences.
+- **GUI tests:** check 15 covers the weekly count. All 15 pass.
+
 ## 0.18.66 — 2026-11-15
 - **Light and Dark (and System):** Settings ▸ Appearance ▸ This window now works. Light is the site's look inverted, black on white; Dark stays the standard; System follows macOS, live. Every colour comes from the theme tokens, apart from the user's button colours and swatches. The ★★★★★ × PARADOX™ lockup turns black in Light.
 - **Pro tags:** a small white "Pro" beside Shortcuts, Tools, History and Modes in the sidebar, and on the Session Editor's Modes heading. They show on Free and during the Pro Preview, and disappear once Pro or Max is bought.
