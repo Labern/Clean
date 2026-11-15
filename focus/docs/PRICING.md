@@ -119,3 +119,16 @@ built yet; the app only shows the parts that are visible, and those are placehol
 ## Badge wording (his, 2026-11-15; saved, may change later)
 - Pro's "Best value" badge could instead read **"Most popular"**. Kept as "Best value" for now; the switch is one field
   (`badge`) in the site's `pricing.json`.
+
+## Max vs Enterprise — his thinking (2026-11-15; leaning, nothing built, "don't do anything yet")
+- Two ways Max could differ:
+  1. **Max has some special, "crazy" features**; or
+  2. **Pro does everything; Max lets you use it on all your Macs.**
+- **Pro should cover at least 2–3 Macs** on its own.
+- **Business pricing is needed: per seat** (or similar). It could **eventually replace Max**, named **Enterprise** (or
+  similar), so a normal person ignores it entirely.
+- Site-session take (for his decision): with 2–3 Macs already in Pro, "Max = all your Macs" adds little; and "crazy"
+  Max features would make Pro look incomplete. The cleanest shape is **Free / Pro / Business (or Enterprise)**: Pro is
+  everything for one person; Business is per seat with what companies actually pay for (one invoice, VAT receipts,
+  adding/removing seats, deploying to many Macs, priority support). A per-seat column still anchors Pro as the obvious
+  choice for individuals. Open: name (Business / Teams / Enterprise), per-seat price, minimum seats.
