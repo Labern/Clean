@@ -178,6 +178,7 @@ td.n{color:var(--muted)}
       <li><b>On the Mac:</b> tokens live in the Keychain, on this device only. Nothing sensitive goes in preferences or logs.</li>
       <li><b>Licences:</b> signed on the server with a key that never leaves it. The app holds only the public half, so a copied or edited licence fails.</li>
       <li><b>Server:</b> every table locked by row-level security. The service key exists only on the server. Webhooks are verified by their signature, and repeated deliveries are handled safely.</li>
+      <li><b>No IP addresses kept:</b> the sign-in service's audit log, which records IP addresses, is not copied into our database, and how long the provider itself keeps logs is confirmed in its data processing agreement.</li>
       <li><b>Before launch:</b> a written threat model, automated tests for every sign-in path (including expired codes, reused tokens and a wrong code six times), and an independent review of the server rules.</li>
     </ul>
   </section>
