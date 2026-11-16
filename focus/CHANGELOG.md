@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.81 — 2026-11-16
+- **Back to the 0.18.79 design** (his words: the design was right, the problem was clutter): the filled "Type to add an app" field, the white weekly count and View As open are back.
+- **Fewer "not paid yet" marks:** no Pro tags in the sidebar (Shortcuts, Tools, History, Modes) or on the Modes heading. Opening a Pro page still shows the quiet "Purchase Pro to unlock" line, in the subtle dark tag style.
+- **No count after History.**
+- **"Basic" by the name is quiet:** grey text and a thin grey outline. Pro keeps the solid white box: white is the reward.
+- **The countdown button is quiet:** dark, smaller, regular weight ("14 Days of Pro Left — Upgrade Now"), so it no longer looks like the Pro reward.
+
 ## 0.18.80 — 2026-11-16
 - **Quieter:** nothing removed, the secondary things recede so the session leads again. Pro tags are a grey outline instead of solid white. "Type to add an app" is an outline, not a filled box. The weekly count is grey and smaller ("9 sessions left this week"). View As starts folded to one line, with a lighter border. 0.18.79's look is saved (`focus-look-0.18.79`, docs/looks).
 - Renders always start on the Session Editor. Check 21 follows the quieter tag.
