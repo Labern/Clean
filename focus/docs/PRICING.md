@@ -162,3 +162,7 @@ built yet; the app only shows the parts that are visible, and those are placehol
 - Practical consequence: treat prices as something to measure, not defend. The early-adopter £50 vs the later £75 is
   already a built-in test; once Stripe is live, compare how many people buy at each.
 
+## Open: annual price (his note, 2026-11-16; he'll come back to it)
+- "Annual should be £40 or £45 in order for £50 to work." Today the site has £50 a year, which equals the £50
+  early-adopter one-off, so the one-off isn't clearly better. Not changed yet.
+
