@@ -56,8 +56,12 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
     adding one that isn't open puts it in the session's apps.
 23. **⌘Z** after ending a session is offered only within 20 seconds of the end, and never during a session.
 24. **The window remembers its page** and reopens on it; the Session Editor is the default.
-25. **Basic really locks Pro:** a Pro action (modes, tools, shortcuts, width, icon styles, colours, text colour) opens
-    Upgrade instead of happening; as Pro it happens.
+25. **Basic really locks Pro:** a Pro action (modes, tools, shortcuts, width, icon styles, colours) goes to the
+    Upgrade page instead of happening; as Pro it happens. (Text colour is not Pro.)
+26. **The big button's text always reads:** for every colour offered, plus plain white and black, whichever text colour
+    is stored, the text it actually gets has contrast 3:1 or better. No white on white, no black on black.
+27. **Light and Dark both read:** the default icon colour (previews, swatches), the plans' solid colour and the text
+    on it all stand out from the page in each look.
 
 **Not covered** (needs the real screen or a pointer): hover states, the hand cursor, drag to reorder, the pressure
 build and release over time, the click line animating, ⌘Q/⌘H in a live window. Check these by eye.

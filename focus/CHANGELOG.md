@@ -4,6 +4,23 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.83 — 2026-11-16
+
+- **The plans are on the screen, not in a pop-up.** Tools, Shortcuts and every mode show the plans right under their
+  title on Basic, with the page itself greyed beneath. Upgrade Now and every locked control go to an Upgrade page in
+  the window.
+- **The plans:** "Current Plan"; opens on Monthly, the lowest number; no Enterprise strip here; no full stop on
+  "14 days of Pro come free with every new copy".
+- **Light look:** the plans' solids are soft grey, not black; no shadows; the icon previews and swatches are dark,
+  not white on grey; the default colour reads "Black".
+- **Plan lines:** bigger, stacked ("9 Sessions left this week" / "14 Days of Pro left"), Upgrade Now to their right
+  as a reward: on hover it fills, lifts and its arrow nudges.
+- **Colours:** Basic keeps 3 tasteful colours, the rest are greyed; Pro adds **Any colour** (the Mac's colour panel).
+- **Text colour is not Pro**, and can never be unreadable: a choice that wouldn't read on the button can't be made,
+  and a new button colour switches the text if needed.
+- **Pro tags in one right-hand column** in the sidebar and on Settings.
+- Tests: 27 GUI checks (new: 26 readable button text, 27 Light and Dark both read).
+
 ## 0.18.82 — 2026-11-16
 - **Basic is back** in its white outlined box by the name. Subtle Pro tags sit beside everything locked: Shortcuts, Tools, History, Modes (sidebar and Session Editor), Width, the menu bar icon styles, Icon colour and Text colour.
 - **The plan, as two quiet lines above Feedback / Manual:** "9 Sessions remaining this week" and "14 Days of Pro remaining | Upgrade Now". Grey and small, brightening only in the last 3 sessions or days. Upgrade Now rewards a hover: it turns white, underlines, and an arrow slides in. These replace the wide countdown button, the separate Heads up box and the counter in the Session Editor's heading. (Research: a quiet persistent sidebar mention, escalating near the end, is the pattern that converts without nagging; GitLab measured it.)
