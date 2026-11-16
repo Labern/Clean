@@ -1627,6 +1627,7 @@ struct DesktopView: View {
                     else if m.selection == Page.tools { ToolsPage(m: m) }
                     else if m.selection == Page.settings { SettingsPage(m: m) }
                     else if m.selection == Page.appearance { AppearancePage(m: m) }
+                    else if m.selection == Page.schedule { SchedulePage(m: m) }
                     else if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) }
                     else if m.selection == Page.history { HistoryPage(m: m) }
                     else if m.selection == Page.manual { ManualPage() }
@@ -1691,6 +1692,7 @@ struct DesktopView: View {
                 SideRow(title: "Session Editor", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
                         action: { m.selection = nil }, state: m.f.focused)
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard", action: { m.selection = Page.shortcuts }, pro: true)
+                SideRow(title: "Schedule", trailing: "", live: false, selected: m.selection == Page.schedule, icons: [], symbol: "calendar.badge.clock", action: { m.selection = Page.schedule }, pro: true)
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver", action: { m.selection = Page.tools }, pro: true)
                 SideRow(title: "History", trailing: "", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath", action: { m.selection = Page.history }, pro: true)
                 SideRow(title: "Settings", trailing: "", live: false, selected: m.selection == Page.settings, icons: [], symbol: "gearshape") { m.selection = Page.settings }
@@ -1870,7 +1872,7 @@ struct ModeDetail: View {
 // MARK: the other pages — the same settings the menu has, read from and written to the same place
 
 /// Sidebar pages that aren't a mode (a mode's id is a UUID, so these can't collide).
-enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history", manual = "§manual", upgrade = "§upgrade", appearance = "§appearance" }
+enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history", manual = "§manual", upgrade = "§upgrade", appearance = "§appearance", schedule = "§schedule" }
 
 struct PageFrame<Content: View>: View {
     let title: String, text: String
@@ -2518,6 +2520,12 @@ struct SettingsPage: View {
     var body: some View {
         let f = m.f
         PageFrame(title: "Settings", text: "The same settings as the menu. Changing one here changes it there.") {
+            SettingLine(title: "Sound", note: "A short chime when a session starts, and another when it ends.") {
+                Choice(options: ["Off", "On"], selected: Chime.on ? 1 : 0) { i in
+                    m.act { UserDefaults.standard.set(i == 1, forKey: "focusSound") }
+                    if i == 1 { Chime.play(start: true) }                      // a taste of it, on turning it on
+                }
+            }
             GroupTitle("Behaviour")
             SettingLine(title: "App Open/Close Speed", note: "Safety first closes apps one at a time. Speed first does them all at once.") {
                 Choice(options: ["Safety first", "Speed first"], selected: f.fastSwitching ? 1 : 0) { i in m.act { f.fastSwitching = i == 1 } }
@@ -2823,7 +2831,7 @@ func renderDesktop(to file: String, mode: Bool) {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
         f.store.set(true, forKey: "focused")
     }
-    for p in [Page.settings, Page.appearance, Page.shortcuts, Page.tools, Page.history, Page.manual] where renderArgs.contains(String(p.dropFirst())) { m.selection = p }
+    for p in [Page.schedule, Page.settings, Page.appearance, Page.shortcuts, Page.tools, Page.history, Page.manual] where renderArgs.contains(String(p.dropFirst())) { m.selection = p }
     if !renderArgs.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
     if renderArgs.contains("hover") { SessionButton.still = (true, 0, false) }
     if let a = renderArgs.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {
@@ -2836,6 +2844,10 @@ func renderDesktop(to file: String, mode: Bool) {
     if renderArgs.contains("trial=wide") { DesktopView.renderTrial = .wide }
     if renderArgs.contains("trial=minimal") { DesktopView.renderTrial = .minimal }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
+    if renderArgs.contains("schedule") {                           // two example rules (never saved)
+        Scheduler.shared.rules = [ScheduleRule(kind: "block", apps: ["com.apple.Music", "com.apple.TV"].filter { f.path($0) != nil }, from: 9 * 60, to: 17 * 60),
+                                  ScheduleRule(kind: "open", mode: m.modes.first?.id ?? "", days: [2, 3, 4, 5, 6], from: 8 * 60 + 30)]
+    }
     let savedScale = Site.scale
     if let t = renderArgs.first(where: { $0.hasPrefix("textscale=") }).flatMap({ Double($0.dropFirst(10)) }) { Site.scale = CGFloat(t) }
     defer { if Site.scale != savedScale { Site.scale = savedScale } }
@@ -3358,6 +3370,222 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     tagModel.viewAs(""); _ = tagModel
     check(34, "Pro tags follow the tier live", asBasic > 20 && asPro == 0, "tag drawn as Basic: \(asBasic > 20) (\(asBasic) px); gone after switching to Pro: \(asPro == 0) (\(asPro) px)")
 
+    // 35. Schedule: a block holds only on its days and hours (an overnight one wraps past midnight); a timed mode is due
+    //     once, within two minutes of its time, and not again that day.
+    var sc = Calendar(identifier: .gregorian); sc.timeZone = TimeZone(identifier: "Europe/London")!
+    let monAt = { (h: Int, mi: Int) in sc.date(from: DateComponents(year: 2026, month: 11, day: 16, hour: h, minute: mi))! }   // a Monday
+    let schSun = sc.date(from: DateComponents(year: 2026, month: 11, day: 15, hour: 10))!
+    let blk = ScheduleRule(kind: "block", apps: ["x"], days: [2, 3, 4, 5, 6], from: 540, to: 1020)
+    let night = ScheduleRule(kind: "block", apps: ["x"], days: [2], from: 22 * 60, to: 6 * 60)
+    var opn = ScheduleRule(kind: "open", mode: "m1", days: [2], from: 8 * 60 + 30)
+    let blocks = Scheduler.blocking(blk, at: monAt(10, 0), sc) && !Scheduler.blocking(blk, at: monAt(17, 0), sc) && !Scheduler.blocking(blk, at: monAt(8, 59), sc)
+        && !Scheduler.blocking(blk, at: schSun, sc)
+    let wraps = Scheduler.blocking(night, at: monAt(23, 0), sc) && Scheduler.blocking(night, at: monAt(5, 0), sc) && !Scheduler.blocking(night, at: monAt(12, 0), sc)
+    let dueNow = Scheduler.due(opn, at: monAt(8, 30), sc), notEarly = !Scheduler.due(opn, at: monAt(8, 29), sc), notLate = !Scheduler.due(opn, at: monAt(8, 33), sc)
+    opn.fired = Scheduler.day(monAt(8, 30), sc); let once = !Scheduler.due(opn, at: monAt(8, 31), sc)
+    var offRule = blk; offRule.on = false; let offOK = !Scheduler.blocking(offRule, at: monAt(10, 0), sc)
+    check(35, "Schedule rules", blocks && wraps && dueNow && notEarly && notLate && once && offOK,
+          "block on its days and hours: \(blocks); overnight wraps: \(wraps); open due at its time: \(dueNow), not early \(notEarly), not late \(notLate), once a day \(once); off does nothing: \(offOK)")
+
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)
+}
+
+// MARK: Schedule (Pro) — block apps during set hours; open a mode by itself at a set time
+
+/// One schedule rule. Times are minutes after midnight; days are Calendar weekdays (1 = Sunday … 7 = Saturday).
+struct ScheduleRule: Codable, Identifiable, Equatable {
+    var id = UUID().uuidString
+    var kind = "block"                                             // "block" or "open"
+    var apps: [String] = []                                        // block: bundle ids kept closed
+    var mode = ""                                                  // open: the mode to start
+    var days: [Int] = [2, 3, 4, 5, 6]                              // weekdays by default
+    var from = 9 * 60, to = 17 * 60                                // block: from–to; open: from is the time
+    var on = true
+    var fired = ""                                                 // open: the day it last fired (yyyy-MM-dd)
+}
+
+final class Scheduler: ObservableObject {
+    static let shared = Scheduler()
+    @Published var rules: [ScheduleRule] = [] { didSet { save() } }
+    @Published var note = ""                                       // the last thing it did, shown on the page
+    private weak var f: Focus?
+    private var timer: Timer?, launchWatch: Any?
+    private let key = "focusSchedule"
+    init() { if let d = UserDefaults.standard.data(forKey: key), let r = try? JSONDecoder().decode([ScheduleRule].self, from: d) { rules = r } }
+    private func save() {                                          // renders and tests never touch the real schedule
+        guard !renderArgs.contains("--render-desktop"), !CommandLine.arguments.contains("--selftest-gui") else { return }
+        if let d = try? JSONEncoder().encode(rules) { UserDefaults.standard.set(d, forKey: key) }
+    }
+
+    static func minute(_ d: Date, _ c: Calendar = .current) -> Int { c.component(.hour, from: d) * 60 + c.component(.minute, from: d) }
+    /// A block rule holds now: on, today is one of its days, and now is inside from–to (an overnight span wraps).
+    static func blocking(_ r: ScheduleRule, at d: Date, _ c: Calendar = .current) -> Bool {
+        guard r.on, r.kind == "block", r.days.contains(c.component(.weekday, from: d)) else { return false }
+        let m = minute(d, c)
+        return r.from <= r.to ? (m >= r.from && m < r.to) : (m >= r.from || m < r.to)
+    }
+    /// An open rule is due: on, today, within two minutes after its time, and not already fired today.
+    static func due(_ r: ScheduleRule, at d: Date, _ c: Calendar = .current) -> Bool {
+        guard r.on, r.kind == "open", !r.mode.isEmpty, r.days.contains(c.component(.weekday, from: d)) else { return false }
+        let m = minute(d, c)
+        return m >= r.from && m < r.from + 2 && r.fired != day(d, c)
+    }
+    static func day(_ d: Date, _ c: Calendar = .current) -> String {
+        let f = DateFormatter(); f.calendar = c; f.locale = Locale(identifier: "en_GB"); f.dateFormat = "yyyy-MM-dd"; return f.string(from: d)
+    }
+    func blocked(_ id: String, at d: Date = Date()) -> ScheduleRule? { rules.first { Self.blocking($0, at: d) && $0.apps.contains(id) } }
+
+    func start(_ focus: Focus) {
+        f = focus
+        timer?.invalidate()
+        let t = Timer(timeInterval: 20, repeats: true) { [weak self] _ in self?.tick() }
+        RunLoop.main.add(t, forMode: .common); timer = t
+        launchWatch = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] n in
+            guard let self, !DesktopModel.gated, let a = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+                  let id = a.bundleIdentifier, let r = self.blocked(id) else { return }
+            a.terminate()                                          // opened during its block: closed again
+            self.note = "Closed \(a.localizedName ?? "an app"): blocked until \(Self.clock(r.to))."
+        }
+        tick()
+    }
+    func tick(now: Date = Date()) {
+        guard let f, !DesktopModel.gated else { return }           // Pro only
+        for i in rules.indices where Self.due(rules[i], at: now) {
+            rules[i].fired = Self.day(now)
+            if !f.focused, let name = f.mode(rules[i].mode)?["name"] as? String {
+                f.startOrSwitch(rules[i].mode); note = "Started \(name) at \(Self.clock(rules[i].from))."
+            }
+        }
+        for a in NSWorkspace.shared.runningApplications where !a.isTerminated {
+            if let id = a.bundleIdentifier, let r = blocked(id, at: now) { a.terminate(); note = "Closed \(a.localizedName ?? "an app"): blocked until \(Self.clock(r.to))." }
+        }
+    }
+    static func clock(_ m: Int) -> String { String(format: "%02d:%02d", (m / 60) % 24, m % 60) }
+}
+
+struct SchedulePage: View {
+    @ObservedObject var m: DesktopModel
+    @ObservedObject var s = Scheduler.shared
+    var body: some View {
+        PageFrame(title: "Schedule", text: "Keep apps closed at set times, or start a mode by itself.", locked: m) {
+            SectionLabel("Block Apps", divider: false).padding(.horizontal, -14)
+            Note("Keep these apps closed during these hours. If one opens, Focus closes it again.")
+            ForEach($s.rules) { $r in if r.kind == "block" { ScheduleRow(m: m, r: $r) } }
+            SiteButton("Add a Block") { s.rules.append(ScheduleRule(kind: "block")) }.padding(.top, 6)
+            SectionLabel("Open at a Time").padding(.horizontal, -14)
+            Note("Start a mode by itself at a set time, without pressing the button.")
+            ForEach($s.rules) { $r in if r.kind == "open" { ScheduleRow(m: m, r: $r) } }
+            SiteButton("Add a Time") { s.rules.append(ScheduleRule(kind: "open", mode: m.modes.first?.id ?? "", from: 9 * 60)) }.padding(.top, 6)
+            if !s.note.isEmpty { Text(s.note).font(Site.font(15)).foregroundColor(Site.muted).padding(.top, 14) }
+        }
+    }
+}
+
+/// One rule: what (apps, or a mode), which days, when, on or off, delete.
+struct ScheduleRow: View {
+    @ObservedObject var m: DesktopModel
+    @Binding var r: ScheduleRule
+    static let dayOrder = [2, 3, 4, 5, 6, 7, 1], letters = [1: "S", 2: "M", 3: "T", 4: "W", 5: "T", 6: "F", 7: "S"]
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                if r.kind == "block" {
+                    HStack(spacing: 6) {
+                        ForEach(r.apps, id: \.self) { id in
+                            if let p = m.f.path(id) { Image(nsImage: m.icon(p)).resizable().frame(width: 22, height: 22).help(m.f.appName(p)) }
+                        }
+                        Text(r.apps.isEmpty ? "No apps yet" : r.apps.compactMap { m.f.path($0).map(m.f.appName) }.joined(separator: ", "))
+                            .font(Site.font(17, .medium)).foregroundColor(r.apps.isEmpty ? Site.muted : Site.head).lineLimit(1)
+                    }
+                    SiteButton("Choose Apps…") { chooseApps() }
+                } else {
+                    Menu {
+                        ForEach(m.modes) { mode in Button(mode.name) { r.mode = mode.id } }
+                    } label: { Text(m.modes.first { $0.id == r.mode }?.name ?? "Choose a mode").font(Site.font(17, .medium)) }
+                    .menuStyle(.borderlessButton).fixedSize()
+                }
+                Spacer()
+                Choice(options: ["Off", "On"], selected: r.on ? 1 : 0) { i in r.on = i == 1 }
+                Button { Scheduler.shared.rules.removeAll { $0.id == r.id } } label: {
+                    Image(systemName: "trash").font(.system(size: 14)).foregroundColor(Site.muted).frame(width: 30, height: 30).contentShape(Rectangle())
+                }.buttonStyle(.plain).help("Delete").linkCursor()
+            }
+            HStack(spacing: 6) {
+                ForEach(Self.dayOrder, id: \.self) { d in
+                    let on = r.days.contains(d)
+                    Button { if on { r.days.removeAll { $0 == d } } else { r.days.append(d) } } label: {
+                        Text(Self.letters[d] ?? "").font(Site.font(14, .medium)).foregroundColor(on ? Site.paper : Site.head)
+                            .frame(width: 30, height: 30).background(Circle().fill(on ? Site.ink : Color.clear))
+                            .overlay(Circle().stroke(Site.ink.opacity(on ? 0 : 0.5), lineWidth: 1)).contentShape(Circle())
+                    }.buttonStyle(.plain)
+                }
+                Spacer(minLength: 16)
+                if r.kind == "block" {
+                    TimeField(minutes: $r.from); Text("to").font(Site.font(15)).foregroundColor(Site.muted); TimeField(minutes: $r.to)
+                } else {
+                    Text("at").font(Site.font(15)).foregroundColor(Site.muted); TimeField(minutes: $r.from)
+                }
+            }
+        }
+        .padding(16)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.surface))
+        .padding(.top, 8)
+    }
+    func chooseApps() {
+        let p = NSOpenPanel(); p.allowsMultipleSelection = true; p.canChooseDirectories = false
+        p.allowedContentTypes = [.application]; p.directoryURL = URL(fileURLWithPath: "/Applications"); p.prompt = "Block"
+        if p.runModal() == .OK {
+            let ids = p.urls.compactMap { Bundle(url: $0)?.bundleIdentifier }
+            r.apps = Array(Set(r.apps + ids)).sorted()
+        }
+    }
+}
+
+/// A time of day, as the Mac's own hour-and-minute field.
+struct TimeField: View {
+    @Binding var minutes: Int
+    var body: some View {
+        let date = Binding<Date>(
+            get: { Calendar.current.date(bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: Date()) ?? Date() },
+            set: { minutes = Scheduler.minute($0) })
+        DatePicker("", selection: date, displayedComponents: .hourAndMinute).labelsHidden().datePickerStyle(.field).fixedSize()
+    }
+}
+
+
+// MARK: Sound — a tiny chime as a session starts and ends (synthesised; no sound files)
+
+enum Chime {
+    /// Settings ▸ Sound. On unless turned off.
+    static var on: Bool { UserDefaults.standard.object(forKey: "focusSound") as? Bool ?? true }
+    private static var testing: Bool { CommandLine.arguments.contains { $0.hasPrefix("--selftest") || $0.hasPrefix("--render") } }
+    private static let startSound = NSSound(data: wav(notes: [(659.25, 0.075), (987.77, 0.16)]))   // E5 → B5: up, in
+    private static let endSound = NSSound(data: wav(notes: [(987.77, 0.075), (659.25, 0.16)]))     // B5 → E5: down, out
+    static func play(start: Bool) {
+        guard on, !testing, let s = start ? startSound : endSound else { return }
+        s.stop(); s.volume = 0.35; s.play()
+    }
+    /// Soft sine notes (a touch of the octave above for warmth), each with a 4 ms attack and a quick exponential fade.
+    static func wav(notes: [(Double, Double)], rate: Double = 44_100) -> Data {
+        var samples = [Int16]()
+        for (hz, len) in notes {
+            let n = Int(len * rate)
+            for i in 0..<n {
+                let t = Double(i) / rate
+                let env = min(1, t / 0.004) * exp(-t * 18)
+                let v = (sin(2 * .pi * hz * t) + 0.18 * sin(4 * .pi * hz * t)) * env * 0.5
+                samples.append(Int16(max(-1, min(1, v)) * 32_000))
+            }
+        }
+        var d = Data()
+        func u32(_ v: UInt32) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 4)) }
+        func u16(_ v: UInt16) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 2)) }
+        let bytes = UInt32(samples.count * 2)
+        d.append("RIFF".data(using: .ascii)!); u32(36 + bytes); d.append("WAVEfmt ".data(using: .ascii)!)
+        u32(16); u16(1); u16(1); u32(UInt32(rate)); u32(UInt32(rate) * 2); u16(2); u16(16)
+        d.append("data".data(using: .ascii)!); u32(bytes)
+        samples.withUnsafeBufferPointer { d.append(Data(buffer: $0)) }
+        return d
+    }
 }

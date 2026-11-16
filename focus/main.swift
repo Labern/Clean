@@ -1529,6 +1529,7 @@ final class Focus: NSObject, NSMenuDelegate {
             if newValue != was { animateIcon(to: newValue) } else { setIcon(glyph(focused: newValue)) }
             guard newValue != was, store == .standard else { return }
             if was && !newValue { lastEnd = (Date(), sessions.first?["modeID"] as? String) }   // for ⌘Z: put it back
+            Chime.play(start: newValue)                                  // Settings ▸ Sound: a chime in, a chime out
         }
     }
     /// The system's "reopen windows when an app relaunches" (System Settings ▸ Desktop & Dock ▸
@@ -3925,6 +3926,7 @@ if CommandLine.arguments.contains("--selftest") {
     app.run()
 }
 let focus = Focus()
+Scheduler.shared.start(focus)                                   // Schedule: blocks and timed modes, window or not
 
 // Global hotkeys via Carbon: the only route that needs no Accessibility permission.
 var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))

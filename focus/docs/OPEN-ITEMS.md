@@ -210,3 +210,6 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 
 - **Window sessions (Pro):** plan at https://claude.ai/artifact/S3zHYR8cSf7T5sxQ3HucEd. Awaiting his 3 calls (close vs
   minimise default; named windows for modes; browsers first).
+- **Sounds:** 0.18.93 ships a placeholder synthesised chime (Settings ▸ Sound). He wants real sounds designed later.
+- **Colour modes:** mockup at https://claude.ai/artifact/JnX9m3aHvDVFWnAnZzGrkq; build on his go.
+- **History snapshots + on-device one-line summary (Apple Foundation Models):** feasible; build on his go.

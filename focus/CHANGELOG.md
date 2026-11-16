@@ -4,6 +4,17 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.94 — 2026-11-16
+
+- **Schedule (Pro)**, in the sidebar above Tools, in two halves:
+  - **Block Apps:** chosen apps stay closed during set hours on set days. Opening one closes it again; any already
+    open are closed as the block begins. Overnight spans wrap past midnight.
+  - **Open at a Time:** a mode starts by itself at a set time on set days (once a day; only when no session is on).
+  - Runs whether the window is open or not. Renders and tests never touch the real schedule.
+- **Sound** (top of Settings, on by default): a tiny two-note chime as a session starts (rising) and ends (falling),
+  synthesised in the app. Never plays in tests. A placeholder until the real sounds are designed.
+- Tests: 35 GUI checks (new: 35 Schedule rules).
+
 ## 0.18.93 — 2026-11-16
 
 - **Appearance is colours and icons only:** this window, the menu, the menu bar icon, its colours and the text colour.

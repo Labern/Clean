@@ -81,3 +81,5 @@ build and release over time, the click line animating, ⌘Q/⌘H in a live windo
 33. **Feedback to help@:** the address is help@paradoxica.co.uk; the subject is "FOCUS " plus the message's first line;
     the menu link starts "FOCUS "; the card can't send without an email and can with one.
 34. **Pro tags follow the tier live:** a tag drawn as Basic disappears when View As switches to Pro, in the same view.
+35. **Schedule rules:** a block holds only on its days and hours, an overnight one wraps past midnight; a timed mode is
+    due within two minutes of its time and only once a day; a rule turned off does nothing.
