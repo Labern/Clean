@@ -4,6 +4,17 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.91 — 2026-11-16
+
+- **Tools ▸ Apps Using the Most Memory** (beneath every other tool): every open app using 1 GB or more, heaviest first,
+  with its share of the Mac's memory. Right-click one to quit it.
+- **Pro tags follow View As at once:** switching Basic → Pro removes every tag and grey immediately (they were kept
+  from the old drawing). Check 34 proves it in a live view.
+- **Appearance ▸ Custom colours:** Primary and Secondary pickers (the Mac's colour panel) for the ring/button and the
+  dot/button's other end. Pro.
+- **Feedback posts to paradoxica.uk/api/feedback** (the .co.uk host has no API: 404, so 0.18.89–90 fell back to email).
+- Tests: 34 GUI checks.
+
 ## 0.18.90 — 2026-11-16
 
 - **Feedback never asks for an email:** the account's email (given once at sign-up) goes with every message

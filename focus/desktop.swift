@@ -145,6 +145,7 @@ final class DesktopModel: ObservableObject {
     }
     /// Call whenever the tier may have changed (View As, a purchase, a licence check).
     func tierChanged() {
+        TierWatch.shared.n &+= 1
         if DesktopModel.licensed && selection == Page.upgrade { selection = upgradeFrom; outOfSessions = false }
         tick &+= 1
     }
@@ -257,6 +258,9 @@ final class DesktopModel: ObservableObject {
     static var tokens: Int { get { max(0, UserDefaults.standard.integer(forKey: "focusTokens")) } set { UserDefaults.standard.set(max(0, newValue), forKey: "focusTokens") } }
     static let welcomeTokens = 10
     /// Starting a session on Basic: if the week's own sessions are gone, it costs a token.
+    /// Tools ▸ Apps Using the Most Memory: the threshold, and every open app (in or out of the session, critical ones
+    /// too) at or over it, heaviest first.
+    static let heavyBytes: UInt64 = 1 << 30                        // 1 GB
     static func spendTokenIfNeeded(_ f: Focus) {
         guard gated, tokens > 0 else { return }
         if week(f.sessions, now: Date()).left - tokens <= 0 { tokens -= 1 }
@@ -322,6 +326,10 @@ final class DesktopModel: ObservableObject {
         outOfSessions = false
         selection = Page.upgrade
     }
+    var heavyApps: [AppLine] {
+        var seen = Set<String>()
+        return (running + outside + critical).filter { $0.bytes >= Self.heavyBytes && seen.insert($0.id).inserted }.sorted { $0.bytes > $1.bytes }
+    }
     func openOutOfSessions() {
         if giftDue { giftShown = true; return }                    // the first time: the gift, not the plans
         openUpgrade(); outOfSessions = true
@@ -329,7 +337,7 @@ final class DesktopModel: ObservableObject {
     @Published var feedbackText = ""
     @Published var feedbackState = FeedbackState.writing
     /// Where feedback is posted. Until the site answers there, the message goes into an email instead.
-    static let feedbackEndpoint = URL(string: "https://paradoxica.co.uk/api/feedback")!
+    static let feedbackEndpoint = URL(string: "https://paradoxica.uk/api/feedback")!   // the API lives on .uk (.co.uk has none: 404)
     static let feedbackAddress = "help@paradoxica.co.uk"        // every ★★★★★ × PARADOX app's help address
     static let appName = "Focus"
     /// The subject every PARADOX app uses: the app's name in capitals, a space, then the rest.
@@ -1517,7 +1525,11 @@ struct SiteButton: View {
 
 /// A small white "Pro" beside something only Pro (and Max) include — shown on Free and during the Pro Preview, so
 /// it's clear what Pro brings; gone once Pro or Max is bought.
+/// Fires whenever the tier changes (View As, a purchase), so views that only read the tier — tags, Pro settings — redraw.
+final class TierWatch: ObservableObject { static let shared = TierWatch(); @Published var n = 0 }
+
 struct ProTag: View {
+    @ObservedObject private var watch = TierWatch.shared
     var body: some View {
         if !DesktopModel.licensed || renderArgs.contains("tags") {
             Text("Pro").font(Site.font(10.5, .medium)).foregroundColor(Site.muted)       // quiet: marks a feature, never competes with it
@@ -1971,6 +1983,24 @@ struct AnyColourTile: View {
     }
 }
 
+/// One custom colour: its swatch and its name; a click opens the Mac's colour panel on it.
+struct ColourWell: View {
+    let title: String, colour: NSColor?, change: (NSColor) -> Void
+    @State private var hover = false
+    var body: some View {
+        Button { ColourPanel.shared.open(start: colour, change) } label: {
+            HStack(spacing: 8) {
+                Circle().fill(colour.map { Color(nsColor: $0) } ?? Site.ink).frame(width: 20, height: 20)
+                    .overlay(Circle().strokeBorder(Site.line, lineWidth: 1))
+                Text(title).font(Site.font(15, .medium)).foregroundColor(Site.head)
+            }
+            .padding(.horizontal, 12).frame(height: 36)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(hover ? Site.surface2 : Site.surface))
+            .contentShape(Rectangle())
+        }.buttonStyle(PressStyle()).onHover { hover = $0 }.linkCursor().help("Choose the \(title.lowercased()) colour")
+    }
+}
+
 /// The Mac's shared colour panel, reporting each change to one callback.
 final class ColourPanel: NSObject {
     static let shared = ColourPanel()
@@ -2018,6 +2048,7 @@ struct GroupTitle: View {
 }
 
 struct SettingLine<Control: View>: View {
+    @ObservedObject private var watch = TierWatch.shared             // greys and tags follow the tier at once
     let title: String, note: String
     var pro = false                                              // a Pro setting: the quiet tag after its title
     @ViewBuilder var control: Control
@@ -2433,6 +2464,17 @@ struct ToolsPage: View {
             ToolLine(title: "Quit All Apps…", why: "Close every app at once for a clean start. Each app saves first. Critical System Processes stay open.", tint: Site.head, enabled: !busy) { if DesktopModel.gated { m.openUpgrade() } else { f.quitAllApps() } }
             ToolLine(title: "Quit All Apps & Restart Mac…", why: "Close everything, then restart. Clears memory completely when the Mac feels slow.", tint: Site.head, enabled: !busy) { if DesktopModel.gated { m.openUpgrade() } else { f.quitAllRestart() } }
             ToolLine(title: "Force Quit All Apps…", why: "For apps that have frozen and won't quit. Unsaved work in them is lost, so it asks first.", tint: Site.hazard, enabled: !busy) { if DesktopModel.gated { m.openUpgrade() } else { f.forceQuitAllApps() } }
+            SectionLabel("Apps Using the Most Memory").padding(.horizontal, -14)
+            let heavy = m.heavyApps, ram = Double(ProcessInfo.processInfo.physicalMemory)
+            Note(heavy.isEmpty ? "No app is using more than \(gb(DesktopModel.heavyBytes)) right now."
+                               : "Every open app using \(gb(DesktopModel.heavyBytes)) or more, heaviest first. Right-click one to quit it.")
+            ForEach(heavy) { app in
+                AppRowView(app: DesktopModel.AppLine(id: app.id, path: app.path, name: app.name,
+                                                     usage: "\(app.usage) · \(Int((Double(app.bytes) / ram * 100).rounded()))% of memory",
+                                                     on: true, note: ""),
+                           icon: m.icon(app.path), mark: "memorychip", action: nil,
+                           quit: DesktopModel.gated ? nil : { m.quit(app.id, force: $0) }).padding(.horizontal, -14)
+            }
         }
     }
 }
@@ -2491,9 +2533,13 @@ struct SettingsPage: View {
                     ColourTile(name: name, a: a, b: b, on: on) { if locked { m.openUpgrade() } else { m.act { f.iconColor = a; f.iconColor2 = a == b ? "" : b; DesktopView.keepInkReadable(f) } } }
                         .opacity(locked ? 0.3 : 1).allowsHitTesting(!locked)
                 }
-                AnyColourTile(m: m)                                              // Pro: any colour at all
-                    .opacity(DesktopModel.gated ? 0.3 : 1).allowsHitTesting(!DesktopModel.gated)
             }
+            SettingLine(title: "Custom colours", note: "Any colour you like. Primary colours the icon's ring and the button; secondary colours the dot and the button's other end.", pro: true) {
+                HStack(spacing: 8) {
+                    ColourWell(title: "Primary", colour: hexColor(f.iconColor)) { c in m.act { f.iconColor = hexString(c); DesktopView.keepInkReadable(f) } }
+                    ColourWell(title: "Secondary", colour: hexColor(f.iconColor2) ?? hexColor(f.iconColor)) { c in m.act { if f.iconColor.isEmpty { f.iconColor = hexString(c) }; f.iconColor2 = hexString(c); DesktopView.keepInkReadable(f) } }
+                }
+            }.padding(.top, 6)
             let btn = (hexColor(f.iconColor), hexColor(f.iconColor2) ?? hexColor(f.iconColor))
             let unreadable: Set<Int> = btn.0.map { a in
                 Set([0, 1].filter { i in min(DesktopView.contrast(i == 0 ? .white : .black, a), DesktopView.contrast(i == 0 ? .white : .black, btn.1 ?? a)) < 3 })
@@ -3251,6 +3297,25 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         && menuSubj.hasPrefix("mailto:help@paradoxica.co.uk?subject=FOCUS%20") && blocked && ready
     check(33, "feedback to help@, subject FOCUS …, with the account's email", fbOK,
           "to \(DesktopModel.feedbackAddress); subject \"\(subj)\"; menu link \(menuSubj); sends with the account's email, never asks: \(ready && blocked)")
+
+    // 34. Pro tags follow the tier live: a tag drawn while viewing as Basic disappears when View As switches to Pro,
+    //     in the same window, without reopening it (the bug: SwiftUI kept the old drawing).
+    let tagModel = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!))
+    func inked(_ h: NSHostingView<AnyView>) -> Int {
+        h.layoutSubtreeIfNeeded(); guard let rep = h.bitmapImageRepForCachingDisplay(in: h.bounds) else { return -1 }
+        h.cacheDisplay(in: h.bounds, to: rep)
+        var n = 0; for x in 0..<rep.pixelsWide { for y in 0..<rep.pixelsHigh where (rep.colorAt(x: x, y: y)?.alphaComponent ?? 0) > 0.3 { n += 1 } }
+        return n
+    }
+    tagModel.viewAs("free")
+    let host = NSHostingView(rootView: AnyView(ProTag().padding(4)))
+    host.frame = NSRect(x: 0, y: 0, width: 60, height: 30)
+    let tw = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false); tw.contentView = host
+    let asBasic = inked(host)
+    tagModel.viewAs("pro"); RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+    let asPro = inked(host)
+    tagModel.viewAs(""); _ = tagModel
+    check(34, "Pro tags follow the tier live", asBasic > 20 && asPro == 0, "tag drawn as Basic: \(asBasic > 20) (\(asBasic) px); gone after switching to Pro: \(asPro == 0) (\(asPro) px)")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)
