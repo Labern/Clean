@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.82 — 2026-11-16
+- **Basic is back** in its white outlined box by the name. Subtle Pro tags sit beside everything locked: Shortcuts, Tools, History, Modes (sidebar and Session Editor), Width, the menu bar icon styles, Icon colour and Text colour.
+- **The plan, as two quiet lines above Feedback / Manual:** "9 Sessions remaining this week" and "14 Days of Pro remaining | Upgrade Now". Grey and small, brightening only in the last 3 sessions or days. Upgrade Now rewards a hover: it turns white, underlines, and an arrow slides in. These replace the wide countdown button, the separate Heads up box and the counter in the Session Editor's heading. (Research: a quiet persistent sidebar mention, escalating near the end, is the pattern that converts without nagging; GitLab measured it.)
+- **Viewing as Basic really locks Pro across the window:** one gate (`m.pro`) for mode pages (start, rename, keys, apps, delete), Tools, Shortcuts, Width, icon styles, colours beyond 3 and Text colour. Each opens Upgrade instead of acting, with the page left whole and "Purchase Pro to unlock" where it applies. Not yet: the menu bar menu and mode hotkeys, which lock with real licences.
+- **GUI tests:** check 25 proves the locks. All 25 pass.
+
 ## 0.18.81 — 2026-11-16
 - **Back to the 0.18.79 design** (his words: the design was right, the problem was clutter): the filled "Type to add an app" field, the white weekly count and View As open are back.
 - **Fewer "not paid yet" marks:** no Pro tags in the sidebar (Shortcuts, Tools, History, Modes) or on the Modes heading. Opening a Pro page still shows the quiet "Purchase Pro to unlock" line, in the subtle dark tag style.

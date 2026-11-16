@@ -259,6 +259,8 @@ final class DesktopModel: ObservableObject {
     func refresh() { f.mem = memoryByPid(); if Site.look == 2, let w = desktop.window { DesktopController.applyLook(to: w) }; tick &+= 1 }
     /// Do something to the engine, then show it.
     func act(_ change: () -> Void) { change(); tick &+= 1 }
+    /// A Pro action: viewing as Basic it opens Upgrade instead; otherwise it does the change.
+    func pro(_ change: () -> Void) { if DesktopModel.gated { openUpgrade() } else { act(change) } }
 
     // — type to add an app —
     struct Found: Identifiable { let id: String, path: String, name: String, open: Bool, inSession: Bool
@@ -800,15 +802,46 @@ struct TierBadge: View {
     }
 }
 
+/// Basic's two quiet lines above Feedback / Manual: sessions left this week, and days of Pro left with Upgrade Now.
+/// Grey and small, because a reminder that's always there must not nag. They brighten in the last 3 days or sessions.
+/// Upgrade Now rewards a hover: it whitens, underlines, and an arrow slides in.
+struct PlanLines: View {
+    @ObservedObject var m: DesktopModel
+    @State private var hover = false
+    var body: some View {
+        let week = DesktopModel.week(m.f.sessions, now: Date())
+        let left = renderArgs.contains("headsup") ? 2 : week.left, days = DesktopModel.trialDaysLeft
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(left) \(left == 1 ? "Session" : "Sessions") remaining this week")
+                .font(Site.font(13, left <= 3 ? .medium : .regular)).foregroundColor(left <= 3 ? Site.head : Site.muted)
+            if DesktopModel.trial {
+                HStack(spacing: 6) {
+                    Text("\(days) \(days == 1 ? "Day" : "Days") of Pro remaining").font(Site.font(13, days <= 3 ? .medium : .regular))
+                        .foregroundColor(days <= 3 ? Site.head : Site.muted)
+                    Text("|").font(Site.font(13)).foregroundColor(Site.line)
+                    Button { m.openUpgrade() } label: {
+                        HStack(spacing: 3) {
+                            Text("Upgrade Now").font(Site.font(13, .medium)).underline(hover)
+                            Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .semibold))
+                                .opacity(hover ? 1 : 0).offset(x: hover ? 0 : -4, y: hover ? 0 : 3)
+                        }.foregroundColor(hover ? Site.head : Site.low).contentShape(Rectangle())
+                    }.buttonStyle(.plain).onHover { hover = $0 }.linkCursor().help("See the plans")
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hover)
+                }
+            }
+        }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 4).padding(.bottom, 4)
+    }
+}
+
 /// A tier's name in its box: solid for Pro (as beside the Focus name), outlined for Basic.
 struct TierBox: View {
     let name: String, solid: Bool
     var size: CGFloat = 15
     var body: some View {
-        Text(name).font(Site.font(size, solid ? .semibold : .medium)).foregroundColor(solid ? Site.paper : Site.muted)   // Basic: quiet; Pro: the reward
+        Text(name).font(Site.font(size, .semibold)).foregroundColor(solid ? Site.paper : Site.ink)
             .padding(.horizontal, size * 0.5).frame(height: size * 1.6)
             .background(RoundedRectangle(cornerRadius: size * 0.33, style: .continuous).fill(solid ? Site.ink : Site.paper))
-            .overlay(RoundedRectangle(cornerRadius: size * 0.33, style: .continuous).strokeBorder(Site.muted.opacity(0.6), lineWidth: solid ? 0 : 0.75))
+            .overlay(RoundedRectangle(cornerRadius: size * 0.33, style: .continuous).strokeBorder(Site.ink, lineWidth: solid ? 0 : 1.2))
     }
 }
 
@@ -1354,9 +1387,9 @@ struct DesktopView: View {
             VStack(spacing: 2) {
                 SideRow(title: "Session Editor", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
                         action: { m.selection = nil }, state: m.f.focused)
-                SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard", action: { m.selection = Page.shortcuts })
-                SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver", action: { m.selection = Page.tools })
-                SideRow(title: "History", trailing: "", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath", action: { m.selection = Page.history })
+                SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard", action: { m.selection = Page.shortcuts }, pro: true)
+                SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver", action: { m.selection = Page.tools }, pro: true)
+                SideRow(title: "History", trailing: "", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath", action: { m.selection = Page.history }, pro: true)
                 SideRow(title: "Settings", trailing: "", live: false, selected: m.selection == Page.settings, icons: [], symbol: "gearshape") { m.selection = Page.settings }
             }.padding(.horizontal, 10)
             Button { withAnimation(.easeOut(duration: 0.15)) { m.modesShown.toggle() } } label: {
@@ -1364,6 +1397,7 @@ struct DesktopView: View {
                     Text("Modes").font(Site.font(16, .medium))
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(m.modesShown ? 90 : 0)).offset(y: 1.5)   // on the text's middle line
                     Spacer()
+                    ProTag()
                 }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 14).padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())
             }.buttonStyle(.plain).help(m.modesShown ? "Hide your modes" : "Show your modes")
             if m.modesShown {
@@ -1387,24 +1421,7 @@ struct DesktopView: View {
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
-                if !DesktopModel.licensed, (DesktopModel.week(m.f.sessions, now: Date()).left <= 3 || renderArgs.contains("headsup")) {
-                    let left = renderArgs.contains("headsup") ? 2 : DesktopModel.week(m.f.sessions, now: Date()).left
-                    Text("Heads up — \(left) \(left == 1 ? "session" : "sessions") remaining this week")   // near the weekly limit
-                        .font(Site.font(13, .medium)).foregroundColor(Site.ink).lineLimit(1).minimumScaleFactor(0.85)
-                        .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(height: 34)
-                        .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Site.paper))
-                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).strokeBorder(Site.ink, lineWidth: 1))
-                }
-                if DesktopModel.trial && (!DesktopModel.licensed || DesktopModel.showBoth) {   // a trial: one clear way to buy
-                    Button { m.openUpgrade() } label: {
-                        BuyLabel()                                       // the Pro Preview: quiet and dark (white is Pro's, the reward)
-                            .foregroundColor(Site.low)
-                            .padding(.horizontal, 10).frame(maxWidth: .infinity).frame(minHeight: 34).padding(.vertical, BuyLabel.style == 4 ? 6 : 0)
-                            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Site.surface))
-                            .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous).stroke(Site.line, lineWidth: 1))
-                            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    }.buttonStyle(PressStyle()).help("See the plans").linkCursor()
-                }
+                if !DesktopModel.licensed { PlanLines(m: m) }       // Basic / Preview: two quiet lines, not a banner
                 if let u = m.update {
                     Button { NSWorkspace.shared.open(u.url) } label: {
                         HStack(spacing: 7) { Image(systemName: "arrow.down.circle.fill").font(.system(size: 15)); Text("Update available").font(Site.font(15, .medium)) }
@@ -1441,14 +1458,6 @@ struct SessionDetail: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline) {
                         Text("Apps in Session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)   // the menu's own headings
-                        Spacer(minLength: 12)
-                        if !DesktopModel.licensed {                       // Free: sessions left this week, and when it resets
-                            let w = DesktopModel.week(f.sessions, now: Date())
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(w.left) \(w.left == 1 ? "Session" : "Sessions") remaining this week").font(Site.font(16, .medium)).foregroundColor(Site.head)
-                                Text("Resets 00:00 on \(w.resetDay)").font(Site.font(14)).foregroundColor(Site.muted)
-                            }
-                        }
                     }
                     PanelRule()
                     Text(f.focused ? "These apps are in your session. Click one to take it out."
@@ -1478,7 +1487,7 @@ struct SessionDetail: View {
                     }
                     SiteButton("Add or remove…") { f.showNever() }.padding(.top, 8)
                     // Modes follow on, as in the menu. Click one to start it; the sidebar's Modes open each in detail.
-                    SectionLabel("Modes — frequently used sessions").padding(.horizontal, -14).padding(.top, 8)
+                    SectionLabel("Modes — frequently used sessions", pro: true).padding(.horizontal, -14).padding(.top, 8)
                     Note("A mode is a set of apps you keep open. Start one with its button or its key; click its name to edit it.")
                     if DesktopModel.gated { LockedPanel(m: m, text: "Modes are part of Pro: a set of apps you start with one key.") }
                     VStack(spacing: 2) {
@@ -1507,34 +1516,35 @@ struct ModeDetail: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline, spacing: 14) {
-                        TextField("Mode name", text: $name, onCommit: { m.act { f.renameMode(mode.id, to: name.trimmingCharacters(in: .whitespacesAndNewlines)) } })
+                        TextField("Mode name", text: $name, onCommit: { m.pro { f.renameMode(mode.id, to: name.trimmingCharacters(in: .whitespacesAndNewlines)) } })
                             .textFieldStyle(.plain).font(Site.font(26, .medium)).foregroundColor(Site.head)
                         Menu {
-                            Button("None") { m.act { f.setModeKey(mode.id, nil) } }
-                            ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], id: \.self) { d in Button(f.label(forMode: d)) { m.act { f.setModeKey(mode.id, d) } } }
+                            Button("None") { m.pro { f.setModeKey(mode.id, nil) } }
+                            ForEach([1, 2, 3, 4, 5, 6, 7, 8, 9, 0], id: \.self) { d in Button(f.label(forMode: d)) { m.pro { f.setModeKey(mode.id, d) } } }
                         } label: { Text(mode.key.isEmpty ? "No shortcut" : mode.key).font(Site.font(15, .medium)) }
                         .menuStyle(.borderlessButton).fixedSize()
                         if !mode.live {
-                            SiteButton(mode.apps.isEmpty ? "Add an app to start" : "Start this session") { if !mode.apps.isEmpty { m.act { f.startOrSwitch(mode.id) } } }
+                            SiteButton(mode.apps.isEmpty ? "Add an app to start" : "Start this session") { if !mode.apps.isEmpty { m.pro { f.startOrSwitch(mode.id) } } }
                         }
                     }
                     PanelRule()
+                    if DesktopModel.gated { LockedPanel(m: m, text: "Modes are part of Pro: a set of apps you start with one key.") }
                     Text("A mode is a set of apps you keep open. Starting it closes everything else until the session ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).padding(.top, 3).fixedSize(horizontal: false, vertical: true)
                     SectionLabel("Keeps open", divider: false).padding(.horizontal, -14)
                     ForEach(inMode) { app in
-                        AppRowView(app: app, icon: m.icon(app.path), mark: "checkmark.circle.fill") { m.act { f.removeApp(app.id, fromMode: mode.id) } }.padding(.horizontal, -14)
+                        AppRowView(app: app, icon: m.icon(app.path), mark: "checkmark.circle.fill") { m.pro { f.removeApp(app.id, fromMode: mode.id) } }.padding(.horizontal, -14)
                     }
                     if inMode.isEmpty { Text("No apps yet. Add one below.").font(Site.font(16)).foregroundColor(Site.muted).padding(.vertical, 8) }
                     if !others.isEmpty {
                         SectionLabel("Open now — click to add").padding(.horizontal, -14)
                         ForEach(others) { app in
-                            AppRowView(app: app, icon: m.icon(app.path), mark: "circle") { m.act { _ = f.addApp(app.id, toMode: mode.id) } }.padding(.horizontal, -14)
+                            AppRowView(app: app, icon: m.icon(app.path), mark: "circle") { m.pro { _ = f.addApp(app.id, toMode: mode.id) } }.padding(.horizontal, -14)
                         }
                     }
                     HStack(spacing: 10) {
-                        SiteButton("Add App…") { let s = NSMenuItem(); s.representedObject = mode.id; f.addAppToMode(s); m.refresh() }
-                        SiteButton("Delete Mode", tint: Site.hazard) { m.act { f.removeMode(mode.id); m.selection = nil } }
+                        SiteButton("Add App…") { m.pro { let s = NSMenuItem(); s.representedObject = mode.id; f.addAppToMode(s); m.refresh() } }
+                        SiteButton("Delete Mode", tint: Site.hazard) { m.pro { f.removeMode(mode.id); m.selection = nil } }
                     }.padding(.top, 10)
                 }
                 .padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
@@ -1666,11 +1676,12 @@ struct GroupTitle: View {
 
 struct SettingLine<Control: View>: View {
     let title: String, note: String
+    var pro = false                                              // a Pro setting: the quiet tag after its title
     @ViewBuilder var control: Control
     var body: some View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(Site.font(18, .medium)).foregroundColor(Site.head)
+                HStack(spacing: 8) { Text(title).font(Site.font(18, .medium)).foregroundColor(Site.head); if pro { ProTag() } }
                 if !note.isEmpty { Text(note).font(Site.font(15)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true) }
             }
             Spacer(minLength: 12)
@@ -2108,20 +2119,20 @@ struct SettingsPage: View {
             SettingLine(title: "Menu headings", note: "How much the menu's headings explain.") {
                 Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
             }
-            SettingLine(title: "Width", note: "Default leaves space either side of the page. Wide fills the window. Minimal makes the window itself smaller.") {
-                Choice(options: ["Default", "Wide", "Minimal"], selected: DesktopView.trial.rawValue) { i in desktop.setWidth(i) }
+            SettingLine(title: "Width", note: "Default leaves space either side of the page. Wide fills the window. Minimal makes the window itself smaller.", pro: true) {
+                Choice(options: ["Default", "Wide", "Minimal"], selected: DesktopView.trial.rawValue) { i in m.pro { desktop.setWidth(i) } }
             }
             SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
                 TextSizeStepper()
             }
-            SectionLabel("Menu bar icon — hover to see it enter a session").padding(.horizontal, -14).padding(.top, 10)
+            SectionLabel("Menu bar icon — hover to see it enter a session", pro: true).padding(.horizontal, -14).padding(.top, 10)
             let ring = hexColor(f.iconColor) ?? .white, dot = hexColor(f.iconColor2) ?? ring
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), alignment: .leading, spacing: 8) {
                 ForEach(IconStyle.allCases, id: \.rawValue) { st in
-                    IconCell(style: st, selected: f.iconStyleSetting == st, ring: ring, dot: dot) { m.act { f.iconStyleSetting = st } }
+                    IconCell(style: st, selected: f.iconStyleSetting == st, ring: ring, dot: dot) { m.pro { f.iconStyleSetting = st } }
                 }
             }
-            SectionLabel("Icon colour").padding(.horizontal, -14).padding(.top, 10)
+            SectionLabel("Icon colour", pro: true).padding(.horizontal, -14).padding(.top, 10)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), alignment: .leading, spacing: 8) {
                 let all = [("White", "", "")] + theme.iconPresets + theme.evaPresets
                 ForEach(all, id: \.0) { name, a, b in
@@ -2131,9 +2142,9 @@ struct SettingsPage: View {
 
                 }
             }
-            SettingLine(title: "Text colour", note: "The big button's text, to go with its colour.") {
+            SettingLine(title: "Text colour", note: "The big button's text, to go with its colour.", pro: true) {
                 Choice(options: ["White", "Black"], selected: DesktopView.buttonInkWhite ? 0 : 1) { i in
-                    m.act { UserDefaults.standard.set(i == 0, forKey: "desktopButtonInkWhite") }
+                    m.pro { UserDefaults.standard.set(i == 0, forKey: "desktopButtonInkWhite") }
                 }
             }.padding(.top, 14)
         }
@@ -2711,6 +2722,15 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     pm.selection = nil; let cleared = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!)).selection
     check(24, "the window remembers its page", back == Page.tools && cleared == nil, "reopens on \(back ?? "the Session Editor"); back to the Session Editor: \(cleared == nil)")
     UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+
+    // 25. Viewing as Basic really locks Pro: a Pro action opens Upgrade instead of happening; as Pro it happens.
+    let gm = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!))
+    std.set("free", forKey: "desktopViewAs"); var didBasic = false; gm.pro { didBasic = true }; let askedBasic = gm.upgradeShown
+    gm.upgradeShown = false
+    std.set("pro", forKey: "desktopViewAs"); var didPro = false; gm.pro { didPro = true }; let askedPro = gm.upgradeShown
+    std.removeObject(forKey: "desktopViewAs"); UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+    check(25, "Basic really locks Pro", !didBasic && askedBasic && didPro && !askedPro,
+          "as Basic: done \(didBasic), Upgrade opened \(askedBasic); as Pro: done \(didPro), Upgrade opened \(askedPro)")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)
