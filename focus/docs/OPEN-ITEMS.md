@@ -207,3 +207,6 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - **Free weekly reset token:** first-time user who runs out gets one free reset, a pop-up ("we know you wanted to play
   around") and 10 tokens animating into the count. Awaiting his go after my answer.
 - **Sessions per week for Basic:** recommended staying at 10 (see the reply of 2026-11-16).
+
+- **Window sessions (Pro):** plan at https://claude.ai/artifact/S3zHYR8cSf7T5sxQ3HucEd. Awaiting his 3 calls (close vs
+  minimise default; named windows for modes; browsers first).

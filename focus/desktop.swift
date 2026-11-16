@@ -670,7 +670,7 @@ struct SessionButton: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(LinearGradient(colors: [tint, tint2], startPoint: .leading, endPoint: .trailing)).opacity(hover ? 0.92 : 1)
                     .overlay(Group {
-                        if let s = pressStart { PressureDots(ink: ink, titleWidth: titleWidth, start: s, end: pressEnd, release: pressRelease) }
+                        if starting, let s = pressStart { PressureDots(ink: ink, titleWidth: titleWidth, start: s, end: pressEnd, release: pressRelease) }   // pressure only to start; in a session only the working mark moves
                     }.clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous)))
             )
             .overlay(

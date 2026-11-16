@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.88 — 2026-11-16
+
+- **In a session the button doesn't react to hover:** the pressure squares build only to start a session. While one runs,
+  the turning working mark is the only motion, so the button reads as "working".
+
 ## 0.18.87 — 2026-11-16
 
 - **Early-adopter welcome:** a new copy's first open shows "Thank you!", then 10 session tokens flying into the ring,
