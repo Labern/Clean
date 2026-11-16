@@ -1371,6 +1371,10 @@ struct ViewAsPanel: View {
                     devButton("Welcome") { m.devWelcome() }
                 }
                 devButton("Restore sessions and tokens") { m.devRestore() }
+                HStack(spacing: 6) {                                         // the session sounds, without a session
+                    devButton("Hear start") { Chime.play(start: true, force: true) }
+                    devButton("Hear end") { Chime.play(start: false, force: true) }
+                }
             }
         }
         .padding(12)
@@ -2560,23 +2564,12 @@ struct AppearancePage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
         let f = m.f
-        PageFrame(title: "Appearance", text: "Colours and icons: this window, the menu, the menu bar icon and its colours.") {
+        PageFrame(title: "Appearance", text: "Light or dark, your colours, then how the menu looks.") {
             SettingLine(title: "This window", note: "Dark is the standard look. System follows your Mac.") {
                 Choice(options: ["Light", "Dark", "System"], selected: Site.look) { i in desktop.setLook(i) }
             }
-            SettingLine(title: "Menu", note: "The look of the menu bar menu.") {
-                Choice(options: ["Dark", "Light"], selected: f.lightMenuSetting ? 1 : 0) { i in m.act { f.lightMenuSetting = i == 1 } }
-            }
             if DesktopModel.gated { LockedPanel(m: m, text: "Unlock every icon style and colour by upgrading to Pro.") }
-            SectionLabel("Menu bar icon — hover to see it enter a session", pro: true).padding(.horizontal, -14).padding(.top, 10)
-            let ring = hexColor(f.iconColor) ?? (Site.light ? .black : .white), dot = hexColor(f.iconColor2) ?? ring   // previews read in Light too
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), alignment: .leading, spacing: 8) {
-                ForEach(IconStyle.allCases, id: \.rawValue) { st in
-                    IconCell(style: st, selected: f.iconStyleSetting == st, ring: ring, dot: dot) { m.pro { f.iconStyleSetting = st } }
-                        .opacity(DesktopModel.gated && f.iconStyleSetting != st ? 0.3 : 1).allowsHitTesting(!DesktopModel.gated)
-                }
-            }
-            SectionLabel("Icon colour", pro: true).padding(.horizontal, -14).padding(.top, 10)
+            SectionLabel("Colours", pro: true).padding(.horizontal, -14).padding(.top, 10)
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), alignment: .leading, spacing: 8) {
                 let all = [(Site.light ? "Black" : "White", "", "")] + theme.iconPresets + theme.evaPresets   // the look's own ink, named as seen
                 ForEach(all, id: \.0) { name, a, b in
@@ -2586,7 +2579,7 @@ struct AppearancePage: View {
                         .opacity(locked ? 0.3 : 1).allowsHitTesting(!locked)
                 }
             }
-            SettingLine(title: "Custom colours", note: "Any colour you like, for the icon and the button. Tick Two colours to add a second for the dot and the button's other end.", pro: true) {
+            SettingLine(title: "Custom colours", note: "Any colour you like, for this window's button and the menu bar icon. Tick Two colours to add a second for the dot and the button's other end.", pro: true) {
                 CustomColours(m: m)
             }.padding(.top, 6)
             let btn = (hexColor(f.iconColor), hexColor(f.iconColor2) ?? hexColor(f.iconColor))
@@ -2599,6 +2592,18 @@ struct AppearancePage: View {
                     m.act { UserDefaults.standard.set(i == 0, forKey: "desktopButtonInkWhite") }
                 }
             }.padding(.top, 14)
+            GroupTitle("Menu")                                          // set mostly from the menu itself, so it comes last here
+            SettingLine(title: "Look", note: "The menu bar menu: dark or light.") {
+                Choice(options: ["Dark", "Light"], selected: f.lightMenuSetting ? 1 : 0) { i in m.act { f.lightMenuSetting = i == 1 } }
+            }
+            SectionLabel("Menu bar icon — hover to see it enter a session", pro: true).padding(.horizontal, -14).padding(.top, 10)
+            let ring = hexColor(f.iconColor) ?? (Site.light ? .black : .white), dot = hexColor(f.iconColor2) ?? ring   // previews read in Light too
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), alignment: .leading, spacing: 8) {
+                ForEach(IconStyle.allCases, id: \.rawValue) { st in
+                    IconCell(style: st, selected: f.iconStyleSetting == st, ring: ring, dot: dot) { m.pro { f.iconStyleSetting = st } }
+                        .opacity(DesktopModel.gated && f.iconStyleSetting != st ? 0.3 : 1).allowsHitTesting(!DesktopModel.gated)
+                }
+            }
         }
     }
 }
@@ -3560,24 +3565,33 @@ enum Chime {
     /// Settings ▸ Sound. On unless turned off.
     static var on: Bool { UserDefaults.standard.object(forKey: "focusSound") as? Bool ?? true }
     private static var testing: Bool { CommandLine.arguments.contains { $0.hasPrefix("--selftest") || $0.hasPrefix("--render") } }
-    private static let startSound = NSSound(data: wav(notes: [(659.25, 0.075), (987.77, 0.16)]))   // E5 → B5: up, in
-    private static let endSound = NSSound(data: wav(notes: [(987.77, 0.075), (659.25, 0.16)]))     // B5 → E5: down, out
-    static func play(start: Bool) {
-        guard on, !testing, let s = start ? startSound : endSound else { return }
-        s.stop(); s.volume = 0.35; s.play()
+    private static let startSound = NSSound(data: wav(pull(into: true)))
+    private static let endSound = NSSound(data: wav(pull(into: false)))
+    static func play(start: Bool, force: Bool = false) {
+        guard (on || force), !testing, let s = start ? startSound : endSound else { return }
+        s.stop(); s.volume = 0.4; s.play()
     }
-    /// Soft sine notes (a touch of the octave above for warmth), each with a 4 ms attack and a quick exponential fade.
-    static func wav(notes: [(Double, Double)], rate: Double = 44_100) -> Data {
-        var samples = [Int16]()
-        for (hz, len) in notes {
-            let n = Int(len * rate)
-            for i in 0..<n {
-                let t = Double(i) / rate
-                let env = min(1, t / 0.004) * exp(-t * 18)
-                let v = (sin(2 * .pi * hz * t) + 0.18 * sin(4 * .pi * hz * t)) * env * 0.5
-                samples.append(Int16(max(-1, min(1, v)) * 32_000))
-            }
+    /// A focus pull. In: a soft shutter tick, then two voices a little out of tune (they beat: a blur) slide together
+    /// into one clean note (in focus). Out: the clean note drifts apart into the beat and fades (the blur returning).
+    static func pull(into: Bool, rate: Double = 44_100) -> [Double] {
+        let len = into ? 0.36 : 0.40, n = Int(len * rate), base = 587.33           // D5
+        var out = [Double](repeating: 0, count: n), ph1 = 0.0, ph2 = 0.0
+        for i in 0..<n {
+            let t = Double(i) / rate
+            let k = min(1, t / (into ? 0.22 : 0.28)), ease = 1 - pow(1 - k, 3)        // ease-out
+            let detune = into ? 14 * (1 - ease) : 14 * ease                           // Hz apart: blur ↔ focus
+            let glide = into ? base * (0.94 + 0.06 * ease) : base * (1 - 0.05 * ease) // a small rise in, a small fall out
+            ph1 += 2 * .pi * glide / rate; ph2 += 2 * .pi * (glide + detune) / rate
+            let env = min(1, t / 0.008) * exp(-t * (into ? 6.5 : 7.5))
+            var v = (sin(ph1) + sin(ph2)) * 0.5 * env
+            v += 0.12 * sin(2 * ph1) * env                                            // a little body
+            if into { v += 0.35 * sin(2 * .pi * 2_600 * t) * exp(-t * 520) }          // the shutter tick
+            out[i] = v * 0.55
         }
+        return out
+    }
+    static func wav(_ x: [Double], rate: Double = 44_100) -> Data {
+        let samples = x.map { Int16(max(-1, min(1, $0)) * 32_000) }
         var d = Data()
         func u32(_ v: UInt32) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 4)) }
         func u16(_ v: UInt16) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 2)) }

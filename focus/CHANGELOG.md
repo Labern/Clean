@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.95 — 2026-11-16
+
+- **Appearance, reordered:** Light / Dark / System first; then Colours (presets, Custom colours, Text colour); then the
+  Menu at the bottom (its Look, and the menu bar icon), since the menu is mostly set from the menu.
+- **New session sounds: a focus pull.** In: a soft shutter tick, then two slightly detuned voices (a blur) slide into one
+  clean note. Out: the note drifts apart into the blur and fades. Developer Panel: Hear start / Hear end.
+
 ## 0.18.94 — 2026-11-16
 
 - **Schedule (Pro)**, in the sidebar above Tools, in two halves:
