@@ -174,6 +174,10 @@ user did *not* want as the headline metric).
   which conflicts with the `@main` attribute used here.
 
 ## Do NOT
+- NEVER design a new logo or alter the existing one without explicit permission.
+  The logo is ★★★★★ × PARADOX — source: `paradoxica/site/logo.svg` (branch
+  `claude/fervent-cori-1i6bo1`; copy in `paradokkusu/design/workspace-logo/logo-original.svg`).
+  When asked for "the logo", export THAT file, untouched.
 - Don't introduce a framework/bundler for what is currently a one-page demo.
 - Don't delete `file` or `index.html` without checking with the user first —
   this directory's contents were built interactively and may still be in use.
