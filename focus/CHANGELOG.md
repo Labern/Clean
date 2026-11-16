@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.92 — 2026-11-16
+
+- **Appearance has its own page** in the sidebar, under Settings (this window, the menu, headings, memory bar, width,
+  text size, the menu bar icon, colours).
+- **Custom colours:** Primary is the one colour by default (outlined as selected); a "Two colours" checkbox to its right
+  adds Secondary. Unticking it goes back to one colour.
+
 ## 0.18.91 — 2026-11-16
 
 - **Tools ▸ Apps Using the Most Memory** (beneath every other tool): every open app using 1 GB or more, heaviest first,

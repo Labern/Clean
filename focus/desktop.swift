@@ -1626,6 +1626,7 @@ struct DesktopView: View {
                     if m.selection == Page.shortcuts { ShortcutsPage(m: m) }
                     else if m.selection == Page.tools { ToolsPage(m: m) }
                     else if m.selection == Page.settings { SettingsPage(m: m) }
+                    else if m.selection == Page.appearance { AppearancePage(m: m) }
                     else if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) }
                     else if m.selection == Page.history { HistoryPage(m: m) }
                     else if m.selection == Page.manual { ManualPage() }
@@ -1693,6 +1694,7 @@ struct DesktopView: View {
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver", action: { m.selection = Page.tools }, pro: true)
                 SideRow(title: "History", trailing: "", live: false, selected: m.selection == Page.history, icons: [], symbol: "clock.arrow.circlepath", action: { m.selection = Page.history }, pro: true)
                 SideRow(title: "Settings", trailing: "", live: false, selected: m.selection == Page.settings, icons: [], symbol: "gearshape") { m.selection = Page.settings }
+                SideRow(title: "Appearance", trailing: "", live: false, selected: m.selection == Page.appearance, icons: [], symbol: "paintpalette") { m.selection = Page.appearance }
             }.padding(.horizontal, 10)
             Button { withAnimation(.easeOut(duration: 0.15)) { m.modesShown.toggle() } } label: {
                 HStack(spacing: 5) {
@@ -1868,7 +1870,7 @@ struct ModeDetail: View {
 // MARK: the other pages — the same settings the menu has, read from and written to the same place
 
 /// Sidebar pages that aren't a mode (a mode's id is a UUID, so these can't collide).
-enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history", manual = "§manual", upgrade = "§upgrade" }
+enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history", manual = "§manual", upgrade = "§upgrade", appearance = "§appearance" }
 
 struct PageFrame<Content: View>: View {
     let title: String, text: String
@@ -1983,9 +1985,40 @@ struct AnyColourTile: View {
     }
 }
 
+/// Appearance ▸ Custom colours: Primary always; Two colours (a checkbox, to the right) adds Secondary. Off = one colour.
+struct CustomColours: View {
+    @ObservedObject var m: DesktopModel
+    @State private var two = false
+    var body: some View {
+        let f = m.f
+        HStack(spacing: 8) {
+            ColourWell(title: "Primary", colour: hexColor(f.iconColor), selected: true) { c in
+                m.act { f.iconColor = hexString(c); if !two { f.iconColor2 = "" }; DesktopView.keepInkReadable(f) }
+            }
+            if two {
+                ColourWell(title: "Secondary", colour: hexColor(f.iconColor2) ?? hexColor(f.iconColor)) { c in
+                    m.act { if f.iconColor.isEmpty { f.iconColor = hexString(c) }; f.iconColor2 = hexString(c); DesktopView.keepInkReadable(f) }
+                }.transition(.opacity.combined(with: .scale(scale: 0.9)))
+            }
+            Button {
+                withAnimation(.easeOut(duration: 0.15)) { two.toggle() }
+                if !two { m.act { f.iconColor2 = ""; DesktopView.keepInkReadable(f) } }          // back to one colour
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: two ? "checkmark.square.fill" : "square").font(.system(size: 16)).foregroundColor(Site.head)
+                    Text("Two colours").font(Site.font(15)).foregroundColor(Site.head)
+                }.padding(.leading, 6).frame(height: 36).contentShape(Rectangle())
+            }.buttonStyle(.plain).linkCursor()
+        }
+        .onAppear { two = !f.iconColor2.isEmpty && f.iconColor2 != f.iconColor }
+    }
+}
+
 /// One custom colour: its swatch and its name; a click opens the Mac's colour panel on it.
 struct ColourWell: View {
-    let title: String, colour: NSColor?, change: (NSColor) -> Void
+    let title: String, colour: NSColor?
+    var selected = false                                            // the colour being set (Primary, by default)
+    let change: (NSColor) -> Void
     @State private var hover = false
     var body: some View {
         Button { ColourPanel.shared.open(start: colour, change) } label: {
@@ -1996,6 +2029,7 @@ struct ColourWell: View {
             }
             .padding(.horizontal, 12).frame(height: 36)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(hover ? Site.surface2 : Site.surface))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Site.ink.opacity(selected ? 0.9 : 0), lineWidth: 1.5))
             .contentShape(Rectangle())
         }.buttonStyle(PressStyle()).onHover { hover = $0 }.linkCursor().help("Choose the \(title.lowercased()) colour")
     }
@@ -2496,7 +2530,15 @@ struct SettingsPage: View {
                     if (SMAppService.mainApp.status == .enabled) != (i == 1) { m.act { f.login() } }
                 }
             }
-            GroupTitle("Appearance")
+        }
+    }
+}
+
+struct AppearancePage: View {
+    @ObservedObject var m: DesktopModel
+    var body: some View {
+        let f = m.f
+        PageFrame(title: "Appearance", text: "How Focus looks: this window, the menu, the menu bar icon and its colours.") {
             SettingLine(title: "This window", note: "Dark is the standard look. System follows your Mac.") {
                 Choice(options: ["Light", "Dark", "System"], selected: Site.look) { i in desktop.setLook(i) }
             }
@@ -2534,11 +2576,8 @@ struct SettingsPage: View {
                         .opacity(locked ? 0.3 : 1).allowsHitTesting(!locked)
                 }
             }
-            SettingLine(title: "Custom colours", note: "Any colour you like. Primary colours the icon's ring and the button; secondary colours the dot and the button's other end.", pro: true) {
-                HStack(spacing: 8) {
-                    ColourWell(title: "Primary", colour: hexColor(f.iconColor)) { c in m.act { f.iconColor = hexString(c); DesktopView.keepInkReadable(f) } }
-                    ColourWell(title: "Secondary", colour: hexColor(f.iconColor2) ?? hexColor(f.iconColor)) { c in m.act { if f.iconColor.isEmpty { f.iconColor = hexString(c) }; f.iconColor2 = hexString(c); DesktopView.keepInkReadable(f) } }
-                }
+            SettingLine(title: "Custom colours", note: "Any colour you like, for the icon and the button. Tick Two colours to add a second for the dot and the button's other end.", pro: true) {
+                CustomColours(m: m)
             }.padding(.top, 6)
             let btn = (hexColor(f.iconColor), hexColor(f.iconColor2) ?? hexColor(f.iconColor))
             let unreadable: Set<Int> = btn.0.map { a in
@@ -2782,7 +2821,7 @@ func renderDesktop(to file: String, mode: Bool) {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
         f.store.set(true, forKey: "focused")
     }
-    for p in [Page.settings, Page.shortcuts, Page.tools, Page.history, Page.manual] where renderArgs.contains(String(p.dropFirst())) { m.selection = p }
+    for p in [Page.settings, Page.appearance, Page.shortcuts, Page.tools, Page.history, Page.manual] where renderArgs.contains(String(p.dropFirst())) { m.selection = p }
     if !renderArgs.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
     if renderArgs.contains("hover") { SessionButton.still = (true, 0, false) }
     if let a = renderArgs.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {
@@ -2988,7 +3027,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
 
     // 12. Every page draws, at the smallest window and in each width, without coming out blank.
     var blank = [String]()
-    for page in ["", "live", "mode", "settings", "shortcuts", "tools", "history", "manual", "feedback"] {
+    for page in ["", "live", "mode", "settings", "appearance", "shortcuts", "tools", "history", "manual", "feedback"] {
         for opts in [["w=600", "h=420", "trial=minimal"], ["trial=narrow"], ["trial=wide"]] { for look in ["dark", "light"] {
             guard let r = guiRender((page.isEmpty ? [] : [page]) + opts + ["look=\(look)"]) else { blank.append("\(page.isEmpty ? "session" : page)/\(opts.last!)/\(look)"); continue }
             let s = CGFloat(r.pixelsWide) / CGFloat(max(1, r.size.width))
@@ -2996,7 +3035,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
             if lit < 3 { blank.append("\(page.isEmpty ? "session" : page)/\(opts.last!)/\(look)") }
         } }
     }
-    check(12, "every page draws in every width", blank.isEmpty, blank.isEmpty ? "9 pages × 3 widths × Light and Dark" : "blank: \(blank.joined(separator: ", "))")
+    check(12, "every page draws in every width", blank.isEmpty, blank.isEmpty ? "10 pages × 3 widths × Light and Dark" : "blank: \(blank.joined(separator: ", "))")
 
     // 13. The session button changes clearly: in a session a mark sits before "End Session" (ink, then a clear gap,
     //     then the title); out of one the title starts straight away.
@@ -3026,7 +3065,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     // 14. Light and Dark: every page draws on its own ground — white in Light, black in Dark — with readable ink on it.
     var wrong = [String]()
     for look in ["light", "dark"] {
-        for page in ["", "live", "settings", "tools", "manual"] {          // (Feedback shades the page on purpose)
+        for page in ["", "live", "settings", "appearance", "tools", "manual"] {          // (Feedback shades the page on purpose)
             guard let r = guiRender((page.isEmpty ? [] : [page]) + ["look=\(look)", "trial=narrow"]) else { wrong.append("\(look)/\(page)"); continue }
             let s = CGFloat(r.pixelsWide) / 1000
             let ground = lum(r, Int(990 * s), Int(720 * s))                      // the bottom-right corner is bare ground
@@ -3034,7 +3073,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
             if (look == "light" ? ground < 0.95 : ground > 0.05) || !inked { wrong.append("\(look)/\(page.isEmpty ? "session" : page)") }
         }
     }
-    check(14, "Light and Dark draw correctly", wrong.isEmpty, wrong.isEmpty ? "5 pages × 2 looks: right ground, readable title" : "wrong: \(wrong.joined(separator: ", "))")
+    check(14, "Light and Dark draw correctly", wrong.isEmpty, wrong.isEmpty ? "6 pages × 2 looks: right ground, readable title" : "wrong: \(wrong.joined(separator: ", "))")
 
     // 15. Free's weekly sessions: counted since Monday 00:00 (Quit All clean-ups don't count), resetting next Monday.
     var cal = Calendar(identifier: .gregorian); cal.timeZone = TimeZone(identifier: "Europe/London")!
