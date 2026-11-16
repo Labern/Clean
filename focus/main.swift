@@ -2272,8 +2272,12 @@ final class Focus: NSObject, NSMenuDelegate {
         never.reload()
         if neverWindow == nil {
             let w = NSWindow(contentViewController: NSHostingController(rootView: NeverView(m: never)))
-            w.title = "Critical System Processes"; w.styleMask = [.titled, .closable]; w.isReleasedWhenClosed = false; w.center()
+            w.title = "Critical System Processes"; w.styleMask = [.titled, .closable, .fullSizeContentView]; w.isReleasedWhenClosed = false
+            w.titlebarAppearsTransparent = true; w.titleVisibility = .hidden; w.isMovableByWindowBackground = true; w.center()
             neverWindow = w
+        }
+        if let w = neverWindow {                                      // the window's own look, every time it opens
+            w.appearance = NSAppearance(named: Site.light ? .aqua : .darkAqua); w.backgroundColor = NSColor(Site.bg)
         }
         NSApp.activate(ignoringOtherApps: true); neverWindow?.makeKeyAndOrderFront(nil); neverWindow?.orderFrontRegardless()
     }
@@ -2856,34 +2860,49 @@ final class NeverModel: ObservableObject {
 
 struct NeverView: View {
     @ObservedObject var m: NeverModel
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Critical System Processes").font(.system(size: 20, weight: .semibold))
-                Text("Focus never quits or hides the apps switched on here — the ones that must always run. macOS's own apps, menu bar–only apps and Focus itself are always safe.")
-                    .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            List(m.entries) { e in
-                HStack(spacing: 10) {
-                    Image(nsImage: e.icon).resizable().frame(width: 22, height: 22)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(e.name)
-                        if !e.running { Text("Not open").font(.caption).foregroundStyle(.secondary) }
-                    }
-                    Spacer()
-                    Toggle("", isOn: Binding(get: { m.on.contains(e.id) }, set: { m.set(e.id, $0) })).toggleStyle(.switch).labelsHidden()
-                }
-                .padding(.vertical, 3)
-            }
-            .listStyle(.inset(alternatesRowBackgrounds: false))
+    var body: some View {                                          // the app's own look: Graphik, the heading rule, its rows and buttons
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Critical System Processes").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
+            PanelRule()
+            Text("Focus never quits or hides the apps marked here: the ones that must always run. macOS's own apps, menu bar apps and Focus itself are always safe.")
+                .font(Site.font(15)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 2) {
+                    ForEach(m.entries) { e in NeverRow(e: e, on: m.on.contains(e.id)) { m.set(e.id, !m.on.contains(e.id)) } }
+                }.padding(.horizontal, -12)
+            }.padding(.top, 12)
             HStack {
-                Button("Add App…") { m.add() }
+                SiteButton("Add App…") { m.add() }
                 Spacer()
-                Button("Done") { NSApp.keyWindow?.close() }.keyboardShortcut(.defaultAction)
-            }
+                Button { NSApp.keyWindow?.close() } label: {
+                    Text("Done").font(Site.font(16, .medium)).foregroundColor(Site.paper).frame(width: 110, height: 38)
+                        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Site.ink)).contentShape(Rectangle())
+                }.buttonStyle(PressStyle()).keyboardShortcut(.defaultAction).linkCursor()
+            }.padding(.top, 14)
         }
-        .padding(20)
-        .frame(width: 440, height: 560)
+        .padding(.horizontal, 28).padding(.top, 34).padding(.bottom, 24)
+        .frame(width: 520, height: 620)
+        .background(Site.bg)
+    }
+}
+/// One app in Critical System Processes: as the Session Editor draws it, a lock when it's never quit.
+struct NeverRow: View {
+    let e: NeverModel.Entry, on: Bool, toggle: () -> Void
+    @State private var hover = false
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: e.icon).resizable().frame(width: 24, height: 24)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(e.name).font(Site.font(17, on ? .medium : .regular)).foregroundColor(on || hover ? Site.head : Site.low)
+                if !e.running { Text("Not open").font(Site.font(13)).foregroundColor(Site.muted) }
+            }
+            Spacer()
+            Image(systemName: on ? "lock.circle.fill" : "circle").font(.system(size: 19)).foregroundColor(on ? Site.head : Site.muted)
+        }
+        .padding(.horizontal, 12).frame(minHeight: 40)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hover ? Site.surface : Color.clear))
+        .contentShape(Rectangle()).onHover { hover = $0 }.onTapGesture(perform: toggle)
+        .help(on ? "Focus never quits this. Click to let sessions close it." : "Click so Focus never quits or hides it")
     }
 }
 

@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.85 — 2026-11-16
+
+- **Type to add an app** sits after the app list, not at the top.
+- **Critical System Processes** window rebuilt in the app's own look (Graphik, the heading rule, the Session Editor's
+  rows and lock marks, the app's buttons; Light and Dark), in place of the plain system list and switches.
+
 ## 0.18.84 — 2026-11-16
 
 - **Out of sessions:** on Basic, starting a session with none left (button, ⌘⇧F, a mode key) opens the plans headed

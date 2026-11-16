@@ -50,6 +50,8 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
   - **No shadows.**
   - Every preview and swatch must read on a light ground ("white on grey" was a bug).
 - **No unreadable pairings, ever:** no white on white, no black on black. Enforce it in code (pick the readable text colour automatically) and in a test, for every colour offered.
+- **Every window matches the app** (2026-11-16): no stock system windows, lists or switches beside the custom UI.
+- **Adding comes after the list,** not above it.
 - **Headings:** large, white, with a white line under.
 - **Links always show the hand cursor.** Hover feedback on every unselected button.
 - **Align to the content's own geometry** (the page, the column), not the window.

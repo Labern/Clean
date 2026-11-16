@@ -1556,7 +1556,6 @@ struct SessionDetail: View {
                                    : "Tick the apps you want in the session. Everything else closes when the session starts and comes back when it ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
                     if !f.focused { MemoryBar(apps: m.running).padding(.top, 12) }      // the memory to be saved is shown before a session, never during one
-                    AppFinder(m: m).padding(.top, 14)
                     SectionLabel("", "Usage", divider: false).padding(.horizontal, -14).padding(.top, f.focused ? 0 : 8)
                     ForEach(m.running) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
@@ -1565,6 +1564,7 @@ struct SessionDetail: View {
                             .onDrag { m.dragging = app.id; m.draggingMode = nil; return NSItemProvider(object: app.id as NSString) }
                             .onDrop(of: [UTType.text], delegate: RowDrop(id: app.id, m: m))
                     }
+                    AppFinder(m: m).padding(.top, 10)                           // adding comes after the list, like Add or remove… below
                     if !m.outside.isEmpty {
                         SectionLabel("Apps Outside Session").padding(.horizontal, -14)
                         Note("These apps are not in the session right now. Click one to add it to the session.")
@@ -2553,6 +2553,13 @@ func renderDesktop(to file: String, mode: Bool) {
                                        ?? (renderArgs.contains("tall") ? 1500 : 730))
     if DesktopView.trial == .minimal { size.width -= DesktopView.minimalCut }
     if let w = renderArgs.first(where: { $0.hasPrefix("w=") }).flatMap({ Double($0.dropFirst(2)) }) { size.width = CGFloat(w) }
+    if renderArgs.contains("never") {                              // Critical System Processes, on its own
+        let nm = NeverModel(f); nm.reload(); size = NSSize(width: 520, height: 620)
+        let h = NSHostingView(rootView: NeverView(m: nm)); let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
+        w.appearance = NSAppearance(named: Site.light ? .aqua : .darkAqua); w.contentView = h; h.frame = NSRect(origin: .zero, size: size); h.layoutSubtreeIfNeeded()
+        if let rep = h.bitmapImageRepForCachingDisplay(in: h.bounds) { h.cacheDisplay(in: h.bounds, to: rep); try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: file)) }
+        return
+    }
     let host = NSHostingView(rootView: DesktopView(m: m).frame(width: size.width, height: size.height))
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: Site.light ? .aqua : .darkAqua); w.contentView = host
