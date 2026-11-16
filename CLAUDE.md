@@ -175,10 +175,9 @@ user did *not* want as the headline metric).
 
 ## Do NOT
 - NEVER design a new logo or alter the existing one without explicit permission.
-  "The logo" = the ORIGINAL vertical stacked mark with ™: ★★★★★ / × / P-A-R-A-D-O-X
-  stacked / ™ — `vertical-paradox-stacked-tm` in `logo-experiments/logos.js` (vector,
-  from Labern's Trademarks.pdf p7). Copy: `paradokkusu/design/workspace-logo/
-  paradox-stacked-tm-original.svg`. Export THAT, untouched. Not the horizontal one.
+  Every real logo is in `logo-experiments/logos.js` (vector, from Labern's own
+  LOGO_VARIATIONS.pdf / Trademarks.pdf); numbered sheet: `paradokkusu/design/all-logos-on-file.png`.
+  Do NOT guess which one he means — show the sheet and get the number. Export untouched.
 - Don't introduce a framework/bundler for what is currently a one-page demo.
 - Don't delete `file` or `index.html` without checking with the user first —
   this directory's contents were built interactively and may still be in use.
