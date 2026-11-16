@@ -1,0 +1,51 @@
+name: paradoxica brand deploy
+
+# Uploads ONLY paradoxica/site/brand -> htdocs/brand on Fasthosts (paradoxica.uk/brand/).
+# Deliberately scoped: the rest of the live site is maintained from the Mac, and this
+# checkout's copy of it may be older — never mirror the whole site from here.
+# Needs repo secret FASTHOSTS_PASSWORD.
+on:
+  push:
+    paths:
+      - "paradoxica/site/brand/**"
+      - ".github/workflows/paradoxica-brand-deploy.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: paradoxica-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Stamp build
+        run: echo "${GITHUB_SHA::7}-${GITHUB_RUN_ID}" > paradoxica/site/brand/deploy.txt
+
+      - name: Upload brand/ over SFTP
+        env:
+          PASS: ${{ secrets.FASTHOSTS_PASSWORD }}
+        run: |
+          test -n "$PASS" || { echo "::error::repo secret FASTHOSTS_PASSWORD is not set"; exit 1; }
+          sudo apt-get -qq update && sudo apt-get -qq install -y lftp
+          lftp -u "csh3485222,$PASS" sftp://ssh.paradoxica.uk -e "
+            set sftp:auto-confirm yes;
+            set net:max-retries 3;
+            mkdir -p htdocs/brand;
+            mirror --reverse --verbose --no-perms paradoxica/site/brand htdocs/brand;
+            bye"
+
+      - name: Verify live
+        run: |
+          want="$(cat paradoxica/site/brand/deploy.txt)"
+          for i in 1 2 3 4 5 6; do
+            for scheme in https http; do
+              got="$(curl -fsS --max-time 15 "$scheme://paradoxica.uk/brand/deploy.txt?$i" || true)"
+              if [ "$got" = "$want" ]; then echo "live on $scheme://paradoxica.uk/brand/ ($want)"; exit 0; fi
+            done
+            sleep 10
+          done
+          echo "::error::uploaded, but paradoxica.uk/brand/deploy.txt does not show $want"
+          exit 1

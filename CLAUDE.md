@@ -19,6 +19,9 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
+PARADOXICA brand assets (every logo, preview + SVG/PNG download):
+- https://paradoxica.uk/brand/
+- Code: https://github.com/Labern/Clean/tree/claude/nifty-ptolemy-upcjhh/paradoxica/site/brand
 Add any new page to this list the moment it ships.
 
 ## Project
@@ -77,6 +80,12 @@ no build step, no dependencies.
 - `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
   live at `labern.github.io/Clean/ribbit/`. See `ribbit/CLAUDE.md`.
+
+- `paradoxica/site/brand/` — paradoxica.uk/brand/: every logo (from `logo-experiments/logos.js`)
+  as centred SVG + 4096px PNG in white/black ink, plus the 47 `/logos/` deck slides. Rebuild
+  assets with `node paradoxica/tools/build_brand.mjs`. Deployed ALONE by
+  `.github/workflows/paradoxica-brand-deploy.yml` (uploads only htdocs/brand — the rest of
+  the live site is maintained from the Mac; never mirror the whole site from the cloud).
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
