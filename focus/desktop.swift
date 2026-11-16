@@ -1082,12 +1082,11 @@ struct AppFinder: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .medium)).foregroundColor(Site.muted)
-                TextField("Type to add an app", text: $query).textFieldStyle(.plain).font(Site.font(17)).foregroundColor(Site.head)
+                TextField("Type to add an app", text: $query).textFieldStyle(.plain).font(Site.font(16)).foregroundColor(Site.head)
                     .focused($focused).onSubmit { if let h = hits.first { add(h) } }
                 if !query.isEmpty { Text("Return to add").font(Site.font(13)).foregroundColor(Site.muted) }
             }
-            .padding(.horizontal, 12).frame(height: 40)
-            .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Site.surface))
+            .padding(.horizontal, 12).frame(height: 38)
             .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).stroke(focused ? Site.ink.opacity(0.6) : Site.line, lineWidth: 1))
             ForEach(hits.prefix(5)) { h in
                 Button { add(h) } label: {
@@ -1125,7 +1124,7 @@ struct LockedPanel: View {
 /// Sits under the modes; collapses with its chevron; View ▸ Developer Panel shows or hides it altogether.
 struct ViewAsPanel: View {
     @ObservedObject var m: DesktopModel
-    @State private var open = UserDefaults.standard.object(forKey: "desktopViewAsOpen") as? Bool ?? true
+    @State private var open = UserDefaults.standard.object(forKey: "desktopViewAsOpen") as? Bool ?? false
     var body: some View {
         let now = renderArgs.contains("viewas=free") ? "free" : UserDefaults.standard.string(forKey: "desktopViewAs") ?? ""
         VStack(alignment: .leading, spacing: 8) {
@@ -1154,7 +1153,7 @@ struct ViewAsPanel: View {
             }
         }
         .padding(12)
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Site.muted, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Site.muted.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
         .padding(.leading, 12).padding(.trailing, 12).padding(.top, 10)
     }
 }
@@ -1229,9 +1228,9 @@ struct SiteButton: View {
 struct ProTag: View {
     var body: some View {
         if !DesktopModel.licensed || renderArgs.contains("tags") {
-            Text("Pro").font(Site.font(11, .semibold)).foregroundColor(Site.paper)
+            Text("Pro").font(Site.font(10.5, .medium)).foregroundColor(Site.muted)       // quiet: marks a feature, never competes with it
                 .padding(.horizontal, 5).frame(height: 16)
-                .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Site.ink))
+                .overlay(RoundedRectangle(cornerRadius: 4, style: .continuous).strokeBorder(Site.muted.opacity(0.6), lineWidth: 0.75))
                 .help("Part of Focus Pro")
         }
     }
@@ -1444,8 +1443,8 @@ struct SessionDetail: View {
                         if !DesktopModel.licensed {                       // Free: sessions left this week, and when it resets
                             let w = DesktopModel.week(f.sessions, now: Date())
                             VStack(alignment: .trailing, spacing: 2) {
-                                Text("\(w.left) \(w.left == 1 ? "Session" : "Sessions") remaining this week").font(Site.font(16, .medium)).foregroundColor(Site.head)
-                                Text("Resets 00:00 on \(w.resetDay)").font(Site.font(14)).foregroundColor(Site.muted)
+                                Text("\(w.left) \(w.left == 1 ? "session" : "sessions") left this week").font(Site.font(14, .medium)).foregroundColor(Site.low)
+                                Text("Resets 00:00 on \(w.resetDay)").font(Site.font(13)).foregroundColor(Site.muted)
                             }
                         }
                     }
@@ -2358,7 +2357,7 @@ func renderDesktop(to file: String, mode: Bool) {
         for i in 0..<n { f.createMode("Mode \(i + 1)", apps: have(["com.apple.TextEdit", "com.apple.Safari"])) }
     }
     f.neverClose = have(["com.apple.Terminal"]); f.excluded = have(["com.apple.Safari", "com.apple.Terminal"])
-    let m = DesktopModel(f); m.still = true; m.refresh(); if mode { m.selection = second }
+    let m = DesktopModel(f); m.still = true; m.refresh(); m.selection = nil; if mode { m.selection = second }   // renders start on the Session Editor
     if renderArgs.contains("feedback") { m.openFeedback() }
     if renderArgs.contains("upgrade") { m.upgradeShown = true }
     if renderArgs.contains("live") {
@@ -2681,7 +2680,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     let lockPic = guiRender(["tools", "tier=free", "viewas=free", "trial=narrow"])
     var locked = false
     // the quiet "Purchase Pro to unlock" line at the right, ending in its white Pro tag
-    if let r = lockPic { let s = CGFloat(r.pixelsWide) / 1000; locked = (Int(900 * s)..<Int(940 * s)).contains { x in (Int(228 * s)..<Int(244 * s)).contains { y in lum(r, x, y) > 0.93 } } }
+    if let r = lockPic { let s = CGFloat(r.pixelsWide) / 1000; locked = (Int(700 * s)..<Int(900 * s)).contains { x in (Int(226 * s)..<Int(246 * s)).contains { y in lum(r, x, y) > 0.7 } } }
     check(21, "Upgrade window and Free locks", upOK && locked, "Upgrade window in Light and Dark: \(upOK); Tools shown whole with 'Purchase Pro to unlock' as Basic: \(locked)")
 
     // 22. Type to add an app: finds apps on the Mac by name (open or not), best match first, and adding one that

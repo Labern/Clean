@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.80 — 2026-11-16
+- **Quieter:** nothing removed, the secondary things recede so the session leads again. Pro tags are a grey outline instead of solid white. "Type to add an app" is an outline, not a filled box. The weekly count is grey and smaller ("9 sessions left this week"). View As starts folded to one line, with a lighter border. 0.18.79's look is saved (`focus-look-0.18.79`, docs/looks).
+- Renders always start on the Session Editor. Check 21 follows the quieter tag.
+
 ## 0.18.79 — 2026-11-15
 - **Type to add an app:** a field above the app list in the Session Editor searches every app on the Mac. Return or a click adds the best match: an open app is ticked, and one that isn't open joins the session's apps (or opens into the session, during one).
 - **Heads up:** on Basic, with 3 or fewer sessions left this week, a white-bordered "Heads up — N sessions remaining this week" sits above the Pro button.
