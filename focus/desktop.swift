@@ -337,7 +337,7 @@ final class DesktopModel: ObservableObject {
     @Published var feedbackText = ""
     @Published var feedbackState = FeedbackState.writing
     /// Where feedback is posted. Until the site answers there, the message goes into an email instead.
-    static let feedbackEndpoint = URL(string: "https://paradoxica.uk/api/feedback")!   // the API lives on .uk (.co.uk has none: 404)
+    static let feedbackEndpoint = URL(string: "https://paradoxica.co.uk/api/feedback")!   // the up-to-date API (installed 16 Nov 2026)
     static let feedbackAddress = "help@paradoxica.co.uk"        // every ★★★★★ × PARADOX app's help address
     static let appName = "Focus"
     /// The subject every PARADOX app uses: the app's name in capitals, a space, then the rest.

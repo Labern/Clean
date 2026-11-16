@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.97 — 2026-11-16
+
+- **Feedback posts to paradoxica.co.uk/api/feedback**, where the current API is installed (sends to help@paradoxica.co.uk,
+  subject "FOCUS …", Reply-To the account's email). paradoxica.uk still runs the old API until its SSH key is fixed.
+
 ## 0.18.96 — 2026-11-16
 
 - **Appearance order:** Light / Dark / System, Colours, the menu bar icon, then the menu's Look last.
