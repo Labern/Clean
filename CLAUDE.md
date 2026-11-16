@@ -83,7 +83,9 @@ no build step, no dependencies.
 
 - `paradoxica/site/brand/` — paradoxica.uk/brand/: every logo (from `logo-experiments/logos.js`)
   as centred SVG + 4096px PNG in white/black ink, plus the 47 `/logos/` deck slides. Rebuild
-  assets with `node paradoxica/tools/build_brand.mjs`. Deployed ALONE by
+  assets with `node paradoxica/tools/build_brand.mjs`, then
+  `node paradoxica/tools/build_brand_pages.mjs` (every item gets its own canonical page
+  `/brand/<id>/` / `/brand/slide-NN/` with OG card; the page reads the path to open it). Deployed ALONE by
   `.github/workflows/paradoxica-brand-deploy.yml` (uploads only htdocs/brand — the rest of
   the live site is maintained from the Mac; never mirror the whole site from the cloud).
 

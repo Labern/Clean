@@ -2,8 +2,18 @@
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!--meta-->
 <title>Brand · ★★★★★ × PARADOX</title>
 <meta name="description" content="Every ★★★★★ × PARADOX mark: preview, and download as SVG or PNG.">
+<link rel="canonical" href="https://paradoxica.uk/brand/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="★★★★★ × PARADOX">
+<meta property="og:title" content="Brand · ★★★★★ × PARADOX">
+<meta property="og:description" content="Every ★★★★★ × PARADOX mark: preview, and download as SVG or PNG.">
+<meta property="og:url" content="https://paradoxica.uk/brand/">
+<meta property="og:image" content="https://paradoxica.uk/brand/png/paradox-horizontal-paradox-white.png">
+<meta name="twitter:card" content="summary_large_image">
+<!--/meta-->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14'/%3E%3Cpath fill='%23fff' d='M32 12l5.9 12.6 13.8 1.6-10.2 9.4 2.7 13.6L32 42.4l-12.2 6.8 2.7-13.6-10.2-9.4 13.8-1.6z'/%3E%3C/svg%3E">
 <style>
 @font-face{font-family:"Graphik";src:local("Graphik Regular"),local("Graphik-Regular");font-weight:400;font-display:swap}
@@ -62,7 +72,8 @@ h2{font:400 clamp(26px,3vw,40px)/1 var(--serif)}
 .card:hover .art img{transform:scale(1.03)}
 .cap{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;border-top:1px solid var(--line);font:500 10px/1.3 var(--mono);letter-spacing:.14em;text-transform:uppercase}
 .cap .n{color:var(--dim)}
-.cap .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cap .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none}
+.art{display:block}
 .quick{display:flex;gap:6px;opacity:0;transition:opacity .25s}
 .card:hover .quick,.card:focus-within .quick{opacity:1}
 .quick a{padding:5px 7px;border:1px solid var(--line);border-radius:6px;text-decoration:none;color:var(--dim)}
@@ -96,6 +107,11 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
 .dl a:hover{background:var(--lfg,#fff);color:var(--lbg,#000);border-color:var(--lfg,#fff)}
 .dl a i{font-style:normal;opacity:.55}
 .lbg{display:flex;align-items:center;gap:10px}
+.lnk{display:flex;align-items:center;gap:14px;min-width:0}
+.lnk a{text-decoration:none;opacity:.55;letter-spacing:.06em;text-transform:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lnk a:hover{opacity:1}
+#copy{padding:9px 12px;border:1px solid color-mix(in srgb,currentColor 35%,transparent);border-radius:999px;font:inherit;letter-spacing:.2em;text-transform:uppercase;transition:background-color .2s,color .2s}
+#copy:hover{background:var(--lfg,#fff);color:var(--lbg,#000)}
 .lbg .g{border-color:currentColor}
 @media (max-width:720px){
   .lbbot{flex-direction:column-reverse;align-items:stretch}
@@ -110,7 +126,7 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
 </head>
 <body>
 <header><div class="wrap">
-  <a class="home" href="/" aria-label="★★★★★ × PARADOX — home"><img id="homeLogo" src="svg/paradox-horizontal-paradox-white.svg" alt="★★★★★ × PARADOX"></a>
+  <a class="home" href="/" aria-label="★★★★★ × PARADOX — home"><img id="homeLogo" src="/brand/svg/paradox-horizontal-paradox-white.svg" alt="★★★★★ × PARADOX"></a>
   <div class="grounds" role="group" aria-label="Ground">
     <span>Ground</span>
     <button class="g black" data-g="black" aria-label="Black ground" aria-pressed="true"></button>
@@ -123,7 +139,7 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
   <div class="hero">
     <div class="eyebrow">PARADOXICA Ltd. · Brand</div>
     <h1>Brand assets</h1>
-    <img class="heromark" data-mark="horizontal-paradox" src="svg/paradox-horizontal-paradox-white.svg" alt="★★★★★ × PARADOX">
+    <img class="heromark" data-mark="horizontal-paradox" src="/brand/svg/paradox-horizontal-paradox-white.svg" alt="★★★★★ × PARADOX">
     <p class="lede">Every variation of the mark, from the original decks. Open any one to preview it; take it as a vector SVG or a 4096&nbsp;px PNG, in white or black.</p>
     <div class="count" id="count"></div>
   </div>
@@ -152,7 +168,7 @@ footer a{text-decoration:none}footer a:hover{color:var(--fg)}
   </div>
   <div class="lbbot">
     <div class="dl" id="dl"></div>
-    <span id="lbPos" style="opacity:.5"></span>
+    <div class="lnk"><a id="lbLink" href="/brand/"></a><button id="copy" type="button">Copy link</button><span id="lbPos" style="opacity:.5"></span></div>
   </div>
 </div>
 
@@ -167,8 +183,11 @@ try { ground = localStorage.getItem(GROUND_KEY) || 'black'; } catch (e) {}
 $('#yr').textContent = new Date().getFullYear();
 
 const ink = g => g === 'white' ? 'black' : 'white';
-const svgOf = (id, i) => `svg/paradox-${id}-${i}.svg`;
-const pngOf = (id, i) => `png/paradox-${id}-${i}.png`;
+const BASE = '/brand/', ORIGIN = 'https://paradoxica.uk';
+const svgOf = (id, i) => `${BASE}svg/paradox-${id}-${i}.svg`;
+const pngOf = (id, i) => `${BASE}png/paradox-${id}-${i}.png`;
+const slugOf = it => it.deck ? 'slide-' + it.file.slice(-2) : it.id;
+const urlOf = it => `${BASE}${slugOf(it)}/`;
 
 function setGround(g) {
   ground = g; document.documentElement.dataset.ground = g;
@@ -186,10 +205,14 @@ function card(it, idx) {
   const quick = it.deck
     ? `<a href="${it.svg}" download="${it.file}.svg">SVG</a><a href="${it.png}" download="${it.file}.png">PNG</a>`
     : `<a href="${svgOf(it.id, ink(ground))}" download data-q="svg">SVG</a><a href="${pngOf(it.id, ink(ground))}" download data-q="png">PNG</a>`;
-  el.innerHTML = `<div class="art"><img ${it.deck ? '' : `data-mark="${it.id}"`} src="${src}" alt="${it.name}" loading="lazy" decoding="async"></div>
-    <div class="cap"><span class="n">${String(idx + 1).padStart(2, '0')}</span><span class="nm">${it.name}</span><span class="quick">${quick}</span></div>`;
-  el.addEventListener('click', e => { if (e.target.closest('.quick')) { if (!it.deck) { const a = e.target.closest('a'); a.href = (a.dataset.q === 'svg' ? svgOf : pngOf)(it.id, ink(ground)); } return; } open(idx); });
-  el.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.quick')) { e.preventDefault(); open(idx); } });
+  el.innerHTML = `<a class="art" href="${urlOf(it)}" tabindex="-1" aria-hidden="true"><img ${it.deck ? '' : `data-mark="${it.id}"`} src="${src}" alt="" loading="lazy" decoding="async"></a>
+    <div class="cap"><span class="n">${String(idx + 1).padStart(2, '0')}</span><a class="nm" href="${urlOf(it)}">${it.name}</a><span class="quick">${quick}</span></div>`;
+  el.addEventListener('click', e => {
+    if (e.target.closest('.quick')) { if (!it.deck) { const a = e.target.closest('a'); a.href = (a.dataset.q === 'svg' ? svgOf : pngOf)(it.id, ink(ground)); } return; }
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return;   // new tab etc: let the real link work
+    e.preventDefault(); open(idx, true);
+  });
+  el.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.quick')) { e.preventDefault(); open(idx, true); } });
   return el;
 }
 
@@ -229,6 +252,7 @@ function paint() {
   $('#lbGroup').textContent = it.deck ? it.group : `${it.group} · ${String(cur + 1).padStart(2, '0')}`;
   $('#lbName').textContent = it.name;
   $('#lbPos').textContent = `${cur + 1} / ${items.length}`;
+  const link = $('#lbLink'); link.href = urlOf(it); link.textContent = 'paradoxica.uk' + urlOf(it);
   const src = it.deck ? it.svg : svgOf(it.id, ink(lbGround));
   img.classList.remove('in'); img.alt = it.name;
   img.onload = () => requestAnimationFrame(() => img.classList.add('in'));
@@ -237,18 +261,34 @@ function paint() {
     ? `<a href="${it.svg}" download="${it.file}.svg">SVG <i>vector</i></a><a href="${it.png}" download="${it.file}.png">PNG <i>3840 × 2160</i></a>`
     : ['white', 'black'].map(i => `<a href="${svgOf(it.id, i)}" download>SVG <i>${i} ink</i></a><a href="${pngOf(it.id, i)}" download>PNG <i>${i} · 4096 px</i></a>`).join('');
 }
-function open(i) {
+const HOME_TITLE = 'Brand · ★★★★★ × PARADOX';
+function setUrl(path, push) {
+  if (location.pathname !== path) history[push ? 'pushState' : 'replaceState']({ path }, '', path);
+  let c = document.querySelector('link[rel=canonical]');
+  if (!c) { c = document.createElement('link'); c.rel = 'canonical'; document.head.append(c); }
+  c.href = ORIGIN + path;
+}
+function open(i, push) {
   cur = i; lbGround = ground; paint();
   lb.classList.add('open'); document.body.style.overflow = 'hidden';
-  history.replaceState(null, '', '#' + (items[i].deck ? 'slide-' + items[i].file.slice(-2) : items[i].id));
+  setUrl(urlOf(items[i]), push); document.title = `${items[i].name} · ★★★★★ × PARADOX`;
   $('#close').focus({ preventScroll: true });
 }
-function close() {
-  lb.classList.remove('open'); document.body.style.overflow = '';
-  history.replaceState(null, '', location.pathname);
-}
+function hide() { lb.classList.remove('open'); document.body.style.overflow = ''; document.title = HOME_TITLE; }
+function close() { hide(); setUrl(BASE, true); }
 const step = d => { cur = (cur + d + items.length) % items.length; paint();
-  history.replaceState(null, '', '#' + (items[cur].deck ? 'slide-' + items[cur].file.slice(-2) : items[cur].id)); };
+  setUrl(urlOf(items[cur]), false); document.title = `${items[cur].name} · ★★★★★ × PARADOX`; };
+const route = () => {   // /brand/<slug>/  (old #slug links still work)
+  const seg = location.pathname.slice(BASE.length).replace(/\/+$/, '') || decodeURIComponent(location.hash.slice(1));
+  const i = seg ? items.findIndex(it => slugOf(it) === seg) : -1;
+  if (i >= 0) { if (location.hash) history.replaceState(null, '', urlOf(items[i])); open(i, false); } else hide();
+};
+addEventListener('popstate', route);
+$('#copy').onclick = async () => {
+  const u = ORIGIN + urlOf(items[cur]);
+  try { await navigator.clipboard.writeText(u); } catch (e) { const t = document.createElement('textarea'); t.value = u; document.body.append(t); t.select(); document.execCommand('copy'); t.remove(); }
+  $('#copy').textContent = 'Copied'; setTimeout(() => $('#copy').textContent = 'Copy link', 1400);
+};
 $('#close').onclick = close; $('#prev').onclick = () => step(-1); $('#next').onclick = () => step(1);
 document.querySelectorAll('[data-lg]').forEach(b => b.onclick = () => { lbGround = b.dataset.lg; paint(); });
 document.querySelectorAll('[data-g]').forEach(b => b.onclick = () => setGround(b.dataset.g));
@@ -261,10 +301,8 @@ let tx = null;
 lb.addEventListener('touchstart', e => tx = e.touches[0].clientX, { passive: true });
 lb.addEventListener('touchend', e => { if (tx == null) return; const dx = e.changedTouches[0].clientX - tx; if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1); tx = null; });
 
-fetch('marks.json').then(r => r.json()).then(marks => {
-  render(marks); setGround(ground);
-  const h = decodeURIComponent(location.hash.slice(1));
-  if (h) { const i = items.findIndex(it => it.deck ? 'slide-' + it.file.slice(-2) === h : it.id === h); if (i >= 0) open(i); }
+fetch(BASE + 'marks.json').then(r => r.json()).then(marks => {
+  render(marks); setGround(ground); route();
 });
 })();
 </script>
