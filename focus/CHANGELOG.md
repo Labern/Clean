@@ -4,6 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.89 — 2026-11-16
+
+- **Feedback and help go to help@paradoxica.co.uk** (the house address for every ★★★★★ × PARADOX app). Subject: the
+  app's name in capitals, a space, then the rest ("FOCUS The Dock icon stayed"). The Feedback card asks for the
+  sender's email (required, remembered) and sends it with the message; the menu's Help link opens an email with the
+  subject "FOCUS ".
+- Tests: 33 GUI checks (new: 33 feedback address, subject and email).
+
 ## 0.18.88 — 2026-11-16
 
 - **In a session the button doesn't react to hover:** the pressure squares build only to start a session. While one runs,

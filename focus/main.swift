@@ -922,7 +922,7 @@ final class Maker: NSView {
     static let help = "Help / Suggest Improvement"
     /// Where the help link goes. For now a new email; later the website's own help form replaces it.
     /// One help address for every PARADOX app; the subject starts with the app's name and the person writes the rest.
-    static let helpURL = URL(string: "mailto:labern@paradoxica.co.uk?subject=Focus%3A%20")!
+    static let helpURL = URL(string: "mailto:help@paradoxica.co.uk?subject=FOCUS%20")!   // subject: the app's name in capitals, a space, then theirs
     var open: (URL) -> Void = { NSWorkspace.shared.open($0) }
     var hover = false { didSet { needsDisplay = true } }
     let small: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 9), .foregroundColor: theme.faint]

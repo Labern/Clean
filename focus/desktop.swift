@@ -330,16 +330,34 @@ final class DesktopModel: ObservableObject {
     @Published var feedbackState = FeedbackState.writing
     /// Where feedback is posted. Until the site answers there, the message goes into an email instead.
     static let feedbackEndpoint = URL(string: "https://paradoxica.co.uk/api/feedback")!
-    static let feedbackAddress = "labern@paradoxica.co.uk"      // for now; help@paradoxica.co.uk later
+    static let feedbackAddress = "help@paradoxica.co.uk"        // every ★★★★★ × PARADOX app's help address
+    static let appName = "Focus"
+    /// The subject every PARADOX app uses: the app's name in capitals, a space, then the rest.
+    static func feedbackSubject(_ text: String) -> String {
+        let first = text.split(whereSeparator: \.isNewline).first.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? ""
+        let short = first.count > 60 ? String(first.prefix(57)) + "…" : first
+        return appName.uppercased() + " " + (short.isEmpty ? "feedback" : short)
+    }
+    /// The sender's address, remembered for next time, so a reply can reach them.
+    @Published var feedbackEmail = UserDefaults.standard.string(forKey: "feedbackEmail") ?? "" {
+        didSet { UserDefaults.standard.set(feedbackEmail.trimmingCharacters(in: .whitespaces), forKey: "feedbackEmail") }
+    }
+    static func looksLikeEmail(_ e: String) -> Bool {
+        let t = e.trimmingCharacters(in: .whitespaces); guard let at = t.firstIndex(of: "@") else { return false }
+        return t[..<at].count > 0 && t[t.index(after: at)...].contains(".") && !t.contains(" ")
+    }
+    var feedbackReady: Bool { !feedbackText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && Self.looksLikeEmail(feedbackEmail) }
     func openFeedback() { feedbackState = .writing; feedbackShown = true }
     func sendFeedback() {
-        let text = feedbackText.trimmingCharacters(in: .whitespacesAndNewlines); guard !text.isEmpty, feedbackState == .writing else { return }
+        let text = feedbackText.trimmingCharacters(in: .whitespacesAndNewlines); guard feedbackReady, feedbackState == .writing else { return }
+        let email = feedbackEmail.trimmingCharacters(in: .whitespaces), subject = Self.feedbackSubject(text)
         feedbackState = .sending
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let os = ProcessInfo.processInfo.operatingSystemVersionString
         var req = URLRequest(url: Self.feedbackEndpoint, timeoutInterval: 12); req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try? JSONSerialization.data(withJSONObject: ["app": "Focus", "version": version, "macOS": os, "message": text])
+        req.httpBody = try? JSONSerialization.data(withJSONObject: ["app": Self.appName, "to": Self.feedbackAddress, "subject": subject,
+                                                                    "email": email, "version": version, "macOS": os, "message": text])
         URLSession.shared.dataTask(with: req) { [weak self] _, resp, _ in
             let ok = (resp as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
             DispatchQueue.main.async {
@@ -347,7 +365,8 @@ final class DesktopModel: ObservableObject {
                 if ok { self.feedbackState = .sent; self.feedbackText = ""; return }
                 // No answer from the site: put the same message in an email, so nothing written is lost.
                 var c = URLComponents(); c.scheme = "mailto"; c.path = Self.feedbackAddress
-                c.queryItems = [URLQueryItem(name: "subject", value: "Focus: feedback"), URLQueryItem(name: "body", value: text + "\n\nFocus \(version) · \(os)")]
+                c.queryItems = [URLQueryItem(name: "subject", value: subject),
+                                URLQueryItem(name: "body", value: text + "\n\nFrom \(email) · \(Self.appName) \(version) · \(os)")]
                 if let u = c.url { NSWorkspace.shared.open(u) }
                 self.feedbackState = .emailed
             }
@@ -1160,6 +1179,11 @@ struct FeedbackCard: View {
                     HStack { Spacer(); SiteButton("Close") { m.feedbackShown = false } }
                 default:
                     Text("Report a bug, suggest an idea, or share what's working well.").font(Site.font(19)).foregroundColor(Site.low)
+                    TextField("Your email, so we can reply", text: $m.feedbackEmail)          // required: replies need somewhere to go
+                        .textFieldStyle(.plain).font(Site.font(18)).foregroundColor(Site.head)
+                        .padding(.horizontal, 13).frame(height: 42)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.bg))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.hex(0x4A4A4A), lineWidth: 1))
                     ZStack(alignment: .topLeading) {
                         SiteEditor(text: $m.feedbackText, size: 19).padding(8)
                         if m.feedbackText.isEmpty {
@@ -1170,7 +1194,7 @@ struct FeedbackCard: View {
                     .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.bg))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.line, lineWidth: 1))
                     .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Site.hex(0x4A4A4A), lineWidth: 1))
-                    Text("This sends your message, the Focus version and your macOS version. Nothing else.")
+                    Text("This sends your message, your email, the Focus version and your macOS version to \(DesktopModel.feedbackAddress). Nothing else.")
                         .font(Site.font(16)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 10) {
                         Spacer()
@@ -1180,7 +1204,7 @@ struct FeedbackCard: View {
                                 .padding(.horizontal, 22).frame(height: 32)
                                 .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(Site.ink))
                         }.buttonStyle(.plain)
-                        .opacity(m.feedbackText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || m.feedbackState == .sending ? 0.35 : 1)
+                        .opacity(!m.feedbackReady || m.feedbackState == .sending ? 0.35 : 1).disabled(!m.feedbackReady)
                     }
                 }
             }
@@ -3226,6 +3250,19 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     _ = wm; UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
     check(32, "the early-adopter welcome", up && tokensAdded && keptWhileWeekLeft && spentOne,
           "shown: \(up); +\(DesktopModel.welcomeTokens) on top of the week: \(added); kept while the week has sessions: \(keptWhileWeekLeft); one spent after: \(spentOne)")
+
+    // 33. Feedback goes to the brand's help address with the house subject — the app's name in capitals, a space, then
+    //     theirs — and carries the sender's email; it can't be sent without one.
+    let subj = DesktopModel.feedbackSubject("The Dock icon stayed\nafter closing"), menuSubj = Maker.helpURL.absoluteString
+    let fm = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!))
+    let savedEmail = UserDefaults.standard.object(forKey: "feedbackEmail")
+    fm.feedbackText = "Hello"; fm.feedbackEmail = ""; let blocked = !fm.feedbackReady
+    fm.feedbackEmail = "someone@example.com"; let ready = fm.feedbackReady
+    if let e = savedEmail { UserDefaults.standard.set(e, forKey: "feedbackEmail") } else { UserDefaults.standard.removeObject(forKey: "feedbackEmail") }
+    let fbOK = DesktopModel.feedbackAddress == "help@paradoxica.co.uk" && subj == "FOCUS The Dock icon stayed"
+        && menuSubj.hasPrefix("mailto:help@paradoxica.co.uk?subject=FOCUS%20") && blocked && ready
+    check(33, "feedback to help@, subject FOCUS …, with their email", fbOK,
+          "to \(DesktopModel.feedbackAddress); subject \"\(subj)\"; menu link \(menuSubj); needs an email: \(blocked); sends with one: \(ready)")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)

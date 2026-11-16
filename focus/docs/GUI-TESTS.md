@@ -78,3 +78,5 @@ build and release over time, the click line animating, ⌘Q/⌘H in a live windo
     week's sessions back once; the next time out, the plans.
 32. **The early-adopter welcome:** taking it adds 10 tokens on top of the week; they're kept while the week has
     sessions and spent one per session after.
+33. **Feedback to help@:** the address is help@paradoxica.co.uk; the subject is "FOCUS " plus the message's first line;
+    the menu link starts "FOCUS "; the card can't send without an email and can with one.

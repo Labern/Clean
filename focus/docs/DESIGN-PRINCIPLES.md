@@ -42,6 +42,10 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **"Absolutely NO excessive info requested or stored."** Ask the fewest times, never with a long series of forms.
 - **"Done professionally — no AI junk. Watertight."**
 
+- **Help and feedback (2026-11-16):** every app under the brand sends to **help@paradoxica.co.uk**. Subject: the app's
+  name in capitals, a space, then the rest ("FOCUS The Dock icon stayed"). The user's email address always travels with
+  it (required in the in-app form, remembered for next time; the sender in a mailto).
+
 ## 5. Visual
 - **Power, simplicity, style**, all three at once.
 - **Clutter is the enemy, not the design.** When something feels wrong, remove; don't restyle. "It's not the DESIGN that's wrong — there's just too much clutter." And the opposite failure: "You've gone too far, again." When asked to tone something down, adjust that one thing, not everything.
