@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.90 — 2026-11-16
+
+- **Feedback never asks for an email:** the account's email (given once at sign-up) goes with every message
+  automatically. The email field and the "This sends…" line are gone: just the message and Send.
+
 ## 0.18.89 — 2026-11-16
 
 - **Feedback and help go to help@paradoxica.co.uk** (the house address for every ★★★★★ × PARADOX app). Subject: the
