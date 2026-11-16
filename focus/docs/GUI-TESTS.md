@@ -76,3 +76,5 @@ build and release over time, the click line animating, ⌘Q/⌘H in a live windo
 30. **A gap between Settings and Modes:** at least 10 pt of clear sidebar between them.
 31. **The free reset:** at 0 on Basic with the gift unused, the gift shows before the plans; taking it gives the
     week's sessions back once; the next time out, the plans.
+32. **The early-adopter welcome:** taking it adds 10 tokens on top of the week; they're kept while the week has
+    sessions and spent one per session after.

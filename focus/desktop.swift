@@ -150,15 +150,37 @@ final class DesktopModel: ObservableObject {
     }
     var upgradeFrom: String? = nil                                 // where Upgrade was opened from, to go back to
     @Published var outOfSessions = false                           // Upgrade opened because the week's sessions ran out
-    @Published var giftShown = false
-    @Published var hoverApp: String?                               // the app under the pointer, in the list or the memory bar                               // the free reset pop-up is up
+    @Published var giftShown = false                               // a gift pop-up is up
+    enum Gift { case reset, welcome }
+    @Published var giftKind: Gift = .reset
+    /// First open of a new copy (no sessions yet, not bought): the early-adopter thank-you and its tokens.
+    func showWelcomeIfNew() {
+        guard !UserDefaults.standard.bool(forKey: "focusWelcomeShown"), f.sessions.isEmpty, !DesktopModel.licensed,
+              !renderArgs.contains("--render-desktop") else { return }
+        giftKind = .welcome; giftShown = true
+    }
+    @Published var hoverApp: String?                               // the app under the pointer, in the list or the memory bar
     @Published var countUp: Int? = nil                             // the plan line's count while it rises after the gift
     /// Run out, on Basic, with the free reset unused: the gift comes first; the plans only the next time.
     var giftDue: Bool { DesktopModel.gated && !DesktopModel.giftUsed && DesktopModel.week(f.sessions, now: Date()).left == 0 }
-    func showGiftIfDue() { if giftDue && !giftShown && !renderArgs.contains("--render-desktop") { giftShown = true } }
+    func showGiftIfDue() { if giftDue && !giftShown && !renderArgs.contains("--render-desktop") { giftKind = .reset; giftShown = true } }
     /// Take the gift: this week gets the sessions back, once ever; the count rises to show it.
     func takeGift() {
         let ud = UserDefaults.standard
+        let from = DesktopModel.week(f.sessions, now: Date()).left
+        if giftKind == .welcome {                                  // the thank-you: tokens that never expire
+            ud.set(true, forKey: "focusWelcomeShown"); DesktopModel.tokens += DesktopModel.welcomeTokens
+            giftShown = false; giftKind = .reset
+            let to = DesktopModel.week(f.sessions, now: Date()).left
+            countUp = from
+            for (k, i) in ((from + 1)...max(from + 1, to)).enumerated() {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35 + Double(k + 1) * 0.07) { [weak self] in
+                    self?.countUp = i
+                    if i == to { DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self?.countUp = nil } }
+                }
+            }
+            return
+        }
         ud.set(true, forKey: "focusGiftUsed"); ud.set(DesktopModel.weekStart, forKey: "focusGiftWeek")
         if ud.object(forKey: "devSpentWeek") != nil { ud.set(DesktopModel.giftSessions, forKey: "devSpentBack") }   // the dev "0" gives way to the gift
         let to = DesktopModel.week(f.sessions, now: Date()).left
@@ -181,9 +203,11 @@ final class DesktopModel: ObservableObject {
     }
     func devRestore() {
         let ud = UserDefaults.standard
-        ["devSpentWeek", "devSpentBack", "focusGiftWeek"].forEach { ud.removeObject(forKey: $0) }
+        ["devSpentWeek", "devSpentBack", "focusGiftWeek", "focusTokens", "focusWelcomeShown"].forEach { ud.removeObject(forKey: $0) }
         tick &+= 1
     }
+    /// Developer Panel: show the early-adopter welcome as a new copy would.
+    func devWelcome() { UserDefaults.standard.removeObject(forKey: "focusWelcomeShown"); giftKind = .welcome; giftShown = true }
     /// Basic, and this week's sessions are used up: starting one opens Upgrade instead (Use it > love it > run out >
     /// look to upgrade > see a better deal > buy). Locks only while viewing as Basic until real licences exist.
     static func noSessionsLeft(_ f: Focus) -> Bool { renderArgs.contains("out") || (gated && week(f.sessions, now: Date()).left == 0) }
@@ -228,6 +252,15 @@ final class DesktopModel: ObservableObject {
     /// The one free reset: a first-time user who runs out (usually from playing around) gets this many back, once.
     static var giftSessions: Int { freeWeekly }
     static var giftUsed: Bool { UserDefaults.standard.bool(forKey: "focusGiftUsed") }
+    /// Session tokens: extra sessions that never expire (the early-adopter welcome gives 10). Used one per session, only
+    /// once the week's own sessions have run out.
+    static var tokens: Int { get { max(0, UserDefaults.standard.integer(forKey: "focusTokens")) } set { UserDefaults.standard.set(max(0, newValue), forKey: "focusTokens") } }
+    static let welcomeTokens = 10
+    /// Starting a session on Basic: if the week's own sessions are gone, it costs a token.
+    static func spendTokenIfNeeded(_ f: Focus) {
+        guard gated, tokens > 0 else { return }
+        if week(f.sessions, now: Date()).left - tokens <= 0 { tokens -= 1 }
+    }
     static var weekStart: Date { var c = Calendar.current; c.firstWeekday = 2; return c.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date() }
     /// Sessions started since 00:00 on Monday (Quit All clean-ups don't count), how many of Free's are left, and the
     /// day it resets (next Monday, 00:00 local time).
@@ -241,7 +274,7 @@ final class DesktopModel: ObservableObject {
         let bonus = (ud.object(forKey: "focusGiftWeek") as? Date).map { abs($0.timeIntervalSince(start)) < 3600 ? giftSessions : 0 } ?? 0   // the free reset, this week only
         let spent = (ud.object(forKey: "devSpentWeek") as? Date).map { abs($0.timeIntervalSince(start)) < 3600 } ?? false               // Developer Panel: sessions → 0
         let u = spent ? max(used, freeWeekly + bonus - (ud.integer(forKey: "devSpentBack"))) : used
-        return (u, max(0, freeWeekly + bonus - u), reset, f.string(from: reset))
+        return (u, max(0, freeWeekly + bonus - u) + tokens, reset, f.string(from: reset))   // tokens on top: they never expire
     }
     /// Temporary, for looking at the design: show the Focus Pro badge and the Buy button together. Remove with licences.
     static let showBoth = false
@@ -617,9 +650,9 @@ struct SessionButton: View {
     var body: some View {
         Button(action: click) {
             ZStack {
-                HStack(spacing: 12) {                                     // in a session: a tick in a circle before the title — the change is unmistakable
+                HStack(spacing: 12) {                                     // in a session: the working mark before the title (placeholder, his call 2026-11-16)
                     if !starting {
-                        Image(systemName: "checkmark.circle.fill").font(.system(size: 26 * Site.scale, weight: .semibold))
+                        WorkingMark(ink: ink).frame(width: 24 * Site.scale, height: 24 * Site.scale)
                             .transition(.scale(scale: 0.2).combined(with: .opacity))
                     }
                     Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
@@ -926,10 +959,10 @@ struct PlanLines: View {
         let left = m.countUp ?? (renderArgs.contains("out") ? 0 : renderArgs.contains("headsup") ? 2 : week.left), days = DesktopModel.trialDaysLeft
         let facts = VStack(alignment: .leading, spacing: 3) {          // the two facts, one above the other, always the same size
             Text("\(left) \(left == 1 ? "Session" : "Sessions") left this week")
-                .font(Site.font(13.5)).foregroundColor(left <= 3 ? Site.head : Site.low)
+                .font(Site.font(12.5)).foregroundColor(left <= 3 ? Site.head : Site.low)
             if DesktopModel.trial {
                 Text("\(days) \(days == 1 ? "Day" : "Days") of Pro left")
-                    .font(Site.font(13.5)).foregroundColor(days <= 3 ? Site.head : Site.low)
+                    .font(Site.font(12.5)).foregroundColor(days <= 3 ? Site.head : Site.low)
             }
         }.fixedSize()
         ViewThatFits(in: .horizontal) {
@@ -940,7 +973,7 @@ struct PlanLines: View {
     var upgrade: some View {
         Button { m.openUpgrade() } label: {                       // a reward, not a nag: on hover it fills, Pro's colour
             HStack(spacing: 4) {
-                Text("Upgrade Now").font(Site.font(12.5, .semibold)).fixedSize()
+                Text("Upgrade Now").font(Site.font(11.5, .semibold)).fixedSize()
                 Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .bold)).offset(x: hover ? 1 : 0, y: hover ? -1 : 0)
             }
             .foregroundColor(hover ? Site.paper : Site.head).padding(.horizontal, 8).frame(height: 30)
@@ -1314,10 +1347,11 @@ struct ViewAsPanel: View {
                         }.buttonStyle(PressStyle())
                     }
                 }
-                HStack(spacing: 6) {                                         // the free reset: run out, see it spawn
+                HStack(spacing: 6) {                                         // the gifts: run out, or open as new
                     devButton("Sessions → 0") { m.devSpendAll() }
-                    devButton("Restore") { m.devRestore() }
+                    devButton("Welcome") { m.devWelcome() }
                 }
+                devButton("Restore sessions and tokens") { m.devRestore() }
             }
         }
         .padding(12)
@@ -1336,17 +1370,40 @@ extension ViewAsPanel {
     }
 }
 
+/// "We're working": a ring with a gap, turning slowly, round a solid dot (Focus's ring and dot). Placeholder mark for
+/// the session button while a session runs.
+struct WorkingMark: View {
+    let ink: Color
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 60, paused: renderArgs.contains("--render-desktop"))) { tl in
+            let turn = renderArgs.contains("--render-desktop") ? 0.6 : tl.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 1.6) / 1.6   // renders: one fixed angle
+            GeometryReader { g in
+                let d = min(g.size.width, g.size.height)
+                ZStack {
+                    Circle().trim(from: 0, to: 0.72).stroke(ink, style: StrokeStyle(lineWidth: d * 0.12, lineCap: .round))
+                        .rotationEffect(.degrees(turn * 360))
+                    Circle().fill(ink).frame(width: d * 0.36, height: d * 0.36)
+                }.frame(width: d, height: d)
+            }
+        }
+    }
+}
+
 /// The free reset: a gift, not a gate. Ten tokens in a ring; on Add they fly one by one into the middle, the number
 /// counts up, then the card goes and the sidebar's count rises to match.
 struct GiftCard: View {
     @ObservedObject var m: DesktopModel
     @State private var taken = 0                                   // tokens flown in so far
     @State private var going = false
-    var n: Int { DesktopModel.giftSessions }
+    var welcome: Bool { m.giftKind == .welcome || renderArgs.contains("welcome") }
+    var n: Int { welcome ? DesktopModel.welcomeTokens : DesktopModel.giftSessions }
     var body: some View {
         ZStack {
             Color.black.opacity(Site.light ? 0.25 : 0.6).ignoresSafeArea()
             VStack(spacing: 0) {
+                if welcome {                                       // the thank-you, big, first
+                    Text("Thank you!").font(Site.font(44, .medium)).tracking(-1).foregroundColor(Site.head).padding(.bottom, 14)
+                }
                 ZStack {                                           // the ring of tokens
                     ForEach(0..<n, id: \.self) { i in
                         let a = Double(i) / Double(n) * 2 * .pi - .pi / 2, r: CGFloat = 70, inside = i < taken
@@ -1359,8 +1416,9 @@ struct GiftCard: View {
                     Text("+\(taken == 0 ? n : taken)").font(Site.font(34, .medium)).foregroundColor(Site.head)
                         .contentTransition(.numericText()).animation(.easeOut(duration: 0.12), value: taken)
                 }.frame(width: 180, height: 180)
-                Text("Here's a free reset").font(Site.font(26, .medium)).tracking(-0.4).foregroundColor(Site.head).padding(.top, 10)
-                Text("We know you probably wanted to play around with Focus first, so this week's \(n) sessions are back, on us. It's a one-time gift.")
+                Text(welcome ? "An extra \(n) sessions" : "Here's a free reset").font(Site.font(26, .medium)).tracking(-0.4).foregroundColor(Site.head).padding(.top, 10)
+                Text(welcome ? "As thanks for being an early adopter, here are \(n) extra session tokens. Pro is unlimited, but if you use Basic, these let you get more done. They don't expire."
+                             : "We know you probably wanted to play around with Focus first, so this week's \(n) sessions are back, on us. It's a one-time gift.")
                     .font(Site.font(16)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: 380).padding(.top, 8)
                 Button { give() } label: {
@@ -1564,7 +1622,7 @@ struct DesktopView: View {
         }
         .background(Site.bg).preferredColorScheme(Site.light ? .light : .dark)
         .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
-        .overlay { if m.giftShown || renderArgs.contains("gift") { GiftCard(m: m).transition(.opacity) } }
+        .overlay { if m.giftShown || renderArgs.contains("gift") || renderArgs.contains("welcome") { GiftCard(m: m).transition(.opacity) } }
         .animation(.easeOut(duration: 0.2), value: m.giftShown)
 
         .animation(.easeOut(duration: 0.15), value: m.feedbackShown)
@@ -2505,6 +2563,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
             NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main) { [weak self] _ in self?.poweringOff = true }
         }
         NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil)
+        model?.showWelcomeIfNew()                                       // a new copy's first open: the thank-you
     }
     func hide() { window?.close() }
 
@@ -2746,9 +2805,9 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     var failures = 0
     // His real settings are never left changed by a test: saved now, put back at the end. Dev and gift state starts clear.
     let keepPrefs = ["desktopViewAs", "devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "desktopButtonInkWhite",
-                "focusTier", "focusPro", "desktopLook", "desktopPage", "desktopMemoryBar"]
+                "focusTier", "focusPro", "desktopLook", "desktopPage", "desktopMemoryBar", "focusTokens", "focusWelcomeShown"]
     let savedPrefs = Dictionary(uniqueKeysWithValues: keepPrefs.compactMap { k in UserDefaults.standard.object(forKey: k).map { (k, $0) } })
-    ["devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
+    ["devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "focusTokens"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
     defer { keepPrefs.forEach { k in if let v = savedPrefs[k] { UserDefaults.standard.set(v, forKey: k) } else { UserDefaults.standard.removeObject(forKey: k) } } }
     func check(_ n: Int, _ name: String, _ ok: Bool, _ detail: String) {
         guard only == nil || only!.contains(n) else { return }
@@ -2882,25 +2941,30 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     }
     check(12, "every page draws in every width", blank.isEmpty, blank.isEmpty ? "9 pages × 3 widths × Light and Dark" : "blank: \(blank.joined(separator: ", "))")
 
-    // 13. The session button changes clearly: in a session a tick in a circle sits before "End Session"; out of one
-    //     that place is empty.
+    // 13. The session button changes clearly: in a session a mark sits before "End Session" (ink, then a clear gap,
+    //     then the title); out of one the title starts straight away.
     var mark = true
-    for look in ["dark", "light"] {                                  // paper-coloured tick on the ink button
-        // the tallest solid vertical run at the start of the button's contents: a disc is taller than any capital
-        func leadRun(_ opts: [String]) -> CGFloat {
-            guard let r = guiRender(opts + ["trial=narrow", "look=\(look)"]) else { return -1 }
+    for look in ["dark", "light"] {
+        func markFirst(_ opts: [String]) -> Bool {
+            guard let r = guiRender(opts + ["trial=narrow", "look=\(look)"]) else { return false }
             let s = CGFloat(r.pixelsWide) / 1000
-            func paper(_ x: Int, _ y: Int) -> Bool { look == "dark" ? lum(r, x, y) < 0.25 : lum(r, x, y) > 0.75 }
-            let ys = Int(40 * s)..<Int(82 * s)
-            guard let x0 = (Int(380 * s)..<Int(900 * s)).first(where: { x in ys.contains { paper(x, $0) } }) else { return 0 }
-            var best = 0
-            for x in x0..<(x0 + Int(9 * s)) { var run = 0; for y in ys { if paper(x, y) { run += 1; best = max(best, run) } else { run = 0 } } }
-            return CGFloat(best) / s
+            // the button's own rows (its fill at x 400), trimmed to the middle so its rounded edges never count
+            func fill(_ y: Int) -> Bool { look == "dark" ? lum(r, Int(400 * s), y) > 0.9 : lum(r, Int(400 * s), y) < 0.1 }
+            guard let top = (0..<Int(160 * s)).first(where: fill) else { return false }
+            let bottom = (top..<Int(160 * s)).first(where: { !fill($0) }) ?? top            // the button's own unbroken run
+            guard bottom - top > Int(30 * s) else { return false }
+            let rows = (top + (bottom - top) / 5)..<(bottom - (bottom - top) / 5)
+            func paper(_ x: Int) -> Bool { rows.contains { y in look == "dark" ? lum(r, x, y) < 0.25 : lum(r, x, y) > 0.75 } }
+            guard let x0 = (Int(380 * s)..<Int(900 * s)).first(where: paper) else { return false }
+            var run = 0, gap = 0
+            for x in x0..<(x0 + Int(60 * s)) { if paper(x) { run = 0 } else { run += 1; gap = max(gap, run) } }
+            return CGFloat(gap) / s >= 8                                   // a mark, a gap of 8 pt or more, then the title
         }
-        let tall = 21 * Site.scale
-        mark = mark && leadRun(["live"]) >= tall && leadRun([]) < tall
+        let inSession = markFirst(["live"]), outOfOne = markFirst([])
+        if !inSession || outOfOne { print("gui: note 13 \(look): in a session \(inSession), out of one \(outOfOne)") }
+        mark = mark && inSession && !outOfOne
     }
-    check(13, "a tick on the button in a session", mark, "tick before the title in a session, none out of one, Light and Dark: \(mark)")
+    check(13, "a mark on the button in a session", mark, "a mark before the title in a session, none out of one, Light and Dark: \(mark)")
 
     // 14. Light and Dark: every page draws on its own ground — white in Light, black in Dark — with readable ink on it.
     var wrong = [String]()
@@ -3147,6 +3211,21 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
     check(31, "the free reset", at0 && due && giftFirst && gotBack && plansNext,
           "at 0: \(at0); gift due: \(due); gift before plans: \(giftFirst); \(DesktopModel.giftSessions) back: \(gotBack); next time the plans: \(plansNext)")
+
+    // 32. The early-adopter welcome: taking it adds 10 tokens on top of the week; they're spent only after the week's own
+    //     sessions run out, one per session.
+    let wf = Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!), wm = DesktopModel(wf)
+    UserDefaults.standard.set("free", forKey: "desktopViewAs")
+    let base = DesktopModel.week(wf.sessions, now: Date()).left
+    wm.devWelcome(); let up = wm.giftShown && wm.giftKind == .welcome
+    wm.takeGift(); let tokensAdded = DesktopModel.tokens == DesktopModel.welcomeTokens && DesktopModel.week(wf.sessions, now: Date()).left == base + DesktopModel.welcomeTokens
+    DesktopModel.spendTokenIfNeeded(wf); let keptWhileWeekLeft = DesktopModel.tokens == DesktopModel.welcomeTokens
+    wm.devSpendAll(); wm.giftShown = false; DesktopModel.tokens = DesktopModel.welcomeTokens
+    DesktopModel.spendTokenIfNeeded(wf); let spentOne = DesktopModel.tokens == DesktopModel.welcomeTokens - 1
+    ["focusTokens", "focusWelcomeShown", "devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
+    _ = wm; UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+    check(32, "the early-adopter welcome", up && tokensAdded && keptWhileWeekLeft && spentOne,
+          "shown: \(up); +\(DesktopModel.welcomeTokens) on top of the week: \(added); kept while the week has sessions: \(keptWhileWeekLeft); one spent after: \(spentOne)")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)

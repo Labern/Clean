@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.87 — 2026-11-16
+
+- **Early-adopter welcome:** a new copy's first open shows "Thank you!", then 10 session tokens flying into the ring,
+  "As thanks for being an early adopter…". Tokens never expire and are used only after the week's own sessions run
+  out, one per session. Developer Panel: "Welcome" shows it; "Restore sessions and tokens" resets.
+- **Session button:** the tick is replaced by a working mark (a turning ring round a dot), a placeholder for now.
+- Plan lines sit side by side again at the new Default text size.
+- Tests: 32 GUI checks (new: 32 the welcome); check 13 finds the button itself, whatever the layout.
+
 ## 0.18.86 — 2026-11-16
 
 - **The free reset:** a first-time Basic user who runs out gets a one-time gift before ever seeing the plans: "Here's

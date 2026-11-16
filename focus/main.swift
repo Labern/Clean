@@ -1962,7 +1962,7 @@ final class Focus: NSObject, NSMenuDelegate {
         item.menu?.cancelTracking()
         if clearing { NSSound.beep(); return }                  // Quit All (& Restart) in progress: never start a session inside it
         if !focused && DesktopModel.noSessionsLeft(self) { return desktop.outOfSessions(self) }   // Basic, week used up: the plans instead
-        if !focused { return park(quit: !hideMode) }
+        if !focused { DesktopModel.spendTokenIfNeeded(self); return park(quit: !hideMode) }
         if let s = sessions.first { open(s) } else { focused = false }
     }
     /// ~0.7 s at 60 fps, ease-out; runs in common modes so it plays even with the menu open.
@@ -2185,6 +2185,7 @@ final class Focus: NSObject, NSMenuDelegate {
     func startMode(id: String) -> Bool {
         guard !focused, !clearing, let m = mode(id) else { return false }
         if DesktopModel.noSessionsLeft(self) { desktop.outOfSessions(self); return true }
+        DesktopModel.spendTokenIfNeeded(self)
         item.menu?.cancelTracking(); park(quit: !hideMode, mode: m); return true
     }
 
