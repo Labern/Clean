@@ -2851,7 +2851,7 @@ func renderDesktop(to file: String, mode: Bool) {
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
     if renderArgs.contains("schedule") {                           // two example rules (never saved)
         Scheduler.shared.rules = [ScheduleRule(kind: "block", apps: ["com.apple.Music", "com.apple.TV"].filter { f.path($0) != nil }, from: 9 * 60, to: 17 * 60),
-                                  ScheduleRule(kind: "open", mode: m.modes.first?.id ?? "", days: [2, 3, 4, 5, 6], from: 8 * 60 + 30)]
+                                  ScheduleRule(kind: "open", apps: ["com.apple.Notes", "com.apple.Safari"].filter { f.path($0) != nil }, days: [2, 3, 4, 5, 6], from: 8 * 60 + 30)]
     }
     let savedScale = Site.scale
     if let t = renderArgs.first(where: { $0.hasPrefix("textscale=") }).flatMap({ Double($0.dropFirst(10)) }) { Site.scale = CGFloat(t) }
@@ -3403,7 +3403,7 @@ struct ScheduleRule: Codable, Identifiable, Equatable {
     var id = UUID().uuidString
     var kind = "block"                                             // "block" or "open"
     var apps: [String] = []                                        // block: bundle ids kept closed
-    var mode = ""                                                  // open: the mode to start
+    var mode = ""                                                  // (older rules) open: a mode to start
     var days: [Int] = [2, 3, 4, 5, 6]                              // weekdays by default
     var from = 9 * 60, to = 17 * 60                                // block: from–to; open: from is the time
     var on = true
@@ -3432,7 +3432,7 @@ final class Scheduler: ObservableObject {
     }
     /// An open rule is due: on, today, within two minutes after its time, and not already fired today.
     static func due(_ r: ScheduleRule, at d: Date, _ c: Calendar = .current) -> Bool {
-        guard r.on, r.kind == "open", !r.mode.isEmpty, r.days.contains(c.component(.weekday, from: d)) else { return false }
+        guard r.on, r.kind == "open", !(r.apps.isEmpty && r.mode.isEmpty), r.days.contains(c.component(.weekday, from: d)) else { return false }
         let m = minute(d, c)
         return m >= r.from && m < r.from + 2 && r.fired != day(d, c)
     }
@@ -3458,8 +3458,18 @@ final class Scheduler: ObservableObject {
         guard let f, !DesktopModel.gated else { return }           // Pro only
         for i in rules.indices where Self.due(rules[i], at: now) {
             rules[i].fired = Self.day(now)
-            if !f.focused, let name = f.mode(rules[i].mode)?["name"] as? String {
-                f.startOrSwitch(rules[i].mode); note = "Started \(name) at \(Self.clock(rules[i].from))."
+            let r = rules[i]
+            if !r.apps.isEmpty {                                       // Work: open these apps, in the background
+                var opened = [String]()
+                for id in r.apps where !NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == id }) {
+                    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else { continue }
+                    let c = NSWorkspace.OpenConfiguration(); c.activates = false
+                    NSWorkspace.shared.openApplication(at: url, configuration: c); opened.append(f.appName(url.path))
+                }
+                note = opened.isEmpty ? "At \(Self.clock(r.from)): everything was already open." : "Opened \(opened.joined(separator: ", ")) at \(Self.clock(r.from))."
+                flog("schedule: \(note)")
+            } else if !f.focused, let name = f.mode(r.mode)?["name"] as? String {
+                f.startOrSwitch(r.mode); note = "Started \(name) at \(Self.clock(r.from))."
             }
         }
         for a in NSWorkspace.shared.runningApplications where !a.isTerminated {
@@ -3473,17 +3483,27 @@ struct SchedulePage: View {
     @ObservedObject var m: DesktopModel
     @ObservedObject var s = Scheduler.shared
     var body: some View {
-        PageFrame(title: "Schedule", text: "Keep apps closed at set times, or start a mode by itself.", locked: m) {
-            SectionLabel("Block Apps", divider: false).padding(.horizontal, -14)
-            Note("Keep these apps closed during these hours. If one opens, Focus closes it again.")
-            ForEach($s.rules) { $r in if r.kind == "block" { ScheduleRow(m: m, r: $r) } }
-            SiteButton("Add a Block") { s.rules.append(ScheduleRule(kind: "block")) }.padding(.top, 6)
-            SectionLabel("Open at a Time").padding(.horizontal, -14)
-            Note("Start a mode by itself at a set time, without pressing the button.")
-            ForEach($s.rules) { $r in if r.kind == "open" { ScheduleRow(m: m, r: $r) } }
-            SiteButton("Add a Time") { s.rules.append(ScheduleRule(kind: "open", mode: m.modes.first?.id ?? "", from: 9 * 60)) }.padding(.top, 6)
+        PageFrame(title: "Schedule", text: "Two halves: work apps that open by themselves, and fun apps kept closed while you work.", locked: m) {
+            HStack(alignment: .top, spacing: 20) {
+                half(title: "Work", what: "Open these apps by themselves at a set time.", kind: "open", add: "Add Work Apps")
+                half(title: "Fun", what: "Keep these apps closed during set hours. If one opens, Focus closes it again.", kind: "block", add: "Add Fun Apps")
+            }.padding(.top, 18)
             if !s.note.isEmpty { Text(s.note).font(Site.font(15)).foregroundColor(Site.muted).padding(.top, 14) }
         }
+    }
+    @ViewBuilder func half(title: String, what: String, kind: String, add: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(Site.font(24, .medium)).foregroundColor(Site.head)
+            Rectangle().fill(Site.head).frame(height: 1)
+            Text(what).font(Site.font(15)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
+            ForEach($s.rules) { $r in if r.kind == kind { ScheduleRow(m: m, r: $r) } }
+            SiteButton(add) {
+                s.rules.append(kind == "open" ? ScheduleRule(kind: "open", days: [2, 3, 4, 5, 6], from: 9 * 60)
+                                              : ScheduleRule(kind: "block", days: [2, 3, 4, 5, 6], from: 9 * 60, to: 17 * 60))
+            }.padding(.top, 4)
+        }
+        .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Site.line, lineWidth: 1))
     }
 }
 
@@ -3495,7 +3515,7 @@ struct ScheduleRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                if r.kind == "block" {
+                if true {
                     HStack(spacing: 6) {
                         ForEach(r.apps, id: \.self) { id in
                             if let p = m.f.path(id) { Image(nsImage: m.icon(p)).resizable().frame(width: 22, height: 22).help(m.f.appName(p)) }
@@ -3504,11 +3524,6 @@ struct ScheduleRow: View {
                             .font(Site.font(17, .medium)).foregroundColor(r.apps.isEmpty ? Site.muted : Site.head).lineLimit(1)
                     }
                     SiteButton("Choose Apps…") { chooseApps() }
-                } else {
-                    Menu {
-                        ForEach(m.modes) { mode in Button(mode.name) { r.mode = mode.id } }
-                    } label: { Text(m.modes.first { $0.id == r.mode }?.name ?? "Choose a mode").font(Site.font(17, .medium)) }
-                    .menuStyle(.borderlessButton).fixedSize()
                 }
                 Spacer()
                 Choice(options: ["Off", "On"], selected: r.on ? 1 : 0) { i in r.on = i == 1 }
@@ -3539,7 +3554,7 @@ struct ScheduleRow: View {
     }
     func chooseApps() {
         let p = NSOpenPanel(); p.allowsMultipleSelection = true; p.canChooseDirectories = false
-        p.allowedContentTypes = [.application]; p.directoryURL = URL(fileURLWithPath: "/Applications"); p.prompt = "Block"
+        p.allowedContentTypes = [.application]; p.directoryURL = URL(fileURLWithPath: "/Applications"); p.prompt = r.kind == "block" ? "Keep Closed" : "Open These"
         if p.runModal() == .OK {
             let ids = p.urls.compactMap { Bundle(url: $0)?.bundleIdentifier }
             r.apps = Array(Set(r.apps + ids)).sorted()
@@ -3567,9 +3582,21 @@ enum Chime {
     private static var testing: Bool { CommandLine.arguments.contains { $0.hasPrefix("--selftest") || $0.hasPrefix("--render") } }
     private static let startSound = NSSound(data: wav(pull(into: true)))
     private static let endSound = NSSound(data: wav(pull(into: false)))
+    /// `Focus --chime-check`: does each sound load, and does play() start? (Prints; plays each once.)
+    static func check() {
+        for (n, snd) in [("start", startSound), ("end", endSound)] {
+            let ok = snd?.play() ?? false
+            print("chime \(n): loaded \(snd != nil), duration \(snd.map { String(format: "%.2f", $0.duration) } ?? "-") s, play() \(ok)")
+            Thread.sleep(forTimeInterval: 0.6)
+        }
+    }
     static func play(start: Bool, force: Bool = false) {
-        guard (on || force), !testing, let s = start ? startSound : endSound else { return }
-        s.stop(); s.volume = 0.4; s.play()
+        guard (on || force), !testing, let s = start ? startSound : endSound else {
+            flog("chime \(start ? "start" : "end"): not played (sound \(on ? "on" : "off"), testing \(testing))"); return
+        }
+        s.stop(); s.volume = 0.4
+        let ok = s.play()
+        flog("chime \(start ? "start" : "end"): play() \(ok)")
     }
     /// A focus pull. In: a soft shutter tick, then two voices a little out of tune (they beat: a blur) slide together
     /// into one clean note (in focus). Out: the clean note drifts apart into the beat and fades (the blur returning).

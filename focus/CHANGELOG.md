@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.98 — 2026-11-16
+
+- **Schedule in two halves, side by side:** **Work** opens chosen apps by themselves at a set time on set days;
+  **Fun** keeps chosen apps closed during set hours (closing any that open).
+- Session sounds: every attempt is logged (~/Library/Logs/Focus.log) to find why they weren't heard in sessions;
+  `Focus --chime-check` loads and plays both (both load and play: 0.36 s and 0.40 s).
+
 ## 0.18.97 — 2026-11-16
 
 - **Feedback posts to paradoxica.co.uk/api/feedback**, where the current API is installed (sends to help@paradoxica.co.uk,

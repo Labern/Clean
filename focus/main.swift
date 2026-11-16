@@ -3109,6 +3109,7 @@ if CommandLine.arguments.contains("--pill-demo") {          // watch the start a
     app.run()
 }
 let testing = CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest") })
+if CommandLine.arguments.contains("--chime-check") { _ = NSApplication.shared; Chime.check(); exit(0) }
 if !others.isEmpty && !testing { print("Focus is already running (pid \(others[0].processIdentifier))"); exit(0) }
 if !testing {                                                   // launched too close together to see each other yet
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { if olderFocus() != nil { exit(0) } }
