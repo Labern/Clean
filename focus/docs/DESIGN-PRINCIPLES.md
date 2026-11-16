@@ -22,6 +22,16 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **Criticised:** a wide "X days remaining" button ("too wide… the whole problem"), "Pro" repeated everywhere ("so many times is fucking stupid"), counters after every heading ("stupid"), the Basic badge being too loud, and the countdown sharing the reward's white.
 - **Research rule:** "Go online and find out what other apps do." Persistent means subtle; loud means closeable.
 
+- **The upgrade flow is the product's story (2026-11-16):** "Use it > love it > run out > look to upgrade > see a better
+  deal > buy. It's simple, ethical, and clear. This is the principle." Running out is a clear event: "0 sessions
+  remaining this week — resets XX:XX", then the plans, with the small monthly number first and the permanent deal one
+  click away. Waiting for the reset is always a fair choice.
+- **Unlock messages are contextual and bigger:** say what this place unlocks ("Unlock your full session history by
+  upgrading to Pro"), with a real button that isn't the main one.
+- **Becoming Pro must remove every request to upgrade, instantly.** "Don't make me ask again."
+- **Reward people who play around (proposed 2026-11-16):** a one-time free weekly reset for first-time users who used
+  their sessions up exploring, with a celebratory animation (10 tokens added, the count rising).
+
 ## 3. Pricing
 - **Round numbers only: 5s and 0s, never 9s.** No pay-what-you-want. Never price by comparison with other apps.
 - **Focus:** Basic £0 (10 sessions a week); Pro £5 a month / £50 a year / £75 once, with £50 once for early adopters (code EARLY: "if they're sneaky… I want them to feel they're clever"); Enterprise "Coming soon".
@@ -50,10 +60,15 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **Some things are sacred:** the session animation stays untouched without his explicit consent.
 - **Category-standard features are mandatory:** ⌘Z undoes; the window remembers where it was.
 - **Never lose the user's progress** across updates.
+- **Show what's happening, live, where people look:** under the session button, "Closing Safari… 2 of 6", app by app
+  like a terminal, then "Session started". A button press must visibly change the button (a tick in a circle).
+- **Delicate features wait for the wording:** hiding the app itself (Pro) goes under critical system processes only
+  with very careful words ("Do you want to hide this app? Use menu or shortcut to end session"). Not yet.
 - **Rejected:** an end-of-session summary ("cringe"). Sound is undecided: build none until he decides.
 
 ## 7. Process
 - **Done means seen** in the real app, both looks, as both Basic and Pro.
+- **A test must measure the real thing:** a check that passes while the feature is missing is worse than none.
 - **Every rule gets a test** where it can (contrast, pricing match, Pro locks, tag alignment, Light/Dark).
 - **Fix the whole category, not the one instance:** "You should check and fix these kinds of issues."
 - **Mockups as artifacts** before big visual decisions; he picks.

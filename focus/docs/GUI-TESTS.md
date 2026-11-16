@@ -31,7 +31,8 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
 11. **Modes reorder** in the order the window and the menu list, and nothing starts.
 12. **Every page draws** (Session, In session, Mode, Settings, Shortcuts, Tools, History, Manual, Feedback) at the
     smallest window and in each Width, without coming out blank.
-13. **The Focus mark** shows on the big button, right of the title, during a session.
+13. **A tick on the button in a session:** in a session a filled tick-in-a-circle sits before "End Session" (a solid
+    disc taller than any capital); out of a session there is none. Light and Dark.
 14. **Light and Dark:** five pages (Feedback shades the page on purpose, so it is left out) in each look draw on the right ground (white or black), with a readable title.
 15. **Basic's weekly sessions** are counted since Monday 00:00 (Quit All clean-ups don't count), reset next Monday
     00:00, and never go below zero.
@@ -49,7 +50,8 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
     and release. Offline, it's noted, not failed.
 20. **The Pro tags match the site's table:** Tools, Modes, History and custom shortcuts are limited on Free and
     included in Pro and Max; sessions a week reads 10 / Unlimited.
-21. **The Upgrade window** draws in Light and Dark, and as Basic (View As) the Tools page stays whole with a quiet "Purchase Pro to unlock" at the right.
+21. **Upgrade page and Basic unlock panel:** the Upgrade page draws in Light and Dark; History shows its unlock panel
+    (a band at least 30 pt tall) as Basic and not as Pro.
 
 **New touches**
 22. **Type to add an app** finds apps on the Mac by name, open or not, best match first ("text" → TextEdit), and
@@ -65,3 +67,9 @@ Every check that looks at the window runs in **both Light and Dark** (1, 8, 9, 1
 
 **Not covered** (needs the real screen or a pointer): hover states, the hand cursor, drag to reorder, the pressure
 build and release over time, the click line animating, ⌘Q/⌘H in a live window. Check these by eye.
+
+28. **Becoming Pro removes every upgrade request:** open Upgrade as Basic, switch View As to Pro: the Upgrade page
+    closes back to where it came from, nothing is locked, Upgrade can't reopen, Upgrade is never saved as the page,
+    and Tools draws no plans as Pro.
+29. **Out of sessions opens the plans:** Basic with the week's sessions used can't start one; the plans open headed
+    "0 sessions remaining this week"; Pro is unlimited and closes them.

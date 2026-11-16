@@ -4,6 +4,22 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.84 — 2026-11-16
+
+- **Out of sessions:** on Basic, starting a session with none left (button, ⌘⇧F, a mode key) opens the plans headed
+  "0 sessions remaining this week — resets Monday 00:00". Monthly first, then "Save: keep Pro forever for £50 once".
+- **Becoming Pro removes every request to upgrade:** switching to Pro closes the Upgrade page at once; it is never
+  remembered as the window's page and can't open for Pro.
+- **Unlock panels are contextual, with their own button:** e.g. "Unlock your full session history by upgrading to
+  Pro. Basic shows your last 3 sessions." and an outlined "Upgrade to Pro" button. History shows it always on Basic.
+- **The session button changes clearly:** a tick in a circle springs in before "End Session".
+- **Live line under the button:** "Closing Safari… 2 of 6", app by app, then "Session started. End the session to
+  bring all your apps back."
+- **Plan lines** scale evenly with text size; side by side at Default, stacked only at large sizes.
+- **Default text one step bigger.**
+- **Pro tags** in the sidebar end where the ⌘ keys do.
+- Tests: 29 GUI checks (new: 28 becoming Pro, 29 out of sessions; 13 and 21 now measure the real thing).
+
 ## 0.18.83 — 2026-11-16
 
 - **The plans are on the screen, not in a pop-up.** Tools, Shortcuts and every mode show the plans right under their

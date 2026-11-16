@@ -200,3 +200,10 @@ These are done and pass their tests, but haven't been seen on your screen in rea
   custom shortcuts, scheduling, blocking or hiding Focus itself. Pro and Max have
   unlimited sessions and everything. The app gates nothing yet: it waits for licences. The small white "Pro" tags
   (0.18.66) already mark the Pro parts.
+
+## 2026-11-16
+- **Hide the app itself (Pro):** under Critical System Processes, very carefully worded ("Do you want to hide this app?
+  Use menu or shortcut to end session"). PARKED by him: "This is delicate, so don't add it yet."
+- **Free weekly reset token:** first-time user who runs out gets one free reset, a pop-up ("we know you wanted to play
+  around") and 10 tokens animating into the count. Awaiting his go after my answer.
+- **Sessions per week for Basic:** recommended staying at 10 (see the reply of 2026-11-16).

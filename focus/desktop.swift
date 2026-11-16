@@ -62,7 +62,7 @@ enum Site {
         let s = UserDefaults.standard.double(forKey: "desktopTextScale"); return s >= 0.8 && s <= 1.6 ? CGFloat(s) : 1
     }() { didSet { UserDefaults.standard.set(Double(scale), forKey: "desktopTextScale") } }
     /// The standard text size, as a multiple of the sizes written in this file. 0.9 since 0.18.36 (two steps down from 1.08).
-    static let standard: CGFloat = 0.9                      // "Default" in Settings ▸ Text size; 0.18.43 made the size he had chosen (one step under 1.0) the Default
+    static let standard: CGFloat = 0.99                     // one step up (2026-11-16, his ask); "Default" in Settings ▸ Text size; 0.18.43 made the size he had chosen (one step under 1.0) the Default
     static func font(_ base: CGFloat, _ w: Weight = .regular) -> Font {
         let size = (base * Site.standard * scale).rounded()
         let name = ["Graphik-Regular", "Graphik-Medium", "Graphik-Semibold"][w == .regular ? 0 : w == .medium ? 1 : 2]
@@ -131,8 +131,33 @@ let brandLockup: NSImage? = {
 final class DesktopModel: ObservableObject {
     unowned let f: Focus
     @Published var tick = 0
-    @Published var selection: String? = UserDefaults.standard.string(forKey: "desktopPage") {   // nil = the session; else a page or a mode's id
-        didSet { if let s = selection { UserDefaults.standard.set(s, forKey: "desktopPage") } else { UserDefaults.standard.removeObject(forKey: "desktopPage") } }
+    @Published var selection: String? = UserDefaults.standard.string(forKey: "desktopPage").flatMap { $0 == "§upgrade" ? nil : $0 } {   // nil = the session; else a page or a mode's id
+        didSet {                                                   // the Upgrade page is never remembered: it's a moment, not a place
+            if let s = selection, s != Page.upgrade { UserDefaults.standard.set(s, forKey: "desktopPage") }
+            else if selection == nil { UserDefaults.standard.removeObject(forKey: "desktopPage") }
+        }
+    }
+    /// See the app as Actual ("") / Basic ("free") / Pro ("pro"). Becoming Pro leaves the Upgrade page at once: nothing
+    /// asks a Pro user to upgrade.
+    func viewAs(_ key: String) {
+        if key.isEmpty { UserDefaults.standard.removeObject(forKey: "desktopViewAs") } else { UserDefaults.standard.set(key, forKey: "desktopViewAs") }
+        tierChanged()
+    }
+    /// Call whenever the tier may have changed (View As, a purchase, a licence check).
+    func tierChanged() {
+        if DesktopModel.licensed && selection == Page.upgrade { selection = upgradeFrom; outOfSessions = false }
+        tick &+= 1
+    }
+    var upgradeFrom: String? = nil                                 // where Upgrade was opened from, to go back to
+    @Published var outOfSessions = false                           // Upgrade opened because the week's sessions ran out
+    /// Basic, and this week's sessions are used up: starting one opens Upgrade instead (Use it > love it > run out >
+    /// look to upgrade > see a better deal > buy). Locks only while viewing as Basic until real licences exist.
+    static func noSessionsLeft(_ f: Focus) -> Bool { renderArgs.contains("out") || (gated && week(f.sessions, now: Date()).left == 0) }
+    /// "resets Monday 00:00"
+    static func resetLine(_ f: Focus) -> String {
+        let r = week(f.sessions, now: Date()).reset
+        let d = DateFormatter(); d.locale = Locale(identifier: "en_GB"); d.dateFormat = "EEEE HH:mm"
+        return "resets \(d.string(from: r))"
     }
     var still = false                                           // off-screen drawing: no animation
     private var timer: Timer?
@@ -216,7 +241,13 @@ final class DesktopModel: ObservableObject {
     enum FeedbackState: Equatable { case writing, sending, sent, emailed }
     @Published var feedbackShown = false
     @Published var upgradeShown = false
-    func openUpgrade() { selection = Page.upgrade }               // a page in the window, not a pop-up
+    func openUpgrade() {                                           // a page in the window, not a pop-up; never for Pro
+        guard !DesktopModel.licensed else { return }
+        if selection != Page.upgrade { upgradeFrom = selection }
+        outOfSessions = false
+        selection = Page.upgrade
+    }
+    func openOutOfSessions() { openUpgrade(); outOfSessions = true }
     @Published var feedbackText = ""
     @Published var feedbackState = FeedbackState.writing
     /// Where feedback is posted. Until the site answers there, the message goes into an email instead.
@@ -257,8 +288,17 @@ final class DesktopModel: ObservableObject {
         timer?.invalidate()
         let t = Timer(timeInterval: 1.5, repeats: true) { [weak self] _ in self?.refresh() }
         RunLoop.main.add(t, forMode: .common); timer = t
+        lineTimer?.invalidate()                                    // the closing line: checked 4× a second, cheap (no memory read)
+        let l = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let now = self.caption
+            if now != self.lastCaption { self.lastCaption = now; self.tick &+= 1 }
+        }
+        RunLoop.main.add(l, forMode: .common); lineTimer = l
     }
-    func stop() { timer?.invalidate(); timer = nil }
+    func stop() { timer?.invalidate(); timer = nil; lineTimer?.invalidate(); lineTimer = nil }
+    private var lineTimer: Timer?
+    private var lastCaption = ""
     func refresh() { f.mem = memoryByPid(); if Site.look == 2, let w = desktop.window { DesktopController.applyLook(to: w) }; tick &+= 1 }
     /// Do something to the engine, then show it.
     func act(_ change: () -> Void) { change(); tick &+= 1 }
@@ -336,7 +376,13 @@ final class DesktopModel: ObservableObject {
     }
     /// Under the button: what pressing it does, in a line.
     var caption: String {
-        if f.focused { return "End the session to restore all of your apps as they were." }      // no memory talk once a session is on
+        if f.focused {                                              // live, like a terminal: each app as it goes, then done
+            if renderArgs.contains("closing") { return "Closing Safari…  2 of 6" }
+            if let a = f.queue.first, f.total > 0 { return "Closing \(a.localizedName ?? "app")…  \(f.total - f.queue.count + 1) of \(f.total)" }
+            if let st = f.status, st.hasPrefix("Quitting ") { return "Closing " + st.dropFirst(9).replacingOccurrences(of: " at once", with: "") + "…" }
+            if let st = f.status, st.hasPrefix("Waiting") { return st + "." }
+            return "Session started. End the session to bring all your apps back."
+        }
         guard !f.hideMode else { return f.sessionCaption() }
         let out = f.leaving(); guard !out.isEmpty else { return f.sessionCaption() }
         return "Closes \(out.count) app\(out.count == 1 ? "" : "s") and saves \(gb(out.reduce(0) { $0 + f.memory($1) })) of RAM. They reopen when the session ends."
@@ -503,14 +549,18 @@ struct SessionButton: View {
     var body: some View {
         Button(action: click) {
             ZStack {
-                Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
-                    .background(GeometryReader { g in Color.clear.preference(key: TitleWidth.self, value: g.size.width) })
-                    .onPreferenceChange(TitleWidth.self) { titleWidth = $0 }
+                HStack(spacing: 12) {                                     // in a session: a tick in a circle before the title — the change is unmistakable
+                    if !starting {
+                        Image(systemName: "checkmark.circle.fill").font(.system(size: 26 * Site.scale, weight: .semibold))
+                            .transition(.scale(scale: 0.2).combined(with: .opacity))
+                    }
+                    Text(title).font(Site.font(25, .medium)).tracking(-0.4).lineLimit(1)
+                }
+                .animation(.spring(response: 0.4, dampingFraction: 0.6), value: starting)
+                .background(GeometryReader { g in Color.clear.preference(key: TitleWidth.self, value: g.size.width) })
+                .onPreferenceChange(TitleWidth.self) { titleWidth = $0 }
                 HStack(spacing: 14) {
                     Spacer()
-                    if !starting {                                        // in a session: the Focus mark, beside the key
-                        FocusMark(ink: ink).frame(width: 24, height: 24).transition(.scale(scale: 0.3).combined(with: .opacity))
-                    }
                     Text(key).font(Site.font(18)).opacity(hover ? 0.6 : 0.45).lineLimit(1)
                 }.padding(.trailing, 24).animation(.spring(response: 0.45, dampingFraction: 0.7), value: starting)
             }
@@ -751,6 +801,12 @@ struct UpgradeCard: View {
             Text(p.fill(key == "free" ? t.summary : which == "once" ? (gift.map { g in g.line.replacingOccurrences(of: "{launch_once}", with: "\(p.currency)\(g.once)").replacingOccurrences(of: "{once}", with: "\(p.currency)\(t.once ?? 0)").replacingOccurrences(of: "{code}", with: g.code ?? "") } ?? t.once_summary ?? t.summary) : which == "yearly" ? (t.yearly_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
                 .fixedSize(horizontal: false, vertical: true).frame(minHeight: 40, alignment: .top)
             }
+            if key == "pro", which == "monthly", let i = plans.firstIndex(of: "once"), let once = t.launch.flatMap({ $0.active ? $0.once : nil }) ?? t.once {
+                Button { withAnimation(.easeOut(duration: 0.15)) { plan = i } } label: {         // the better deal, one click away
+                    HStack(spacing: 5) { Text("Save: keep Pro forever for \(p.currency)\(once) once").font(Site.font(14, .medium)).underline(); Image(systemName: "arrow.right").font(.system(size: 10, weight: .bold)) }
+                        .foregroundColor(Site.head).contentShape(Rectangle())
+                }.buttonStyle(.plain).linkCursor().padding(.bottom, 4)
+            }
             Button {
                 if key != "free" && !current { NSWorkspace.shared.open(Pricing.checkout(tier: key, plan: which, code: gift?.code)) }   // the code pre-applied
             } label: {
@@ -799,30 +855,33 @@ struct PlanLines: View {
     @State private var hover = false
     var body: some View {
         let week = DesktopModel.week(m.f.sessions, now: Date())
-        let left = renderArgs.contains("headsup") ? 2 : week.left, days = DesktopModel.trialDaysLeft
-        HStack(alignment: .center, spacing: 10) {
-            VStack(alignment: .leading, spacing: 3) {                 // the two facts, one above the other
-                Text("\(left) \(left == 1 ? "Session" : "Sessions") left this week")
-                    .font(Site.font(14, left <= 3 ? .medium : .regular)).foregroundColor(left <= 3 ? Site.head : Site.low)
-                if DesktopModel.trial {
-                    Text("\(days) \(days == 1 ? "Day" : "Days") of Pro left")
-                        .font(Site.font(14, days <= 3 ? .medium : .regular)).foregroundColor(days <= 3 ? Site.head : Site.low)
-                }
-            }.lineLimit(1).minimumScaleFactor(0.85)
-            Spacer(minLength: 4)
-            Button { m.openUpgrade() } label: {                       // a reward, not a nag: on hover it fills white, Pro's colour
-                HStack(spacing: 4) {
-                    Text("Upgrade Now").font(Site.font(13, .semibold)).fixedSize()
-                    Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .bold)).offset(x: hover ? 1 : 0, y: hover ? -1 : 0)
-                }
-                .foregroundColor(hover ? Site.paper : Site.head).padding(.horizontal, 11).frame(height: 30)
-                .background(RoundedRectangle(cornerRadius: 15, style: .circular).fill(hover ? Site.ink : Site.paper))
-                .overlay(RoundedRectangle(cornerRadius: 15, style: .circular).strokeBorder(Site.ink.opacity(hover ? 0 : 0.7), lineWidth: 1))
-                .shadow(color: Site.ink.opacity(hover && !Site.light ? 0.35 : 0), radius: 10)     // no shadows in Light
-                .scaleEffect(hover ? 1.04 : 1).contentShape(RoundedRectangle(cornerRadius: 15, style: .circular))
-            }.buttonStyle(PressStyle()).onHover { hover = $0 }.linkCursor().help("See the plans")
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hover)
-        }.padding(.horizontal, 4).padding(.bottom, 6)
+        let left = renderArgs.contains("out") ? 0 : renderArgs.contains("headsup") ? 2 : week.left, days = DesktopModel.trialDaysLeft
+        let facts = VStack(alignment: .leading, spacing: 3) {          // the two facts, one above the other, always the same size
+            Text("\(left) \(left == 1 ? "Session" : "Sessions") left this week")
+                .font(Site.font(13.5, left <= 3 ? .medium : .regular)).foregroundColor(left <= 3 ? Site.head : Site.low)
+            if DesktopModel.trial {
+                Text("\(days) \(days == 1 ? "Day" : "Days") of Pro left")
+                    .font(Site.font(13.5, days <= 3 ? .medium : .regular)).foregroundColor(days <= 3 ? Site.head : Site.low)
+            }
+        }.fixedSize()
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 8) { facts; Spacer(minLength: 0); upgrade }
+            VStack(alignment: .leading, spacing: 8) { facts; upgrade }.frame(maxWidth: .infinity, alignment: .leading)
+        }.padding(.horizontal, 2).padding(.bottom, 6)
+    }
+    var upgrade: some View {
+        Button { m.openUpgrade() } label: {                       // a reward, not a nag: on hover it fills, Pro's colour
+            HStack(spacing: 4) {
+                Text("Upgrade Now").font(Site.font(12.5, .semibold)).fixedSize()
+                Image(systemName: "arrow.up.right").font(.system(size: 10, weight: .bold)).offset(x: hover ? 1 : 0, y: hover ? -1 : 0)
+            }
+            .foregroundColor(hover ? Site.paper : Site.head).padding(.horizontal, 8).frame(height: 30)
+            .background(RoundedRectangle(cornerRadius: 15, style: .circular).fill(hover ? Site.ink : Site.paper))
+            .overlay(RoundedRectangle(cornerRadius: 15, style: .circular).strokeBorder(Site.ink.opacity(hover ? 0 : 0.7), lineWidth: 1))
+            .shadow(color: Site.ink.opacity(hover && !Site.light ? 0.35 : 0), radius: 10)     // no shadows in Light
+            .scaleEffect(hover ? 1.04 : 1).contentShape(RoundedRectangle(cornerRadius: 15, style: .circular))
+        }.buttonStyle(PressStyle()).onHover { hover = $0 }.linkCursor().help("See the plans")
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: hover)
     }
 }
 
@@ -1096,7 +1155,7 @@ struct ModeListRow: View {
     }
 }
 
-/// Where a Pro feature is locked (viewing as Basic): one quiet line at the right, "Purchase Pro to unlock". The page
+/// Where a Pro feature is locked (viewing as Basic): a sentence saying what Pro unlocks here, and an outlined "Upgrade to Pro" button. The page
 /// itself stays whole and readable, so people can see what Pro does; using a locked control opens Upgrade.
 /// Type to find an app: every app on the Mac, open or not. Return (or a click) adds the first match to the session —
 /// ticked if it's open, added to the session's apps if it isn't (and opened into it, during a session).
@@ -1133,18 +1192,27 @@ struct AppFinder: View {
 
 struct LockedPanel: View {
     @ObservedObject var m: DesktopModel
-    let text: String                                           // what Pro adds here (shown on hover)
+    let text: String                                           // what Pro unlocks here, in this place's own words
     @State private var hover = false
     var body: some View {
-        HStack {
-            Spacer()
-            Button { m.openUpgrade() } label: {
-                HStack(spacing: 8) {
-                    Text("Purchase Pro to unlock").font(Site.font(15, .medium)).foregroundColor(hover ? Site.head : Site.low).underline(hover)
-                    ProTag()
-                }.contentShape(Rectangle())
-            }.buttonStyle(.plain).onHover { hover = $0 }.help(text).linkCursor()
-        }.padding(.vertical, 6)
+        HStack(spacing: 16) {
+            Text(text).font(Site.font(17)).foregroundColor(Site.head).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button { m.openUpgrade() } label: {                         // a real button, but outlined: never the big one
+                HStack(spacing: 6) {
+                    Text("Upgrade to Pro").font(Site.font(15, .semibold)).fixedSize()
+                    Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .bold)).offset(x: hover ? 1.5 : 0, y: hover ? -1.5 : 0)
+                }
+                .foregroundColor(Site.head).padding(.horizontal, 16).frame(height: 38)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(hover ? Site.surface2 : Color.clear))
+                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Site.ink.opacity(hover ? 1 : 0.75), lineWidth: 1.2))
+                .contentShape(Rectangle())
+            }.buttonStyle(PressStyle()).onHover { hover = $0 }.linkCursor().help("See the plans")
+            .animation(.easeOut(duration: 0.15), value: hover)
+        }
+        .padding(.horizontal, 18).padding(.vertical, 14)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.surface))
+        .padding(.vertical, 8)
     }
 }
 
@@ -1169,7 +1237,7 @@ struct ViewAsPanel: View {
                     ForEach([("Actual", ""), (DesktopModel.freeName, "free"), ("Pro", "pro")], id: \.1) { title, key in
                         let on = now == key
                         Button {
-                            m.act { if key.isEmpty { UserDefaults.standard.removeObject(forKey: "desktopViewAs") } else { UserDefaults.standard.set(key, forKey: "desktopViewAs") } }
+                            m.act { m.viewAs(key) }
                         } label: {
                             Text(title).font(Site.font(14, .medium)).foregroundColor(on ? Site.paper : Site.head).lineLimit(1).frame(maxWidth: .infinity).frame(height: 30)
                                 .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(on ? Site.ink : Color.clear))
@@ -1297,7 +1365,7 @@ struct SideRow: View {
                     Text("On").font(Site.font(14, .medium)).foregroundColor(Site.paper)
                         .frame(width: 38, height: 20).background(RoundedRectangle(cornerRadius: 10, style: .circular).fill(Site.ink))
                 }
-            } else { Text(hover && hint != nil ? hint! : trailing).font(Site.font(15)).foregroundColor(live || (hover && hint != nil) ? Site.head : Site.muted) }
+            } else if !trailing.isEmpty || (hover && hint != nil) { Text(hover && hint != nil ? hint! : trailing).font(Site.font(15)).foregroundColor(live || (hover && hint != nil) ? Site.head : Site.muted) }   // nothing empty: a Pro tag ends where the ⌘ keys do
             }
         }
         .foregroundColor(selected || live ? Site.head : Site.low)
@@ -1338,7 +1406,7 @@ struct DesktopView: View {
                 VStack(spacing: 9) {
                     let look = buttonColours
                     SessionButton(title: m.f.focused ? "End Session" : "Start New Session", key: sessionKey, starting: !m.f.focused,
-                                  tint: look.0, tint2: look.1, ink: look.2) { m.act { m.f.toggle() } }
+                                  tint: look.0, tint2: look.1, ink: look.2) { if !m.f.focused && DesktopModel.noSessionsLeft(m.f) { m.openOutOfSessions() } else { m.act { m.f.toggle() } } }
                     Text(m.caption).font(Site.font(17)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
                 }.padding(.horizontal, 28).padding(.leading, pageInsets.lead).padding(.trailing, pageInsets.trail)
             }
@@ -1353,7 +1421,12 @@ struct DesktopView: View {
                     else if let id = m.selection, let mode = m.modes.first(where: { $0.id == id }) { ModeDetail(m: m, mode: mode).id(mode.id + "\u{1F}" + mode.name) }
                     else if m.selection == Page.history { HistoryPage(m: m) }
                     else if m.selection == Page.manual { ManualPage() }
-                    else if m.selection == Page.upgrade { PageFrame(title: "Upgrade Focus", text: "") { UpgradeCard(m: m).padding(.top, 4) } }
+                    else if m.selection == Page.upgrade && !DesktopModel.licensed {
+                        if m.outOfSessions || renderArgs.contains("out") {
+                            PageFrame(title: "0 sessions remaining this week — \(DesktopModel.resetLine(m.f))",
+                                      text: "Pro has no limit: start as many sessions as you like.") { UpgradeCard(m: m).padding(.top, 18) }
+                        } else { PageFrame(title: "Upgrade Focus", text: "") { UpgradeCard(m: m).padding(.top, 4) } }
+                    }
                     else { SessionDetail(m: m) }
                 }
                 .id(m.selection ?? "session").transition(.opacity)
@@ -1417,7 +1490,7 @@ struct DesktopView: View {
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(m.modesShown ? 90 : 0)).offset(y: 1.5)   // on the text's middle line
                     Spacer()
                     ProTag()
-                }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 32)   // the tag in the rows' column.padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())
+                }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 22)   // the tag in the rows' column.padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())
             }.buttonStyle(.plain).help(m.modesShown ? "Hide your modes" : "Show your modes")
             if m.modesShown {
                 ScrollView(showsIndicators: false) {
@@ -1508,7 +1581,7 @@ struct SessionDetail: View {
                     // Modes follow on, as in the menu. Click one to start it; the sidebar's Modes open each in detail.
                     SectionLabel("Modes — frequently used sessions", pro: true).padding(.horizontal, -14).padding(.top, 8)
                     Note("A mode is a set of apps you keep open. Start one with its button or its key; click its name to edit it.")
-                    if DesktopModel.gated { LockedPanel(m: m, text: "Modes are part of Pro: a set of apps you start with one key.") }
+                    if DesktopModel.gated { LockedPanel(m: m, text: "Unlock modes, sets of apps you start with one key, by upgrading to Pro.") }
                     VStack(spacing: 2) {
                         ForEach(m.modes) { mode in
                             ModeListRow(m: m, mode: mode).contextMenu { ModeMenu(m: m, mode: mode) }
@@ -2079,6 +2152,9 @@ struct HistoryPage: View {
     var body: some View {
         let f = m.f
         PageFrame(title: "History", text: "Your past sessions. Save one as a mode to start it again with a key.") {
+            if DesktopModel.gated { LockedPanel(m: m, text: m.history.count > 3
+                ? "Unlock your full session history, all \(m.history.count) sessions, by upgrading to Pro. \(DesktopModel.freeName) shows your last 3."
+                : "Unlock your full session history by upgrading to Pro. \(DesktopModel.freeName) shows your last 3 sessions.") }
             if m.history.isEmpty { Text("No sessions yet.").font(Site.font(16)).foregroundColor(Site.muted).padding(.vertical, 10) }
             ForEach(DesktopModel.gated ? Array(m.history.prefix(3)) : m.history) { s in
                 HStack(spacing: 12) {
@@ -2092,7 +2168,6 @@ struct HistoryPage: View {
                     }
                 }.padding(.vertical, 7)
             }
-            if DesktopModel.gated && m.history.count > 3 { LockedPanel(m: m, text: "\(DesktopModel.freeName) keeps your last 3 sessions. Pro keeps all \(m.history.count).") }
         }
     }
 }
@@ -2189,7 +2264,7 @@ struct SettingsPage: View {
             SettingLine(title: "Menu headings", note: "How much the menu's headings explain.") {
                 Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
             }
-            if DesktopModel.gated { LockedPanel(m: m, text: "Width, icon styles, colours and text colour are part of Pro.") }
+            if DesktopModel.gated { LockedPanel(m: m, text: "Unlock every width, icon style and colour by upgrading to Pro.") }
             SettingLine(title: "Width", note: "Default leaves space either side of the page. Wide fills the window. Minimal makes the window itself smaller.", pro: true) {
                 Choice(options: ["Default", "Wide", "Minimal"], selected: DesktopView.trial.rawValue) { i in m.pro { desktop.setWidth(i) } }
             }
@@ -2263,6 +2338,8 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     }
     var window: NSWindow?, model: DesktopModel?
     var shown: Bool { window?.isVisible == true }
+    /// The week's sessions ran out (from the menu or a key): bring the window up on the out-of-sessions Upgrade page.
+    func outOfSessions(_ f: Focus) { show(f); model?.openOutOfSessions() }
     func show(_ f: Focus) {
         if window == nil {
             let m = DesktopModel(f); model = m
@@ -2401,9 +2478,8 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     }
     @objc func viewAs(_ sender: NSMenuItem) {
         let key = sender.representedObject as? String ?? ""
-        if key.isEmpty { UserDefaults.standard.removeObject(forKey: "desktopViewAs") } else { UserDefaults.standard.set(key, forKey: "desktopViewAs") }
         sender.menu?.items.forEach { $0.state = ($0.representedObject as? String ?? "") == key ? .on : .off }
-        model?.tick &+= 1
+        model?.viewAs(key)
     }
     func setWidth(_ i: Int) {
         let was = DesktopView.trial
@@ -2469,6 +2545,9 @@ func renderDesktop(to file: String, mode: Bool) {
     if renderArgs.contains("trial=wide") { DesktopView.renderTrial = .wide }
     if renderArgs.contains("trial=minimal") { DesktopView.renderTrial = .minimal }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
+    let savedScale = Site.scale
+    if let t = renderArgs.first(where: { $0.hasPrefix("textscale=") }).flatMap({ Double($0.dropFirst(10)) }) { Site.scale = CGFloat(t) }
+    defer { if Site.scale != savedScale { Site.scale = savedScale } }
     var size = renderArgs.contains("wide") ? NSSize(width: 1320, height: 880)
         : NSSize(width: 1000, height: renderArgs.first { $0.hasPrefix("h=") }.flatMap { Double($0.dropFirst(2)) }.map { CGFloat($0) }
                                        ?? (renderArgs.contains("tall") ? 1500 : 730))
@@ -2656,14 +2735,25 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     }
     check(12, "every page draws in every width", blank.isEmpty, blank.isEmpty ? "9 pages × 3 widths × Light and Dark" : "blank: \(blank.joined(separator: ", "))")
 
-    // 13. The session button's mark and title: in a session the Focus mark sits right of the title, out of it.
+    // 13. The session button changes clearly: in a session a tick in a circle sits before "End Session"; out of one
+    //     that place is empty.
     var mark = true
-    for look in ["dark", "light"] {                                  // paper-coloured mark on the ink button
-        guard let r = guiRender(["live", "trial=narrow", "look=\(look)"]) else { mark = false; continue }
-        let s = CGFloat(r.pixelsWide) / 1000
-        mark = mark && (Int(780 * s)..<Int(840 * s)).contains { x in look == "dark" ? lum(r, x, Int(61 * s)) < 0.2 : lum(r, x, Int(61 * s)) > 0.8 }
+    for look in ["dark", "light"] {                                  // paper-coloured tick on the ink button
+        // the tallest solid vertical run at the start of the button's contents: a disc is taller than any capital
+        func leadRun(_ opts: [String]) -> CGFloat {
+            guard let r = guiRender(opts + ["trial=narrow", "look=\(look)"]) else { return -1 }
+            let s = CGFloat(r.pixelsWide) / 1000
+            func paper(_ x: Int, _ y: Int) -> Bool { look == "dark" ? lum(r, x, y) < 0.25 : lum(r, x, y) > 0.75 }
+            let ys = Int(40 * s)..<Int(82 * s)
+            guard let x0 = (Int(380 * s)..<Int(900 * s)).first(where: { x in ys.contains { paper(x, $0) } }) else { return 0 }
+            var best = 0
+            for x in x0..<(x0 + Int(9 * s)) { var run = 0; for y in ys { if paper(x, y) { run += 1; best = max(best, run) } else { run = 0 } } }
+            return CGFloat(best) / s
+        }
+        let tall = 21 * Site.scale
+        mark = mark && leadRun(["live"]) >= tall && leadRun([]) < tall
     }
-    check(13, "Focus mark on the button in a session", mark, "mark found right of the title in Light and Dark: \(mark)")
+    check(13, "a tick on the button in a session", mark, "tick before the title in a session, none out of one, Light and Dark: \(mark)")
 
     // 14. Light and Dark: every page draws on its own ground — white in Light, black in Dark — with readable ink on it.
     var wrong = [String]()
@@ -2672,7 +2762,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
             guard let r = guiRender((page.isEmpty ? [] : [page]) + ["look=\(look)", "trial=narrow"]) else { wrong.append("\(look)/\(page)"); continue }
             let s = CGFloat(r.pixelsWide) / 1000
             let ground = lum(r, Int(990 * s), Int(720 * s))                      // the bottom-right corner is bare ground
-            let inked = stride(from: Int(320 * s), to: r.pixelsWide, by: 6).contains { x in abs(lum(r, x, Int(164 * s)) - ground) > 0.6 }   // the panel title
+            let inked = stride(from: Int(150 * s), to: Int(190 * s), by: 2).contains { y in stride(from: Int(320 * s), to: r.pixelsWide, by: 6).contains { x in abs(lum(r, x, y) - ground) > 0.6 } }   // the panel title, wherever text size puts it
             if (look == "light" ? ground < 0.95 : ground > 0.05) || !inked { wrong.append("\(look)/\(page.isEmpty ? "session" : page)") }
         }
     }
@@ -2769,11 +2859,18 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         // the Pro card's solid button sits in the middle of the window, in ink
         upOK = upOK && (Int(440 * s)..<Int(560 * s)).contains { x in (Int(380 * s)..<Int(520 * s)).contains { y in look == "dark" ? lum(r, x, y) > 0.93 : lum(r, x, y) < 0.07 } }
     }
-    let lockPic = guiRender(["tools", "tier=free", "viewas=free", "trial=narrow"])
-    var locked = false
-    // the quiet "Purchase Pro to unlock" line at the right, ending in its white Pro tag
-    if let r = lockPic { let s = CGFloat(r.pixelsWide) / 1000; locked = (Int(700 * s)..<Int(900 * s)).contains { x in (Int(226 * s)..<Int(246 * s)).contains { y in lum(r, x, y) > 0.7 } } }
-    check(21, "Upgrade window and Free locks", upOK && locked, "Upgrade window in Light and Dark: \(upOK); Tools shown whole with 'Purchase Pro to unlock' as Basic: \(locked)")
+    // the unlock panel on History: present as Basic (a filled band across the page under the description), absent as Pro
+    func band(_ opts: [String]) -> Bool {
+        guard let r = guiRender(["history", "trial=narrow"] + opts) else { return false }
+        let s = CGFloat(r.pixelsWide) / 1000, page = lum(r, Int(990 * s), Int(700 * s))
+        var run = 0, best = 0                                     // a band at least 30 pt tall, not a rule or a line of text
+        for y in Int(150 * s)..<Int(360 * s) {
+            if stride(from: Int(400 * s), to: Int(880 * s), by: 6).allSatisfy({ x in abs(lum(r, x, y) - page) > 0.02 }) { run += 1; best = max(best, run) } else { run = 0 }
+        }
+        return CGFloat(best) / s >= 30
+    }
+    let lockedB = band(["tier=free", "viewas=free"]), lockedP = band(["licensed"])
+    check(21, "Upgrade page and Basic unlock panel", upOK && lockedB && !lockedP, "Upgrade page in Light and Dark: \(upOK); History's unlock panel as Basic: \(lockedB), as Pro: \(lockedP)")
 
     // 22. Type to add an app: finds apps on the Mac by name (open or not), best match first, and adding one that
     //     isn't open puts it in the session's apps.
@@ -2839,6 +2936,41 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         renderArgs = saved
     }
     check(27, "Light and Dark both read", poor.isEmpty, poor.isEmpty ? "icon previews, the plans' solid and its text: readable in both looks" : poor.joined(separator: ", "))
+
+    // 28. Becoming Pro removes every request to upgrade: open Upgrade as Basic, switch View As to Pro — the Upgrade page
+    //     closes (back where it came from), nothing is locked, Upgrade can't reopen, and the Tools page as Pro draws
+    //     no plans (identical to a real licensed copy).
+    let um = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!))
+    um.selection = Page.tools; um.viewAs("free"); um.openUpgrade(); let wasUp = um.selection == Page.upgrade
+    um.viewAs("pro"); let left = um.selection == Page.tools, unlocked = !DesktopModel.gated && DesktopModel.licensed
+    um.openUpgrade(); let stays = um.selection == Page.tools
+    let savedPage = UserDefaults.standard.string(forKey: "desktopPage")
+    um.viewAs("")
+    var noPlans = false
+    if let a = guiRender(["tools", "trial=narrow", "licensed"]), let b = guiRender(["tools", "trial=narrow", "tier=free", "viewas=free"]) {
+        let s = CGFloat(a.pixelsWide) / 1000
+        // the plans' Buy button row on Basic (y 250…520 pt); as Pro that area must not hold it
+        func ys(_ r: NSBitmapImageRep) -> Int { (Int(250 * s)..<Int(520 * s)).filter { y in lum(r, Int(700 * s), y) != lum(r, Int(990 * s), y) }.count }
+        noPlans = ys(a) < ys(b)
+    }
+    UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+    check(28, "becoming Pro removes every upgrade request", wasUp && left && unlocked && stays && noPlans && savedPage != Page.upgrade,
+          "Upgrade open as Basic: \(wasUp); after Pro: back to Tools \(left), unlocked \(unlocked), Upgrade can't reopen \(stays), Upgrade never saved \(savedPage != Page.upgrade), Tools draws no plans as Pro \(noPlans)")
+
+    // 29. Out of sessions: Basic with the week's sessions used can't start one — the plans open, headed
+    //     "0 sessions remaining this week"; with sessions left, or as Pro, starting works.
+    let of = Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!)
+    let om = DesktopModel(of)
+    std.set("free", forKey: "desktopViewAs")
+    let fresh0 = DesktopModel.noSessionsLeft(of)
+    of.sessions = (0..<DesktopModel.freeWeekly).map { _ in ["date": Date(), "apps": [] as [Any]] as Session }
+    let spent = DesktopModel.noSessionsLeft(of)
+    om.openOutOfSessions(); let shown = om.selection == Page.upgrade && om.outOfSessions
+    std.set("pro", forKey: "desktopViewAs"); let proFree = !DesktopModel.noSessionsLeft(of); om.tierChanged()
+    let closed = om.selection != Page.upgrade
+    std.removeObject(forKey: "desktopViewAs"); UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+    check(29, "out of sessions opens the plans", !fresh0 && spent && shown && proFree && closed,
+          "fresh week blocked: \(fresh0); \(DesktopModel.freeWeekly) used blocked: \(spent); plans shown: \(shown); Pro unlimited: \(proFree); Pro closes them: \(closed)")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)
