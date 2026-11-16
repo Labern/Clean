@@ -27,3 +27,13 @@ current version so we know what this looked like, before changing it").
   - Panel names have a white full-width rule under them; there are no scroll bars; Text size is − / Default / +.
 - Code: tag `focus-v0.18.43` (also tagged `focus-look-good`), branch `focus/feat-desktop-app`. To go back to exactly this:
   `git checkout focus-look-good -- focus/desktop.swift`.
+
+## 0.18.79 — saved before the declutter (his words, 2026-11-16: "save this version")
+- `0.18.79-session.png`, `0.18.79-session-live.png`, `0.18.79-tools.png`, `0.18.79-upgrade.png` (as Basic).
+- Everything at full strength:
+  - Solid white Pro tags beside Shortcuts, Tools, History and Modes.
+  - A filled "Type to add an app" field.
+  - A white weekly counter.
+  - The dashed View As panel.
+- He felt it had lost its minimalism, though "everything that's there is good".
+- To go back: `git checkout focus-look-0.18.79 -- focus/desktop.swift`.
