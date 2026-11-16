@@ -75,6 +75,9 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **Rejected:** an end-of-session summary ("cringe"). Sound is undecided: build none until he decides.
 
 ## 7. Process
+- **Never ask him to run a command (2026-11-16):** "I don't ever want to have to run anything in the command line… Do it
+  your fucking self." Anything a terminal can do, Claude does.
+- **When he gives an order, follow it exactly, in his order** ("light and dark first, then colours, then icon").
 - **Done means seen** in the real app, both looks, as both Basic and Pro.
 - **Spacing regressions are flaws, not details:** "This is a flaw that crept in. Don't let this happen." Guard layout
   (gaps, alignment) with tests.

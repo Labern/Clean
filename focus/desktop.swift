@@ -2564,7 +2564,7 @@ struct AppearancePage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
         let f = m.f
-        PageFrame(title: "Appearance", text: "Light or dark, your colours, then how the menu looks.") {
+        PageFrame(title: "Appearance", text: "Light or dark, your colours, the menu bar icon, then the menu.") {
             SettingLine(title: "This window", note: "Dark is the standard look. System follows your Mac.") {
                 Choice(options: ["Light", "Dark", "System"], selected: Site.look) { i in desktop.setLook(i) }
             }
@@ -2592,10 +2592,6 @@ struct AppearancePage: View {
                     m.act { UserDefaults.standard.set(i == 0, forKey: "desktopButtonInkWhite") }
                 }
             }.padding(.top, 14)
-            GroupTitle("Menu")                                          // set mostly from the menu itself, so it comes last here
-            SettingLine(title: "Look", note: "The menu bar menu: dark or light.") {
-                Choice(options: ["Dark", "Light"], selected: f.lightMenuSetting ? 1 : 0) { i in m.act { f.lightMenuSetting = i == 1 } }
-            }
             SectionLabel("Menu bar icon — hover to see it enter a session", pro: true).padding(.horizontal, -14).padding(.top, 10)
             let ring = hexColor(f.iconColor) ?? (Site.light ? .black : .white), dot = hexColor(f.iconColor2) ?? ring   // previews read in Light too
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), alignment: .leading, spacing: 8) {
@@ -2603,6 +2599,10 @@ struct AppearancePage: View {
                     IconCell(style: st, selected: f.iconStyleSetting == st, ring: ring, dot: dot) { m.pro { f.iconStyleSetting = st } }
                         .opacity(DesktopModel.gated && f.iconStyleSetting != st ? 0.3 : 1).allowsHitTesting(!DesktopModel.gated)
                 }
+            }
+            GroupTitle("Menu")                                          // set mostly from the menu itself, so it comes last here
+            SettingLine(title: "Look", note: "The menu bar menu: dark or light.") {
+                Choice(options: ["Dark", "Light"], selected: f.lightMenuSetting ? 1 : 0) { i in m.act { f.lightMenuSetting = i == 1 } }
             }
         }
     }

@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.96 — 2026-11-16
+
+- **Appearance order:** Light / Dark / System, Colours, the menu bar icon, then the menu's Look last.
+
 ## 0.18.95 — 2026-11-16
 
 - **Appearance, reordered:** Light / Dark / System first; then Colours (presets, Custom colours, Text colour); then the
