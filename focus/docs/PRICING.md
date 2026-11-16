@@ -153,3 +153,12 @@ built yet; the app only shows the parts that are visible, and those are placehol
   choice for individuals. Open: name (Business / Teams / Enterprise), per-seat price, minimum seats.
 - **Latest (2026-11-15): Pro = everything Focus has. Max / Enterprise = for businesses, multiple seats, different
   pricing entirely.** Still thinking; the site is unchanged until he says go.
+
+## His pricing principle (2026-11-16)
+- "I don't care about the price of the product. It's worth whatever people will pay for it."
+- The frame he uses ("How to make $1,000,000"): $5,000 × 200 people, $1,000 × 1,000, $100 × 10,000, $10 × 100,000.
+  Price and reach are one lever. For Focus at today's prices: £1m is 20,000 one-offs at £50, about 13,300 at £75,
+  or about 16,700 people paying £5 a month for a year.
+- Practical consequence: treat prices as something to measure, not defend. The early-adopter £50 vs the later £75 is
+  already a built-in test; once Stripe is live, compare how many people buy at each.
+
