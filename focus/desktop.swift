@@ -2530,6 +2530,20 @@ struct SettingsPage: View {
                     if (SMAppService.mainApp.status == .enabled) != (i == 1) { m.act { f.login() } }
                 }
             }
+            GroupTitle("Layout")
+            SettingLine(title: "Menu headings", note: "How much the menu's headings explain.") {
+                Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
+            }
+            SettingLine(title: "Memory bar", note: "Above your apps: how much memory each one uses, and what a session frees.") {
+                Choice(options: ["Off", "On"], selected: MemoryBar.shown ? 1 : 0) { i in m.act { UserDefaults.standard.set(i == 1, forKey: "desktopMemoryBar") } }
+            }
+            if DesktopModel.gated { LockedPanel(m: m, text: "Unlock every width by upgrading to Pro.") }
+            SettingLine(title: "Width", note: "Default leaves space either side of the page. Wide fills the window. Minimal makes the window itself smaller.", pro: true) {
+                Choice(options: ["Default", "Wide", "Minimal"], selected: DesktopView.trial.rawValue) { i in m.pro { desktop.setWidth(i) } }
+            }
+            SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
+                TextSizeStepper()
+            }
         }
     }
 }
@@ -2538,26 +2552,14 @@ struct AppearancePage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
         let f = m.f
-        PageFrame(title: "Appearance", text: "How Focus looks: this window, the menu, the menu bar icon and its colours.") {
+        PageFrame(title: "Appearance", text: "Colours and icons: this window, the menu, the menu bar icon and its colours.") {
             SettingLine(title: "This window", note: "Dark is the standard look. System follows your Mac.") {
                 Choice(options: ["Light", "Dark", "System"], selected: Site.look) { i in desktop.setLook(i) }
             }
             SettingLine(title: "Menu", note: "The look of the menu bar menu.") {
                 Choice(options: ["Dark", "Light"], selected: f.lightMenuSetting ? 1 : 0) { i in m.act { f.lightMenuSetting = i == 1 } }
             }
-            SettingLine(title: "Menu headings", note: "How much the menu's headings explain.") {
-                Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
-            }
-            if DesktopModel.gated { LockedPanel(m: m, text: "Unlock every width, icon style and colour by upgrading to Pro.") }
-            SettingLine(title: "Memory bar", note: "Above your apps: how much memory each one uses, and what a session frees.") {
-                Choice(options: ["Off", "On"], selected: MemoryBar.shown ? 1 : 0) { i in m.act { UserDefaults.standard.set(i == 1, forKey: "desktopMemoryBar") } }
-            }
-            SettingLine(title: "Width", note: "Default leaves space either side of the page. Wide fills the window. Minimal makes the window itself smaller.", pro: true) {
-                Choice(options: ["Default", "Wide", "Minimal"], selected: DesktopView.trial.rawValue) { i in m.pro { desktop.setWidth(i) } }
-            }
-            SettingLine(title: "Text size", note: "For this window. Also ⌘+ and ⌘−.") {
-                TextSizeStepper()
-            }
+            if DesktopModel.gated { LockedPanel(m: m, text: "Unlock every icon style and colour by upgrading to Pro.") }
             SectionLabel("Menu bar icon — hover to see it enter a session", pro: true).padding(.horizontal, -14).padding(.top, 10)
             let ring = hexColor(f.iconColor) ?? (Site.light ? .black : .white), dot = hexColor(f.iconColor2) ?? ring   // previews read in Light too
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 7), alignment: .leading, spacing: 8) {
