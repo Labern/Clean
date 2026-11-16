@@ -73,3 +73,6 @@ build and release over time, the click line animating, ⌘Q/⌘H in a live windo
     and Tools draws no plans as Pro.
 29. **Out of sessions opens the plans:** Basic with the week's sessions used can't start one; the plans open headed
     "0 sessions remaining this week"; Pro is unlimited and closes them.
+30. **A gap between Settings and Modes:** at least 10 pt of clear sidebar between them.
+31. **The free reset:** at 0 on Basic with the gift unused, the gift shows before the plans; taking it gives the
+    week's sessions back once; the next time out, the plans.

@@ -4,6 +4,19 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.86 — 2026-11-16
+
+- **The free reset:** a first-time Basic user who runs out gets a one-time gift before ever seeing the plans: "Here's
+  a free reset". On Add, 10 tokens in a ring fly in one by one, then the sidebar count rises from 0 to 10. The next
+  time out, the plans. Developer Panel: "Sessions → 0" (spawns it; never touches real history) and "Restore".
+- **Memory bar** rebuilt: 24 pt tall, app names inside their segments, a Stays / Closes key; hovering an app in the
+  list lights its segment, hovering a segment names the app. Settings ▸ Memory bar: On / Off.
+- **Plans:** Basic and Pro the same height; "Not a fan of subscriptions? Buy once, keep forever >" above Buy (opens
+  Once) on Monthly and Yearly.
+- **Sidebar gap** between Settings and Modes restored (a stray comment had eaten its padding); check 30 guards it.
+- Plan lines keep one weight (they brighten near the end without changing width).
+- Tests never leave his real settings changed (saved and restored around the suite). 31 GUI checks.
+
 ## 0.18.85 — 2026-11-16
 
 - **Type to add an app** sits after the app list, not at the top.

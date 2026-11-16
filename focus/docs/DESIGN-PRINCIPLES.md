@@ -29,7 +29,7 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **Unlock messages are contextual and bigger:** say what this place unlocks ("Unlock your full session history by
   upgrading to Pro"), with a real button that isn't the main one.
 - **Becoming Pro must remove every request to upgrade, instantly.** "Don't make me ask again."
-- **Reward people who play around (proposed 2026-11-16):** a one-time free weekly reset for first-time users who used
+- **Reward people who play around (BUILT 2026-11-16):** a one-time free weekly reset for first-time users who used
   their sessions up exploring, with a celebratory animation (10 tokens added, the count rising).
 
 ## 3. Pricing
@@ -70,6 +70,10 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 
 ## 7. Process
 - **Done means seen** in the real app, both looks, as both Basic and Pro.
+- **Spacing regressions are flaws, not details:** "This is a flaw that crept in. Don't let this happen." Guard layout
+  (gaps, alignment) with tests.
+- **Visualisations must explain themselves:** thick enough to read, labelled, linked to the list on hover, and optional.
+- **Tests never touch the user's real settings** without restoring them.
 - **A test must measure the real thing:** a check that passes while the feature is missing is worse than none.
 - **Every rule gets a test** where it can (contrast, pricing match, Pro locks, tag alignment, Light/Dark).
 - **Fix the whole category, not the one instance:** "You should check and fix these kinds of issues."

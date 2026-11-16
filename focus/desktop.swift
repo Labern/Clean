@@ -150,6 +150,40 @@ final class DesktopModel: ObservableObject {
     }
     var upgradeFrom: String? = nil                                 // where Upgrade was opened from, to go back to
     @Published var outOfSessions = false                           // Upgrade opened because the week's sessions ran out
+    @Published var giftShown = false
+    @Published var hoverApp: String?                               // the app under the pointer, in the list or the memory bar                               // the free reset pop-up is up
+    @Published var countUp: Int? = nil                             // the plan line's count while it rises after the gift
+    /// Run out, on Basic, with the free reset unused: the gift comes first; the plans only the next time.
+    var giftDue: Bool { DesktopModel.gated && !DesktopModel.giftUsed && DesktopModel.week(f.sessions, now: Date()).left == 0 }
+    func showGiftIfDue() { if giftDue && !giftShown && !renderArgs.contains("--render-desktop") { giftShown = true } }
+    /// Take the gift: this week gets the sessions back, once ever; the count rises to show it.
+    func takeGift() {
+        let ud = UserDefaults.standard
+        ud.set(true, forKey: "focusGiftUsed"); ud.set(DesktopModel.weekStart, forKey: "focusGiftWeek")
+        if ud.object(forKey: "devSpentWeek") != nil { ud.set(DesktopModel.giftSessions, forKey: "devSpentBack") }   // the dev "0" gives way to the gift
+        let to = DesktopModel.week(f.sessions, now: Date()).left
+        giftShown = false
+        if selection == Page.upgrade { selection = upgradeFrom; outOfSessions = false }
+        countUp = 0
+        for i in 1...max(1, to) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35 + Double(i) * 0.07) { [weak self] in
+                self?.countUp = i
+                if i == max(1, to) { DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { self?.countUp = nil } }
+            }
+        }
+    }
+    /// Developer Panel: use up this week's sessions (as Basic) without touching the real history; re-arm the gift.
+    func devSpendAll() {
+        let ud = UserDefaults.standard
+        ud.set(DesktopModel.weekStart, forKey: "devSpentWeek"); ud.removeObject(forKey: "devSpentBack")
+        ud.removeObject(forKey: "focusGiftUsed"); ud.removeObject(forKey: "focusGiftWeek")
+        viewAs("free"); showGiftIfDue()
+    }
+    func devRestore() {
+        let ud = UserDefaults.standard
+        ["devSpentWeek", "devSpentBack", "focusGiftWeek"].forEach { ud.removeObject(forKey: $0) }
+        tick &+= 1
+    }
     /// Basic, and this week's sessions are used up: starting one opens Upgrade instead (Use it > love it > run out >
     /// look to upgrade > see a better deal > buy). Locks only while viewing as Basic until real licences exist.
     static func noSessionsLeft(_ f: Focus) -> Bool { renderArgs.contains("out") || (gated && week(f.sessions, now: Date()).left == 0) }
@@ -191,6 +225,10 @@ final class DesktopModel: ObservableObject {
     static let trial = true
     /// Free's weekly sessions (PRICING.md: 10 a week; Pro and Max unlimited).
     static var freeWeekly: Int { Pricing.current?.free_sessions_per_week ?? 10 }   // from pricing.json
+    /// The one free reset: a first-time user who runs out (usually from playing around) gets this many back, once.
+    static var giftSessions: Int { freeWeekly }
+    static var giftUsed: Bool { UserDefaults.standard.bool(forKey: "focusGiftUsed") }
+    static var weekStart: Date { var c = Calendar.current; c.firstWeekday = 2; return c.dateInterval(of: .weekOfYear, for: Date())?.start ?? Date() }
     /// Sessions started since 00:00 on Monday (Quit All clean-ups don't count), how many of Free's are left, and the
     /// day it resets (next Monday, 00:00 local time).
     static func week(_ sessions: [[String: Any]], now: Date, calendar: Calendar = .current) -> (used: Int, left: Int, reset: Date, resetDay: String) {
@@ -199,7 +237,11 @@ final class DesktopModel: ObservableObject {
         let reset = cal.date(byAdding: .day, value: 7, to: start) ?? now
         let used = sessions.filter { ($0["kind"] as? String) != "quit all" && (($0["date"] as? Date).map { $0 >= start && $0 <= now } ?? false) }.count
         let f = DateFormatter(); f.calendar = cal; f.locale = Locale(identifier: "en_GB"); f.dateFormat = "EEEE"
-        return (used, max(0, freeWeekly - used), reset, f.string(from: reset))
+        let ud = UserDefaults.standard
+        let bonus = (ud.object(forKey: "focusGiftWeek") as? Date).map { abs($0.timeIntervalSince(start)) < 3600 ? giftSessions : 0 } ?? 0   // the free reset, this week only
+        let spent = (ud.object(forKey: "devSpentWeek") as? Date).map { abs($0.timeIntervalSince(start)) < 3600 } ?? false               // Developer Panel: sessions → 0
+        let u = spent ? max(used, freeWeekly + bonus - (ud.integer(forKey: "devSpentBack"))) : used
+        return (u, max(0, freeWeekly + bonus - u), reset, f.string(from: reset))
     }
     /// Temporary, for looking at the design: show the Focus Pro badge and the Buy button together. Remove with licences.
     static let showBoth = false
@@ -247,7 +289,10 @@ final class DesktopModel: ObservableObject {
         outOfSessions = false
         selection = Page.upgrade
     }
-    func openOutOfSessions() { openUpgrade(); outOfSessions = true }
+    func openOutOfSessions() {
+        if giftDue { giftShown = true; return }                    // the first time: the gift, not the plans
+        openUpgrade(); outOfSessions = true
+    }
     @Published var feedbackText = ""
     @Published var feedbackState = FeedbackState.writing
     /// Where feedback is posted. Until the site answers there, the message goes into an email instead.
@@ -293,6 +338,7 @@ final class DesktopModel: ObservableObject {
             guard let self else { return }
             let now = self.caption
             if now != self.lastCaption { self.lastCaption = now; self.tick &+= 1 }
+            self.showGiftIfDue()
         }
         RunLoop.main.add(l, forMode: .common); lineTimer = l
     }
@@ -434,6 +480,8 @@ final class DesktopModel: ObservableObject {
 struct AppRowView: View {
     let app: DesktopModel.AppLine, icon: NSImage, mark: String, action: (() -> Void)?
     var quit: ((Bool) -> Void)? = nil                           // right-click: Quit / Force Quit this app (running apps only)
+    var hovered: ((Bool) -> Void)? = nil                        // tells the memory bar which app to light
+    var lit = false                                             // lit from the memory bar
     @State private var hover = false
     var body: some View {
         HStack(spacing: 12) {
@@ -445,10 +493,10 @@ struct AppRowView: View {
                 .font(.system(size: 19)).foregroundColor(app.on ? Site.head : Site.muted).frame(width: 24)
         }
         .padding(.horizontal, 14).frame(height: 38)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(hover && action != nil ? Site.surface : Color.clear))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill((hover && action != nil) || lit ? Site.surface : Color.clear))
         .contentShape(Rectangle())
         .animation(.easeOut(duration: 0.12), value: hover).animation(.easeOut(duration: 0.2), value: app.on)
-        .onHover { hover = $0 }
+        .onHover { hover = $0; hovered?($0) }
         .onTapGesture { action?() }
         .contextMenu {
             if let quit {
@@ -483,24 +531,44 @@ struct ModeDrop: DropDelegate {
 /// session, grey = would close. Hover a segment to see whose it is.
 struct MemoryBar: View {
     let apps: [DesktopModel.AppLine]
-    @State private var hover: String?
+    @ObservedObject var m: DesktopModel                            // shares the hovered app with the list below
+    static var shown: Bool { !renderArgs.contains("nobar") && (UserDefaults.standard.object(forKey: "desktopMemoryBar") as? Bool ?? true) }
     var body: some View {
         let total = max(apps.reduce(0) { $0 + $1.bytes }, 1), freed = apps.filter { !$0.on }.reduce(0) { $0 + $1.bytes }
-        VStack(alignment: .leading, spacing: 6) {
+        let shown = apps.filter { $0.bytes > 0 }, hot = m.hoverApp
+        VStack(alignment: .leading, spacing: 7) {
             GeometryReader { g in
                 HStack(spacing: 2) {
-                    ForEach(apps.filter { $0.bytes > 0 }) { a in
-                        RoundedRectangle(cornerRadius: 3, style: .continuous)
-                            .fill(a.on ? Site.ink : Site.idle).opacity(hover == nil || hover == a.id ? 1 : 0.45)
-                            .frame(width: max(3, (g.size.width - CGFloat(apps.count) * 2) * CGFloat(a.bytes) / CGFloat(total)))
-                            .onHover { hover = $0 ? a.id : (hover == a.id ? nil : hover) }
+                    ForEach(shown) { a in
+                        let w = max(4, (g.size.width - CGFloat(shown.count) * 2) * CGFloat(a.bytes) / CGFloat(total))
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 5, style: .continuous).fill(a.on ? Site.ink : Site.idle)
+                            if w > CGFloat(a.name.count) * 7.5 * Site.scale + 18 {           // the app's name, where it fits
+                                Text(a.name).font(Site.font(12.5, .medium)).foregroundColor(a.on ? Site.paper : Site.head).lineLimit(1).padding(.leading, 8)
+                            }
+                        }
+                        .frame(width: w)
+                        .opacity(hot == nil || hot == a.id ? 1 : 0.35)
+                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Site.head, lineWidth: hot == a.id ? 2 : 0))
+                        .onHover { m.hoverApp = $0 ? a.id : (m.hoverApp == a.id ? nil : m.hoverApp) }
+                        .help("\(a.name) · \(a.usage)")
                     }
-                }.animation(.easeOut(duration: 0.35), value: apps.map(\.on))
-            }.frame(height: 10)
-            Text(hover.flatMap { id in apps.first { $0.id == id } }.map { "\($0.name) · \($0.usage)" }
-                 ?? "\(gb(total)) in use by open apps" + (freed > 0 ? " · a session frees \(gb(freed))" : ""))
-                .font(Site.font(15)).foregroundColor(Site.muted)
+                }
+                .animation(.easeOut(duration: 0.35), value: apps.map(\.on)).animation(.easeOut(duration: 0.12), value: hot)
+            }.frame(height: 24)
+            HStack(spacing: 14) {
+                if let id = hot, let a = apps.first(where: { $0.id == id }) {
+                    Text("\(a.name) · \(a.usage) · \(a.on ? "stays open" : "closes in a session")").font(Site.font(15, .medium)).foregroundColor(Site.head)
+                } else {
+                    Text("\(gb(total)) in use by open apps" + (freed > 0 ? " · a session frees \(gb(freed))" : "")).font(Site.font(15)).foregroundColor(Site.muted)
+                }
+                Spacer(minLength: 8)
+                key(Site.ink, "Stays"); key(Site.idle, "Closes")                     // what the two shades mean
+            }
         }
+    }
+    func key(_ c: Color, _ t: String) -> some View {
+        HStack(spacing: 6) { RoundedRectangle(cornerRadius: 3).fill(c).frame(width: 12, height: 12); Text(t).font(Site.font(14)).foregroundColor(Site.muted) }
     }
 }
 
@@ -801,10 +869,10 @@ struct UpgradeCard: View {
             Text(p.fill(key == "free" ? t.summary : which == "once" ? (gift.map { g in g.line.replacingOccurrences(of: "{launch_once}", with: "\(p.currency)\(g.once)").replacingOccurrences(of: "{once}", with: "\(p.currency)\(t.once ?? 0)").replacingOccurrences(of: "{code}", with: g.code ?? "") } ?? t.once_summary ?? t.summary) : which == "yearly" ? (t.yearly_summary ?? t.summary) : t.summary)).font(Site.font(14)).foregroundColor(Site.low)
                 .fixedSize(horizontal: false, vertical: true).frame(minHeight: 40, alignment: .top)
             }
-            if key == "pro", which == "monthly", let i = plans.firstIndex(of: "once"), let once = t.launch.flatMap({ $0.active ? $0.once : nil }) ?? t.once {
+            if key == "pro", which != "once", let i = plans.firstIndex(of: "once") {
                 Button { withAnimation(.easeOut(duration: 0.15)) { plan = i } } label: {         // the better deal, one click away
-                    HStack(spacing: 5) { Text("Save: keep Pro forever for \(p.currency)\(once) once").font(Site.font(14, .medium)).underline(); Image(systemName: "arrow.right").font(.system(size: 10, weight: .bold)) }
-                        .foregroundColor(Site.head).contentShape(Rectangle())
+                    Text("Not a fan of subscriptions? Buy once, keep forever\u{00A0}\(Image(systemName: "chevron.right"))").underline()
+                        .font(Site.font(14, .medium)).foregroundColor(Site.head).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true).contentShape(Rectangle())
                 }.buttonStyle(.plain).linkCursor().padding(.bottom, 4)
             }
             Button {
@@ -818,7 +886,7 @@ struct UpgradeCard: View {
             }.buttonStyle(PressStyle()).disabled(key == "free" || current).linkCursor().padding(.top, 10)
             if let code = gift?.code { CodeBox(code: code).padding(.top, 8) }    // right under Buy Focus Pro, as on the site
         }
-        .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
+        .padding(18).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)   // both plans the same height
         .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(best ? Site.surface : Site.bg))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(best ? Site.solid.opacity(Site.light ? 0.45 : 0.9) : Site.line, lineWidth: best ? 1.5 : 1))
     }
@@ -855,13 +923,13 @@ struct PlanLines: View {
     @State private var hover = false
     var body: some View {
         let week = DesktopModel.week(m.f.sessions, now: Date())
-        let left = renderArgs.contains("out") ? 0 : renderArgs.contains("headsup") ? 2 : week.left, days = DesktopModel.trialDaysLeft
+        let left = m.countUp ?? (renderArgs.contains("out") ? 0 : renderArgs.contains("headsup") ? 2 : week.left), days = DesktopModel.trialDaysLeft
         let facts = VStack(alignment: .leading, spacing: 3) {          // the two facts, one above the other, always the same size
             Text("\(left) \(left == 1 ? "Session" : "Sessions") left this week")
-                .font(Site.font(13.5, left <= 3 ? .medium : .regular)).foregroundColor(left <= 3 ? Site.head : Site.low)
+                .font(Site.font(13.5)).foregroundColor(left <= 3 ? Site.head : Site.low)
             if DesktopModel.trial {
                 Text("\(days) \(days == 1 ? "Day" : "Days") of Pro left")
-                    .font(Site.font(13.5, days <= 3 ? .medium : .regular)).foregroundColor(days <= 3 ? Site.head : Site.low)
+                    .font(Site.font(13.5)).foregroundColor(days <= 3 ? Site.head : Site.low)
             }
         }.fixedSize()
         ViewThatFits(in: .horizontal) {
@@ -1246,11 +1314,70 @@ struct ViewAsPanel: View {
                         }.buttonStyle(PressStyle())
                     }
                 }
+                HStack(spacing: 6) {                                         // the free reset: run out, see it spawn
+                    devButton("Sessions → 0") { m.devSpendAll() }
+                    devButton("Restore") { m.devRestore() }
+                }
             }
         }
         .padding(12)
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Site.muted, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
         .padding(.leading, 12).padding(.trailing, 12).padding(.top, 10)
+    }
+}
+
+extension ViewAsPanel {
+    func devButton(_ title: String, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(Site.font(13, .medium)).foregroundColor(Site.head).lineLimit(1).frame(maxWidth: .infinity).frame(height: 28)
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Site.ink.opacity(0.5), lineWidth: 1))
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }.buttonStyle(PressStyle()).linkCursor()
+    }
+}
+
+/// The free reset: a gift, not a gate. Ten tokens in a ring; on Add they fly one by one into the middle, the number
+/// counts up, then the card goes and the sidebar's count rises to match.
+struct GiftCard: View {
+    @ObservedObject var m: DesktopModel
+    @State private var taken = 0                                   // tokens flown in so far
+    @State private var going = false
+    var n: Int { DesktopModel.giftSessions }
+    var body: some View {
+        ZStack {
+            Color.black.opacity(Site.light ? 0.25 : 0.6).ignoresSafeArea()
+            VStack(spacing: 0) {
+                ZStack {                                           // the ring of tokens
+                    ForEach(0..<n, id: \.self) { i in
+                        let a = Double(i) / Double(n) * 2 * .pi - .pi / 2, r: CGFloat = 70, inside = i < taken
+                        Circle().fill(Site.ink).frame(width: 18, height: 18)
+                            .overlay(Circle().fill(Site.paper).frame(width: 6, height: 6))
+                            .offset(x: inside ? 0 : CGFloat(cos(a)) * r, y: inside ? 0 : CGFloat(sin(a)) * r)
+                            .scaleEffect(inside ? 0.2 : 1).opacity(inside ? 0 : 1)
+                            .animation(.spring(response: 0.42, dampingFraction: 0.72), value: taken)
+                    }
+                    Text("+\(taken == 0 ? n : taken)").font(Site.font(34, .medium)).foregroundColor(Site.head)
+                        .contentTransition(.numericText()).animation(.easeOut(duration: 0.12), value: taken)
+                }.frame(width: 180, height: 180)
+                Text("Here's a free reset").font(Site.font(26, .medium)).tracking(-0.4).foregroundColor(Site.head).padding(.top, 10)
+                Text("We know you probably wanted to play around with Focus first, so this week's \(n) sessions are back, on us. It's a one-time gift.")
+                    .font(Site.font(16)).foregroundColor(Site.low).multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: 380).padding(.top, 8)
+                Button { give() } label: {
+                    Text(going ? "Adding…" : "Add \(n) sessions").font(Site.font(17, .medium)).foregroundColor(Site.paper)
+                        .frame(width: 240, height: 46).background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.ink)).contentShape(Rectangle())
+                }.buttonStyle(PressStyle()).linkCursor().disabled(going).padding(.top, 22).keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 36).padding(.vertical, 30)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Site.bg))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Site.line, lineWidth: 1))
+        }
+    }
+    func give() {
+        guard !going else { return }
+        going = true
+        for i in 1...n { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.09) { taken = i } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + Double(n) * 0.09 + 0.55) { m.takeGift() }
     }
 }
 
@@ -1437,6 +1564,8 @@ struct DesktopView: View {
         }
         .background(Site.bg).preferredColorScheme(Site.light ? .light : .dark)
         .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
+        .overlay { if m.giftShown || renderArgs.contains("gift") { GiftCard(m: m).transition(.opacity) } }
+        .animation(.easeOut(duration: 0.2), value: m.giftShown)
 
         .animation(.easeOut(duration: 0.15), value: m.feedbackShown)
     }
@@ -1490,7 +1619,7 @@ struct DesktopView: View {
                     Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).rotationEffect(.degrees(m.modesShown ? 90 : 0)).offset(y: 1.5)   // on the text's middle line
                     Spacer()
                     ProTag()
-                }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 22)   // the tag in the rows' column.padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())
+                }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 22).padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())   // the tag in the rows' column
             }.buttonStyle(.plain).help(m.modesShown ? "Hide your modes" : "Show your modes")
             if m.modesShown {
                 ScrollView(showsIndicators: false) {
@@ -1555,11 +1684,13 @@ struct SessionDetail: View {
                     Text(f.focused ? "These apps are in your session. Click one to take it out."
                                    : "Tick the apps you want in the session. Everything else closes when the session starts and comes back when it ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
-                    if !f.focused { MemoryBar(apps: m.running).padding(.top, 12) }      // the memory to be saved is shown before a session, never during one
+                    if !f.focused && MemoryBar.shown { MemoryBar(apps: m.running, m: m).padding(.top, 14) }      // the memory to be saved is shown before a session, never during one
                     SectionLabel("", "Usage", divider: false).padding(.horizontal, -14).padding(.top, f.focused ? 0 : 8)
                     ForEach(m.running) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
-                                   quit: { m.quit(app.id, force: $0) }).padding(.horizontal, -14)
+                                   quit: { m.quit(app.id, force: $0) },
+                                   hovered: { on in m.hoverApp = on ? app.id : (m.hoverApp == app.id ? nil : m.hoverApp) },
+                                   lit: m.hoverApp == app.id).padding(.horizontal, -14)
                             .opacity(m.dragging == app.id ? 0.4 : 1)
                             .onDrag { m.dragging = app.id; m.draggingMode = nil; return NSItemProvider(object: app.id as NSString) }
                             .onDrop(of: [UTType.text], delegate: RowDrop(id: app.id, m: m))
@@ -2265,6 +2396,9 @@ struct SettingsPage: View {
                 Choice(options: ["Minimalist", "Normal", "Verbose"], selected: f.headingStyle) { i in m.act { f.headingStyle = i } }
             }
             if DesktopModel.gated { LockedPanel(m: m, text: "Unlock every width, icon style and colour by upgrading to Pro.") }
+            SettingLine(title: "Memory bar", note: "Above your apps: how much memory each one uses, and what a session frees.") {
+                Choice(options: ["Off", "On"], selected: MemoryBar.shown ? 1 : 0) { i in m.act { UserDefaults.standard.set(i == 1, forKey: "desktopMemoryBar") } }
+            }
             SettingLine(title: "Width", note: "Default leaves space either side of the page. Wide fills the window. Minimal makes the window itself smaller.", pro: true) {
                 Choice(options: ["Default", "Wide", "Minimal"], selected: DesktopView.trial.rawValue) { i in m.pro { desktop.setWidth(i) } }
             }
@@ -2610,6 +2744,12 @@ private func sidebarSlack(_ r: NSBitmapImageRep, from: CGFloat = 300, light: Boo
 func guiSelfTest(only: Set<Int>?) -> Int32 {
     _ = NSApplication.shared
     var failures = 0
+    // His real settings are never left changed by a test: saved now, put back at the end. Dev and gift state starts clear.
+    let keepPrefs = ["desktopViewAs", "devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "desktopButtonInkWhite",
+                "focusTier", "focusPro", "desktopLook", "desktopPage", "desktopMemoryBar"]
+    let savedPrefs = Dictionary(uniqueKeysWithValues: keepPrefs.compactMap { k in UserDefaults.standard.object(forKey: k).map { (k, $0) } })
+    ["devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
+    defer { keepPrefs.forEach { k in if let v = savedPrefs[k] { UserDefaults.standard.set(v, forKey: k) } else { UserDefaults.standard.removeObject(forKey: k) } } }
     func check(_ n: Int, _ name: String, _ ok: Bool, _ detail: String) {
         guard only == nil || only!.contains(n) else { return }
         if !ok { failures += 1 }
@@ -2968,16 +3108,45 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     //     "0 sessions remaining this week"; with sessions left, or as Pro, starting works.
     let of = Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!)
     let om = DesktopModel(of)
-    std.set("free", forKey: "desktopViewAs")
+    std.set("free", forKey: "desktopViewAs"); std.set(true, forKey: "focusGiftUsed")   // the gift is spent: this is the plans' turn
     let fresh0 = DesktopModel.noSessionsLeft(of)
     of.sessions = (0..<DesktopModel.freeWeekly).map { _ in ["date": Date(), "apps": [] as [Any]] as Session }
     let spent = DesktopModel.noSessionsLeft(of)
     om.openOutOfSessions(); let shown = om.selection == Page.upgrade && om.outOfSessions
     std.set("pro", forKey: "desktopViewAs"); let proFree = !DesktopModel.noSessionsLeft(of); om.tierChanged()
     let closed = om.selection != Page.upgrade
-    std.removeObject(forKey: "desktopViewAs"); UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+    std.removeObject(forKey: "desktopViewAs"); std.removeObject(forKey: "focusGiftUsed"); UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
     check(29, "out of sessions opens the plans", !fresh0 && spent && shown && proFree && closed,
           "fresh week blocked: \(fresh0); \(DesktopModel.freeWeekly) used blocked: \(spent); plans shown: \(shown); Pro unlimited: \(proFree); Pro closes them: \(closed)")
+
+    // 30. The sidebar breathes: a clear gap between Settings and the Modes header (at least 10 pt of empty sidebar).
+    var gapOK = false
+    if let r = guiRender(["trial=narrow", "look=dark"]) {
+        let s = CGFloat(r.pixelsWide) / 1000
+        // rows with any ink in the sidebar's text column, from Settings (≈ y 300) to the first mode (≈ y 380)
+        let inked = (Int(270 * s)..<Int(400 * s)).map { y in stride(from: Int(24 * s), to: Int(250 * s), by: 2).contains { lum(r, $0, y) > 0.35 } }
+        var run = 0, best = 0
+        for v in inked { if v { run = 0 } else { run += 1; best = max(best, run) } }
+        gapOK = CGFloat(best) / s >= 10
+    }
+    check(30, "a gap between Settings and Modes", gapOK, "at least 10 pt clear between them: \(gapOK)")
+
+    // 31. The free reset: Basic at 0 with the gift unused gets the gift (not the plans); taking it gives the sessions
+    //     back once; the next time out it's the plans.
+    let gf2 = Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!)   // kept alive: the model holds it unowned
+    let gm2 = DesktopModel(gf2)
+    for k in ["focusGiftUsed", "focusGiftWeek", "devSpentWeek", "devSpentBack"] { std.removeObject(forKey: k) }
+    gm2.devSpendAll()
+    let at0 = DesktopModel.week(gm2.f.sessions, now: Date()).left == 0, due = gm2.giftDue
+    gm2.openOutOfSessions(); let giftFirst = gm2.giftShown && gm2.selection != Page.upgrade
+    gm2.takeGift(); let gotBack = DesktopModel.week(gm2.f.sessions, now: Date()).left == DesktopModel.giftSessions
+    gm2.devSpendAll(); std.set(true, forKey: "focusGiftUsed"); gm2.giftShown = false
+    gm2.openOutOfSessions(); let plansNext = !gm2.giftShown && gm2.selection == Page.upgrade
+    for k in ["focusGiftUsed", "focusGiftWeek", "devSpentWeek", "devSpentBack", "desktopViewAs"] { std.removeObject(forKey: k); UserDefaults.standard.removeObject(forKey: k) }
+    _ = gf2
+    UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
+    check(31, "the free reset", at0 && due && giftFirst && gotBack && plansNext,
+          "at 0: \(at0); gift due: \(due); gift before plans: \(giftFirst); \(DesktopModel.giftSessions) back: \(gotBack); next time the plans: \(plansNext)")
 
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)
