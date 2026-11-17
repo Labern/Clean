@@ -34,7 +34,14 @@ targets:
     platform: iOS
     sources:
       - path: Sources
+      - path: Shared
       - path: Resources
+    dependencies:
+      - target: ParadoxWidgets
+    entitlements:
+      path: Resources/ParadoxHQ.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.labern.paradox.hq]
     info:
       path: Resources/Info.plist
       properties:
@@ -47,9 +54,36 @@ targets:
         UIUserInterfaceStyle: Dark
         ITSAppUsesNonExemptEncryption: false
         NSFaceIDUsageDescription: Face ID keeps the company's figures to you.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.labern.paradox.hq.refresh]
     scheme:
       testTargets: [ParadoxHQTests]
       gatherCoverageData: true
+  # Home Screen and Lock Screen widgets. They read one small snapshot the app
+  # leaves in the shared App Group; they never hold the Stripe key.
+  ParadoxWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: Widgets
+      - path: Shared
+      - path: Resources/Assets.xcassets
+    entitlements:
+      path: Widgets/ParadoxWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.com.labern.paradox.hq]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.labern.paradox.hq.widgets
+        SWIFT_DEFAULT_ACTOR_ISOLATION: nonisolated
+    info:
+      path: Widgets/Info.plist
+      properties:
+        CFBundleDisplayName: PARADOX
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
   ParadoxHQTests:
     type: bundle.unit-test
     platform: iOS

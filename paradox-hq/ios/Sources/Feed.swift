@@ -168,7 +168,230 @@ enum Seed {
     }
 }
 
-/// Pulls the Claude feed from wherever it's hosted.
+// MARK: - Sending the phone's work back
+
+/// Where a feed file sits on GitHub, read out of whichever link was pasted.
+nonisolated struct FeedAddress: Equatable, Sendable {
+    let owner: String
+    let repo: String
+    let path: String
+    let ref: String?
+
+    /// Understands the three shapes a GitHub file link comes in: the page
+    /// (github.com/…/blob/…), the raw file, and the API address.
+    static func github(_ text: String) -> FeedAddress? {
+        guard let parts = URLComponents(string: text.trimmingCharacters(in: .whitespacesAndNewlines)),
+              let host = parts.host?.lowercased() else { return nil }
+        let bits = parts.path.split(separator: "/").map(String.init)
+        switch host {
+        case "api.github.com":
+            guard bits.count >= 5, bits[0] == "repos", bits[3] == "contents" else { return nil }
+            let ref = parts.queryItems?.first { $0.name == "ref" }?.value
+            return FeedAddress(owner: bits[1], repo: bits[2], path: bits[4...].joined(separator: "/"), ref: ref)
+        case "github.com", "www.github.com":
+            guard bits.count >= 5, bits[2] == "blob" else { return nil }
+            return FeedAddress(owner: bits[0], repo: bits[1], path: bits[4...].joined(separator: "/"), ref: bits[3])
+        case "raw.githubusercontent.com":
+            if bits.count >= 6, bits[2] == "refs", bits[3] == "heads" {
+                return FeedAddress(owner: bits[0], repo: bits[1], path: bits[5...].joined(separator: "/"), ref: bits[4])
+            }
+            guard bits.count >= 4 else { return nil }
+            return FeedAddress(owner: bits[0], repo: bits[1], path: bits[3...].joined(separator: "/"), ref: bits[2])
+        default:
+            return nil
+        }
+    }
+
+    var api: URL? {
+        var parts = URLComponents()
+        parts.scheme = "https"
+        parts.host = "api.github.com"
+        parts.path = "/repos/\(owner)/\(repo)/contents/\(path)"
+        if let ref { parts.queryItems = [URLQueryItem(name: "ref", value: ref)] }
+        return parts.url
+    }
+}
+
+nonisolated struct GitHubFile: Sendable {
+    let data: Data
+    let sha: String
+}
+
+nonisolated enum GitHub {
+    nonisolated private struct Contents: Decodable {
+        let content: String
+        let sha: String
+    }
+
+    private static func prepare(_ address: FeedAddress, token: String?) throws -> URLRequest {
+        guard let url = address.api else { throw FeedError(message: "That GitHub address doesn't read as a file.") }
+        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
+        request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        if let token, !token.isEmpty {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        return request
+    }
+
+    static func get(_ address: FeedAddress, token: String?) async throws -> GitHubFile {
+        let (data, response) = try await URLSession.shared.data(for: try prepare(address, token: token))
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard code == 200 else {
+            throw FeedError(message: code == 404 ? "GitHub can't see that file. A private repo needs a token." : "GitHub returned \(code).")
+        }
+        guard let contents = try? JSONDecoder().decode(Contents.self, from: data),
+              let file = Data(base64Encoded: contents.content, options: .ignoreUnknownCharacters) else {
+            throw FeedError(message: "GitHub's answer wasn't a file.")
+        }
+        return GitHubFile(data: file, sha: contents.sha)
+    }
+
+    static func put(_ address: FeedAddress, token: String, data: Data, sha: String, message: String) async throws {
+        var request = try prepare(address, token: token)
+        request.httpMethod = "PUT"
+        var body: [String: String] = ["message": message, "content": data.base64EncodedString(), "sha": sha]
+        if let ref = address.ref { body["branch"] = ref }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let (_, response) = try await URLSession.shared.data(for: request)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard code == 200 || code == 201 else {
+            throw FeedError(message: code == 403 || code == 404 ? "the token can't write to the repo" : "GitHub returned \(code)")
+        }
+    }
+}
+
+/// A line made on the phone, on its way into the feed.
+nonisolated struct NewLine: Equatable, Sendable {
+    var id: String
+    var title: String
+    var notes = ""
+    var done = false
+    var children: [NewLine] = []
+
+    var count: Int { 1 + children.reduce(0) { $0 + $1.count } }
+
+    var json: [String: Any] {
+        var line: [String: Any] = ["id": id, "title": title]
+        if !notes.isEmpty { line["notes"] = notes }
+        if done { line["done"] = true }
+        if !children.isEmpty { line["children"] = children.map(\.json) }
+        return line
+    }
+}
+
+/// What the phone has that the feed might not: ticks, and lines added here.
+nonisolated struct Outgoing: Equatable, Sendable {
+    var ticks: Set<String> = []
+    /// Project id → new top-level lines.
+    var lines: [String: [NewLine]] = [:]
+    /// Line id → new sub-items under it.
+    var subs: [String: [NewLine]] = [:]
+}
+
+nonisolated struct PatchResult: Sendable {
+    let data: Data
+    let ticked: Int
+    let added: Int
+}
+
+nonisolated enum FeedPatch {
+    /// Writes the phone's ticks and new lines into the feed file. Like pulling,
+    /// it only adds and ticks; whatever else is in the file is left as it was.
+    static func apply(_ data: Data, _ outgoing: Outgoing) throws -> PatchResult {
+        guard var root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              var projects = root["projects"] as? [[String: Any]] else {
+            throw FeedError(message: "The feed isn't in the expected format.")
+        }
+        var ticked = 0
+        var added = 0
+        for index in projects.indices {
+            let had = projects[index]["items"] != nil
+            var items = patch(projects[index]["items"] as? [[String: Any]] ?? [], outgoing, &ticked, &added)
+            if let id = projects[index]["id"] as? String, let new = outgoing.lines[id] {
+                let have = Set(items.compactMap { $0["id"] as? String })
+                for line in new where !have.contains(line.id) {
+                    items.append(line.json)
+                    added += line.count
+                }
+            }
+            if had || !items.isEmpty { projects[index]["items"] = items }
+        }
+        root["projects"] = projects
+        let out = try JSONSerialization.data(withJSONObject: root,
+                                             options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+        return PatchResult(data: out, ticked: ticked, added: added)
+    }
+
+    private static func patch(_ items: [[String: Any]], _ outgoing: Outgoing,
+                              _ ticked: inout Int, _ added: inout Int) -> [[String: Any]] {
+        var result: [[String: Any]] = []
+        for original in items {
+            var item = original
+            let id = item["id"] as? String ?? ""
+            if outgoing.ticks.contains(id), (item["done"] as? Bool) != true {
+                item["done"] = true
+                ticked += 1
+            }
+            var children = patch(item["children"] as? [[String: Any]] ?? [], outgoing, &ticked, &added)
+            if let new = outgoing.subs[id] {
+                let have = Set(children.compactMap { $0["id"] as? String })
+                for line in new where !have.contains(line.id) {
+                    children.append(line.json)
+                    added += line.count
+                }
+            }
+            if !children.isEmpty { item["children"] = children }
+            result.append(item)
+        }
+        return result
+    }
+}
+
+/// Gathers what the phone has to send, and the ids its new lines will take.
+enum Outbox {
+    struct Plan {
+        var outgoing = Outgoing()
+        var naming: [(item: FocusItem, id: String)] = []
+    }
+
+    static func plan(_ context: ModelContext) -> Plan {
+        var plan = Plan()
+        let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+        for project in projects where !project.remoteID.isEmpty {
+            for item in project.sortedItems {
+                if item.remoteID.isEmpty {
+                    let new = make(item, &plan)
+                    plan.outgoing.lines[project.remoteID, default: []].append(new)
+                    continue
+                }
+                if item.done { plan.outgoing.ticks.insert(item.remoteID) }
+                for child in item.sortedChildren {
+                    if child.remoteID.isEmpty {
+                        let new = make(child, &plan)
+                        plan.outgoing.subs[item.remoteID, default: []].append(new)
+                    } else if child.done {
+                        plan.outgoing.ticks.insert(child.remoteID)
+                    }
+                }
+            }
+        }
+        return plan
+    }
+
+    private static func make(_ item: FocusItem, _ plan: inout Plan) -> NewLine {
+        let id = "phone-" + UUID().uuidString.prefix(8).lowercased()
+        plan.naming.append((item, id))
+        var children: [NewLine] = []
+        for child in item.sortedChildren {
+            children.append(make(child, &plan))
+        }
+        return NewLine(id: id, title: item.title, notes: item.notes, done: item.done, children: children)
+    }
+}
+
+/// Keeps the phone and the Claude feed in step: pulls what Claude added, then
+/// sends back what was ticked or added here.
 @Observable final class FeedSync {
     static let tokenName = "feed-token"
 
@@ -185,15 +408,52 @@ enum Seed {
         guard isSet, !busy else { return }
         busy = true
         defer { busy = false }
+        let token = Keychain.get(Self.tokenName)
         do {
-            let feed = try await Feed.fetch(address, token: Keychain.get(Self.tokenName))
-            let outcome = feed.apply(to: context)
-            status = outcome.summary
+            guard let github = FeedAddress.github(address) else {
+                // Not on GitHub: it can be read, but there's nowhere to write back to.
+                let feed = try await Feed.fetch(address, token: token)
+                status = feed.apply(to: context).summary
+                failed = false
+                return
+            }
+            let file = try await GitHub.get(github, token: token)
+            let feed: Feed
+            do {
+                feed = try Feed.decode(file.data)
+            } catch {
+                throw FeedError(message: "The feed isn't in the expected format.")
+            }
+            var said = feed.apply(to: context).summary
             failed = false
+
+            if let token, !token.isEmpty {
+                let plan = Outbox.plan(context)
+                let patched = try FeedPatch.apply(file.data, plan.outgoing)
+                if patched.ticked + patched.added > 0 {
+                    do {
+                        try await GitHub.put(github, token: token, data: patched.data, sha: file.sha,
+                                             message: "PARADOX: \(Self.sent(patched))")
+                        for (item, id) in plan.naming { item.remoteID = id }
+                        try? context.save()
+                        said += ". Sent \(Self.sent(patched))"
+                    } catch {
+                        said += ". Couldn't send back: \(error.localizedDescription)"
+                    }
+                }
+            }
+            status = said
         } catch {
             status = error.localizedDescription
             failed = true
         }
+    }
+
+    private static func sent(_ patched: PatchResult) -> String {
+        var parts: [String] = []
+        if patched.ticked > 0 { parts.append(patched.ticked == 1 ? "1 tick" : "\(patched.ticked) ticks") }
+        if patched.added > 0 { parts.append(patched.added == 1 ? "1 new line" : "\(patched.added) new lines") }
+        return parts.joined(separator: ", ")
     }
 }
 

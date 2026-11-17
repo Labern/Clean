@@ -29,6 +29,9 @@ struct ParadoxHQApp: App {
                 .tint(Ink.violet)
         }
         .modelContainer(container)
+        .backgroundTask(.appRefresh(Background.id)) {
+            await Background.run()
+        }
     }
 }
 
@@ -43,7 +46,11 @@ struct Gate: View {
 
     var body: some View {
         ZStack {
-            RootView()
+            if Launch.screen == "widgets" {
+                WidgetGallery()
+            } else {
+                RootView()
+            }
             if lock.locked || Launch.screen == "lock" {
                 LockView()
                     .transition(.opacity)
@@ -60,6 +67,11 @@ struct Gate: View {
         }
         .onChange(of: phase) { _, new in
             lock.changed(to: new)
+            if new == .background {
+                Background.schedule()
+                // Ticks made since the last refresh change what the widgets show.
+                Task { await Bridge.publish(money: money, site: site, context: context) }
+            }
             guard new == .active else { return }
             Task {
                 // After a refusal the lock waits for a tap, so cancelling
@@ -74,6 +86,7 @@ struct Gate: View {
         await money.refresh()
         await feed.pull(into: context)
         await site.check()
+        await Bridge.publish(money: money, site: site, context: context)
     }
 }
 
@@ -99,5 +112,38 @@ struct RootView: View {
                 CompanyView()
             }
         }
+    }
+}
+
+/// The widgets drawn at their real sizes, so the cloud build can photograph them.
+/// Reached only with the launch argument `-screen widgets`.
+struct WidgetGallery: View {
+    var body: some View {
+        let snapshot = WidgetSnapshot.sample
+        ScrollView {
+            VStack(spacing: 22) {
+                WidgetSmall(snapshot: snapshot)
+                    .padding(16)
+                    .frame(width: 170, height: 170)
+                    .background(.black, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                WidgetMedium(snapshot: snapshot)
+                    .padding(16)
+                    .frame(width: 364, height: 170)
+                    .background(.black, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+                HStack(spacing: 16) {
+                    WidgetLockRect(snapshot: snapshot)
+                        .padding(8)
+                        .frame(width: 172, height: 76)
+                        .background(.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    WidgetLockCircle(snapshot: snapshot)
+                        .frame(width: 76, height: 76)
+                        .background(.white.opacity(0.14), in: Circle())
+                }
+                .foregroundStyle(.white)
+            }
+            .padding(.top, 70)
+            .frame(maxWidth: .infinity)
+        }
+        .background(Color(hex: 0x2B2440))
     }
 }

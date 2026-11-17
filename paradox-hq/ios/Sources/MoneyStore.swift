@@ -78,7 +78,27 @@ nonisolated struct Bucket: Identifiable, Equatable, Sendable {
     var id: Date { date }
 }
 
+/// Everyone who has paid, summed up.
+nonisolated struct Customer: Identifiable, Hashable, Sendable {
+    let name: String
+    let total: Int
+    let count: Int
+    let last: Date
+    var id: String { name }
+}
+
 nonisolated enum Ledger {
+    /// Customers by what they've paid in all, biggest first.
+    static func customers(_ payments: [Payment]) -> [Customer] {
+        var sums: [String: (total: Int, count: Int, last: Date)] = [:]
+        for payment in payments where payment.counted > 0 {
+            let now = sums[payment.who] ?? (0, 0, payment.date)
+            sums[payment.who] = (now.total + payment.counted, now.count + 1, max(now.last, payment.date))
+        }
+        return sums.map { Customer(name: $0.key, total: $0.value.total, count: $0.value.count, last: $0.value.last) }
+            .sorted { ($1.total, $0.name) < ($0.total, $1.name) }
+    }
+
     /// Revenue in a stretch of time: from its start up to, not including, its end.
     static func total(_ payments: [Payment], in interval: DateInterval) -> Int {
         payments.reduce(0) { sum, payment in
@@ -265,6 +285,12 @@ nonisolated enum Example {
         Money.string(minor, currency: currency, pennies: pennies)
     }
 
+    /// The figures on screen, as one value.
+    var snapshot: Snapshot {
+        Snapshot(payments: payments, payouts: payouts, disputes: disputes, available: available,
+                 pending: pending, subscribers: subscribers, mrr: mrr, currency: currency)
+    }
+
     private func show(_ snapshot: Snapshot) {
         payments = snapshot.payments
         payouts = snapshot.payouts
@@ -277,7 +303,7 @@ nonisolated enum Example {
     }
 
     /// Two calendar years back, so a year can be compared with the one before.
-    private static func horizon(now: Date, calendar: Calendar = .current) -> Date {
+    nonisolated static func horizon(now: Date, calendar: Calendar = .current) -> Date {
         let year = calendar.dateInterval(of: .year, for: now)?.start ?? now
         return calendar.date(byAdding: .year, value: -1, to: year) ?? year
     }
@@ -295,6 +321,7 @@ nonisolated enum Example {
         do {
             let snapshot = try await StripeClient(key: key).snapshot(since: Self.horizon(now: .now))
             show(snapshot)
+            Herald.absorb(snapshot)
             live = true
             problem = nil
             updated = .now
@@ -318,6 +345,7 @@ nonisolated enum Example {
                 return "The key worked, but the Keychain wouldn't store it."
             }
             show(snapshot)
+            Herald.absorb(snapshot)
             live = true
             problem = nil
             updated = .now
@@ -329,6 +357,7 @@ nonisolated enum Example {
 
     func disconnect() {
         Keychain.delete(Self.keyName)
+        Herald.save(Seen())
         live = false
         problem = nil
         updated = nil

@@ -28,7 +28,9 @@ struct MoneyView: View {
                     RevenueCard(period: period)
                     SubscriberTiles()
                     PayoutsCard()
+                    CustomersCard()
                     PaymentsCard()
+                    ChargeCard()
                 }
                 .page()
             }
@@ -37,6 +39,7 @@ struct MoneyView: View {
             .toolbar(.hidden, for: .navigationBar)
             .refreshable { await money.refresh() }
             .navigationDestination(for: Payment.self) { PaymentDetail(payment: $0) }
+            .navigationDestination(for: Customer.self) { CustomerDetail(customer: $0) }
             .sheet(isPresented: $connecting) { ConnectStripe() }
         }
     }
@@ -443,6 +446,177 @@ struct ConnectStripe: View {
         working = true
         problem = await money.connect(key)
         working = false
-        if problem == nil { dismiss() }
+        if problem == nil {
+            // Connected: this is the moment payment notifications start to mean something.
+            await Notifier.ask()
+            dismiss()
+        }
+    }
+}
+
+/// Who pays the most, from every payment on record.
+struct CustomersCard: View {
+    @Environment(MoneyStore.self) private var money
+
+    var body: some View {
+        let customers = Ledger.customers(money.payments)
+        if !customers.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                SectionHeader(title: "Customers", trailing: "\(customers.count)")
+                Card(padding: 0) {
+                    VStack(spacing: 0) {
+                        ForEach(Array(customers.prefix(5).enumerated()), id: \.element.id) { index, customer in
+                            if index > 0 { Hairline(inset: 58) }
+                            NavigationLink(value: customer) {
+                                CustomerRow(customer: customer)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        if customers.count > 5 {
+                            Hairline(inset: 58)
+                            NavigationLink {
+                                CustomerList(customers: customers)
+                            } label: {
+                                InfoRow(symbol: "person.2", title: "All customers") {
+                                    Image(systemName: "chevron.right")
+                                        .font(.footnote.weight(.semibold))
+                                        .foregroundStyle(Ink.idle)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct CustomerRow: View {
+    @Environment(MoneyStore.self) private var money
+    let customer: Customer
+
+    var body: some View {
+        InfoRow(symbol: "person", title: customer.name,
+                detail: customer.count == 1 ? "1 payment" : "\(customer.count) payments") {
+            Text(money.money(customer.total))
+                .monospacedDigit()
+                .foregroundStyle(Ink.body)
+        }
+    }
+}
+
+struct CustomerList: View {
+    let customers: [Customer]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Heading(title: "Customers", detail: "\(customers.count)")
+                Card(padding: 0) {
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(customers.enumerated()), id: \.element.id) { index, customer in
+                            if index > 0 { Hairline(inset: 58) }
+                            NavigationLink(value: customer) {
+                                CustomerRow(customer: customer)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .page()
+        }
+        .background(Ink.ground)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+struct CustomerDetail: View {
+    @Environment(MoneyStore.self) private var money
+    let customer: Customer
+
+    var body: some View {
+        let payments = money.payments.filter { $0.who == customer.name }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                Heading(title: customer.name)
+                HStack(alignment: .top, spacing: 12) {
+                    Card {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Paid in all")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Ink.muted)
+                            Text(money.money(customer.total))
+                                .font(.title2.bold())
+                                .monospacedDigit()
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    Card {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Last paid")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(Ink.muted)
+                            Text(customer.last, format: .dateTime.day().month(.abbreviated).year(.twoDigits))
+                                .font(.title2.bold())
+                                .monospacedDigit()
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.6)
+                        }
+                    }
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    SectionHeader(title: "Payments", trailing: "\(payments.count)")
+                    Card(padding: 0) {
+                        VStack(spacing: 0) {
+                            ForEach(Array(payments.enumerated()), id: \.element.id) { index, payment in
+                                if index > 0 { Hairline(inset: 58) }
+                                NavigationLink(value: payment) {
+                                    PaymentRow(payment: payment)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+            .page()
+        }
+        .background(Ink.ground)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+/// Charging someone by hand happens in Stripe itself: the key here is read-only
+/// on purpose, so these open Stripe at the right page.
+struct ChargeCard: View {
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Charge someone")
+            Card(padding: 0) {
+                VStack(spacing: 0) {
+                    row("doc.text", "New invoice", "https://dashboard.stripe.com/invoices/create")
+                    Hairline(inset: 58)
+                    row("link", "New payment link", "https://dashboard.stripe.com/payment-links/create")
+                }
+            }
+        }
+    }
+
+    private func row(_ symbol: String, _ title: String, _ address: String) -> some View {
+        Button {
+            if let url = URL(string: address) { openURL(url) }
+        } label: {
+            InfoRow(symbol: symbol, title: title, detail: "Opens Stripe") {
+                Image(systemName: "arrow.up.forward")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Ink.idle)
+            }
+        }
+        .buttonStyle(.plain)
     }
 }

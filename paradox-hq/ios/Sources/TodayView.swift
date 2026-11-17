@@ -51,48 +51,8 @@ struct TodayView: View {
     }
 
     private var needs: [Need] {
-        var list: [Need] = []
-        for dispute in money.openDisputes {
-            var detail = dispute.reason.isEmpty ? "Needs a response" : dispute.reason.capitalized
-            if let due = dispute.due {
-                detail = "Respond by \(due.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))"
-            }
-            list.append(Need(id: dispute.id, color: Ink.hazard,
-                             title: "Dispute: \(money.money(dispute.amount))", detail: detail))
-        }
-        let week = Date.now.addingTimeInterval(-7 * 86_400)
-        let failed = money.failed(since: week)
-        if !failed.isEmpty {
-            let sum = failed.reduce(0) { $0 + $1.amount }
-            list.append(Need(id: "failed", color: Ink.amber,
-                             title: failed.count == 1 ? "1 payment failed" : "\(failed.count) payments failed",
-                             detail: "\(money.money(sum)) in the last 7 days"))
-        }
-        if money.problem != nil {
-            list.append(Need(id: "stripe", color: Ink.hazard, title: "Stripe didn't answer",
-                             detail: money.problem ?? ""))
-        }
-        if site.isDown {
-            list.append(Need(id: "site", color: Ink.hazard, title: "\(site.host) is down", detail: "Checked just now"))
-        }
-        for deadline in deadlines {
-            let days = Days.count(to: deadline.date)
-            guard days <= 30 else { continue }
-            let when = deadline.date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
-            list.append(Need(id: "deadline-\(deadline.title)-\(deadline.date.timeIntervalSince1970)",
-                             color: days < 0 ? Ink.hazard : Ink.amber,
-                             title: deadline.title,
-                             detail: days < 0 ? "\(when), \(-days) days late" : days == 0 ? "Due today" : "\(when), \(days) days"))
-        }
-        return list
+        Bridge.needs(money: money, site: site, deadlines: deadlines)
     }
-}
-
-struct Need: Identifiable {
-    let id: String
-    let color: Color
-    let title: String
-    let detail: String
 }
 
 /// Today's takings against the same stretch of this day last week,

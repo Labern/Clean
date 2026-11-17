@@ -12,6 +12,10 @@ struct CompanyView: View {
     @State private var draft: DeadlineDraft? = nil
     @State private var sheet: Connection? = nil
     @State private var locking = AppLock.enabled
+    @AppStorage("notify-payment") private var notifyPayments = true
+    @AppStorage("notify-payout") private var notifyPayouts = true
+    @AppStorage("notify-dispute") private var notifyDisputes = true
+    @AppStorage("notify-deadline") private var notifyDeadlines = true
 
     enum Connection: String, Identifiable {
         case stripe, claude, site
@@ -34,6 +38,7 @@ struct CompanyView: View {
                     Heading(title: "Company")
                     deadlineSection
                     connectionSection
+                    notifySection
                     lockSection
                     Text("PARADOX \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                         .font(.footnote)
@@ -150,6 +155,38 @@ struct CompanyView: View {
         case .up(let ms): Pill(text: "Up · \(ms) ms", color: Ink.ok)
         case .down: Pill(text: "Down", color: Ink.hazard)
         }
+    }
+
+    private var notifySection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Notify me")
+            Card(padding: 0) {
+                VStack(spacing: 0) {
+                    notify("Payments", $notifyPayments)
+                    Hairline()
+                    notify("Payouts", $notifyPayouts)
+                    Hairline()
+                    notify("Disputes", $notifyDisputes)
+                    Hairline()
+                    notify("Deadlines", $notifyDeadlines)
+                }
+            }
+            Text("Money is checked in the background, so it can arrive a while after the payment. Deadlines come at 09:00, a week before and the day before.")
+                .font(.footnote)
+                .foregroundStyle(Ink.muted)
+                .padding(.horizontal, 4)
+        }
+    }
+
+    private func notify(_ title: String, _ value: Binding<Bool>) -> some View {
+        Toggle(title, isOn: value)
+            .tint(Ink.ok)
+            .foregroundStyle(Ink.body)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .onChange(of: value.wrappedValue) { _, on in
+                if on { Task { await Notifier.ask() } }
+            }
     }
 
     private var lockSection: some View {

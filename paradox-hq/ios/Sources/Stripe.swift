@@ -16,7 +16,9 @@ nonisolated enum Keychain {
             kSecAttrService as String: service,
             kSecAttrAccount as String: name,
             kSecValueData as String: Data(value.utf8),
-            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
+            // After-first-unlock, so a background refresh can read the key while
+            // the phone is locked. Still this device only, never in a backup.
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
     }
