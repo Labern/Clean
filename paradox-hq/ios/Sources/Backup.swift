@@ -248,6 +248,14 @@ extension BackupFile {
         return url
     }
 
+    /// Runs `body` with the chosen folder open. Throws when none is chosen or it has gone.
+    func withFolder<T>(_ body: (URL) throws -> T) throws -> T {
+        let folder = try resolveFolder()
+        let scoped = folder.startAccessingSecurityScopedResource()
+        defer { if scoped { folder.stopAccessingSecurityScopedResource() } }
+        return try body(folder)
+    }
+
     /// "PARADOX 2026-11-17.json": one file a day, so the folder holds a month of history.
     nonisolated static func fileName(for date: Date, label: String = "", calendar: Calendar = .current) -> String {
         let day = date.formatted(.iso8601.year().month().day().timeZone(separator: .omitted))

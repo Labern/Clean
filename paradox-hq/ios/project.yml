@@ -7,6 +7,10 @@ options:
     iOS: "26.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
+  # Icons made in the app's designer are baked in here, before the project is
+  # written: the script fills Custom.xcconfig, which may not exist until it runs.
+  preGenCommand: sh design/icons/bake_custom.sh
+  disabledValidations: [missingConfigFiles]
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -38,10 +42,13 @@ targets:
       - path: Resources
     dependencies:
       - target: ParadoxWidgets
+    configFiles:
+      Debug: Custom.xcconfig
+      Release: Custom.xcconfig
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Light AppIcon-Bold AppIcon-Bracket AppIcon-Diagonal AppIcon-Diagonal7 AppIcon-DiagonalLight AppIcon-Kana AppIcon-Original"
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIcon-Light AppIcon-Bold AppIcon-Bracket AppIcon-Diagonal AppIcon-Diagonal7 AppIcon-DiagonalLight AppIcon-Kana AppIcon-Original $(CUSTOM_APPICONS)"
     entitlements:
       path: Resources/ParadoxHQ.entitlements
       properties:

@@ -798,6 +798,81 @@ struct LinkTests {
     }
 }
 
+@Suite("Icon designer")
+@MainActor
+struct IconDesignerTests {
+    private func shelf() -> (IconShelf, URL) {
+        let folder = FileManager.default.temporaryDirectory.appending(path: "icons-\(UUID().uuidString)")
+        return (IconShelf(folder: folder), folder)
+    }
+
+    private func square(_ side: Int, alpha: CGFloat = 1) -> Data {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format).pngData { context in
+            UIColor.red.withAlphaComponent(alpha).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: side, height: side))
+        }
+    }
+
+    /// The page and the outlines it draws both have to be in the app.
+    @Test func theDesignerShipsInTheApp() throws {
+        let page = try #require(DesignerBoard.page)
+        let outlines = page.deletingLastPathComponent().appending(path: "logos.js")
+        #expect(FileManager.default.fileExists(atPath: outlines.path(percentEncoded: false)))
+        #expect(try String(contentsOf: page, encoding: .utf8).contains("window.D="))
+    }
+
+    @Test func aSavedIconIsKeptAndCanBeRemoved() throws {
+        let (first, folder) = shelf()
+        let icon = try first.add(png: square(64), title: "MARK", recipe: "{}")
+        #expect(icon.id.count == 8)
+        #expect(icon.asset == "AppIcon-Custom-\(icon.id)")
+        #expect(first.picture(icon) != nil)
+
+        let reopened = IconShelf(folder: folder)
+        #expect(reopened.icons == [icon])
+
+        reopened.wanted = icon.id
+        reopened.remove(icon)
+        #expect(reopened.icons.isEmpty)
+        #expect(reopened.wanted.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: reopened.file(icon).path(percentEncoded: false)))
+        reopened.wanted = ""
+    }
+
+    /// An app icon must be exactly 1024px and have no transparency.
+    @Test func picturesAreFlattenedForAnIcon() throws {
+        let flat = try #require(IconShelf.flatten(square(300, alpha: 0.5)))
+        let image = try #require(UIImage(data: flat)?.cgImage)
+        #expect(image.width == 1024)
+        #expect(image.height == 1024)
+        #expect([CGImageAlphaInfo.none, .noneSkipLast, .noneSkipFirst].contains(image.alphaInfo))
+    }
+
+    @Test func thePagesAnswerIsReadAsAPicture() {
+        let png = square(8)
+        #expect(IconShelf.decode(dataURL: "data:image/png;base64," + png.base64EncodedString()) == png)
+        #expect(IconShelf.decode(dataURL: "data:image/jpeg;base64,AAAA") == nil)
+        #expect(IconShelf.decode(dataURL: "nonsense") == nil)
+    }
+
+    /// Only icons the build was made with can be worn.
+    @Test func knowsWhichIconsABuildCarries() {
+        let info: [String: Any] = ["CFBundleIcons": ["CFBundleAlternateIcons": ["AppIcon-Kana": 1, "AppIcon-Custom-ab12cd34": 1]]]
+        #expect(IconShelf.installed(in: info) == ["AppIcon-Kana", "AppIcon-Custom-ab12cd34"])
+        #expect(IconShelf.installed(in: [:]).isEmpty)
+        #expect(IconShelf.installed(in: nil).isEmpty)
+    }
+
+    /// The export folder holds exactly the icons on the phone.
+    @Test func deletedIconsLeaveTheExportFolder() {
+        let strays = IconShelf.strays(in: ["a.png", "b.png", "notes.txt"], keeping: ["a.png"])
+        #expect(strays == ["b.png"])
+    }
+}
+
 @Suite("Backups")
 @MainActor
 struct BackupTests {

@@ -8,6 +8,7 @@ struct ParadoxHQApp: App {
     @State private var feed = FeedSync()
     @State private var site = SiteMonitor()
     @State private var backups = Backups()
+    @State private var shelf = IconShelf()
     @AppStorage("appearance") private var appearance: Appearance = .auto
     private let container: ModelContainer
 
@@ -30,6 +31,7 @@ struct ParadoxHQApp: App {
                 .environment(feed)
                 .environment(site)
                 .environment(backups)
+                .environment(shelf)
                 .preferredColorScheme(appearance.scheme)
                 .tint(Ink.violet)
         }
@@ -47,6 +49,7 @@ struct Gate: View {
     @Environment(FeedSync.self) private var feed
     @Environment(SiteMonitor.self) private var site
     @Environment(Backups.self) private var backups
+    @Environment(IconShelf.self) private var shelf
     @Environment(\.scenePhase) private var phase
     @Environment(\.modelContext) private var context
 
@@ -54,6 +57,8 @@ struct Gate: View {
         ZStack {
             if Launch.screen == "widgets" {
                 WidgetGallery()
+            } else if Launch.screen == "designer" {
+                IconDesigner()
             } else {
                 RootView()
             }
@@ -71,6 +76,8 @@ struct Gate: View {
             if phase == .active { await lock.unlock() }
         }
         .task {
+            // An icon made in the designer goes on the first time a build carrying it opens.
+            shelf.adopt()
             await refresh()
         }
         .onChange(of: phase) { _, new in
@@ -80,6 +87,7 @@ struct Gate: View {
                 // Every time you leave the app, a copy goes to the backup folder.
                 try? context.save()
                 backups.write(context)
+                shelf.mirror(into: backups)
                 // Ticks made since the last refresh change what the widgets show.
                 Task { await Bridge.publish(money: money, site: site, context: context) }
             }

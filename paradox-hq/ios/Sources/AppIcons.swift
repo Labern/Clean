@@ -23,37 +23,54 @@ struct AppIconChoice: Identifiable, Hashable {
     ]
 }
 
-/// A grid of icons; tap one and the Home Screen icon changes.
+/// A grid of icons; tap one and the Home Screen icon changes. Icons made in
+/// the designer sit after the built-in ones.
 struct AppIconPicker: View {
+    @Environment(IconShelf.self) private var shelf
+    @Environment(Backups.self) private var backups
     @State private var current: String? = UIApplication.shared.alternateIconName
     @State private var problem = ""
+    @State private var designing = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 4), spacing: 14) {
                 ForEach(AppIconChoice.all) { choice in
                     Button { choose(choice) } label: {
-                        VStack(spacing: 6) {
-                            Image(choice.preview)
-                                .resizable()
-                                .aspectRatio(1, contentMode: .fit)
-                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                .overlay {
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .strokeBorder(current == choice.asset ? Ink.head : Ink.line,
-                                                      lineWidth: current == choice.asset ? 2 : 1)
-                                }
-                            Text(choice.title)
-                                .font(.caption2)
-                                .foregroundStyle(current == choice.asset ? Ink.head : Ink.muted)
-                                .lineLimit(1)
-                        }
+                        tile(Image(choice.preview), title: choice.title, selected: current == choice.asset && shelf.wanted.isEmpty)
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("\(choice.title) icon")
                     .accessibilityAddTraits(current == choice.asset ? .isSelected : [])
                 }
+                ForEach(shelf.icons) { icon in
+                    let installed = shelf.isInstalled(icon)
+                    let selected = installed ? current == icon.asset : shelf.wanted == icon.id
+                    Button { choose(icon) } label: {
+                        tile(Image(uiImage: shelf.picture(icon) ?? UIImage()),
+                             title: installed ? "Yours" : "Next install", selected: selected)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        ShareLink(item: shelf.file(icon)) { Label("Share", systemImage: "square.and.arrow.up") }
+                        Button("Delete", systemImage: "trash", role: .destructive) { delete(icon) }
+                    }
+                    .accessibilityLabel("Your icon, \(icon.title)")
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                }
             }
+            Button { designing = true } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("Create custom app icon")
+                    Spacer()
+                }
+                .foregroundStyle(Ink.head)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
             if !problem.isEmpty {
                 Text(problem)
                     .font(.footnote)
@@ -62,13 +79,56 @@ struct AppIconPicker: View {
         }
         .padding(14)
         .sensoryFeedback(.selection, trigger: current)
+        .sensoryFeedback(.selection, trigger: shelf.wanted)
+        .fullScreenCover(isPresented: $designing) { IconDesigner() }
+        .onAppear { shelf.mirror(into: backups) }
+    }
+
+    private func tile(_ image: Image, title: String, selected: Bool) -> some View {
+        VStack(spacing: 6) {
+            image
+                .resizable()
+                .aspectRatio(1, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(selected ? Ink.head : Ink.line, lineWidth: selected ? 2 : 1)
+                }
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(selected ? Ink.head : Ink.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
     }
 
     private func choose(_ choice: AppIconChoice) {
-        guard current != choice.asset, UIApplication.shared.supportsAlternateIcons else { return }
-        UIApplication.shared.setAlternateIconName(choice.asset) { error in
+        shelf.wanted = ""
+        wear(choice.asset)
+    }
+
+    /// An icon this build carries goes on now. One it doesn't is remembered and
+    /// goes on by itself the first time a build that carries it is opened.
+    private func choose(_ icon: CustomIcon) {
+        if shelf.isInstalled(icon) {
+            shelf.wanted = ""
+            wear(icon.asset)
+        } else {
+            shelf.wanted = shelf.wanted == icon.id ? "" : icon.id
+        }
+    }
+
+    private func delete(_ icon: CustomIcon) {
+        if current == icon.asset { wear(nil) }
+        shelf.remove(icon)
+        shelf.mirror(into: backups)
+    }
+
+    private func wear(_ asset: String?) {
+        guard current != asset, UIApplication.shared.supportsAlternateIcons else { return }
+        UIApplication.shared.setAlternateIconName(asset) { error in
             Task { @MainActor in
-                if let error { problem = error.localizedDescription } else { current = choice.asset; problem = "" }
+                if let error { problem = error.localizedDescription } else { current = asset; problem = "" }
             }
         }
     }

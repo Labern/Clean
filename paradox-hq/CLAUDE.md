@@ -18,7 +18,7 @@ and kept in the Keychain on the phone.
 - Cloud: `.github/workflows/paradox-hq-ios.yml` builds, tests and screenshots every
   screen on any push that touches `paradox-hq/ios/`, then force-pushes the results to
   `ci/paradox-hq` (`git fetch origin ci/paradox-hq`). `result.txt` holds the compiler
-  errors. Launch arguments: `-unlocked YES -sampleNotes YES -screen lock|today|projects|project|notes|note|money|company|widgets`.
+  errors. Launch arguments: `-unlocked YES -sampleNotes YES -screen lock|today|projects|project|notes|note|money|company|widgets|designer`.
 
 ## The five tabs
 Today · To-do · Notes · Money · Company. (Six would push one behind a "More" button.)
@@ -83,6 +83,30 @@ Main icon = the app's own mark scaled to 90% width (`design/icons/classic-max-bl
 Eight alternates (`AppIcon-*` sets, `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`),
 previews in `IconPreview-*` image sets, chosen in Company › Settings. Renders come from
 the brand SVG masters via `design/icons/make_icons.py`; never redraw the mark.
+
+## Icon designer (Company › Settings › Create custom app icon)
+Made to be lifted out as its own app: `Sources/IconDesigner.swift`,
+`Resources/IconDesigner/` and `design/icons/bake_custom.sh` are all of it.
+- **The artboard is the logo playground.** `designer.html` runs in a `WKWebView` with
+  `logos.js`, a copy of `logo-experiments/logos.js` (generated: never edit it, re-copy
+  it). One finger moves, two fingers size and spin, the centre lines and every 45° snap
+  with a tick. SwiftUI draws the controls (mark, ground, copies, turn, reset) and calls
+  `window.D`; the page answers on the `designer` message handler. Everything is a
+  fraction of the board's side, so the 1024px save is exactly what was on screen.
+- **Saving** flattens to a 1024px PNG with no transparency (`IconShelf.flatten`) and
+  keeps it with its recipe in Application Support/Icons (`IconShelf`).
+- **iOS only wears icons the app was built with** (`setAlternateIconName` takes a name
+  from the bundle, never a picture). So a new icon shows in the picker as "Next
+  install": tapping it marks it `wanted`; the app copies every icon into
+  `PARADOX icons` inside the backup folder; `bake_custom.sh` (XcodeGen `preGenCommand`,
+  so every `ios-run`/`ios-device`) turns each `<id>.png` it finds there, or in
+  `design/icons/custom/`, into an `AppIcon-Custom-<id>` set and lists them in
+  `Custom.xcconfig` → `$(CUSTOM_APPICONS)`; the first launch of that build puts the
+  wanted icon on (`IconShelf.adopt`). The cloud build proves the bake with a stand-in
+  picture (`ci.txt`: "custom icon baked into the app: yes").
+- Not verified on the Mac yet: the script finding the folder in iCloud Drive
+  (`~/Library/Mobile Documents/com~apple~CloudDocs`, up to four levels down). If it
+  doesn't, drop the PNGs (Share from the icon's menu) into `design/icons/custom/`.
 
 ## Face ID
 Asks only when the app has been out of use longer than "Ask again after" (default 1 hour),
