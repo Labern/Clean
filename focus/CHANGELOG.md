@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.18.99 — 2026-11-17
+
+- **Schedule, as he described it:** one Off / On switch at the top, **off by default**. **Session Times:** tap the days,
+  set a start and an end; the usual session starts by itself at the start and ends at the end, bringing everything
+  back. **Block Apps:** chosen apps (e.g. Discord) stay closed during set hours on set days. No "Work"/"Fun" labels.
+- Tests: 36 GUI checks (new: 36 session times; off by default).
+
 ## 0.18.98 — 2026-11-16
 
 - **Schedule in two halves, side by side:** **Work** opens chosen apps by themselves at a set time on set days;

@@ -2850,8 +2850,8 @@ func renderDesktop(to file: String, mode: Bool) {
     if renderArgs.contains("trial=minimal") { DesktopView.renderTrial = .minimal }
     m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
     if renderArgs.contains("schedule") {                           // two example rules (never saved)
-        Scheduler.shared.rules = [ScheduleRule(kind: "block", apps: ["com.apple.Music", "com.apple.TV"].filter { f.path($0) != nil }, from: 9 * 60, to: 17 * 60),
-                                  ScheduleRule(kind: "open", apps: ["com.apple.Notes", "com.apple.Safari"].filter { f.path($0) != nil }, days: [2, 3, 4, 5, 6], from: 8 * 60 + 30)]
+        Scheduler.shared.enabled = !renderArgs.contains("scheduleoff")
+        Scheduler.shared.rules = [ScheduleRule(kind: "block", apps: ["com.hnc.Discord", "com.apple.Music", "com.apple.TV"].filter { f.path($0) != nil }, from: 9 * 60, to: 17 * 60 + 30)]
     }
     let savedScale = Site.scale
     if let t = renderArgs.first(where: { $0.hasPrefix("textscale=") }).flatMap({ Double($0.dropFirst(10)) }) { Site.scale = CGFloat(t) }
@@ -3392,6 +3392,13 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     check(35, "Schedule rules", blocks && wraps && dueNow && notEarly && notLate && once && offOK,
           "block on its days and hours: \(blocks); overnight wraps: \(wraps); open due at its time: \(dueNow), not early \(notEarly), not late \(notLate), once a day \(once); off does nothing: \(offOK)")
 
+    // 36. Schedule is off until turned on; session times start and end on their days, once each, within two minutes.
+    let offByDefault = UserDefaults(suiteName: "com.labern.focus.selftest-fresh")!.object(forKey: "scheduleOn") == nil && !SessionTimes().days.isEmpty
+    let tStart = Scheduler.timeDue(8 * 60, days: [2], done: "", now: monAt(8, 0), sc), tWrongDay = !Scheduler.timeDue(8 * 60, days: [3], done: "", now: monAt(8, 0), sc)
+    let tOnce = !Scheduler.timeDue(8 * 60, days: [2], done: Scheduler.day(monAt(8, 0), sc), now: monAt(8, 1), sc), tLate = !Scheduler.timeDue(8 * 60, days: [2], done: "", now: monAt(8, 5), sc)
+    check(36, "Session times", offByDefault && tStart && tWrongDay && tOnce && tLate,
+          "off until turned on: \(offByDefault); starts on its day: \(tStart); not other days: \(tWrongDay); once a day: \(tOnce); not late: \(tLate)")
+
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)
 }
@@ -3410,9 +3417,28 @@ struct ScheduleRule: Codable, Identifiable, Equatable {
     var fired = ""                                                 // open: the day it last fired (yyyy-MM-dd)
 }
 
+/// Session times: on the chosen days, start the usual session at `start` and end it at `end` (minutes after midnight).
+struct SessionTimes: Codable, Equatable {
+    var days: [Int] = [2, 3, 4, 5, 6]
+    var start = 8 * 60, end = 17 * 60 + 30
+    var startedOn = "", endedOn = ""                               // the day each last fired (yyyy-MM-dd)
+}
+
 final class Scheduler: ObservableObject {
     static let shared = Scheduler()
     @Published var rules: [ScheduleRule] = [] { didSet { save() } }
+    /// The whole feature: off until the user turns it on.
+    @Published var enabled = UserDefaults.standard.bool(forKey: "scheduleOn") {
+        didSet { if !renderArgs.contains("--render-desktop") { UserDefaults.standard.set(enabled, forKey: "scheduleOn") } }
+    }
+    @Published var times: SessionTimes = (UserDefaults.standard.data(forKey: "scheduleTimes")).flatMap { try? JSONDecoder().decode(SessionTimes.self, from: $0) } ?? SessionTimes() {
+        didSet { if !renderArgs.contains("--render-desktop"), let d = try? JSONEncoder().encode(times) { UserDefaults.standard.set(d, forKey: "scheduleTimes") } }
+    }
+    /// Due within two minutes after `at`, on a chosen day, and not already done today.
+    static func timeDue(_ at: Int, days: [Int], done: String, now d: Date, _ c: Calendar = .current) -> Bool {
+        guard days.contains(c.component(.weekday, from: d)) else { return false }
+        let m = minute(d, c); return m >= at && m < at + 2 && done != day(d, c)
+    }
     @Published var note = ""                                       // the last thing it did, shown on the page
     private weak var f: Focus?
     private var timer: Timer?, launchWatch: Any?
@@ -3447,7 +3473,7 @@ final class Scheduler: ObservableObject {
         let t = Timer(timeInterval: 20, repeats: true) { [weak self] _ in self?.tick() }
         RunLoop.main.add(t, forMode: .common); timer = t
         launchWatch = NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didLaunchApplicationNotification, object: nil, queue: .main) { [weak self] n in
-            guard let self, !DesktopModel.gated, let a = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+            guard let self, self.enabled, !DesktopModel.gated, let a = n.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                   let id = a.bundleIdentifier, let r = self.blocked(id) else { return }
             a.terminate()                                          // opened during its block: closed again
             self.note = "Closed \(a.localizedName ?? "an app"): blocked until \(Self.clock(r.to))."
@@ -3455,7 +3481,15 @@ final class Scheduler: ObservableObject {
         tick()
     }
     func tick(now: Date = Date()) {
-        guard let f, !DesktopModel.gated else { return }           // Pro only
+        guard let f, enabled, !DesktopModel.gated else { return }  // off by default; Pro only
+        if Self.timeDue(times.start, days: times.days, done: times.startedOn, now: now) {
+            times.startedOn = Self.day(now)
+            if !f.focused { f.toggle(); note = "Started the session at \(Self.clock(times.start))."; flog("schedule: \(note)") }
+        }
+        if Self.timeDue(times.end, days: times.days, done: times.endedOn, now: now) {
+            times.endedOn = Self.day(now)
+            if f.focused { f.toggle(); note = "Ended the session at \(Self.clock(times.end)): everything is back."; flog("schedule: \(note)") }
+        }
         for i in rules.indices where Self.due(rules[i], at: now) {
             rules[i].fired = Self.day(now)
             let r = rules[i]
@@ -3483,27 +3517,45 @@ struct SchedulePage: View {
     @ObservedObject var m: DesktopModel
     @ObservedObject var s = Scheduler.shared
     var body: some View {
-        PageFrame(title: "Schedule", text: "Two halves: work apps that open by themselves, and fun apps kept closed while you work.", locked: m) {
-            HStack(alignment: .top, spacing: 20) {
-                half(title: "Work", what: "Open these apps by themselves at a set time.", kind: "open", add: "Add Work Apps")
-                half(title: "Fun", what: "Keep these apps closed during set hours. If one opens, Focus closes it again.", kind: "block", add: "Add Fun Apps")
-            }.padding(.top, 18)
-            if !s.note.isEmpty { Text(s.note).font(Site.font(15)).foregroundColor(Site.muted).padding(.top, 14) }
+        PageFrame(title: "Schedule", text: "Start and end your session at set times, and keep chosen apps closed during set hours.", locked: m) {
+            SettingLine(title: "Schedule", note: s.enabled ? "On: Focus follows the times below." : "Off: nothing below happens until you turn it on.") {
+                Choice(options: ["Off", "On"], selected: s.enabled ? 1 : 0) { i in s.enabled = i == 1 }
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                SectionLabel("Session Times").padding(.horizontal, -14)
+                Note("On these days, the session starts by itself at the first time and ends at the second, bringing everything back.")
+                HStack(spacing: 6) {
+                    DayPicker(days: $s.times.days)
+                    Spacer(minLength: 16)
+                    Text("start").font(Site.font(15)).foregroundColor(Site.muted); TimeField(minutes: $s.times.start)
+                    Text("end").font(Site.font(15)).foregroundColor(Site.muted).padding(.leading, 6); TimeField(minutes: $s.times.end)
+                }
+                .padding(16).background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.surface)).padding(.top, 8)
+                SectionLabel("Block Apps").padding(.horizontal, -14)
+                Note("Keep these apps closed during these hours. If one opens, Focus closes it again.")
+                ForEach($s.rules) { $r in if r.kind == "block" { ScheduleRow(m: m, r: $r) } }
+                SiteButton("Add Apps to Block") { s.rules.append(ScheduleRule(kind: "block", days: [2, 3, 4, 5, 6], from: 9 * 60, to: 17 * 60 + 30)) }.padding(.top, 8)
+                if !s.note.isEmpty { Text(s.note).font(Site.font(15)).foregroundColor(Site.muted).padding(.top, 14) }
+            }
+            .opacity(s.enabled ? 1 : 0.4)                              // set it up either way; it only acts when on
         }
     }
-    @ViewBuilder func half(title: String, what: String, kind: String, add: String) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title).font(Site.font(24, .medium)).foregroundColor(Site.head)
-            Rectangle().fill(Site.head).frame(height: 1)
-            Text(what).font(Site.font(15)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
-            ForEach($s.rules) { $r in if r.kind == kind { ScheduleRow(m: m, r: $r) } }
-            SiteButton(add) {
-                s.rules.append(kind == "open" ? ScheduleRule(kind: "open", days: [2, 3, 4, 5, 6], from: 9 * 60)
-                                              : ScheduleRule(kind: "block", days: [2, 3, 4, 5, 6], from: 9 * 60, to: 17 * 60))
-            }.padding(.top, 4)
+}
+
+/// M T W T F S S, each a tap.
+struct DayPicker: View {
+    @Binding var days: [Int]
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(ScheduleRow.dayOrder, id: \.self) { d in
+                let on = days.contains(d)
+                Button { if on { days.removeAll { $0 == d } } else { days.append(d) } } label: {
+                    Text(ScheduleRow.letters[d] ?? "").font(Site.font(14, .medium)).foregroundColor(on ? Site.paper : Site.head)
+                        .frame(width: 30, height: 30).background(Circle().fill(on ? Site.ink : Color.clear))
+                        .overlay(Circle().stroke(Site.ink.opacity(on ? 0 : 0.5), lineWidth: 1)).contentShape(Circle())
+                }.buttonStyle(.plain)
+            }
         }
-        .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Site.line, lineWidth: 1))
     }
 }
 
@@ -3526,20 +3578,12 @@ struct ScheduleRow: View {
                     SiteButton("Choose Apps…") { chooseApps() }
                 }
                 Spacer()
-                Choice(options: ["Off", "On"], selected: r.on ? 1 : 0) { i in r.on = i == 1 }
                 Button { Scheduler.shared.rules.removeAll { $0.id == r.id } } label: {
                     Image(systemName: "trash").font(.system(size: 14)).foregroundColor(Site.muted).frame(width: 30, height: 30).contentShape(Rectangle())
                 }.buttonStyle(.plain).help("Delete").linkCursor()
             }
             HStack(spacing: 6) {
-                ForEach(Self.dayOrder, id: \.self) { d in
-                    let on = r.days.contains(d)
-                    Button { if on { r.days.removeAll { $0 == d } } else { r.days.append(d) } } label: {
-                        Text(Self.letters[d] ?? "").font(Site.font(14, .medium)).foregroundColor(on ? Site.paper : Site.head)
-                            .frame(width: 30, height: 30).background(Circle().fill(on ? Site.ink : Color.clear))
-                            .overlay(Circle().stroke(Site.ink.opacity(on ? 0 : 0.5), lineWidth: 1)).contentShape(Circle())
-                    }.buttonStyle(.plain)
-                }
+                DayPicker(days: $r.days)
                 Spacer(minLength: 16)
                 if r.kind == "block" {
                     TimeField(minutes: $r.from); Text("to").font(Site.font(15)).foregroundColor(Site.muted); TimeField(minutes: $r.to)
