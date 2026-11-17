@@ -4,6 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.14 — 2026-11-17
+
+- **The free reset gives exactly 10**, counted from the moment it's given (it was subtracting an earlier overrun:
+  10 became 8). Check 31 now proves it with the week overrun by 2.
+- **Running out pops up at once:** "You have run out of sessions." / "You'll get 10 more on Monday 23 November at
+  00:00. Or upgrade to Pro for unlimited sessions." with the plans beneath. Once a week; the first time, the free reset
+  comes instead.
+
 ## 0.19.13 — 2026-11-17
 
 - Tools: the page reads "You can monitor and close any badly-behaving apps from here."; the explanatory line under

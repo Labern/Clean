@@ -164,7 +164,15 @@ final class DesktopModel: ObservableObject {
     @Published var countUp: Int? = nil                             // the plan line's count while it rises after the gift
     /// Run out, on Basic, with the free reset unused: the gift comes first; the plans only the next time.
     var giftDue: Bool { DesktopModel.gated && !DesktopModel.giftUsed && DesktopModel.week(f.sessions, now: Date()).left == 0 }
-    func showGiftIfDue() { if giftDue && !giftShown && !renderArgs.contains("--render-desktop") { giftKind = .reset; giftShown = true } }
+    func showGiftIfDue() {
+        guard !renderArgs.contains("--render-desktop"), !giftShown, !upgradeShown else { return }
+        if giftDue { giftKind = .reset; giftShown = true; return }
+        let ud = UserDefaults.standard, wk = DesktopModel.weekStart
+        if DesktopModel.gated && DesktopModel.week(f.sessions, now: Date()).left == 0,
+           (ud.object(forKey: "outShownWeek") as? Date).map({ abs($0.timeIntervalSince(wk)) >= 3600 }) ?? true {
+            ud.set(wk, forKey: "outShownWeek"); openUpgrade(); outOfSessions = true      // ran out: say so, once a week
+        }
+    }
     /// Take the gift: this week gets the sessions back, once ever; the count rises to show it.
     func takeGift() {
         let ud = UserDefaults.standard
@@ -183,7 +191,7 @@ final class DesktopModel: ObservableObject {
             return
         }
         ud.set(true, forKey: "focusGiftUsed"); ud.set(DesktopModel.weekStart, forKey: "focusGiftWeek")
-        if ud.object(forKey: "devSpentWeek") != nil { ud.set(DesktopModel.giftSessions, forKey: "devSpentBack") }   // the dev "0" gives way to the gift
+        ud.set(DesktopModel.week(f.sessions, now: Date()).used, forKey: "focusGiftFrom")   // count from now: exactly 10
         let to = DesktopModel.week(f.sessions, now: Date()).left
         giftShown = false
         upgradeShown = false; outOfSessions = false; if selection == Page.upgrade { selection = upgradeFrom }
@@ -198,13 +206,13 @@ final class DesktopModel: ObservableObject {
     /// Developer Panel: use up this week's sessions (as Basic) without touching the real history; re-arm the gift.
     func devSpendAll() {
         let ud = UserDefaults.standard
-        ud.set(DesktopModel.weekStart, forKey: "devSpentWeek"); ud.removeObject(forKey: "devSpentBack")
-        ud.removeObject(forKey: "focusGiftUsed"); ud.removeObject(forKey: "focusGiftWeek")
+        ud.set(DesktopModel.weekStart, forKey: "devSpentWeek")
+        ["devSpentBack", "focusGiftUsed", "focusGiftWeek", "focusGiftFrom", "outShownWeek"].forEach { ud.removeObject(forKey: $0) }
         viewAs("free"); showGiftIfDue()
     }
     func devRestore() {
         let ud = UserDefaults.standard
-        ["devSpentWeek", "devSpentBack", "focusGiftWeek", "focusTokens", "focusWelcomeShown"].forEach { ud.removeObject(forKey: $0) }
+        ["devSpentWeek", "devSpentBack", "focusGiftWeek", "focusGiftFrom", "focusTokens", "focusWelcomeShown", "outShownWeek"].forEach { ud.removeObject(forKey: $0) }
         tick &+= 1
     }
     /// Developer Panel: show the early-adopter welcome as a new copy would.
@@ -215,8 +223,8 @@ final class DesktopModel: ObservableObject {
     /// "resets Monday 00:00"
     static func resetLine(_ f: Focus) -> String {
         let r = week(f.sessions, now: Date()).reset
-        let d = DateFormatter(); d.locale = Locale(identifier: "en_GB"); d.dateFormat = "EEEE HH:mm"
-        return "resets \(d.string(from: r))"
+        let d = DateFormatter(); d.locale = Locale(identifier: "en_GB"); d.dateFormat = "EEEE d MMMM 'at' HH:mm"
+        return d.string(from: r)
     }
     var still = false                                           // off-screen drawing: no animation
     private var timer: Timer?
@@ -275,10 +283,12 @@ final class DesktopModel: ObservableObject {
         let used = sessions.filter { ($0["kind"] as? String) != "quit all" && (($0["date"] as? Date).map { $0 >= start && $0 <= now } ?? false) }.count
         let f = DateFormatter(); f.calendar = cal; f.locale = Locale(identifier: "en_GB"); f.dateFormat = "EEEE"
         let ud = UserDefaults.standard
-        let bonus = (ud.object(forKey: "focusGiftWeek") as? Date).map { abs($0.timeIntervalSince(start)) < 3600 ? giftSessions : 0 } ?? 0   // the free reset, this week only
-        let spent = (ud.object(forKey: "devSpentWeek") as? Date).map { abs($0.timeIntervalSince(start)) < 3600 } ?? false               // Developer Panel: sessions → 0
-        let u = spent ? max(used, freeWeekly + bonus - (ud.integer(forKey: "devSpentBack"))) : used
-        return (u, max(0, freeWeekly + bonus - u) + tokens, reset, f.string(from: reset))   // tokens on top: they never expire
+        let thisWeek = { (k: String) in (ud.object(forKey: k) as? Date).map { abs($0.timeIntervalSince(start)) < 3600 } ?? false }
+        let u = thisWeek("devSpentWeek") ? max(used, freeWeekly) : used         // Developer Panel: sessions → 0 (never below)
+        // the free reset: a fresh set from the moment it's given, whatever was used (or overrun) before it
+        let left = thisWeek("focusGiftWeek") ? max(0, giftSessions - max(0, u - ud.integer(forKey: "focusGiftFrom")))
+                                             : max(0, freeWeekly - u)
+        return (u, left + tokens, reset, f.string(from: reset))                  // tokens on top: they never expire
     }
     /// Temporary, for looking at the design: show the Focus Pro badge and the Buy button together. Remove with licences.
     static let showBoth = false
@@ -1400,14 +1410,17 @@ struct UpgradePopup: View {
             Color.black.opacity(Site.light ? 0.25 : 0.6).ignoresSafeArea().onTapGesture { m.closeUpgrade() }
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(m.outOfSessions ? "0 sessions remaining this week — \(DesktopModel.resetLine(m.f))" : "Upgrade Focus")
+                    Text(m.outOfSessions ? "You have run out of sessions." : "Upgrade Focus")
                         .font(Site.font(m.outOfSessions ? 24 : 30, .medium)).tracking(-0.5).foregroundColor(Site.head)
                     Spacer()
                     Button { m.closeUpgrade() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(Site.low).frame(width: 28, height: 28).contentShape(Rectangle()) }
                         .buttonStyle(.plain).keyboardShortcut(.cancelAction)
                 }
                 PanelRule()
-                if m.outOfSessions { Text("Pro has no limit: start as many sessions as you like.").font(Site.font(17)).foregroundColor(Site.low).padding(.bottom, 14) }
+                if m.outOfSessions {
+                    Text("You'll get \(DesktopModel.freeWeekly) more on \(DesktopModel.resetLine(m.f)). Or upgrade to Pro for unlimited sessions.")
+                        .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true).padding(.bottom, 14)
+                }
                 UpgradeCard(m: m)
             }
             .padding(28).frame(width: 760).fixedSize(horizontal: false, vertical: true)
@@ -1662,7 +1675,7 @@ struct DesktopView: View {
                     else if m.selection == Page.manual { ManualPage() }
                     else if m.selection == Page.upgrade && !DesktopModel.licensed {
                         if m.outOfSessions || renderArgs.contains("out") {
-                            PageFrame(title: "0 sessions remaining this week — \(DesktopModel.resetLine(m.f))",
+                            PageFrame(title: "You have run out of sessions.",
                                       text: "Pro has no limit: start as many sessions as you like.") { UpgradeCard(m: m).padding(.top, 18) }
                         } else { PageFrame(title: "Upgrade Focus", text: "") { UpgradeCard(m: m).padding(.top, 4) } }
                     }
@@ -2950,9 +2963,10 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     var failures = 0
     // His real settings are never left changed by a test: saved now, put back at the end. Dev and gift state starts clear.
     let keepPrefs = ["desktopViewAs", "devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "desktopButtonInkWhite",
-                "focusTier", "focusPro", "desktopLook", "desktopPage", "desktopMemoryBar", "focusTokens", "focusWelcomeShown"]
+                "focusTier", "focusPro", "desktopLook", "desktopPage", "desktopMemoryBar", "focusTokens", "focusWelcomeShown",
+                "focusGiftFrom", "outShownWeek"]
     let savedPrefs = Dictionary(uniqueKeysWithValues: keepPrefs.compactMap { k in UserDefaults.standard.object(forKey: k).map { (k, $0) } })
-    ["devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "focusTokens"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
+    ["devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "focusGiftFrom", "focusTokens", "outShownWeek"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
     defer { keepPrefs.forEach { k in if let v = savedPrefs[k] { UserDefaults.standard.set(v, forKey: k) } else { UserDefaults.standard.removeObject(forKey: k) } } }
     func check(_ n: Int, _ name: String, _ ok: Bool, _ detail: String) {
         guard only == nil || only!.contains(n) else { return }
@@ -3349,7 +3363,9 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     gm2.devSpendAll()
     let at0 = DesktopModel.week(gm2.f.sessions, now: Date()).left == 0, due = gm2.giftDue
     gm2.openOutOfSessions(); let giftFirst = gm2.giftShown && !gm2.upgradeShown
-    gm2.takeGift(); let gotBack = DesktopModel.week(gm2.f.sessions, now: Date()).left == DesktopModel.giftSessions
+    gf2.sessions = (0..<(DesktopModel.freeWeekly + 2)).map { _ in ["date": Date(), "apps": [] as [Any]] as Session }   // overrun by 2
+    gm2.takeGift(); let gotBack = DesktopModel.week(gm2.f.sessions, now: Date()).left == DesktopModel.giftSessions   // still exactly 10
+    gf2.sessions = []
     gm2.devSpendAll(); std.set(true, forKey: "focusGiftUsed"); gm2.giftShown = false
     gm2.openOutOfSessions(); let plansNext = !gm2.giftShown && gm2.upgradeShown
     for k in ["focusGiftUsed", "focusGiftWeek", "devSpentWeek", "devSpentBack", "desktopViewAs"] { std.removeObject(forKey: k); UserDefaults.standard.removeObject(forKey: k) }
