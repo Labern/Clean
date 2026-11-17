@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.7 — 2026-11-17
+
+- Session sounds quieter (about half), a high-pass filter takes out the low rumble, and the whoosh is much softer under
+  the pad.
+
 ## 0.19.6 — 2026-11-17
 
 - **Session sounds: synth pad + whoosh.** In: the whoosh rushes in and a warm chord (E · G♯ · B · D♯ · F♯) swells

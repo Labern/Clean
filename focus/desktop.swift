@@ -3678,7 +3678,7 @@ enum Chime {
         guard (on || force), !testing, let s = start ? startSound : endSound else {
             flog("chime \(start ? "start" : "end"): not played (sound \(on ? "on" : "off"), testing \(testing))"); return
         }
-        s.stop(); s.volume = 0.4
+        s.stop(); s.volume = 0.22                                  // quiet: a touch, not an announcement
         let ok = s.play()
         flog("chime \(start ? "start" : "end"): play() \(ok)")
     }
@@ -3721,15 +3721,18 @@ enum Chime {
                 let w0 = 2 * .pi * fc / rate, alpha = sin(w0) / 3.2, a0 = 1 + alpha, xin = noise()
                 let y = (alpha * xin - alpha * x2 + 2 * cos(w0) * y1 - (1 - alpha) * y2) / a0
                 x2 = x1; x1 = xin; y2 = y1; y1 = y
-                v += y * pow(sin(.pi * r), 1.5) * 0.55
+                v += y * pow(sin(.pi * r), 1.5) * 0.22                    // the whoosh, well under the pad
             }
             if into && t >= 0.3 && t < 0.38 {                           // the felt tap as the apps land
-                let u = t - 0.3; v += sin(2 * .pi * 170 * pow(0.62, u / 0.06) * u) * exp(-u * 50) * 0.22
+                let u = t - 0.3; v += sin(2 * .pi * 170 * pow(0.62, u / 0.06) * u) * exp(-u * 50) * 0.12
             }
             out[i] = v
         }
+        // a high-pass (two poles at 280 Hz): the low rumble out, so it sits light and airy
+        let hc = exp(-2 * .pi * 280 / rate)
+        for _ in 0..<2 { var px = 0.0, py = 0.0; for i in 0..<n { let x = out[i]; py = hc * (py + x - px); px = x; out[i] = py } }
         let peak = max(0.001, out.map { abs($0) }.max() ?? 1)
-        return out.map { $0 / peak * 0.8 }
+        return out.map { $0 / peak * 0.55 }
     }
     static func wav(_ x: [Double], rate: Double = 44_100) -> Data {
         let samples = x.map { Int16(max(-1, min(1, $0)) * 32_000) }
