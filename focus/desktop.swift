@@ -167,12 +167,20 @@ final class DesktopModel: ObservableObject {
     func showGiftIfDue() {
         guard !renderArgs.contains("--render-desktop"), !giftShown, !upgradeShown else { return }
         if giftDue { giftKind = .reset; giftShown = true; return }
-        let ud = UserDefaults.standard, wk = DesktopModel.weekStart
-        if DesktopModel.gated && DesktopModel.week(f.sessions, now: Date()).left == 0,
-           (ud.object(forKey: "outShownWeek") as? Date).map({ abs($0.timeIntervalSince(wk)) >= 3600 }) ?? true {
-            ud.set(wk, forKey: "outShownWeek"); openUpgrade(); outOfSessions = true      // ran out: say so, once a week
+        let left = DesktopModel.week(f.sessions, now: Date()).left
+        if DesktopModel.gated && left == 0 && !outShownThisOpen {
+            outShownThisOpen = true; openUpgrade(); outOfSessions = true                // ran out: said each time the window opens
+        }
+        // 3, 2 and 1 left: a quiet note at the bottom, once each per week
+        let ud = UserDefaults.standard, mark = "\(Int(DesktopModel.weekStart.timeIntervalSince1970))-\(left)"
+        if DesktopModel.gated && (1...3).contains(left) && ud.string(forKey: "lowNoteShown") != mark {
+            ud.set(mark, forKey: "lowNoteShown")
+            lowNote = "Only \(left) \(left == 1 ? "session" : "sessions") left this week."
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4.5) { [weak self] in self?.lowNote = nil }
         }
     }
+    var outShownThisOpen = false                                       // the run-out pop-up, once per window opening
+    @Published var lowNote: String?
     /// Take the gift: this week gets the sessions back, once ever; the count rises to show it.
     func takeGift() {
         let ud = UserDefaults.standard
@@ -486,6 +494,9 @@ final class DesktopModel: ObservableObject {
     }
     /// Under the button: what pressing it does, in a line.
     var caption: String {
+        if !f.focused && DesktopModel.gated && DesktopModel.week(f.sessions, now: Date()).left == 0 {
+            return "You've run out of sessions. \(DesktopModel.freeWeekly) more on \(DesktopModel.resetLine(f))."
+        }
         if f.focused {                                              // live, like a terminal: each app as it goes, then done
             if renderArgs.contains("closing") { return "Closing Safari…  2 of 6" }
             if let a = f.queue.first, f.total > 0 { return "Closing \(a.localizedName ?? "app")…  \(f.total - f.queue.count + 1) of \(f.total)" }
@@ -600,39 +611,42 @@ struct MemoryBar: View {
     var body: some View {
         let total = max(apps.reduce(0) { $0 + $1.bytes }, 1), freed = apps.filter { !$0.on }.reduce(0) { $0 + $1.bytes }
         let shown = apps.filter { $0.bytes > 0 }, hot = m.hoverApp
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 14) {                                        // what it says first, then the bar
+                if let id = hot, let a = apps.first(where: { $0.id == id }) {
+                    Text("\(a.name) · \(a.usage) · \(a.on ? "stays open" : "closes in a session")").font(Site.font(15, .medium)).foregroundColor(Site.head)
+                } else {
+                    HStack(spacing: 0) {
+                        Text("Memory").font(Site.font(15, .medium)).foregroundColor(Site.head)
+                        Text("  ·  \(gb(total)) in use" + (freed > 0 ? "  ·  a session frees \(gb(freed))" : "")).font(Site.font(15)).foregroundColor(Site.muted)
+                    }
+                }
+                Spacer(minLength: 8)
+                key(Site.ink, "Stays"); key(Site.idle, "Closes")
+            }
             GeometryReader { g in
                 HStack(spacing: 2) {
                     ForEach(shown) { a in
                         let w = max(4, (g.size.width - CGFloat(shown.count) * 2) * CGFloat(a.bytes) / CGFloat(total))
                         ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 5, style: .continuous).fill(a.on ? Site.ink : Site.idle)
+                            Rectangle().fill(a.on ? Site.ink : Site.idle)                       // square: a measure, not a button
                             if w > CGFloat(a.name.count) * 7.5 * Site.scale + 18 {           // the app's name, where it fits
                                 Text(a.name).font(Site.font(12.5, .medium)).foregroundColor(a.on ? Site.paper : Site.head).lineLimit(1).padding(.leading, 8)
                             }
                         }
                         .frame(width: w)
                         .opacity(hot == nil || hot == a.id ? 1 : 0.35)
-                        .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous).stroke(Site.head, lineWidth: hot == a.id ? 2 : 0))
+                        .overlay(Rectangle().stroke(Site.head, lineWidth: hot == a.id ? 2 : 0))
                         .onHover { m.hoverApp = $0 ? a.id : (m.hoverApp == a.id ? nil : m.hoverApp) }
                         .help("\(a.name) · \(a.usage)")
                     }
                 }
                 .animation(.easeOut(duration: 0.35), value: apps.map(\.on)).animation(.easeOut(duration: 0.12), value: hot)
             }.frame(height: 24)
-            HStack(spacing: 14) {
-                if let id = hot, let a = apps.first(where: { $0.id == id }) {
-                    Text("\(a.name) · \(a.usage) · \(a.on ? "stays open" : "closes in a session")").font(Site.font(15, .medium)).foregroundColor(Site.head)
-                } else {
-                    Text("\(gb(total)) in use by open apps" + (freed > 0 ? " · a session frees \(gb(freed))" : "")).font(Site.font(15)).foregroundColor(Site.muted)
-                }
-                Spacer(minLength: 8)
-                key(Site.ink, "Stays"); key(Site.idle, "Closes")                     // what the two shades mean
-            }
         }
     }
     func key(_ c: Color, _ t: String) -> some View {
-        HStack(spacing: 6) { RoundedRectangle(cornerRadius: 3).fill(c).frame(width: 12, height: 12); Text(t).font(Site.font(14)).foregroundColor(Site.muted) }
+        HStack(spacing: 6) { Rectangle().fill(c).frame(width: 12, height: 12); Text(t).font(Site.font(14)).foregroundColor(Site.muted) }
     }
 }
 
@@ -1689,6 +1703,18 @@ struct DesktopView: View {
         }
         .background(Site.bg).preferredColorScheme(Site.light ? .light : .dark)
         .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
+        .overlay(alignment: .bottom) {
+            if let note = m.lowNote {
+                Text(note).font(Site.font(15, .medium)).foregroundColor(Site.head)
+                    .padding(.horizontal, 20).frame(height: 42)
+                    .background(Capsule().fill(Site.bg)).overlay(Capsule().stroke(Site.ink.opacity(0.5), lineWidth: 1))
+                    .shadow(color: .black.opacity(Site.light ? 0 : 0.5), radius: 16, y: 6)
+                    .frame(maxWidth: .infinity).padding(.leading, 292)          // centred on the page, not the window
+                    .padding(.bottom, 26).transition(.move(edge: .bottom).combined(with: .opacity))
+                    .onTapGesture { m.lowNote = nil }
+            }
+        }
+        .animation(.spring(response: 0.4, dampingFraction: 0.85), value: m.lowNote)
         .overlay { if m.upgradeShown { UpgradePopup(m: m).transition(.opacity) } }
         .animation(.easeOut(duration: 0.15), value: m.upgradeShown)
         .overlay { if m.giftShown || renderArgs.contains("gift") || renderArgs.contains("welcome") { GiftCard(m: m).transition(.opacity) } }
@@ -1813,7 +1839,7 @@ struct SessionDetail: View {
                     Text(f.focused ? "These apps are in your session. Click one to take it out."
                                    : "Tick the apps you want in the session. Everything else closes when the session starts and comes back when it ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
-                    if !f.focused && MemoryBar.shown { MemoryBar(apps: m.running, m: m).padding(.top, 14) }      // the memory to be saved is shown before a session, never during one
+      // the memory to be saved is shown before a session, never during one
                     SectionLabel("", "Usage", divider: false).padding(.horizontal, -14).padding(.top, f.focused ? 0 : 8)
                     ForEach(m.running) { app in
                         AppRowView(app: app, icon: m.icon(app.path), mark: app.on ? "checkmark.circle.fill" : "circle", action: { m.toggle(app) },
@@ -1825,6 +1851,7 @@ struct SessionDetail: View {
                             .onDrop(of: [UTType.text], delegate: RowDrop(id: app.id, m: m))
                     }
                     AppFinder(m: m).padding(.top, 10)                           // adding comes after the list, like Add or remove… below
+                    if !f.focused && MemoryBar.shown { MemoryBar(apps: m.running, m: m).padding(.top, 18) }   // last: the section's footnote
                     if !m.outside.isEmpty {
                         SectionLabel("Apps Outside Session").padding(.horizontal, -14)
                         Note("These apps are not in the session right now. Click one to add it to the session.")
@@ -2874,6 +2901,7 @@ func renderDesktop(to file: String, mode: Bool) {
     f.neverClose = have(["com.apple.Terminal"]); f.excluded = have(["com.apple.Safari", "com.apple.Terminal"])
     let m = DesktopModel(f); m.still = true; m.refresh(); m.selection = nil; if mode { m.selection = second }   // renders start on the Session Editor
     if renderArgs.contains("feedback") { m.openFeedback() }
+    if renderArgs.contains("lownote") { m.lowNote = "Only 3 sessions left this week." }
     if renderArgs.contains("upgrade") || renderArgs.contains("out") { m.upgradeShown = true; m.outOfSessions = renderArgs.contains("out") }
     if renderArgs.contains("live") {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
@@ -3705,7 +3733,7 @@ enum Chime {
     /// Five soft clicks, quick and even, like cards squared into a stack, with a hit stop: the last click waits a beat
     /// before it lands. Pitches 1 (lowest) to 4. Start: 1-2-3-4 … 1. End: 1-1-2-3 … 4.
     static func pull(into: Bool, rate: Double = 44_100) -> [Double] {
-        let steps = into ? [1, 2, 3, 4, 1] : [1, 1, 2, 3, 4]
+        let steps = into ? [1, 2, 3, 1] : [1, 1, 2, 3, 4]            // start trimmed to 1-2-3 … 1 (17 Nov; was 1-2-3-4 … 1)
         let pitch: [Int: Double] = [1: 1_680, 2: 1_860, 3: 2_060, 4: 2_280]
         let gap = 0.052, hitStop = 0.15                                       // the pause before the last click
         let times = steps.indices.map { i in i < steps.count - 1 ? Double(i) * gap : Double(i - 1) * gap + hitStop }

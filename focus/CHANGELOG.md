@@ -4,6 +4,16 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.15 — 2026-11-17
+
+- **Memory bar** moved to the bottom of Apps in Session; the summary reads first ("Memory · 10.2 GB in use · a session
+  frees 8.7 GB") with Stays / Closes beside it, then a bar of square segments.
+- **Out of sessions, always clear:** the run-out pop-up shows every time the window opens at zero, and the caption under
+  the button says "You've run out of sessions. 10 more on Monday 23 November at 00:00."
+- **3, 2, 1 left:** a quiet note slides up at the bottom of the page for a few seconds ("Only 3 sessions left this
+  week."), once each per week. No mention of Pro.
+- **Start sound trimmed** to 1-2-3 … 1 (one fast click fewer); the end sound is unchanged. Revert on request.
+
 ## 0.19.14 — 2026-11-17
 
 - **The free reset gives exactly 10**, counted from the moment it's given (it was subtracting an earlier overrun:
