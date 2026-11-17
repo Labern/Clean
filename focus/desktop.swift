@@ -3682,38 +3682,53 @@ enum Chime {
         let ok = s.play()
         flog("chime \(start ? "start" : "end"): play() \(ok)")
     }
-    /// Noise becoming a note: focusing, heard. In: a wide, airy rush narrows and narrows until it resolves into one
-    /// soft, clear tone (blur → focus), with a felt tap as it lands, in time with the apps reaching the icon.
-    /// Out: the clear tone opens back out into the wide rush as everything comes back.
+    /// A synth pad and a whoosh. In: the whoosh rushes in and a warm chord (E · G♯ · B · D♯ · F♯) swells beneath it,
+    /// its filter opening as it comes into focus, with a felt tap as the apps land. Out: a lower, settling chord
+    /// (A · E · B · C♯) whose filter closes as the whoosh carries everything back out.
     static func pull(into: Bool, rate: Double = 44_100) -> [Double] {
-        let len = into ? 0.62 : 0.52, n = Int(len * rate), tone = 659.25        // E5: clear, not shrill
-        var out = [Double](repeating: 0, count: n)
+        let len = into ? 0.95 : 0.9, n = Int(len * rate)
+        let notes: [Double] = into ? [329.63, 415.30, 493.88, 622.25, 739.99] : [220.00, 329.63, 493.88, 554.37]
+        var pad = [Double](repeating: 0, count: n)
+        // supersaw: three slightly detuned voices per note, each a band-limited saw (first 10 harmonics)
+        for (ni, f0) in notes.enumerated() {
+            for (vi, cents) in [-8.0, 0.0, 7.0].enumerated() {
+                let f = f0 * pow(2, cents / 1200), ph0 = Double((ni * 3 + vi) * 37 % 100) / 100 * 2 * .pi
+                for h in 1...10 where f * Double(h) < 9_000 {
+                    let w = 2 * .pi * f * Double(h) / rate, g = 1 / Double(h)
+                    for i in 0..<n { pad[i] += sin(w * Double(i) + ph0 * Double(h)) * g }
+                }
+            }
+        }
+        // the filter (two-pole low-pass) sweeps: opens on the way in, closes on the way out
+        var out = [Double](repeating: 0, count: n), l1 = 0.0, l2 = 0.0
         var seed: UInt32 = 0x9E3779B9
         func noise() -> Double { seed = seed &* 1_664_525 &+ 1_013_904_223; return Double(seed >> 8) / Double(1 << 23) - 1 }
         var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
-        let focusAt = into ? 0.30 : 0.10                                  // the moment it is sharp
         for i in 0..<n {
             let t = Double(i) / rate
-            // how focused, 0 (wide noise) … 1 (one clear note)
-            let k = into ? min(1, t / focusAt) : max(0, 1 - (t - focusAt) / (len - focusAt - 0.04))
-            let f = into ? pow(k, 1.6) : (t < focusAt ? 1 : pow(k, 0.8))
-            // the rush: a band-pass that narrows onto the tone (Q 1 → 60) and moves from bright to the note
-            let fc = tone * pow(2_600 / tone, 1 - f), q = 1 + 59 * f
-            let w0 = 2 * .pi * fc / rate, alpha = sin(w0) / (2 * q), a0 = 1 + alpha
-            let xin = noise()
-            let y = (alpha * xin - alpha * x2 + 2 * cos(w0) * y1 - (1 - alpha) * y2) / a0
-            x2 = x1; x1 = xin; y2 = y1; y1 = y
-            let rushEnv = into ? min(1, t / 0.12) * (1 - 0.85 * f) : (t < focusAt ? 0 : min(1, (t - focusAt) / 0.05)) * (1 - 0.85 * f) * max(0, 1 - (t - focusAt) / (len - focusAt))
-            // the note: grows out of the noise as it sharpens, rings softly, then lets go
-            let noteEnv = into ? pow(f, 2) * exp(-max(0, t - focusAt) * 7) : (t < 0.012 ? t / 0.012 : 1) * pow(f, 1.2) * exp(-t * 4)
-            var v = y * rushEnv * 1.3 + (sin(2 * .pi * tone * t) + 0.08 * sin(4 * .pi * tone * t)) * noteEnv * 0.42
-            if into && t >= focusAt - 0.005 && t < focusAt + 0.08 {        // the felt tap as it lands
-                let u = t - (focusAt - 0.005)
-                v += sin(2 * .pi * 180 * pow(0.62, u / 0.06) * u) * exp(-u * 50) * 0.35
+            let k = min(1, t / (into ? 0.38 : 0.6))
+            let cutoff = into ? 350 * pow(3_400 / 350, k) : 3_000 * pow(300 / 3_000.0, k)
+            let c = 1 - exp(-2 * .pi * cutoff / rate)
+            l1 += c * (pad[i] - l1); l2 += c * (l1 - l2)
+            let padEnv = into ? min(1, t / 0.2) * (t < 0.55 ? 1 : max(0, 1 - (t - 0.55) / 0.4))
+                              : min(1, t / 0.02) * exp(-t * 3.2)
+            var v = l2 * padEnv * 0.09
+            // the whoosh: a sweeping band of air (in: bright → warm, then gone; out: warm → bright, rising away)
+            let rs = into ? 0.0 : 0.04, re = into ? 0.36 : 0.62
+            if t >= rs && t < re {
+                let r = (t - rs) / (re - rs)
+                let fc = into ? 3_000 * pow(600 / 3_000.0, r) : 600 * pow(3_000 / 600.0, r)
+                let w0 = 2 * .pi * fc / rate, alpha = sin(w0) / 3.2, a0 = 1 + alpha, xin = noise()
+                let y = (alpha * xin - alpha * x2 + 2 * cos(w0) * y1 - (1 - alpha) * y2) / a0
+                x2 = x1; x1 = xin; y2 = y1; y1 = y
+                v += y * pow(sin(.pi * r), 1.5) * 0.55
             }
-            out[i] = v * 0.55
+            if into && t >= 0.3 && t < 0.38 {                           // the felt tap as the apps land
+                let u = t - 0.3; v += sin(2 * .pi * 170 * pow(0.62, u / 0.06) * u) * exp(-u * 50) * 0.22
+            }
+            out[i] = v
         }
-        let peak = max(0.001, out.map { abs($0) }.max() ?? 1)            // even level, never clipped
+        let peak = max(0.001, out.map { abs($0) }.max() ?? 1)
         return out.map { $0 / peak * 0.8 }
     }
     static func wav(_ x: [Double], rate: Double = 44_100) -> Data {
