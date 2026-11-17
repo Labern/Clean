@@ -32,6 +32,15 @@ dropping, a number arriving, a session starting. Focus's session pill already
 does it (zop, hit stop, zip). Pair it with a haptic on the phone. Honour Reduce
 Motion. Carry this rule into the CLAUDE.md of every new project and repo.
 
+## ALWAYS — keep the Mac's global rules in step (Mac sessions only)
+`global/standing-rules.md` holds the rules that apply to every repo, not just this
+one. `~/.claude/CLAUDE.md` on the Mac is what carries them into other repos, and a
+cloud session cannot reach that file. So at the start of any session running on
+the Mac, run `global/install.sh` (idempotent: it replaces only its own marked
+block). When Labern gives a new rule for "everything" or "all future products",
+add it to `global/standing-rules.md` as well as here, and run the script if on
+the Mac.
+
 ## Project
 A sandbox directory, not a formal app. Currently contains a single static
 demo page (`index.html`) built during a Claude Code session — a hero
