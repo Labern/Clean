@@ -213,3 +213,6 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - **Sounds:** 0.18.93 ships a placeholder synthesised chime (Settings ▸ Sound). He wants real sounds designed later.
 - **Colour modes:** mockup at https://claude.ai/artifact/JnX9m3aHvDVFWnAnZzGrkq; build on his go.
 - **History snapshots + on-device one-line summary (Apple Foundation Models):** feasible; build on his go.
+- **Session sound (kept for now, 0.19.11):** five soft clicks, start 1-2-3-4 … 1, end 1-1-2-3 … 4, hit stop on the last.
+  His verdict: "Very good noise… a bit too much like a spider" (quick and high, scuttling). Later: try fewer, lower,
+  slightly slower clicks. Rejected before it: tones, detuned beats, pads, chord-to-note, whooshes.
