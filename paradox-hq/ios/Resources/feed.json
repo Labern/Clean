@@ -1,0 +1,67 @@
+{
+  "projects": [
+    {
+      "id": "focus",
+      "name": "Focus",
+      "summary": "macOS menu bar app. Pro is £5 a month, £50 a year or £99 once.",
+      "stage": "0.19.9",
+      "symbol": "scope",
+      "tint": "A78BFA",
+      "link": "https://paradoxica.uk/focus",
+      "items": [
+        { "id": "focus-devid", "title": "Developer ID certificate", "notes": "Needed to notarise the app before it can be sold." },
+        { "id": "focus-stripe", "title": "Stripe live", "children": [
+          { "id": "focus-stripe-keys", "title": "Swap the test keys for live keys" },
+          { "id": "focus-stripe-annual", "title": "Decide the annual price: £40, £45 or £50" },
+          { "id": "focus-stripe-tax", "title": "Turn on automatic tax" }
+        ] },
+        { "id": "focus-accounts", "title": "Accounts and licences", "children": [
+          { "id": "focus-accounts-macs", "title": "Decide Macs per account: 2 or 3" },
+          { "id": "focus-accounts-offline", "title": "Decide how many days it works offline" },
+          { "id": "focus-accounts-build", "title": "Build sign-in and the signed licence check" }
+        ] },
+        { "id": "focus-tutorial", "title": "First-run tutorial" },
+        { "id": "focus-named", "title": "Named sessions" },
+        { "id": "focus-wording", "title": "Strip AI-sounding wording" },
+        { "id": "focus-help", "title": "Help link becomes a website form" },
+        { "id": "focus-manual", "title": "The Manual" },
+        { "id": "focus-light", "title": "Light mode for the desktop window" }
+      ]
+    },
+    {
+      "id": "hq",
+      "name": "PARADOX HQ",
+      "summary": "This app. The company on one phone.",
+      "stage": "0.1",
+      "symbol": "star",
+      "tint": "FFFFFF",
+      "items": [
+        { "id": "hq-stripe", "title": "Paste the Stripe key", "notes": "Company, then Stripe. A restricted read-only key." },
+        { "id": "hq-repo", "title": "Move the code to the company repo" },
+        { "id": "hq-feed", "title": "Feed from Claude", "children": [
+          { "id": "hq-feed-host", "title": "Host feed.json in the private repo" },
+          { "id": "hq-feed-address", "title": "Paste its address in Company, then Claude" }
+        ] },
+        { "id": "hq-widgets", "title": "Lock Screen and Home Screen widgets" },
+        { "id": "hq-push", "title": "Payment notifications" },
+        { "id": "hq-testflight", "title": "Install on the phone through TestFlight" }
+      ]
+    },
+    {
+      "id": "company",
+      "name": "Company",
+      "summary": "PARADOXICA Ltd. Accounts, filings and set-up.",
+      "stage": "Set-up",
+      "symbol": "building.columns",
+      "tint": "5FD7AF",
+      "items": [
+        { "id": "co-stripe", "title": "Finish setting up Stripe" },
+        { "id": "co-github", "title": "Create the GitHub organisation" },
+        { "id": "co-apple", "title": "Enrol Apple Developer as an organisation", "children": [
+          { "id": "co-apple-duns", "title": "Get a D-U-N-S number" }
+        ] },
+        { "id": "co-deadlines", "title": "Add the filing deadlines in Company" }
+      ]
+    }
+  ]
+}

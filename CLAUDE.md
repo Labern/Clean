@@ -19,6 +19,8 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
+For PARADOX HQ (iOS app, no web page):
+- Code: https://github.com/Labern/Clean/tree/claude/dazzling-cerf-y7p4jg/paradox-hq
 Add any new page to this list the moment it ships.
 
 ## Project
@@ -77,6 +79,11 @@ no build step, no dependencies.
 - `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
   live at `labern.github.io/Clean/ribbit/`. See `ribbit/CLAUDE.md`.
+
+- `paradox-hq/` — PARADOX HQ: the iOS app that runs the company (Today, Money from
+  Stripe, Projects with tickable Focus lists, Company deadlines, Face ID). SwiftUI,
+  `paradox-hq/ios/`, built and screenshotted by `.github/workflows/paradox-hq-ios.yml`.
+  See `paradox-hq/CLAUDE.md`. Moves to the company's private repo when that exists.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
