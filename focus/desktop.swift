@@ -3682,57 +3682,53 @@ enum Chime {
         let ok = s.play()
         flog("chime \(start ? "start" : "end"): play() \(ok)")
     }
-    /// A chord that focuses. E major 7 (E · G♯ · B · D♯) in a soft pad. In: the whole chord sounds, then its notes
-    /// drop away from the top (D♯, B, G♯) until E alone remains: focus. Out: E alone, then G♯, B and D♯ join in turn
-    /// and it blooms back into the chord. A faint breath of air underneath; high-passed and quiet.
+    /// A synth pad and a whoosh. In: the whoosh rushes in and a warm chord (E · G♯ · B · D♯ · F♯) swells beneath it,
+    /// its filter opening as it comes into focus, with a felt tap as the apps land. Out: a lower, settling chord
+    /// (A · E · B · C♯) whose filter closes as the whoosh carries everything back out.
     static func pull(into: Bool, rate: Double = 44_100) -> [Double] {
-        let len = 1.25, n = Int(len * rate)
-        let notes: [Double] = [329.63, 415.30, 493.88, 622.25]                  // E4 G♯4 B4 D♯5
-        // when each note leaves (in) or arrives (out), and its envelope; E (index 0) stays throughout
-        func gain(_ ni: Int, _ t: Double) -> Double {
-            let rise = min(1, t / 0.05)
-            if into {
-                if ni == 0 { return rise * (t < 0.7 ? 1 : max(0, 1 - (t - 0.7) / 0.55)) }
-                let leave = [0, 0.62, 0.48, 0.34][ni]                          // D♯ first, then B, then G♯
-                return rise * max(0, 1 - max(0, t - leave) / 0.16)
-            } else {
-                let arrive = [0, 0.30, 0.42, 0.54][ni]                         // G♯, then B, then D♯
-                let on = ni == 0 ? rise : min(1, max(0, t - arrive) / 0.08)
-                let fade = t < 0.8 ? 1 : max(0, 1 - (t - 0.8) / 0.45)
-                return on * fade
-            }
-        }
+        let len = into ? 0.95 : 0.9, n = Int(len * rate)
+        let notes: [Double] = into ? [329.63, 415.30, 493.88, 622.25, 739.99] : [220.00, 329.63, 493.88, 554.37]
         var pad = [Double](repeating: 0, count: n)
+        // supersaw: three slightly detuned voices per note, each a band-limited saw (first 10 harmonics)
         for (ni, f0) in notes.enumerated() {
-            var voice = [Double](repeating: 0, count: n)
-            for (vi, cents) in [-7.0, 0.0, 6.0].enumerated() {
+            for (vi, cents) in [-8.0, 0.0, 7.0].enumerated() {
                 let f = f0 * pow(2, cents / 1200), ph0 = Double((ni * 3 + vi) * 37 % 100) / 100 * 2 * .pi
-                for h in 1...8 where f * Double(h) < 8_000 {
+                for h in 1...10 where f * Double(h) < 9_000 {
                     let w = 2 * .pi * f * Double(h) / rate, g = 1 / Double(h)
-                    for i in 0..<n { voice[i] += sin(w * Double(i) + ph0 * Double(h)) * g }
+                    for i in 0..<n { pad[i] += sin(w * Double(i) + ph0 * Double(h)) * g }
                 }
             }
-            for i in 0..<n { pad[i] += voice[i] * gain(ni, Double(i) / rate) }
         }
+        // the filter (two-pole low-pass) sweeps: opens on the way in, closes on the way out
         var out = [Double](repeating: 0, count: n), l1 = 0.0, l2 = 0.0
         var seed: UInt32 = 0x9E3779B9
         func noise() -> Double { seed = seed &* 1_664_525 &+ 1_013_904_223; return Double(seed >> 8) / Double(1 << 23) - 1 }
         var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
         for i in 0..<n {
-            let t = Double(i) / rate, k = min(1, t / 0.8)
-            let cutoff = into ? 2_800 * pow(1_300 / 2_800.0, k) : 1_300 * pow(2_800 / 1_300.0, k)   // in: a little darker as it narrows
+            let t = Double(i) / rate
+            let k = min(1, t / (into ? 0.38 : 0.6))
+            let cutoff = into ? 350 * pow(3_400 / 350, k) : 3_000 * pow(300 / 3_000.0, k)
             let c = 1 - exp(-2 * .pi * cutoff / rate)
             l1 += c * (pad[i] - l1); l2 += c * (l1 - l2)
-            var v = l2 * 0.09
-            if t < 0.4 {                                                       // a faint breath of air
-                let r = t / 0.4, fc = into ? 2_500 * pow(700 / 2_500.0, r) : 700 * pow(2_500 / 700.0, r)
+            let padEnv = into ? min(1, t / 0.2) * (t < 0.55 ? 1 : max(0, 1 - (t - 0.55) / 0.4))
+                              : min(1, t / 0.02) * exp(-t * 3.2)
+            var v = l2 * padEnv * 0.09
+            // the whoosh: a sweeping band of air (in: bright → warm, then gone; out: warm → bright, rising away)
+            let rs = into ? 0.0 : 0.04, re = into ? 0.36 : 0.62
+            if t >= rs && t < re {
+                let r = (t - rs) / (re - rs)
+                let fc = into ? 3_000 * pow(600 / 3_000.0, r) : 600 * pow(3_000 / 600.0, r)
                 let w0 = 2 * .pi * fc / rate, alpha = sin(w0) / 3.2, a0 = 1 + alpha, xin = noise()
                 let y = (alpha * xin - alpha * x2 + 2 * cos(w0) * y1 - (1 - alpha) * y2) / a0
                 x2 = x1; x1 = xin; y2 = y1; y1 = y
-                v += y * pow(sin(.pi * r), 1.5) * 0.08
+                v += y * pow(sin(.pi * r), 1.5) * 0.22                    // the whoosh, well under the pad
+            }
+            if into && t >= 0.3 && t < 0.38 {                           // the felt tap as the apps land
+                let u = t - 0.3; v += sin(2 * .pi * 170 * pow(0.62, u / 0.06) * u) * exp(-u * 50) * 0.12
             }
             out[i] = v
         }
+        // a high-pass (two poles at 280 Hz): the low rumble out, so it sits light and airy
         let hc = exp(-2 * .pi * 280 / rate)
         for _ in 0..<2 { var px = 0.0, py = 0.0; for i in 0..<n { let x = out[i]; py = hc * (py + x - px); px = x; out[i] = py } }
         let peak = max(0.001, out.map { abs($0) }.max() ?? 1)

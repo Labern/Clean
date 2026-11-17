@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.9 — 2026-11-17
+
+- Session sounds back to 0.19.7's pad and whoosh (the chord-to-note version sounded awful to him).
+
 ## 0.19.8 — 2026-11-17
 
 - **Session sounds: a chord that focuses.** E major 7 in a soft pad. Starting a session: the chord sounds, then its
