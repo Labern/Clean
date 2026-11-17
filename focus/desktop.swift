@@ -146,7 +146,7 @@ final class DesktopModel: ObservableObject {
     /// Call whenever the tier may have changed (View As, a purchase, a licence check).
     func tierChanged() {
         TierWatch.shared.n &+= 1
-        if DesktopModel.licensed && selection == Page.upgrade { selection = upgradeFrom; outOfSessions = false }
+        if DesktopModel.licensed { upgradeShown = false; outOfSessions = false; if selection == Page.upgrade { selection = upgradeFrom } }
         tick &+= 1
     }
     var upgradeFrom: String? = nil                                 // where Upgrade was opened from, to go back to
@@ -186,7 +186,7 @@ final class DesktopModel: ObservableObject {
         if ud.object(forKey: "devSpentWeek") != nil { ud.set(DesktopModel.giftSessions, forKey: "devSpentBack") }   // the dev "0" gives way to the gift
         let to = DesktopModel.week(f.sessions, now: Date()).left
         giftShown = false
-        if selection == Page.upgrade { selection = upgradeFrom; outOfSessions = false }
+        upgradeShown = false; outOfSessions = false; if selection == Page.upgrade { selection = upgradeFrom }
         countUp = 0
         for i in 1...max(1, to) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.35 + Double(i) * 0.07) { [weak self] in
@@ -320,11 +320,10 @@ final class DesktopModel: ObservableObject {
     enum FeedbackState: Equatable { case writing, sending, sent, emailed }
     @Published var feedbackShown = false
     @Published var upgradeShown = false
-    func openUpgrade() {                                           // a page in the window, not a pop-up; never for Pro
+    func openUpgrade() {                                           // the plans, as a pop-up over the window; never for Pro
         guard !DesktopModel.licensed else { return }
-        if selection != Page.upgrade { upgradeFrom = selection }
         outOfSessions = false
-        selection = Page.upgrade
+        upgradeShown = true
     }
     var heavyApps: [AppLine] {
         var seen = Set<String>()
@@ -334,6 +333,7 @@ final class DesktopModel: ObservableObject {
         if giftDue { giftShown = true; return }                    // the first time: the gift, not the plans
         openUpgrade(); outOfSessions = true
     }
+    func closeUpgrade() { upgradeShown = false; outOfSessions = false }
     @Published var feedbackText = ""
     @Published var feedbackState = FeedbackState.writing
     /// Where feedback is posted. Until the site answers there, the message goes into an email instead.
@@ -1318,15 +1318,14 @@ struct LockedPanel: View {
         HStack(spacing: 16) {
             Text(text).font(Site.font(17)).foregroundColor(Site.head).fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 8)
-            Button { m.openUpgrade() } label: {                         // a real button, but outlined: never the big one
+            Button { m.openUpgrade() } label: {                         // solid, Pro's colour: opens the plans
                 HStack(spacing: 6) {
                     Text("Upgrade to Pro").font(Site.font(15, .semibold)).fixedSize()
                     Image(systemName: "arrow.up.right").font(.system(size: 11, weight: .bold)).offset(x: hover ? 1.5 : 0, y: hover ? -1.5 : 0)
                 }
-                .foregroundColor(Site.head).padding(.horizontal, 16).frame(height: 38)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(hover ? Site.surface2 : Color.clear))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Site.ink.opacity(hover ? 1 : 0.75), lineWidth: 1.2))
-                .contentShape(Rectangle())
+                .foregroundColor(Site.paper).padding(.horizontal, 16).frame(height: 38)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Site.solid.opacity(hover ? 0.85 : 1)))
+                .scaleEffect(hover ? 1.03 : 1).contentShape(Rectangle())
             }.buttonStyle(PressStyle()).onHover { hover = $0 }.linkCursor().help("See the plans")
             .animation(.easeOut(duration: 0.15), value: hover)
         }
@@ -1390,6 +1389,32 @@ extension ViewAsPanel {
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).stroke(Site.ink.opacity(0.5), lineWidth: 1))
                 .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }.buttonStyle(PressStyle()).linkCursor()
+    }
+}
+
+/// The plans as a pop-up: opened by Upgrade Now, Upgrade to Pro, a locked control, or running out of sessions.
+struct UpgradePopup: View {
+    @ObservedObject var m: DesktopModel
+    var body: some View {
+        ZStack {
+            Color.black.opacity(Site.light ? 0.25 : 0.6).ignoresSafeArea().onTapGesture { m.closeUpgrade() }
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(m.outOfSessions ? "0 sessions remaining this week — \(DesktopModel.resetLine(m.f))" : "Upgrade Focus")
+                        .font(Site.font(m.outOfSessions ? 24 : 30, .medium)).tracking(-0.5).foregroundColor(Site.head)
+                    Spacer()
+                    Button { m.closeUpgrade() } label: { Image(systemName: "xmark").font(.system(size: 14, weight: .medium)).foregroundColor(Site.low).frame(width: 28, height: 28).contentShape(Rectangle()) }
+                        .buttonStyle(.plain).keyboardShortcut(.cancelAction)
+                }
+                PanelRule()
+                if m.outOfSessions { Text("Pro has no limit: start as many sessions as you like.").font(Site.font(17)).foregroundColor(Site.low).padding(.bottom, 14) }
+                UpgradeCard(m: m)
+            }
+            .padding(28).frame(width: 760).fixedSize(horizontal: false, vertical: true)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Site.bg))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Site.line, lineWidth: 1))
+            .shadow(color: .black.opacity(Site.light ? 0 : 0.6), radius: 30, y: 12)              // no shadows in Light
+        }
     }
 }
 
@@ -1651,6 +1676,8 @@ struct DesktopView: View {
         }
         .background(Site.bg).preferredColorScheme(Site.light ? .light : .dark)
         .overlay { if m.feedbackShown { FeedbackCard(m: m).transition(.opacity) } }
+        .overlay { if m.upgradeShown { UpgradePopup(m: m).transition(.opacity) } }
+        .animation(.easeOut(duration: 0.15), value: m.upgradeShown)
         .overlay { if m.giftShown || renderArgs.contains("gift") || renderArgs.contains("welcome") { GiftCard(m: m).transition(.opacity) } }
         .animation(.easeOut(duration: 0.2), value: m.giftShown)
 
@@ -1825,12 +1852,8 @@ struct ModeDetail: View {
         let inMode = mode.apps.compactMap { id in f.path(id).map { DesktopModel.AppLine(id: id, path: $0, name: f.appName($0), usage: "", on: true, note: "") } }
         let others = m.running.filter { !mode.apps.contains($0.id) }.map { DesktopModel.AppLine(id: $0.id, path: $0.path, name: $0.name, usage: $0.usage, on: false, note: "") }
         VStack(spacing: 0) {
-            if DesktopModel.gated {                                     // a mode on Basic: the plans first, the mode greyed beneath
-                VStack(alignment: .leading, spacing: 0) {
-                    Text("Modes are part of Pro").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)
-                    PanelRule()
-                    UpgradeCard(m: m)
-                }.padding(.horizontal, 28).padding(.bottom, 20)
+            if DesktopModel.gated {                                     // a mode on Basic: greyed, with Upgrade to Pro above
+                LockedPanel(m: m, text: "Unlock modes, sets of apps you start with one key, by upgrading to Pro.").padding(.horizontal, 28)
             }
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -1880,7 +1903,8 @@ enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = 
 
 struct PageFrame<Content: View>: View {
     let title: String, text: String
-    var locked: DesktopModel? = nil                              // a Pro page seen on Basic: the plans here, the page greyed
+    var locked: DesktopModel? = nil                              // a Pro page seen on Basic: greyed, with Upgrade to Pro
+    var lockedText = "Unlock this page by upgrading to Pro."
     @ViewBuilder var content: Content
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -1889,7 +1913,7 @@ struct PageFrame<Content: View>: View {
                 PanelRule()
                 if !text.isEmpty { Text(text).font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true) }
                 if let m = locked, DesktopModel.gated {
-                    UpgradeCard(m: m).padding(.top, 18).padding(.bottom, 26)
+                    LockedPanel(m: m, text: lockedText).padding(.top, 10)
                     VStack(alignment: .leading, spacing: 0) { content }.opacity(0.3).allowsHitTesting(false)
                 } else { content }
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 28).padding(.top, 0).padding(.bottom, 30)
@@ -2112,7 +2136,7 @@ struct ShortcutsPage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
         let f = m.f
-        PageFrame(title: "Shortcuts", text: "The keys that start and end a session, open the menu, open this app, and start your modes.", locked: m) {
+        PageFrame(title: "Shortcuts", text: "The keys that start and end a session, open the menu, open this app, and start your modes.", locked: m, lockedText: "Unlock your own shortcuts by upgrading to Pro.") {
             SettingLine(title: "Start / End Session", note: f.sessionKeyTaken ? "That combination is taken by another app. Pick another." : "") {
                 Choice(options: modifierChoices.map { $0.label + "F" }, selected: modifierChoices.firstIndex { $0.mods == f.sessionMods } ?? 0) { i in if DesktopModel.gated { m.openUpgrade() } else { m.act { f.sessionMods = modifierChoices[i].mods } } }
             }
@@ -2496,7 +2520,7 @@ struct ToolsPage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
         let f = m.f, busy = f.focused || f.clearing
-        PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "Look at what your Mac is doing, or clear everything at once.", locked: m) {
+        PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "Look at what your Mac is doing, or clear everything at once.", locked: m, lockedText: "Unlock every tool by upgrading to Pro.") {
             SectionLabel("Analyse performance", divider: false).padding(.horizontal, -14)
             ToolLine(title: "Open Activity Monitor", why: "See which apps are using the most memory and processor right now.", tint: Site.head, enabled: true) { if DesktopModel.gated { m.openUpgrade() } else { f.openActivityMonitor() } }
             ToolLine(title: "Open System Settings", why: "Change what opens at login, and the battery and display settings that affect how the Mac runs.", tint: Site.head, enabled: true) { if DesktopModel.gated { m.openUpgrade() } else { f.openSystemSettings() } }
@@ -2831,7 +2855,7 @@ func renderDesktop(to file: String, mode: Bool) {
     f.neverClose = have(["com.apple.Terminal"]); f.excluded = have(["com.apple.Safari", "com.apple.Terminal"])
     let m = DesktopModel(f); m.still = true; m.refresh(); m.selection = nil; if mode { m.selection = second }   // renders start on the Session Editor
     if renderArgs.contains("feedback") { m.openFeedback() }
-    if renderArgs.contains("upgrade") { m.selection = Page.upgrade }
+    if renderArgs.contains("upgrade") || renderArgs.contains("out") { m.upgradeShown = true; m.outOfSessions = renderArgs.contains("out") }
     if renderArgs.contains("live") {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
         f.store.set(true, forKey: "focused")
@@ -3227,9 +3251,9 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
 
     // 25. Viewing as Basic really locks Pro: a Pro action opens Upgrade instead of happening; as Pro it happens.
     let gm = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!))
-    std.set("free", forKey: "desktopViewAs"); var didBasic = false; gm.pro { didBasic = true }; let askedBasic = gm.selection == Page.upgrade
-    gm.selection = nil
-    std.set("pro", forKey: "desktopViewAs"); var didPro = false; gm.pro { didPro = true }; let askedPro = gm.selection == Page.upgrade
+    std.set("free", forKey: "desktopViewAs"); var didBasic = false; gm.pro { didBasic = true }; let askedBasic = gm.upgradeShown
+    gm.upgradeShown = false
+    std.set("pro", forKey: "desktopViewAs"); var didPro = false; gm.pro { didPro = true }; let askedPro = gm.upgradeShown
     std.removeObject(forKey: "desktopViewAs"); UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
     check(25, "Basic really locks Pro", !didBasic && askedBasic && didPro && !askedPro,
           "as Basic: done \(didBasic), Upgrade opened \(askedBasic); as Pro: done \(didPro), Upgrade opened \(askedPro)")
@@ -3267,9 +3291,9 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     //     closes (back where it came from), nothing is locked, Upgrade can't reopen, and the Tools page as Pro draws
     //     no plans (identical to a real licensed copy).
     let um = DesktopModel(Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!))
-    um.selection = Page.tools; um.viewAs("free"); um.openUpgrade(); let wasUp = um.selection == Page.upgrade
-    um.viewAs("pro"); let left = um.selection == Page.tools, unlocked = !DesktopModel.gated && DesktopModel.licensed
-    um.openUpgrade(); let stays = um.selection == Page.tools
+    um.selection = Page.tools; um.viewAs("free"); um.openUpgrade(); let wasUp = um.upgradeShown
+    um.viewAs("pro"); let left = !um.upgradeShown && um.selection == Page.tools, unlocked = !DesktopModel.gated && DesktopModel.licensed
+    um.openUpgrade(); let stays = !um.upgradeShown && um.selection == Page.tools
     let savedPage = UserDefaults.standard.string(forKey: "desktopPage")
     um.viewAs("")
     var noPlans = false
@@ -3291,9 +3315,9 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     let fresh0 = DesktopModel.noSessionsLeft(of)
     of.sessions = (0..<DesktopModel.freeWeekly).map { _ in ["date": Date(), "apps": [] as [Any]] as Session }
     let spent = DesktopModel.noSessionsLeft(of)
-    om.openOutOfSessions(); let shown = om.selection == Page.upgrade && om.outOfSessions
+    om.openOutOfSessions(); let shown = om.upgradeShown && om.outOfSessions
     std.set("pro", forKey: "desktopViewAs"); let proFree = !DesktopModel.noSessionsLeft(of); om.tierChanged()
-    let closed = om.selection != Page.upgrade
+    let closed = !om.upgradeShown
     std.removeObject(forKey: "desktopViewAs"); std.removeObject(forKey: "focusGiftUsed"); UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
     check(29, "out of sessions opens the plans", !fresh0 && spent && shown && proFree && closed,
           "fresh week blocked: \(fresh0); \(DesktopModel.freeWeekly) used blocked: \(spent); plans shown: \(shown); Pro unlimited: \(proFree); Pro closes them: \(closed)")
@@ -3317,10 +3341,10 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     for k in ["focusGiftUsed", "focusGiftWeek", "devSpentWeek", "devSpentBack"] { std.removeObject(forKey: k) }
     gm2.devSpendAll()
     let at0 = DesktopModel.week(gm2.f.sessions, now: Date()).left == 0, due = gm2.giftDue
-    gm2.openOutOfSessions(); let giftFirst = gm2.giftShown && gm2.selection != Page.upgrade
+    gm2.openOutOfSessions(); let giftFirst = gm2.giftShown && !gm2.upgradeShown
     gm2.takeGift(); let gotBack = DesktopModel.week(gm2.f.sessions, now: Date()).left == DesktopModel.giftSessions
     gm2.devSpendAll(); std.set(true, forKey: "focusGiftUsed"); gm2.giftShown = false
-    gm2.openOutOfSessions(); let plansNext = !gm2.giftShown && gm2.selection == Page.upgrade
+    gm2.openOutOfSessions(); let plansNext = !gm2.giftShown && gm2.upgradeShown
     for k in ["focusGiftUsed", "focusGiftWeek", "devSpentWeek", "devSpentBack", "desktopViewAs"] { std.removeObject(forKey: k); UserDefaults.standard.removeObject(forKey: k) }
     _ = gf2
     UserDefaults.standard.removePersistentDomain(forName: "com.labern.focus.selftest")
@@ -3517,7 +3541,7 @@ struct SchedulePage: View {
     @ObservedObject var m: DesktopModel
     @ObservedObject var s = Scheduler.shared
     var body: some View {
-        PageFrame(title: "Schedule", text: "Let Focus run your day: your work session starts and ends by itself, and the apps that pull you away stay closed while you work.", locked: m) {
+        PageFrame(title: "Schedule", text: "Let Focus run your day: your work session starts and ends by itself, and the apps that pull you away stay closed while you work.", locked: m, lockedText: "Unlock Schedule by upgrading to Pro.") {
             SettingLine(title: "Schedule", note: s.enabled ? "On: Focus follows both halves below." : "Off: nothing below happens until you turn it on.") {
                 Choice(options: ["Off", "On"], selected: s.enabled ? 1 : 0) { i in s.enabled = i == 1 }
             }

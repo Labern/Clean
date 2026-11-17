@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.1 — 2026-11-17
+
+- **The plans are a pop-up again.** Locked pages show greyed, with a line saying what Pro unlocks there and a solid white
+  **Upgrade to Pro** button; it (and Upgrade Now, any locked control, and running out of sessions) opens the plans as a
+  pop-up with a close button. No shadow in Light.
+
 ## 0.19.0 — 2026-11-17
 
 - **Schedule, two halves side by side, each saying what it does and why:** **Work Hours** (the session starts and ends
