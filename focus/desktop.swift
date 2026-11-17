@@ -181,6 +181,10 @@ final class DesktopModel: ObservableObject {
     }
     var outShownThisOpen = false                                       // the run-out pop-up, once per window opening
     @Published var lowNote: String?
+    /// The memory bar waits until every app has reopened (and its memory has settled) before it draws.
+    var restoringUntil = Date.distantPast
+    var barReady: Bool { f.pendingRestore.isEmpty && Date() > restoringUntil }
+    private var wasBarReady = true
     /// Take the gift: this week gets the sessions back, once ever; the count rises to show it.
     func takeGift() {
         let ud = UserDefaults.standard
@@ -410,6 +414,8 @@ final class DesktopModel: ObservableObject {
             guard let self else { return }
             let now = self.caption
             if now != self.lastCaption { self.lastCaption = now; self.tick &+= 1 }
+            if !self.f.pendingRestore.isEmpty { self.restoringUntil = Date().addingTimeInterval(2.5) }   // apps still coming back
+            if self.barReady != self.wasBarReady { self.wasBarReady = self.barReady; self.tick &+= 1 }
             self.showGiftIfDue()
         }
         RunLoop.main.add(l, forMode: .common); lineTimer = l
@@ -1851,7 +1857,9 @@ struct SessionDetail: View {
                             .onDrop(of: [UTType.text], delegate: RowDrop(id: app.id, m: m))
                     }
                     AppFinder(m: m).padding(.top, 10)                           // adding comes after the list, like Add or remove… below
-                    if !f.focused && MemoryBar.shown { MemoryBar(apps: m.running, m: m).padding(.top, 18) }   // last: the section's footnote
+                    if !f.focused && MemoryBar.shown && m.barReady {                // last; only once every app is back
+                        MemoryBar(apps: m.running, m: m).padding(.top, 18).transition(.opacity)
+                    }
                     if !m.outside.isEmpty {
                         SectionLabel("Apps Outside Session").padding(.horizontal, -14)
                         Note("These apps are not in the session right now. Click one to add it to the session.")

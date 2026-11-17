@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.16 — 2026-11-17
+
+- The memory bar stays hidden while apps are reopening and appears once every app is back (and its memory has settled).
+
 ## 0.19.15 — 2026-11-17
 
 - **Memory bar** moved to the bottom of Apps in Session; the summary reads first ("Memory · 10.2 GB in use · a session

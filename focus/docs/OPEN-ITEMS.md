@@ -216,3 +216,5 @@ These are done and pass their tests, but haven't been seen on your screen in rea
 - **Session sound (kept for now, 0.19.11):** five soft clicks, start 1-2-3-4 … 1, end 1-1-2-3 … 4, hit stop on the last.
   His verdict: "Very good noise… a bit too much like a spider" (quick and high, scuttling). Later: try fewer, lower,
   slightly slower clicks. Rejected before it: tones, detuned beats, pads, chord-to-note, whooshes.
+- **Start sound, the dropped click (17 Nov):** 0.19.15 trimmed the start to 1-2-3 … 1 (was 1-2-3-4 … 1). He may want the
+  4 back. To restore: in `Chime.pull`, `steps = into ? [1, 2, 3, 4, 1] : …`.
