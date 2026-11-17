@@ -266,6 +266,8 @@ struct IconDesigner: View {
     @State private var board = DesignerBoard()
     @State private var saving = false
     @State private var landed = 0
+    @State private var hits = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -299,6 +301,16 @@ struct IconDesigner: View {
                     .frame(width: side, height: side)
                     .clipShape(shape)
                     .overlay { shape.strokeBorder(Ink.line, lineWidth: 1) }
+                    // Hit stop: the saved icon punches in, holds for a few frames, then lets go.
+                    .keyframeAnimator(initialValue: CGFloat(1), trigger: hits) { view, scale in
+                        view.scaleEffect(scale)
+                    } keyframes: { _ in
+                        KeyframeTrack {
+                            LinearKeyframe(0.92, duration: 0.06)
+                            LinearKeyframe(0.92, duration: 0.10)
+                            SpringKeyframe(1.0, duration: 0.3, spring: .bouncy)
+                        }
+                    }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .aspectRatio(1, contentMode: .fit)
@@ -325,7 +337,12 @@ struct IconDesigner: View {
                     try shelf.add(png: png, title: title, recipe: recipe)
                     shelf.mirror(into: backups)
                     landed += 1
-                    dismiss()
+                    guard !reduceMotion else { return dismiss() }
+                    hits += 1
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(380))
+                        dismiss()
+                    }
                 } catch {
                     saving = false
                 }
