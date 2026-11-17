@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.11 — 2026-11-17
+
+- **Session clicks:** start 1-2-3-4 … 1, end 1-1-2-3 … 4 (pitch 1 lowest to 4), quieter, with a hit stop: the last
+  click waits a beat, then lands and rings a little.
+
 ## 0.19.10 — 2026-11-17
 
 - **New session sounds: five soft clicks**, quick and even, like cards squared into a stack. Start: 1-2-3-4-5, each a

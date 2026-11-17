@@ -3678,31 +3678,34 @@ enum Chime {
         guard (on || force), !testing, let s = start ? startSound : endSound else {
             flog("chime \(start ? "start" : "end"): not played (sound \(on ? "on" : "off"), testing \(testing))"); return
         }
-        s.stop(); s.volume = 0.18                                  // very quiet: a touch, not an announcement
+        s.stop(); s.volume = 0.12                                  // very quiet: a touch, not an announcement
         let ok = s.play()
         flog("chime \(start ? "start" : "end"): play() \(ok)")
     }
-    /// Five soft clicks in a quick, even row, like cards squared into a stack. In: 1-2-3-4-5, each a touch lower,
-    /// settling as the apps gather. Out: the same five reversed, each a touch higher, as they spread back out.
+    /// Five soft clicks, quick and even, like cards squared into a stack, with a hit stop: the last click waits a beat
+    /// before it lands. Pitches 1 (lowest) to 4. Start: 1-2-3-4 … 1. End: 1-1-2-3 … 4.
     static func pull(into: Bool, rate: Double = 44_100) -> [Double] {
-        let gap = 0.052, count = 5, len = gap * Double(count) + 0.08, n = Int(len * rate)
+        let steps = into ? [1, 2, 3, 4, 1] : [1, 1, 2, 3, 4]
+        let pitch: [Int: Double] = [1: 1_680, 2: 1_860, 3: 2_060, 4: 2_280]
+        let gap = 0.052, hitStop = 0.15                                       // the pause before the last click
+        let times = steps.indices.map { i in i < steps.count - 1 ? Double(i) * gap : Double(i - 1) * gap + hitStop }
+        let len = (times.last ?? 0) + 0.08, n = Int(len * rate)
         var out = [Double](repeating: 0, count: n)
         var seed: UInt32 = 0x2545F491
         func noise() -> Double { seed = seed &* 1_664_525 &+ 1_013_904_223; return Double(seed >> 8) / Double(1 << 23) - 1 }
-        let pitches: [Double] = [2_350, 2_150, 1_980, 1_820, 1_680]           // each click a touch lower
-        for c in 0..<count {
-            let at = Double(c) * gap, pitch = into ? pitches[c] : pitches[count - 1 - c]
-            let level = 0.75 + 0.25 * Double(c % 2)                          // an even, alive rhythm
+        for (c, step) in steps.enumerated() {
+            let f = pitch[step] ?? 1_800, last = c == steps.count - 1
+            let level = last ? 1.0 : 0.75 + 0.15 * Double(c % 2)               // the landing a touch fuller
             var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
             let w0 = 2 * .pi * 4_200 / rate, alpha = sin(w0) / 2.4, a0 = 1 + alpha
-            let start = Int(at * rate), end = min(n, start + Int(0.03 * rate))
+            let start = Int(times[c] * rate), end = min(n, start + Int((last ? 0.07 : 0.03) * rate))
             for i in start..<end {
                 let u = Double(i - start) / rate
-                let xin = noise()                                             // the paper edge: a tiny burst of air
+                let xin = noise()
                 let y = (alpha * xin - alpha * x2 + 2 * cos(w0) * y1 - (1 - alpha) * y2) / a0
                 x2 = x1; x1 = xin; y2 = y1; y1 = y
                 let tick = y * exp(-u * 900) * 0.6
-                let body = sin(2 * .pi * pitch * u) * exp(-u * 260) * 0.35   // the click's little body
+                let body = sin(2 * .pi * f * u) * exp(-u * (last ? 110 : 260)) * (last ? 0.45 : 0.35)   // the last one rings a little
                 out[i] += (tick + body) * level
             }
         }
