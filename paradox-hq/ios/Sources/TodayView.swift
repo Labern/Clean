@@ -290,7 +290,7 @@ struct FocusNowRow: View {
     var body: some View {
         HStack(spacing: 4) {
             Button {
-                withAnimation(.snappy) { item.set(done: !item.done) }
+                withAnimation(.snappy.delay(item.done ? 0 : 0.34)) { item.set(done: !item.done) }
             } label: {
                 Tick(done: item.done, color: Color(hex: UInt32(project.tint)))
             }

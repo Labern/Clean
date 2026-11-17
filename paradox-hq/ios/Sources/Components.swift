@@ -180,11 +180,14 @@ struct QuietButtonStyle: ButtonStyle {
     }
 }
 
-/// The round tick used on every Focus line.
+/// The round tick used on every Focus line. Ticking lands with hit stop:
+/// it swells, freezes for a few frames at full size, then settles.
 struct Tick: View {
     let done: Bool
     var color: Color = .white
     var size: CGFloat = 24
+    @State private var hits = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
@@ -195,12 +198,23 @@ struct Tick: View {
                 Image(systemName: "checkmark")
                     .font(.system(size: size * 0.46, weight: .bold))
                     .foregroundStyle(.black)
-                    .transition(.scale.combined(with: .opacity))
             }
         }
         .frame(width: size, height: size)
+        .keyframeAnimator(initialValue: CGFloat(1), trigger: hits) { content, scale in
+            content.scaleEffect(scale)
+        } keyframes: { _ in
+            KeyframeTrack {
+                LinearKeyframe(1.42, duration: 0.06)
+                LinearKeyframe(1.42, duration: 0.10)
+                SpringKeyframe(1.0, duration: 0.32, spring: .bouncy)
+            }
+        }
         .frame(minWidth: 44, minHeight: 44)
         .contentShape(Rectangle())
+        .onChange(of: done) { _, landed in
+            if landed, !reduceMotion { hits += 1 }
+        }
     }
 }
 

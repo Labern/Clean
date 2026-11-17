@@ -206,6 +206,7 @@ struct ProjectDetail: View {
             }
         }
         .listStyle(.insetGrouped)
+        .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
         .background(Ink.ground)
         .navigationBarTitleDisplayMode(.inline)
@@ -269,7 +270,7 @@ struct FocusRow: View {
         let children = item.children
         HStack(spacing: 2) {
             Button {
-                withAnimation(.snappy) { item.set(done: !item.done) }
+                withAnimation(.snappy.delay(item.done ? 0 : 0.34)) { item.set(done: !item.done) }
             } label: {
                 Tick(done: item.done, color: tint, size: child ? 20 : 24)
             }
