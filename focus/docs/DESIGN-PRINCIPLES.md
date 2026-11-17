@@ -37,6 +37,9 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **Keep every way to pay (17 Nov 2026):** Onelink stays in the express row; don't remove payment options on a hunch about
   how few people use them.
 
+- **The checkout is the blueprint (17 Nov 2026):** the live Focus Stripe checkout is how every app sells. See
+  CHECKOUT-BLUEPRINT.md (beside this file). "It's really fucking good."
+
 ## 3. Pricing
 - **Round numbers only: 5s and 0s, never 9s** — ~~for every price~~ for every price a buyer *pays*. **Exception (his
   call, 17 Nov 2026):** the one-off's list price is **£99**, an anchor struck through beside the **£50** early-adopter
