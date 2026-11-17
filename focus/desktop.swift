@@ -3142,8 +3142,9 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     // ——— Pricing: pricing.json is the one source; the app must follow it and keep to his rules ———
     let pr = Pricing.bundled
     // 17. His price rules hold in the shipped copy (decided 2026-11-15): Basic and Pro only, no Max; Pro £5 a month,
-    //     £50 a year (under 12 months), £75 once (over a year); while the launch is on, the one-off is the early
-    //     adopter gift at less than £75; round numbers; Enterprise coming soon; 14 days of Pro; 10 sessions a week.
+    //     £50 a year (under 12 months), £99 once (over a year: the anchor, his call 17 Nov 2026); while the launch is
+    //     on, the one-off is the early adopter gift (£50, round); every price a buyer pays is round, the £99 anchor
+    //     aside; Enterprise coming soon; 14 days of Pro; 10 sessions a week.
     var rules = [String]()
     if let p = pr {
         if Set(p.tiers.keys) != ["free", "pro"] { rules.append("tiers aren't just Free and Pro") }
@@ -3152,7 +3153,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
         if !(p.coming_soon ?? []).contains(where: { $0.name == "Enterprise" }) { rules.append("Enterprise isn't listed as coming soon") }
         if p.tiers.values.contains(where: { $0.tagline.isEmpty }) { rules.append("a tagline is empty") }
         if let t = p.tiers["pro"] {
-            if t.monthly != 5 || t.yearly != 50 || t.once != 75 { rules.append("Pro isn't £5 / £50 a year / £75 once") }
+            if t.monthly != 5 || t.yearly != 50 || t.once != 99 { rules.append("Pro isn't £5 / £50 a year / £99 once") }
             if (t.yearly ?? 0) >= t.monthly * 12 { rules.append("yearly isn't under 12 months") }
             if (t.yearly ?? 0) >= (t.once ?? 0) { rules.append("once isn't over yearly") }
             if let l = t.launch, l.active, l.once >= (t.once ?? 0) { rules.append("the launch gift isn't below the one-off") }
@@ -3160,14 +3161,14 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
             if let l = t.launch, l.active, (l.code ?? "").isEmpty { rules.append("the launch gift has no code") }
         }
         if p.tiers["free"]?.monthly != 0 { rules.append("Free isn't free") }
-        let all = p.tiers.values.flatMap { [$0.monthly, $0.yearly, $0.once].compactMap { $0 } }
+        let all = p.tiers.values.flatMap { [$0.monthly, $0.yearly].compactMap { $0 } }   // the one-off is the £99 anchor
         if all.contains(where: { $0 % 5 != 0 }) { rules.append("a price that isn't a round number") }
         if p.trial_days != 14 || p.trial_tier != "pro" { rules.append("trial") }
         if p.free_sessions_per_week != 10 { rules.append("Free sessions a week") }
         if p.tiers["pro"]?.best != true { rules.append("Pro not marked best value") }
         if p.lead.tier != "pro" || p.lead.plan != "monthly" { rules.append("lead isn't Pro monthly") }
     } else { rules.append("pricing.json missing or unreadable") }
-    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Basic (free) and Pro only; Pro £5 a month, £50 a year, £75 once (£50 with the launch code); round; Enterprise coming soon; 14 days of Pro; 10 a week" : rules.joined(separator: "; "))
+    check(17, "pricing rules", rules.isEmpty, rules.isEmpty ? "Basic (free) and Pro only; Pro £5 a month, £50 a year, £99 once (£50 with the launch code); round where paid; Enterprise coming soon; 14 days of Pro; 10 a week" : rules.joined(separator: "; "))
 
     // 18. The app takes its numbers from pricing.json, never its own: the weekly count, the Preview's days, the
     //     Upgrade window's prices, and the checkout link for each plan.

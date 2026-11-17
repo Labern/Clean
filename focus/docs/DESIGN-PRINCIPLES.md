@@ -33,8 +33,10 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
   their sessions up exploring, with a celebratory animation (10 tokens added, the count rising).
 
 ## 3. Pricing
-- **Round numbers only: 5s and 0s, never 9s.** No pay-what-you-want. Never price by comparison with other apps.
-- **Focus:** Basic £0 (10 sessions a week); Pro £5 a month / £50 a year / £75 once, with £50 once for early adopters (code EARLY: "if they're sneaky… I want them to feel they're clever"); Enterprise "Coming soon".
+- **Round numbers only: 5s and 0s, never 9s** — ~~for every price~~ for every price a buyer *pays*. **Exception (his
+  call, 17 Nov 2026):** the one-off's list price is **£99**, an anchor struck through beside the **£50** early-adopter
+  price (code EARLY = −£49), so £50 reads as half price and equals one year of Yearly: "yours forever" for a year's money. No pay-what-you-want. Never price by comparison with other apps.
+- **Focus:** Basic £0 (10 sessions a week); Pro £5 a month / £50 a year / ~~£75~~ **£99** once (17 Nov), with £50 once for early adopters (code EARLY: "if they're sneaky… I want them to feel they're clever"); Enterprise "Coming soon".
 - **One source of truth:** a `pricing.json` on the site; the app ships a copy and refreshes it. Tests prove the two match.
 
 ## 4. Sign-in and data
