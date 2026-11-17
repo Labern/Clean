@@ -770,6 +770,34 @@ struct FeedRespectTests {
     }
 }
 
+@Suite("Links")
+@MainActor
+struct LinkTests {
+    /// Every link has its company's tile, and the tile is in the bundle.
+    @Test func everyLinkHasItsLogo() {
+        for link in QuickLink.all {
+            #expect(UIImage(named: link.logo) != nil, "\(link.title) has no \(link.logo)")
+        }
+    }
+
+    /// An app claims paths on its site, never the bare home address: sending
+    /// Stripe or Claude there is what said "App not installed".
+    @Test func appAddressesAreOnesAnAppClaims() {
+        for link in QuickLink.all {
+            for route in link.app where route.scheme == "https" {
+                #expect(route.path().count > 1, "\(link.title) sends the app to its site's home page")
+            }
+        }
+        #expect(QuickLink.all.first { $0.title == "Stripe" }?.app.first?.path() == "/dashboard")
+        #expect(QuickLink.all.first { $0.title == "Claude" }?.app.first?.path() == "/new")
+    }
+
+    @Test func onlyOutsideCompaniesOfferAnApp() {
+        let offered = QuickLink.all.filter(\.opensApp).map(\.title)
+        #expect(offered == ["Google Workspace", "Stripe", "GitHub", "Claude", "Tesla"])
+    }
+}
+
 @Suite("Backups")
 @MainActor
 struct BackupTests {

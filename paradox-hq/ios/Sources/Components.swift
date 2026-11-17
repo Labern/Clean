@@ -121,8 +121,30 @@ struct ChangePill: View {
     }
 }
 
+/// A company's mark in the shape of an app icon. The art is a full square;
+/// the corners are cut here, in iOS's own proportion.
+struct LogoTile: View {
+    let name: String
+    var size: CGFloat = 32
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: size * 0.225, style: .continuous)
+        Image(name)
+            .renderingMode(.original)
+            .resizable()
+            .interpolation(.high)
+            .aspectRatio(1, contentMode: .fit)
+            .frame(width: size, height: size)
+            .clipShape(shape)
+            .overlay { shape.strokeBorder(Ink.line, lineWidth: 1) }
+            .accessibilityHidden(true)
+    }
+}
+
 /// A row with a title, a line under it, and something on the right.
 struct InfoRow<Trailing: View>: View {
+    /// A company's tile, drawn instead of the symbol when set.
+    var logo: String = ""
     var symbol: String = ""
     var symbolColor: Color = Ink.muted
     let title: String
@@ -131,7 +153,9 @@ struct InfoRow<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if !symbol.isEmpty {
+            if !logo.isEmpty {
+                LogoTile(name: logo)
+            } else if !symbol.isEmpty {
                 Image(systemName: symbol)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(symbolColor)

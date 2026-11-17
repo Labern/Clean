@@ -49,9 +49,22 @@ Today · To-do · Notes · Money · Company. (Six would push one behind a "More"
   drag to reorder), done, delete. `Outline.rows` flattens the tree for drawing and
   is tested. The tally counts the smallest lines at any depth.
 - **Company** — Links (Home, Focus, Google Workspace, Stripe, GitHub, Claude, Tesla;
-  each with App and Web buttons — App tries the app's scheme or a universal link and
-  says "App not installed" if nothing opens), filing deadlines, the connections,
-  Settings (Auto/Light/Dark, app icon), the Face ID lock, Backup.
+  each with its company's logo as an app-icon tile, and App and Web buttons), filing
+  deadlines, the connections, Settings (Auto/Light/Dark, app icon), the Face ID lock,
+  Backup.
+
+## Links: logos and opening the app
+- **Logos** are `Logo-*` image sets drawn by `LogoTile` (full-square art, corners cut
+  in the app at iOS's 22.5%). Built by `ios/design/logos/make_logos.py` from the
+  companies' own outlines (simple-icons, the four-colour Google G, Focus's site icon)
+  on the ground each app icon uses. Home uses the app's own icon. Never redraw one.
+- **App** tries `QuickLink.app` in order and says "Couldn't open the app" only when
+  every address fails. An https address is opened with `universalLinksOnly`, so it
+  must be a path the app has claimed in the site's `apple-app-site-association`
+  (read it at `https://app-site-association.cdn-apple.com/a/v1/<host>`). Apps refuse
+  their site's bare home address: `dashboard.stripe.com` and `claude.ai` both failed
+  with "App not installed" (2026-11-17) until they became `/dashboard` and `/new`.
+  Tesla's is `/1/app/home`. `LinkTests` holds this.
 
 ## Look, light and dark
 Every colour is an `Ink` token with a dark and a light value (`Shared/Theme.swift`);

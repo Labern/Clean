@@ -164,14 +164,14 @@ struct CompanyView: View {
             Card(padding: 0) {
                 VStack(spacing: 0) {
                     Button { sheet = .stripe } label: {
-                        InfoRow(symbol: "creditcard", title: "Stripe", detail: "Sales, payouts, disputes") {
+                        InfoRow(logo: "Logo-Stripe", title: "Stripe", detail: "Sales, payouts, disputes") {
                             Pill(text: money.live ? "Connected" : "Example", color: money.live ? Ink.ok : Ink.amber)
                         }
                     }
                     .buttonStyle(.plain)
                     Hairline(inset: 58)
                     Button { sheet = .claude } label: {
-                        InfoRow(symbol: "sparkles", title: "Claude", detail: feedDetail) {
+                        InfoRow(logo: "Logo-Claude", title: "Claude", detail: feedDetail) {
                             Pill(text: feed.isSet ? (feed.failed ? "Failed" : "Connected") : "Not set",
                                  color: feed.isSet ? (feed.failed ? Ink.hazard : Ink.ok) : Ink.muted)
                         }
@@ -179,7 +179,7 @@ struct CompanyView: View {
                     .buttonStyle(.plain)
                     Hairline(inset: 58)
                     Button { sheet = .site } label: {
-                        InfoRow(symbol: "globe", title: "Website", detail: site.host) {
+                        InfoRow(logo: "IconPreview-main", title: "Website", detail: site.host) {
                             sitePill
                         }
                     }

@@ -4,14 +4,16 @@ import UIKit
 /// The places the company lives, each a tap away in its app or on the web.
 struct QuickLink: Identifiable {
     let title: String
-    let symbol: String
+    /// The company's mark as an app-icon tile (a `Logo-*` image set).
+    let logo: String
     let web: URL
-    /// The app's own address, when it has one. Without one, the web address is
-    /// tried as a universal link, which opens the app when it's installed.
-    var app: URL? = nil
-    var opensApp = true
+    /// The addresses that open the company's app, tried in order. An https one is
+    /// only ever a path the app has claimed: most apps refuse their site's bare
+    /// home address, which is what made "App" fail for Stripe and Claude.
+    var app: [URL] = []
 
     var id: String { title }
+    var opensApp: Bool { !app.isEmpty }
 
     /// "paradoxica.co.uk/focus": host and path, without the www.
     var label: String {
@@ -21,17 +23,21 @@ struct QuickLink: Identifiable {
     }
 
     static let all: [QuickLink] = [
-        QuickLink(title: "Home", symbol: "house", web: URL(string: "https://paradoxica.co.uk")!, opensApp: false),
-        QuickLink(title: "Focus", symbol: "scope", web: URL(string: "https://paradoxica.co.uk/focus")!, opensApp: false),
-        QuickLink(title: "Google Workspace", symbol: "envelope", web: URL(string: "https://admin.google.com")!,
-                  app: URL(string: "googlegmail://")),
-        QuickLink(title: "Stripe", symbol: "creditcard", web: URL(string: "https://dashboard.stripe.com")!),
-        QuickLink(title: "GitHub", symbol: "chevron.left.forwardslash.chevron.right",
-                  web: URL(string: "https://github.com/Labern")!),
-        QuickLink(title: "Claude", symbol: "sparkles", web: URL(string: "https://claude.ai")!),
-        QuickLink(title: "Tesla", symbol: "car", web: URL(string: "https://www.tesla.com/teslaaccount")!,
-                  app: URL(string: "tesla://")),
+        QuickLink(title: "Home", logo: "IconPreview-main", web: url("https://paradoxica.co.uk")),
+        QuickLink(title: "Focus", logo: "Logo-Focus", web: url("https://paradoxica.co.uk/focus")),
+        QuickLink(title: "Google Workspace", logo: "Logo-Google", web: url("https://admin.google.com"),
+                  app: [url("googlegmail://")]),
+        QuickLink(title: "Stripe", logo: "Logo-Stripe", web: url("https://dashboard.stripe.com"),
+                  app: [url("https://dashboard.stripe.com/dashboard")]),
+        QuickLink(title: "GitHub", logo: "Logo-GitHub", web: url("https://github.com/Labern"),
+                  app: [url("https://github.com/Labern"), url("github://")]),
+        QuickLink(title: "Claude", logo: "Logo-Claude", web: url("https://claude.ai"),
+                  app: [url("https://claude.ai/new"), url("claude://")]),
+        QuickLink(title: "Tesla", logo: "Logo-Tesla", web: url("https://www.tesla.com/teslaaccount"),
+                  app: [url("https://www.tesla.com/1/app/home"), url("tesla://")]),
     ]
+
+    private static func url(_ string: String) -> URL { URL(string: string)! }
 }
 
 /// One link: its name and where it goes, with App and Web side by side.
@@ -42,16 +48,12 @@ struct QuickLinkRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: link.symbol)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Ink.muted)
-                .frame(width: 32, height: 32)
-                .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            LogoTile(name: link.logo)
             VStack(alignment: .leading, spacing: 2) {
                 Text(link.title)
                     .foregroundStyle(Ink.body)
                     .lineLimit(1)
-                Text(missing ? "App not installed" : link.label)
+                Text(missing ? "Couldn't open the app" : link.label)
                     .font(.caption)
                     .foregroundStyle(missing ? Ink.amber : Ink.muted)
                     .lineLimit(1)
@@ -84,14 +86,24 @@ struct QuickLinkRow: View {
     }
 
     private func openApp() {
-        let target = link.app ?? link.web
-        let options: [UIApplication.OpenExternalURLOptionsKey: Any] = link.app == nil ? [.universalLinksOnly: true] : [:]
-        UIApplication.shared.open(target, options: options) { opened in
-            Task { @MainActor in
-                guard !opened else { return }
-                withAnimation(.snappy) { missing = true }
+        open(link.app[...])
+    }
+
+    /// Tries each address in turn and only gives up after the last one.
+    private func open(_ routes: ArraySlice<URL>) {
+        guard let route = routes.first else {
+            withAnimation(.snappy) { missing = true }
+            Task {
                 try? await Task.sleep(for: .seconds(2.2))
                 withAnimation(.snappy) { missing = false }
+            }
+            return
+        }
+        // A web address must open the app or nothing: never fall through to Safari.
+        let web = route.scheme == "https"
+        UIApplication.shared.open(route, options: web ? [.universalLinksOnly: true] : [:]) { opened in
+            Task { @MainActor in
+                if !opened { open(routes.dropFirst()) }
             }
         }
     }
