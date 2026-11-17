@@ -55,6 +55,7 @@ targets:
         UILaunchScreen:
           UIColorName: Ground
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UIRequiresFullScreen: true
         ITSAppUsesNonExemptEncryption: false
         NSFaceIDUsageDescription: Face ID keeps the company's figures to you.
         UIBackgroundModes: [fetch]
