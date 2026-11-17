@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.13 — 2026-11-17
+
+- Tools: the page reads "You can monitor and close any badly-behaving apps from here."; the explanatory line under
+  Apps Using the Most Memory is gone.
+
 ## 0.19.12 — 2026-11-17
 
 - **The window comes back after a restart:** if it was open when Focus stopped (an update, a crash), it reopens by

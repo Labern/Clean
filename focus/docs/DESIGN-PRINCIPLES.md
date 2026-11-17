@@ -71,6 +71,9 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **Headings:** large, white, with a white line under.
 - **Links always show the hand cursor.** Hover feedback on every unselected button.
 - **Align to the content's own geometry** (the page, the column), not the window.
+- **No explaining lines under features** ("Every open app using 1 GB or more, heaviest first. Right-click one to quit
+  it." — "the cringiest fucking writing I've ever seen", 17 Nov 2026). If the feature is clear, say nothing; one plain
+  sentence at the top of the page is enough.
 - **Wording:** plain, human, no AI phrasing ("What the fuck is this? Who wrote this?"). Copy the headings the product already uses, e.g. "Apps in Session". Don't put "click to" in labels.
 
 ## 6. Behaviour

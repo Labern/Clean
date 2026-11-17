@@ -2520,7 +2520,7 @@ struct ToolsPage: View {
     @ObservedObject var m: DesktopModel
     var body: some View {
         let f = m.f, busy = f.focused || f.clearing
-        PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "Look at what your Mac is doing, or clear everything at once.", locked: m, lockedText: "Unlock every tool by upgrading to Pro.") {
+        PageFrame(title: "Tools", text: busy ? "End the session first to use the quit tools." : "You can monitor and close any badly-behaving apps from here.", locked: m, lockedText: "Unlock every tool by upgrading to Pro.") {
             SectionLabel("Analyse performance", divider: false).padding(.horizontal, -14)
             ToolLine(title: "Open Activity Monitor", why: "See which apps are using the most memory and processor right now.", tint: Site.head, enabled: true) { if DesktopModel.gated { m.openUpgrade() } else { f.openActivityMonitor() } }
             ToolLine(title: "Open System Settings", why: "Change what opens at login, and the battery and display settings that affect how the Mac runs.", tint: Site.head, enabled: true) { if DesktopModel.gated { m.openUpgrade() } else { f.openSystemSettings() } }
@@ -2530,8 +2530,7 @@ struct ToolsPage: View {
             ToolLine(title: "Force Quit All Apps…", why: "For apps that have frozen and won't quit. Unsaved work in them is lost, so it asks first.", tint: Site.hazard, enabled: !busy) { if DesktopModel.gated { m.openUpgrade() } else { f.forceQuitAllApps() } }
             SectionLabel("Apps Using the Most Memory").padding(.horizontal, -14)
             let heavy = m.heavyApps, ram = Double(ProcessInfo.processInfo.physicalMemory)
-            Note(heavy.isEmpty ? "No app is using more than \(gb(DesktopModel.heavyBytes)) right now."
-                               : "Every open app using \(gb(DesktopModel.heavyBytes)) or more, heaviest first. Right-click one to quit it.")
+            if heavy.isEmpty { Note("No app is using more than \(gb(DesktopModel.heavyBytes)) right now.") }
             ForEach(heavy) { app in
                 AppRowView(app: DesktopModel.AppLine(id: app.id, path: app.path, name: app.name,
                                                      usage: "\(app.usage) · \(Int((Double(app.bytes) / ram * 100).rounded()))% of memory",
