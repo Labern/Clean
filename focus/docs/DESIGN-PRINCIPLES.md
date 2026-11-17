@@ -32,6 +32,11 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **Reward people who play around (BUILT 2026-11-16):** a one-time free weekly reset for first-time users who used
   their sessions up exploring, with a celebratory animation (10 tokens added, the count rising).
 
+- **His copy wins over grammar (17 Nov 2026):** "The app Mac should come with" is deliberate, Think-Different style. Never
+  "correct" his brand lines.
+- **Keep every way to pay (17 Nov 2026):** Onelink stays in the express row; don't remove payment options on a hunch about
+  how few people use them.
+
 ## 3. Pricing
 - **Round numbers only: 5s and 0s, never 9s** — ~~for every price~~ for every price a buyer *pays*. **Exception (his
   call, 17 Nov 2026):** the one-off's list price is **£99**, an anchor struck through beside the **£50** early-adopter
