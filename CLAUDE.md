@@ -23,6 +23,15 @@ For PARADOX HQ (iOS app, no web page):
 - Code: https://github.com/Labern/Clean/tree/claude/dazzling-cerf-y7p4jg/paradox-hq
 Add any new page to this list the moment it ships.
 
+## ALWAYS — hit stop in animation (every product, present and future)
+Labern loves hit stop and wants it used wherever it possibly can be. It is a
+direct descendant of Smash Brothers: at the moment of impact everything freezes
+for a few frames, then the motion carries on. Reach for it by default in any
+animation with a moment of contact — a tick landing, a button press, a card
+dropping, a number arriving, a session starting. Focus's session pill already
+does it (zop, hit stop, zip). Pair it with a haptic on the phone. Honour Reduce
+Motion. Carry this rule into the CLAUDE.md of every new project and repo.
+
 ## Project
 A sandbox directory, not a formal app. Currently contains a single static
 demo page (`index.html`) built during a Claude Code session — a hero

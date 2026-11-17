@@ -64,6 +64,11 @@ masters are on the Mac at `~/Documents/Codex/2026-09-17/t/outputs/PARADOX_Logo_L
 swap the master in when on the Mac. Do not adjust spacing, order or glyphs.
 
 ## Rules
+- **Hit stop.** Labern loves it and wants it wherever it can go: at the moment of
+  impact, freeze for a few frames, then carry on. A direct descendant of Smash
+  Brothers. Use it for ticks landing, figures arriving, the lock opening; pair it
+  with a haptic; honour Reduce Motion. This rule travels with the project to its
+  new repo.
 - Apple's Human Interface Guidelines govern the design: `paradokkusu/docs/APPLE-HIG.md`.
 - No instructional hint text in the UI.
 - Xcode project, automatic signing under Labern's team. Never hardcode a Team ID.
