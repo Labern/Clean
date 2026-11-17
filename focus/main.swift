@@ -2288,7 +2288,7 @@ final class Focus: NSObject, NSMenuDelegate {
         try? (s.status == .enabled ? s.unregister() : s.register())
     }
     static var quitAsked = false                                // set only by the menu's own Quit
-    @objc func bye() { Focus.quitAsked = true; NSApp.terminate(nil) }
+    @objc func bye() { Focus.quitAsked = true; DesktopController.quitting = true; NSApp.terminate(nil) }
 
     // MARK: menu (rebuilt each time it opens, so it never goes stale)
 
@@ -3928,6 +3928,11 @@ if CommandLine.arguments.contains("--selftest") {
 }
 let focus = Focus()
 Scheduler.shared.start(focus)                                   // Schedule: blocks and timed modes, window or not
+// The window was open when Focus last stopped (an update restarts it): bring it back, as it was.
+if DesktopController.wasOpen && !CommandLine.arguments.contains("--open-desktop") {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { focus.openDesktop() }
+}
+NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: nil) { _ in DesktopController.quitting = true }
 
 // Global hotkeys via Carbon: the only route that needs no Accessibility permission.
 var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))

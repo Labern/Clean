@@ -2670,6 +2670,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     /// The week's sessions ran out (from the menu or a key): bring the window up on the out-of-sessions Upgrade page.
     func outOfSessions(_ f: Focus) { show(f); model?.openOutOfSessions() }
     func show(_ f: Focus) {
+        Self.wasOpen = true
         if window == nil {
             let m = DesktopModel(f); model = m
             let screen = (NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 800)
@@ -2827,7 +2828,11 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     @objc func feedback() { model?.openFeedback() }
     @objc func help() { NSWorkspace.shared.open(Maker.helpURL) }
     @objc func website() { NSWorkspace.shared.open(DesktopModel.site) }
+    /// Whether the window was open: kept so that when Focus restarts (an update, a crash) it comes back as it was.
+    static var wasOpen: Bool { get { UserDefaults.standard.bool(forKey: "desktopWasOpen") } set { UserDefaults.standard.set(newValue, forKey: "desktopWasOpen") } }
+    static var quitting = false
     func windowWillClose(_ n: Notification) {
+        if !Self.quitting { Self.wasOpen = false }                    // closed by the person (or ⌘⇧E / ⌘H), not by quitting
         model?.stop()
         NSApp.mainMenu = nil
         NSApp.setActivationPolicy(.accessory)                    // back to the menu bar only

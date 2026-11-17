@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.12 — 2026-11-17
+
+- **The window comes back after a restart:** if it was open when Focus stopped (an update, a crash), it reopens by
+  itself. Closing it yourself (the red button, ⌘⇧E, ⌘H) keeps it closed.
+
 ## 0.19.11 — 2026-11-17
 
 - **Session clicks:** start 1-2-3-4 … 1, end 1-1-2-3 … 4 (pitch 1 lowest to 4), quieter, with a hit stop: the last
