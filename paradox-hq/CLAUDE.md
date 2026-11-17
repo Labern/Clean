@@ -74,7 +74,34 @@ swap the master in when on the Mac. Do not adjust spacing, order or glyphs.
 - Xcode project, automatic signing under Labern's team. Never hardcode a Team ID.
 - Tests are Swift Testing (`ios/Tests`), run by the cloud build.
 
-## Not built yet
-Lock Screen and Home Screen widgets, and payment notifications (these need an App
-Group and a small server for Stripe webhooks). Sending the phone's ticks back to
-the feed.
+## Widgets, notifications, two-way feed
+- **Widgets** (`Widgets/`, target `ParadoxWidgets`): Home Screen small and medium,
+  Lock Screen rectangular, circular and inline. The app writes one `WidgetSnapshot`
+  into the App Group `group.com.labern.paradox.hq` (`Bridge.publish`) and reloads
+  the timelines; the widgets only draw it and never hold the Stripe key. The views
+  live in `Shared/` so the app can show them too: `-screen widgets` is the gallery
+  the cloud build photographs.
+- **Notifications** (`Herald.swift`): no server. iOS wakes the app in the background
+  (`Background.run`), it asks Stripe what's new since it last looked (`Herald.digest`,
+  pure and tested) and posts local notifications. That makes them minutes to hours
+  late, never instant. The first look at an account says nothing. Deadline reminders
+  are calendar notifications at 09:00, seven days and one day before.
+  The Stripe key is stored after-first-unlock so this works while the phone is locked.
+- **Two-way feed**: when the feed address is a GitHub link (page, raw or API form)
+  and the token can write, `FeedSync.pull` also sends back ticks and lines made on
+  the phone (`Outbox.plan` → `FeedPatch.apply` → a commit through the contents API).
+  New lines get ids starting `phone-`. Unticking is never sent.
+- **Customers** are derived from the payments (`Ledger.customers`), grouped by name.
+- **Charging by hand** opens Stripe's own invoice and payment-link pages; the key in
+  the app stays read-only on purpose.
+
+## Not verified yet (needs the Mac or a live account)
+- Widgets on a real Home Screen: the App Group needs signing under Labern's team.
+- Background notifications arriving: the Simulator doesn't run background refresh
+  on its own (Xcode ▸ Debug ▸ Simulate Background Fetch triggers it).
+- The commit back to GitHub, and Stripe with a live key.
+
+## Not built
+Instant payment notifications. They need Stripe's webhook to reach Apple's push
+service: the webhook already lands on the site (`/api/stripe/webhook`, in
+Labern/paradoxica-hub), so that is where the push would be sent from, with an APNs key.
