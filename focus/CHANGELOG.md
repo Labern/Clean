@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.8 — 2026-11-17
+
+- **Session sounds: a chord that focuses.** E major 7 in a soft pad. Starting a session: the chord sounds, then its
+  notes drop away from the top until E alone remains. Ending: E alone, then G♯, B and D♯ join and it blooms back into
+  the chord. A faint breath of air underneath; quiet and high-passed.
+
 ## 0.19.7 — 2026-11-17
 
 - Session sounds quieter (about half), a high-pass filter takes out the low rumble, and the whoosh is much softer under
