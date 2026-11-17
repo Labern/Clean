@@ -6,6 +6,9 @@ Every app under the brand sells through a checkout built like this. The code is 
 `blueprints/checkout/` (and `~/.claude/blueprints/checkout/`). Source: Labern/paradoxica-hub,
 `sites/paradoxica.uk/focus/checkout/index.html` (copy it, change the app).
 
+**The gold standard** (his words). Focus's is black; another app's checkout may take that app's own branding on the
+left pane (its colour, mark and pitch), keeping everything else exactly as here. Black is the default.
+
 ## The shape
 - **Stripe's split:** left pane black (what you're buying), right pane white (how you pay), a hairline shadow between.
 - **Our page, Stripe's fields:** Checkout Sessions with `ui_mode: "elements"`: Stripe's Payment Element and Express
