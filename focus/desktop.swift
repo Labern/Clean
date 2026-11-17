@@ -3682,37 +3682,39 @@ enum Chime {
         let ok = s.play()
         flog("chime \(start ? "start" : "end"): play() \(ok)")
     }
-    /// Air and touch, matched to the session animation. In: a soft rush that sweeps from bright to warm as the apps
-    /// fly into the icon, landing on a felt tap. Out: a light release, then the rush sweeping back out as they fly home.
+    /// Noise becoming a note: focusing, heard. In: a wide, airy rush narrows and narrows until it resolves into one
+    /// soft, clear tone (blur → focus), with a felt tap as it lands, in time with the apps reaching the icon.
+    /// Out: the clear tone opens back out into the wide rush as everything comes back.
     static func pull(into: Bool, rate: Double = 44_100) -> [Double] {
-        let len = into ? 0.46 : 0.44, n = Int(len * rate)
+        let len = into ? 0.62 : 0.52, n = Int(len * rate), tone = 659.25        // E5: clear, not shrill
         var out = [Double](repeating: 0, count: n)
-        var seed: UInt32 = 0x9E3779B9                                  // the same air every time
+        var seed: UInt32 = 0x9E3779B9
         func noise() -> Double { seed = seed &* 1_664_525 &+ 1_013_904_223; return Double(seed >> 8) / Double(1 << 23) - 1 }
-        var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0                     // a band-pass that sweeps: the rush
-        let rushStart = into ? 0.0 : 0.05, rushEnd = into ? 0.32 : 0.44
-        let tapAt = into ? 0.29 : 0.0
+        var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
+        let focusAt = into ? 0.30 : 0.10                                  // the moment it is sharp
         for i in 0..<n {
             let t = Double(i) / rate
-            var v = 0.0
-            if t >= rushStart && t < rushEnd {
-                let k = (t - rushStart) / (rushEnd - rushStart)           // 0…1 through the rush
-                let fc = into ? 3_200 * pow(550.0 / 3_200, k) : 550 * pow(3_200.0 / 550, k)   // in: bright → warm; out: warm → bright
-                let w0 = 2 * .pi * fc / rate, q = 1.6, alpha = sin(w0) / (2 * q), a0 = 1 + alpha
-                let xin = noise()
-                let y = (alpha * xin - alpha * x2 - (-2 * cos(w0)) * y1 - (1 - alpha) * y2) / a0
-                x2 = x1; x1 = xin; y2 = y1; y1 = y
-                let env = into ? pow(sin(.pi * min(1, k * 1.15)), 1.6) : pow(sin(.pi * k), 1.4)
-                v += y * env * 0.9
+            // how focused, 0 (wide noise) … 1 (one clear note)
+            let k = into ? min(1, t / focusAt) : max(0, 1 - (t - focusAt) / (len - focusAt - 0.04))
+            let f = into ? pow(k, 1.6) : (t < focusAt ? 1 : pow(k, 0.8))
+            // the rush: a band-pass that narrows onto the tone (Q 1 → 60) and moves from bright to the note
+            let fc = tone * pow(2_600 / tone, 1 - f), q = 1 + 59 * f
+            let w0 = 2 * .pi * fc / rate, alpha = sin(w0) / (2 * q), a0 = 1 + alpha
+            let xin = noise()
+            let y = (alpha * xin - alpha * x2 + 2 * cos(w0) * y1 - (1 - alpha) * y2) / a0
+            x2 = x1; x1 = xin; y2 = y1; y1 = y
+            let rushEnv = into ? min(1, t / 0.12) * (1 - 0.85 * f) : (t < focusAt ? 0 : min(1, (t - focusAt) / 0.05)) * (1 - 0.85 * f) * max(0, 1 - (t - focusAt) / (len - focusAt))
+            // the note: grows out of the noise as it sharpens, rings softly, then lets go
+            let noteEnv = into ? pow(f, 2) * exp(-max(0, t - focusAt) * 7) : (t < 0.012 ? t / 0.012 : 1) * pow(f, 1.2) * exp(-t * 4)
+            var v = y * rushEnv * 1.3 + (sin(2 * .pi * tone * t) + 0.08 * sin(4 * .pi * tone * t)) * noteEnv * 0.42
+            if into && t >= focusAt - 0.005 && t < focusAt + 0.08 {        // the felt tap as it lands
+                let u = t - (focusAt - 0.005)
+                v += sin(2 * .pi * 180 * pow(0.62, u / 0.06) * u) * exp(-u * 50) * 0.35
             }
-            if t >= tapAt && t < tapAt + 0.09 {                         // the felt tap (in) / the light release (out)
-                let u = t - tapAt
-                let f = into ? 190 * pow(0.6, u / 0.06) : 240 * pow(1.25, u / 0.06)
-                v += sin(2 * .pi * f * u) * exp(-u * (into ? 48 : 60)) * (into ? 0.55 : 0.32)
-            }
-            out[i] = v * 0.6
+            out[i] = v * 0.55
         }
-        return out
+        let peak = max(0.001, out.map { abs($0) }.max() ?? 1)            // even level, never clipped
+        return out.map { $0 / peak * 0.8 }
     }
     static func wav(_ x: [Double], rate: Double = 44_100) -> Data {
         let samples = x.map { Int16(max(-1, min(1, $0)) * 32_000) }
