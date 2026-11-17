@@ -7,6 +7,8 @@ struct ParadoxHQApp: App {
     @State private var lock = AppLock()
     @State private var feed = FeedSync()
     @State private var site = SiteMonitor()
+    @State private var backups = Backups()
+    @AppStorage("appearance") private var appearance: Appearance = .auto
     private let container: ModelContainer
 
     init() {
@@ -16,6 +18,7 @@ struct ParadoxHQApp: App {
             fatalError("The store couldn't be opened: \(error)")
         }
         Seed.run(container.mainContext)
+        if !Launch.unlocked { Starter.run(container.mainContext) }
         Seed.sampleNotes(container.mainContext)
     }
 
@@ -26,7 +29,8 @@ struct ParadoxHQApp: App {
                 .environment(lock)
                 .environment(feed)
                 .environment(site)
-                .preferredColorScheme(.dark)
+                .environment(backups)
+                .preferredColorScheme(appearance.scheme)
                 .tint(Ink.violet)
         }
         .modelContainer(container)
@@ -42,6 +46,7 @@ struct Gate: View {
     @Environment(MoneyStore.self) private var money
     @Environment(FeedSync.self) private var feed
     @Environment(SiteMonitor.self) private var site
+    @Environment(Backups.self) private var backups
     @Environment(\.scenePhase) private var phase
     @Environment(\.modelContext) private var context
 
@@ -61,7 +66,9 @@ struct Gate: View {
         }
         .animation(.easeOut(duration: 0.25), value: lock.locked)
         .task {
-            await lock.unlock()
+            // Face ID can only be asked for while the app is in front; before that
+            // it fails and would show "Try again" instead of the prompt.
+            if phase == .active { await lock.unlock() }
         }
         .task {
             await refresh()
@@ -70,6 +77,9 @@ struct Gate: View {
             lock.changed(to: new)
             if new == .background {
                 Background.schedule()
+                // Every time you leave the app, a copy goes to the backup folder.
+                try? context.save()
+                backups.write(context)
                 // Ticks made since the last refresh change what the widgets show.
                 Task { await Bridge.publish(money: money, site: site, context: context) }
             }
@@ -103,7 +113,7 @@ struct RootView: View {
             Tab("Today", systemImage: "star.fill", value: Screen.today) {
                 TodayView()
             }
-            Tab("Projects", systemImage: "checklist", value: Screen.projects) {
+            Tab("To-do", systemImage: "checklist", value: Screen.projects) {
                 ProjectsView()
             }
             Tab("Notes", systemImage: "note.text", value: Screen.notes) {
@@ -116,6 +126,7 @@ struct RootView: View {
                 CompanyView()
             }
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 }
 

@@ -1,6 +1,8 @@
 import Testing
 import Foundation
 import SwiftData
+import SwiftUI
+import UIKit
 @testable import ParadoxHQ
 
 private let london: Calendar = {
@@ -701,5 +703,174 @@ struct NoteTests {
         let plan = Outbox.plan(context)
         #expect(plan.outgoing.lines.isEmpty)
         #expect(plan.naming.isEmpty)
+    }
+}
+
+@Suite("Feed keeps the phone's edits", .serialized)
+@MainActor
+struct FeedRespectTests {
+    static func fresh() throws -> ModelContext {
+        UserDefaults.standard.removeObject(forKey: Tombstones.key)
+        let context = try FeedTests.store()
+        try Feed.decode(Data(FeedTests.json.utf8)).apply(to: context)
+        return context
+    }
+
+    static func pull(_ context: ModelContext, _ json: String = FeedTests.json) throws {
+        try Feed.decode(Data(json.utf8)).apply(to: context)
+    }
+
+    @Test func aRenameOnThePhoneSticks() throws {
+        let context = try Self.fresh()
+        let project = try #require(try context.fetch(FetchDescriptor<Project>()).first)
+        let stripe = try #require(project.sortedItems.first)
+        stripe.title = "Stripe, properly"
+        project.name = "Focus app"
+        try Self.pull(context)
+        #expect(stripe.title == "Stripe, properly")
+        #expect(project.name == "Focus app")
+
+        // A change of wording on the feed's side still arrives.
+        try Self.pull(context, FeedTests.json.replacingOccurrences(of: "Add Stripe", with: "Stripe live"))
+        #expect(stripe.title == "Stripe live")
+    }
+
+    @Test func aLineMovedOnThePhoneIsNotDuplicated() throws {
+        let context = try Self.fresh()
+        let project = try #require(try context.fetch(FetchDescriptor<Project>()).first)
+        let tutorial = try #require(project.sortedItems.last)
+        #expect(tutorial.indent())
+        try Self.pull(context)
+        let all = try context.fetch(FetchDescriptor<FocusItem>())
+        #expect(all.filter { $0.remoteID == "b" }.count == 1)
+        #expect(tutorial.parent?.remoteID == "a")
+    }
+
+    @Test func aLineDeletedOnThePhoneStaysDeleted() throws {
+        let context = try Self.fresh()
+        let project = try #require(try context.fetch(FetchDescriptor<Project>()).first)
+        let stripe = try #require(project.sortedItems.first)
+        stripe.remove(from: context)
+        try Self.pull(context)
+        let ids = Set(try context.fetch(FetchDescriptor<FocusItem>()).map(\.remoteID))
+        #expect(!ids.contains("a") && !ids.contains("a1") && !ids.contains("a2"))
+        #expect(ids.contains("b"))
+        UserDefaults.standard.removeObject(forKey: Tombstones.key)
+    }
+
+    @Test func aTickFromTheFeedRunsDownTheTree() throws {
+        let context = try Self.fresh()
+        try Self.pull(context, FeedTests.json.replacingOccurrences(of: #""title":"Add Stripe","#,
+                                                                   with: #""title":"Add Stripe","done":true,"#))
+        let project = try #require(try context.fetch(FetchDescriptor<Project>()).first)
+        let stripe = try #require(project.sortedItems.first)
+        #expect(stripe.done)
+        let allDone = stripe.children.allSatisfy { $0.done }
+        #expect(allDone)
+    }
+}
+
+@Suite("Backups")
+@MainActor
+struct BackupTests {
+    @Test func everythingSurvivesTheRoundTrip() throws {
+        let context = try FeedTests.store()
+        try Feed.decode(Data(FeedTests.json.utf8)).apply(to: context)
+        let mine = Seed.personal(context)
+        let launch = FocusItem(title: "Launch", order: 0)
+        context.insert(launch)
+        launch.project = mine
+        let copy = launch.add("Copy", in: context)
+        copy.add("Hero", in: context).set(done: true)
+        copy.collapsed = true
+        launch.due = at(2026, 12, 1)
+        let focus = try #require(try context.fetch(FetchDescriptor<Project>()).first { $0.remoteID == "focus" })
+        context.insert(Note(text: "Pricing\nRound numbers.", project: focus, created: at(2026, 11, 1)))
+        context.insert(Deadline(title: "VAT return", who: "HMRC", date: at(2026, 12, 7), everyMonths: 3))
+        try context.save()
+
+        let before = BackupFile.take(context, now: at(2026, 11, 17))
+        let read = try BackupFile.read(try before.data())
+        #expect(read == before)
+
+        let other = try FeedTests.store()
+        try read.restore(into: other)
+        let after = BackupFile.take(other, now: at(2026, 11, 17))
+        let wrote = String(decoding: try before.data(), as: UTF8.self)
+        let got = String(decoding: try after.data(), as: UTF8.self)
+        let differing = zip(wrote.split(separator: "\n"), got.split(separator: "\n")).filter { $0 != $1 }.prefix(4)
+        #expect(differing.isEmpty, "\(differing.map { "\($0) → \($1)" })")
+        #expect(after.summary == "2 projects, 7 lines, 1 note")
+        let restoredMine = try #require(try other.fetch(FetchDescriptor<Project>()).first(where: \.isPersonal))
+        #expect(restoredMine.sortedItems.first?.sortedChildren.first?.collapsed == true)
+        let note = try other.fetch(FetchDescriptor<Note>()).first
+        #expect(note?.project?.remoteID == "focus")
+    }
+
+    @Test func aNewerFormatIsRefused() throws {
+        var file = BackupFile(made: .now, projects: [], notes: [], deadlines: [])
+        file.version = BackupFile.currentVersion + 1
+        let data = try file.data()
+        #expect(throws: BackupError.self) { try BackupFile.read(data) }
+    }
+
+    @Test func oneFileADayAndAMonthKept() {
+        #expect(Backups.fileName(for: at(2026, 11, 17)).hasPrefix("PARADOX 2026-11-17"))
+        let names = (1...35).map { String(format: "PARADOX 2026-10-%02d.json", min($0, 31)) + ($0 > 31 ? "x" : "") }
+            .filter { $0.hasSuffix(".json") } + ["PARADOX 2026-10-01 before restore.json", "notes.txt"]
+        let gone = Backups.surplus(names, keep: 30)
+        #expect(gone == ["PARADOX 2026-10-01.json"])
+    }
+}
+
+@Suite("Lock")
+struct LockTests {
+    @Test func asksOnlyAfterAWhileAway() {
+        let now = at(2026, 11, 17, 12)
+        #expect(AppLock.due(lastSeen: nil, now: now, after: 3600))
+        #expect(!AppLock.due(lastSeen: now.addingTimeInterval(-600), now: now, after: 3600))
+        #expect(AppLock.due(lastSeen: now.addingTimeInterval(-3700), now: now, after: 3600))
+    }
+}
+
+@Suite("Ink")
+struct InkTests {
+    /// WCAG contrast between two colours in one appearance.
+    static func contrast(_ a: Color, _ b: Color, _ style: UIUserInterfaceStyle) -> Double {
+        let traits = UITraitCollection(userInterfaceStyle: style)
+        func luminance(_ color: Color) -> Double {
+            var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, alpha: CGFloat = 0
+            UIColor(color).resolvedColor(with: traits).getRed(&r, green: &g, blue: &b, alpha: &alpha)
+            func channel(_ c: CGFloat) -> Double {
+                let c = Double(c)
+                return c <= 0.03928 ? c / 12.92 : pow((c + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+        }
+        let (x, y) = (luminance(a), luminance(b))
+        return (max(x, y) + 0.05) / (min(x, y) + 0.05)
+    }
+
+    /// No white on white, no black on black: every pairing the app draws, in both appearances.
+    @Test(arguments: [UIUserInterfaceStyle.dark, .light])
+    func nothingDisappearsIntoItsBackground(_ style: UIUserInterfaceStyle) {
+        let text: [(String, Color, Color, Double)] = [
+            ("head on ground", Ink.head, Ink.ground, 7), ("head on surface", Ink.head, Ink.surface, 7),
+            ("body on surface", Ink.body, Ink.surface, 7), ("body on surface2", Ink.body, Ink.surface2, 4.5),
+            ("button ink on button", Ink.buttonInk, Ink.button, 7), ("button on ground", Ink.button, Ink.ground, 3),
+            ("muted on surface", Ink.muted, Ink.surface, 3), ("muted on ground", Ink.muted, Ink.ground, 3),
+            ("violet on surface", Ink.violet, Ink.surface, 3), ("ok on surface", Ink.ok, Ink.surface, 3),
+            ("hazard on surface", Ink.hazard, Ink.surface, 3), ("amber on surface", Ink.amber, Ink.surface, 3),
+            ("tick ink on head", Ink.buttonInk, Ink.head, 7), ("tick ink on violet", Ink.buttonInk, Ink.violet, 3),
+        ]
+        for (name, front, back, floor) in text {
+            let ratio = Self.contrast(front, back, style)
+            #expect(ratio >= floor, "\(name) is \(ratio) in \(style == .dark ? "dark" : "light")")
+        }
+    }
+
+    @Test(arguments: [UIUserInterfaceStyle.dark, .light])
+    func whiteMeansHeadingInk(_ style: UIUserInterfaceStyle) {
+        #expect(Self.contrast(Ink.tint(0xFFFFFF), Ink.head, style) < 1.01)
     }
 }

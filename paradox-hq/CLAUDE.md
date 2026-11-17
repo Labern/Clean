@@ -21,6 +21,7 @@ and kept in the Keychain on the phone.
   errors. Launch arguments: `-unlocked YES -sampleNotes YES -screen lock|today|projects|project|notes|note|money|company|widgets`.
 
 ## The five tabs
+Today · To-do · Notes · Money · Company. (Six would push one behind a "More" button.)
 - **Notes** — a proper notebook. Chips filter to one project's notes; a note's menu
   turns it into a to-do (title becomes the line, the rest its note) on its project,
   or on My list. Plain text, the first line is the title, saved as
@@ -37,7 +38,8 @@ and kept in the Keychain on the phone.
   the site being down; hidden when empty), and the next open line of each project.
 - **Money** — revenue by week, month, quarter or year against the same stretch of
   the period before; subscribers and monthly recurring; payouts; every payment.
-- **Projects** — each project has a Focus list (`TodoViews.swift`). Lines nest to any
+- **To-do** (was Projects) — a switch at the top: To-do (My list, the default) and
+  Projects. Each project has a Focus list (`TodoViews.swift`). Lines nest to any
   depth. Ticking a line ticks everything under it; ticking the last open sub-item
   ticks its parent, all the way up; reopening reopens every line above. A line with
   sub-items shows a done/total count that folds them (`collapsed`, stored). Swipe
@@ -46,8 +48,54 @@ and kept in the Keychain on the phone.
   page (`ItemPage`): title, note, due date, its sub-items (each opens its own page,
   drag to reorder), done, delete. `Outline.rows` flattens the tree for drawing and
   is tested. The tally counts the smallest lines at any depth.
-- **Company** — filing deadlines, the three connections (Stripe, Claude, website),
-  the Face ID lock.
+- **Company** — Links (Home, Focus, Google Workspace, Stripe, GitHub, Claude, Tesla;
+  each with App and Web buttons — App tries the app's scheme or a universal link and
+  says "App not installed" if nothing opens), filing deadlines, the connections,
+  Settings (Auto/Light/Dark, app icon), the Face ID lock, Backup.
+
+## Look, light and dark
+Every colour is an `Ink` token with a dark and a light value (`Shared/Theme.swift`);
+views never use `.white`/`.black`. `Ink.head` for headings and figures, `Ink.button` /
+`Ink.buttonInk` for the one solid button, `Ink.tint(hex)` for project colours (white
+means "no colour" and becomes `Ink.head`). `InkTests` checks every pairing's contrast in
+both appearances: no white on white, no black on black. Appearance is `@AppStorage
+("appearance")` auto/light/dark. Focus-site touches: uppercase tracked eyebrow labels
+(`SectionHeader`), figures at medium weight that tick (`.figure`), cards rising in once
+per launch (`.rise`), the mark's "hunt" hit stop on Today (`.hunt`), the ground fading
+under the status bar (`.statusBarFade`). "PARADOX board" on Today: the word sits on the
+wordmark's baseline, stepped back into the space the mark keeps for its ™.
+
+## App icons
+Main icon = the app's own mark scaled to 90% width (`design/icons/classic-max-black.png`).
+Eight alternates (`AppIcon-*` sets, `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`),
+previews in `IconPreview-*` image sets, chosen in Company › Settings. Renders come from
+the brand SVG masters via `design/icons/make_icons.py`; never redraw the mark.
+
+## Face ID
+Asks only when the app has been out of use longer than "Ask again after" (default 1 hour),
+measured across launches (`lock-last-seen`). Unlock is only attempted while the scene is
+active (asking earlier fails and shows "Try again").
+
+## Backups (the safety net until iCloud sync)
+`Backup.swift`: the whole store as one JSON `BackupFile` (projects with lines at every
+depth, notes, deadlines). You pick a folder once (iCloud Drive recommended; kept as a
+security-scoped bookmark); a copy is written every time the app goes to the background,
+one file per day (`PARADOX yyyy-mm-dd.json`), the newest 30 kept. Restore replaces
+everything after first writing a "before restore" copy. **iCloud sync proper** needs the
+paid team: add the iCloud/CloudKit entitlement and container in `project.yml`; the
+`ModelContainer` uses the default (automatic) CloudKit setting, and every model property
+is already defaulted and optional-safe for it.
+
+## Free Apple ID builds
+`ios-device` builds for the specific phone (registers it) and, if the team can't sign
+App Groups, rebuilds without entitlements (widgets then get no data). First install
+needs the cable once and Settings › General › VPN & Device Management › Trust.
+
+## Feed and the phone's edits
+The feed renames a line/project only when the feed's own wording changed
+(`remoteTitle`/`remoteName`), matches lines at any depth (moving one doesn't duplicate
+it), never re-adds lines deleted on the phone (`Tombstones`, via `remove(from:)`), and
+ticks through `set(done:)` so the tree cascades.
 
 ## Sources
 - `Stripe.swift` — Keychain, Stripe's JSON, the client. **Read-only**: there is no

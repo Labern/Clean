@@ -35,6 +35,8 @@ struct MoneyView: View {
                 .page()
             }
             .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .statusBarFade()
             .background(Ink.ground)
             .toolbar(.hidden, for: .navigationBar)
             .refreshable { await money.refresh() }
@@ -82,11 +84,11 @@ struct RevenueCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(picked.map { Self.label($0.date, period) } ?? "Revenue this \(period.title.lowercased())")
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(picked == nil ? Ink.muted : Color.white)
+                            .foregroundStyle(picked == nil ? Ink.muted : Ink.head)
                         Text(money.money(picked?.amount ?? total))
-                            .font(.system(size: 36, weight: .bold))
+                            .font(.system(size: 38, weight: .medium)).tracking(-0.95)
                             .monospacedDigit()
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Ink.head)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                     }
@@ -103,7 +105,7 @@ struct RevenueCard: View {
                     BarMark(x: .value("Date", bar.date, unit: period.bucket),
                             y: .value("Revenue", Double(bar.amount) / 100))
                         .cornerRadius(3)
-                        .foregroundStyle(bar.date == lit ? Color.white : Ink.violet.opacity(0.6))
+                        .foregroundStyle(bar.date == lit ? Ink.head : Ink.violet.opacity(0.6))
                 }
                 .chartXSelection(value: $touched)
                 .sensoryFeedback(.selection, trigger: picked?.date)
@@ -166,9 +168,9 @@ struct SubscriberTiles: View {
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(Ink.muted)
                         Text("\(subscribers)")
-                            .font(.title2.bold())
+                            .font(.system(size: 26, weight: .medium)).tracking(-0.65)
                             .monospacedDigit()
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Ink.head)
                     }
                 }
                 Card {
@@ -177,9 +179,9 @@ struct SubscriberTiles: View {
                             .font(.footnote.weight(.semibold))
                             .foregroundStyle(Ink.muted)
                         Text(money.money(mrr))
-                            .font(.title2.bold())
+                            .font(.system(size: 26, weight: .medium)).tracking(-0.65)
                             .monospacedDigit()
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Ink.head)
                             .lineLimit(1)
                             .minimumScaleFactor(0.6)
                     }
@@ -202,7 +204,7 @@ struct PayoutsCard: View {
                         ForEach(Array(payouts.enumerated()), id: \.element.id) { index, payout in
                             if index > 0 { Hairline(inset: 58) }
                             InfoRow(symbol: "arrow.up.right",
-                                    symbolColor: payout.isUpcoming ? .white : Ink.muted,
+                                    symbolColor: payout.isUpcoming ? Ink.head : Ink.muted,
                                     title: payout.label,
                                     detail: payout.arrives.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))) {
                                 Text(money.money(payout.amount, pennies: true))
@@ -309,9 +311,9 @@ struct PaymentDetail: View {
                         .frame(width: 56, height: 56)
                         .background(Ink.surface, in: Circle())
                     Text(Money.string(payment.amount, currency: payment.currency, pennies: true))
-                        .font(.system(size: 40, weight: .bold))
+                        .font(.system(size: 42, weight: .medium)).tracking(-1.05)
                         .monospacedDigit()
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Ink.head)
                     Pill(text: payment.status.label, color: payment.status.color)
                     Text("\(payment.who) · \(payment.date.formatted(date: .abbreviated, time: .shortened))")
                         .font(.subheadline)
@@ -367,7 +369,7 @@ struct PaymentDetail: View {
             Text(value)
                 .monospacedDigit()
                 .fontWeight(strong ? .semibold : .regular)
-                .foregroundStyle(strong ? Color.white : Ink.body)
+                .foregroundStyle(strong ? Ink.head : Ink.body)
                 .multilineTextAlignment(.trailing)
         }
         .padding(.horizontal, 14)
@@ -437,7 +439,7 @@ struct ConnectStripe: View {
                         Button {
                             Task { await connect() }
                         } label: {
-                            if working { ProgressView().tint(.black) } else { Text("Connect") }
+                            if working { ProgressView().tint(Ink.buttonInk) } else { Text("Connect") }
                         }
                         .buttonStyle(WhiteButtonStyle())
                         .disabled(working || key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -567,9 +569,9 @@ struct CustomerDetail: View {
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(Ink.muted)
                             Text(money.money(customer.total))
-                                .font(.title2.bold())
+                                .font(.system(size: 26, weight: .medium)).tracking(-0.65)
                                 .monospacedDigit()
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Ink.head)
                         }
                     }
                     Card {
@@ -578,9 +580,9 @@ struct CustomerDetail: View {
                                 .font(.footnote.weight(.semibold))
                                 .foregroundStyle(Ink.muted)
                             Text(customer.last, format: .dateTime.day().month(.abbreviated).year(.twoDigits))
-                                .font(.title2.bold())
+                                .font(.system(size: 26, weight: .medium)).tracking(-0.65)
                                 .monospacedDigit()
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Ink.head)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.6)
                         }

@@ -16,10 +16,22 @@ struct TodayView: View {
 
     var body: some View {
         NavigationStack(path: $path) {
+            ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    HStack(alignment: .top) {
+                    HStack(alignment: .bottom, spacing: 0) {
                         MarkView(width: 170)
+                            .hunt()
+                        // "PARADOX board": sits on the wordmark's own baseline, the
+                        // bottom edge of the mark, so the two read as one name.
+                        // The mark's frame runs on past PARADOX to hold the ™ above it, so
+                        // "board" steps back into that space to sit a word-gap after the X.
+                        Text("board")
+                            .font(.system(size: 25, weight: .regular, design: .serif))
+                            .foregroundStyle(Ink.muted)
+                            .padding(.leading, -17)
+                            .offset(y: 4)
+                            .accessibilityHidden(true)
                         Spacer(minLength: 8)
                         if money.loading {
                             ProgressView()
@@ -30,17 +42,24 @@ struct TodayView: View {
                     if !money.live {
                         ExampleBanner { connecting = true }
                     }
-                    TakingsCard()
-                    BalanceTiles()
-                    NeedsYou(needs: needs)
+                    TakingsCard().rise(0)
+                    BalanceTiles().rise(1)
+                    NeedsYou(needs: needs).rise(2)
                     if let mine = projects.first(where: \.isPersonal) {
-                        MyListCard(project: mine, open: { path.append($0) }, openAll: { path.append(mine) })
+                        MyListCard(project: mine, open: { path.append($0) }, openAll: { path.append(mine) }) {
+                            // Keep the field being typed in above the keyboard.
+                            withAnimation(.snappy) { proxy.scrollTo(MyListCard.fieldID, anchor: .bottom) }
+                        }
+                        .rise(3)
                     }
-                    FocusNow(projects: projects.filter { !$0.isPersonal })
+                    FocusNow(projects: projects.filter { !$0.isPersonal }) { path.append($0) }
+                        .rise(4)
                 }
                 .page()
             }
             .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .statusBarFade()
             .background(Ink.ground)
             .toolbar(.hidden, for: .navigationBar)
             .refreshable {
@@ -53,9 +72,10 @@ struct TodayView: View {
             }
             .navigationDestination(for: Project.self) { ProjectDetail(project: $0) }
             .navigationDestination(for: FocusItem.self) { item in
-                ItemPage(item: item, tint: Color(hex: UInt32(item.owner?.tint ?? 0xFFFFFF)))
+                ItemPage(item: item, tint: Ink.tint(item.owner?.tint ?? 0xFFFFFF))
             }
             .navigationDestination(for: Note.self) { NoteEditor(note: $0) }
+            }
             .onAppear {
                 // The cloud build opens straight into your own list to photograph it.
                 if Launch.screen == "list", path.isEmpty, let mine = projects.first(where: \.isPersonal) {
@@ -97,18 +117,17 @@ struct TakingsCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(picked == nil ? "Today" : "That day")
-                        .font(.footnote.weight(.semibold))
+                        .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
                         .foregroundStyle(Ink.muted)
                     Spacer(minLength: 8)
                     Text(picked?.date ?? now, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
                         .font(.footnote)
-                        .foregroundStyle(picked == nil ? Ink.muted : Color.white)
+                        .foregroundStyle(picked == nil ? Ink.muted : Ink.head)
                 }
                 HStack(alignment: .firstTextBaseline) {
                     Text(money.money(pickedDay?.amount ?? today))
-                        .font(.system(size: 40, weight: .bold))
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
+                        .figure(44, value: Double(pickedDay?.amount ?? today))
+                        .foregroundStyle(Ink.head)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     Spacer(minLength: 8)
@@ -136,7 +155,7 @@ struct TakingsCard: View {
                         PointMark(x: .value("Day", picked.date, unit: .day),
                                   y: .value("Revenue", Double(picked.amount) / 100))
                             .symbolSize(70)
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Ink.head)
                     }
                 }
                 .chartXAxis(.hidden)
@@ -179,12 +198,11 @@ struct BalanceTiles: View {
             Card {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(now, format: .dateTime.month(.wide))
-                        .font(.footnote.weight(.semibold))
+                        .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
                         .foregroundStyle(Ink.muted)
                     Text(money.money(month))
-                        .font(.title2.bold())
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
+                        .figure(26, value: Double(month))
+                        .foregroundStyle(Ink.head)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     ChangePill(change: Ledger.change(from: before, to: month))
@@ -193,12 +211,11 @@ struct BalanceTiles: View {
             Card {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Stripe balance")
-                        .font(.footnote.weight(.semibold))
+                        .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
                         .foregroundStyle(Ink.muted)
                     Text(money.money(money.available))
-                        .font(.title2.bold())
-                        .monospacedDigit()
-                        .foregroundStyle(.white)
+                        .figure(26, value: Double(money.available))
+                        .foregroundStyle(Ink.head)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     if let payout = money.nextPayout {
@@ -259,6 +276,7 @@ struct NeedsYou: View {
 /// The next open line of each project, tickable from the front page.
 struct FocusNow: View {
     let projects: [Project]
+    var open: (FocusItem) -> Void = { _ in }
 
     var body: some View {
         let rows = projects.compactMap { project in
@@ -271,7 +289,7 @@ struct FocusNow: View {
                     VStack(spacing: 0) {
                         ForEach(Array(rows.enumerated()), id: \.element.1.id) { index, row in
                             if index > 0 { Hairline(inset: 58) }
-                            FocusNowRow(item: row.1, project: row.0)
+                            FocusNowRow(item: row.1, project: row.0) { open(row.1) }
                         }
                     }
                 }
@@ -283,25 +301,34 @@ struct FocusNow: View {
 struct FocusNowRow: View {
     let item: FocusItem
     let project: Project
+    var open: () -> Void = {}
 
     var body: some View {
         HStack(spacing: 4) {
             Button {
                 withAnimation(.snappy.delay(item.done ? 0 : 0.34)) { item.set(done: !item.done) }
             } label: {
-                Tick(done: item.done, color: Color(hex: UInt32(project.tint)))
+                Tick(done: item.done, color: Ink.tint(project.tint))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(item.done ? "Reopen" : "Tick")
-            VStack(alignment: .leading, spacing: 2) {
-                Text(item.title)
-                    .foregroundStyle(Ink.body)
-                    .lineLimit(2)
-                Text(project.name)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(Ink.muted)
+            Button(action: open) {
+                HStack(spacing: 0) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title)
+                            .foregroundStyle(Ink.body)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                        Text(project.name)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Ink.muted)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
             }
-            Spacer(minLength: 0)
+            .buttonStyle(.plain)
         }
         .padding(.leading, 6)
         .padding(.trailing, 14)

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 /// The admin side: filing deadlines counting down, what the app is connected to,
 /// and the lock.
@@ -8,6 +9,18 @@ struct CompanyView: View {
     @Environment(FeedSync.self) private var feed
     @Environment(SiteMonitor.self) private var site
     @Environment(AppLock.self) private var lock
+    @Environment(Backups.self) private var backups
+    @Environment(\.modelContext) private var context
+    @State private var lockAfter = AppLock.away
+    @State private var picking: Picking? = nil
+    @State private var pending: BackupFile? = nil
+    @State private var restored = false
+    @AppStorage("appearance") private var appearance: Appearance = .auto
+
+    enum Picking: Identifiable {
+        case folder, file
+        var id: Self { self }
+    }
     @Query(sort: \Deadline.date) private var deadlines: [Deadline]
     @State private var draft: DeadlineDraft? = nil
     @State private var sheet: Connection? = nil
@@ -36,10 +49,13 @@ struct CompanyView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Heading(title: "Company")
+                    linkSection
                     deadlineSection
                     connectionSection
                     notifySection
+                    settingsSection
                     lockSection
+                    backupSection
                     Text("PARADOX \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                         .font(.footnote)
                         .foregroundStyle(Ink.idle)
@@ -48,9 +64,40 @@ struct CompanyView: View {
                 .page()
             }
             .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .statusBarFade()
             .background(Ink.ground)
             .toolbar(.hidden, for: .navigationBar)
             .sheet(item: $draft) { DeadlineEditor(draft: $0) }
+            .fileImporter(isPresented: Binding(get: { picking != nil }, set: { if !$0 { picking = nil } }),
+                          allowedContentTypes: picking == .folder ? [.folder] : [.json]) { result in
+                let mode = picking
+                picking = nil
+                guard case .success(let url) = result else { return }
+                if mode == .folder {
+                    backups.choose(url)
+                    backups.write(context)
+                } else {
+                    do { pending = try backups.open(url) } catch { backups.problem = error.localizedDescription }
+                }
+            }
+            .confirmationDialog(pending.map { "Replace everything with the backup from \($0.made.formatted(.dateTime.day().month(.wide).hour().minute()))?" } ?? "",
+                                isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
+                                titleVisibility: .visible) {
+                Button("Restore \(pending?.summary ?? "")", role: .destructive) {
+                    guard let file = pending else { return }
+                    do {
+                        try backups.restore(file, into: context)
+                        restored = true
+                    } catch {
+                        backups.problem = error.localizedDescription
+                    }
+                    pending = nil
+                }
+            } message: {
+                Text("What's on the phone now is saved to the folder first, so this can be undone.")
+            }
+            .sensoryFeedback(.success, trigger: restored) { _, new in new }
             .sheet(item: $sheet) { which in
                 switch which {
                 case .stripe: ConnectStripe()
@@ -101,7 +148,7 @@ struct CompanyView: View {
                             Text("Add a deadline")
                             Spacer()
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Ink.head)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 11)
                         .contentShape(Rectangle())
@@ -189,6 +236,103 @@ struct CompanyView: View {
             }
     }
 
+    private var linkSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Links")
+            Card(padding: 0) {
+                VStack(spacing: 0) {
+                    ForEach(Array(QuickLink.all.enumerated()), id: \.element.id) { index, link in
+                        if index > 0 { Hairline(inset: 58) }
+                        QuickLinkRow(link: link)
+                    }
+                }
+            }
+        }
+    }
+
+    private var settingsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Settings")
+            Card(padding: 0) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "circle.lefthalf.filled")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Ink.muted)
+                            .frame(width: 32, height: 32)
+                            .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Picker("Appearance", selection: $appearance.animation(.easeInOut(duration: 0.3))) {
+                            ForEach(Appearance.allCases) { Text($0.title).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .sensoryFeedback(.selection, trigger: appearance)
+                    Hairline(inset: 14)
+                    Text("App icon")
+                        .font(.subheadline)
+                        .foregroundStyle(Ink.body)
+                        .padding(.horizontal, 14)
+                        .padding(.top, 12)
+                    AppIconPicker()
+                }
+            }
+        }
+    }
+
+    private var backupSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SectionHeader(title: "Backup")
+            Card(padding: 0) {
+                VStack(spacing: 0) {
+                    Button { picking = .folder } label: {
+                        InfoRow(symbol: "folder", title: backups.isSet ? backups.folderName : "Choose a folder",
+                                detail: backupDetail) {
+                            if backups.isSet {
+                                Pill(text: backups.problem.isEmpty ? "On" : "Failed",
+                                     color: backups.problem.isEmpty ? Ink.ok : Ink.hazard)
+                            } else {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Ink.idle)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    if backups.isSet {
+                        Hairline(inset: 58)
+                        Button { backups.write(context) } label: {
+                            InfoRow(symbol: "arrow.clockwise", title: "Back up now") { EmptyView() }
+                        }
+                        .buttonStyle(.plain)
+                        .sensoryFeedback(.success, trigger: backups.last)
+                    }
+                    Hairline(inset: 58)
+                    Button { picking = .file } label: {
+                        InfoRow(symbol: "clock.arrow.circlepath", title: "Restore from a backup") { EmptyView() }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            if !backups.problem.isEmpty {
+                Text(backups.problem)
+                    .font(.footnote)
+                    .foregroundStyle(Ink.hazard)
+                    .padding(.horizontal, 4)
+            }
+        }
+    }
+
+    private var backupDetail: String {
+        guard backups.isSet else { return "iCloud Drive keeps it safe if the app is deleted" }
+        guard let last = backups.last else { return "Not backed up yet" }
+        let when = Calendar.current.isDateInToday(last)
+            ? last.formatted(.dateTime.hour().minute())
+            : last.formatted(.dateTime.day().month(.abbreviated))
+        return backups.lastSummary.isEmpty ? when : "\(when) · \(backups.lastSummary)"
+    }
+
     private var lockSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             SectionHeader(title: "Lock")
@@ -209,6 +353,29 @@ struct CompanyView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .onChange(of: locking) { _, new in AppLock.enabled = new }
+                    Hairline(inset: 58)
+                    HStack(spacing: 12) {
+                        Image(systemName: "clock")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Ink.muted)
+                            .frame(width: 32, height: 32)
+                            .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        Text("Ask again after")
+                            .foregroundStyle(Ink.body)
+                        Spacer(minLength: 8)
+                        Picker("Ask again after", selection: $lockAfter) {
+                            ForEach(AppLock.choices, id: \.seconds) { choice in
+                                Text(choice.title).tag(choice.seconds)
+                            }
+                        }
+                        .labelsHidden()
+                        .tint(Ink.muted)
+                        .onChange(of: lockAfter) { _, new in AppLock.away = new }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .disabled(!locking)
+                    .opacity(locking ? 1 : 0.4)
                     Hairline(inset: 58)
                     Button {
                         lock.lock()
@@ -286,6 +453,7 @@ struct DeadlineEditor: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(draft.isNew ? "New deadline" : "Deadline")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -376,6 +544,7 @@ struct FeedSettings: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Claude")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -434,6 +603,7 @@ struct SiteSettings: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("Website")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

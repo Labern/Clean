@@ -95,13 +95,20 @@ extension Feed {
         let existing = (try? context.fetch(FetchDescriptor<Project>())) ?? []
         var known: [String: Project] = [:]
         for project in existing where !project.remoteID.isEmpty { known[project.remoteID] = project }
+        // Every line the feed has ever given, wherever it sits now: a line moved
+        // under another on the phone is still the same line, not a new one.
+        var lines: [String: FocusItem] = [:]
+        for item in (try? context.fetch(FetchDescriptor<FocusItem>())) ?? [] where !item.remoteID.isEmpty {
+            lines[item.remoteID] = item
+        }
+        let buried = Tombstones.all
         var order = (existing.map(\.order).max() ?? -1) + 1
 
-        for incoming in projects {
+        for incoming in projects where !buried.contains(incoming.id) {
             let project: Project
             if let found = known[incoming.id] {
                 project = found
-                project.name = incoming.name
+                Feed.adopt(incoming.name, into: &project.name, last: &project.remoteName)
                 if let summary = incoming.summary { project.summary = summary }
                 if let stage = incoming.stage { project.stage = stage }
                 if let link = incoming.link { project.link = link }
@@ -114,46 +121,60 @@ extension Feed {
                                   link: incoming.link ?? "",
                                   order: order)
                 project.remoteID = incoming.id
+                project.remoteName = incoming.name
                 context.insert(project)
                 known[incoming.id] = project
                 order += 1
                 outcome.projects += 1
             }
-            Feed.merge(incoming.items ?? [], siblings: project.items, project: project, parent: nil,
+            Feed.merge(incoming.items ?? [], into: project, parent: nil, lines: &lines, buried: buried,
                        context: context, now: now, outcome: &outcome)
         }
         try? context.save()
         return outcome
     }
 
+    /// Takes the feed's wording only when the feed itself changed it since last
+    /// time; otherwise whatever was typed on the phone stays.
+    static func adopt(_ incoming: String, into current: inout String, last: inout String) {
+        if last.isEmpty {
+            last = incoming
+            if current.isEmpty { current = incoming }
+            return
+        }
+        guard incoming != last else { return }
+        current = incoming
+        last = incoming
+    }
+
     @MainActor
-    private static func merge(_ incoming: [FeedItem], siblings: [FocusItem], project: Project?, parent: FocusItem?,
+    private static func merge(_ incoming: [FeedItem], into project: Project?, parent: FocusItem?,
+                              lines: inout [String: FocusItem], buried: Set<String>,
                               context: ModelContext, now: Date, outcome: inout FeedOutcome) {
-        var known: [String: FocusItem] = [:]
-        for item in siblings where !item.remoteID.isEmpty { known[item.remoteID] = item }
+        let siblings = parent?.children ?? project?.items ?? []
         var order = (siblings.map(\.order).max() ?? -1) + 1
 
-        for line in incoming {
+        for line in incoming where !buried.contains(line.id) {
             let item: FocusItem
-            if let found = known[line.id] {
+            if let found = lines[line.id] {
                 item = found
-                if item.title != line.title { item.title = line.title }
+                adopt(line.title, into: &item.title, last: &item.remoteTitle)
                 if item.notes.isEmpty, let notes = line.notes { item.notes = notes }
                 if line.done == true, !item.done {
-                    item.done = true
-                    item.completed = now
+                    item.set(done: true, at: now)
                     outcome.ticked += 1
                 }
             } else {
                 item = FocusItem(title: line.title, notes: line.notes ?? "", done: line.done ?? false, order: order)
                 item.remoteID = line.id
+                item.remoteTitle = line.title
                 context.insert(item)
                 if let parent { item.parent = parent } else { item.project = project }
-                known[line.id] = item
+                lines[line.id] = item
                 order += 1
                 outcome.items += 1
             }
-            merge(line.children ?? [], siblings: item.children, project: nil, parent: item,
+            merge(line.children ?? [], into: nil, parent: item, lines: &lines, buried: buried,
                   context: context, now: now, outcome: &outcome)
         }
     }
@@ -167,6 +188,18 @@ enum Seed {
             feed.apply(to: context)
         }
         personal(context)
+        mendAddresses(context)
+    }
+
+    /// The website is paradoxica.co.uk; early builds stored paradoxica.uk.
+    static func mendAddresses(_ context: ModelContext) {
+        let defaults = UserDefaults.standard
+        if let site = defaults.string(forKey: "site"), site.contains("paradoxica.uk") {
+            defaults.set(site.replacingOccurrences(of: "paradoxica.uk", with: "paradoxica.co.uk"), forKey: "site")
+        }
+        for project in (try? context.fetch(FetchDescriptor<Project>())) ?? [] where project.link.contains("paradoxica.uk") {
+            project.link = project.link.replacingOccurrences(of: "paradoxica.uk", with: "paradoxica.co.uk")
+        }
     }
 
     /// Labern's own list: made once, kept first.
@@ -511,7 +544,7 @@ enum Outbox {
         case down(String)
     }
 
-    var address: String = UserDefaults.standard.string(forKey: "site") ?? "https://paradoxica.uk/focus" {
+    var address: String = UserDefaults.standard.string(forKey: "site") ?? "https://paradoxica.co.uk/focus" {
         didSet { UserDefaults.standard.set(address, forKey: "site") }
     }
     var state: State = .unknown

@@ -12,6 +12,8 @@ struct OutlineLine: View {
     @Bindable var item: FocusItem
     let tint: Color
     var depth: Int = 0
+    /// Off where a line's sub-items aren't listed under it (the Done section).
+    var showsFold = true
     let open: () -> Void
 
     var body: some View {
@@ -53,7 +55,7 @@ struct OutlineLine: View {
             .buttonStyle(.plain)
             .accessibilityHint("Opens it")
 
-            if !children.isEmpty {
+            if showsFold, !children.isEmpty {
                 Fold(item: item)
             }
         }
@@ -165,7 +167,7 @@ struct OutlineSection: View {
 
     private func remove(_ item: FocusItem) {
         if let drafting, drafting === item || item.contains(drafting) { self.drafting = nil }
-        context.delete(item)
+        item.remove(from: context)
     }
 }
 
@@ -215,7 +217,7 @@ struct LineMenu: View {
         }
         Divider()
         Button("Delete", systemImage: "trash", role: .destructive) {
-            withAnimation { context.delete(item) }
+            withAnimation { item.remove(from: context) }
         }
     }
 }
@@ -246,6 +248,11 @@ struct DraftLine: View {
         }
         .padding(.leading, CGFloat(depth) * 24)
         .onAppear { focused = true }
+        .onDisappear {
+            // Swiping to type under another line mustn't lose what was half typed here.
+            let title = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !title.isEmpty, !parent.isDeleted { _ = parent.add(title, in: context) }
+        }
         .onChange(of: focused) { _, now in
             if !now {
                 add()
@@ -260,8 +267,8 @@ struct DraftLine: View {
             if focused { finish() }
             return
         }
-        withAnimation(.snappy) { _ = parent.add(title, in: context) }
         text = ""
+        withAnimation(.snappy) { _ = parent.add(title, in: context) }
         focused = true
     }
 }
@@ -278,7 +285,9 @@ struct ItemPage: View {
     @State private var next: FocusItem? = nil
     @State private var draft = ""
     @State private var deleting = false
-    @FocusState private var adding: Bool
+    @FocusState private var field: Field?
+
+    enum Field { case title, note, adding }
 
     var body: some View {
         let children = item.sortedChildren
@@ -288,9 +297,18 @@ struct ItemPage: View {
                 TextField("Title", text: $item.title, axis: .vertical)
                     .font(.title3.weight(.semibold))
                     .strikethrough(item.done)
+                    .focused($field, equals: .title)
+                    .submitLabel(.next)
+                    .onChange(of: item.title) { _, new in
+                        // Return in a title goes on to the note, rather than breaking the line.
+                        guard new.contains("\n") else { return }
+                        item.title = new.replacingOccurrences(of: "\n", with: "")
+                        field = .note
+                    }
                 TextField("Note", text: $item.notes, axis: .vertical)
                     .lineLimit(1...8)
                     .foregroundStyle(Ink.muted)
+                    .focused($field, equals: .note)
             } header: {
                 Trail(item: item)
             }
@@ -300,10 +318,13 @@ struct ItemPage: View {
                     ChildLine(item: child, tint: tint) { next = child }
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
-                                withAnimation { context.delete(child) }
+                                withAnimation { child.remove(from: context) }
                             } label: {
                                 Label("Delete", systemImage: "trash")
                             }
+                        }
+                        .contextMenu {
+                            LineMenu(item: child, open: { next = child }, addUnder: { next = child })
                         }
                 }
                 .onMove { from, to in
@@ -317,7 +338,7 @@ struct ItemPage: View {
                         .foregroundStyle(tint)
                         .frame(width: 44, height: 44)
                     TextField("Add a sub-item", text: $draft)
-                        .focused($adding)
+                        .focused($field, equals: .adding)
                         .submitLabel(.next)
                         .onSubmit(add)
                 }
@@ -360,13 +381,14 @@ struct ItemPage: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
         .background(Ink.ground)
         .navigationTitle(item.parent == nil ? "To-do" : "Sub-item")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if adding {
+            if field != nil {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { adding = false }
+                    Button("Done") { field = nil }
                         .fontWeight(.semibold)
                 }
             }
@@ -376,15 +398,13 @@ struct ItemPage: View {
         .confirmationDialog(children.isEmpty ? "Delete this?" : "Delete this and everything under it?",
                             isPresented: $deleting, titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
-                context.delete(item)
+                // Leave the page first, so it never draws a line that's gone.
+                let doomed = item
                 dismiss()
-            }
-        }
-        .onDisappear {
-            // A line left with no words and nothing under it doesn't stay.
-            if !item.isDeleted, item.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-               item.children.isEmpty, item.notes.isEmpty {
-                context.delete(item)
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
+                    doomed.remove(from: context)
+                }
             }
         }
     }
@@ -392,12 +412,12 @@ struct ItemPage: View {
     private func add() {
         let title = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else {
-            adding = false
+            field = nil
             return
         }
         withAnimation(.snappy) { _ = item.add(title, in: context) }
         draft = ""
-        adding = true
+        field = .adding
     }
 }
 
@@ -469,9 +489,12 @@ struct ChildLine: View {
 
 /// Your own list on the front page: type to add, tick, fold, open.
 struct MyListCard: View {
+    static let fieldID = "my-list-field"
+
     let project: Project
     let open: (FocusItem) -> Void
     let openAll: () -> Void
+    var reveal: () -> Void = {}
     @State private var text = ""
     @FocusState private var focused: Bool
     @Environment(\.modelContext) private var context
@@ -480,13 +503,15 @@ struct MyListCard: View {
         let lines = project.openItems
         let rows = Outline.rows(lines)
         let tally = project.tally
-        let tint = Color(hex: UInt32(project.tint))
+        let tint = Ink.tint(project.tint)
 
         VStack(alignment: .leading, spacing: 8) {
             Button(action: openAll) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("My list")
-                        .font(.footnote.weight(.semibold))
+                        .font(.system(size: 12, weight: .semibold))
+                        .textCase(.uppercase)
+                        .tracking(0.9)
                     Spacer()
                     Text(tally.total - tally.done == 0 ? "" : "\(tally.total - tally.done) open")
                         .font(.footnote)
@@ -518,7 +543,7 @@ struct MyListCard: View {
                         Button(action: add) {
                             Image(systemName: "plus")
                                 .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(.white)
+                                .foregroundStyle(Ink.head)
                                 .frame(width: 44, height: 44)
                         }
                         .buttonStyle(.plain)
@@ -531,6 +556,14 @@ struct MyListCard: View {
                     }
                     .padding(.leading, 6)
                     .padding(.trailing, 14)
+                    .id(Self.fieldID)
+                    .onChange(of: focused) { _, now in
+                        guard now else { return }
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(350))
+                            reveal()
+                        }
+                    }
                 }
             }
         }
@@ -549,5 +582,6 @@ struct MyListCard: View {
         }
         text = ""
         focused = true
+        reveal()
     }
 }

@@ -18,6 +18,9 @@ import SwiftData
     /// The one list that is Labern's own rather than a project's. It never
     /// goes to the feed and can't be deleted.
     var isPersonal: Bool = false
+    /// The name the feed last sent. The feed only renames a project when its
+    /// own wording changes, so a rename on the phone sticks.
+    var remoteName: String = ""
     @Relationship(deleteRule: .cascade, inverse: \FocusItem.project) var items: [FocusItem] = []
     /// Deleting a project keeps its notes; they just stop belonging to it.
     @Relationship(deleteRule: .nullify, inverse: \Note.project) var notes: [Note] = []
@@ -51,6 +54,8 @@ import SwiftData
     var collapsed: Bool = false
     /// When it's due, if it has a day.
     var due: Date? = nil
+    /// The wording the feed last sent (see `Project.remoteName`).
+    var remoteTitle: String = ""
 
     init(title: String, notes: String = "", done: Bool = false, order: Int = 0) {
         self.title = title
@@ -237,10 +242,22 @@ extension FocusItem {
         return child
     }
 
-    /// The lines beside this one, in order (top-level lines, or a parent's sub-items).
+    /// The lines beside this one as they're shown: a parent's sub-items, or the
+    /// project's open lines (finished ones sit apart, under Done).
     var siblings: [FocusItem] {
         if let parent { return parent.sortedChildren }
-        return project?.sortedItems ?? []
+        return project?.openItems ?? []
+    }
+
+    /// This line and everything under it.
+    var family: [FocusItem] { [self] + children.flatMap(\.family) }
+
+    /// Deletes the line and everything under it, for good: lines that came from
+    /// the Claude feed are remembered so the next pull doesn't bring them back.
+    func remove(from context: ModelContext) {
+        Tombstones.bury(family.map(\.remoteID))
+        context.delete(self)
+        try? context.save()
     }
 
     /// Makes this line a sub-item of the line just above it.
@@ -304,6 +321,30 @@ enum Outline {
         }
         for item in top { walk(item, 0) }
         return rows
+    }
+}
+
+/// Feed ids deleted on the phone, so the feed never adds them again.
+nonisolated enum Tombstones {
+    static let key = "feed-deleted"
+
+    static var all: Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
+    }
+
+    static func bury(_ ids: [String]) {
+        let ids = ids.filter { !$0.isEmpty }
+        guard !ids.isEmpty else { return }
+        UserDefaults.standard.set(Array(all.union(ids)).sorted(), forKey: key)
+    }
+}
+
+extension Project {
+    /// Deletes the project and its lines (its notes stay), remembering feed ids.
+    func remove(from context: ModelContext) {
+        Tombstones.bury([remoteID] + items.flatMap(\.family).map(\.remoteID))
+        context.delete(self)
+        try? context.save()
     }
 }
 

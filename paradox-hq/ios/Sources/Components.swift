@@ -10,7 +10,7 @@ struct MarkView: View {
             .resizable()
             .aspectRatio(contentMode: .fit)
             .frame(width: width)
-            .foregroundStyle(.white)
+            .foregroundStyle(Ink.head)
             .accessibilityLabel("Five stars times PARADOX")
     }
 }
@@ -24,8 +24,9 @@ struct Heading: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.largeTitle.bold())
-                    .foregroundStyle(.white)
+                    .font(.system(size: 34, weight: .semibold))
+                    .tracking(-0.8)
+                    .foregroundStyle(Ink.head)
                 Spacer(minLength: 8)
                 if !detail.isEmpty {
                     Text(detail)
@@ -35,7 +36,7 @@ struct Heading: View {
                 }
             }
             Rectangle()
-                .fill(.white)
+                .fill(Ink.head)
                 .frame(height: 1)
         }
         .accessibilityElement(children: .combine)
@@ -61,13 +62,17 @@ struct SectionHeader: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
+            // The Focus site's eyebrow: small, upper case, tracked out.
             Text(title)
-                .font(.footnote.weight(.semibold))
+                .font(.system(size: 12, weight: .semibold))
+                .textCase(.uppercase)
+                .tracking(0.9)
             Spacer(minLength: 8)
             if !trailing.isEmpty {
                 Text(trailing)
-                    .font(.footnote)
+                    .font(.system(size: 12, weight: .medium))
                     .monospacedDigit()
+                    .contentTransition(.numericText())
             }
         }
         .foregroundStyle(Ink.muted)
@@ -160,9 +165,9 @@ struct WhiteButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.headline)
-            .foregroundStyle(.black)
+            .foregroundStyle(Ink.buttonInk)
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Ink.button, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.35)
             .scaleEffect(configuration.isPressed ? 0.98 : 1)
             .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
@@ -184,7 +189,7 @@ struct QuietButtonStyle: ButtonStyle {
 /// it swells, freezes for a few frames at full size, then settles.
 struct Tick: View {
     let done: Bool
-    var color: Color = .white
+    var color: Color = Ink.head
     var size: CGFloat = 24
     @State private var hits = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -197,7 +202,7 @@ struct Tick: View {
                 Circle().fill(color)
                 Image(systemName: "checkmark")
                     .font(.system(size: size * 0.46, weight: .bold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Ink.buttonInk)
             }
         }
         .frame(width: size, height: size)
@@ -222,7 +227,7 @@ struct Tick: View {
 struct Meter: View {
     let done: Int
     let total: Int
-    var color: Color = .white
+    var color: Color = Ink.head
 
     var body: some View {
         GeometryReader { proxy in
@@ -257,10 +262,10 @@ struct ExampleBanner: View {
                 Spacer(minLength: 8)
                 Text("Connect")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Ink.buttonInk)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 34)
-                    .background(.white, in: Capsule())
+                    .background(Ink.button, in: Capsule())
             }
             .padding(12)
             .background(Ink.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -277,4 +282,103 @@ extension View {
             .padding(.top, 8)
             .padding(.bottom, 28)
     }
+}
+
+extension Animation {
+    /// The Focus site's one curve: quick off the mark, soft landing.
+    static let paradox = Animation.timingCurve(0.5, 0, 0, 0.75, duration: 0.33)
+}
+
+/// A figure set the way the Focus site sets numbers: medium weight, tracked in,
+/// ticking from one value to the next instead of jumping.
+struct Figure: ViewModifier {
+    let size: CGFloat
+    let value: Double
+
+    func body(content: Content) -> some View {
+        content
+            .font(.system(size: size, weight: .medium))
+            .tracking(-size * 0.025)
+            .monospacedDigit()
+            .contentTransition(.numericText(value: value))
+            .animation(.paradox, value: value)
+    }
+}
+
+/// Cards rise into place, one after another, the first time the screen shows.
+struct Rise: ViewModifier {
+    let step: Int
+    /// Once per launch: coming back to a tab shouldn't replay it.
+    static var played = false
+    @State private var shown = Rise.played
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown || reduceMotion ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : 16)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(.timingCurve(0.5, 0, 0, 0.75, duration: 0.6).delay(Double(step) * 0.08)) { shown = true }
+                Task {
+                    try? await Task.sleep(for: .seconds(1))
+                    Rise.played = true
+                }
+            }
+    }
+}
+
+/// The Focus lens's "hunt then lock", on the mark: it pulls in, snaps out,
+/// holds a squash for a beat (hit stop), and settles. Once per launch.
+struct Hunt: ViewModifier {
+    static var played = false
+    @State private var beat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .keyframeAnimator(initialValue: CGSize(width: 1, height: 1), trigger: beat) { view, scale in
+                view.scaleEffect(x: scale.width, y: scale.height, anchor: .leading)
+            } keyframes: { _ in
+                KeyframeTrack {
+                    LinearKeyframe(CGSize(width: 0.94, height: 0.94), duration: 0.18)
+                    LinearKeyframe(CGSize(width: 1.04, height: 0.97), duration: 0.07)
+                    LinearKeyframe(CGSize(width: 1.04, height: 0.97), duration: 0.09)
+                    SpringKeyframe(CGSize(width: 1, height: 1), duration: 0.4, spring: .bouncy)
+                }
+            }
+            .sensoryFeedback(.impact(weight: .light), trigger: beat)
+            .onAppear {
+                guard !Hunt.played, !reduceMotion else { return }
+                Hunt.played = true
+                Task {
+                    try? await Task.sleep(for: .milliseconds(250))
+                    beat += 1
+                }
+            }
+    }
+}
+
+/// The ground colour runs up under the clock and fades out just below it, so
+/// what scrolls up never collides with the status bar.
+struct StatusBarFade: ViewModifier {
+    func body(content: Content) -> some View {
+        content.overlay(alignment: .top) {
+            VStack(spacing: 0) {
+                Ink.ground
+                    .frame(height: 0)
+                    .background(Ink.ground.ignoresSafeArea(edges: .top))
+                LinearGradient(colors: [Ink.ground, Ink.ground.opacity(0)], startPoint: .top, endPoint: .bottom)
+                    .frame(height: 14)
+            }
+            .allowsHitTesting(false)
+        }
+    }
+}
+
+extension View {
+    func statusBarFade() -> some View { modifier(StatusBarFade()) }
+    func figure(_ size: CGFloat, value: Double) -> some View { modifier(Figure(size: size, value: value)) }
+    func rise(_ step: Int) -> some View { modifier(Rise(step: step)) }
+    func hunt() -> some View { modifier(Hunt()) }
 }

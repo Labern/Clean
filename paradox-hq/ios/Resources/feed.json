@@ -7,7 +7,7 @@
       "stage": "0.19.9",
       "symbol": "scope",
       "tint": "A78BFA",
-      "link": "https://paradoxica.uk/focus",
+      "link": "https://paradoxica.co.uk/focus",
       "items": [
         { "id": "focus-devid", "title": "Developer ID certificate", "notes": "Needed to notarise the app before it can be sold." },
         { "id": "focus-stripe", "title": "Stripe live", "children": [

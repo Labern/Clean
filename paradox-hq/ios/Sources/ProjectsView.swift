@@ -1,20 +1,59 @@
 import SwiftUI
 import SwiftData
 
-/// Everything being built, and what each one needs next.
+/// The To-do tab: your own list, and beside it every project being built.
 struct ProjectsView: View {
     @Environment(FeedSync.self) private var feed
     @Environment(\.modelContext) private var context
     @Query(sort: \Project.order) private var projects: [Project]
     @State private var adding = false
     @State private var path = NavigationPath()
+    @AppStorage("lists-pane") private var pane: Pane = .todo
+
+    enum Pane: String, CaseIterable, Identifiable {
+        case todo = "To-do", projects = "Projects"
+        var id: String { rawValue }
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
+            Group {
+                if pane == .todo, let mine = projects.first(where: \.isPersonal) {
+                    ProjectDetail(project: mine)
+                } else {
+                    projectList
+                }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Picker("Show", selection: $pane.animation(.snappy)) {
+                    ForEach(Pane.allCases) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .padding(.horizontal, 16)
+                .padding(.top, 6)
+                .padding(.bottom, 8)
+                .background(Ink.ground)
+                .sensoryFeedback(.selection, trigger: pane)
+            }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: Project.self) { ProjectDetail(project: $0) }
+            .navigationDestination(for: Note.self) { NoteEditor(note: $0) }
+            .sheet(isPresented: $adding) { ProjectEditor(project: nil) }
+            .onAppear {
+                // The cloud build opens straight into the first project to photograph it.
+                if Launch.screen == "project", path.isEmpty, let first = projects.first(where: { !$0.isPersonal }) {
+                    pane = .projects
+                    path.append(first)
+                }
+            }
+        }
+    }
+
+    private var projectList: some View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Heading(title: "Projects", detail: summary)
-                    ForEach(projects) { project in
+                    ForEach(projects.filter { !$0.isPersonal }) { project in
                         NavigationLink(value: project) {
                             ProjectCard(project: project)
                         }
@@ -36,23 +75,14 @@ struct ProjectsView: View {
                 .page()
             }
             .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .statusBarFade()
             .background(Ink.ground)
-            .toolbar(.hidden, for: .navigationBar)
             .refreshable { await feed.pull(into: context) }
-            .navigationDestination(for: Project.self) { ProjectDetail(project: $0) }
-            .navigationDestination(for: Note.self) { NoteEditor(note: $0) }
-            .sheet(isPresented: $adding) { ProjectEditor(project: nil) }
-            .onAppear {
-                // The cloud build opens straight into the first project to photograph it.
-                if Launch.screen == "project", path.isEmpty, let first = projects.first(where: { !$0.isPersonal }) {
-                    path.append(first)
-                }
-            }
-        }
     }
 
     private var summary: String {
-        let open = projects.reduce(0) { $0 + $1.tally.total - $1.tally.done }
+        let open = projects.filter { !$0.isPersonal }.reduce(0) { $0 + $1.tally.total - $1.tally.done }
         return open == 0 ? "All done" : "\(open) open"
     }
 }
@@ -62,7 +92,7 @@ struct ProjectCard: View {
 
     var body: some View {
         let tally = project.tally
-        let tint = Color(hex: UInt32(project.tint))
+        let tint = Ink.tint(project.tint)
         Card {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
@@ -74,7 +104,7 @@ struct ProjectCard: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(project.name)
                             .font(.title3.weight(.semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Ink.head)
                             .lineLimit(1)
                         if !project.summary.isEmpty {
                             Text(project.summary)
@@ -127,7 +157,7 @@ struct ProjectDetail: View {
     @State private var freshNote: Note? = nil
 
     var body: some View {
-        let tint = Color(hex: UInt32(project.tint))
+        let tint = Ink.tint(project.tint)
         let open = project.openItems
         let done = project.doneItems
         let tally = project.tally
@@ -170,9 +200,8 @@ struct ProjectDetail: View {
                 OutlineSection(lines: open, tint: tint, drafting: $drafting) { opened = $0 }
             } header: {
                 Text(project.isPersonal ? "To do" : "Focus")
-                    .font(.footnote.weight(.semibold))
+                    .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
                     .foregroundStyle(Ink.muted)
-                    .textCase(nil)
             }
 
             ProjectNotes(project: project) {
@@ -185,13 +214,13 @@ struct ProjectDetail: View {
                 Section {
                     if showDone {
                         ForEach(done) { item in
-                            OutlineLine(item: item, tint: tint) { opened = item }
+                            OutlineLine(item: item, tint: tint, showsFold: false) { opened = item }
                                 .listRowInsets(EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 10))
                                 .listRowBackground(Ink.surface)
                                 .listRowSeparatorTint(Ink.line)
                                 .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) {
-                                        withAnimation { context.delete(item) }
+                                        withAnimation { item.remove(from: context) }
                                     } label: {
                                         Label("Delete", systemImage: "trash")
                                     }
@@ -209,9 +238,8 @@ struct ProjectDetail: View {
                             Image(systemName: showDone ? "chevron.down" : "chevron.right")
                                 .font(.caption2.weight(.bold))
                         }
-                        .font(.footnote.weight(.semibold))
+                        .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
                         .foregroundStyle(Ink.muted)
-                        .textCase(nil)
                     }
                     .buttonStyle(.plain)
                 }
@@ -220,6 +248,7 @@ struct ProjectDetail: View {
         .listStyle(.insetGrouped)
         .contentMargins(.top, 0, for: .scrollContent)
         .scrollContentBackground(.hidden)
+        .scrollDismissesKeyboard(.interactively)
         .background(Ink.ground)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -258,9 +287,9 @@ struct AddBar: View {
             Button(action: add) {
                 Image(systemName: "plus")
                     .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(Ink.buttonInk)
                     .frame(width: 46, height: 46)
-                    .background(.white, in: Circle())
+                    .background(Ink.button, in: Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Add")
@@ -272,7 +301,10 @@ struct AddBar: View {
 
     private func add() {
         let title = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
+        guard !title.isEmpty else {
+            focused = false
+            return
+        }
         withAnimation(.snappy) {
             let item = FocusItem(title: title, order: project.nextOrder)
             context.insert(item)
@@ -322,9 +354,9 @@ struct ProjectEditor: View {
                             } label: {
                                 Image(systemName: name)
                                     .font(.system(size: 17, weight: .semibold))
-                                    .foregroundStyle(symbol == name ? Color.black : Ink.body)
+                                    .foregroundStyle(symbol == name ? Ink.buttonInk : Ink.body)
                                     .frame(width: 44, height: 44)
-                                    .background(symbol == name ? Color.white : Ink.surface2,
+                                    .background(symbol == name ? Ink.button : Ink.surface2,
                                                 in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                             }
                             .buttonStyle(.plain)
@@ -340,11 +372,11 @@ struct ProjectEditor: View {
                                 tint = value
                             } label: {
                                 Circle()
-                                    .fill(Color(hex: UInt32(value)))
+                                    .fill(Ink.tint(value))
                                     .frame(width: 30, height: 30)
                                     .padding(4)
                                     .overlay {
-                                        Circle().strokeBorder(.white, lineWidth: tint == value ? 2 : 0)
+                                        Circle().strokeBorder(Ink.head, lineWidth: tint == value ? 2 : 0)
                                     }
                             }
                             .buttonStyle(.plain)
@@ -359,6 +391,7 @@ struct ProjectEditor: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle(project == nil ? "New project" : "Project")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -372,9 +405,14 @@ struct ProjectEditor: View {
             }
             .confirmationDialog("Delete this project and everything in it?", isPresented: $confirming, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
-                    if let project { context.delete(project) }
+                    // Close the editor and leave the project's page before it goes.
+                    let doomed = project
                     dismiss()
                     deleted()
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(500))
+                        doomed?.remove(from: context)
+                    }
                 }
             }
             .onAppear(perform: load)

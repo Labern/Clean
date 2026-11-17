@@ -112,6 +112,8 @@ struct NotesView: View {
             .listStyle(.insetGrouped)
             .contentMargins(.top, 0, for: .scrollContent)
             .scrollContentBackground(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .statusBarFade()
             .background(Ink.ground)
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Note.self) { NoteEditor(note: $0) }
@@ -119,14 +121,18 @@ struct NotesView: View {
                 Button(action: write) {
                     Image(systemName: "square.and.pencil")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(Ink.buttonInk)
                         .frame(width: 58, height: 58)
-                        .background(.white, in: Circle())
+                        .background(Ink.button, in: Circle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("New note")
                 .padding(.trailing, 18)
                 .padding(.bottom, 10)
+            }
+            .onChange(of: filed.map(\.persistentModelID)) { _, ids in
+                // A chosen project that no longer has notes lets go, rather than leaving an empty list.
+                if let chosen = only, !ids.contains(chosen.persistentModelID) { only = nil }
             }
             .onAppear {
                 // The cloud build opens straight into a note to photograph the editor.
@@ -139,9 +145,8 @@ struct NotesView: View {
 
     private func label(_ text: String) -> some View {
         Text(text)
-            .font(.footnote.weight(.semibold))
+            .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
             .foregroundStyle(Ink.muted)
-            .textCase(nil)
     }
 
     private func write() {
@@ -188,9 +193,9 @@ struct ProjectChips: View {
     var body: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 8) {
-                chip("All", color: .white, on: only == nil) { only = nil }
+                chip("All", color: Ink.head, on: only == nil) { only = nil }
                 ForEach(projects) { project in
-                    chip(project.name, color: Color(hex: UInt32(project.tint)), on: only === project) {
+                    chip(project.name, color: Ink.tint(project.tint), on: only === project) {
                         only = only === project ? nil : project
                     }
                 }
@@ -209,10 +214,10 @@ struct ProjectChips: View {
                 Text(title).lineLimit(1)
             }
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(on ? Color.black : Ink.body)
+            .foregroundStyle(on ? Ink.buttonInk : Ink.body)
             .padding(.horizontal, 12)
             .frame(minHeight: 34)
-            .background(on ? Color.white : Ink.surface2, in: Capsule())
+            .background(on ? Ink.button : Ink.surface2, in: Capsule())
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(on ? .isSelected : [])
@@ -243,7 +248,7 @@ struct NoteRow: View {
                         .foregroundStyle(Ink.muted)
                     if let project = note.project {
                         Text(project.name)
-                            .foregroundStyle(Color(hex: UInt32(project.tint)))
+                            .foregroundStyle(Ink.tint(project.tint))
                     }
                     if !snippet.isEmpty {
                         Text(snippet)
@@ -260,7 +265,10 @@ struct NoteRow: View {
         .listRowSeparatorTint(Ink.line)
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
-                context.delete(note)
+                withAnimation {
+                    context.delete(note)
+                    try? context.save()
+                }
             } label: {
                 Label("Delete", systemImage: "trash")
             }
@@ -298,20 +306,20 @@ struct NotesChart: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(picked.map { Self.count($0.amount) } ?? "\(Self.count(total)) in 30 days")
                     .font(.footnote.weight(.semibold))
-                    .foregroundStyle(picked == nil ? Ink.muted : Color.white)
+                    .foregroundStyle(picked == nil ? Ink.muted : Ink.head)
                     .monospacedDigit()
                 Spacer(minLength: 8)
                 if let picked {
                     Text(picked.date, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
                         .font(.footnote)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Ink.head)
                 }
             }
             Chart(bars) { bar in
                 BarMark(x: .value("Day", bar.date, unit: .day),
                         y: .value("Notes", max(Double(bar.amount), 0.12)))
                     .cornerRadius(2)
-                    .foregroundStyle(bar.date == lit ? Color.white : Ink.violet.opacity(bar.amount == 0 ? 0.25 : 0.7))
+                    .foregroundStyle(bar.date == lit ? Ink.head : Ink.violet.opacity(bar.amount == 0 ? 0.25 : 0.7))
             }
             .chartXAxis(.hidden)
             .chartYAxis(.hidden)
@@ -363,6 +371,7 @@ struct NoteEditor: View {
     var body: some View {
         TextEditor(text: $note.text)
             .focused($typing)
+            .scrollDismissesKeyboard(.interactively)
             .font(.body)
             .foregroundStyle(Ink.body)
             .scrollContentBackground(.hidden)
@@ -414,10 +423,10 @@ struct NoteEditor: View {
                 if let madeToDo {
                     Text("Added to \(madeToDo)")
                         .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(Ink.buttonInk)
                         .padding(.horizontal, 16)
                         .frame(minHeight: 40)
-                        .background(.white, in: Capsule())
+                        .background(Ink.button, in: Capsule())
                         .padding(.bottom, 16)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
@@ -425,8 +434,14 @@ struct NoteEditor: View {
             .sensoryFeedback(.success, trigger: madeToDo) { _, new in new != nil }
             .confirmationDialog("Delete this note?", isPresented: $deleting, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
-                    context.delete(note)
+                    // Leave the note first, so the editor never draws one that's gone.
+                    let doomed = note
                     dismiss()
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(450))
+                        context.delete(doomed)
+                        try? context.save()
+                    }
                 }
             }
             .onChange(of: note.text) { _, _ in
@@ -455,15 +470,14 @@ struct ProjectNotes: View {
             ForEach(notes) { NoteRow(note: $0) }
             Button(action: write) {
                 Label("New note", systemImage: "square.and.pencil")
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Ink.head)
             }
             .listRowBackground(Ink.surface)
             .listRowSeparatorTint(Ink.line)
         } header: {
             Text("Notes")
-                .font(.footnote.weight(.semibold))
+                .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
                 .foregroundStyle(Ink.muted)
-                .textCase(nil)
         }
     }
 }

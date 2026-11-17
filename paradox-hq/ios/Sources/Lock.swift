@@ -3,9 +3,31 @@ import LocalAuthentication
 import Observation
 
 /// Face ID (or the passcode) stands between the Home Screen and the figures.
-/// The app locks at launch and again after half a minute away.
+/// It asks only when the app has been out of use for a while (an hour unless
+/// changed in Company), not every time it's opened.
 @Observable final class AppLock {
-    static let away: TimeInterval = 30
+    /// The choices for how long the app can be away before it asks again.
+    static let choices: [(title: String, seconds: TimeInterval)] = [
+        ("1 minute", 60), ("15 minutes", 900), ("1 hour", 3600), ("4 hours", 14_400), ("1 day", 86_400),
+    ]
+
+    static var away: TimeInterval {
+        get { UserDefaults.standard.object(forKey: "lock-after") as? Double ?? 3600 }
+        set { UserDefaults.standard.set(newValue, forKey: "lock-after") }
+    }
+
+    /// The last moment the app was open and unlocked. Kept across launches, so
+    /// closing and reopening the app soon after doesn't ask again.
+    static var lastSeen: Date? {
+        get { UserDefaults.standard.object(forKey: "lock-last-seen") as? Date }
+        set { UserDefaults.standard.set(newValue, forKey: "lock-last-seen") }
+    }
+
+    /// True when it has been long enough since the app was last open to ask again.
+    nonisolated static func due(lastSeen: Date?, now: Date, after: TimeInterval) -> Bool {
+        guard let lastSeen else { return true }
+        return now.timeIntervalSince(lastSeen) > after
+    }
 
     var locked: Bool
     var asking = false
@@ -18,7 +40,7 @@ import Observation
     }
 
     init() {
-        locked = Self.enabled && !Launch.unlocked
+        locked = Self.enabled && !Launch.unlocked && Self.due(lastSeen: Self.lastSeen, now: .now, after: Self.away)
     }
 
     /// The symbol for whatever this phone unlocks with.
@@ -57,14 +79,16 @@ import Observation
         asking = false
         locked = !passed
         refused = !passed
+        if passed { Self.lastSeen = .now }
     }
 
     func changed(to phase: ScenePhase) {
         switch phase {
         case .background:
             if leftAt == nil { leftAt = .now }
+            if !locked { Self.lastSeen = .now }
         case .active:
-            if let leftAt, Date.now.timeIntervalSince(leftAt) > Self.away { lock() }
+            if let leftAt, Self.due(lastSeen: leftAt, now: .now, after: Self.away) { lock() }
             leftAt = nil
         default:
             break
