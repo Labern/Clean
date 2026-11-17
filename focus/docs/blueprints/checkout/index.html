@@ -1,0 +1,466 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Focus Pro – Checkout</title>
+<link rel="icon" href="../favicon-32.png" sizes="32x32" type="image/png">
+<!-- DUMMY checkout, laid out like Stripe Checkout. Nothing is sent anywhere: no form action, no network calls.
+     When the real Stripe link exists, point the Buy Now buttons in ../index.html at it and delete this folder. -->
+<style>
+:root{
+  --ink:#1a1a1a; --ink-2:rgba(26,26,26,.7); --ink-3:rgba(26,26,26,.5); --line:#e0e0e0; --line-2:#d9d9d9;
+  --field:#fff; --bg:#fff; --side:#fff; --accent:#5a31f4; --pay:#5a31f4; --pay-h:#4a23d6; --err:#df1b41;
+  --focus:rgba(90,49,244,.25);
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Ubuntu,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box;margin:0}
+html,body{background:var(--bg)}
+body{font:400 14px/1.4 var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;min-height:100vh}
+a{color:inherit;text-decoration:none}
+button{font:inherit}
+
+/* two panes, Stripe's split: summary left, payment right, a hairline shadow down the middle */
+.app{display:grid;grid-template-columns:1fr 1fr;min-height:100vh}
+.summary{display:flex;justify-content:flex-end;padding:64px 56px 32px;position:relative;z-index:1;background:#000;color:#fff;
+  --ink:#fff;--ink-2:rgba(255,255,255,.72);--ink-3:rgba(255,255,255,.48);--line:rgba(255,255,255,.14);--line-2:rgba(255,255,255,.2)}
+.summary .back svg{stroke:rgba(255,255,255,.55)}.summary .back:hover svg{stroke:#fff}
+.summary .logo{background:#1a1a1a;box-shadow:inset 0 0 0 1px rgba(255,255,255,.14)}
+.appicon{width:112px;height:112px;margin:8px 0 28px;filter:drop-shadow(0 18px 40px rgba(255,255,255,.07))}
+.appicon svg{display:block;width:100%;height:100%}
+.intro{display:flex;align-items:center;gap:22px;margin:4px 0 28px}
+.intro .appicon{margin:0;flex:none;width:96px;height:96px}
+.pitch{margin:0;font:500 15px/1.5 var(--sans);color:var(--ink-2);max-width:32ch}
+.pitch p+p{margin-top:12px}
+.pitch .last{display:block;margin-top:6px;color:#fff}
+.sns{display:inline-block;padding:.22em .6em;margin:0 .1em;border-radius:.35em;background:rgba(255,255,255,.9);color:#000;
+  font:600 .82em/1.25 var(--sans);letter-spacing:-.005em;white-space:nowrap;vertical-align:.08em}
+.pay{display:flex;justify-content:flex-start;padding:64px 56px 32px}
+.col{width:100%;max-width:380px;display:flex;flex-direction:column}
+
+/* header: back arrow, merchant mark + name, test-mode pill */
+.hd{display:flex;align-items:center;gap:10px;height:28px;margin-bottom:32px}
+.back{display:flex;align-items:center;gap:10px;color:var(--ink);border-radius:4px;padding:2px 4px 2px 0}
+.back svg{width:16px;height:16px;fill:none;stroke:var(--ink-3);stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:stroke .15s}
+.back:hover svg{stroke:var(--ink)}
+.logo{width:28px;height:28px;border-radius:50%;background:#000;display:grid;place-items:center;flex:none;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.logo svg{width:16px;height:16px}
+.mname{font-weight:500;font-size:14px}
+.test{margin-left:4px;background:rgba(255,222,146,.16);color:#ffd27a;font:600 11px/1 var(--sans);letter-spacing:.02em;text-transform:uppercase;padding:4px 6px;border-radius:4px}
+
+.tier-badge{display:inline-block;margin-left:.2em;padding:.14em .34em .12em;border-radius:.16em;background:#fff;color:#000;font-size:.72em;font-weight:600;line-height:1;letter-spacing:.01em;vertical-align:.12em}
+.thanks .tier-badge{background:#000;color:#fff}
+.ptitle{color:var(--ink-2);font-weight:500;font-size:16px}
+.total small{font:500 15px/1 var(--sans);color:var(--ink-2);letter-spacing:0;margin-left:6px}
+/* plan: one-off or monthly, a segmented switch like Stripe's */
+.plan{display:grid;grid-template-columns:1fr;gap:8px;margin-top:24px;max-width:380px}
+.plan button{all:unset;box-sizing:border-box;cursor:pointer;padding:12px 14px;border-radius:8px;box-shadow:inset 0 0 0 1px var(--line-2);transition:box-shadow .15s,background .15s}
+.plan button:hover{box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)}
+.plan button[aria-pressed="true"]{box-shadow:inset 0 0 0 2px #fff;background:rgba(255,255,255,.06)}
+.plan b{display:block;font:600 14px/1.2 var(--sans);color:#fff}
+.plan span{display:block;font:400 13px/1.3 var(--sans);color:var(--ink-3);margin-top:3px}
+#pOnce{position:relative}#pOnce .tag{position:absolute;top:50%;right:14px;transform:translateY(-50%);margin:0}#pOnce{padding-right:150px}
+.plan .tag{display:inline-block;margin-left:6px;font:600 10px/1 var(--sans);letter-spacing:.04em;text-transform:uppercase;color:#000;background:#fff;border-radius:3px;padding:3px 4px;vertical-align:1px}
+.gift{margin-top:16px;max-width:380px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--ink-2)}
+.gift[hidden]{display:none}
+.gift-code{display:inline-flex;align-items:center;border:1.5px dashed rgba(255,255,255,.6);border-radius:6px;overflow:hidden}
+.gift-code b{font:600 13px/1 var(--sans);letter-spacing:.12em;padding:9px 10px;color:#fff}
+.gift-code button{all:unset;cursor:pointer;font:600 12px/1 var(--sans);padding:9px 12px;background:#fff;color:#000;align-self:stretch;display:flex;align-items:center}
+.gift-code button:hover{background:#e8e8e8}
+.gift.on .gift-code{border-color:#4ade80}.gift.on .gift-code button{background:#4ade80;cursor:default}
+.total .was{font-weight:500;color:var(--ink-3);text-decoration-thickness:2px;margin-right:12px}
+.total{font:600 36px/1.15 var(--sans);letter-spacing:-.03em;margin-top:2px;font-variant-numeric:tabular-nums}
+.line{display:flex;gap:16px;align-items:flex-start;margin-top:32px}
+.thumb{width:42px;height:42px;flex:none}
+.thumb svg{width:42px;height:42px;display:block}
+.line .nm{font-weight:500;font-size:14px}
+.line .ds{color:var(--ink-3);font-size:12px;margin-top:2px}
+.line .pr{margin-left:auto;font-weight:500;font-variant-numeric:tabular-nums}
+.sums{margin-top:24px;margin-left:58px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+.sums div{display:flex;justify-content:space-between;padding:12px 0;font-weight:500}
+.sums div+div{border-top:1px solid var(--line)}
+.sums [hidden]{display:none}
+.sums .muted{color:var(--ink-2);font-weight:400}
+.sums .muted span:last-child{color:var(--ink-3)}
+
+.foot{margin-top:auto;padding-top:48px;display:flex;align-items:center;gap:12px;color:var(--ink-3);font-size:12px}
+.foot .pw{display:flex;align-items:center;gap:4px;padding-right:12px;border-right:1px solid var(--line-2)}
+.foot .pw b{font:700 13px/1 var(--sans);letter-spacing:-.02em;color:var(--ink-3)}
+.foot a:hover{color:var(--ink-2)}
+
+/* express pay */
+.xpay{height:44px;width:100%;border:0;border-radius:6px;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;font:500 17px/1 var(--sans)}
+.xpay:hover{background:#222}
+.xpay svg{width:17px;height:20px;fill:#fff;margin-top:-3px}
+.or{display:flex;align-items:center;gap:12px;color:var(--ink-3);font-size:14px;margin:24px 0}
+.or::before,.or::after{content:"";flex:1;height:1px;background:var(--line)}
+
+/* fields: Stripe groups card number / expiry / CVC into one bordered block */
+label.lb,.lb{display:block;font-weight:500;font-size:13px;color:var(--ink-2);margin:0 0 6px}
+.grp{margin-bottom:16px}
+.box{border-radius:6px;box-shadow:0 0 0 1px var(--line),0 2px 4px rgba(0,0,0,.07),0 1px 1.5px rgba(0,0,0,.03);background:var(--field)}
+.row{display:flex}
+.row+.row{border-top:1px solid var(--line)}
+.row>*+*{border-left:1px solid var(--line)}
+input,select{appearance:none;-webkit-appearance:none;border:0;outline:0;background:transparent;width:100%;height:42px;padding:0 12px;
+  font:400 16px/1 var(--sans);color:var(--ink)}
+input::placeholder{color:rgba(26,26,26,.38)}
+.cell{position:relative;flex:1;display:flex;align-items:center;border-radius:0}
+.cell:focus-within,.box.single:focus-within{z-index:1;box-shadow:0 0 0 1px var(--accent),0 0 0 4px var(--focus);border-radius:6px}
+.box.single:focus-within{box-shadow:0 0 0 1px var(--accent),0 0 0 4px var(--focus)}
+.brands{display:flex;gap:4px;padding-right:12px;flex:none}
+.brands span{width:24px;height:16px;border-radius:2px;display:grid;place-items:center;font:800 7px/1 var(--sans);color:#fff;letter-spacing:.02em}
+.b-visa{background:#1a1f71;font-style:italic;font-size:8px !important}
+.b-mc{background:#fff;box-shadow:inset 0 0 0 1px #e3e8ee}
+.b-mc i{display:block;width:9px;height:9px;border-radius:50%;background:#eb001b;margin-right:-3px}
+.b-mc i+i{background:#f79e1b;opacity:.9;margin:0 0 0 -3px}
+.b-mc{display:flex !important;align-items:center;justify-content:center}
+.b-amex{background:#1f72cd}
+.cvc-i{width:22px;height:15px;margin-right:12px;flex:none}
+select{padding-right:32px;background:no-repeat right 12px center/12px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 4.5 6 8l3.5-3.5' fill='none' stroke='%231a1a1a' stroke-opacity='.6' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+.promo-open{all:unset;cursor:pointer;color:var(--accent);font-weight:500;font-size:14px}
+.promo-open:hover{text-decoration:underline}
+.promo [hidden]{display:none !important}
+.promo-row{display:flex;gap:8px}.promo-row[hidden]{display:none}
+.promo-row .box{flex:1}
+.promo-row input{text-transform:uppercase;letter-spacing:.06em}
+.promo-apply{all:unset;cursor:pointer;padding:0 16px;border-radius:6px;font-weight:600;font-size:14px;color:var(--accent);box-shadow:0 0 0 1px var(--line)}
+.promo-apply:hover{background:#f6f9fc}
+.promo-on{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--ink-2)}.promo-on[hidden]{display:none}
+.promo-tag{font:600 12px/1 var(--sans);letter-spacing:.08em;padding:6px 8px;border-radius:4px;background:#e8f7ee;color:#1a7f45;border:1px dashed #1a7f45}
+.promo-x{all:unset;cursor:pointer;color:var(--ink-3);font-size:18px;line-height:1;margin-left:auto;padding:0 4px}
+#payment-element{min-height:180px}
+.pe-wait{font-size:14px;color:var(--ink-3);padding:14px 0}
+#express:empty{display:none}
+.paybtn:disabled{opacity:.55;cursor:default}
+.err{color:var(--err);font-size:13px;margin-top:6px;min-height:0}
+.cell.bad input,.box.bad input{color:var(--err)}
+
+.save{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:6px;padding:12px;margin:8px 0 24px;cursor:pointer}
+.save input{appearance:auto;-webkit-appearance:auto;width:14px;height:14px;margin-top:2px;flex:none;accent-color:var(--accent);padding:0}
+.save b{font-weight:500;font-size:13px;display:block}
+.save small{display:block;color:var(--ink-3);font-size:12px;margin-top:2px;line-height:1.4}
+
+.paybtn{position:relative;height:44px;width:100%;border:0;border-radius:6px;background:var(--pay);color:#fff;font:600 16px/1 var(--sans);cursor:pointer;
+  box-shadow:inset 0 0 0 1px rgba(50,50,93,.1),0 2px 5px rgba(50,50,93,.1),0 1px 1px rgba(0,0,0,.07);transition:background .15s,transform .1s;overflow:hidden}
+.paybtn:hover{background:var(--pay-h)}
+.paybtn:active{transform:scale(.99)}
+.paybtn .lbl,.paybtn .spin,.paybtn .ok{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;transition:opacity .25s,transform .25s}
+.paybtn .spin,.paybtn .ok{opacity:0;transform:translateY(8px)}
+.paybtn .spin i{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#fff;animation:sp .7s linear infinite}
+.paybtn.busy .lbl{opacity:0;transform:translateY(-8px)}
+.paybtn.busy .spin{opacity:1;transform:none}
+.paybtn.done{background:#00a86b}
+.paybtn.done .lbl,.paybtn.done .spin{opacity:0}
+.paybtn.done .ok{opacity:1;transform:none}
+.paybtn .ok svg{width:20px;height:20px;fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+@keyframes sp{to{transform:rotate(360deg)}}
+.legal{color:var(--ink-3);font-size:12px;text-align:center;margin-top:16px;line-height:1.5}
+
+/* success, the page Stripe redirects to after paying */
+.thanks{position:fixed;inset:0;background:#fff;display:grid;place-items:center;opacity:0;pointer-events:none;transition:opacity .4s;z-index:5;padding:24px}
+.thanks.on{opacity:1;pointer-events:auto}
+.thanks .card{text-align:center;max-width:360px}
+.thanks .tick{width:56px;height:56px;border-radius:50%;background:#00a86b;display:grid;place-items:center;margin:0 auto 20px}
+.thanks .tick svg{width:26px;height:26px;fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.thanks h1{font:600 24px/1.25 var(--sans);letter-spacing:-.02em}
+.thanks p{color:var(--ink-2);margin-top:8px;font-size:15px}
+.thanks .note{margin-top:16px;font-size:12px;color:var(--ink-3)}
+.thanks a.go{display:inline-flex;margin-top:24px;height:40px;align-items:center;padding:0 18px;border-radius:6px;background:#000;color:#fff;font-weight:500}
+
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .summary{justify-content:center;padding:24px 16px 32px}
+  .intro{gap:14px;margin:0 0 18px;text-align:left}
+  .summary .guar{margin-top:28px}
+  .intro .appicon{width:56px;height:56px}
+  .pitch{font-size:14px}
+  .summary{padding:16px 16px 20px}
+  .plan{margin-top:16px;width:100%;gap:6px}
+  .plan button{padding:10px 12px}
+  .plan{text-align:left}
+  .gift{justify-content:center;margin-top:12px}
+  .total{font-size:30px}
+  .pitch{margin:0}
+  .pay{justify-content:center;padding:20px 16px 40px}
+  .pay .or{margin:16px 0}
+  .col{max-width:480px}
+  .hd{margin-bottom:20px}
+  .summary .foot{display:none}
+  .line,.sums{display:none}
+  .summary .col{align-items:center;text-align:center}
+  .summary .hd{align-self:stretch}
+  .mfoot{display:flex !important;justify-content:center}
+}
+/* Stripe's wording and the legal links sit on the white side, under Pay */
+.summary .foot{display:flex}
+.guar{flex-direction:column;align-items:center;gap:8px;align-self:stretch;text-align:center;margin-top:56px;padding-top:0}
+.byline{display:flex;align-items:flex-start;gap:2px}.byline sup{font-size:9px;line-height:1;top:0;margin-top:-1px}.byline:hover{color:#fff}.byline:hover .maker{background:#fff}
+.gline{display:flex;align-items:center;gap:7px}.gline:hover{color:var(--ink-2)}
+.maker{display:block;width:150px;height:16px;background:rgba(255,255,255,.48);-webkit-mask:url(../../logo.svg) left center/contain no-repeat;mask:url(../../logo.svg) left center/contain no-repeat;transition:background .15s}
+.guar svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.mfoot{display:flex;justify-content:center;padding-top:20px;margin-top:0}
+@media (prefers-reduced-motion:reduce){*{transition:none !important;animation-duration:2s !important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- left: what you're buying -->
+  <section class="summary">
+    <div class="col">
+      <div class="hd">
+        <a class="back" href="../#buy" aria-label="Back to Focus">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>
+          <span class="logo" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.5" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="9" cy="9" r="3" fill="#fff"/></svg></span>
+          <span class="mname">Focus</span>
+        </a>
+        <span class="test" id="testPill" hidden title="Stripe test mode: no real card is charged">Test mode</span>
+      </div>
+      <div class="intro">
+        <div class="appicon" role="img" aria-label="Focus app icon"><svg viewBox="0 0 824 824" aria-hidden="true"><defs><linearGradient id="ig" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#292929"/><stop offset="1" stop-color="#0d0d0d"/></linearGradient></defs><rect x="1.5" y="1.5" width="821" height="821" rx="185" fill="url(#ig)" stroke="rgba(255,255,255,.14)" stroke-width="3"/><svg x="120" y="120" width="584" height="584" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.5" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="9" cy="9" r="3" fill="#fff"/></svg></svg></div>
+        <p class="pitch">Too many apps? Save them for later. <span class="last">The app Mac should come with.</span></p>
+      </div>
+      <div class="ptitle" id="ptitle">Focus <span class="tier-badge">Pro</span></div>
+      <div class="total" id="total">£50</div>
+      <div class="plan" role="group" aria-label="How to pay">
+        <button type="button" id="pMonthly" aria-pressed="true"><b>Monthly</b><span id="pMonthlySub">£5 a month · cancel any time</span></button>
+        <button type="button" id="pYearly" aria-pressed="false"><b>Yearly</b><span id="pYearlySub"></span></button>
+        <button type="button" id="pOnce" aria-pressed="false"><b>One-time purchase<i class="tag" style="font-style:normal">Best value</i></b><span id="pOnceSub">£50 for a limited time</span></button>
+      </div>
+      <div class="gift" id="gift" hidden><span id="giftLbl">Early adopter gift</span><span class="gift-code"><b id="giftCode">EARLY</b><button type="button" id="giftCopy">Copy</button></span></div>
+      <div class="line">
+        <div class="thumb" aria-hidden="true"><svg viewBox="0 0 824 824" aria-hidden="true"><defs><linearGradient id="ig2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#292929"/><stop offset="1" stop-color="#0d0d0d"/></linearGradient></defs><rect x="1.5" y="1.5" width="821" height="821" rx="185" fill="url(#ig2)" stroke="rgba(255,255,255,.14)" stroke-width="3"/><svg x="120" y="120" width="584" height="584" viewBox="0 0 18 18"><circle cx="9" cy="9" r="6.5" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="9" cy="9" r="3" fill="#fff"/></svg></svg></div>
+        <div><div class="nm" id="lineName">Focus <span class="tier-badge">Pro</span></div><div class="ds" id="lineDs">Buy once, own forever</div></div>
+        <div class="pr" id="linePrice">£50.00</div>
+      </div>
+      <div class="sums">
+        <div><span>Subtotal</span><span id="sub">£50.00</span></div>
+        <div class="muted" id="discRow" hidden><span id="discName">Discount</span><span id="disc"></span></div>
+        <div class="muted" id="renewRow" hidden><span>Then</span><span id="renew">£5.00 every month</span></div>
+        <div><span>Total due today</span><span id="due">£50.00</span></div>
+      </div>
+      <div class="foot guar">
+        <a class="gline" href="../terms/#refunds"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.5 2.5 3.5v4c0 3.4 2.3 6 5.5 7 3.2-1 5.5-3.6 5.5-7v-4z"/><path d="m5.5 8 1.8 1.8L10.7 6.4"/></svg>
+        <span>30-day money-back guarantee. No questions asked.</span></a>
+        <a class="byline" href="https://paradoxica.uk/" aria-label="★★★★★ × PARADOX™"><span class="maker"></span><sup>™</sup></a>
+      </div>
+    </div>
+  </section>
+
+  <!-- right: how you pay (dummy: never submits anywhere) -->
+  <section class="pay">
+    <form class="col" id="f" novalidate autocomplete="on">
+      <div id="express"></div>
+      <div class="or" id="orCard" hidden>Or pay with card</div>
+
+      <div class="grp">
+        <label class="lb" for="email">Email</label>
+        <div class="box single"><input id="email" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com"></div>
+        <div class="err" id="eEmail"></div>
+      </div>
+
+      <div class="grp promo" id="promo">
+        <button type="button" class="promo-open" id="promoOpen">Add promotion code</button>
+        <div class="promo-row" id="promoRow" hidden>
+          <div class="box single"><input id="promoIn" placeholder="Promotion code" autocapitalize="characters" spellcheck="false" aria-label="Promotion code"></div>
+          <button type="button" class="promo-apply" id="promoApply">Apply</button>
+        </div>
+        <div class="promo-on" id="promoOn" hidden><span class="promo-tag" id="promoTag"></span><span id="promoSave"></span><button type="button" class="promo-x" id="promoX" aria-label="Remove code">×</button></div>
+        <div class="err" id="promoErr"></div>
+      </div>
+
+      <div class="grp">
+        <span class="lb">Payment</span>
+        <div id="payment-element"><div class="pe-wait">Loading secure payment form…</div></div>
+        <div class="err" id="eCard"></div>
+      </div>
+
+
+      <button class="paybtn" id="payBtn" type="submit" disabled>
+        <span class="lbl">Pay</span><span class="spin"><i></i></span>
+        <span class="ok"><svg viewBox="0 0 24 24"><path d="M5 12.5 10 17.5 19.5 7"/></svg></span>
+      </button>
+      <p class="legal">By paying, you agree to PARADOXICA Ltd.'s terms. Payments are processed securely by Stripe.</p>
+      <div class="foot mfoot"><span class="pw">Powered by <b>stripe</b></span><span>PARADOXICA Ltd.</span><a href="../terms/">Terms</a><a href="../terms/">Privacy</a></div>
+    </form>
+  </section>
+</div>
+
+
+
+<script src="https://js.stripe.com/endive/stripe.js"></script>
+<script>
+/* pricing:tiers (generated from ../pricing.json by bin/focus-pricing) */const TIERS = {"pro": {"name": "Focus Pro", "monthly": 5, "yearly": 50, "once": 99, "gift": 50, "gift_label": "Early adopter gift", "gift_code": "EARLY"}};/* /pricing:tiers */
+// Focus checkout: our page, Stripe's fields. Checkout Sessions with ui_mode "elements" (Stripe.js endive).
+// The server (/api/stripe/session) makes a session for the chosen plan; Stripe's Payment Element and Express Checkout
+// collect the card / Apple Pay, so card details never touch our servers. Totals shown are Stripe's own.
+// Until /api/stripe is installed on the server, Pay goes to Stripe's own secure page for the plan (Payment Links, test
+// mode): Apple Pay, Google Pay, Link, PayPal, cards… and promotion codes (EARLY is passed along).
+const STRIPE_LINKS = { monthly: 'https://buy.stripe.com/test_5kQ14p9cPaAs5cdeRm3Ru00',
+                       yearly:  'https://buy.stripe.com/test_4gM5kF60DfUM9stbFa3Ru01',
+                       once:    'https://buy.stripe.com/test_8x2aEZgFh0ZSfQReRm3Ru03' };
+let hosted = false;
+const STRIPE_PK = 'pk_test_YOUR_PUBLISHABLE_KEY';
+const LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const API = LOCAL ? '/api/stripe' : 'https://paradoxica.co.uk/api/stripe';   // the API and its Stripe keys live on paradoxica.co.uk (it allows .uk)
+const $ = id => document.getElementById(id);
+const q = new URLSearchParams(location.search);
+const tier = TIERS[q.get('tier')] || TIERS.pro;
+let plan = ['monthly', 'yearly', 'once'].includes(q.get('plan')) && tier[q.get('plan')] ? q.get('plan') : 'once';
+let wantCode = (q.get('code') || '').toUpperCase() === (tier.gift_code || '#') ? tier.gift_code : '';
+if (STRIPE_PK.startsWith('pk_test_')) $('testPill').hidden = false;
+
+const PLAN = {
+  monthly: { per: '<small>per month</small>', ds: 'Billed monthly · cancel any time', lp: ' / mo', btn: 'Subscribe' },
+  yearly:  { per: '<small>per year</small>',  ds: 'Billed yearly · cancel any time',  lp: ' / yr', btn: 'Subscribe' },
+  once:    { per: '', ds: 'Buy once, own forever', lp: '', btn: null } };
+const badged = 'Focus <span class="tier-badge">' + tier.name.replace(/^Focus /, '') + '</span>';
+['ptitle', 'lineName'].forEach(id => $(id).innerHTML = badged);
+$('pMonthlySub').textContent = '£' + tier.monthly + ' a month · cancel any time';
+if (tier.yearly) $('pYearlySub').textContent = '£' + tier.yearly + ' a year · save ' + Math.round((1 - tier.yearly / (tier.monthly * 12)) * 100) + '%'; else $('pYearly').hidden = true;
+$('pOnceSub').textContent = tier.gift ? '£' + tier.gift + ' for a limited time' : '£' + tier.once + ' · buy once, own forever';
+if (tier.gift) {
+  document.querySelector('#pOnce .tag').textContent = 'Limited time offer';
+  $('gift').hidden = false; $('giftLbl').hidden = true; $('giftCode').textContent = tier.gift_code;
+  $('giftCopy').onclick = () => {   // one tap: copied, and applied to this checkout (switches to One-off)
+    try { navigator.clipboard.writeText(tier.gift_code); } catch (e) {}
+    $('giftCopy').textContent = 'Applied ✓'; $('gift').classList.add('on');
+    $('promoIn').value = tier.gift_code; applyCode(tier.gift_code); };
+}
+document.title = tier.name + ' – Checkout';
+
+const stripe = Stripe(STRIPE_PK);
+const appearance = {
+  theme: 'stripe',
+  variables: { colorPrimary: '#5a31f4', colorText: '#1a1a1a', colorTextSecondary: 'rgba(26,26,26,.7)', colorTextPlaceholder: 'rgba(26,26,26,.38)',
+    colorDanger: '#df1b41', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
+    fontSizeBase: '16px', borderRadius: '6px', spacingUnit: '4px' },
+  rules: { '.Input': { boxShadow: '0 0 0 1px #e0e0e0, 0 2px 4px rgba(0,0,0,.07), 0 1px 1.5px rgba(0,0,0,.03)', border: 'none', padding: '11px 12px' },
+           '.Input:focus': { boxShadow: '0 0 0 1px #5a31f4, 0 0 0 4px rgba(90,49,244,.25)' },
+           '.Label': { fontWeight: '500', fontSize: '13px', color: 'rgba(26,26,26,.7)' } } };
+
+let checkout = null, actions = null, payEl = null, exEl = null, exEl2 = null, generation = 0;
+function setBusy(b) { $('payBtn').classList.toggle('busy', b); }
+const whole = a => String(a).replace(/\.00(?!\d)/, '');   // the big price: £50, not £50.00
+function render(session) {
+  const P = PLAN[plan];
+  ['Monthly', 'Yearly', 'Once'].forEach(k => $('p' + k).setAttribute('aria-pressed', k.toLowerCase() === plan));
+  const total = session.total.total.amount, sub = session.total.subtotal.amount;
+  const d0 = (session.discountAmounts || [])[0];
+  $('total').innerHTML = (d0 && plan === 'once' ? '<s class="was">' + whole(sub) + '</s>' : '') + whole(total) + P.per;
+  const isGift = d0 && d0.promotionCode === tier.gift_code;
+  if (tier.gift) { $('gift').classList.toggle('on', !!isGift); $('giftCopy').textContent = isGift ? 'Applied ✓' : 'Copy'; }
+  $('lineDs').textContent = P.ds;
+  $('linePrice').textContent = (session.lineItems[0]?.subtotal?.amount || sub) + P.lp;
+  $('sub').textContent = sub; $('due').textContent = total;
+  const d = (session.discountAmounts || [])[0];
+  $('discRow').hidden = !d;
+  const dName = d ? (d.promotionCode && d.promotionCode === tier.gift_code ? tier.gift_label : (d.displayName && d.displayName !== d.promotionCode ? d.displayName : 'Discount')) : '';
+  if (d) { $('discName').textContent = (d.promotionCode ? d.promotionCode + ' · ' : '') + dName; $('disc').textContent = '−' + d.amount; }
+  $('renewRow').hidden = plan === 'once';
+  if (plan !== 'once') $('renew').textContent = (session.recurring?.dueNext?.total?.amount || session.lineItems[0]?.subtotal?.amount || sub) + (plan === 'monthly' ? ' every month' : ' every year');
+  $('payBtn').querySelector('.lbl').textContent = P.btn || 'Pay ' + total;
+  $('payBtn').disabled = !actions;   // Stripe validates on Pay and shows any problem in its own fields
+  // the code box mirrors what Stripe has applied
+  $('promoOn').hidden = !d;
+  if (d) { $('promoOpen').hidden = true; $('promoRow').hidden = true; $('promoTag').textContent = d.promotionCode || ''; $('promoSave').textContent = dName + ': −' + d.amount; }
+  else if ($('promoRow').hidden) $('promoOpen').hidden = false;
+  const u = new URL(location); u.searchParams.set('plan', plan); history.replaceState(null, '', u);
+}
+
+let giftOff = false;   // set when the buyer removes the code themselves
+async function start(p) {
+  if (p === 'once' && tier.gift && !giftOff) wantCode = tier.gift_code;
+  plan = p; const mine = ++generation;
+  $('payBtn').disabled = true; $('eCard').textContent = ''; $('promoErr').textContent = '';
+  try { payEl && payEl.destroy(); exEl && exEl.destroy(); } catch (e) {}
+  $('payment-element').innerHTML = '<div class="pe-wait">Loading secure payment form…</div>'; $('express').innerHTML = ''; $('orCard').hidden = true;
+  const secret = fetch(API + '/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan: p }) })
+    .then(r => r.json()).then(r => { if (!r.clientSecret) throw new Error(r.error || 'Payments are not available right now.'); return r.clientSecret; });
+  try {
+    checkout = stripe.initCheckoutElementsSdk({ clientSecret: secret, elementsOptions: { appearance } });
+    checkout.on('change', s => { if (mine === generation) render(s); });
+    $('payment-element').innerHTML = '';
+    payEl = checkout.createPaymentElement({ layout: { type: 'accordion', radios: 'never', spacedAccordionItems: true } });   // each method a full-width bar
+    payEl.mount('#payment-element');
+    // one Express Checkout Element only (Stripe allows a single instance): one full-width button per row
+    exEl = checkout.createExpressCheckoutElement({ buttonHeight: 44, layout: { maxColumns: 1, maxRows: 0, overflow: 'never' },
+      paymentMethods: { applePay: 'always', googlePay: 'always', paypal: 'auto', link: 'auto', klarna: 'auto' }, paymentMethodOrder: ['applePay', 'googlePay', 'paypal', 'link', 'klarna'] });
+    exEl.on('ready', ev => { $('orCard').hidden = !(ev.availablePaymentMethods && Object.values(ev.availablePaymentMethods).some(Boolean)); });
+    exEl.on('confirm', async ev => { const r = await actions.confirm({ expressCheckoutConfirmEvent: ev }); if (r.type === 'error') $('eCard').textContent = r.error.message; });
+    exEl.mount('#express');
+    const res = await checkout.loadActions();
+    if (mine !== generation) return;
+    if (res.type === 'error') throw new Error(res.error.message);
+    actions = res.actions;
+    const em = $('email').value.trim(); if (em) await actions.updateEmail(em);
+    if (wantCode && p === 'once') await applyCode(wantCode);
+    render(actions.getSession());
+  } catch (e) {
+    if (mine !== generation) return;
+    console.warn('checkout fell back:', e && e.message);
+    useHosted();
+  }
+}
+
+function hostedUrl() {
+  const u = new URL(STRIPE_LINKS[plan]);
+  const em = $('email').value.trim(); if (em) u.searchParams.set('prefilled_email', em);
+  if (wantCode && plan === 'once') u.searchParams.set('prefilled_promo_code', wantCode);
+  return u.toString();
+}
+function useHosted() {   // our page stays; the card details are taken on Stripe's page
+  hosted = true; actions = null;
+  ['Monthly', 'Yearly', 'Once'].forEach(k => $('p' + k).setAttribute('aria-pressed', k.toLowerCase() === plan));
+  const P = PLAN[plan], list = tier[plan], amt = plan === 'once' && wantCode ? tier.gift : list;
+  const gbp = n => '£' + n.toFixed(2);
+  $('total').innerHTML = (amt !== list ? '<s class="was">' + whole(gbp(list)) + '</s>' : '') + whole(gbp(amt)) + P.per; $('lineDs').textContent = P.ds; $('linePrice').textContent = gbp(list) + P.lp;
+  $('sub').textContent = gbp(list); $('due').textContent = gbp(amt);
+  $('discRow').hidden = amt === list;
+  if (amt !== list) { $('discName').textContent = tier.gift_code + ' · ' + tier.gift_label; $('disc').textContent = '−' + gbp(list - amt); }
+  $('renewRow').hidden = plan === 'once'; if (plan !== 'once') $('renew').textContent = gbp(list) + (plan === 'monthly' ? ' every month' : ' every year');
+  $('promoOn').hidden = !(amt !== list);
+  if (amt !== list) { $('promoOpen').hidden = true; $('promoRow').hidden = true; $('promoTag').textContent = tier.gift_code; $('promoSave').textContent = tier.gift_label + ': −' + gbp(list - amt); }
+  else if ($('promoRow').hidden) $('promoOpen').hidden = false;
+  $('payment-element').innerHTML = '<div class="pe-wait">Apple Pay, Google Pay, Link, PayPal, cards and more on Stripe’s secure page.</div>';
+  $('payBtn').querySelector('.lbl').textContent = (P.btn || 'Pay ' + gbp(amt)) + ' with Stripe';
+  $('payBtn').disabled = false;
+  const u = new URL(location); u.searchParams.set('plan', plan); history.replaceState(null, '', u);
+}
+async function applyCode(code) {
+  $('promoErr').textContent = '';
+  if (!code) return;
+  if (hosted) { if (code === tier.gift_code) { wantCode = code; plan = 'once'; useHosted(); } else $('promoErr').textContent = 'This code is invalid.'; return; }
+  if (tier.gift_code && code === tier.gift_code && plan !== 'once') { wantCode = code; start('once'); return; }   // EARLY is for the one-off
+  const r = await actions.applyPromotionCode(code);
+  if (r.type === 'error') $('promoErr').textContent = r.error.message || 'This code is invalid.';
+}
+$('promoOpen').onclick = () => { $('promoOpen').hidden = true; $('promoRow').hidden = false; $('promoIn').focus(); };
+$('promoApply').onclick = () => applyCode($('promoIn').value.trim().toUpperCase());
+$('promoIn').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyCode($('promoIn').value.trim().toUpperCase()); } });
+$('promoX').onclick = async () => { wantCode = ''; giftOff = true; $('gift').classList.remove('on'); $('giftCopy').textContent = 'Copy'; $('promoIn').value = ''; if (hosted) useHosted(); else await actions.removePromotionCode(); };
+if (!tier.gift) $('promo').hidden = false;
+
+$('email').addEventListener('change', async () => {
+  const em = $('email').value.trim(); $('eEmail').textContent = '';
+  if (actions && em) { const r = await actions.updateEmail(em); if (r.type === 'error') $('eEmail').textContent = r.error.message; }
+});
+['Monthly', 'Yearly', 'Once'].forEach(k => $('p' + k).onclick = () => { const p = k.toLowerCase(); if (p === plan) return; if (p === 'once') giftOff = false; if (hosted) { plan = p; useHosted(); } else start(p); });
+
+$('f').addEventListener('submit', async e => {
+  e.preventDefault();
+  if (hosted) { location.href = hostedUrl(); return; }
+  if (!actions || $('payBtn').disabled) return;
+  const em = $('email').value.trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) { $('eEmail').textContent = 'Enter your email for the receipt and licence.'; $('email').focus(); return; }
+  setBusy(true); $('eCard').textContent = '';
+  const r = await actions.confirm({ email: em });   // success redirects to checkout/done/
+  setBusy(false);
+  if (r.type === 'error') $('eCard').textContent = r.error.message;
+});
+start(plan);
+</script>
+</body>
+</html>

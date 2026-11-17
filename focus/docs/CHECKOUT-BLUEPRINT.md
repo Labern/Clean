@@ -2,7 +2,8 @@
 
 Labern, 17 Nov 2026, of the live Focus checkout (paradoxica.uk/focus/checkout, real Stripe): "the layout, the design,
 and the touches are so good. Save this as my blueprint going forward for all apps… I love it. It's really fucking good."
-Every app under the brand sells through a checkout built like this. Source: Labern/paradoxica-hub,
+Every app under the brand sells through a checkout built like this. The code is saved beside this file in
+`blueprints/checkout/` (and `~/.claude/blueprints/checkout/`). Source: Labern/paradoxica-hub,
 `sites/paradoxica.uk/focus/checkout/index.html` (copy it, change the app).
 
 ## The shape

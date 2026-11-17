@@ -1,0 +1,5 @@
+# /api/feedback (no .php in the address the apps call)
+RewriteEngine On
+RewriteRule ^feedback/?$ feedback.php [L]
+# /api/stripe/session, /status, /webhook
+RewriteRule ^stripe(/.*)?$ stripe.php [L,QSA]
