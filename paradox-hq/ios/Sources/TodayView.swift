@@ -12,9 +12,10 @@ struct TodayView: View {
     @Query(sort: \Project.order) private var projects: [Project]
     @Query(sort: \Deadline.date) private var deadlines: [Deadline]
     @State private var connecting = false
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     HStack(alignment: .top) {
@@ -33,9 +34,9 @@ struct TodayView: View {
                     BalanceTiles()
                     NeedsYou(needs: needs)
                     if let mine = projects.first(where: \.isPersonal) {
-                        QuickAdd(project: mine)
+                        MyListCard(project: mine, open: { path.append($0) }, openAll: { path.append(mine) })
                     }
-                    FocusNow(projects: projects)
+                    FocusNow(projects: projects.filter { !$0.isPersonal })
                 }
                 .page()
             }
@@ -49,6 +50,17 @@ struct TodayView: View {
             }
             .sheet(isPresented: $connecting) {
                 ConnectStripe()
+            }
+            .navigationDestination(for: Project.self) { ProjectDetail(project: $0) }
+            .navigationDestination(for: FocusItem.self) { item in
+                ItemPage(item: item, tint: Color(hex: UInt32(item.owner?.tint ?? 0xFFFFFF)))
+            }
+            .navigationDestination(for: Note.self) { NoteEditor(note: $0) }
+            .onAppear {
+                // The cloud build opens straight into your own list to photograph it.
+                if Launch.screen == "list", path.isEmpty, let mine = projects.first(where: \.isPersonal) {
+                    path.append(mine)
+                }
             }
         }
     }

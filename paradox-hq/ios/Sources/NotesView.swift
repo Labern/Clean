@@ -48,11 +48,17 @@ nonisolated enum NoteText {
 struct NotesView: View {
     @Query(sort: \Note.edited, order: .reverse) private var notes: [Note]
     @Environment(\.modelContext) private var context
+    @Query(sort: \Project.order) private var projects: [Project]
     @State private var search = ""
     @State private var path: [Note] = []
+    /// Only this project's notes, when one is chosen.
+    @State private var only: Project? = nil
 
     var body: some View {
-        let shown = notes.filter { NoteText.matches($0.text, search) }
+        let filed = projects.filter { project in notes.contains { $0.project === project } }
+        let shown = notes.filter { note in
+            NoteText.matches(note.text, search) && (only == nil || note.project === only)
+        }
         let pinned = shown.filter(\.pinned)
         let rest = shown.filter { !$0.pinned }
 
@@ -64,6 +70,9 @@ struct NotesView: View {
                         if !notes.isEmpty {
                             NotesChart(dates: notes.map(\.created))
                             SearchField(text: $search)
+                            if !filed.isEmpty {
+                                ProjectChips(projects: filed, only: $only)
+                            }
                         }
                     }
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 6, trailing: 4))
@@ -136,7 +145,7 @@ struct NotesView: View {
     }
 
     private func write() {
-        let note = Note()
+        let note = Note(project: only)
         context.insert(note)
         search = ""
         path = [note]
@@ -168,6 +177,45 @@ struct SearchField: View {
         .padding(.horizontal, 12)
         .frame(minHeight: 40)
         .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+/// All notes, or one project's.
+struct ProjectChips: View {
+    let projects: [Project]
+    @Binding var only: Project?
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                chip("All", color: .white, on: only == nil) { only = nil }
+                ForEach(projects) { project in
+                    chip(project.name, color: Color(hex: UInt32(project.tint)), on: only === project) {
+                        only = only === project ? nil : project
+                    }
+                }
+            }
+        }
+        .scrollIndicators(.hidden)
+        .sensoryFeedback(.selection, trigger: only?.persistentModelID)
+    }
+
+    private func chip(_ title: String, color: Color, on: Bool, action: @escaping () -> Void) -> some View {
+        Button {
+            withAnimation(.snappy) { action() }
+        } label: {
+            HStack(spacing: 6) {
+                Circle().fill(color).frame(width: 7, height: 7)
+                Text(title).lineLimit(1)
+            }
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(on ? Color.black : Ink.body)
+            .padding(.horizontal, 12)
+            .frame(minHeight: 34)
+            .background(on ? Color.white : Ink.surface2, in: Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 
@@ -289,6 +337,28 @@ struct NoteEditor: View {
     @Environment(\.dismiss) private var dismiss
     @FocusState private var typing: Bool
     @State private var deleting = false
+    @State private var madeToDo: String? = nil
+
+    /// A note filed under a project makes its to-do there; any other goes on your own list.
+    private var toDoTarget: Project? { note.project ?? projects.first(where: \.isPersonal) }
+
+    private var toDoLabel: String {
+        "Add to \(toDoTarget?.name ?? "my list")"
+    }
+
+    /// The note's title becomes a to-do, and the rest of it the to-do's note.
+    private func makeToDo() {
+        guard let target = toDoTarget else { return }
+        let item = FocusItem(title: NoteText.title(note.text), notes: NoteText.snippet(note.text),
+                             order: target.nextOrder)
+        context.insert(item)
+        item.project = target
+        withAnimation(.snappy) { madeToDo = target.name }
+        Task {
+            try? await Task.sleep(for: .seconds(1.6))
+            withAnimation(.snappy) { madeToDo = nil }
+        }
+    }
 
     var body: some View {
         TextEditor(text: $note.text)
@@ -324,6 +394,8 @@ struct NoteEditor: View {
                                 Text(project.name).tag(project as Project?)
                             }
                         }
+                        Button(toDoLabel, systemImage: "checklist") { makeToDo() }
+                            .disabled(note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                         ShareLink(item: note.text) {
                             Label("Share", systemImage: "square.and.arrow.up")
                         }
@@ -338,6 +410,19 @@ struct NoteEditor: View {
                     }
                 }
             }
+            .overlay(alignment: .bottom) {
+                if let madeToDo {
+                    Text("Added to \(madeToDo)")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 16)
+                        .frame(minHeight: 40)
+                        .background(.white, in: Capsule())
+                        .padding(.bottom, 16)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .sensoryFeedback(.success, trigger: madeToDo) { _, new in new != nil }
             .confirmationDialog("Delete this note?", isPresented: $deleting, titleVisibility: .visible) {
                 Button("Delete", role: .destructive) {
                     context.delete(note)
@@ -380,46 +465,5 @@ struct ProjectNotes: View {
                 .foregroundStyle(Ink.muted)
                 .textCase(nil)
         }
-    }
-}
-
-/// On Today: type a to-do and it lands on your own list.
-struct QuickAdd: View {
-    let project: Project
-    @State private var text = ""
-    @FocusState private var focused: Bool
-    @Environment(\.modelContext) private var context
-
-    var body: some View {
-        HStack(spacing: 8) {
-            TextField("Add to my list", text: $text)
-                .focused($focused)
-                .submitLabel(.done)
-                .onSubmit(add)
-                .padding(.horizontal, 16)
-                .frame(minHeight: 46)
-                .background(Ink.surface, in: Capsule())
-            Button(action: add) {
-                Image(systemName: "plus")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundStyle(.black)
-                    .frame(width: 46, height: 46)
-                    .background(.white, in: Circle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Add")
-        }
-    }
-
-    private func add() {
-        let title = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
-        withAnimation(.snappy) {
-            let item = FocusItem(title: title, order: project.nextOrder)
-            context.insert(item)
-            item.project = project
-        }
-        text = ""
-        focused = true
     }
 }

@@ -120,10 +120,9 @@ struct ProjectDetail: View {
     @Environment(\.modelContext) private var context
     @Environment(\.openURL) private var openURL
     @Environment(\.dismiss) private var dismiss
-    @State private var editing: FocusItem? = nil
+    @State private var opened: FocusItem? = nil
     @State private var editingProject = false
-    @State private var parentForNew: FocusItem? = nil
-    @State private var subDraft = ""
+    @State private var drafting: FocusItem? = nil
     @State private var showDone = false
     @State private var freshNote: Note? = nil
 
@@ -168,14 +167,9 @@ struct ProjectDetail: View {
                         .foregroundStyle(Ink.muted)
                         .listRowBackground(Ink.surface)
                 }
-                ForEach(open) { item in
-                    FocusRow(item: item, tint: tint, child: false, edit: { editing = item }, addUnder: { ask(item) })
-                    ForEach(item.sortedChildren) { child in
-                        FocusRow(item: child, tint: tint, child: true, edit: { editing = child }, addUnder: nil)
-                    }
-                }
+                OutlineSection(lines: open, tint: tint, drafting: $drafting) { opened = $0 }
             } header: {
-                Text("Focus")
+                Text(project.isPersonal ? "To do" : "Focus")
                     .font(.footnote.weight(.semibold))
                     .foregroundStyle(Ink.muted)
                     .textCase(nil)
@@ -191,7 +185,17 @@ struct ProjectDetail: View {
                 Section {
                     if showDone {
                         ForEach(done) { item in
-                            FocusRow(item: item, tint: tint, child: false, edit: { editing = item }, addUnder: nil)
+                            OutlineLine(item: item, tint: tint) { opened = item }
+                                .listRowInsets(EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 10))
+                                .listRowBackground(Ink.surface)
+                                .listRowSeparatorTint(Ink.line)
+                                .swipeActions(edge: .trailing) {
+                                    Button(role: .destructive) {
+                                        withAnimation { context.delete(item) }
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
                         }
                     }
                 } header: {
@@ -227,130 +231,10 @@ struct ProjectDetail: View {
             AddBar(project: project, tint: tint)
         }
         .navigationDestination(item: $freshNote) { NoteEditor(note: $0) }
-        .sheet(item: $editing) { ItemEditor(item: $0, tint: tint) }
+        .navigationDestination(item: $opened) { ItemPage(item: $0, tint: tint) }
         .sheet(isPresented: $editingProject) {
             ProjectEditor(project: project) { dismiss() }
         }
-        .alert("Add under \(parentForNew?.title ?? "")", isPresented: asking) {
-            TextField("Sub-item", text: $subDraft)
-            Button("Add") { addSub() }
-            Button("Cancel", role: .cancel) { subDraft = "" }
-        }
-    }
-
-    private var asking: Binding<Bool> {
-        Binding(get: { parentForNew != nil }, set: { if !$0 { parentForNew = nil } })
-    }
-
-    private func ask(_ item: FocusItem) {
-        subDraft = ""
-        parentForNew = item
-    }
-
-    private func addSub() {
-        let title = subDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-        defer {
-            subDraft = ""
-            parentForNew = nil
-        }
-        guard !title.isEmpty, let parent = parentForNew else { return }
-        withAnimation(.snappy) {
-            let child = FocusItem(title: title, order: parent.nextOrder)
-            context.insert(child)
-            child.parent = parent
-            // A finished line with something new under it isn't finished.
-            if parent.done {
-                parent.done = false
-                parent.completed = nil
-            }
-        }
-    }
-}
-
-struct FocusRow: View {
-    @Bindable var item: FocusItem
-    let tint: Color
-    let child: Bool
-    let edit: () -> Void
-    let addUnder: (() -> Void)?
-    @Environment(\.modelContext) private var context
-
-    var body: some View {
-        let children = item.children
-        HStack(spacing: 2) {
-            Button {
-                withAnimation(.snappy.delay(item.done ? 0 : 0.34)) { item.set(done: !item.done) }
-            } label: {
-                Tick(done: item.done, color: tint, size: child ? 20 : 24)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(item.done ? "Reopen" : "Tick")
-
-            Button(action: edit) {
-                HStack(spacing: 8) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title)
-                            .font(child ? .subheadline : .body)
-                            .strikethrough(item.done)
-                            .foregroundStyle(item.done ? Ink.muted : Ink.body)
-                            .multilineTextAlignment(.leading)
-                        if !item.notes.isEmpty, !child {
-                            Text(item.notes)
-                                .font(.caption)
-                                .foregroundStyle(Ink.muted)
-                                .lineLimit(2)
-                                .multilineTextAlignment(.leading)
-                        }
-                    }
-                    Spacer(minLength: 4)
-                    if !children.isEmpty {
-                        Text("\(children.filter(\.done).count)/\(children.count)")
-                            .font(.caption)
-                            .monospacedDigit()
-                            .foregroundStyle(Ink.muted)
-                    }
-                }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.leading, child ? 30 : 0)
-        .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 14))
-        .listRowBackground(Ink.surface)
-        .listRowSeparatorTint(Ink.line)
-        .sensoryFeedback(.success, trigger: item.done) { _, new in new }
-        .swipeActions(edge: .trailing) {
-            Button(role: .destructive) {
-                context.delete(item)
-            } label: {
-                Label("Delete", systemImage: "trash")
-            }
-        }
-        .swipeActions(edge: .leading) {
-            if let addUnder {
-                Button(action: addUnder) {
-                    Label("Sub-item", systemImage: "text.badge.plus")
-                }
-                .tint(Ink.violet)
-            }
-        }
-        .contextMenu {
-            Button("Edit", systemImage: "pencil", action: edit)
-            if let addUnder {
-                Button("Add sub-item", systemImage: "text.badge.plus", action: addUnder)
-            }
-            Button("Move to top", systemImage: "arrow.up.to.line") { moveToTop() }
-            Button("Delete", systemImage: "trash", role: .destructive) {
-                withAnimation { context.delete(item) }
-            }
-        }
-    }
-
-    private func moveToTop() {
-        let siblings = item.parent?.children ?? item.project?.items ?? []
-        let lowest = siblings.map(\.order).min() ?? 0
-        withAnimation(.snappy) { item.order = lowest - 1 }
     }
 }
 
@@ -396,93 +280,6 @@ struct AddBar: View {
         }
         text = ""
         focused = true
-    }
-}
-
-/// Edit one line: its wording, a note, and the sub-items under it.
-struct ItemEditor: View {
-    @Bindable var item: FocusItem
-    let tint: Color
-    @Environment(\.modelContext) private var context
-    @Environment(\.dismiss) private var dismiss
-    @State private var draft = ""
-    @FocusState private var addingSub: Bool
-
-    var body: some View {
-        let children = item.sortedChildren
-        NavigationStack {
-            Form {
-                Section {
-                    TextField("What needs doing", text: $item.title, axis: .vertical)
-                    TextField("Note", text: $item.notes, axis: .vertical)
-                        .lineLimit(1...6)
-                        .foregroundStyle(Ink.muted)
-                }
-                if item.parent == nil {
-                    Section("Sub-items") {
-                        ForEach(children) { child in
-                            SubItemRow(item: child, tint: tint)
-                        }
-                        .onDelete { offsets in
-                            for index in offsets { context.delete(children[index]) }
-                        }
-                        TextField("Add a sub-item", text: $draft)
-                            .focused($addingSub)
-                            .submitLabel(.done)
-                            .onSubmit(addSub)
-                    }
-                }
-                Section {
-                    Toggle("Done", isOn: Binding(get: { item.done }, set: { item.set(done: $0) }))
-                    Button("Delete", role: .destructive) {
-                        context.delete(item)
-                        dismiss()
-                    }
-                }
-            }
-            .navigationTitle(item.parent == nil ? "Line" : "Sub-item")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-    }
-
-    private func addSub() {
-        let title = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !title.isEmpty else { return }
-        let child = FocusItem(title: title, order: item.nextOrder)
-        context.insert(child)
-        child.parent = item
-        if item.done {
-            item.done = false
-            item.completed = nil
-        }
-        draft = ""
-        addingSub = true
-    }
-}
-
-struct SubItemRow: View {
-    @Bindable var item: FocusItem
-    let tint: Color
-
-    var body: some View {
-        HStack(spacing: 2) {
-            Button {
-                withAnimation(.snappy) { item.set(done: !item.done) }
-            } label: {
-                Tick(done: item.done, color: tint, size: 20)
-            }
-            .buttonStyle(.plain)
-            TextField("Sub-item", text: $item.title)
-                .strikethrough(item.done)
-                .foregroundStyle(item.done ? Ink.muted : Ink.body)
-        }
-        .listRowInsets(EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 14))
     }
 }
 

@@ -259,6 +259,125 @@ struct FocusLineTests {
         #expect(one.done && two.done)
     }
 
+    private static func line(_ title: String, under parent: FocusItem? = nil, in project: Project? = nil,
+                             _ context: ModelContext) -> FocusItem {
+        let item = FocusItem(title: title, order: parent?.nextOrder ?? project?.nextOrder ?? 0)
+        context.insert(item)
+        if let parent { item.parent = parent } else { item.project = project }
+        return item
+    }
+
+    @Test func tickingRunsThroughEveryDepth() throws {
+        let context = try FeedTests.store()
+        let project = Project(name: "Site")
+        context.insert(project)
+        let launch = Self.line("Launch", in: project, context)
+        let copy = Self.line("Copy", under: launch, context)
+        let hero = Self.line("Hero", under: copy, context)
+        let footer = Self.line("Footer", under: copy, context)
+        let deploy = Self.line("Deploy", under: launch, context)
+
+        hero.set(done: true)
+        #expect(!copy.done)
+        footer.set(done: true)
+        #expect(copy.done)
+        #expect(!launch.done)
+        deploy.set(done: true)
+        #expect(launch.done)
+
+        // Reopening the deepest line reopens everything above it, and nothing beside it.
+        hero.set(done: false)
+        #expect(!copy.done && !launch.done)
+        #expect(footer.done && deploy.done)
+
+        // Ticking the top ticks every depth below.
+        launch.set(done: true)
+        #expect(hero.done && footer.done && copy.done && deploy.done)
+    }
+
+    @Test func theTallyCountsTheSmallestLines() throws {
+        let context = try FeedTests.store()
+        let project = Project(name: "Site")
+        context.insert(project)
+        let launch = Self.line("Launch", in: project, context)
+        let copy = Self.line("Copy", under: launch, context)
+        let hero = Self.line("Hero", under: copy, context)
+        _ = Self.line("Footer", under: copy, context)
+        _ = Self.line("Deploy", under: launch, context)
+        _ = Self.line("Invoice", in: project, context)
+
+        #expect(project.tally == (0, 4))
+        hero.set(done: true)
+        #expect(project.tally == (1, 4))
+        #expect(copy.leaves() == (1, 2))
+        #expect(hero.depth == 2)
+        #expect(hero.owner === project)
+        #expect(hero.ancestors.map(\.title) == ["Launch", "Copy"])
+        #expect(launch.contains(hero))
+        #expect(!hero.contains(launch))
+    }
+
+    @Test func addingUnderAFinishedLineReopensIt() throws {
+        let context = try FeedTests.store()
+        let project = Project(name: "Site")
+        context.insert(project)
+        let launch = Self.line("Launch", in: project, context)
+        let copy = Self.line("Copy", under: launch, context)
+        launch.set(done: true)
+        copy.collapsed = true
+
+        let new = copy.add("Legal page", in: context)
+        #expect(new.parent === copy)
+        #expect(!copy.done && !launch.done)
+        #expect(!copy.collapsed)
+    }
+
+    @Test func foldedLinesHideWhatsUnderThem() throws {
+        let context = try FeedTests.store()
+        let project = Project(name: "Site")
+        context.insert(project)
+        let launch = Self.line("Launch", in: project, context)
+        let copy = Self.line("Copy", under: launch, context)
+        _ = Self.line("Hero", under: copy, context)
+        _ = Self.line("Invoice", in: project, context)
+
+        func titles(_ rows: [Outline.Row]) -> [String] {
+            rows.map { row in
+                switch row {
+                case .line(let item, let depth): String(repeating: "-", count: depth) + item.title
+                case .draft(let parent, let depth): String(repeating: "-", count: depth) + "[\(parent.title)]"
+                }
+            }
+        }
+
+        #expect(titles(Outline.rows(project.openItems)) == ["Launch", "-Copy", "--Hero", "Invoice"])
+        copy.collapsed = true
+        #expect(titles(Outline.rows(project.openItems)) == ["Launch", "-Copy", "Invoice"])
+        launch.collapsed = true
+        #expect(titles(Outline.rows(project.openItems)) == ["Launch", "Invoice"])
+        // Typing under a folded line opens it for the new row.
+        #expect(titles(Outline.rows(project.openItems, drafting: launch)) == ["Launch", "-Copy", "-[Launch]", "Invoice"])
+    }
+
+    @Test func linesMoveInAndOutALevel() throws {
+        let context = try FeedTests.store()
+        let project = Project(name: "Site")
+        context.insert(project)
+        let launch = Self.line("Launch", in: project, context)
+        let copy = Self.line("Copy", in: project, context)
+        let invoice = Self.line("Invoice", in: project, context)
+
+        #expect(!launch.indent())
+        #expect(copy.indent())
+        #expect(copy.parent === launch && copy.project == nil)
+        #expect(project.sortedItems.map(\.title) == ["Launch", "Invoice"])
+
+        #expect(copy.outdent())
+        #expect(copy.parent == nil && copy.project === project)
+        #expect(project.sortedItems.map(\.title) == ["Launch", "Copy", "Invoice"])
+        #expect(!invoice.outdent())
+    }
+
     @Test func aRepeatingDeadlineRollsForward() {
         let yearly = Deadline(title: "Confirmation statement", date: at(2026, 2, 14), everyMonths: 12)
         #expect(yearly.markDone(calendar: london))
@@ -465,6 +584,22 @@ struct OutboxTests {
         let next = Outbox.plan(context)
         #expect(next.outgoing.lines.isEmpty)
         #expect(next.outgoing.subs.isEmpty)
+    }
+
+    @Test func newLinesDeepInTheTreeAreSentToo() throws {
+        let context = try FeedTests.store()
+        try Feed.decode(Data(FeedTests.json.utf8)).apply(to: context)
+        let project = try #require(try context.fetch(FetchDescriptor<Project>()).first)
+        let stripe = try #require(project.sortedItems.first)
+        let known = FocusItem(title: "Known", order: stripe.nextOrder)
+        context.insert(known)
+        known.parent = stripe
+        known.remoteID = "a-known"
+        let deep = known.add("Two levels down", in: context)
+
+        let plan = Outbox.plan(context)
+        #expect(plan.outgoing.subs["a-known"]?.map(\.title) == ["Two levels down"])
+        #expect(plan.naming.contains { $0.item === deep })
     }
 }
 

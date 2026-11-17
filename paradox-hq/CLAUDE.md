@@ -21,22 +21,31 @@ and kept in the Keychain on the phone.
   errors. Launch arguments: `-unlocked YES -sampleNotes YES -screen lock|today|projects|project|notes|note|money|company|widgets`.
 
 ## The five tabs
-- **Notes** — a proper notebook. Plain text, the first line is the title, saved as
+- **Notes** — a proper notebook. Chips filter to one project's notes; a note's menu
+  turns it into a to-do (title becomes the line, the rest its note) on its project,
+  or on My list. Plain text, the first line is the title, saved as
   typed. Search (every word must appear), pin, file under a project, share, delete.
   A bar chart of notes started per day, scrubbable. An untouched new note deletes
   itself. Notes live on the phone only (`Note` in SwiftData; never name a stored property `updated`, `inserted` or `deleted`, the store reads them back empty). The model is ready
   for iCloud but that isn't switched on.
-- **My own list** — one `Project` with `isPersonal` set, named "Me", always first,
-  never sent to the feed, never deletable. It is a to-do list like any project's.
-  Today has a field that adds straight to it.
+- **My list** — one `Project` with `isPersonal` set, named "My list" (renamed from
+  "Me" on launch), always first, never sent to the feed, never deletable. Today shows
+  it whole (`MyListCard`): type to add, tick, fold, tap a line to open its page.
 - Each project page ends with its own notes.
 - **Today** — the mark, today's takings over a 30-day trend, this month and the
   Stripe balance, *Needs you* (disputes, failed payments, deadlines inside 30 days,
   the site being down; hidden when empty), and the next open line of each project.
 - **Money** — revenue by week, month, quarter or year against the same stretch of
   the period before; subscribers and monthly recurring; payouts; every payment.
-- **Projects** — each project has a Focus list. Lines tick, edit, take a note and
-  sub-items. Ticking the last sub-item ticks its parent; reopening one reopens it.
+- **Projects** — each project has a Focus list (`TodoViews.swift`). Lines nest to any
+  depth. Ticking a line ticks everything under it; ticking the last open sub-item
+  ticks its parent, all the way up; reopening reopens every line above. A line with
+  sub-items shows a done/total count that folds them (`collapsed`, stored). Swipe
+  right on a line to type sub-items straight under it; long-press to put it under
+  the line above, move it out a level, give it a due date. Tapping a line opens its
+  page (`ItemPage`): title, note, due date, its sub-items (each opens its own page,
+  drag to reorder), done, delete. `Outline.rows` flattens the tree for drawing and
+  is tested. The tally counts the smallest lines at any depth.
 - **Company** — filing deadlines, the three connections (Stripe, Claude, website),
   the Face ID lock.
 

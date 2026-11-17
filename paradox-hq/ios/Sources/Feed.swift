@@ -173,8 +173,11 @@ enum Seed {
     @discardableResult
     static func personal(_ context: ModelContext) -> Project {
         let all = (try? context.fetch(FetchDescriptor<Project>())) ?? []
-        if let mine = all.first(where: \.isPersonal) { return mine }
-        let mine = Project(name: "Me", summary: "Your own list.", symbol: "person",
+        if let mine = all.first(where: \.isPersonal) {
+            if mine.name == "Me" { mine.name = "My list" }
+            return mine
+        }
+        let mine = Project(name: "My list", summary: "Your own list.", symbol: "person",
                            tint: 0xFFFFFF, order: (all.map(\.order).min() ?? 0) - 1)
         mine.isPersonal = true
         context.insert(mine)
@@ -402,18 +405,23 @@ enum Outbox {
                     plan.outgoing.lines[project.remoteID, default: []].append(new)
                     continue
                 }
-                if item.done { plan.outgoing.ticks.insert(item.remoteID) }
-                for child in item.sortedChildren {
-                    if child.remoteID.isEmpty {
-                        let new = make(child, &plan)
-                        plan.outgoing.subs[item.remoteID, default: []].append(new)
-                    } else if child.done {
-                        plan.outgoing.ticks.insert(child.remoteID)
-                    }
-                }
+                gather(item, &plan)
             }
         }
         return plan
+    }
+
+    /// A line the feed already knows: its tick, and anything new under it, at any depth.
+    private static func gather(_ item: FocusItem, _ plan: inout Plan) {
+        if item.done { plan.outgoing.ticks.insert(item.remoteID) }
+        for child in item.sortedChildren {
+            if child.remoteID.isEmpty {
+                let new = make(child, &plan)
+                plan.outgoing.subs[item.remoteID, default: []].append(new)
+            } else {
+                gather(child, &plan)
+            }
+        }
     }
 
     private static func make(_ item: FocusItem, _ plan: inout Plan) -> NewLine {

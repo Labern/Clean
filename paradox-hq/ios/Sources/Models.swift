@@ -47,6 +47,10 @@ import SwiftData
     var project: Project? = nil
     var parent: FocusItem? = nil
     @Relationship(deleteRule: .cascade, inverse: \FocusItem.parent) var children: [FocusItem] = []
+    /// Its sub-items are folded away in the list.
+    var collapsed: Bool = false
+    /// When it's due, if it has a day.
+    var due: Date? = nil
 
     init(title: String, notes: String = "", done: Bool = false, order: Int = 0) {
         self.title = title
@@ -103,20 +107,13 @@ extension Project {
             .sorted { ($0.completed ?? .distantPast) > ($1.completed ?? .distantPast) }
     }
 
-    /// Counts the smallest tickable lines: a line with sub-items counts as its sub-items.
+    /// Counts the smallest tickable lines, at any depth: a line with
+    /// sub-items counts as its sub-items.
     var tally: (done: Int, total: Int) {
-        var done = 0
-        var total = 0
-        for item in items {
-            if item.children.isEmpty {
-                total += 1
-                if item.done { done += 1 }
-            } else {
-                total += item.children.count
-                done += item.children.filter { $0.done || item.done }.count
-            }
+        items.reduce((0, 0)) { sum, item in
+            let leaves = item.leaves(forced: false)
+            return (sum.0 + leaves.done, sum.1 + leaves.total)
         }
-        return (done, total)
     }
 
     var nextOrder: Int { (items.map(\.order).max() ?? -1) + 1 }
@@ -129,26 +126,184 @@ extension FocusItem {
 
     var nextOrder: Int { (children.map(\.order).max() ?? -1) + 1 }
 
-    /// Ticking a line ticks what's under it; finishing the last sub-item
-    /// finishes its parent, and reopening one reopens the parent.
+    /// The smallest tickable lines under this one (itself, if it has none).
+    /// Everything under a finished line counts as finished.
+    func leaves(forced: Bool = false) -> (done: Int, total: Int) {
+        let finished = forced || done
+        if children.isEmpty { return (finished ? 1 : 0, 1) }
+        return children.reduce((0, 0)) { sum, child in
+            let leaves = child.leaves(forced: finished)
+            return (sum.0 + leaves.done, sum.1 + leaves.total)
+        }
+    }
+
+    /// How many lines up to the project: 0 for a top-level line.
+    var depth: Int {
+        var depth = 0
+        var walk = parent
+        while let above = walk {
+            depth += 1
+            walk = above.parent
+        }
+        return depth
+    }
+
+    /// The project this line belongs to, however deep it sits.
+    var owner: Project? {
+        var walk: FocusItem? = self
+        while let line = walk {
+            if let project = line.project { return project }
+            walk = line.parent
+        }
+        return nil
+    }
+
+    /// The lines above this one, top first.
+    var ancestors: [FocusItem] {
+        var chain: [FocusItem] = []
+        var walk = parent
+        while let above = walk {
+            chain.insert(above, at: 0)
+            walk = above.parent
+        }
+        return chain
+    }
+
+    /// True when `other` sits somewhere under this line.
+    func contains(_ other: FocusItem) -> Bool {
+        var walk = other.parent
+        while let above = walk {
+            if above === self { return true }
+            walk = above.parent
+        }
+        return false
+    }
+
+    var overdue: Bool {
+        guard let due, !done else { return false }
+        return due < Calendar.current.startOfDay(for: .now)
+    }
+
+    /// Ticking a line ticks everything under it. Finishing the last open line
+    /// under a parent finishes the parent, all the way up; reopening a line
+    /// reopens every line above it.
     func set(done value: Bool, at now: Date = .now) {
         done = value
         completed = value ? now : nil
-        if value {
-            for child in children where !child.done {
+        if value { finishAll(at: now) }
+        var walk = parent
+        while let above = walk {
+            if value {
+                guard above.children.allSatisfy(\.done), !above.done else { break }
+                above.done = true
+                above.completed = now
+            } else {
+                guard above.done else { break }
+                above.done = false
+                above.completed = nil
+            }
+            walk = above.parent
+        }
+    }
+
+    private func finishAll(at now: Date) {
+        for child in children {
+            if !child.done {
                 child.done = true
                 child.completed = now
             }
+            child.finishAll(at: now)
         }
-        if let parent {
-            if value, parent.children.allSatisfy(\.done), !parent.done {
-                parent.done = true
-                parent.completed = now
-            } else if !value, parent.done {
-                parent.done = false
-                parent.completed = nil
+    }
+
+    /// Something new under a finished line means it isn't finished, nor is anything above it.
+    func reopenForNewChild() {
+        var walk: FocusItem? = self
+        while let line = walk, line.done {
+            line.done = false
+            line.completed = nil
+            walk = line.parent
+        }
+    }
+
+    /// Adds a sub-item at the end of this line's sub-items, and unfolds it so it shows.
+    @discardableResult
+    func add(_ title: String, in context: ModelContext) -> FocusItem {
+        let child = FocusItem(title: title, order: nextOrder)
+        context.insert(child)
+        child.parent = self
+        collapsed = false
+        reopenForNewChild()
+        return child
+    }
+
+    /// The lines beside this one, in order (top-level lines, or a parent's sub-items).
+    var siblings: [FocusItem] {
+        if let parent { return parent.sortedChildren }
+        return project?.sortedItems ?? []
+    }
+
+    /// Makes this line a sub-item of the line just above it.
+    /// Returns false when there's no line above to go under.
+    @discardableResult
+    func indent() -> Bool {
+        let row = siblings
+        guard let index = row.firstIndex(where: { $0 === self }), index > 0 else { return false }
+        let above = row[index - 1]
+        order = above.nextOrder
+        project = nil
+        parent = above
+        above.collapsed = false
+        if above.done && !done { above.reopenForNewChild() }
+        return true
+    }
+
+    /// Lifts a sub-item out to sit just after its parent.
+    @discardableResult
+    func outdent() -> Bool {
+        guard let above = parent else { return false }
+        let row = above.siblings
+        let place = above.order
+        for sibling in row where sibling.order > place { sibling.order += 1 }
+        order = place + 1
+        if let grand = above.parent {
+            parent = grand
+        } else {
+            parent = nil
+            project = above.project
+        }
+        return true
+    }
+}
+
+/// The rows of a to-do list as they're drawn: each line at its depth, with
+/// folded lines hiding what's under them.
+enum Outline {
+    enum Row: Identifiable {
+        case line(FocusItem, depth: Int)
+        /// Where a new sub-item is being typed.
+        case draft(under: FocusItem, depth: Int)
+
+        var id: String {
+            switch self {
+            case .line(let item, _): "line-\(ObjectIdentifier(item).hashValue)"
+            case .draft(let parent, _): "draft-\(ObjectIdentifier(parent).hashValue)"
             }
         }
+    }
+
+    static func rows(_ top: [FocusItem], drafting: FocusItem? = nil) -> [Row] {
+        var rows: [Row] = []
+        func walk(_ item: FocusItem, _ depth: Int) {
+            rows.append(.line(item, depth: depth))
+            let open = !item.collapsed || item === drafting
+            if open {
+                for child in item.sortedChildren { walk(child, depth + 1) }
+            }
+            if item === drafting { rows.append(.draft(under: item, depth: depth + 1)) }
+        }
+        for item in top { walk(item, 0) }
+        return rows
     }
 }
 
