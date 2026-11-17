@@ -80,7 +80,10 @@ nonisolated struct BackupFile: Codable, Equatable {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .custom { date, to in
             var single = to.singleValueContainer()
-            try single.encode(date.formatted(.iso8601.year().month().day().time(includingFractionalSeconds: true)
+            // The formatter cuts a time off at the millisecond rather than rounding it,
+            // so a time read back from a file could be written a millisecond earlier
+            // each time. Half a millisecond on first makes writing a file repeatable.
+            try single.encode(date.addingTimeInterval(0.0005).formatted(.iso8601.year().month().day().time(includingFractionalSeconds: true)
                 .timeZone(separator: .omitted)))
         }
         return encoder

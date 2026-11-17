@@ -1,6 +1,8 @@
 import SwiftUI
 import UIKit
 import WebKit
+import ImageIO
+import UniformTypeIdentifiers
 
 // The icon designer. Self-contained on purpose: this file, `Resources/IconDesigner`
 // and the bake script are everything a spin-off app needs.
@@ -135,17 +137,28 @@ nonisolated struct CustomIcon: Codable, Identifiable, Hashable {
         return Data(base64Encoded: String(dataURL[dataURL.index(after: comma)...]))
     }
 
-    /// Redraws a picture as an exact 1024px square with no transparency, which
-    /// is the only kind of PNG an app icon may be.
-    static func flatten(_ png: Data) -> Data? {
-        guard let image = UIImage(data: png) else { return nil }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = true
-        let size = CGSize(width: side, height: side)
-        return UIGraphicsImageRenderer(size: size, format: format).pngData { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
+    /// Redraws a picture as an exact 1024px square with no alpha channel at all,
+    /// which is the only kind of PNG an app icon may be. (UIKit's opaque renderer
+    /// still writes one, so this goes through a bitmap that has nowhere to keep it.)
+    nonisolated static func flatten(_ png: Data) -> Data? {
+        guard let provider = CGDataProvider(data: png as CFData),
+              let picture = CGImage(pngDataProviderSource: provider, decode: nil, shouldInterpolate: true,
+                                    intent: .defaultIntent),
+              let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let bitmap = CGContext(data: nil, width: side, height: side, bitsPerComponent: 8, bytesPerRow: 0,
+                                     space: space, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)
+        else { return nil }
+        let whole = CGRect(x: 0, y: 0, width: side, height: side)
+        bitmap.interpolationQuality = .high
+        bitmap.setFillColor(red: 0, green: 0, blue: 0, alpha: 1)
+        bitmap.fill(whole)
+        bitmap.draw(picture, in: whole)
+        let out = NSMutableData()
+        guard let flat = bitmap.makeImage(),
+              let file = CGImageDestinationCreateWithData(out, UTType.png.identifier as CFString, 1, nil)
+        else { return nil }
+        CGImageDestinationAddImage(file, flat, nil)
+        return CGImageDestinationFinalize(file) ? out as Data : nil
     }
 }
 

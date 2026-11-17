@@ -53,6 +53,7 @@ struct QuickLinkRow: View {
                 Text(link.title)
                     .foregroundStyle(Ink.body)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(missing ? "Couldn't open the app" : link.label)
                     .font(.caption)
                     .foregroundStyle(missing ? Ink.amber : Ink.muted)

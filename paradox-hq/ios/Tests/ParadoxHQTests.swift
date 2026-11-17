@@ -842,13 +842,35 @@ struct IconDesignerTests {
         reopened.wanted = ""
     }
 
-    /// An app icon must be exactly 1024px and have no transparency.
+    /// An app icon must be exactly 1024px with no alpha channel, and the right way up.
     @Test func picturesAreFlattenedForAnIcon() throws {
-        let flat = try #require(IconShelf.flatten(square(300, alpha: 0.5)))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        let source = UIGraphicsImageRenderer(size: CGSize(width: 300, height: 300), format: format).pngData { context in
+            UIColor.red.withAlphaComponent(0.5).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 300, height: 150))      // top half
+            UIColor.blue.setFill()
+            context.fill(CGRect(x: 0, y: 150, width: 300, height: 150))    // bottom half
+        }
+        let flat = try #require(IconShelf.flatten(source))
         let image = try #require(UIImage(data: flat)?.cgImage)
         #expect(image.width == 1024)
         #expect(image.height == 1024)
         #expect([CGImageAlphaInfo.none, .noneSkipLast, .noneSkipFirst].contains(image.alphaInfo))
+
+        // Read one pixel near the top and one near the bottom.
+        var bytes = [UInt8](repeating: 0, count: 1024 * 1024 * 4)
+        let space = try #require(CGColorSpace(name: CGColorSpace.sRGB))
+        try bytes.withUnsafeMutableBytes { buffer in
+            let bitmap = try #require(CGContext(data: buffer.baseAddress, width: 1024, height: 1024, bitsPerComponent: 8,
+                                                bytesPerRow: 1024 * 4, space: space,
+                                                bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue))
+            bitmap.draw(image, in: CGRect(x: 0, y: 0, width: 1024, height: 1024))
+        }
+        let top = 100 * 1024 * 4 + 512 * 4, bottom = 900 * 1024 * 4 + 512 * 4
+        #expect(bytes[top] > 100 && bytes[top + 2] < 30, "the top should still be red")
+        #expect(bytes[bottom + 2] > 200 && bytes[bottom] < 30, "the bottom should still be blue")
     }
 
     @Test func thePagesAnswerIsReadAsAPicture() {
