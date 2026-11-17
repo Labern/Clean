@@ -894,7 +894,10 @@ struct BackupTests {
 
         let before = BackupFile.take(context, now: at(2026, 11, 17))
         let read = try BackupFile.read(try before.data())
-        #expect(read == before)
+        // The file keeps times to the millisecond and a fresh `Date()` is finer than
+        // that, so what must hold is that reading a file and writing it again changes nothing.
+        #expect(try read.data() == before.data())
+        #expect(try BackupFile.read(try read.data()) == read)
 
         let other = try FeedTests.store()
         try read.restore(into: other)
