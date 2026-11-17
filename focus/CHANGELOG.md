@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.4 — 2026-11-17
+
+- **"Pick your own"** is back as the last colour tile (the rainbow swatch, opens the colour picker); Primary / Two colours
+  stay beneath it.
+- **New session sounds, matched to the animation:** in, a soft rush of air sweeping bright to warm as the apps fly into
+  the icon, landing on a felt tap; out, a light release then the rush sweeping back out. No tones.
+
 ## 0.19.3 — 2026-11-17
 
 - pricing.json refreshed from the site: the one-off now reads "Buy once, own forever".

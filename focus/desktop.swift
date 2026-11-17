@@ -2005,7 +2005,7 @@ struct AnyColourTile: View {
                 Circle().fill(AngularGradient(colors: [.red, .yellow, .green, .cyan, .blue, .purple, .red], center: .center))
                     .frame(width: 16, height: 16)
                     .overlay(Circle().fill(Color(nsColor: custom ? (hexColor(f.iconColor) ?? .clear) : .clear)).frame(width: 7, height: 7))
-                Text("Any colour").font(Site.font(15, custom ? .medium : .regular)).foregroundColor(custom || hover ? Site.head : Site.low).lineLimit(1)
+                Text("Pick your own").font(Site.font(15, custom ? .medium : .regular)).foregroundColor(custom || hover ? Site.head : Site.low).lineLimit(1)
                 Spacer(minLength: 0)
             }.padding(.horizontal, 12).frame(height: 38)
             .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(hover || custom ? Site.surface2 : Site.surface))
@@ -2602,6 +2602,8 @@ struct AppearancePage: View {
                     ColourTile(name: name, a: a, b: b, on: on) { if locked { m.openUpgrade() } else { m.act { f.iconColor = a; f.iconColor2 = a == b ? "" : b; DesktopView.keepInkReadable(f) } } }
                         .opacity(locked ? 0.3 : 1).allowsHitTesting(!locked)
                 }
+                AnyColourTile(m: m)                                              // the last tile: any colour at all
+                    .opacity(DesktopModel.gated ? 0.3 : 1).allowsHitTesting(!DesktopModel.gated)
             }
             SettingLine(title: "Custom colours", note: "Any colour you like, for this window's button and the menu bar icon. Tick Two colours to add a second for the dot and the button's other end.", pro: true) {
                 CustomColours(m: m)
@@ -3680,22 +3682,35 @@ enum Chime {
         let ok = s.play()
         flog("chime \(start ? "start" : "end"): play() \(ok)")
     }
-    /// A focus pull. In: a soft shutter tick, then two voices a little out of tune (they beat: a blur) slide together
-    /// into one clean note (in focus). Out: the clean note drifts apart into the beat and fades (the blur returning).
+    /// Air and touch, matched to the session animation. In: a soft rush that sweeps from bright to warm as the apps
+    /// fly into the icon, landing on a felt tap. Out: a light release, then the rush sweeping back out as they fly home.
     static func pull(into: Bool, rate: Double = 44_100) -> [Double] {
-        let len = into ? 0.36 : 0.40, n = Int(len * rate), base = 587.33           // D5
-        var out = [Double](repeating: 0, count: n), ph1 = 0.0, ph2 = 0.0
+        let len = into ? 0.46 : 0.44, n = Int(len * rate)
+        var out = [Double](repeating: 0, count: n)
+        var seed: UInt32 = 0x9E3779B9                                  // the same air every time
+        func noise() -> Double { seed = seed &* 1_664_525 &+ 1_013_904_223; return Double(seed >> 8) / Double(1 << 23) - 1 }
+        var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0                     // a band-pass that sweeps: the rush
+        let rushStart = into ? 0.0 : 0.05, rushEnd = into ? 0.32 : 0.44
+        let tapAt = into ? 0.29 : 0.0
         for i in 0..<n {
             let t = Double(i) / rate
-            let k = min(1, t / (into ? 0.22 : 0.28)), ease = 1 - pow(1 - k, 3)        // ease-out
-            let detune = into ? 14 * (1 - ease) : 14 * ease                           // Hz apart: blur ↔ focus
-            let glide = into ? base * (0.94 + 0.06 * ease) : base * (1 - 0.05 * ease) // a small rise in, a small fall out
-            ph1 += 2 * .pi * glide / rate; ph2 += 2 * .pi * (glide + detune) / rate
-            let env = min(1, t / 0.008) * exp(-t * (into ? 6.5 : 7.5))
-            var v = (sin(ph1) + sin(ph2)) * 0.5 * env
-            v += 0.12 * sin(2 * ph1) * env                                            // a little body
-            if into { v += 0.35 * sin(2 * .pi * 2_600 * t) * exp(-t * 520) }          // the shutter tick
-            out[i] = v * 0.55
+            var v = 0.0
+            if t >= rushStart && t < rushEnd {
+                let k = (t - rushStart) / (rushEnd - rushStart)           // 0…1 through the rush
+                let fc = into ? 3_200 * pow(550.0 / 3_200, k) : 550 * pow(3_200.0 / 550, k)   // in: bright → warm; out: warm → bright
+                let w0 = 2 * .pi * fc / rate, q = 1.6, alpha = sin(w0) / (2 * q), a0 = 1 + alpha
+                let xin = noise()
+                let y = (alpha * xin - alpha * x2 - (-2 * cos(w0)) * y1 - (1 - alpha) * y2) / a0
+                x2 = x1; x1 = xin; y2 = y1; y1 = y
+                let env = into ? pow(sin(.pi * min(1, k * 1.15)), 1.6) : pow(sin(.pi * k), 1.4)
+                v += y * env * 0.9
+            }
+            if t >= tapAt && t < tapAt + 0.09 {                         // the felt tap (in) / the light release (out)
+                let u = t - tapAt
+                let f = into ? 190 * pow(0.6, u / 0.06) : 240 * pow(1.25, u / 0.06)
+                v += sin(2 * .pi * f * u) * exp(-u * (into ? 48 : 60)) * (into ? 0.55 : 0.32)
+            }
+            out[i] = v * 0.6
         }
         return out
     }
