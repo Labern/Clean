@@ -46,7 +46,7 @@ nonisolated enum NoteText {
 // MARK: - The list
 
 struct NotesView: View {
-    @Query(sort: \Note.updated, order: .reverse) private var notes: [Note]
+    @Query(sort: \Note.edited, order: .reverse) private var notes: [Note]
     @Environment(\.modelContext) private var context
     @State private var search = ""
     @State private var path: [Note] = []
@@ -191,7 +191,7 @@ struct NoteRow: View {
                         .lineLimit(1)
                 }
                 HStack(spacing: 6) {
-                    Text(note.updated, format: Self.stamp(note.updated))
+                    Text(note.edited, format: Self.stamp(note.edited))
                         .foregroundStyle(Ink.muted)
                     if let project = note.project {
                         Text(project.name)
@@ -303,7 +303,7 @@ struct NoteEditor: View {
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     VStack(spacing: 0) {
-                        Text(note.updated, format: .dateTime.day().month(.abbreviated).hour().minute())
+                        Text(note.edited, format: .dateTime.day().month(.abbreviated).hour().minute())
                         Text(NoteText.words(note.text) == 1 ? "1 word" : "\(NoteText.words(note.text)) words")
                     }
                     .font(.caption2)
@@ -345,7 +345,7 @@ struct NoteEditor: View {
                 }
             }
             .onChange(of: note.text) { _, _ in
-                note.updated = .now
+                note.edited = .now
             }
             .onAppear {
                 if note.text.isEmpty { typing = true }
@@ -365,7 +365,7 @@ struct ProjectNotes: View {
     let write: () -> Void
 
     var body: some View {
-        let notes = project.notes.sorted { $0.updated > $1.updated }
+        let notes = project.notes.sorted { $0.edited > $1.edited }
         Section {
             ForEach(notes) { NoteRow(note: $0) }
             Button(action: write) {

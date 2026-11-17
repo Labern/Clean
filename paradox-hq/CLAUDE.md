@@ -21,7 +21,7 @@ and kept in the Keychain on the phone.
 - **Notes** — a proper notebook. Plain text, the first line is the title, saved as
   typed. Search (every word must appear), pin, file under a project, share, delete.
   A bar chart of notes started per day, scrubbable. An untouched new note deletes
-  itself. Notes live on the phone only (`Note` in SwiftData); the model is ready
+  itself. Notes live on the phone only (`Note` in SwiftData; never name a stored property `updated`, `inserted` or `deleted`, the store reads them back empty). The model is ready
   for iCloud but that isn't switched on.
 - **My own list** — one `Project` with `isPersonal` set, named "Me", always first,
   never sent to the feed, never deletable. It is a to-do list like any project's.

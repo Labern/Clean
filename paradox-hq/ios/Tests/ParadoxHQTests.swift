@@ -520,6 +520,19 @@ struct NoteTests {
         #expect(days.last?.date == at(2026, 11, 17, 0))
     }
 
+    @Test func aNoteKeepsItsDates() throws {
+        let context = try FeedTests.store()
+        let made = at(2026, 11, 3, 9)
+        context.insert(Note(text: "Dated", created: made))
+        try context.save()
+        let note = try #require(try context.fetch(FetchDescriptor<Note>(sortBy: [SortDescriptor(\Note.edited, order: .reverse)])).first)
+        #expect(note.created == made)
+        #expect(note.edited == made)
+        note.edited = at(2026, 11, 17, 15)
+        try context.save()
+        #expect(note.edited == at(2026, 11, 17, 15))
+    }
+
     @Test func aProjectsNotesOutliveIt() throws {
         let context = try FeedTests.store()
         let project = Project(name: "Focus")

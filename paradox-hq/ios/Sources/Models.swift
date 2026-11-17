@@ -61,7 +61,10 @@ import SwiftData
 @Model final class Note {
     var text: String = ""
     var created: Date = Date()
-    var updated: Date = Date()
+    /// When the words last changed. Not called `updated`: the store underneath
+    /// already has an `isUpdated` of its own, and a property by that name reads
+    /// back as nothing (every note dated 1 January 2001).
+    var edited: Date = Date()
     var pinned: Bool = false
     var project: Project? = nil
 
@@ -69,7 +72,7 @@ import SwiftData
         self.text = text
         self.project = project
         self.created = created
-        self.updated = created
+        self.edited = created
     }
 }
 
