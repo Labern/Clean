@@ -12,6 +12,9 @@ and kept in the Keychain on the phone.
 - App: `ios/` — `project.yml` is the source of truth; the `.xcodeproj` is generated
   (`xcodegen generate`) and gitignored. Swift 6, iOS 26, bundle `com.labern.paradox.hq`.
 - On the Mac: `~/Desktop/Clean/iOS/bin/ios-run ~/Desktop/Clean/paradox-hq/ios`.
+  **After pulling new source files, run `xcodegen generate` in `ios/` first.** `ios-run`
+  reused a stale project when only sources changed (`project.yml` untouched) and the
+  build failed with "cannot find 'NotesView' in scope" (2026-11-17).
 - Cloud: `.github/workflows/paradox-hq-ios.yml` builds, tests and screenshots every
   screen on any push that touches `paradox-hq/ios/`, then force-pushes the results to
   `ci/paradox-hq` (`git fetch origin ci/paradox-hq`). `result.txt` holds the compiler
