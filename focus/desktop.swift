@@ -3678,61 +3678,36 @@ enum Chime {
         guard (on || force), !testing, let s = start ? startSound : endSound else {
             flog("chime \(start ? "start" : "end"): not played (sound \(on ? "on" : "off"), testing \(testing))"); return
         }
-        s.stop(); s.volume = 0.22                                  // quiet: a touch, not an announcement
+        s.stop(); s.volume = 0.18                                  // very quiet: a touch, not an announcement
         let ok = s.play()
         flog("chime \(start ? "start" : "end"): play() \(ok)")
     }
-    /// A synth pad and a whoosh. In: the whoosh rushes in and a warm chord (E · G♯ · B · D♯ · F♯) swells beneath it,
-    /// its filter opening as it comes into focus, with a felt tap as the apps land. Out: a lower, settling chord
-    /// (A · E · B · C♯) whose filter closes as the whoosh carries everything back out.
+    /// Five soft clicks in a quick, even row, like cards squared into a stack. In: 1-2-3-4-5, each a touch lower,
+    /// settling as the apps gather. Out: the same five reversed, each a touch higher, as they spread back out.
     static func pull(into: Bool, rate: Double = 44_100) -> [Double] {
-        let len = into ? 0.95 : 0.9, n = Int(len * rate)
-        let notes: [Double] = into ? [329.63, 415.30, 493.88, 622.25, 739.99] : [220.00, 329.63, 493.88, 554.37]
-        var pad = [Double](repeating: 0, count: n)
-        // supersaw: three slightly detuned voices per note, each a band-limited saw (first 10 harmonics)
-        for (ni, f0) in notes.enumerated() {
-            for (vi, cents) in [-8.0, 0.0, 7.0].enumerated() {
-                let f = f0 * pow(2, cents / 1200), ph0 = Double((ni * 3 + vi) * 37 % 100) / 100 * 2 * .pi
-                for h in 1...10 where f * Double(h) < 9_000 {
-                    let w = 2 * .pi * f * Double(h) / rate, g = 1 / Double(h)
-                    for i in 0..<n { pad[i] += sin(w * Double(i) + ph0 * Double(h)) * g }
-                }
-            }
-        }
-        // the filter (two-pole low-pass) sweeps: opens on the way in, closes on the way out
-        var out = [Double](repeating: 0, count: n), l1 = 0.0, l2 = 0.0
-        var seed: UInt32 = 0x9E3779B9
+        let gap = 0.052, count = 5, len = gap * Double(count) + 0.08, n = Int(len * rate)
+        var out = [Double](repeating: 0, count: n)
+        var seed: UInt32 = 0x2545F491
         func noise() -> Double { seed = seed &* 1_664_525 &+ 1_013_904_223; return Double(seed >> 8) / Double(1 << 23) - 1 }
-        var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
-        for i in 0..<n {
-            let t = Double(i) / rate
-            let k = min(1, t / (into ? 0.38 : 0.6))
-            let cutoff = into ? 350 * pow(3_400 / 350, k) : 3_000 * pow(300 / 3_000.0, k)
-            let c = 1 - exp(-2 * .pi * cutoff / rate)
-            l1 += c * (pad[i] - l1); l2 += c * (l1 - l2)
-            let padEnv = into ? min(1, t / 0.2) * (t < 0.55 ? 1 : max(0, 1 - (t - 0.55) / 0.4))
-                              : min(1, t / 0.02) * exp(-t * 3.2)
-            var v = l2 * padEnv * 0.09
-            // the whoosh: a sweeping band of air (in: bright → warm, then gone; out: warm → bright, rising away)
-            let rs = into ? 0.0 : 0.04, re = into ? 0.36 : 0.62
-            if t >= rs && t < re {
-                let r = (t - rs) / (re - rs)
-                let fc = into ? 3_000 * pow(600 / 3_000.0, r) : 600 * pow(3_000 / 600.0, r)
-                let w0 = 2 * .pi * fc / rate, alpha = sin(w0) / 3.2, a0 = 1 + alpha, xin = noise()
+        let pitches: [Double] = [2_350, 2_150, 1_980, 1_820, 1_680]           // each click a touch lower
+        for c in 0..<count {
+            let at = Double(c) * gap, pitch = into ? pitches[c] : pitches[count - 1 - c]
+            let level = 0.75 + 0.25 * Double(c % 2)                          // an even, alive rhythm
+            var x1 = 0.0, x2 = 0.0, y1 = 0.0, y2 = 0.0
+            let w0 = 2 * .pi * 4_200 / rate, alpha = sin(w0) / 2.4, a0 = 1 + alpha
+            let start = Int(at * rate), end = min(n, start + Int(0.03 * rate))
+            for i in start..<end {
+                let u = Double(i - start) / rate
+                let xin = noise()                                             // the paper edge: a tiny burst of air
                 let y = (alpha * xin - alpha * x2 + 2 * cos(w0) * y1 - (1 - alpha) * y2) / a0
                 x2 = x1; x1 = xin; y2 = y1; y1 = y
-                v += y * pow(sin(.pi * r), 1.5) * 0.22                    // the whoosh, well under the pad
+                let tick = y * exp(-u * 900) * 0.6
+                let body = sin(2 * .pi * pitch * u) * exp(-u * 260) * 0.35   // the click's little body
+                out[i] += (tick + body) * level
             }
-            if into && t >= 0.3 && t < 0.38 {                           // the felt tap as the apps land
-                let u = t - 0.3; v += sin(2 * .pi * 170 * pow(0.62, u / 0.06) * u) * exp(-u * 50) * 0.12
-            }
-            out[i] = v
         }
-        // a high-pass (two poles at 280 Hz): the low rumble out, so it sits light and airy
-        let hc = exp(-2 * .pi * 280 / rate)
-        for _ in 0..<2 { var px = 0.0, py = 0.0; for i in 0..<n { let x = out[i]; py = hc * (py + x - px); px = x; out[i] = py } }
         let peak = max(0.001, out.map { abs($0) }.max() ?? 1)
-        return out.map { $0 / peak * 0.55 }
+        return out.map { $0 / peak * 0.5 }
     }
     static func wav(_ x: [Double], rate: Double = 44_100) -> Data {
         let samples = x.map { Int16(max(-1, min(1, $0)) * 32_000) }
