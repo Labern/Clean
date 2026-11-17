@@ -467,3 +467,19 @@ struct OutboxTests {
         #expect(next.outgoing.subs.isEmpty)
     }
 }
+
+@Suite("Scrubbing a chart")
+struct ScrubTests {
+    @Test func theFingerPicksTheBarItIsOver() {
+        let bars = [Bucket(date: at(2026, 11, 1, 0), amount: 100),
+                    Bucket(date: at(2026, 11, 2, 0), amount: 200),
+                    Bucket(date: at(2026, 11, 3, 0), amount: 300)]
+        #expect(Ledger.pick(bars, at: at(2026, 11, 2, 0))?.amount == 200)
+        #expect(Ledger.pick(bars, at: at(2026, 11, 2, 23))?.amount == 200)
+        #expect(Ledger.pick(bars, at: at(2026, 11, 3, 1))?.amount == 300)
+        // Off either end, it holds the nearest one.
+        #expect(Ledger.pick(bars, at: at(2026, 10, 20))?.amount == 100)
+        #expect(Ledger.pick(bars, at: at(2026, 12, 25))?.amount == 300)
+        #expect(Ledger.pick([], at: at(2026, 11, 2)) == nil)
+    }
+}

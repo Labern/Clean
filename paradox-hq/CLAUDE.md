@@ -69,6 +69,9 @@ swap the master in when on the Mac. Do not adjust spacing, order or glyphs.
   Brothers. Use it for ticks landing, figures arriving, the lock opening; pair it
   with a haptic; honour Reduce Motion. This rule travels with the project to its
   new repo.
+- **Graphs scrub with a haptic.** Dragging along any chart reads off each point,
+  with a selection tick each time the finger crosses onto another (`Ledger.pick`,
+  `chartXSelection`, `.sensoryFeedback(.selection, …)`). Every new chart gets this.
 - Apple's Human Interface Guidelines govern the design: `paradokkusu/docs/APPLE-HIG.md`.
 - No instructional hint text in the UI.
 - Xcode project, automatic signing under Labern's team. Never hardcode a Team ID.

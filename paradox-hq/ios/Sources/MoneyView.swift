@@ -53,6 +53,8 @@ struct MoneyView: View {
 struct RevenueCard: View {
     @Environment(MoneyStore.self) private var money
     let period: Period
+    /// Where the finger is on the chart, while it's down.
+    @State private var touched: Date? = nil
 
     var body: some View {
         let calendar = Calendar.current
@@ -69,15 +71,19 @@ struct RevenueCard: View {
         let bars = Ledger.buckets(money.payments, from: current.start, to: window.end,
                                   by: period.bucket, calendar: calendar)
         let latest = bars.last?.date
+        // Dragging along the bars reads each one off, with a tick of the haptic
+        // every time the finger crosses onto the next.
+        let picked = touched.flatMap { Ledger.pick(bars, at: $0) }
+        let lit = picked?.date ?? latest
 
         Card {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Revenue this \(period.title.lowercased())")
+                        Text(picked.map { Self.label($0.date, period) } ?? "Revenue this \(period.title.lowercased())")
                             .font(.footnote.weight(.semibold))
-                            .foregroundStyle(Ink.muted)
-                        Text(money.money(total))
+                            .foregroundStyle(picked == nil ? Ink.muted : Color.white)
+                        Text(money.money(picked?.amount ?? total))
                             .font(.system(size: 36, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(.white)
@@ -91,13 +97,17 @@ struct RevenueCard: View {
                             .font(.caption2)
                             .foregroundStyle(Ink.muted)
                     }
+                    .opacity(picked == nil ? 1 : 0)
                 }
                 Chart(bars) { bar in
                     BarMark(x: .value("Date", bar.date, unit: period.bucket),
                             y: .value("Revenue", Double(bar.amount) / 100))
                         .cornerRadius(3)
-                        .foregroundStyle(bar.date == latest ? Color.white : Ink.violet.opacity(0.6))
+                        .foregroundStyle(bar.date == lit ? Color.white : Ink.violet.opacity(0.6))
                 }
+                .chartXSelection(value: $touched)
+                .sensoryFeedback(.selection, trigger: picked?.date)
+                .onChange(of: period) { _, _ in touched = nil }
                 .chartYAxis(.hidden)
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 4)) { _ in
@@ -115,6 +125,15 @@ struct RevenueCard: View {
                     stat("Refunds", refunds > 0 ? money.money(refunds) : "–")
                 }
             }
+        }
+    }
+
+    /// What a bar stands for, in words: a day, a week, or a month.
+    static func label(_ date: Date, _ period: Period) -> String {
+        switch period.bucket {
+        case .weekOfYear: "Week of \(date.formatted(.dateTime.day().month(.abbreviated)))"
+        case .month: date.formatted(.dateTime.month(.wide).year())
+        default: date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
         }
     }
 

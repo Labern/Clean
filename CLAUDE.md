@@ -32,6 +32,15 @@ dropping, a number arriving, a session starting. Focus's session pill already
 does it (zop, hit stop, zip). Pair it with a haptic on the phone. Honour Reduce
 Motion. Carry this rule into the CLAUDE.md of every new project and repo.
 
+## ALWAYS — graphs scrub with a haptic (every product, present and future)
+On every graph (money going up, releases pushed, notes written in a day,
+anything), dragging left or right reads off each data point in turn, and the
+phone gives a haptic tick each time the finger crosses onto another point.
+Labern: "I really like that. It's a premium feel." The figure on show changes to
+the point under the finger and goes back when it lifts. In SwiftUI:
+`chartXSelection` plus `.sensoryFeedback(.selection, trigger:)` on the picked
+point, as in `paradox-hq/ios/Sources/MoneyView.swift`.
+
 ## ALWAYS — keep the Mac's global rules in step (Mac sessions only)
 `global/standing-rules.md` holds the rules that apply to every repo, not just this
 one. `~/.claude/CLAUDE.md` on the Mac is what carries them into other repos, and a

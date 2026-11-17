@@ -59,6 +59,8 @@ struct TodayView: View {
 /// over the trend of the last 30 days.
 struct TakingsCard: View {
     @Environment(MoneyStore.self) private var money
+    /// Where the finger is on the chart, while it's down.
+    @State private var touched: Date? = nil
 
     var body: some View {
         let calendar = Calendar.current
@@ -68,44 +70,64 @@ struct TakingsCard: View {
         let lastStart = calendar.date(byAdding: .day, value: -7, to: start) ?? start
         let lastEnd = lastStart.addingTimeInterval(now.timeIntervalSince(start))
         let last = Ledger.total(money.payments, in: DateInterval(start: lastStart, end: max(lastStart, lastEnd)))
-        let trend = Ledger.rolling(Ledger.daily(money.payments, days: 36, now: now, calendar: calendar), window: 7).suffix(30)
+        let daily = Ledger.daily(money.payments, days: 36, now: now, calendar: calendar)
+        let trend = Array(Ledger.rolling(daily, window: 7).suffix(30))
         let weekday = now.formatted(.dateTime.weekday(.wide))
+        // Dragging along the chart reads off each day in turn, with a tick of
+        // the haptic every time the finger crosses onto another day.
+        let picked = touched.flatMap { Ledger.pick(trend, at: $0) }
+        let pickedDay = picked.flatMap { point in daily.first { $0.date == point.date } }
 
         Card {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text("Today")
+                    Text(picked == nil ? "Today" : "That day")
                         .font(.footnote.weight(.semibold))
                         .foregroundStyle(Ink.muted)
                     Spacer(minLength: 8)
-                    Text(now, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                    Text(picked?.date ?? now, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
                         .font(.footnote)
-                        .foregroundStyle(Ink.muted)
+                        .foregroundStyle(picked == nil ? Ink.muted : Color.white)
                 }
                 HStack(alignment: .firstTextBaseline) {
-                    Text(money.money(today))
+                    Text(money.money(pickedDay?.amount ?? today))
                         .font(.system(size: 40, weight: .bold))
                         .monospacedDigit()
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.6)
                     Spacer(minLength: 8)
-                    difference(today - last, weekday: weekday)
+                    if picked == nil {
+                        difference(today - last, weekday: weekday)
+                    }
                 }
-                Chart(Array(trend)) { bucket in
-                    AreaMark(x: .value("Day", bucket.date, unit: .day),
-                             y: .value("Revenue", Double(bucket.amount) / 100))
-                        .interpolationMethod(.monotone)
-                        .foregroundStyle(LinearGradient(colors: [Ink.violet.opacity(0.35), Ink.violet.opacity(0)],
-                                                        startPoint: .top, endPoint: .bottom))
-                    LineMark(x: .value("Day", bucket.date, unit: .day),
-                             y: .value("Revenue", Double(bucket.amount) / 100))
-                        .interpolationMethod(.monotone)
-                        .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
-                        .foregroundStyle(Ink.violet)
+                Chart {
+                    ForEach(trend) { bucket in
+                        AreaMark(x: .value("Day", bucket.date, unit: .day),
+                                 y: .value("Revenue", Double(bucket.amount) / 100))
+                            .interpolationMethod(.monotone)
+                            .foregroundStyle(LinearGradient(colors: [Ink.violet.opacity(0.35), Ink.violet.opacity(0)],
+                                                            startPoint: .top, endPoint: .bottom))
+                        LineMark(x: .value("Day", bucket.date, unit: .day),
+                                 y: .value("Revenue", Double(bucket.amount) / 100))
+                            .interpolationMethod(.monotone)
+                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
+                            .foregroundStyle(Ink.violet)
+                    }
+                    if let picked {
+                        RuleMark(x: .value("Day", picked.date, unit: .day))
+                            .lineStyle(StrokeStyle(lineWidth: 1))
+                            .foregroundStyle(Ink.idle)
+                        PointMark(x: .value("Day", picked.date, unit: .day),
+                                  y: .value("Revenue", Double(picked.amount) / 100))
+                            .symbolSize(70)
+                            .foregroundStyle(.white)
+                    }
                 }
                 .chartXAxis(.hidden)
                 .chartYAxis(.hidden)
+                .chartXSelection(value: $touched)
+                .sensoryFeedback(.selection, trigger: picked?.date)
                 .frame(height: 72)
                 .accessibilityLabel("Revenue over the last 30 days")
                 HStack {

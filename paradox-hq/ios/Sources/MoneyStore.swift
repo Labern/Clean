@@ -149,6 +149,13 @@ nonisolated enum Ledger {
         return buckets(payments, from: start, to: end, by: .day, calendar: calendar)
     }
 
+    /// The point under a finger dragged along a chart: the last one that starts
+    /// at or before that moment, so the haptic ticks exactly when it crosses
+    /// onto the next.
+    static func pick(_ buckets: [Bucket], at date: Date) -> Bucket? {
+        buckets.last { $0.date <= date } ?? buckets.first
+    }
+
     /// A trailing average, to calm a spiky daily series into a trend.
     static func rolling(_ buckets: [Bucket], window: Int) -> [Bucket] {
         buckets.indices.map { index in
