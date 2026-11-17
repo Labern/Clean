@@ -48,7 +48,8 @@ else
 fi
 rm -rf Focus.app && ditto "$APP" Focus.app             # a copy beside the source, for CI's zip and --selftest
 if [ "$1" = "--ci" ]; then exit 0; fi
-pkill -x Focus || true; sleep 1; pkill -9 -x Focus || true   # an old build can hang on quit
+pkill -x Focus || true; pkill -f "/Applications/Focus.app/Contents/MacOS/Focus" || true; sleep 1
+pkill -9 -x Focus || true; pkill -9 -f "/Applications/Focus.app/Contents/MacOS/Focus" || true   # an old build can hang on quit; never leave one behind
 rm -rf /Applications/Focus.app && ditto "$APP" /Applications/Focus.app   # fixed location, so "Open at login" sticks
 cmp -s "$APP/Contents/MacOS/Focus" /Applications/Focus.app/Contents/MacOS/Focus || { echo "✗ install failed — /Applications/Focus.app is not this build"; exit 1; }
 open /Applications/Focus.app

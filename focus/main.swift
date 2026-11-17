@@ -1558,7 +1558,10 @@ final class Focus: NSObject, NSMenuDelegate {
         migrateModes()                                          // older modes get their permanent ids
         if store == .standard { lightMenu = lightMenuSetting }
         if store == .standard {                                 // `Focus --open-desktop` from a script or another app
-            DistributedNotificationCenter.default().addObserver(forName: .init("com.labern.focus.openDesktop"), object: nil, queue: .main) { [weak self] _ in self?.openDesktop() }
+            DistributedNotificationCenter.default().addObserver(forName: .init("com.labern.focus.openDesktop"), object: nil, queue: .main) { [weak self] _ in
+                DistributedNotificationCenter.default().postNotificationName(.init("com.labern.focus.ack"), object: nil, userInfo: nil, deliverImmediately: true)   // "I'm alive"
+                self?.openDesktop()
+            }
         }
         if store == .standard, !store.bool(forKey: "iconDefaultIsSite") {
             store.set(true, forKey: "iconDefaultIsSite")
@@ -3110,7 +3113,22 @@ if CommandLine.arguments.contains("--pill-demo") {          // watch the start a
 }
 let testing = CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest") })
 if CommandLine.arguments.contains("--chime-check") { _ = NSApplication.shared; Chime.check(); exit(0) }
-if !others.isEmpty && !testing { print("Focus is already running (pid \(others[0].processIdentifier))"); exit(0) }
+if !others.isEmpty && !testing {
+    // A second copy: ask the running one to show its window. If it answers, leave it be. If it doesn't answer within
+    // 2 s it's stuck (or a stale copy that survived an update): replace it, so Focus always opens.
+    var answered = false
+    let dnc = DistributedNotificationCenter.default()
+    let ack = dnc.addObserver(forName: .init("com.labern.focus.ack"), object: nil, queue: .main) { _ in answered = true }
+    dnc.postNotificationName(.init("com.labern.focus.openDesktop"), object: nil, userInfo: nil, deliverImmediately: true)
+    let until = Date().addingTimeInterval(2)
+    while !answered && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    dnc.removeObserver(ack)
+    if answered { print("Focus is already running: asked it to open its window"); exit(0) }
+    flog("a running Focus didn't answer in 2 s: replaced it")
+    for o in others { o.terminate() }
+    Thread.sleep(forTimeInterval: 1)
+    for o in others where !o.isTerminated { o.forceTerminate() }
+}
 if !testing {                                                   // launched too close together to see each other yet
     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { if olderFocus() != nil { exit(0) } }
 }
@@ -3928,6 +3946,7 @@ if CommandLine.arguments.contains("--selftest") {
 }
 let focus = Focus()
 Scheduler.shared.start(focus)                                   // Schedule: blocks and timed modes, window or not
+desktop.adopt()                                                  // reopening Focus from Finder, Spotlight or the Dock opens its window
 // The window was open when Focus last stopped (an update restarts it): bring it back, as it was.
 if DesktopController.wasOpen && !CommandLine.arguments.contains("--open-desktop") {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { focus.openDesktop() }

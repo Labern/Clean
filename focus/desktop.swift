@@ -2714,6 +2714,15 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
     }
     var window: NSWindow?, model: DesktopModel?
     var shown: Bool { window?.isVisible == true }
+    /// Be the app's delegate from launch, so reopening Focus (Finder, Spotlight, the Dock) opens the window.
+    func adopt() {
+        guard NSApp.delegate == nil else { return }
+        NSApp.delegate = self
+        NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main) { [weak self] _ in self?.poweringOff = true }
+    }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        focus.openDesktop(); return false                          // opened again while running: show the window
+    }
     /// The week's sessions ran out (from the menu or a key): bring the window up on the out-of-sessions Upgrade page.
     func outOfSessions(_ f: Focus) { show(f); model?.openOutOfSessions() }
     func show(_ f: Focus) {
@@ -2743,10 +2752,7 @@ final class DesktopController: NSObject, NSWindowDelegate, NSApplicationDelegate
         NSApp.setActivationPolicy(.regular)                      // now in the Dock and ⌘⇥…
         NSApp.applicationIconImage = siteLogo(512, grid: true)   // …with the site's logo
         NSApp.mainMenu = mainMenu()                              // …and a menu bar of its own
-        if NSApp.delegate == nil {
-            NSApp.delegate = self
-            NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: .main) { [weak self] _ in self?.poweringOff = true }
-        }
+        adopt()
         NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil)
         model?.showWelcomeIfNew()                                       // a new copy's first open: the thank-you
     }
