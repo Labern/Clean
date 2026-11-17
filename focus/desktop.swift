@@ -3517,28 +3517,45 @@ struct SchedulePage: View {
     @ObservedObject var m: DesktopModel
     @ObservedObject var s = Scheduler.shared
     var body: some View {
-        PageFrame(title: "Schedule", text: "Start and end your session at set times, and keep chosen apps closed during set hours.", locked: m) {
-            SettingLine(title: "Schedule", note: s.enabled ? "On: Focus follows the times below." : "Off: nothing below happens until you turn it on.") {
+        PageFrame(title: "Schedule", text: "Let Focus run your day: your work session starts and ends by itself, and the apps that pull you away stay closed while you work.", locked: m) {
+            SettingLine(title: "Schedule", note: s.enabled ? "On: Focus follows both halves below." : "Off: nothing below happens until you turn it on.") {
                 Choice(options: ["Off", "On"], selected: s.enabled ? 1 : 0) { i in s.enabled = i == 1 }
             }
-            VStack(alignment: .leading, spacing: 0) {
-                SectionLabel("Session Times").padding(.horizontal, -14)
-                Note("On these days, the session starts by itself at the first time and ends at the second, bringing everything back.")
-                HStack(spacing: 6) {
-                    DayPicker(days: $s.times.days)
-                    Spacer(minLength: 16)
-                    Text("start").font(Site.font(15)).foregroundColor(Site.muted); TimeField(minutes: $s.times.start)
-                    Text("end").font(Site.font(15)).foregroundColor(Site.muted).padding(.leading, 6); TimeField(minutes: $s.times.end)
+            HStack(alignment: .top, spacing: 18) {
+                half(title: "Work Hours", what: "Your session starts by itself at the start time and ends at the end time, bringing every app back.",
+                     why: "So the day begins focused without pressing anything, and ends cleanly.") {
+                    VStack(alignment: .leading, spacing: 14) {
+                        DayPicker(days: $s.times.days)
+                        HStack(spacing: 8) {
+                            Text("Start").font(Site.font(15)).foregroundColor(Site.muted); TimeField(minutes: $s.times.start)
+                            Text("End").font(Site.font(15)).foregroundColor(Site.muted).padding(.leading, 8); TimeField(minutes: $s.times.end)
+                        }
+                    }
+                    .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.surface))
                 }
-                .padding(16).background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Site.surface)).padding(.top, 8)
-                SectionLabel("Block Apps").padding(.horizontal, -14)
-                Note("Keep these apps closed during these hours. If one opens, Focus closes it again.")
-                ForEach($s.rules) { $r in if r.kind == "block" { ScheduleRow(m: m, r: $r) } }
-                SiteButton("Add Apps to Block") { s.rules.append(ScheduleRule(kind: "block", days: [2, 3, 4, 5, 6], from: 9 * 60, to: 17 * 60 + 30)) }.padding(.top, 8)
-                if !s.note.isEmpty { Text(s.note).font(Site.font(15)).foregroundColor(Site.muted).padding(.top, 14) }
+                half(title: "Fun Apps, Blocked", what: "The apps you choose (games, Discord, YouTube) stay closed during the hours you set. If one opens, Focus closes it again.",
+                     why: "So the things that pull you away can't, until you're done.") {
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach($s.rules) { $r in if r.kind == "block" { ScheduleRow(m: m, r: $r) } }
+                        SiteButton("Add Apps to Block") { s.rules.append(ScheduleRule(kind: "block", days: [2, 3, 4, 5, 6], from: 8 * 60, to: 17 * 60 + 30)) }.padding(.top, 10)
+                    }
+                }
             }
-            .opacity(s.enabled ? 1 : 0.4)                              // set it up either way; it only acts when on
+            .padding(.top, 18).opacity(s.enabled ? 1 : 0.45)
+            if !s.note.isEmpty { Text(s.note).font(Site.font(15)).foregroundColor(Site.muted).padding(.top, 14) }
         }
+    }
+    func half<C: View>(title: String, what: String, why: String, @ViewBuilder content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title).font(Site.font(24, .medium)).foregroundColor(Site.head)
+            Rectangle().fill(Site.head).frame(height: 1)
+            Text(what).font(Site.font(15)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
+            Text(why).font(Site.font(15)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true)
+            content().padding(.top, 4)
+        }
+        .padding(18).frame(maxWidth: .infinity, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Site.line, lineWidth: 1))
     }
 }
 
@@ -3582,14 +3599,10 @@ struct ScheduleRow: View {
                     Image(systemName: "trash").font(.system(size: 14)).foregroundColor(Site.muted).frame(width: 30, height: 30).contentShape(Rectangle())
                 }.buttonStyle(.plain).help("Delete").linkCursor()
             }
-            HStack(spacing: 6) {
-                DayPicker(days: $r.days)
-                Spacer(minLength: 16)
-                if r.kind == "block" {
-                    TimeField(minutes: $r.from); Text("to").font(Site.font(15)).foregroundColor(Site.muted); TimeField(minutes: $r.to)
-                } else {
-                    Text("at").font(Site.font(15)).foregroundColor(Site.muted); TimeField(minutes: $r.from)
-                }
+            DayPicker(days: $r.days)
+            HStack(spacing: 8) {                                        // the hours on their own line: never squeezed
+                Text("From").font(Site.font(15)).foregroundColor(Site.muted); TimeField(minutes: $r.from)
+                Text("to").font(Site.font(15)).foregroundColor(Site.muted).padding(.leading, 4); TimeField(minutes: $r.to)
             }
         }
         .padding(16)
