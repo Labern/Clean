@@ -11,11 +11,12 @@ struct ParadoxHQApp: App {
 
     init() {
         do {
-            container = try ModelContainer(for: Project.self, FocusItem.self, Deadline.self)
+            container = try ModelContainer(for: Project.self, FocusItem.self, Deadline.self, Note.self)
         } catch {
             fatalError("The store couldn't be opened: \(error)")
         }
         Seed.run(container.mainContext)
+        Seed.sampleNotes(container.mainContext)
     }
 
     var body: some Scene {
@@ -91,26 +92,40 @@ struct Gate: View {
 }
 
 enum Screen: String, Hashable {
-    case today, money, projects, company
+    case today, projects, notes, money, company
 }
 
 struct RootView: View {
-    @State private var screen: Screen = Launch.screen == "project" ? .projects : Screen(rawValue: Launch.screen) ?? .today
+    @State private var screen: Screen = RootView.opening()
 
     var body: some View {
         TabView(selection: $screen) {
             Tab("Today", systemImage: "star.fill", value: Screen.today) {
                 TodayView()
             }
-            Tab("Money", systemImage: "chart.bar.fill", value: Screen.money) {
-                MoneyView()
-            }
             Tab("Projects", systemImage: "checklist", value: Screen.projects) {
                 ProjectsView()
+            }
+            Tab("Notes", systemImage: "note.text", value: Screen.notes) {
+                NotesView()
+            }
+            Tab("Money", systemImage: "chart.bar.fill", value: Screen.money) {
+                MoneyView()
             }
             Tab("Company", systemImage: "building.columns.fill", value: Screen.company) {
                 CompanyView()
             }
+        }
+    }
+}
+
+extension RootView {
+    /// The tab to open on, which a launch argument can choose.
+    static func opening() -> Screen {
+        switch Launch.screen {
+        case "project": .projects
+        case "note": .notes
+        default: Screen(rawValue: Launch.screen) ?? .today
         }
     }
 }

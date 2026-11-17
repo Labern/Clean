@@ -15,7 +15,12 @@ import SwiftData
     var link: String = ""
     var order: Int = 0
     var created: Date = Date()
+    /// The one list that is Labern's own rather than a project's. It never
+    /// goes to the feed and can't be deleted.
+    var isPersonal: Bool = false
     @Relationship(deleteRule: .cascade, inverse: \FocusItem.project) var items: [FocusItem] = []
+    /// Deleting a project keeps its notes; they just stop belonging to it.
+    @Relationship(deleteRule: .nullify, inverse: \Note.project) var notes: [Note] = []
 
     init(name: String, summary: String = "", stage: String = "", symbol: String = "square.stack.3d.up",
          tint: Int = 0xA78BFA, link: String = "", order: Int = 0) {
@@ -49,6 +54,22 @@ import SwiftData
         self.done = done
         self.order = order
         self.completed = done ? Date() : nil
+    }
+}
+
+/// A note. Plain text; the first line is its title.
+@Model final class Note {
+    var text: String = ""
+    var created: Date = Date()
+    var updated: Date = Date()
+    var pinned: Bool = false
+    var project: Project? = nil
+
+    init(text: String = "", project: Project? = nil, created: Date = .now) {
+        self.text = text
+        self.project = project
+        self.created = created
+        self.updated = created
     }
 }
 

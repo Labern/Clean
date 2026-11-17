@@ -7,7 +7,7 @@ struct ProjectsView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Project.order) private var projects: [Project]
     @State private var adding = false
-    @State private var path: [Project] = []
+    @State private var path = NavigationPath()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -40,11 +40,12 @@ struct ProjectsView: View {
             .toolbar(.hidden, for: .navigationBar)
             .refreshable { await feed.pull(into: context) }
             .navigationDestination(for: Project.self) { ProjectDetail(project: $0) }
+            .navigationDestination(for: Note.self) { NoteEditor(note: $0) }
             .sheet(isPresented: $adding) { ProjectEditor(project: nil) }
             .onAppear {
                 // The cloud build opens straight into the first project to photograph it.
-                if Launch.screen == "project", path.isEmpty, let first = projects.first {
-                    path = [first]
+                if Launch.screen == "project", path.isEmpty, let first = projects.first(where: { !$0.isPersonal }) {
+                    path.append(first)
                 }
             }
         }
@@ -124,6 +125,7 @@ struct ProjectDetail: View {
     @State private var parentForNew: FocusItem? = nil
     @State private var subDraft = ""
     @State private var showDone = false
+    @State private var freshNote: Note? = nil
 
     var body: some View {
         let tint = Color(hex: UInt32(project.tint))
@@ -179,6 +181,12 @@ struct ProjectDetail: View {
                     .textCase(nil)
             }
 
+            ProjectNotes(project: project) {
+                let note = Note(project: project)
+                context.insert(note)
+                freshNote = note
+            }
+
             if !done.isEmpty {
                 Section {
                     if showDone {
@@ -218,6 +226,7 @@ struct ProjectDetail: View {
         .safeAreaInset(edge: .bottom) {
             AddBar(project: project, tint: tint)
         }
+        .navigationDestination(item: $freshNote) { NoteEditor(note: $0) }
         .sheet(item: $editing) { ItemEditor(item: $0, tint: tint) }
         .sheet(isPresented: $editingProject) {
             ProjectEditor(project: project) { dismiss() }
@@ -547,7 +556,7 @@ struct ProjectEditor: View {
                     }
                     .padding(.vertical, 4)
                 }
-                if project != nil {
+                if let project, !project.isPersonal {
                     Section {
                         Button("Delete project", role: .destructive) { confirming = true }
                     }

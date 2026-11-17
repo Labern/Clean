@@ -158,7 +158,7 @@ struct LedgerTests {
 @MainActor
 struct FeedTests {
     static func store() throws -> ModelContext {
-        let container = try ModelContainer(for: Project.self, FocusItem.self, Deadline.self,
+        let container = try ModelContainer(for: Project.self, FocusItem.self, Deadline.self, Note.self,
                                            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         return ModelContext(container)
     }
@@ -481,5 +481,77 @@ struct ScrubTests {
         #expect(Ledger.pick(bars, at: at(2026, 10, 20))?.amount == 100)
         #expect(Ledger.pick(bars, at: at(2026, 12, 25))?.amount == 300)
         #expect(Ledger.pick([], at: at(2026, 11, 2)) == nil)
+    }
+}
+
+@Suite("Notes")
+@MainActor
+struct NoteTests {
+    @Test func theFirstLineIsTheTitle() {
+        #expect(NoteText.title("Focus pricing\nAnnual at £45") == "Focus pricing")
+        #expect(NoteText.title("\n\n   Indented title  \nbody") == "Indented title")
+        #expect(NoteText.title("") == "New note")
+        #expect(NoteText.title("  \n ") == "New note")
+    }
+
+    @Test func theRestIsTheSnippet() {
+        #expect(NoteText.snippet("Title\n\nFirst line.\n  Second line.") == "First line. Second line.")
+        #expect(NoteText.snippet("Only a title") == "")
+    }
+
+    @Test func searchWantsEveryWord() {
+        let text = "Launch film\nOpen on the menu bar going quiet."
+        #expect(NoteText.matches(text, ""))
+        #expect(NoteText.matches(text, "launch"))
+        #expect(NoteText.matches(text, "quiet FILM"))
+        #expect(!NoteText.matches(text, "launch pricing"))
+    }
+
+    @Test func wordsAreCounted() {
+        #expect(NoteText.words("") == 0)
+        #expect(NoteText.words("One two\nthree   four") == 4)
+    }
+
+    @Test func notesPerDayEndsToday() {
+        let now = at(2026, 11, 17, 15)
+        let dates = [at(2026, 11, 17, 9), at(2026, 11, 17, 10), at(2026, 11, 15), at(2026, 10, 1)]
+        let days = NoteText.perDay(dates, days: 7, now: now, calendar: london)
+        #expect(days.map(\.amount) == [0, 0, 0, 0, 1, 0, 2])
+        #expect(days.last?.date == at(2026, 11, 17, 0))
+    }
+
+    @Test func aProjectsNotesOutliveIt() throws {
+        let context = try FeedTests.store()
+        let project = Project(name: "Focus")
+        context.insert(project)
+        let note = Note(text: "Pricing", project: project)
+        context.insert(note)
+        try context.save()
+        #expect(project.notes.count == 1)
+
+        context.delete(project)
+        try context.save()
+        let left = try context.fetch(FetchDescriptor<Note>())
+        #expect(left.count == 1)
+        #expect(left.first?.project == nil)
+    }
+
+    @Test func myOwnListIsMadeOnceAndKeptFirst() throws {
+        let context = try FeedTests.store()
+        try Feed.decode(Data(FeedTests.json.utf8)).apply(to: context)
+        let mine = Seed.personal(context)
+        #expect(mine.isPersonal)
+        #expect(Seed.personal(context) === mine)
+        let projects = try context.fetch(FetchDescriptor<Project>(sortBy: [SortDescriptor(\Project.order)]))
+        #expect(projects.count == 2)
+        #expect(projects.first === mine)
+
+        // It stays on the phone: nothing of it is sent to the feed.
+        let todo = FocusItem(title: "Ring the dentist")
+        context.insert(todo)
+        todo.project = mine
+        let plan = Outbox.plan(context)
+        #expect(plan.outgoing.lines.isEmpty)
+        #expect(plan.naming.isEmpty)
     }
 }

@@ -32,6 +32,9 @@ struct TodayView: View {
                     TakingsCard()
                     BalanceTiles()
                     NeedsYou(needs: needs)
+                    if let mine = projects.first(where: \.isPersonal) {
+                        QuickAdd(project: mine)
+                    }
                     FocusNow(projects: projects)
                 }
                 .page()

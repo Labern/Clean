@@ -163,8 +163,45 @@ enum Seed {
     /// First launch: the bundled feed becomes the starting projects.
     static func run(_ context: ModelContext) {
         let existing = (try? context.fetchCount(FetchDescriptor<Project>())) ?? 0
-        guard existing == 0, let feed = Feed.bundled() else { return }
-        feed.apply(to: context)
+        if existing == 0, let feed = Feed.bundled() {
+            feed.apply(to: context)
+        }
+        personal(context)
+    }
+
+    /// Labern's own list: made once, kept first.
+    @discardableResult
+    static func personal(_ context: ModelContext) -> Project {
+        let all = (try? context.fetch(FetchDescriptor<Project>())) ?? []
+        if let mine = all.first(where: \.isPersonal) { return mine }
+        let mine = Project(name: "Me", summary: "Your own list.", symbol: "person",
+                           tint: 0xFFFFFF, order: (all.map(\.order).min() ?? 0) - 1)
+        mine.isPersonal = true
+        context.insert(mine)
+        try? context.save()
+        return mine
+    }
+
+    /// A few notes for the cloud build to photograph. Only ever runs when asked
+    /// for by launch argument, and only into an empty notebook.
+    static func sampleNotes(_ context: ModelContext, now: Date = .now) {
+        guard UserDefaults.standard.bool(forKey: "sampleNotes"),
+              ((try? context.fetchCount(FetchDescriptor<Note>())) ?? 0) == 0 else { return }
+        let texts = [
+            "Focus pricing\nAnnual at £45 reads better next to £5 a month. Keep £99 as the anchor.",
+            "Launch film\nOpen on the menu bar going quiet. No voiceover.",
+            "Ideas for HQ\nRelease count per week as a graph.\nNotes from the Mac.",
+            "Call with the accountant\nVAT threshold, year end, what to keep.",
+            "Things to read",
+        ]
+        let focus = ((try? context.fetch(FetchDescriptor<Project>())) ?? []).first { $0.remoteID == "focus" }
+        for (index, text) in texts.enumerated() {
+            let made = now.addingTimeInterval(-Double(index) * 2.6 * 86_400 - 3600)
+            let note = Note(text: text, project: index < 2 ? focus : nil, created: made)
+            note.pinned = index == 0
+            context.insert(note)
+        }
+        try? context.save()
     }
 }
 
@@ -358,7 +395,7 @@ enum Outbox {
     static func plan(_ context: ModelContext) -> Plan {
         var plan = Plan()
         let projects = (try? context.fetch(FetchDescriptor<Project>())) ?? []
-        for project in projects where !project.remoteID.isEmpty {
+        for project in projects where !project.remoteID.isEmpty && !project.isPersonal {
             for item in project.sortedItems {
                 if item.remoteID.isEmpty {
                     let new = make(item, &plan)

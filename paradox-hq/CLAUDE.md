@@ -15,9 +15,18 @@ and kept in the Keychain on the phone.
 - Cloud: `.github/workflows/paradox-hq-ios.yml` builds, tests and screenshots every
   screen on any push that touches `paradox-hq/ios/`, then force-pushes the results to
   `ci/paradox-hq` (`git fetch origin ci/paradox-hq`). `result.txt` holds the compiler
-  errors. Launch arguments: `-unlocked YES -screen lock|today|money|projects|project|company`.
+  errors. Launch arguments: `-unlocked YES -sampleNotes YES -screen lock|today|projects|project|notes|note|money|company|widgets`.
 
-## The four tabs
+## The five tabs
+- **Notes** — a proper notebook. Plain text, the first line is the title, saved as
+  typed. Search (every word must appear), pin, file under a project, share, delete.
+  A bar chart of notes started per day, scrubbable. An untouched new note deletes
+  itself. Notes live on the phone only (`Note` in SwiftData); the model is ready
+  for iCloud but that isn't switched on.
+- **My own list** — one `Project` with `isPersonal` set, named "Me", always first,
+  never sent to the feed, never deletable. It is a to-do list like any project's.
+  Today has a field that adds straight to it.
+- Each project page ends with its own notes.
 - **Today** — the mark, today's takings over a 30-day trend, this month and the
   Stripe balance, *Needs you* (disputes, failed payments, deadlines inside 30 days,
   the site being down; hidden when empty), and the next open line of each project.
