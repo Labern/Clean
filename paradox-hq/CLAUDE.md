@@ -100,7 +100,9 @@ A new photo is framed on the face automatically (Vision). Tap the role for the l
 hats (`Profile.roles`: Founder & Director, Writer, Programmer, Actor, Designer,
 Filmmaker) or "New role" to add one; the change lands with hit stop. Everything stays
 on the phone: the photo in Application Support/Profile, the rest in UserDefaults. **No
-photo of Labern is in this repo**, which is public; he picks it on the phone.
+photo of Labern is in this repo**, which is public. His photo sits on the Mac at
+`ios/Resources/Private/profile.jpg` (gitignored); a build made there carries it, and the
+app wears it, framed on the face, until he picks another on the phone.
 
 ## App icons
 Main icon = the app's own mark scaled to 90% width (`design/icons/classic-max-black.png`).

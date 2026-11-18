@@ -101,6 +101,17 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
         self.folder = folder
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         photo = UIImage(contentsOfFile: file.path(percentEncoded: false))
+        // No photo chosen on the phone yet: wear the one this build was made with, if
+        // any. It lives in Resources/Private on the Mac and is never committed.
+        if photo == nil, !UserDefaults.standard.bool(forKey: "profile-no-photo"),
+           let built = Bundle.main.url(forResource: "profile", withExtension: "jpg"),
+           let data = try? Data(contentsOf: built) {
+            photo = Self.prepared(data)
+        }
+        // A photo that has never been positioned is framed on the face.
+        if let photo, UserDefaults.standard.data(forKey: "profile-framing") == nil {
+            framing = Self.face(in: photo).map { Framing.around(face: $0, in: photo.size) } ?? Framing()
+        }
     }
 
     private var file: URL { folder.appending(path: "photo.jpg") }
@@ -115,6 +126,7 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
     func setPhoto(_ data: Data) -> Bool {
         guard let picture = Self.prepared(data), let jpeg = picture.jpegData(compressionQuality: 0.9) else { return false }
         try? jpeg.write(to: file, options: .atomic)
+        UserDefaults.standard.set(false, forKey: "profile-no-photo")
         photo = picture
         framing = Self.face(in: picture).map { Framing.around(face: $0, in: picture.size) } ?? Framing()
         return true
@@ -122,6 +134,7 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
 
     func removePhoto() {
         try? FileManager.default.removeItem(at: file)
+        UserDefaults.standard.set(true, forKey: "profile-no-photo")
         photo = nil
         framing = Framing()
     }

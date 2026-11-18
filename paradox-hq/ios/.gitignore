@@ -16,3 +16,5 @@ Widgets/Info.plist
 Custom.xcconfig
 Resources/Assets.xcassets/AppIcon-Custom-*.appiconset/
 design/icons/custom/
+# Labern's own photo for the profile, put here on the Mac. This repo is public: never commit it.
+Resources/Private/
