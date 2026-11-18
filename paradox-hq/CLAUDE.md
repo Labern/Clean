@@ -216,6 +216,9 @@ the brand SVG masters via `design/icons/make_icons.py`; never redraw the mark.
 ## Icon designer (Company › Settings › Create custom app icon)
 Made to be lifted out as its own app: `Sources/IconDesigner.swift`,
 `Resources/IconDesigner/` and `design/icons/bake_custom.sh` are all of it.
+**Lifted out 2026-11-18** as the Icons app (`icons/`); HQ keeps this copy. Fixes
+found there: `adopt()` must run once the scene is active (iOS refuses an icon
+change earlier, so the `.task` call here can silently do nothing).
 - **The artboard is the logo playground.** `designer.html` runs in a `WKWebView` with
   `logos.js`, a copy of `logo-experiments/logos.js` (generated: never edit it, re-copy
   it). One finger moves, two fingers size and spin, the centre lines and every 45° snap
