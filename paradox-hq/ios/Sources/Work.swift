@@ -296,7 +296,7 @@ nonisolated enum WorkLedger {
 
     /// A name with only its letters and digits, lower case: "PARADOX HQ" and "paradox-hq" are the same.
     static func plain(_ text: String) -> String {
-        String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
+        String(String.UnicodeScalarView(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }))
     }
 
     /// Whether a change belongs to a project. It is deliberately cautious, so a
