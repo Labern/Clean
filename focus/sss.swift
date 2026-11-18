@@ -614,11 +614,17 @@ struct SSSLook {
 }
 
 final class SSSModel: ObservableObject {
-    @Published var query = "" { didSet { if query != oldValue { update(reset: true); if Date().timeIntervalSince(loaded) > 4 { reload() } } } }   // typing after a pause re-reads what's open
+    @Published var query = "" { didSet { if query != oldValue {
+        update(reset: true); if Date().timeIntervalSince(loaded) > 4 { reload() }       // typing after a pause re-reads what's open
+        // What it has found shows as you type, the best guess chosen (his call, 2026-11-18: with nothing on screen
+        // until Tab it looked dead — "Started working AFTER I pressed tab… Fix that"). Nothing typed: just the bar.
+        let typed = !query.trimmingCharacters(in: .whitespaces).isEmpty
+        if typed != open { withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) { open = typed } }
+    } } }
     private var loaded = Date.distantPast
     @Published var results: [SSSItem] = []
     @Published var selected = 0
-    @Published var open = false                                 // the dropdown: only after Tab (or an arrow)
+    @Published var open = false                                 // the list under the bar: while something is typed (or after Tab with nothing typed)
     @Published var shown = false                                // the bar has arrived
     @Published var shakes = 0                                   // Return with nothing to find: the bar shakes its head
     @Published var focus = 0                                    // bumped to put the caret back in the field
@@ -643,7 +649,7 @@ final class SSSModel: ObservableObject {
     }
     func reload() { loaded = Date(); SSSIndex.shared.refresh { [weak self] in guard let self else { return }; self.update(reset: !self.moved); self.tick &+= 1
         SSSIndex.shared.deepen { [weak self] in self?.update(reset: false); self?.tick &+= 1 } } }
-    /// Tab (or an arrow): the first press opens the dropdown on the best guess; after that it moves the choice.
+    /// Tab (or an arrow) moves the choice down the list. With nothing typed, the first press opens the list of everything.
     func tab(_ by: Int) {
         if !open { withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) { open = true }; return }
         guard !results.isEmpty else { return }
@@ -1000,7 +1006,7 @@ func renderSSS(to file: String) -> NSBitmapImageRep? {
         let until = Date().addingTimeInterval(6); while !done && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
     } else { SSSIndex.shared.refresh() }
     s.query = renderArgs.first { $0.hasPrefix("query=") }.map { String($0.dropFirst(6)) } ?? ""
-    s.update(reset: true); s.shown = true; s.open = renderArgs.contains("open")
+    s.update(reset: true); s.shown = true; if renderArgs.contains("open") { s.open = true }
     let size = NSSize(width: SSSController.width + 100, height: 86 + CGFloat(s.limit) * 44 + 104)
     let view = SSSStage(s: s).padding(.top, 20)
         .background(Site.hex(0x4A4A4A))                                         // a mid grey stands in for the desktop behind
@@ -1075,17 +1081,18 @@ func sssSelfTest() -> Int32 {
         return (bright(Int(34 * s)..<Int(108 * s)), bright(Int(126 * s)..<Int(356 * s)))
     }
     for look in ["dark", "light"] {
-        let shut = ink(["look=\(look)", "query=in"]), open = ink(["look=\(look)", "query=in", "open"])
-        check(look == "dark" ? 212 : 213, "SSS: one bar and no list until Tab; then the best guesses (\(look) look)",
-              shut.bar > 40 && shut.below == 0 && open.below > 200, "typed text and mark: \(shut.bar) bright samples; under the bar: \(shut.below) shut, \(open.below) open")
+        let shut = ink(["look=\(look)"]), typed = ink(["look=\(look)", "query=in"])
+        check(look == "dark" ? 212 : 213, "SSS: nothing typed, one bar and no list; type and the best guesses show (\(look) look)",
+              shut.below == 0 && typed.bar > 40 && typed.below > 200, "under the bar: \(shut.below) with nothing typed, \(typed.below) while typing; typed text and mark: \(typed.bar)")
     }
-    // Tab opens the dropdown on the best guess; Tab again moves on; Return with nothing to find shakes instead of going.
+    // Typing opens the list on the best guess; Tab moves on; Return goes; clearing the box closes it; nothing found shakes.
     SSSIndex.fixture = desk; SSSIndex.shared.refresh()
     let tm = SSSModel(); var went: [String] = []; tm.onPick = { went.append($0.title) }
-    tm.query = "in"; let before = tm.open; tm.tab(1); let first = tm.selected; tm.tab(1); let second = tm.selected; tm.submit()
+    let before = tm.open; tm.query = "in"; let shows = tm.open, first = tm.selected; tm.tab(1); let second = tm.selected; tm.submit()
+    tm.query = ""; let closes = !tm.open
     tm.query = "zzqxv"; let shakes = tm.shakes; tm.submit()
-    check(216, "SSS: Tab opens the choices on the best one, Tab again moves on, Return goes; nothing found shakes",
-          !before && tm.open && first == 0 && second == 1 && went.count == 1 && tm.shakes == shakes + 1, "open \(tm.open); chosen \(first) then \(second); went to \(went); shakes \(tm.shakes - shakes)")
+    check(216, "SSS: typing shows the choices on the best one, Tab moves on, Return goes; an empty box closes them; nothing found shakes",
+          !before && shows && first == 0 && second == 1 && went.count == 1 && closes && tm.shakes == shakes + 1, "list \(shows ? "shown" : "hidden") while typing; chosen \(first) then \(second); went to \(went); closes \(closes); shakes \(tm.shakes - shakes)")
     // Contents: a word that is only inside a page finds it, the row shows the words around it, and a name still wins.
     let inPage = SSSRank.search("paypal", in: desk), snip = inPage.first.flatMap { SSSRank.snippet("paypal", $0) } ?? ""
     var named = desk[2]; named.id = "t:named"; named.title = "PayPal: Summary"

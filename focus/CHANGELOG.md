@@ -5,6 +5,9 @@ The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Release
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
 ## 0.24.0 — 2026-11-18
+- **Super Smart Search shows what it has found as you type.** The matches appear under the bar, the best one
+  chosen; Return opens it, Tab or the arrows move. Before, nothing showed until Tab, so it looked as if it wasn't
+  working. With nothing typed it is still just the bar.
 - **Super Smart Search is part of Pro.** On Basic it has the Pro tag in the sidebar and its page is greyed with
   the plans above it, like the other Pro pages. The shortcut and the menu line open that page instead of the bar.
 

@@ -1,6 +1,6 @@
 # Focus — test report
 
-**quick** run · version 0.24.0 · 2026-11-18 19:54 · 64s · **45 passed, 0 failed**
+**quick** run · version 0.24.0 · 2026-11-18 20:36 · 64s · **45 passed, 0 failed**
 
 | Result | Check | Detail |
 |---|---|---|
@@ -28,7 +28,7 @@
 | PASS | 27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration | migration true · create+dedupe true · dragged .app true · no duplicates true · reorder true · remove+rename true · found by id true · delete true |
 | PASS | 28. a live session: no banner and no state line at the top; the button says End Session | first line 'Quit', no banner or state line: true; button 'End Session' |
 | PASS | 29. switching and hide-instead-of-quit settings; the Fewer icon | careful unless chosen: true; menu ticks Careful: true; per-app hide rows: true; Fewer icon: true |
-| PASS | 16. menu speed with every process on the Mac | 56 ms per menu open |
+| PASS | 16. menu speed with every process on the Mac | 60 ms per menu open |
 | PASS | 201. SSS: a word finds its window | Budget November.numbers |
 | PASS | 202. SSS: a typo still finds it | invioce → Invoice INV-2041 – Stripe Dashboard; screnplay → Screenplay draft 4.pdf |
 | PASS | 203. SSS: the start of a word is enough | kit → Kitten weights 2026; down → Downloads |
@@ -42,9 +42,9 @@
 | PASS | 211. SSS: a browser's answer becomes its tabs, the current one ranked with its window | 3 tabs; orders [24, 4, 5] |
 | PASS | 215. SSS: a window's name drops its app's name from the end | Inbox |
 | PASS | 214. SSS: every installed browser understands its tab scripts | Chrome, Safari |
-| PASS | 212. SSS: one bar and no list until Tab; then the best guesses (dark look) | typed text and mark: 233 bright samples; under the bar: 0 shut, 2233 open |
-| PASS | 213. SSS: one bar and no list until Tab; then the best guesses (light look) | typed text and mark: 233 bright samples; under the bar: 0 shut, 2233 open |
-| PASS | 216. SSS: Tab opens the choices on the best one, Tab again moves on, Return goes; nothing found shakes | open true; chosen 0 then 1; went to ["Focus — sss.swift"]; shakes 1 |
+| PASS | 212. SSS: nothing typed, one bar and no list; type and the best guesses show (dark look) | under the bar: 0 with nothing typed, 2233 while typing; typed text and mark: 233 |
+| PASS | 213. SSS: nothing typed, one bar and no list; type and the best guesses show (light look) | under the bar: 0 with nothing typed, 2233 while typing; typed text and mark: 233 |
+| PASS | 216. SSS: typing shows the choices on the best one, Tab moves on, Return goes; an empty box closes them; nothing found shakes | list shown while typing; chosen 0 then 1; went to ["Focus — sss.swift"]; closes true; shakes 1 |
 | PASS | 218. SSS: a word inside a page finds it; the name of a page still comes first | paypal → Checkout — Paradoxica · “…ay · Google Pay · PayPal Early adopter code applie…”; with a tab named PayPal: PayPal: Summary first |
 | PASS | 219. SSS: page scripts compile for every installed browser | Chrome, Safari |
 | PASS | 220. SSS: on Basic its page is locked, with Upgrade to Pro; on Pro it is open | bright samples where the unlock line sits: Basic 8441, Pro 2049 |
