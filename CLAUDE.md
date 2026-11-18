@@ -111,6 +111,8 @@ no build step, no dependencies.
   ~/Library/Logs/Focus/errors.jsonl with version, run id and the last 20 Focus.log lines. Debug with
   `/Applications/Focus.app/Contents/MacOS/Focus --diagnose [DAYS]` first. New failure paths get a new code in
   FocusError AND a row in focus/docs/ERROR-CODES.md (GUI check 37 fails otherwise). Never log typed text.
+  TEST SETTINGS (0.23.3): any --selftest*/--render*/--sss-go run swizzles UserDefaults.standard onto a per-run copy
+  of the live domain (isolateTestSettings, errors.swift), so tests never change the running app's settings.
   App icon: generated at build by `Focus --make-icon` from the same glyph() (rest state, white on near-black).
   NO custom ⌘⇥ switcher — user rejected it outright ("use the native Command-Tab"); built + removed 2026-11-12.
   Tools submenu: Quit All Apps, Quit All & Restart Mac (restarts only once every app has quit), Force Quit All

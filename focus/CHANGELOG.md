@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.23.3 — 2026-11-18
+- Self-tests and renders run on a copy of your settings, never the settings themselves: a test run can no longer flip
+  the open Focus to Basic or "0 sessions left", and two test runs can no longer trip over each other's settings.
+  Proved: the live settings are byte-for-byte the same before and after the full GUI and stress suites.
+
 ## 0.23.2 — 2026-11-18
 - **Return always reaches Super Smart Search.** It is now caught three ways (the key itself, the text system, the
   field's action), and Focus.log says which one it was. The box no longer autocorrects or predicts what you type.

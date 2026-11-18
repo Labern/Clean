@@ -211,6 +211,38 @@ enum ErrorLog {
     }
 }
 
+// MARK: - Tests get their own settings
+
+/// Self-tests and renders run on a copy of the user's settings, never the settings themselves. Without this, a test
+/// run flipped the live Focus to Basic and "0 sessions left" while he was using it (seen 2026-11-18), and two
+/// sessions' test runs collided. Every `UserDefaults.standard` (ours and AppKit's) answers from the copy.
+func isolateTestSettings() {
+    let args = CommandLine.arguments
+    guard args.contains(where: { $0.hasPrefix("--selftest") || $0.hasPrefix("--render") || $0.hasPrefix("--sss-go") }) else { return }
+    let real = Bundle.main.bundleIdentifier ?? "com.labern.focus"
+    let name = real + ".selftest.\(getpid())"
+    // Copies left by earlier runs (macOS writes the file back after it is deleted): removed once that run is gone.
+    let prefs = NSHomeDirectory() + "/Library/Preferences"
+    for f in (try? FileManager.default.contentsOfDirectory(atPath: prefs)) ?? [] where f.hasPrefix(real + ".selftest.") && f.hasSuffix(".plist") {
+        let pid = Int32(f.dropFirst((real + ".selftest.").count).dropLast(".plist".count)) ?? 0
+        if pid > 0 && kill(pid, 0) != 0 { try? FileManager.default.removeItem(atPath: prefs + "/" + f) }
+    }
+    guard let suite = UserDefaults(suiteName: name) else { return }
+    suite.setPersistentDomain(UserDefaults.standard.persistentDomain(forName: real) ?? [:], forName: name)   // starts as his settings
+    let block: @convention(block) (AnyObject) -> UserDefaults = { _ in suite }
+    if let m = class_getClassMethod(UserDefaults.self, NSSelectorFromString("standardUserDefaults")) {
+        method_setImplementation(m, imp_implementationWithBlock(block))
+    }
+    testSettingsName = name
+    atexit {                                                    // the copy goes when the test ends
+        if let n = testSettingsName {
+            UserDefaults(suiteName: n)?.removePersistentDomain(forName: n)
+            try? FileManager.default.removeItem(atPath: NSHomeDirectory() + "/Library/Preferences/\(n).plist")
+        }
+    }
+}
+nonisolated(unsafe) var testSettingsName: String? = nil
+
 /// Shorthand used at the call sites.
 func ferr(_ code: FocusError, _ detail: String, _ context: [String: Any] = [:]) { ErrorLog.record(code, detail, context) }
 

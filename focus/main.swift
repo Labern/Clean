@@ -10,6 +10,8 @@
 // The system ⌘⇥ is never replaced or altered (user's rule: native only).
 import AppKit
 import Carbon.HIToolbox
+
+isolateTestSettings()                                            // self-tests and renders never touch the live app's settings
 import ServiceManagement
 import SwiftUI
 import Darwin
