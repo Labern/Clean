@@ -307,6 +307,89 @@ enum Outline {
             case .draft(let parent, _): "draft-\(ObjectIdentifier(parent).hashValue)"
             }
         }
+
+        var depth: Int {
+            switch self {
+            case .line(_, let depth), .draft(_, let depth): depth
+            }
+        }
+
+        /// The lines this row sits under, then the row's own line: one per level.
+        /// A row being typed has no line of its own yet, so its chain stops at its parent.
+        var chain: [FocusItem] {
+            switch self {
+            case .line(let item, _): item.ancestors + [item]
+            case .draft(let parent, _): parent.ancestors + [parent]
+            }
+        }
+    }
+
+    /// Drops the row at `source` into the gap at `destination`, both counted in
+    /// `rows` as drawn (the way a list reports a drag). The line takes everything
+    /// under it along, and ends up exactly where it was let go:
+    ///
+    /// - between two lines of the same level, it joins that level;
+    /// - just under a line whose sub-items are showing, it becomes the first of them;
+    /// - where a gap could belong to more than one level (after the last sub-item
+    ///   of something), it keeps the level it had, as near as the gap allows.
+    ///
+    /// Returns false when that is where it already was.
+    @discardableResult
+    static func move(_ rows: [Row], from source: Int, to destination: Int) -> Bool {
+        guard rows.indices.contains(source), case .line(let item, let depth) = rows[source],
+              let project = item.owner else { return false }
+        let end = end(of: source, in: rows)
+        // Let go on itself, or among its own sub-items: nothing to do.
+        guard destination < source || destination > end else { return false }
+
+        let rest = Array(rows[..<source]) + Array(rows[end...])
+        let gap = min(max(destination < source ? destination : destination - (end - source), 0), rest.count)
+        let above = gap > 0 ? rest[gap - 1] : nil
+        let below = gap < rest.count ? rest[gap] : nil
+
+        // The levels this gap can hold run from the line below up to the line above.
+        let lowest = below?.depth ?? 0
+        let highest = max(above?.depth ?? 0, lowest)
+        let level = min(max(depth, lowest), highest)
+
+        // The lines above the gap, one per level: [top line, its sub-item, …].
+        let chain = above?.chain ?? []
+        let parent = level == 0 ? nil : chain.indices.contains(level - 1) ? chain[level - 1] : nil
+        guard level == 0 || parent != nil else { return false }
+
+        var row = (parent?.sortedChildren ?? project.sortedItems).filter { $0 !== item }
+        let home = item.parent
+        let homeRow = home?.sortedChildren ?? project.sortedItems
+        if case .line(let next, let nextDepth)? = below, nextDepth == level,
+           let index = row.firstIndex(where: { $0 === next }) {
+            row.insert(item, at: index)
+        } else if chain.indices.contains(level), let index = row.firstIndex(where: { $0 === chain[level] }) {
+            row.insert(item, at: index + 1)
+        } else if above == nil {
+            row.insert(item, at: 0)
+        } else {
+            row.append(item)
+        }
+        if home === parent, homeRow.elementsEqual(row, by: { $0 === $1 }) { return false }
+
+        if let parent {
+            item.project = nil
+            item.parent = parent
+            parent.collapsed = false
+            if parent.done && !item.done { parent.reopenForNewChild() }
+        } else {
+            item.parent = nil
+            item.project = project
+        }
+        for (index, line) in row.enumerated() where line.order != index { line.order = index }
+        return true
+    }
+
+    /// The index just past a row and everything drawn under it.
+    static func end(of index: Int, in rows: [Row]) -> Int {
+        var end = index + 1
+        while end < rows.count, rows[end].depth > rows[index].depth { end += 1 }
+        return end
     }
 
     static func rows(_ top: [FocusItem], drafting: FocusItem? = nil) -> [Row] {

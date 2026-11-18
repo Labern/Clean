@@ -48,6 +48,14 @@ Today · To-do · Notes · Money · Company. (Six would push one behind a "More"
   page (`ItemPage`): title, note, due date, its sub-items (each opens its own page,
   drag to reorder), done, delete. `Outline.rows` flattens the tree for drawing and
   is tested. The tally counts the smallest lines at any depth.
+- **Everything in To-do drags.** Hold a line or a project card, then drag it up or
+  down; it lands with a thud (`Thud.play`). A line takes its sub-items along and
+  stays where it is let go (`Outline.move`, tested): between two sub-items it becomes
+  one, just under a line whose sub-items are showing it becomes the first, and where
+  a gap could be either level it keeps its own. Lists are `List` + `.onMove`
+  (`OutlineSection`, the Projects pane, a line's own page); the My list card on Today
+  is not a `List`, so its lines use `.draggable` / `.dropDestination` and a line
+  dropped on another takes its place. Projects keep `order` 0…n; My list stays below 0.
 - **Company** — Links (Home, Focus, Google Workspace, Stripe, GitHub, Claude, Tesla;
   each with its company's logo as an app-icon tile, and App and Web buttons), filing
   deadlines, the connections, Settings (Auto/Light/Dark, app icon), the Face ID lock,
@@ -170,6 +178,9 @@ masters are on the Mac at `~/Documents/Codex/2026-09-17/t/outputs/PARADOX_Logo_L
 swap the master in when on the Mac. Do not adjust spacing, order or glyphs.
 
 ## Rules
+- **Merge without asking.** Labern, 2026-11-18: "I'm not doing any code: auto-merge
+  latest version every time unless I say not to." Finished work goes straight into
+  the branch the Mac builds from (`claude/dazzling-cerf-y7p4jg` today). Don't ask.
 - **Hit stop.** Labern loves it and wants it wherever it can go: at the moment of
   impact, freeze for a few frames, then carry on. A direct descendant of Smash
   Brothers. Use it for ticks landing, figures arriving, the lock opening; pair it

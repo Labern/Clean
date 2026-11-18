@@ -49,41 +49,67 @@ struct ProjectsView: View {
         }
     }
 
+    /// A list, so a project can be held and dragged to a new place like any line.
     private var projectList: some View {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    Heading(title: "Projects", detail: summary)
-                    ForEach(projects.filter { !$0.isPersonal }) { project in
-                        NavigationLink(value: project) {
-                            ProjectCard(project: project)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    Button {
-                        adding = true
-                    } label: {
-                        Label("New project", systemImage: "plus")
-                    }
-                    .buttonStyle(QuietButtonStyle())
-                    if feed.isSet, !feed.status.isEmpty {
-                        Text("Claude: \(feed.status)")
-                            .font(.footnote)
-                            .foregroundStyle(feed.failed ? Ink.hazard : Ink.muted)
-                            .padding(.horizontal, 4)
-                    }
+        let shown = projects.filter { !$0.isPersonal }
+        return List {
+            Heading(title: "Projects", detail: summary)
+                .bareRow(top: 8)
+            ForEach(shown) { project in
+                Button {
+                    path.append(project)
+                } label: {
+                    ProjectCard(project: project)
                 }
-                .page()
+                .buttonStyle(.plain)
+                .bareRow()
             }
-            .scrollIndicators(.hidden)
-            .scrollDismissesKeyboard(.interactively)
-            .statusBarFade()
-            .background(Ink.ground)
-            .refreshable { await feed.pull(into: context) }
+            .onMove { from, to in
+                var row = shown
+                row.move(fromOffsets: from, toOffset: to)
+                // "My list" keeps its place ahead of them all (its order is below zero).
+                for (index, project) in row.enumerated() where project.order != index { project.order = index }
+                Thud.play()
+            }
+            Button {
+                adding = true
+            } label: {
+                Label("New project", systemImage: "plus")
+            }
+            .buttonStyle(QuietButtonStyle())
+            .bareRow()
+            if feed.isSet, !feed.status.isEmpty {
+                Text("Claude: \(feed.status)")
+                    .font(.footnote)
+                    .foregroundStyle(feed.failed ? Ink.hazard : Ink.muted)
+                    .padding(.horizontal, 4)
+                    .bareRow(bottom: 28)
+            }
+        }
+        .listStyle(.plain)
+        .environment(\.defaultMinListRowHeight, 1)
+        .contentMargins(.top, 0, for: .scrollContent)
+        .scrollContentBackground(.hidden)
+        .scrollIndicators(.hidden)
+        .scrollDismissesKeyboard(.interactively)
+        .statusBarFade()
+        .background(Ink.ground)
+        .refreshable { await feed.pull(into: context) }
     }
 
     private var summary: String {
         let open = projects.filter { !$0.isPersonal }.reduce(0) { $0 + $1.tally.total - $1.tally.done }
         return open == 0 ? "All done" : "\(open) open"
+    }
+}
+
+private extension View {
+    /// A list row with nothing of the list's own showing: the page's gutters, no fill, no line.
+    func bareRow(top: CGFloat = 8, bottom: CGFloat = 8) -> some View {
+        self
+            .listRowInsets(EdgeInsets(top: top, leading: 16, bottom: bottom, trailing: 16))
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
     }
 }
 

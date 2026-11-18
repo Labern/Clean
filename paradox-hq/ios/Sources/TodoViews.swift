@@ -1,8 +1,16 @@
 import SwiftUI
 import SwiftData
+import UIKit
 
 // The to-do list: lines that tick, open into a page of their own, and hold
 // sub-items to any depth, each of which can be folded away.
+
+/// The thud of something dragged being let go in its new place.
+enum Thud {
+    static func play() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+}
 
 // MARK: - One line
 
@@ -126,7 +134,8 @@ struct OutlineSection: View {
     @Environment(\.modelContext) private var context
 
     var body: some View {
-        ForEach(Outline.rows(lines, drafting: drafting)) { row in
+        let rows = Outline.rows(lines, drafting: drafting)
+        ForEach(rows) { row in
             switch row {
             case .line(let item, let depth):
                 OutlineLine(item: item, tint: tint, depth: depth) { open(item) }
@@ -154,7 +163,13 @@ struct OutlineSection: View {
                     .listRowInsets(EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 10))
                     .listRowBackground(Ink.surface)
                     .listRowSeparatorTint(Ink.line)
+                    .moveDisabled(true)
             }
+        }
+        // Hold a line, then drag: it lands where it's let go, sub-items and all.
+        .onMove { from, to in
+            guard let source = from.first else { return }
+            if Outline.move(rows, from: source, to: to) { Thud.play() }
         }
     }
 
@@ -331,6 +346,7 @@ struct ItemPage: View {
                     var row = children
                     row.move(fromOffsets: from, toOffset: to)
                     for (index, line) in row.enumerated() { line.order = index }
+                    Thud.play()
                 }
                 HStack(spacing: 2) {
                     Image(systemName: "plus")
@@ -496,6 +512,8 @@ struct MyListCard: View {
     let openAll: () -> Void
     var reveal: () -> Void = {}
     @State private var text = ""
+    /// The row a dragged line is over.
+    @State private var target: String? = nil
     @FocusState private var focused: Bool
     @Environment(\.modelContext) private var context
 
@@ -533,8 +551,32 @@ struct MyListCard: View {
                             OutlineLine(item: item, tint: tint, depth: depth) { open(item) }
                                 .padding(.leading, 6)
                                 .padding(.trailing, 8)
+                                // Lit while a dragged line is over it.
+                                .background(target == row.id ? Ink.surface2 : Color.clear)
+                                .contentShape(Rectangle())
                                 .contextMenu {
                                     LineMenu(item: item, open: { open(item) }, addUnder: { open(item) })
+                                }
+                                .draggable(row.id) {
+                                    Text(item.title)
+                                        .font(.body)
+                                        .foregroundStyle(Ink.body)
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 10)
+                                        .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                }
+                                .dropDestination(for: String.self) { dropped, _ in
+                                    target = nil
+                                    guard let id = dropped.first, let source = rows.firstIndex(where: { $0.id == id }),
+                                          source != index else { return false }
+                                    // Dropped on a line, it takes that line's place: above it
+                                    // when dragged up, below it (and its sub-items) when dragged down.
+                                    let gap = source < index ? Outline.end(of: index, in: rows) : index
+                                    let moved = withAnimation(.snappy) { Outline.move(rows, from: source, to: gap) }
+                                    if moved { Thud.play() }
+                                    return moved
+                                } isTargeted: { over in
+                                    if over { target = row.id } else if target == row.id { target = nil }
                                 }
                         }
                     }

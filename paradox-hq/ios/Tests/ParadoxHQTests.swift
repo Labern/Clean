@@ -380,6 +380,135 @@ struct FocusLineTests {
         #expect(!invoice.outdent())
     }
 
+    // MARK: Dragging
+
+    /// A, a1, a2 under it, B, C with c1 under it, D.
+    private func tree() throws -> (Project, [String: FocusItem]) {
+        let context = try FeedTests.store()
+        let project = Project(name: "Site")
+        context.insert(project)
+        var lines: [String: FocusItem] = [:]
+        lines["A"] = Self.line("A", in: project, context)
+        lines["a1"] = Self.line("a1", under: lines["A"]!, context)
+        lines["a2"] = Self.line("a2", under: lines["A"]!, context)
+        lines["B"] = Self.line("B", in: project, context)
+        lines["C"] = Self.line("C", in: project, context)
+        lines["c1"] = Self.line("c1", under: lines["C"]!, context)
+        lines["D"] = Self.line("D", in: project, context)
+        return (project, lines)
+    }
+
+    private func drawn(_ project: Project, drafting: FocusItem? = nil) -> [String] {
+        Outline.rows(project.openItems, drafting: drafting).map { row in
+            switch row {
+            case .line(let item, let depth): String(repeating: "-", count: depth) + item.title
+            case .draft(let parent, let depth): String(repeating: "-", count: depth) + "[\(parent.title)]"
+            }
+        }
+    }
+
+    /// Drags the row at `source` to the gap at `destination`, as a list reports it.
+    private func drag(_ project: Project, _ source: Int, to destination: Int, drafting: FocusItem? = nil) -> Bool {
+        Outline.move(Outline.rows(project.openItems, drafting: drafting), from: source, to: destination)
+    }
+
+    @Test func aLineDragsUpAndDownItsLevel() throws {
+        let (project, _) = try tree()
+        #expect(drawn(project) == ["A", "-a1", "-a2", "B", "C", "-c1", "D"])
+        #expect(drag(project, 6, to: 0))
+        #expect(drawn(project) == ["D", "A", "-a1", "-a2", "B", "C", "-c1"])
+        // Sub-items reorder among themselves.
+        #expect(drag(project, 3, to: 2))
+        #expect(drawn(project) == ["D", "A", "-a2", "-a1", "B", "C", "-c1"])
+    }
+
+    @Test func aDraggedLineTakesItsSubItemsAlong() throws {
+        let (project, lines) = try tree()
+        #expect(drag(project, 0, to: 4))
+        #expect(drawn(project) == ["B", "A", "-a1", "-a2", "C", "-c1", "D"])
+        #expect(lines["a1"]?.parent === lines["A"])
+    }
+
+    @Test func aLineLandsWhereItIsLetGo() throws {
+        // Between two sub-items, it becomes one.
+        var (project, lines) = try tree()
+        #expect(drag(project, 6, to: 2))
+        #expect(drawn(project) == ["A", "-a1", "-D", "-a2", "B", "C", "-c1"])
+        #expect(lines["D"]?.parent === lines["A"] && lines["D"]?.project == nil)
+
+        // Just under a line whose sub-items are showing, it becomes the first of them.
+        (project, lines) = try tree()
+        #expect(drag(project, 6, to: 1))
+        #expect(drawn(project) == ["A", "-D", "-a1", "-a2", "B", "C", "-c1"])
+
+        // Above the first line, a sub-item becomes a line of the project.
+        (project, lines) = try tree()
+        #expect(drag(project, 1, to: 0))
+        #expect(drawn(project) == ["a1", "A", "-a2", "B", "C", "-c1", "D"])
+        #expect(lines["a1"]?.parent == nil && lines["a1"]?.project === project)
+    }
+
+    /// After the last sub-item of something, the gap could be either level: a line keeps its own.
+    @Test func anAmbiguousGapKeepsTheLinesLevel() throws {
+        var (project, lines) = try tree()
+        #expect(drag(project, 5, to: 3))
+        #expect(drawn(project) == ["A", "-a1", "-a2", "-c1", "B", "C", "D"])
+        #expect(lines["c1"]?.parent === lines["A"])
+
+        (project, lines) = try tree()
+        #expect(drag(project, 6, to: 3))
+        #expect(drawn(project) == ["A", "-a1", "-a2", "D", "B", "C", "-c1"])
+        #expect(lines["D"]?.parent == nil)
+    }
+
+    @Test func droppingALineWhereItAlreadyIsChangesNothing() throws {
+        let (project, _) = try tree()
+        for gap in 0...3 { #expect(!drag(project, 0, to: gap), "A to \(gap)") }
+        #expect(!drag(project, 2, to: 2))
+        #expect(!drag(project, 2, to: 3))
+        #expect(!drag(project, 3, to: 3))
+        #expect(!drag(project, 3, to: 4))
+        #expect(!drag(project, 9, to: 0))
+        #expect(drawn(project) == ["A", "-a1", "-a2", "B", "C", "-c1", "D"])
+    }
+
+    @Test func aFoldedLineIsNotDroppedInto() throws {
+        let (project, lines) = try tree()
+        lines["A"]?.collapsed = true
+        #expect(drawn(project) == ["A", "B", "C", "-c1", "D"])
+        #expect(drag(project, 4, to: 1))
+        #expect(drawn(project) == ["A", "D", "B", "C", "-c1"])
+        #expect(lines["D"]?.parent == nil)
+    }
+
+    /// The row being typed in counts as the last sub-item of its line.
+    @Test func draggingAroundARowBeingTyped() throws {
+        var (project, lines) = try tree()
+        #expect(drawn(project, drafting: lines["C"]) == ["A", "-a1", "-a2", "B", "C", "-c1", "-[C]", "D"])
+        #expect(!drag(project, 6, to: 0, drafting: lines["C"]))
+        #expect(drag(project, 1, to: 7, drafting: lines["C"]))
+        #expect(drawn(project) == ["A", "-a2", "B", "C", "-c1", "-a1", "D"])
+        #expect(lines["a1"]?.parent === lines["C"])
+
+        (project, lines) = try tree()
+        #expect(drag(project, 3, to: 7, drafting: lines["C"]))
+        #expect(drawn(project) == ["A", "-a1", "-a2", "C", "-c1", "B", "D"])
+        #expect(lines["B"]?.parent == nil)
+    }
+
+    @Test func aFinishedLineReopensWhenOpenWorkIsDroppedIntoIt() throws {
+        let (project, lines) = try tree()
+        let a1 = try #require(lines["a1"])
+        let x = a1.add("x", in: try #require(a1.modelContext))
+        a1.set(done: true)
+        #expect(a1.done && x.done)
+        #expect(drawn(project) == ["A", "-a1", "--x", "-a2", "B", "C", "-c1", "D"])
+        #expect(drag(project, 7, to: 2))
+        #expect(drawn(project) == ["A", "-a1", "--D", "--x", "-a2", "B", "C", "-c1"])
+        #expect(!a1.done)
+        #expect(x.done)
+    }
+
     @Test func aRepeatingDeadlineRollsForward() {
         let yearly = Deadline(title: "Confirmation statement", date: at(2026, 2, 14), everyMonths: 12)
         #expect(yearly.markDone(calendar: london))
