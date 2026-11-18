@@ -1797,3 +1797,100 @@ struct TwinkleTests {
         #expect(cells.allSatisfy { $0.minY == 0 && $0.maxY < 130 })
     }
 }
+
+/// Notes are plain text read as a little of Markdown: what each line is, and what the keys do.
+struct NoteMarkupTests {
+    private func range(_ location: Int, _ length: Int) -> NSRange { NSRange(location: location, length: length) }
+
+    @Test func linesAreHeadingsBulletsOrPlain() {
+        let text = "# Plan\n## Site\n### Copy\n#### too many\n#nospace\nwords\n• one\n\t• two\n    - four spaces\n* star"
+        let kinds = NoteMarkup.lines(text).map(\.kind)
+        #expect(kinds == [.heading(1), .heading(2), .heading(3), .plain, .plain, .plain,
+                          .bullet(0), .bullet(1), .bullet(2), .bullet(0)])
+        let lines = NoteMarkup.lines(text)
+        #expect(lines[0].marker == range(0, 2) && lines[0].range == range(0, 6))
+        // The nested bullet's marker is its tab, the bullet and the space.
+        #expect(lines[7].marker.length == 3)
+        // Ranges count as a text view does, so an emoji before a line doesn't shift it wrongly.
+        let emoji = NoteMarkup.lines("👍\n# After")
+        #expect(emoji[1].range.location == 3 && emoji[1].kind == .heading(1))
+        #expect(NoteMarkup.lines("").isEmpty)
+    }
+
+    @Test func linksAreFoundWrittenOrBare() throws {
+        let text = "See [the site](paradoxica.co.uk/focus) and https://stripe.com/gb, not [broken]() or [x](https://)."
+        let links = NoteMarkup.links(text)
+        #expect(links.count == 2)
+        let ns = text as NSString
+        #expect(ns.substring(with: links[0].range) == "the site")
+        #expect(links[0].url.absoluteString == "https://paradoxica.co.uk/focus")
+        #expect(links[0].faint.map { ns.substring(with: $0) } == ["[", "](paradoxica.co.uk/focus)"])
+        #expect(links[1].url.host == "stripe.com" && links[1].faint.isEmpty)
+        #expect(NoteMarkup.address("mailto:hi@paradoxica.co.uk") != nil)
+        #expect(NoteMarkup.address("https://") == nil && NoteMarkup.address("word") == nil)
+    }
+
+    @Test func boldAndItalicAreFoundAndSnakeCaseIsLeftAlone() {
+        let text = "**Now** and _later_, but not snake_case_name"
+        let found = NoteMarkup.stresses(text)
+        let ns = text as NSString
+        #expect(found.map { ns.substring(with: $0.range) } == ["Now", "later"])
+        #expect(found.map(\.bold) == [true, false])
+        #expect(found[0].marks == [range(0, 2), range(5, 2)])
+    }
+
+    @Test func aTitleIsItsWordsAlone() {
+        #expect(NoteText.title("# Focus launch\nSite first") == "Focus launch")
+        #expect(NoteText.title("• **Ring** the [accountant](https://example.com)") == "Ring the accountant")
+        #expect(NoteText.snippet("## Plan\n• one\n\t• two") == "one two")
+        #expect(NoteMarkup.plain("plain words") == "plain words")
+    }
+
+    @Test func returnCarriesAListOnAndAnEmptyBulletEndsIt() {
+        // After words: a new bullet at the same depth.
+        #expect(NoteMarkup.afterReturn("• one", selection: range(5, 0)) == NoteMarkup.Edit(range: range(5, 0), replacement: "\n• ", caret: 8))
+        #expect(NoteMarkup.afterReturn("\t• two", selection: range(6, 0)) == NoteMarkup.Edit(range: range(6, 0), replacement: "\n\t• ", caret: 10))
+        // An empty nested bullet steps out a level; an empty outer one stops the list.
+        #expect(NoteMarkup.afterReturn("• one\n\t• ", selection: range(9, 0)) == NoteMarkup.Edit(range: range(6, 1), replacement: "", caret: 8))
+        #expect(NoteMarkup.afterReturn("• one\n• ", selection: range(8, 0)) == NoteMarkup.Edit(range: range(6, 2), replacement: "", caret: 6))
+        // Anywhere else Return is just Return.
+        #expect(NoteMarkup.afterReturn("# Heading", selection: range(9, 0)) == nil)
+        #expect(NoteMarkup.afterReturn("words", selection: range(5, 0)) == nil)
+    }
+
+    @Test func aDashAndASpaceBecomeABullet() {
+        #expect(NoteMarkup.afterSpace("-", caret: 1) == NoteMarkup.Edit(range: range(0, 1), replacement: "• ", caret: 2))
+        #expect(NoteMarkup.afterSpace("one\n\t*", caret: 6) == NoteMarkup.Edit(range: range(5, 1), replacement: "• ", caret: 7))
+        // Not mid-sentence, and not when it would eat the star that opens **bold**.
+        #expect(NoteMarkup.afterSpace("well -", caret: 6) == nil)
+        #expect(NoteMarkup.afterSpace("**bold**", caret: 1) == nil)
+        #expect(NoteMarkup.afterSpace("", caret: 0) == nil)
+    }
+
+    @Test func theBarMovesLinesInAndOut() throws {
+        // In: a plain line becomes a bullet, a bullet nests.
+        #expect(NoteMarkup.shift("words", selection: range(5, 0), by: 1)?.replacement == "• words")
+        #expect(NoteMarkup.shift("• one", selection: range(5, 0), by: 1) == NoteMarkup.Edit(range: range(0, 5), replacement: "\t• one", caret: 6))
+        // Out: a nested bullet comes up a level, an outer one becomes plain, plain stays.
+        #expect(NoteMarkup.shift("\t• one", selection: range(6, 0), by: -1)?.replacement == "• one")
+        #expect(NoteMarkup.shift("• one", selection: range(5, 0), by: -1)?.replacement == "one")
+        #expect(NoteMarkup.shift("one", selection: range(3, 0), by: -1) == nil)
+        // Several lines at once, and only those the selection touches.
+        let many = try #require(NoteMarkup.shift("top\n• a\n• b\nend", selection: range(5, 6), by: 1))
+        #expect(many.range == range(4, 7) && many.replacement == "\t• a\n\t• b")
+        // No deeper than six.
+        #expect(NoteMarkup.shift("\t\t\t\t\t\t• deep", selection: range(8, 0), by: 1) == nil)
+    }
+
+    @Test func theBarCyclesHeadingsAndTogglesBulletsAndLinks() {
+        #expect(NoteMarkup.cycleHeading("Plan", selection: range(4, 0))?.replacement == "# Plan")
+        #expect(NoteMarkup.cycleHeading("# Plan", selection: range(6, 0))?.replacement == "## Plan")
+        #expect(NoteMarkup.cycleHeading("### Plan", selection: range(8, 0))?.replacement == "Plan")
+        #expect(NoteMarkup.cycleHeading("• Plan", selection: range(6, 0))?.replacement == "# Plan")
+        #expect(NoteMarkup.toggleBullet("Plan", selection: range(0, 0))?.replacement == "• Plan")
+        #expect(NoteMarkup.toggleBullet("\t• Plan", selection: range(0, 0))?.replacement == "Plan")
+        // Words selected become the link's words, with the caret where the address goes.
+        #expect(NoteMarkup.link("see site now", selection: range(4, 4)) == NoteMarkup.Edit(range: range(4, 4), replacement: "[site](https://)", caret: 19))
+        #expect(NoteMarkup.link("", selection: range(0, 0)) == NoteMarkup.Edit(range: range(0, 0), replacement: "[](https://)", caret: 1))
+    }
+}

@@ -49,6 +49,11 @@ enum Face {
         return Font(cut(size, weight ?? (style == .headline ? .semibold : .regular)) as CTFont)
     }
 
+    /// A fixed size as UIKit wants it (the note editor is a `UITextView`).
+    static func ui(_ size: CGFloat, _ weight: Font.Weight = .regular) -> UIFont {
+        on ? cut(size, weight) : .systemFont(ofSize: size, weight: heavy(weight))
+    }
+
     /// Graphik whatever the setting says (the word beside the mark is always in it).
     static func graphik(_ size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
         hasGraphik ? Font(cut(size, weight) as CTFont) : .system(size: size, weight: weight)

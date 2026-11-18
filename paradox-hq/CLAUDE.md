@@ -99,6 +99,21 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
   turns it into a to-do (title becomes the line, the rest its note) on its project,
   or on My list. Plain text, the first line is the title, saved as
   typed. Search (every word must appear), pin, file under a project, share, delete.
+  **The editor draws the text as it reads** (`NoteMarkup`, pure and tested;
+  `MarkupEditor`, a `UITextView`, because `TextEditor` draws one style only):
+  `#`, `##`, `###` headings in three sizes; `•` bullets that nest (a tab a level, hanging
+  indent; a dash or star and a space becomes a bullet as it is typed; Return carries
+  the list on and an empty bullet steps out of it); `**bold**`, `_italic_`;
+  `[words](address)` and any address written out are links that open on a tap. The
+  marks stay in the text, drawn faint: the note is stored exactly as typed, so the
+  site and the Mac read the same text by the same rules. A bar over the keyboard does
+  what a phone keyboard has no key for: heading, bullet, out, in, link, hide. Titles
+  and summaries in lists drop the marks (`NoteMarkup.plain`). (Asked for 2026-11-18:
+  "a bit like a .md editor… Styling looks amazing, just add some key functionality",
+  so the look of plain text was left exactly as it was.)
+  **The note's ⋯ menu**: Done, "Add to a to-do list" (My list or any project: the
+  title becomes the line, the rest its note), "Add to a project" (files the note
+  under it), Share, Delete.
   **Done:** swipe a note right for its options; a full swipe marks it done (`Note.set
   (done:)`, which touches nothing else). A done note is crossed out with a green tick
   that lands with hit stop, and moves to the **Done** list at the bottom, latest first;

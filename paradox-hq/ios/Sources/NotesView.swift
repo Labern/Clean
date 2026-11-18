@@ -6,10 +6,11 @@ import Charts
 
 nonisolated enum NoteText {
     /// A note's title is its first line with something in it.
+    /// The words alone: a heading's #, a bullet and a link's address are not part of a title.
     static func title(_ text: String) -> String {
         for line in text.split(whereSeparator: \.isNewline) {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty { return trimmed }
+            let words = NoteMarkup.plain(String(line))
+            if !words.isEmpty { return words }
         }
         return "New note"
     }
@@ -17,7 +18,7 @@ nonisolated enum NoteText {
     /// What follows the title, run together on one line.
     static func snippet(_ text: String) -> String {
         let lines = text.split(whereSeparator: \.isNewline)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .map { NoteMarkup.plain(String($0)) }
             .filter { !$0.isEmpty }
         return lines.dropFirst().joined(separator: " ")
     }
@@ -430,20 +431,17 @@ struct NoteEditor: View {
     @Query(sort: \Project.order) private var projects: [Project]
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
-    @FocusState private var typing: Bool
+    @State private var typing = false
     @State private var deleting = false
     @State private var madeToDo: String? = nil
 
-    /// A note filed under a project makes its to-do there; any other goes on your own list.
-    private var toDoTarget: Project? { note.project ?? projects.first(where: \.isPersonal) }
+    private var isEmpty: Bool { note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
 
-    private var toDoLabel: String {
-        "Add to \(toDoTarget?.name ?? "my list")"
-    }
+    /// My list first, then the projects in their own order.
+    private var lists: [Project] { projects.filter(\.isPersonal) + projects.filter { !$0.isPersonal } }
 
-    /// The note's title becomes a to-do, and the rest of it the to-do's note.
-    private func makeToDo() {
-        guard let target = toDoTarget else { return }
+    /// The note's title becomes a to-do on that list, and the rest of it the to-do's note.
+    private func makeToDo(on target: Project) {
         let item = FocusItem(title: NoteText.title(note.text), notes: NoteText.snippet(note.text),
                              order: target.nextOrder)
         context.insert(item)
@@ -456,12 +454,7 @@ struct NoteEditor: View {
     }
 
     var body: some View {
-        TextEditor(text: $note.text)
-            .focused($typing)
-            .scrollDismissesKeyboard(.interactively)
-            .font(Face.style(.body))
-            .foregroundStyle(Ink.body)
-            .scrollContentBackground(.hidden)
+        MarkupEditor(text: $note.text, typing: $typing)
             .padding(.horizontal, 12)
             .background(Ink.ground)
             .navigationBarTitleDisplayMode(.inline)
@@ -487,14 +480,26 @@ struct NoteEditor: View {
                         Button(note.done ? "Not done" : "Done", systemImage: note.done ? "arrow.uturn.backward" : "checkmark") {
                             note.set(done: !note.done)
                         }
-                        Picker("Project", selection: $note.project) {
-                            Text("No project").tag(nil as Project?)
-                            ForEach(projects) { project in
-                                Text(project.name).tag(project as Project?)
+                        // Onto a to-do list: yours, or any project's.
+                        Menu {
+                            ForEach(lists) { list in
+                                Button(list.name, systemImage: list.isPersonal ? "person" : "folder") { makeToDo(on: list) }
                             }
+                        } label: {
+                            Label("Add to a to-do list", systemImage: "checklist")
                         }
-                        Button(toDoLabel, systemImage: "checklist") { makeToDo() }
-                            .disabled(note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        .disabled(isEmpty)
+                        // Under a project: the note shows on that project's page.
+                        Menu {
+                            Picker("Project", selection: $note.project) {
+                                Text("No project").tag(nil as Project?)
+                                ForEach(projects) { project in
+                                    Text(project.name).tag(project as Project?)
+                                }
+                            }
+                        } label: {
+                            Label(note.project.map { "Project: \($0.name)" } ?? "Add to a project", systemImage: "folder")
+                        }
                         ShareLink(item: note.text) {
                             Label("Share", systemImage: "square.and.arrow.up")
                         }
