@@ -22,7 +22,26 @@ and kept in the Keychain on the phone.
   (`cards` is the Projects pane).
 
 ## The five tabs
-Today · To-do · Notes · Money · Company. (Six would push one behind a "More" button.)
+Work · To-do · Notes · Money · Company. (Six would push one behind a "More" button.)
+"Work" was "Today" until 2026-11-18; in code it is still `TodayView` and `Screen.today`.
+- **Work card** (`Work.swift`, `WorkViews.swift`), first thing on the Work tab: versions
+  pushed today, published this week, messages sent to Claude; a 30-day graph that
+  switches between Pushed, Claude and Writing and scrubs with a haptic; under it what
+  was done on the chosen day, and a way in to the whole log (`WorkLog`: each version at
+  its time, as "Added: …", "Fixed: …", "Styled: …", with the commit's own bullets).
+  - **GitHub**: `repos/Labern/Clean/events` says which branches moved (push events no
+    longer carry commits), then `commits?sha=<branch>&since=` for each. No token needed
+    for a public repo, but GitHub then allows 60 questions an hour and a refresh asks
+    about ten, so it re-reads at most every 15 minutes (pull to refresh forces it).
+    Merges, `ci/` and `stats/` branches and the build robot are left out. Commits on
+    `master`, `main` or `gh-pages` count as published. `WorkEntry.read` turns a commit
+    message into kind, product, subject and bullets, and is tested: **write commit
+    messages as `type(product): subject` with `- ` bullets and they read well here.**
+  - **Claude messages**: there is no API for it. `tools/claude_stats.py` on the Mac
+    counts the messages typed in every transcript under `~/.claude/projects` and pushes
+    only the per-day counts as `claude.json` on the branch `stats/claude`; the app reads
+    that file. Conversations that ran in the cloud are not on the Mac, so they are not
+    counted.
 - **Notes** — a proper notebook. Chips filter to one project's notes; a note's menu
   turns it into a to-do (title becomes the line, the rest its note) on its project,
   or on My list. Plain text, the first line is the title, saved as

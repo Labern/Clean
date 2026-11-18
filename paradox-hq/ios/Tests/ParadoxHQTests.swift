@@ -948,6 +948,116 @@ struct LinkTests {
     }
 }
 
+@Suite("Work")
+@MainActor
+struct WorkTests {
+    private func read(_ message: String, branches: [String] = ["claude/x"]) -> WorkEntry {
+        WorkEntry.read(id: "abc", date: at(2026, 11, 17), repo: "Labern/Clean", branches: branches, message: message)
+    }
+
+    /// A version says what it did in plain words: added, fixed, styled.
+    @Test func aCommitReadsAsWhatWasDone() {
+        let added = read("""
+        feat(paradox-hq): icon designer, built on the logo playground
+
+        - Company > Settings > Create custom app icon: pick a mark and a ground,
+          move, size and spin it with your fingers
+        - Saved icons sit in the picker
+
+        Co-Authored-By: Claude <noreply@anthropic.com>
+        Claude-Session: https://claude.ai/code/session_x
+        """)
+        #expect(added.kind == .added)
+        #expect(added.project == "paradox-hq")
+        #expect(added.subject == "icon designer, built on the logo playground")
+        #expect(added.line == "Added: icon designer, built on the logo playground")
+        #expect(added.points == ["Company > Settings > Create custom app icon: pick a mark and a ground, move, size and spin it with your fingers",
+                                 "Saved icons sit in the picker"])
+        #expect(added.claude && !added.published)
+
+        #expect(read("fix(focus): the Dock icon stayed").kind == .fixed)
+        #expect(read("style: quieter banner").kind == .styled)
+        #expect(read("style: quieter banner").project.isEmpty)
+        #expect(read("docs(paradox-hq): how the feed works").kind == .wrote)
+        #expect(read("ci(paradox-hq): photograph the Projects pane").kind == .tidied)
+        #expect(!read("fix: x").claude)
+    }
+
+    @Test func plainSentencesAreReadToo() {
+        let add = read("Add the weight chart")
+        #expect(add.kind == .added && add.subject == "the weight chart")
+        #expect(read("Polish the lock screen").kind == .styled)
+        let release = read("Focus 0.0.4: stress-tested, oldest-survives single instance")
+        #expect(release.project == "Focus")
+        #expect(release.subject == "stress-tested, oldest-survives single instance")
+        #expect(release.kind == .changed)
+        #expect(read("Something else entirely").subject == "Something else entirely")
+    }
+
+    @Test func liveBranchesCountAsPublished() {
+        #expect(read("feat: x", branches: ["master"]).published)
+        #expect(read("feat: x", branches: ["gh-pages", "claude/x"]).published)
+        #expect(!read("feat: x", branches: ["claude/x"]).published)
+    }
+
+    /// The same commit on two branches is one piece of work.
+    @Test func aCommitOnTwoBranchesIsCountedOnce() {
+        var first = read("feat: x", branches: ["claude/x"])
+        var second = read("feat: x", branches: ["master"])
+        first.id = "1"; second.id = "1"
+        var other = read("fix: y")
+        other.id = "2"
+        other.date = at(2026, 11, 18)
+        let merged = WorkLedger.merged([first, second, other])
+        #expect(merged.map(\.id) == ["2", "1"])
+        #expect(merged[1].branches == ["claude/x", "master"])
+        #expect(merged[1].published)
+    }
+
+    @Test func workIsCountedPerDay() {
+        var a = read("feat: a"), b = read("fix: b"), c = read("style: c")
+        a.id = "a"; b.id = "b"; c.id = "c"
+        a.date = at(2026, 11, 17, 9); b.date = at(2026, 11, 17, 18); c.date = at(2026, 11, 15, 12)
+        let bars = WorkLedger.perDay([a, b, c], days: 4, now: at(2026, 11, 17, 20), calendar: london)
+        #expect(bars.map(\.amount) == [0, 1, 0, 2])
+        #expect(WorkLedger.on(at(2026, 11, 17), [a, b, c], calendar: london).map(\.id) == ["b", "a"])
+        #expect(WorkLedger.byDay([a, b, c], calendar: london).map(\.entries.count) == [2, 1])
+        #expect(WorkLog.tally([a, b, c]) == "1 added · 1 fixed · 1 styled")
+    }
+
+    @Test func claudeMessagesAreCountedPerDay() {
+        let days = [ClaudeDay(day: "2026-11-17", messages: 40, sessions: 3), ClaudeDay(day: "2026-11-15", messages: 7, sessions: 1)]
+        let bars = WorkLedger.perDay(days, days: 4, now: at(2026, 11, 17, 20), calendar: london)
+        #expect(bars.map(\.amount) == [0, 7, 0, 40])
+        #expect(WorkLedger.stamp(at(2026, 1, 5), london) == "2026-01-05")
+    }
+
+    /// GitHub's push events no longer carry commits: only which branch moved.
+    @Test func pushedBranchesComeFromTheEventFeed() throws {
+        let json = """
+        [{"type":"PushEvent","payload":{"ref":"refs/heads/claude/a","head":"1","before":"0"}},
+         {"type":"DeleteEvent","payload":{"ref":"old"}},
+         {"type":"PushEvent","payload":{"ref":"refs/heads/ci/paradox-hq"}},
+         {"type":"PushEvent","payload":{"ref":"refs/heads/master"}},
+         {"type":"PushEvent","payload":{"ref":"refs/heads/claude/a"}}]
+        """
+        let events = try GitHubWork.decoder().decode([GitHubWork.Event].self, from: Data(json.utf8))
+        #expect(GitHubWork.branches(in: events) == ["claude/a", "master"])
+    }
+
+    @Test func mergesAndTheBuildRobotAreNotWork() throws {
+        let json = """
+        [{"sha":"1","parents":[{"sha":"0"}],"commit":{"message":"feat: a","committer":{"name":"GitHub","date":"2026-11-17T10:00:00Z"},"author":{"name":"Claude","date":"2026-11-17T10:00:00Z"}}},
+         {"sha":"2","parents":[{"sha":"0"},{"sha":"1"}],"commit":{"message":"Merge","committer":{"name":"x","date":"2026-11-17T11:00:00Z"},"author":{"name":"Labern","date":"2026-11-17T11:00:00Z"}}},
+         {"sha":"3","parents":[],"commit":{"message":"CI abc","committer":{"name":"x","date":"2026-11-17T12:00:00Z"},"author":{"name":"paradox-hq-ci","date":"2026-11-17T12:00:00Z"}}}]
+        """
+        let commits = try GitHubWork.decoder().decode([GitHubWork.Commit].self, from: Data(json.utf8))
+        let entries = GitHubWork.entries(commits, repo: "Labern/Clean", branch: "master")
+        #expect(entries.map(\.id) == ["1"])
+        #expect(entries.first?.published == true)
+    }
+}
+
 @Suite("Profile photo")
 @MainActor
 struct ProfileTests {

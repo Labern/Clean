@@ -10,6 +10,7 @@ struct ParadoxHQApp: App {
     @State private var backups = Backups()
     @State private var shelf = IconShelf()
     @State private var profile = Profile()
+    @State private var work = WorkStore()
     @AppStorage("appearance") private var appearance: Appearance = .auto
     @AppStorage("typeface") private var typeface: Typeface = .system
     private let container: ModelContainer
@@ -36,6 +37,7 @@ struct ParadoxHQApp: App {
                 .environment(backups)
                 .environment(shelf)
                 .environment(profile)
+                .environment(work)
                 .preferredColorScheme(appearance.scheme)
                 // Text with no font of its own follows the typeface too; a change redraws everything.
                 .font(Face.style(.body))
@@ -57,6 +59,7 @@ struct Gate: View {
     @Environment(SiteMonitor.self) private var site
     @Environment(Backups.self) private var backups
     @Environment(IconShelf.self) private var shelf
+    @Environment(WorkStore.self) private var work
     @Environment(\.scenePhase) private var phase
     @Environment(\.modelContext) private var context
 
@@ -113,6 +116,7 @@ struct Gate: View {
         await feed.pull(into: context)
         await site.check()
         await Bridge.publish(money: money, site: site, context: context)
+        await work.refresh()
     }
 }
 
@@ -125,7 +129,8 @@ struct RootView: View {
 
     var body: some View {
         TabView(selection: $screen) {
-            Tab("Today", systemImage: "star.fill", value: Screen.today) {
+            // The front page. It was "Today"; the tab's value keeps that name for launch arguments.
+            Tab("Work", systemImage: "star.fill", value: Screen.today) {
                 TodayView()
             }
             Tab("To-do", systemImage: "checklist", value: Screen.projects) {

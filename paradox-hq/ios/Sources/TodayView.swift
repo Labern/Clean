@@ -48,12 +48,13 @@ struct TodayHeader: View {
     }
 }
 
-/// The front page: what came in, where the money is, what needs a decision,
+/// The Work tab, the front page: what was made, what came in, where the money is, what needs a decision,
 /// and the next line of every project.
 struct TodayView: View {
     @Environment(MoneyStore.self) private var money
     @Environment(SiteMonitor.self) private var site
     @Environment(FeedSync.self) private var feed
+    @Environment(WorkStore.self) private var work
     @Environment(\.modelContext) private var context
     @Query(sort: \Project.order) private var projects: [Project]
     @Query(sort: \Deadline.date) private var deadlines: [Deadline]
@@ -67,6 +68,8 @@ struct TodayView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     TodayHeader(loading: money.loading)
                         .padding(.top, 6)
+
+                    WorkCard { path.append($0) }
 
                     if !money.live {
                         ExampleBanner { connecting = true }
@@ -95,11 +98,18 @@ struct TodayView: View {
                 await money.refresh()
                 await feed.pull(into: context)
                 await site.check()
+                await work.refresh(force: true)
             }
             .sheet(isPresented: $connecting) {
                 ConnectStripe()
             }
             .navigationDestination(for: Project.self) { ProjectDetail(project: $0) }
+            .navigationDestination(for: WorkRoute.self) { route in
+                switch route {
+                case .day(let day): WorkLog(day: day)
+                case .all: WorkLog(day: nil)
+                }
+            }
             .navigationDestination(for: FocusItem.self) { item in
                 ItemPage(item: item, tint: Ink.tint(item.owner?.tint ?? 0xFFFFFF))
             }
