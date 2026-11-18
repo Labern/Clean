@@ -54,6 +54,9 @@ nonisolated struct BackupFile: Codable, Equatable {
         var pinned: Bool
         /// Which project it was filed under, by its place in `projects`.
         var project: Int?
+        /// Absent in backups made before notes could be marked done.
+        var done: Bool? = nil
+        var finished: Date? = nil
     }
 
     struct DeadlineCopy: Codable, Equatable {
@@ -149,7 +152,8 @@ extension BackupFile {
             },
             notes: notes.map { note in
                 NoteCopy(text: note.text, created: note.created, edited: note.edited, pinned: note.pinned,
-                         project: note.project.flatMap { owner in projects.firstIndex { $0 === owner } })
+                         project: note.project.flatMap { owner in projects.firstIndex { $0 === owner } },
+                         done: note.done, finished: note.finished)
             },
             deadlines: deadlines.map {
                 DeadlineCopy(title: $0.title, who: $0.who, date: $0.date, everyMonths: $0.everyMonths)
@@ -192,6 +196,8 @@ extension BackupFile {
             context.insert(note)
             note.edited = copy.edited
             note.pinned = copy.pinned
+            note.done = copy.done ?? false
+            note.finished = copy.finished
             if let index = copy.project, made.indices.contains(index) { note.project = made[index] }
         }
         for copy in deadlines {

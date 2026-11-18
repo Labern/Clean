@@ -235,6 +235,7 @@ enum Seed {
             let made = now.addingTimeInterval(-Double(index) * 2.6 * 86_400 - 3600)
             let note = Note(text: text, project: index < 2 ? focus : nil, created: made)
             note.pinned = index == 0
+            if index == 3 { note.set(done: true, at: made) }
             context.insert(note)
         }
         try? context.save()

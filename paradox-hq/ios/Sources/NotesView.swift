@@ -53,14 +53,17 @@ struct NotesView: View {
     @State private var path: [Note] = []
     /// Only this project's notes, when one is chosen.
     @State private var only: Project? = nil
+    /// Whether the Done list at the bottom is open. Remembered.
+    @AppStorage("notes-show-done") private var showDone = true
 
     var body: some View {
         let filed = projects.filter { project in notes.contains { $0.project === project } }
         let shown = notes.filter { note in
             NoteText.matches(note.text, search) && (only == nil || note.project === only)
         }
-        let pinned = shown.filter(\.pinned)
-        let rest = shown.filter { !$0.pinned }
+        let pinned = shown.filter { $0.pinned && !$0.done }
+        let rest = shown.filter { !$0.pinned && !$0.done }
+        let done = Note.doneOrder(shown)
 
         NavigationStack(path: $path) {
             List {
@@ -108,7 +111,35 @@ struct NotesView: View {
                         if !pinned.isEmpty { label("Everything else") }
                     }
                 }
+                if !done.isEmpty {
+                    Section {
+                        if showDone {
+                            ForEach(done) { NoteRow(note: $0) }
+                        }
+                    } header: {
+                        // Tap to fold the whole Done list away, and again to bring it back.
+                        Button {
+                            withAnimation(.snappy) { showDone.toggle() }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text("Done")
+                                Text("\(done.count)")
+                                    .monospacedDigit()
+                                Image(systemName: showDone ? "chevron.down" : "chevron.right")
+                                    .font(.caption2.weight(.bold))
+                                Spacer()
+                            }
+                            .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
+                            .foregroundStyle(Ink.muted)
+                            .frame(minHeight: 30)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(showDone ? "Hide done notes" : "Show done notes")
+                    }
+                }
             }
+            .sensoryFeedback(.selection, trigger: showDone)
             .listStyle(.insetGrouped)
             .contentMargins(.top, 0, for: .scrollContent)
             .scrollContentBackground(.hidden)
@@ -227,39 +258,70 @@ struct ProjectChips: View {
 struct NoteRow: View {
     @Bindable var note: Note
     @Environment(\.modelContext) private var context
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hits = 0
+
+    /// The note just marked done. Its row is drawn afresh in the Done list, and
+    /// that row is the one whose tick should land.
+    static var landing: PersistentIdentifier? = nil
 
     var body: some View {
         let snippet = NoteText.snippet(note.text)
         NavigationLink(value: note) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    if note.pinned {
-                        Image(systemName: "pin.fill")
-                            .font(.caption2)
-                            .foregroundStyle(Ink.violet)
+            HStack(spacing: 10) {
+                if note.done {
+                    // The tick undoes it: tap and the note goes back where it was.
+                    Button(action: toggleDone) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(Ink.ok)
+                            // Hit stop: it swells, holds for a few frames, then settles.
+                            .keyframeAnimator(initialValue: CGFloat(1), trigger: hits) { view, scale in
+                                view.scaleEffect(scale)
+                            } keyframes: { _ in
+                                KeyframeTrack {
+                                    LinearKeyframe(1.42, duration: 0.06)
+                                    LinearKeyframe(1.42, duration: 0.10)
+                                    SpringKeyframe(1.0, duration: 0.32, spring: .bouncy)
+                                }
+                            }
+                            .frame(minWidth: 30, minHeight: 44)
+                            .contentShape(Rectangle())
                     }
-                    Text(NoteText.title(note.text))
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(Ink.body)
-                        .lineLimit(1)
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel("Not done")
                 }
-                HStack(spacing: 6) {
-                    Text(note.edited, format: Self.stamp(note.edited))
-                        .foregroundStyle(Ink.muted)
-                    if let project = note.project {
-                        Text(project.name)
-                            .foregroundStyle(Ink.tint(project.tint))
-                    }
-                    if !snippet.isEmpty {
-                        Text(snippet)
-                            .foregroundStyle(Ink.muted)
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        if note.pinned {
+                            Image(systemName: "pin.fill")
+                                .font(.caption2)
+                                .foregroundStyle(Ink.violet)
+                        }
+                        Text(NoteText.title(note.text))
+                            .font(.body.weight(.semibold))
+                            .strikethrough(note.done)
+                            .foregroundStyle(note.done ? Ink.muted : Ink.body)
                             .lineLimit(1)
                     }
+                    HStack(spacing: 6) {
+                        Text(note.edited, format: Self.stamp(note.edited))
+                            .foregroundStyle(Ink.muted)
+                        if let project = note.project {
+                            Text(project.name)
+                                .foregroundStyle(Ink.tint(project.tint))
+                        }
+                        if !snippet.isEmpty {
+                            Text(snippet)
+                                .foregroundStyle(Ink.muted)
+                                .lineLimit(1)
+                        }
+                    }
+                    .font(.subheadline)
+                    .lineLimit(1)
                 }
-                .font(.subheadline)
-                .lineLimit(1)
+                .padding(.vertical, 3)
             }
-            .padding(.vertical, 3)
         }
         .listRowBackground(Ink.surface)
         .listRowSeparatorTint(Ink.line)
@@ -273,7 +335,12 @@ struct NoteRow: View {
                 Label("Delete", systemImage: "trash")
             }
         }
-        .swipeActions(edge: .leading) {
+        // Swipe right for what can be done with a note. A full swipe is Done (or its undoing).
+        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+            Button(action: toggleDone) {
+                Label(note.done ? "Not done" : "Done", systemImage: note.done ? "arrow.uturn.backward" : "checkmark")
+            }
+            .tint(Ink.ok)
             Button {
                 withAnimation(.snappy) { note.pinned.toggle() }
             } label: {
@@ -281,6 +348,26 @@ struct NoteRow: View {
             }
             .tint(Ink.violet)
         }
+        .onAppear {
+            guard Self.landing == note.persistentModelID else { return }
+            Self.landing = nil
+            guard !reduceMotion else { return }
+            Task {
+                try? await Task.sleep(for: .milliseconds(280))
+                hits += 1
+            }
+        }
+    }
+
+    private func toggleDone() {
+        let finishing = !note.done
+        if finishing {
+            Self.landing = note.persistentModelID
+            Thud.success()
+        } else {
+            Thud.play()
+        }
+        withAnimation(.snappy) { note.set(done: finishing) }
     }
 
     /// The time for a note touched today, the date for anything older.
@@ -397,6 +484,9 @@ struct NoteEditor: View {
                     }
                     .accessibilityLabel(note.pinned ? "Unpin" : "Pin")
                     Menu {
+                        Button(note.done ? "Not done" : "Done", systemImage: note.done ? "arrow.uturn.backward" : "checkmark") {
+                            note.set(done: !note.done)
+                        }
                         Picker("Project", selection: $note.project) {
                             Text("No project").tag(nil as Project?)
                             ForEach(projects) { project in
@@ -465,7 +555,7 @@ struct ProjectNotes: View {
     let write: () -> Void
 
     var body: some View {
-        let notes = project.notes.sorted { $0.edited > $1.edited }
+        let notes = project.notes.filter { !$0.done }.sorted { $0.edited > $1.edited } + Note.doneOrder(project.notes)
         Section {
             ForEach(notes) { NoteRow(note: $0) }
             Button(action: write) {

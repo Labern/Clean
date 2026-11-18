@@ -75,6 +75,10 @@ import SwiftData
     /// back as nothing (every note dated 1 January 2001).
     var edited: Date = Date()
     var pinned: Bool = false
+    /// Dealt with: ticked, crossed out, and kept in the Done list at the bottom.
+    var done: Bool = false
+    /// When it was marked done, so the Done list shows the latest first.
+    var finished: Date? = nil
     var project: Project? = nil
 
     init(text: String = "", project: Project? = nil, created: Date = .now) {
@@ -428,6 +432,19 @@ extension Project {
         Tombstones.bury([remoteID] + items.flatMap(\.family).map(\.remoteID))
         context.delete(self)
         try? context.save()
+    }
+}
+
+extension Note {
+    /// Marks the note done, or brings it back. Its words and its date are left alone.
+    func set(done value: Bool, at now: Date = .now) {
+        done = value
+        finished = value ? now : nil
+    }
+
+    /// Notes in the order the Done list shows them: the latest finished first.
+    static func doneOrder(_ notes: [Note]) -> [Note] {
+        notes.filter(\.done).sorted { ($0.finished ?? $0.edited) > ($1.finished ?? $1.edited) }
     }
 }
 

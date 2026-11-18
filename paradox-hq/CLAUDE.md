@@ -27,6 +27,11 @@ Today · To-do · Notes · Money · Company. (Six would push one behind a "More"
   turns it into a to-do (title becomes the line, the rest its note) on its project,
   or on My list. Plain text, the first line is the title, saved as
   typed. Search (every word must appear), pin, file under a project, share, delete.
+  **Done:** swipe a note right for its options; a full swipe marks it done (`Note.set
+  (done:)`, which touches nothing else). A done note is crossed out with a green tick
+  that lands with hit stop, and moves to the **Done** list at the bottom, latest first;
+  tapping that list's heading folds it away and back (remembered). Undo by tapping the
+  tick, swiping again, or the note's own menu.
   A bar chart of notes started per day, scrubbable. An untouched new note deletes
   itself. Notes live on the phone only (`Note` in SwiftData; never name a stored property `updated`, `inserted` or `deleted`, the store reads them back empty). The model is ready
   for iCloud but that isn't switched on.

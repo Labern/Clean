@@ -10,6 +10,11 @@ enum Thud {
     static func play() {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
+
+    /// Something finished.
+    static func success() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
 }
 
 // MARK: - One line

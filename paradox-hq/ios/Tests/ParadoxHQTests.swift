@@ -753,6 +753,27 @@ struct ScrubTests {
 @Suite("Notes")
 @MainActor
 struct NoteTests {
+    /// Done is a mark on the note and nothing else: undoing it leaves the note as it was.
+    @Test func doneIsEasilyUndone() {
+        let note = Note(text: "Call the accountant", created: at(2026, 11, 1))
+        note.pinned = true
+        note.set(done: true, at: at(2026, 11, 10))
+        #expect(note.done && note.finished == at(2026, 11, 10))
+        #expect(note.edited == at(2026, 11, 1))
+        note.set(done: false)
+        #expect(!note.done && note.finished == nil)
+        #expect(note.pinned && note.text == "Call the accountant" && note.edited == at(2026, 11, 1))
+    }
+
+    @Test func theDoneListShowsTheLatestFirst() {
+        let a = Note(text: "A", created: at(2026, 11, 1))
+        let b = Note(text: "B", created: at(2026, 11, 2))
+        let c = Note(text: "C", created: at(2026, 11, 3))
+        a.set(done: true, at: at(2026, 11, 12))
+        c.set(done: true, at: at(2026, 11, 10))
+        #expect(Note.doneOrder([a, b, c]).map(\.text) == ["A", "C"])
+    }
+
     @Test func theFirstLineIsTheTitle() {
         #expect(NoteText.title("Focus pricing\nAnnual at £45") == "Focus pricing")
         #expect(NoteText.title("\n\n   Indented title  \nbody") == "Indented title")
@@ -1039,7 +1060,9 @@ struct BackupTests {
         copy.collapsed = true
         launch.due = at(2026, 12, 1)
         let focus = try #require(try context.fetch(FetchDescriptor<Project>()).first { $0.remoteID == "focus" })
-        context.insert(Note(text: "Pricing\nRound numbers.", project: focus, created: at(2026, 11, 1)))
+        let pricing = Note(text: "Pricing\nRound numbers.", project: focus, created: at(2026, 11, 1))
+        pricing.set(done: true, at: at(2026, 11, 5))
+        context.insert(pricing)
         context.insert(Deadline(title: "VAT return", who: "HMRC", date: at(2026, 12, 7), everyMonths: 3))
         try context.save()
 
@@ -1062,6 +1085,21 @@ struct BackupTests {
         #expect(restoredMine.sortedItems.first?.sortedChildren.first?.collapsed == true)
         let note = try other.fetch(FetchDescriptor<Note>()).first
         #expect(note?.project?.remoteID == "focus")
+        #expect(note?.done == true && note?.finished == at(2026, 11, 5))
+    }
+
+    /// Backups made before notes could be marked done have no such field.
+    @Test func anOlderBackupStillReads() throws {
+        let old = """
+        {"version":1,"made":"2026-11-17T12:00:00.000Z","projects":[],"deadlines":[],
+         "notes":[{"text":"Pricing","created":"2026-11-01T12:00:00.000Z","edited":"2026-11-01T12:00:00.000Z","pinned":false}]}
+        """
+        let file = try BackupFile.read(Data(old.utf8))
+        #expect(file.notes.first?.done == nil)
+        let context = try FeedTests.store()
+        try file.restore(into: context)
+        let note = try #require(try context.fetch(FetchDescriptor<Note>()).first)
+        #expect(!note.done && note.finished == nil && note.text == "Pricing")
     }
 
     @Test func aNewerFormatIsRefused() throws {
