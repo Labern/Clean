@@ -52,12 +52,59 @@ def typed(entry):
     return any(not text.startswith(NOT_TYPED) for text in texts)
 
 
+def words(entry):
+    """What was typed, for telling two records of one message apart from two messages."""
+    content = entry.get("content") if entry.get("type") == "queue-operation" else (entry.get("message") or {}).get("content")
+    if isinstance(content, list):
+        content = " ".join(part.get("text", "") for part in content if isinstance(part, dict) and part.get("type") == "text")
+    return " ".join((content or "").split())[:160]
+
+
 def queued(entry):
-    """True when a transcript line records a message being sent (newer transcripts log every one)."""
+    """True when a transcript line records a message being queued for Claude."""
     if entry.get("type") != "queue-operation" or entry.get("operation") != "enqueue":
         return False
     content = entry.get("content")
     return isinstance(content, str) and bool(content.strip()) and not content.strip().startswith(NOT_TYPED)
+
+
+def tally(lines):
+    """The messages in one transcript, as (day, session) pairs.
+
+    A message can be recorded twice: as a turn of its own, and as a queue record
+    (always for one typed while Claude was still working, which may never get a
+    turn of its own; in some versions for every message). Neither record alone is
+    complete, so each distinct message is counted once: for the same words, the
+    larger of the two counts.
+    """
+    turns, sent, seen = {}, {}, set()
+    for line in lines:
+        if '"user"' not in line and '"enqueue"' not in line:
+            continue
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if queued(entry):
+            kind = sent
+        elif typed(entry):
+            key = entry.get("uuid") or entry.get("timestamp")
+            if key in seen:
+                continue
+            seen.add(key)
+            kind = turns
+        else:
+            continue
+        try:
+            when = datetime.datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00")).astimezone()
+        except (KeyError, ValueError, AttributeError):
+            continue
+        kind.setdefault(words(entry), []).append((when.date(), entry.get("sessionId")))
+    counted = []
+    for text in set(turns) | set(sent):
+        a, b = turns.get(text, []), sent.get(text, [])
+        counted += a if len(a) >= len(b) else b
+    return counted
 
 
 def count(root, days=60, now=None):
@@ -68,41 +115,15 @@ def count(root, days=60, now=None):
         try:
             if datetime.date.fromtimestamp(os.path.getmtime(path)) < first:
                 continue
-            handle = open(path, encoding="utf-8", errors="replace")
+            with open(path, encoding="utf-8", errors="replace") as handle:
+                counted = tally(handle)
         except OSError:
             continue
-        # Two ways a message shows up. Newer transcripts log each one as it is
-        # sent, including those sent while Claude is still working; older ones
-        # only have the turn itself. A file is counted one way, never both.
-        sent, turns, seen = [], [], set()
-        with handle:
-            for line in handle:
-                if '"user"' not in line and '"enqueue"' not in line:
-                    continue
-                try:
-                    entry = json.loads(line)
-                except ValueError:
-                    continue
-                if queued(entry):
-                    bucket = sent
-                elif typed(entry):
-                    key = entry.get("uuid") or entry.get("timestamp")
-                    if key in seen:
-                        continue
-                    seen.add(key)
-                    bucket = turns
-                else:
-                    continue
-                try:
-                    when = datetime.datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00")).astimezone()
-                except (KeyError, ValueError, AttributeError):
-                    continue
-                bucket.append((when.date(), entry.get("sessionId") or path))
-        for day, session in (sent or turns):
+        for day, session in counted:
             if day < first or day > now.date():
                 continue
             messages[day] = messages.get(day, 0) + 1
-            sessions.setdefault(day, set()).add(session)
+            sessions.setdefault(day, set()).add(session or path)
     return {
         "updated": now.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "days": [{"day": day.isoformat(), "messages": messages[day], "sessions": len(sessions[day])}
