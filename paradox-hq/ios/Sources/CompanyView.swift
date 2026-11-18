@@ -11,6 +11,7 @@ struct CompanyView: View {
     @Environment(AppLock.self) private var lock
     @Environment(Backups.self) private var backups
     @Environment(Vault.self) private var vault
+    @Environment(CloudSync.self) private var cloud
     @Environment(\.modelContext) private var context
     @State private var lockAfter = AppLock.away
     @State private var picking: Picking? = nil
@@ -41,7 +42,7 @@ struct CompanyView: View {
     @AppStorage("notify-deadline") private var notifyDeadlines = true
 
     enum Connection: String, Identifiable {
-        case stripe, claude, site, github
+        case stripe, claude, site, github, cloud
         var id: String { rawValue }
     }
 
@@ -121,6 +122,7 @@ struct CompanyView: View {
                 case .claude: FeedSettings()
                 case .site: SiteSettings()
                 case .github: GitHubSettings()
+                case .cloud: CloudSignIn()
                 }
             }
         }
@@ -202,6 +204,18 @@ struct CompanyView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    if cloud.available {
+                        Hairline(inset: 58)
+                        // The one copy the phone, the site and the Mac all share.
+                        Button { sheet = .cloud } label: {
+                            InfoRow(symbol: "arrow.triangle.2.circlepath", title: "Dashboard",
+                                    detail: cloud.signedIn ? (cloud.problem.isEmpty ? (cloud.email ?? "Signed in") : cloud.problem) : "Sign in to sync") {
+                                Pill(text: !cloud.signedIn ? "Sign in" : cloud.problem.isEmpty ? "In step" : "Waiting",
+                                     color: !cloud.signedIn ? Ink.muted : cloud.problem.isEmpty ? Ink.ok : Ink.amber)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
                     Hairline(inset: 58)
                     // The Work tab's two sources.
                     Button { sheet = .github } label: {

@@ -1929,3 +1929,125 @@ struct SectionTests {
         }
     }
 }
+
+/// One canonical copy: how the phone and the server settle what each changed.
+struct CloudTests {
+    private func row(_ id: String, _ name: String, _ order: Double = 0) -> CloudRow {
+        ["id": .string(id), "name": .string(name), "order": .number(order)]
+    }
+
+    @Test func firstContactSendsThePhoneUpAndBringsTheServerDown() {
+        let plan = CloudMerge.plan(local: [row("a", "Mine")], remote: [row("b", "Theirs")], base: [:])
+        #expect(plan.addThere == [row("a", "Mine")])
+        #expect(plan.putHere == [row("b", "Theirs")])
+        #expect(plan.removeHere.isEmpty && plan.removeThere.isEmpty && plan.changeThere.isEmpty)
+        #expect(Set(plan.base.keys) == ["a", "b"])
+    }
+
+    @Test func eachSideKeepsItsOwnChangeToTheSameRow() {
+        // The phone renamed it while the site moved it: both stand.
+        let plan = CloudMerge.plan(local: [row("a", "New", 0)], remote: [row("a", "Old", 3)], base: ["a": row("a", "Old", 0)])
+        #expect(plan.changeThere == ["a": ["name": .string("New")]])
+        #expect(plan.putHere == [row("a", "New", 3)])
+        #expect(plan.base["a"] == row("a", "New", 3))
+    }
+
+    @Test func whenBothChangedTheSameThingThePhoneLeads() {
+        let both = CloudMerge.plan(local: [row("a", "Phone")], remote: [row("a", "Site")], base: ["a": row("a", "Old")])
+        #expect(both.changeThere == ["a": ["name": .string("Phone")]] && both.putHere.isEmpty)
+        // And with nothing agreed yet (a record matched on first contact).
+        let first = CloudMerge.plan(local: [row("a", "Phone")], remote: [row("a", "Site")], base: [:])
+        #expect(first.changeThere == ["a": ["name": .string("Phone")]] && first.putHere.isEmpty)
+    }
+
+    @Test func aDeleteOnOneSideIsCarriedToTheOther() {
+        let base = ["a": row("a", "A"), "b": row("b", "B")]
+        let here = CloudMerge.plan(local: [row("a", "A")], remote: [row("a", "A"), row("b", "B")], base: base)
+        #expect(here.removeThere == ["b"] && here.removeHere.isEmpty && here.base["b"] == nil)
+        let there = CloudMerge.plan(local: [row("a", "A"), row("b", "B")], remote: [row("a", "A")], base: base)
+        #expect(there.removeHere == ["b"] && there.removeThere.isEmpty && there.addThere.isEmpty)
+    }
+
+    @Test func nothingHappensWhenTheyAgree() {
+        let rows = [row("a", "A"), row("b", "B")]
+        #expect(CloudMerge.plan(local: rows, remote: rows, base: ["a": row("a", "A")]).isEmpty)
+    }
+
+    @Test func aPassThatWouldRemoveMostOfASideIsRefused() {
+        #expect(CloudMerge.looksWrong(removing: 11, of: 12))
+        #expect(!CloudMerge.looksWrong(removing: 3, of: 100))
+        #expect(!CloudMerge.looksWrong(removing: 10, of: 10))       // a handful is an edit, however much of the list it is
+        #expect(!CloudMerge.looksWrong(removing: 40, of: 100))
+    }
+
+    @Test func timesComeBackAsExactlyTheTextThatWasSent() {
+        #expect(CloudDate.same("2026-11-18T19:03:50.123456+00:00") == "2026-11-18T19:03:50.123Z")
+        #expect(CloudDate.same("2026-11-18T19:03:50.1+00:00") == "2026-11-18T19:03:50.100Z")
+        #expect(CloudDate.same("2026-11-18T19:03:50+00:00") == "2026-11-18T19:03:50.000Z")
+        #expect(CloudDate.same("2026-11-18T20:03:50.5+01:00") == "2026-11-18T19:03:50.500Z")
+        for ms in stride(from: 0, to: 1000, by: 7) {
+            let text = String(format: "2026-11-18T19:03:50.%03dZ", ms)
+            #expect(CloudDate.same(text) == text)
+        }
+    }
+
+    @Test func aServerRowIsCutToThePhonesColumns() {
+        let sent: CloudRow = ["id": .string("ABC-DEF"), "owner": .string("someone"), "name": .string("Focus"),
+                              "created": .string("2026-11-01T10:00:00+00:00"), "touched": .string("2026-11-02T10:00:00+00:00")]
+        let tidy = CloudTable.projects.tidy(sent)
+        #expect(Set(tidy.keys) == Set(CloudTable.projects.columns))
+        #expect(tidy["id"] == .string("abc-def") && tidy["created"] == .string("2026-11-01T10:00:00.000Z"))
+        #expect(tidy["summary"] == .null && tidy["owner"] == nil)
+    }
+
+    /// Everything on a phone, sent as rows and written into an empty phone, reads the same there.
+    @MainActor @Test func aPhonesRecordsSurviveTheTrip() throws {
+        let context = try FeedTests.store()
+        Seed.run(context)
+        let mine = Seed.personal(context)
+        let launch = FocusItem(title: "Launch", order: 0)
+        context.insert(launch)
+        launch.project = mine
+        let copy = launch.add("Copy", in: context)
+        copy.add("Hero", in: context).set(done: true)
+        launch.due = at(2026, 12, 1)
+        let note = Note(text: "# Pricing\n• Round numbers.", project: mine, created: at(2026, 11, 1))
+        note.set(done: true, at: at(2026, 11, 5))
+        context.insert(note)
+        context.insert(Deadline(title: "VAT return", who: "HMRC", date: at(2026, 12, 7), everyMonths: 3))
+        try context.save()
+
+        try CloudSync.adopt([:], base: [:], in: context)
+        let sent = try CloudSync.rows(context)
+        #expect(sent[.items]?.count ?? 0 >= 3 && sent[.notes]?.count == 1 && sent[.deadlines]?.count == 1)
+        #expect(sent[.items]?.allSatisfy { $0["project_id"]?.string?.isEmpty == false } == true)
+
+        let other = try FeedTests.store()
+        var plans: [CloudTable: CloudMerge.Plan] = [:]
+        for table in CloudTable.allCases { plans[table] = CloudMerge.Plan(putHere: sent[table] ?? []) }
+        try CloudSync.apply(plans, to: other)
+        try other.save()
+        let back = try CloudSync.rows(other)
+        func ordered(_ rows: [CloudRow]?) -> [CloudRow] { (rows ?? []).sorted { CloudMerge.id($0) < CloudMerge.id($1) } }
+        for table in CloudTable.allCases {
+            #expect(ordered(back[table]) == ordered(sent[table]), "\(table.rawValue)")
+        }
+        // And a second look finds nothing left to do in either direction.
+        for table in CloudTable.allCases {
+            #expect(CloudMerge.plan(local: back[table] ?? [], remote: sent[table] ?? [], base: [:]).isEmpty)
+        }
+    }
+
+    /// The server's own "My list" is the phone's "My list": its id is taken, not a second list made.
+    @MainActor @Test func theServersOwnListIsAdoptedNotDoubled() throws {
+        let context = try FeedTests.store()
+        Seed.run(context)
+        let mine = Seed.personal(context)
+        let theirs: CloudRow = ["id": .string("11111111-1111-1111-1111-111111111111"), "is_personal": .bool(true),
+                                "remote_id": .string(""), "name": .string("My list")]
+        try CloudSync.adopt([.projects: [theirs]], base: [:], in: context)
+        #expect(mine.uid == "11111111-1111-1111-1111-111111111111")
+        let rows = try CloudSync.rows(context)
+        #expect(rows[.projects]?.filter { $0["is_personal"] == .bool(true) }.count == 1)
+    }
+}

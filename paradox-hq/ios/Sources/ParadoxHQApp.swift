@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import Combine
 
 @main
 struct ParadoxHQApp: App {
@@ -14,6 +15,7 @@ struct ParadoxHQApp: App {
     @State private var shelf: IconShelf
     @State private var profile: Profile
     @State private var work: WorkStore
+    @State private var cloud: CloudSync
     @AppStorage("appearance") private var appearance: Appearance = .auto
     @AppStorage("typeface") private var typeface: Typeface = .system
     @AppStorage(Palette.accentKey) private var accent = 0
@@ -41,6 +43,7 @@ struct ParadoxHQApp: App {
         _shelf = State(initialValue: IconShelf())
         _profile = State(initialValue: Profile())
         _work = State(initialValue: WorkStore())
+        _cloud = State(initialValue: CloudSync())
         Seed.run(container.mainContext)
         if !Launch.unlocked { Starter.run(container.mainContext) }
         Seed.sampleNotes(container.mainContext)
@@ -58,6 +61,7 @@ struct ParadoxHQApp: App {
                 .environment(shelf)
                 .environment(profile)
                 .environment(work)
+                .environment(cloud)
                 .preferredColorScheme(appearance.scheme)
                 // Text with no font of its own follows the typeface too; a change redraws everything.
                 .font(Face.style(.body))
@@ -82,8 +86,12 @@ struct Gate: View {
     @Environment(Vault.self) private var vault
     @Environment(IconShelf.self) private var shelf
     @Environment(WorkStore.self) private var work
+    @Environment(CloudSync.self) private var cloud
     @Environment(\.scenePhase) private var phase
     @Environment(\.modelContext) private var context
+    /// The dashboard's sign-in, shown by itself once, the first time a build that can sync is opened.
+    @State private var signingIn = false
+    @AppStorage("cloud-asked") private var askedToSignIn = false
 
     var body: some View {
         ZStack {
@@ -102,6 +110,16 @@ struct Gate: View {
             }
         }
         .animation(.easeOut(duration: 0.25), value: lock.locked)
+        .sheet(isPresented: $signingIn) { CloudSignIn() }
+        // Anything saved on the phone is sent on a moment later.
+        .onReceive(NotificationCenter.default.publisher(for: ModelContext.didSave)) { _ in cloud.kick() }
+        .onChange(of: lock.locked) { _, locked in
+            // Once in, and only the first time: sign in to the dashboard. After that it stays signed in.
+            if !locked, cloud.available, !cloud.signedIn, !askedToSignIn {
+                askedToSignIn = true
+                signingIn = true
+            }
+        }
         .task {
             // Face ID can only be asked for while the app is in front; before that
             // it fails and would show "Try again" instead of the prompt.
@@ -112,11 +130,17 @@ struct Gate: View {
             // iOS refuses an icon change until the app is active; if it isn't yet, the
             // change below puts it on the moment it is.
             if phase == .active { shelf.adopt() }
+            cloud.start(context)
+            if !lock.locked, cloud.available, !cloud.signedIn, !askedToSignIn {
+                askedToSignIn = true
+                signingIn = true
+            }
             await refresh()
         }
         .onChange(of: phase) { _, new in
             lock.changed(to: new)
             if new == .background {
+                cloud.pause()
                 Background.schedule()
                 // Every time you leave the app, a copy is kept on the phone and in the
                 // Keychain, and another goes to the backup folder.
@@ -129,6 +153,7 @@ struct Gate: View {
             }
             guard new == .active else { return }
             shelf.adopt()
+            cloud.start(context)
             Task {
                 // After a refusal the lock waits for a tap, so cancelling
                 // Face ID doesn't bring the prompt straight back.

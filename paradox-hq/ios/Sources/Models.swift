@@ -5,6 +5,9 @@ import SwiftData
 // without a migration. Schema changes are additive only: never lose an item.
 
 @Model final class Project {
+    /// The record's permanent id in the canonical copy (a uuid, made here). Empty
+    /// until the first sync gives it one. See `CloudSync`.
+    var uid: String = ""
     /// Set when the project came from the Claude feed; empty for ones made on the phone.
     var remoteID: String = ""
     var name: String = ""
@@ -40,6 +43,9 @@ import SwiftData
 /// One line of a project's Focus list. Top-level lines belong to a project;
 /// sub-items belong to a parent line instead.
 @Model final class FocusItem {
+    /// The record's permanent id in the canonical copy (a uuid, made here). Empty
+    /// until the first sync gives it one. See `CloudSync`.
+    var uid: String = ""
     var remoteID: String = ""
     var title: String = ""
     var notes: String = ""
@@ -68,6 +74,9 @@ import SwiftData
 
 /// A note. Plain text; the first line is its title.
 @Model final class Note {
+    /// The record's permanent id in the canonical copy (a uuid, made here). Empty
+    /// until the first sync gives it one. See `CloudSync`.
+    var uid: String = ""
     var text: String = ""
     var created: Date = Date()
     /// When the words last changed. Not called `updated`: the store underneath
@@ -90,6 +99,9 @@ import SwiftData
 }
 
 @Model final class Deadline {
+    /// The record's permanent id in the canonical copy (a uuid, made here). Empty
+    /// until the first sync gives it one. See `CloudSync`.
+    var uid: String = ""
     var title: String = ""
     var who: String = ""
     var date: Date = Date()

@@ -35,6 +35,8 @@ nonisolated struct BackupFile: Codable, Equatable {
         var created: Date
         var isPersonal: Bool
         var items: [ItemCopy]
+        /// The record's id in the canonical copy. Absent in backups made before syncing.
+        var uid: String? = nil
     }
 
     struct ItemCopy: Codable, Equatable {
@@ -48,6 +50,7 @@ nonisolated struct BackupFile: Codable, Equatable {
         var collapsed: Bool
         var due: Date?
         var children: [ItemCopy]
+        var uid: String? = nil
     }
 
     struct NoteCopy: Codable, Equatable {
@@ -60,6 +63,7 @@ nonisolated struct BackupFile: Codable, Equatable {
         /// Absent in backups made before notes could be marked done.
         var done: Bool? = nil
         var finished: Date? = nil
+        var uid: String? = nil
     }
 
     struct DeadlineCopy: Codable, Equatable {
@@ -67,6 +71,7 @@ nonisolated struct BackupFile: Codable, Equatable {
         var who: String
         var date: Date
         var everyMonths: Int
+        var uid: String? = nil
     }
 
     var lineCount: Int {
@@ -143,7 +148,8 @@ extension BackupFile {
         func copy(_ item: FocusItem) -> ItemCopy {
             ItemCopy(remoteID: item.remoteID, title: item.title, notes: item.notes, done: item.done,
                      completed: item.completed, order: item.order, created: item.created,
-                     collapsed: item.collapsed, due: item.due, children: item.sortedChildren.map(copy))
+                     collapsed: item.collapsed, due: item.due, children: item.sortedChildren.map(copy),
+                     uid: item.uid.isEmpty ? nil : item.uid)
         }
 
         return BackupFile(
@@ -152,15 +158,16 @@ extension BackupFile {
                 ProjectCopy(remoteID: project.remoteID, name: project.name, summary: project.summary,
                             stage: project.stage, symbol: project.symbol, tint: project.tint, link: project.link,
                             order: project.order, created: project.created, isPersonal: project.isPersonal,
-                            items: project.sortedItems.map(copy))
+                            items: project.sortedItems.map(copy), uid: project.uid.isEmpty ? nil : project.uid)
             },
             notes: notes.map { note in
                 NoteCopy(text: note.text, created: note.created, edited: note.edited, pinned: note.pinned,
                          project: note.project.flatMap { owner in projects.firstIndex { $0 === owner } },
-                         done: note.done, finished: note.finished)
+                         done: note.done, finished: note.finished, uid: note.uid.isEmpty ? nil : note.uid)
             },
             deadlines: deadlines.map {
-                DeadlineCopy(title: $0.title, who: $0.who, date: $0.date, everyMonths: $0.everyMonths)
+                DeadlineCopy(title: $0.title, who: $0.who, date: $0.date, everyMonths: $0.everyMonths,
+                             uid: $0.uid.isEmpty ? nil : $0.uid)
             },
             settings: withSettings ? SavedSettings.snapshot() : nil)
     }
@@ -182,6 +189,7 @@ extension BackupFile {
             item.created = copy.created
             item.collapsed = copy.collapsed
             item.due = copy.due
+            item.uid = copy.uid ?? ""
             for child in copy.children { make(child).parent = item }
             return item
         }
@@ -194,6 +202,7 @@ extension BackupFile {
             project.remoteID = copy.remoteID
             project.created = copy.created
             project.isPersonal = copy.isPersonal
+            project.uid = copy.uid ?? ""
             for line in copy.items { make(line).project = project }
             made.append(project)
         }
@@ -204,10 +213,13 @@ extension BackupFile {
             note.pinned = copy.pinned
             note.done = copy.done ?? false
             note.finished = copy.finished
+            note.uid = copy.uid ?? ""
             if let index = copy.project, made.indices.contains(index) { note.project = made[index] }
         }
         for copy in deadlines {
-            context.insert(Deadline(title: copy.title, who: copy.who, date: copy.date, everyMonths: copy.everyMonths))
+            let deadline = Deadline(title: copy.title, who: copy.who, date: copy.date, everyMonths: copy.everyMonths)
+            deadline.uid = copy.uid ?? ""
+            context.insert(deadline)
         }
         try context.save()
         if applying { SavedSettings.apply(settings) }

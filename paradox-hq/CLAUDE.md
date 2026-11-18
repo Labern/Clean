@@ -316,6 +316,40 @@ the paid team: add the iCloud/CloudKit entitlement and container in `project.yml
 `ModelContainer` uses the default (automatic) CloudKit setting, and every model property
 is already defaulted and optional-safe for it.
 
+## One canonical copy (the phone, the site and the Mac are the same data)
+The company's Supabase project holds the one copy; `Labern/paradoxica-hub` `dash/CONTRACT.md`
+is the contract every client follows (tables, ids, deletes, realtime, auth). The master
+account is Labern's login address; "Founder & Director" is that account's alone.
+- `Cloud.swift`: the plumbing, no dependencies. `CloudConfig` (address and publishable key,
+  read from `Resources/Private/cloud.json`, which is on the Mac only: a build without it
+  has no cloud and behaves exactly as before), `CloudAccount` (email and password once;
+  the hour-long pass is renewed with one kept in the Keychain; sign-up works for allowed
+  addresses only), `CloudAPI` (rows, add, change, remove, the Money and Work functions),
+  `CloudSocket` (a line held open that says "something changed").
+- `CloudSync.swift`: each pass reads every row there and every record here and compares
+  both with what they last agreed on, **column by column** (`CloudMerge.plan`, pure and
+  tested): only the server changed it → the phone takes it; the phone changed it, or both
+  did → the server takes the phone's; new on one side → added to the other; gone from one
+  since they agreed → removed from the other. Passes run on opening, a moment after any
+  save here (`ModelContext.didSave`), and the moment the server says something changed.
+- **First sign-in sends everything on the phone up** and brings everything on the server
+  down. The server's own "My list" and feed projects are matched to the phone's and their
+  ids taken (`CloudSync.adopt`), so nothing is doubled.
+- Every record has a permanent `uid` (a uuid made here, the row's `id` there). Backups
+  carry it, so going back to a copy keeps each record the same record.
+- **Guards:** an empty phone never empties the server; an empty answer from the server
+  never empties the phone; a pass that would remove most of a table stops and says so.
+  The server is written first, so a refusal leaves the phone untouched.
+- Synced so far: projects, lines, notes, deadlines. **Not yet:** profile and photo,
+  settings and layout, links (the server makes its seven), Money and Work read through
+  the server's functions (the phone still reads Stripe and GitHub itself).
+- Sign-in is asked once, by itself, the first time a build that can sync is opened
+  (`CloudSignIn`: the mark, Dashboard, two fields); after that Company › Connected to ›
+  Dashboard shows the account, "Sync now" and Sign out.
+- Dates cross as ISO 8601 to the millisecond, written and read by hand (`CloudDate`): the
+  system formatter turns .123 into .122 now and then, which the comparing would see as a
+  change every pass.
+
 ## Free Apple ID builds
 `ios-device` builds for the specific phone (registers it) and, if the team can't sign
 App Groups, rebuilds without entitlements (widgets then get no data). First install

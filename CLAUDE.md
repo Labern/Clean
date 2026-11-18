@@ -22,7 +22,10 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
-For PARADOX HQ (iOS app, no web page):
+For the PARADOXICA dashboard (the site; the same data as the PARADOX HQ app):
+- https://paradoxica.co.uk/dash/
+- Code: https://github.com/Labern/paradoxica-hub/tree/main/dash (private)
+For PARADOX HQ (iOS app, no web page of its own; when the work is about syncing, the dashboard link above is the one to give):
 - Code: https://github.com/Labern/Clean/tree/claude/dazzling-cerf-y7p4jg/paradox-hq
 Add any new page to this list the moment it ships.
 

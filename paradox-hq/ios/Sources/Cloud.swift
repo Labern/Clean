@@ -79,22 +79,41 @@ nonisolated struct CloudError: LocalizedError, Sendable {
     }
 }
 
-/// The times the server sends and takes: ISO 8601, with or without fractions of a second.
+/// The times the server sends and takes: ISO 8601 to the millisecond, in UTC.
+/// Written and read by hand, because a time must come back as exactly the text
+/// that was sent: the sync compares them, and the system's formatter turns
+/// "…50.123" into "…50.122" one time in a few.
 nonisolated enum CloudDate {
+    /// "2026-11-18T19:03:50.123Z", or the same with any number of fraction digits and any offset.
     static func read(_ text: String) -> Date? {
-        let withFractions = ISO8601DateFormatter()
-        withFractions.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = withFractions.date(from: text) { return date }
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-        return plain.date(from: text)
+        var whole = text
+        var fraction = 0.0
+        if let dot = text.firstIndex(of: ".") {
+            let after = text[text.index(after: dot)...]
+            let digits = after.prefix { $0.isNumber }
+            fraction = Double("0." + digits) ?? 0
+            whole = String(text[..<dot]) + String(after.dropFirst(digits.count))
+        }
+        // No zone given: the server means UTC.
+        let clock = whole.split(separator: "T").last.map(String.init) ?? ""
+        if !whole.hasSuffix("Z"), !clock.contains(where: { $0 == "+" || $0 == "-" }) { whole += "Z" }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: whole)?.addingTimeInterval(fraction)
     }
 
     static func write(_ date: Date) -> String {
+        let total = Int64((date.timeIntervalSince1970 * 1000).rounded())
+        let seconds = total >= 0 ? total / 1000 : (total - 999) / 1000
+        let millis = total - seconds * 1000
         let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return formatter.string(from: date)
+        formatter.formatOptions = [.withInternetDateTime]
+        let text = formatter.string(from: Date(timeIntervalSince1970: TimeInterval(seconds)))     // …:50Z
+        return String(text.dropLast()) + String(format: ".%03d", Int(millis)) + "Z"
     }
+
+    /// A time the server sent, as this app would have written it.
+    static func same(_ text: String) -> String { read(text).map(write) ?? text }
 }
 
 // MARK: - Signing in
@@ -125,6 +144,20 @@ actor CloudAccount {
 
     func signIn(email: String, password: String) async throws {
         try await take(grant: "password", body: ["email": email, "password": password])
+    }
+
+    /// Makes the account. Only an address the server has been told to allow gets one.
+    func signUp(email: String, password: String) async throws {
+        var request = URLRequest(url: config.url.appending(path: "auth/v1/signup"))
+        request.httpMethod = "POST"
+        request.setValue(config.key, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(["email": email, "password": password])
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard code == 200 else { throw CloudError.read(data, code: code) }
+        // An allowed address is confirmed at once, so signing in works straight away.
+        try await signIn(email: email, password: password)
     }
 
     func signOut() {
@@ -219,6 +252,31 @@ nonisolated struct CloudAPI: Sendable {
         request.setValue("resolution=merge-duplicates,return=minimal", forHTTPHeaderField: "Prefer")
         request.httpBody = try JSONEncoder().encode(rows)
         _ = try await send(request)
+    }
+
+    /// Changes some columns of one row, leaving the rest as they are.
+    func change(_ id: String, to columns: CloudRow, in table: String) async throws {
+        guard !columns.isEmpty else { return }
+        var request = try await ask("rest/v1/\(table)", query: [URLQueryItem(name: "id", value: "eq.\(id)")])
+        request.httpMethod = "PATCH"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+        request.httpBody = try JSONEncoder().encode(columns)
+        _ = try await send(request)
+    }
+
+    /// Deletes rows by id, a hundred at a time.
+    func remove(_ ids: [String], from table: String) async throws {
+        var left = ids[...]
+        while !left.isEmpty {
+            let some = left.prefix(100)
+            left = left.dropFirst(100)
+            var request = try await ask("rest/v1/\(table)",
+                                        query: [URLQueryItem(name: "id", value: "in.(\(some.joined(separator: ",")))")])
+            request.httpMethod = "DELETE"
+            request.setValue("return=minimal", forHTTPHeaderField: "Prefer")
+            _ = try await send(request)
+        }
     }
 
     /// Calls one of the project's server functions (Money and Work are read there, so no device holds a key).
