@@ -203,7 +203,9 @@ struct WorkCard: View {
                                             .font(Face.style(.caption))
                                             .foregroundStyle(Ink.muted)
                                         if session.link != nil {
-                                            LogoTile(name: "Logo-Claude", size: 20)
+                                            Image(systemName: "arrow.up.forward")
+                                                .font(Face.style(.caption2, .bold))
+                                                .foregroundStyle(Ink.idle)
                                         }
                                     }
                                     .frame(minHeight: 44)
@@ -339,36 +341,40 @@ struct WorkLine: View {
                     }
                     HStack(spacing: 8) {
                         if let link = entry.sessionLink {
-                            chip("Open in Claude", logo: "Logo-Claude") { ClaudeApp.open(link) }
+                            chip("Open in Claude") { ClaudeApp.open(link) }
                         }
                         if let link = entry.link {
-                            chip("GitHub", logo: "Logo-GitHub") { openURL(link) }
+                            chip("GitHub") { openURL(link) }
                         }
                     }
                     .padding(.top, 2)
                 }
             }
             Spacer(minLength: 0)
-            // The conversation it came from rides with every line, a tap away.
+            // The conversation it came from rides with every line, a tap away: a quiet
+            // arrow says so. (A Claude logo here was tried and removed, 2026-11-18.)
             if compact, entry.session != nil {
-                LogoTile(name: "Logo-Claude", size: 20)
-                    .padding(.top, 4)
+                Image(systemName: "arrow.up.forward")
+                    .font(Face.style(.caption, .semibold))
+                    .foregroundStyle(Ink.idle)
+                    .padding(.top, 8)
             }
         }
         .padding(.vertical, compact ? 8 : 6)
         .contentShape(Rectangle())
     }
 
-    private func chip(_ title: String, logo: String, action: @escaping () -> Void) -> some View {
+    private func chip(_ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 6) {
-                LogoTile(name: logo, size: 18)
+            HStack(spacing: 5) {
                 Text(title)
                     .font(Face.style(.caption, .semibold))
                     .foregroundStyle(Ink.body)
+                Image(systemName: "arrow.up.forward")
+                    .font(Face.style(.caption2, .bold))
+                    .foregroundStyle(Ink.muted)
             }
-            .padding(.leading, 6)
-            .padding(.trailing, 10)
+            .padding(.horizontal, 12)
             .frame(minHeight: 32)
             .background(Ink.surface2, in: Capsule())
             .contentShape(Rectangle())
