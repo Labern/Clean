@@ -455,7 +455,7 @@ struct ConnectStripe: View {
                         Button {
                             Task { await connect() }
                         } label: {
-                            if working { ProgressView().tint(Ink.buttonInk) } else { Text("Connect") }
+                            if working { StarSpinner(size: 22, color: Ink.buttonInk) } else { Text("Connect") }
                         }
                         .buttonStyle(WhiteButtonStyle())
                         .disabled(working || key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

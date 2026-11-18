@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import SwiftData
 import Combine
 
@@ -25,6 +26,8 @@ struct ParadoxHQApp: App {
 
     init() {
         Face.load()
+        // The system's own spinner on pull to refresh is hidden: the five stars turn in its place.
+        UIRefreshControl.appearance().tintColor = .clear
         let container: ModelContainer
         do {
             container = try ModelContainer(for: Project.self, FocusItem.self, Deadline.self, Note.self)

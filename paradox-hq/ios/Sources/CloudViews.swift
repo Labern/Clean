@@ -122,7 +122,7 @@ struct CloudSignIn: View {
 
             Button(action: go) {
                 HStack(spacing: 8) {
-                    if cloud.busy { ProgressView().tint(Ink.buttonInk) }
+                    if cloud.busy { StarSpinner(size: 22, color: Ink.buttonInk) }
                     Text(new ? "Sign up" : "Sign in")
                         .font(Face.style(.headline))
                 }
@@ -169,7 +169,7 @@ struct CloudSignIn: View {
                     Task { await cloud.pass() }
                 } label: {
                     InfoRow(symbol: "arrow.triangle.2.circlepath", title: "Sync now") {
-                        if cloud.busy { ProgressView() }
+                        if cloud.busy { StarSpinner(size: 22) }
                     }
                 }
                 .buttonStyle(.plain)

@@ -685,7 +685,7 @@ struct GitHubSettings: View {
                         HStack {
                             Text("Read now")
                             Spacer()
-                            if work.loading { ProgressView() }
+                            if work.loading { StarSpinner(size: 22) }
                         }
                     }
                     .disabled(work.loading)
@@ -781,7 +781,7 @@ struct FeedSettings: View {
                         HStack {
                             Text("Pull now")
                             Spacer()
-                            if feed.busy { ProgressView() }
+                            if feed.busy { StarSpinner(size: 22) }
                         }
                     }
                     .disabled(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || feed.busy)

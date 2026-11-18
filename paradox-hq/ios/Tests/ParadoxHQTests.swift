@@ -1808,6 +1808,23 @@ struct TwinkleTests {
         #expect(abs(Twinkle.length - 1.68) < 0.0001)
     }
 
+    /// The working sign: the five arrive one by one until the circle is complete, then it turns a place at a time.
+    @Test func theStarsCompleteTheCircleAndThenTurn() {
+        // One after another.
+        #expect(StarSpinner.shown(0, at: 0) == 0 && StarSpinner.shown(0, at: 0.2) == 1)
+        #expect(StarSpinner.shown(4, at: 0.2) == 0)
+        let complete = Double(Twinkle.count - 1) * StarSpinner.arrival + StarSpinner.fade
+        #expect(abs(StarSpinner.shown(4, at: complete) - 1) < 0.000001)
+        // Still until the circle is whole.
+        #expect(StarSpinner.turned(at: complete) == 0)
+        // Then a star's place (72°) per step, resting on each place: the hit stop.
+        let rest = complete + StarSpinner.step * 0.8
+        #expect(abs(StarSpinner.turned(at: rest) - 72) < 0.0001)
+        #expect(abs(StarSpinner.turned(at: rest + StarSpinner.step) - 144) < 0.0001)
+        let moving = StarSpinner.turned(at: complete + StarSpinner.step * 0.25)
+        #expect(moving > 0 && moving < 72)
+    }
+
     @Test func theCellsCoverTheStarsAndNothingElse() {
         let size = CGSize(width: 612.9, height: 212.9)      // the mark's own units
         let cells = (0..<Twinkle.count).map { Twinkle.cell($0, in: size) }

@@ -104,10 +104,91 @@ struct StarsRow: View {
     }
 }
 
-/// Pull to refresh, and five stars when it is done: they drop in under the
-/// status bar, twinkle once left to right, and go. For pages without the mark.
+/// One of the mark's own stars, by itself: the mark shown down to its first star, never a redrawing.
+struct MarkStar: View {
+    var size: CGFloat = 10
+    var color: Color = Ink.head
+
+    var body: some View {
+        let mark = size / Twinkle.step
+        Image("Mark")
+            .renderingMode(.template)
+            .resizable()
+            .aspectRatio(contentMode: .fit)
+            .frame(width: mark)
+            .foregroundStyle(color)
+            .offset(x: -Twinkle.first * mark)
+            .frame(width: size, height: mark * Twinkle.markAspect * Twinkle.rowHeight, alignment: .topLeading)
+            .clipped()
+            .accessibilityHidden(true)
+    }
+}
+
+/// The app's "working" sign, in place of the system's spinner: the five stars
+/// come in one after another around a circle until the circle is complete, then
+/// the ring turns a star's place at a time, each step landing with a hit stop.
+/// With Reduce Motion the five simply stand in their ring.
+struct StarSpinner: View {
+    /// The ring's width.
+    var size: CGFloat = 24
+    var color: Color = Ink.head
+    @State private var began = Date()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Seconds between one star arriving and the next, and for each to fade in.
+    nonisolated static let arrival = 0.11
+    nonisolated static let fade = 0.16
+    /// One step of the ring: it turns, then holds.
+    nonisolated static let step = 0.36
+    nonisolated static let moving = 0.55
+
+    /// How much of star `index` shows, `time` seconds in.
+    nonisolated static func shown(_ index: Int, at time: Double) -> Double {
+        min(1, max(0, (time - Double(index) * arrival) / fade))
+    }
+
+    /// How far the ring has turned, in degrees: nothing until the circle is complete, then
+    /// 72° at a time, easing into each place and resting there.
+    nonisolated static func turned(at time: Double) -> Double {
+        let start = Double(Twinkle.count - 1) * arrival + fade
+        guard time > start else { return 0 }
+        let phase = (time - start) / step
+        let whole = phase.rounded(.down)
+        let part = min(1, (phase - whole) / moving)
+        return (whole + part * part * (3 - 2 * part)) * 72
+    }
+
+    var body: some View {
+        TimelineView(.animation(paused: reduceMotion)) { timeline in
+            let time = reduceMotion ? 60 : timeline.date.timeIntervalSince(began)
+            let star = size * 0.36
+            let radius = (size - star) / 2
+            ZStack {
+                ForEach(0..<Twinkle.count, id: \.self) { index in
+                    // The first at twelve o'clock, the rest clockwise; each points outward,
+                    // so the ring looks the same at every resting place.
+                    let angle = Double(index) * 72
+                    MarkStar(size: star, color: color)
+                        .rotationEffect(.degrees(angle))
+                        .offset(x: sin(angle * .pi / 180) * radius, y: -cos(angle * .pi / 180) * radius)
+                        .opacity(Self.shown(index, at: time))
+                }
+            }
+            .rotationEffect(.degrees(reduceMotion ? 0 : Self.turned(at: time)))
+            .frame(width: size, height: size)
+        }
+        .onAppear { began = .now }
+        .accessibilityElement()
+        .accessibilityLabel("Working")
+    }
+}
+
+/// Pull to refresh. While it works, the five stars turn in their ring where the
+/// system's spinner would be; when it is done they line up, twinkle once left to
+/// right, and go. For pages without the mark.
 struct RefreshStars: ViewModifier {
     let action: @MainActor () async -> Void
+    @State private var working = false
     @State private var done = 0
     @State private var showing = false
     /// Goes up once the stars are on screen, which is what sets them off.
@@ -117,19 +198,27 @@ struct RefreshStars: ViewModifier {
     func body(content: Content) -> some View {
         content
             .refreshable { @MainActor in
+                withAnimation(.snappy(duration: 0.2)) { working = true }
                 await action()
+                working = false
                 done += 1
             }
             .overlay(alignment: .top) {
-                if showing {
-                    StarsRow(twinkle: play)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background(Ink.surface2, in: Capsule())
-                        .overlay(Capsule().strokeBorder(Ink.line, lineWidth: 1))
-                        .padding(.top, 6)
-                        .transition(reduceMotion ? .opacity : .scale(scale: 0.8, anchor: .top).combined(with: .opacity))
-                        .allowsHitTesting(false)
+                if working || showing {
+                    Group {
+                        if working {
+                            StarSpinner(size: 30)
+                        } else {
+                            StarsRow(twinkle: play)
+                        }
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(Ink.surface2, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Ink.line, lineWidth: 1))
+                    .padding(.top, 6)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.8, anchor: .top).combined(with: .opacity))
+                    .allowsHitTesting(false)
                 }
             }
             .sensoryFeedback(.success, trigger: done)

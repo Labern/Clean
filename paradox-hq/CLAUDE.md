@@ -406,6 +406,14 @@ finishing on the Work tab. Pages without the mark use `.refreshStars { }` in pla
 a mask over the picture (`StarMask`), using where they sit in `mark.svg`: if the
 master is ever swapped, check `Twinkle.first`/`step`. Reduce Motion: none of it.
 
+**The "working" sign is five stars completing a circle** (`StarSpinner`; his idea,
+2026-11-18: "5 stars spinning round to complete the circle"). They arrive one after
+another around a ring until it is whole, then the ring turns a star's place at a time,
+resting on each (hit stop). It replaces every system spinner: `ProgressView` is not used
+anywhere, and the pull-to-refresh spinner is hidden (`UIRefreshControl.appearance()
+.tintColor = .clear`) with the ring shown in its place while the refresh runs. Each star
+is `MarkStar`, the mark itself shown down to one star. Reduce Motion: the five stand still.
+
 **The mark is never redrawn.** `Mark.imageset/mark.svg` is ★★★★★ × over PARADOX with
 ™ top right, built from the outlines in `logo-experiments/logos.js`. The proper
 masters are on the Mac at `~/Documents/Codex/2026-09-17/t/outputs/PARADOX_Logo_Library/`;

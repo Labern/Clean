@@ -45,7 +45,7 @@ struct TodayHeader: View {
                 .onTapGesture { taps += 1 }
                 .accessibilityAddTraits(.isButton)
             if loading {
-                ProgressView()
+                StarSpinner(size: 26)
             }
             Spacer(minLength: 0)
             ProfileBadge()
@@ -67,6 +67,8 @@ struct TodayView: View {
     @State private var connecting = false
     /// Goes up each time a pull to refresh finishes.
     @State private var refreshed = 0
+    /// A pull to refresh is under way: the stars turn beside the mark.
+    @State private var refreshing = false
     @State private var path = NavigationPath()
     @AppStorage(Layout.work.key) private var layout = ""
 
@@ -77,7 +79,7 @@ struct TodayView: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    TodayHeader(loading: money.loading, refreshed: refreshed)
+                    TodayHeader(loading: money.loading || refreshing, refreshed: refreshed)
                         .padding(.top, 6)
 
                     // The cards, in the order chosen: hold one and drop it on another to move it.
@@ -118,6 +120,8 @@ struct TodayView: View {
             .background(Ink.ground)
             .toolbar(.hidden, for: .navigationBar)
             .refreshable { @MainActor in
+                refreshing = true
+                defer { refreshing = false }
                 await money.refresh()
                 await feed.pull(into: context)
                 await site.check()
