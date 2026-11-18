@@ -19,16 +19,26 @@ struct TodayView: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    // Top right: who is running it today.
+                    HStack {
+                        Spacer(minLength: 0)
+                        ProfileBadge()
+                    }
+                    .padding(.top, 2)
+                    .padding(.bottom, -8)
+
                     HStack(alignment: .bottom, spacing: 0) {
                         MarkView(width: 170)
                             .hunt()
-                        // "PARADOX board": sits on the wordmark's own baseline, the
+                        // "PARADOX Dashboard": sits on the wordmark's own baseline, the
                         // bottom edge of the mark, so the two read as one name.
                         // The mark's frame runs on past PARADOX to hold the ™ above it, so
-                        // "board" steps back into that space to sit a word-gap after the X.
-                        Text("board")
+                        // the word steps back into that space to sit a word-gap after the X.
+                        Text("Dashboard")
                             .font(.system(size: 25, weight: .regular, design: .serif))
                             .foregroundStyle(Ink.muted)
+                            .lineLimit(1)
+                            .fixedSize()
                             .padding(.leading, -17)
                             .offset(y: 4)
                             .accessibilityHidden(true)
@@ -37,7 +47,6 @@ struct TodayView: View {
                             ProgressView()
                         }
                     }
-                    .padding(.top, 6)
 
                     if !money.live {
                         ExampleBanner { connecting = true }

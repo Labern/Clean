@@ -89,8 +89,18 @@ both appearances: no white on white, no black on black. Appearance is `@AppStora
 ("appearance")` auto/light/dark. Focus-site touches: uppercase tracked eyebrow labels
 (`SectionHeader`), figures at medium weight that tick (`.figure`), cards rising in once
 per launch (`.rise`), the mark's "hunt" hit stop on Today (`.hunt`), the ground fading
-under the status bar (`.statusBarFade`). "PARADOX board" on Today: the word sits on the
-wordmark's baseline, stepped back into the space the mark keeps for its ™.
+under the status bar (`.statusBarFade`). "PARADOX Dashboard" on Today: the word sits on
+the wordmark's baseline, stepped back into the space the mark keeps for its ™.
+
+## Profile (top right of Today)
+`Sources/Profile.swift`. `[photo] Labern / Founder & Director`, laid out like the Claude
+app's account row. Tap the photo to change it (`PhotosPicker`), move it in its circle
+(one finger drags, two fingers or the slider zoom: `Framing`, tested) and set the name.
+A new photo is framed on the face automatically (Vision). Tap the role for the list of
+hats (`Profile.roles`: Founder & Director, Writer, Programmer, Actor, Designer,
+Filmmaker) or "New role" to add one; the change lands with hit stop. Everything stays
+on the phone: the photo in Application Support/Profile, the rest in UserDefaults. **No
+photo of Labern is in this repo**, which is public; he picks it on the phone.
 
 ## App icons
 Main icon = the app's own mark scaled to 90% width (`design/icons/classic-max-black.png`).

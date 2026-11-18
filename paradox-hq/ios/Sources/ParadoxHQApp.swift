@@ -9,6 +9,7 @@ struct ParadoxHQApp: App {
     @State private var site = SiteMonitor()
     @State private var backups = Backups()
     @State private var shelf = IconShelf()
+    @State private var profile = Profile()
     @AppStorage("appearance") private var appearance: Appearance = .auto
     private let container: ModelContainer
 
@@ -32,6 +33,7 @@ struct ParadoxHQApp: App {
                 .environment(site)
                 .environment(backups)
                 .environment(shelf)
+                .environment(profile)
                 .preferredColorScheme(appearance.scheme)
                 .tint(Ink.violet)
         }

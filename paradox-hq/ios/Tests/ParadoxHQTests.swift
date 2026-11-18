@@ -948,6 +948,67 @@ struct LinkTests {
     }
 }
 
+@Suite("Profile photo")
+@MainActor
+struct ProfileTests {
+    private let portrait = CGSize(width: 1000, height: 1400)
+
+    @Test func aPhotoFillsItsCircleByItsShorterSide() {
+        let plain = Framing()
+        #expect(plain.drawn(portrait, side: 100) == CGSize(width: 100, height: 140))
+        #expect(plain.offset(portrait, side: 100) == .zero)
+        #expect(Framing(zoom: 2).drawn(CGSize(width: 1400, height: 1000), side: 100) == CGSize(width: 280, height: 200))
+    }
+
+    /// The point chosen sits in the middle of the circle.
+    @Test func theChosenPointIsCentred() {
+        let face = Framing(x: 0.5, y: 0.25, zoom: 2)
+        #expect(face.drawn(portrait, side: 100) == CGSize(width: 200, height: 280))
+        #expect(face.offset(portrait, side: 100) == CGSize(width: 0, height: 70))
+    }
+
+    /// The circle never shows past the edge of the photo, however it is pushed.
+    @Test func thePhotoCannotBePushedOutOfItsCircle() {
+        let corner = Framing(x: 0, y: 0, zoom: 1).clamped(to: portrait)
+        #expect(corner.x == 0.5)
+        #expect(abs(corner.y - 1000.0 / 2800.0) < 0.0001)
+        let far = Framing(x: 2, y: 2, zoom: 2).clamped(to: portrait)
+        #expect(abs(far.x - 0.75) < 0.0001)
+        #expect(abs(far.y - (1 - 1000.0 / 5600.0)) < 0.0001)
+        #expect(Framing(zoom: 0.2).clamped(to: portrait).zoom == 1)
+        #expect(Framing(zoom: 99).clamped(to: portrait).zoom == Framing.closest)
+        #expect(Framing(x: 0.3, y: 0.3, zoom: 3).clamped(to: .zero) == Framing())
+    }
+
+    @Test func draggingMovesThePhotoWithTheFinger() {
+        let start = Framing(x: 0.5, y: 0.5, zoom: 2)
+        // Drawn 200pt wide: 20pt to the right shows what was a tenth further left.
+        let moved = start.dragged(by: CGSize(width: 20, height: -28), photo: portrait, side: 100)
+        #expect(abs(moved.x - 0.4) < 0.0001)
+        #expect(abs(moved.y - 0.6) < 0.0001)
+        #expect(moved.zoom == 2)
+        #expect(abs(start.zoomed(by: 1.5, photo: portrait).zoom - 3) < 0.0001)
+    }
+
+    /// A new photo is framed on the face, with room for the hair.
+    @Test func aFaceIsFramedWithRoomAroundIt() {
+        let photo = CGSize(width: 1122, height: 1402)
+        let face = CGRect(x: 0.39, y: 0.17, width: 0.22, height: 0.2)
+        let framing = Framing.around(face: face, in: photo)
+        #expect(abs(framing.x - 0.5) < 0.0001)
+        #expect(framing.y > 0.2 && framing.y < 0.3)
+        #expect(framing.zoom > 2 && framing.zoom < 2.6)
+        #expect(framing == framing.clamped(to: photo))
+    }
+
+    @Test func rolesAddedAreKeptWithoutRepeats() {
+        #expect(Profile.merged(["Founder & Director", "Writer"], ["Composer", "writer", "Composer"])
+            == ["Founder & Director", "Writer", "Composer"])
+        #expect(Profile.roles.first == "Founder & Director")
+        #expect(Profile.roles.contains("Writer") && Profile.roles.contains("Programmer") && Profile.roles.contains("Actor"))
+    }
+}
+
 @Suite("Icon designer")
 @MainActor
 struct IconDesignerTests {
