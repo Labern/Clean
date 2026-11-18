@@ -272,6 +272,18 @@ struct ProfileBadge: View {
     }
 }
 
+private struct ChoosePhotoLabel: View {
+    let title: String
+
+    var body: some View {
+        Label(title, systemImage: "photo")
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(Ink.body)
+            .frame(maxWidth: .infinity, minHeight: 46)
+            .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
 /// Change the photo, move it about in its circle, and set the name.
 struct ProfileEditor: View {
     @Environment(Profile.self) private var profile
@@ -308,13 +320,9 @@ struct ProfileEditor: View {
                         .foregroundStyle(Ink.muted)
                         .padding(.horizontal, 8)
                     }
-                    PhotosPicker(selection: $pick, matching: .images) {
-                        Label(profile.photo == nil ? "Choose a photo" : "Change photo", systemImage: "photo")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Ink.body)
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                            .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
+                    // The picker builds its label off the main actor, so the label is made here.
+                    let choose = ChoosePhotoLabel(title: profile.photo == nil ? "Choose a photo" : "Change photo")
+                    PhotosPicker(selection: $pick, matching: .images) { choose }
                     if !problem.isEmpty {
                         Text(problem)
                             .font(.footnote)
