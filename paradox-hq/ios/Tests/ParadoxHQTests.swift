@@ -994,10 +994,14 @@ struct WorkTests {
         #expect(read("Something else entirely").subject == "Something else entirely")
     }
 
-    @Test func liveBranchesCountAsPublished() {
-        #expect(read("feat: x", branches: ["master"]).published)
-        #expect(read("feat: x", branches: ["gh-pages", "claude/x"]).published)
-        #expect(!read("feat: x", branches: ["claude/x"]).published)
+    /// Published is a live site updated. A product's main branch is not a site.
+    @Test func publishedMeansALiveSite() {
+        let site = read("feat: x", branches: ["gh-pages", "claude/x"])
+        #expect(site.published && site.shipped == false)
+        let product = read("feat: x", branches: ["master"])
+        #expect(!product.published && product.shipped == true)
+        let neither = read("feat: x", branches: ["claude/x"])
+        #expect(!neither.published && neither.shipped == false)
     }
 
     /// The same commit on two branches is one piece of work.
@@ -1011,7 +1015,7 @@ struct WorkTests {
         let merged = WorkLedger.merged([first, second, other])
         #expect(merged.map(\.id) == ["2", "1"])
         #expect(merged[1].branches == ["claude/x", "master"])
-        #expect(merged[1].published)
+        #expect(merged[1].shipped == true && !merged[1].published)
     }
 
     @Test func workIsCountedPerDay() {
@@ -1143,14 +1147,15 @@ struct WorkTests {
         #expect(GitHubWork.active(repos, since: at(2026, 10, 18), limit: 1).count == 1)
     }
 
-    /// A repo's own default branch is published, whatever it is called.
-    @Test func theDefaultBranchIsPublished() throws {
+    /// A repo's own default branch is its product's main branch, whatever it is called.
+    @Test func theDefaultBranchIsTheProduct() throws {
         let json = """
         [{"sha":"1","parents":[],"commit":{"message":"feat: a","committer":{"name":"x","date":"2026-11-17T10:00:00Z"},"author":{"name":"Labern","date":"2026-11-17T10:00:00Z"}}}]
         """
         let commits = try GitHubWork.decoder().decode([GitHubWork.Commit].self, from: Data(json.utf8))
-        #expect(GitHubWork.entries(commits, repo: "Labern/iOS", branch: "trunk", live: true).first?.published == true)
-        #expect(GitHubWork.entries(commits, repo: "Labern/iOS", branch: "trunk").first?.published == false)
+        #expect(GitHubWork.entries(commits, repo: "Labern/iOS", branch: "trunk", main: true).first?.shipped == true)
+        #expect(GitHubWork.entries(commits, repo: "Labern/iOS", branch: "trunk").first?.shipped == false)
+        #expect(GitHubWork.entries(commits, repo: "Labern/iOS", branch: "trunk", main: true).first?.published == false)
     }
 
     @Test func mergesAndTheBuildRobotAreNotWork() throws {
@@ -1162,7 +1167,7 @@ struct WorkTests {
         let commits = try GitHubWork.decoder().decode([GitHubWork.Commit].self, from: Data(json.utf8))
         let entries = GitHubWork.entries(commits, repo: "Labern/Clean", branch: "master")
         #expect(entries.map(\.id) == ["1"])
-        #expect(entries.first?.published == true)
+        #expect(entries.first?.shipped == true)
     }
 }
 

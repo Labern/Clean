@@ -17,6 +17,7 @@ struct CompanyView: View {
     @State private var restored = false
     @AppStorage("appearance") private var appearance: Appearance = .auto
     @AppStorage("typeface") private var typeface: Typeface = .system
+    @AppStorage("work-products") private var workProducts = false
     @Environment(WorkStore.self) private var work
 
     enum Picking: Identifiable {
@@ -309,6 +310,24 @@ struct CompanyView: View {
                         .padding(.vertical, 10)
                         .sensoryFeedback(.selection, trigger: typeface)
                     }
+                    Hairline(inset: 14)
+                    // Published means a live site updated. Products reaching their main
+                    // branch are a separate figure, shown only when this is on.
+                    Toggle(isOn: $workProducts) {
+                        HStack(spacing: 12) {
+                            Image(systemName: "shippingbox")
+                                .font(Face.at(15, .semibold))
+                                .foregroundStyle(Ink.muted)
+                                .frame(width: 32, height: 32)
+                                .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            Text("Products on the Work card")
+                                .foregroundStyle(Ink.body)
+                        }
+                    }
+                    .tint(Ink.ok)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .sensoryFeedback(.selection, trigger: workProducts)
                     Hairline(inset: 14)
                     ColourSettings()
                     Hairline(inset: 14)

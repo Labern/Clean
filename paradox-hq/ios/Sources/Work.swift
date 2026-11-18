@@ -49,11 +49,15 @@ nonisolated struct WorkEntry: Codable, Identifiable, Hashable, Sendable {
     var points: [String]
     /// Made with Claude (the message carries Claude's trailers).
     var claude: Bool
-    /// On a branch that is live: the default branch or the published pages.
+    /// Published: it reached a live site (the `gh-pages` branch, which GitHub serves).
+    /// A product's code landing on its main branch is not publishing: see `shipped`.
     var published: Bool
     /// The Claude conversation it was made in, when the commit names one
     /// ("Claude-Session: https://claude.ai/code/session_…"). Opens in the Claude app.
     var session: String? = nil
+    /// It reached a product's main branch. Counted separately, and only when
+    /// Settings asks for products on the Work card.
+    var shipped: Bool? = nil
 
     var sessionLink: URL? { session.flatMap(URL.init(string:)) }
 
@@ -66,8 +70,10 @@ nonisolated struct WorkEntry: Codable, Identifiable, Hashable, Sendable {
 
     // MARK: Reading a commit message
 
-    /// Branches whose commits count as published.
-    static let live: Set<String> = ["master", "main", "gh-pages"]
+    /// The branch GitHub serves as a live site.
+    static let site = "gh-pages"
+    /// The usual names of a product's main branch (a repo's own default is asked for too).
+    static let mains: Set<String> = ["master", "main"]
 
     /// Reads a commit message into what it did. Handles "feat(scope): subject"
     /// and plain sentences ("Add the icon designer"); bullets come from "- " lines.
@@ -126,7 +132,8 @@ nonisolated struct WorkEntry: Codable, Identifiable, Hashable, Sendable {
         }.first
         return WorkEntry(id: id, date: date, repo: repo, branches: branches.sorted(), kind: kind, project: project,
                          subject: subject, points: points, claude: !trailers.isEmpty || session != nil,
-                         published: !live.isDisjoint(with: branches), session: session)
+                         published: branches.contains(site), session: session,
+                         shipped: !mains.isDisjoint(with: branches))
     }
 
     private static let kinds: [String: WorkKind] = [
@@ -341,6 +348,7 @@ nonisolated enum WorkLedger {
             if var held = byID[entry.id] {
                 held.branches = Array(Set(held.branches + entry.branches)).sorted()
                 held.published = held.published || entry.published
+                held.shipped = (held.shipped ?? false) || (entry.shipped ?? false)
                 byID[entry.id] = held
             } else {
                 byID[entry.id] = entry
@@ -404,15 +412,15 @@ nonisolated enum GitHubWork {
     }
 
     /// Commits as work: merges and the build robot's own commits are left out.
-    /// `live` marks a branch as published whatever it is called (a repo's own default branch).
-    static func entries(_ commits: [Commit], repo: String, branch: String, live: Bool = false) -> [WorkEntry] {
+    /// `main` marks the branch as the product's main one whatever it is called.
+    static func entries(_ commits: [Commit], repo: String, branch: String, main: Bool = false) -> [WorkEntry] {
         commits.compactMap { commit in
             guard commit.parents.count <= 1,
                   let date = commit.commit.committer?.date ?? commit.commit.author?.date else { return nil }
             let who = commit.commit.author?.name ?? ""
             if who.hasSuffix("-ci") || who.hasSuffix("-stats") || who.contains("[bot]") { return nil }
             var entry = WorkEntry.read(id: commit.sha, date: date, repo: repo, branches: [branch], message: commit.commit.message)
-            entry.published = entry.published || live
+            entry.shipped = (entry.shipped ?? false) || main
             return entry
         }
     }
@@ -581,9 +589,17 @@ nonisolated enum GitHubWork {
         var asked = 0
         for repo in active {
             let name = repo.full_name
-            let events: [GitHubWork.Event] = (try? await ask("repos/\(name)/events?per_page=100", token: token)) ?? []
+            // Which branches moved lately. A busy repo fills a page of events in a couple
+            // of days, so more than one page is read.
+            var events: [GitHubWork.Event] = []
+            for page in 1...(token == nil ? 2 : 3) {
+                let more: [GitHubWork.Event] = (try? await ask("repos/\(name)/events?per_page=100&page=\(page)", token: token)) ?? []
+                events += more
+                if more.count < 100 { break }
+            }
             let main = repo.default_branch ?? "main"
-            var branches = [main]
+            // The main branch and the live site are always read, so nothing shipped or published is missed.
+            var branches = [main, WorkEntry.site]
             for branch in GitHubWork.branches(in: events) where !branches.contains(branch) { branches.append(branch) }
             for branch in branches.prefix(token == nil ? 10 : 30) {
                 // Without a token, stop short of GitHub's hourly allowance.
@@ -592,7 +608,7 @@ nonisolated enum GitHubWork {
                 let path = "repos/\(name)/commits?sha=\(branch.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? branch)&since=\(stamp)&per_page=100"
                 do {
                     let commits: [GitHubWork.Commit] = try await ask(path, token: token)
-                    seen += GitHubWork.entries(commits, repo: name, branch: branch, live: branch == main || branch == "gh-pages")
+                    seen += GitHubWork.entries(commits, repo: name, branch: branch, main: branch == main)
                 } catch let refused as Refused where [404, 409, 422].contains(refused.code) {
                     continue    // a branch that has gone, or an empty repo
                 }
@@ -628,7 +644,7 @@ nonisolated enum GitHubWork {
         return messages.enumerated().map { index, message in
             let date = now.addingTimeInterval(-Double(index) * 5.3 * 3600 - 1200)
             return WorkEntry.read(id: String(format: "%040d", index), date: date, repo: "Labern/Clean",
-                                  branches: [index % 3 == 0 ? "master" : "claude/work"], message: message)
+                                  branches: [index % 3 == 0 ? "gh-pages" : index % 3 == 1 ? "master" : "claude/work"], message: message)
         }
     }
 

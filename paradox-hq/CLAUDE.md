@@ -47,8 +47,12 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
     commits) and `commits?sha=<branch>&since=` for each. No token is needed for public
     work, but GitHub then allows 60 questions an hour, so it reads at most every 20
     minutes and at most 4 repos (pull to refresh forces it); a failed read keeps what was
-    there. Merges, `ci/` and `stats/` branches and robots are left out. Commits on a
-    repo's default branch or `gh-pages` count as published. `WorkEntry.read` turns a commit
+    there. Merges, `ci/` and `stats/` branches and robots are left out.
+  - **Published means a live production site was updated**: a commit on `gh-pages`,
+    which GitHub serves (Labern, 2026-11-18: "not products"). A product's code reaching
+    its main branch is `shipped`, a separate figure ("Products") that only shows when
+    Company › Settings › "Products on the Work card" is on. The main branch and
+    `gh-pages` are always read, however long ago they last moved. `WorkEntry.read` turns a commit
     message into kind, product, subject and bullets, and is tested: **write commit
     messages as `type(product): subject` with `- ` bullets and they read well here.**
   - **Claude messages**: there is no API for it. `tools/claude_stats.py` counts the

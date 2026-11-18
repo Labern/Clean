@@ -33,6 +33,8 @@ struct WorkCard: View {
     @AppStorage("work-rolling") private var rolling = false
     /// Folded, the card is its three figures and nothing else.
     @AppStorage("work-folded") private var folded = false
+    /// Settings: also show what reached a product's main branch.
+    @AppStorage("work-products") private var products = false
     @State private var measure: WorkMeasure = .pushed
     @State private var touched: Date? = nil
     /// The bar last read off the graph. It stays chosen when the finger lifts.
@@ -104,7 +106,11 @@ struct WorkCard: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(alignment: .top, spacing: 0) {
                         figure(pushed.count, "Pushed", caption)
+                        // Published is a live site updated. Products are their own figure, off unless asked for.
                         figure(live, "Published", caption)
+                        if products {
+                            figure(pushed.filter { $0.shipped == true }.count, "Products", caption)
+                        }
                         figure(sent, "Claude messages", work.claudeCounted == nil ? "waiting for a count" : caption)
                     }
 
@@ -306,6 +312,8 @@ struct WorkLine: View {
                     }
                     if entry.published {
                         Text("Live").foregroundStyle(Ink.ok)
+                    } else if entry.shipped == true {
+                        Text("Product")
                     }
                     if entry.claude, entry.session == nil {
                         Text("with Claude")
