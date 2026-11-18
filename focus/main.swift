@@ -30,7 +30,11 @@ func healSystemSwitcher() { systemSwitcher(true) }
 /// Focus's own log: ~/Library/Logs/Focus.log. One line per event worth tracing (a right-click that arrived, a mode
 /// key). Kept small: started afresh past 200 KB.
 func flog(_ line: String) {
-    let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Focus.log")
+    // Tests and renders log beside their own error records, never into the real Focus.log (their lines were being
+    // mistaken for his: 2026-11-18, the Return hunt).
+    let url = testSettingsName == nil ? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Focus.log")
+                                      : ErrorLog.dir.appendingPathComponent("Focus.log")
+    try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
     let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"
     ErrorLog.breadcrumb(line)                                    // kept briefly: an error record shows what led up to it
     let data = Data((f.string(from: Date()) + "  " + line + "\n").utf8)
