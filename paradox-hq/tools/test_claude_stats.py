@@ -71,4 +71,8 @@ json.dump({"sessions": [
 both = stats.merged(data, shared, now)
 assert [session["id"] for session in both["sessions"]] == ["other", "s"], both["sessions"]
 assert sum(day["messages"] for day in both["days"]) == 7
-print("claude_stats: 7 checks pass")
+# A conversation's address survives the merge, so its changes can be matched to it.
+data["sessions"][0]["link"] = "https://claude.ai/code/session_x"
+kept = stats.merged(data, shared, now)
+assert [session.get("link") for session in kept["sessions"]] == [None, "https://claude.ai/code/session_x"]
+print("claude_stats: 8 checks pass")

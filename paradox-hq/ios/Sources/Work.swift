@@ -166,6 +166,9 @@ nonisolated struct ClaudeSession: Codable, Hashable, Identifiable, Sendable {
     var started: Date
     var last: Date
     var hours: [String: Int]
+    /// Its address in Claude, when the counter was told it (cloud sessions are).
+    /// The same address is on every change made in the conversation.
+    var link: String? = nil
 
     var messages: Int { hours.values.reduce(0, +) }
 }
@@ -218,7 +221,7 @@ nonisolated enum WorkSpan: String, CaseIterable, Identifiable, Sendable {
         case .hour:
             calendar.dateInterval(of: .hour, for: now)?.start ?? now
         case .session:
-            session ?? now
+            session ?? calendar.startOfDay(for: now)
         case .day:
             rolling ? now.addingTimeInterval(-86_400) : calendar.startOfDay(for: now)
         case .week:
@@ -273,6 +276,15 @@ nonisolated enum WorkLedger {
                 return (date, amount)
             }
         }
+    }
+
+    /// What was pushed in a conversation: exactly the changes that carry its
+    /// address when it is known, otherwise everything since it began.
+    static func work(in session: ClaudeSession, _ entries: [WorkEntry], now: Date) -> [WorkEntry] {
+        if let link = session.link, !link.isEmpty {
+            return entries.filter { $0.session == link }
+        }
+        return entries.filter { $0.date >= session.started && $0.date <= now }
     }
 
     /// One of each session: where two files report the same one, the fuller report.
@@ -488,26 +500,36 @@ nonisolated enum GitHubWork {
         return repos.count <= 1 ? "\(versions) in 30 days" : "\(versions) in \(repos.count) repositories"
     }
 
-    /// Reads GitHub and the Mac's count again. Without a token GitHub allows 60
+    /// Reads everything again. The Claude counts are plain public files and are
+    /// read every time. GitHub's API is paced: without a token it allows 60
     /// questions an hour and one read asks ten to twenty, so it waits 20 minutes
     /// between reads unless told to go now.
     func refresh(force: Bool = false, now: Date = .now) async {
         guard !loading, !Launch.unlocked else { return }
-        let rest: TimeInterval = hasToken ? 3 * 60 : 20 * 60
-        if !force, let fetched, now.timeIntervalSince(fetched) < rest { return }
         loading = true
         defer { loading = false }
 
-        do {
-            let read = try await Self.read(owner: owner, token: token, now: now)
-            entries = read.entries
-            repos = read.repos
-            problem = ""
-        } catch {
-            // What was read before stays on screen.
-            problem = (error as? LocalizedError)?.errorDescription ?? "GitHub couldn't be reached."
+        await readClaude()
+
+        let rest: TimeInterval = hasToken ? 3 * 60 : 20 * 60
+        if force || fetched.map({ now.timeIntervalSince($0) >= rest }) ?? true {
+            do {
+                let read = try await Self.read(owner: owner, token: token, now: now)
+                entries = read.entries
+                repos = read.repos
+                problem = ""
+            } catch {
+                // What was read before stays on screen.
+                problem = (error as? LocalizedError)?.errorDescription ?? "GitHub couldn't be reached."
+            }
+            fetched = now
         }
-        // The counts of Claude messages are small public files; a missing one is not a problem.
+        let saved = Saved(entries: entries, sessions: sessions, fetched: fetched, repos: repos, claudeCounted: claudeCounted)
+        try? JSONEncoder().encode(saved).write(to: file, options: .atomic)
+    }
+
+    /// The counts of Claude messages: small public files; a missing one is not a problem.
+    private func readClaude() async {
         var read: [ClaudeSession] = []
         var counted: Date? = nil
         var answered = false
@@ -525,9 +547,6 @@ nonisolated enum GitHubWork {
             sessions = WorkLedger.unique(read)
             claudeCounted = counted
         }
-        fetched = now
-        let saved = Saved(entries: entries, sessions: sessions, fetched: fetched, repos: repos, claudeCounted: claudeCounted)
-        try? JSONEncoder().encode(saved).write(to: file, options: .atomic)
     }
 
     private nonisolated struct ClaudeFeed: Decodable {

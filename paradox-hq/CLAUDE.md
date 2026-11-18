@@ -58,8 +58,14 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
     install), and `paradox-hq/stats/cloud.json` on the app branch, for conversations
     that ran in the cloud, whose transcripts never reach the Mac. **A cloud session
     working on this app runs
-    `python3 paradox-hq/tools/claude_stats.py --out paradox-hq/stats/cloud.json`
-    before each push and commits the file**; that is the only way its messages count.
+    `python3 paradox-hq/tools/claude_stats.py --out paradox-hq/stats/cloud.json --link
+    https://claude.ai/code/<its own session id>` before each push and commits the
+    file**; that is the only way its messages count. The link is what lets "Session"
+    count exactly the changes made in that conversation (they carry the same address);
+    without one it counts everything since the conversation began.
+  - The counts are plain files and are re-read on every refresh; only GitHub's API is
+    paced. (When they shared the 20-minute pacing, a new build started with no
+    conversation loaded and "Session" showed nothing while "Hour" was full: 2026-11-18.)
 - **Notes** — a proper notebook. Chips filter to one project's notes; a note's menu
   turns it into a to-do (title becomes the line, the rest its note) on its project,
   or on My list. Plain text, the first line is the title, saved as

@@ -1079,6 +1079,25 @@ struct WorkTests {
         #expect(WorkSpan.day.caption(rolling: true) == "last 24 hours")
     }
 
+    /// "This session" is the conversation's own changes when its address is known,
+    /// and everything since it began when it is not.
+    @Test func aSessionCountsItsOwnWork() {
+        var mine = read("feat: a\n\nClaude-Session: https://claude.ai/code/session_mine")
+        var theirs = read("feat: b\n\nClaude-Session: https://claude.ai/code/session_other")
+        var before = read("feat: c")
+        mine.id = "1"; theirs.id = "2"; before.id = "3"
+        mine.date = at(2026, 11, 18, 10); theirs.date = at(2026, 11, 18, 11); before.date = at(2026, 11, 17, 9)
+        var known = session("aaaa", ["2026-11-18T10": 5], last: at(2026, 11, 18, 12))
+        known.started = at(2026, 11, 18, 9)
+        known.link = "https://claude.ai/code/session_mine"
+        let now = at(2026, 11, 18, 13)
+        #expect(WorkLedger.work(in: known, [mine, theirs, before], now: now).map(\.id) == ["1"])
+        known.link = nil
+        #expect(WorkLedger.work(in: known, [mine, theirs, before], now: now).map(\.id) == ["1", "2"])
+        // With no conversation counted, the session stretch measures from the start of today, never from "now".
+        #expect(WorkSpan.session.start(now: now, calendar: london, rolling: false, session: nil) == at(2026, 11, 18, 0))
+    }
+
     /// A change made in a Claude conversation carries the way back to it.
     @Test func aChangeRemembersItsClaudeConversation() {
         let linked = read("""

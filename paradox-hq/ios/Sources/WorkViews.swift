@@ -47,12 +47,15 @@ struct WorkCard: View {
         let messages = WorkLedger.messages(work.sessions)
         let written = notes.map { (date: $0.created, amount: 1) }
 
-        // The three figures, for the stretch chosen.
-        let pushed = work.entries.filter { $0.date >= start && $0.date <= now }
+        // The three figures, for the stretch chosen. A session is a conversation,
+        // not a stretch of the clock: its own changes and its own messages.
+        let current = span == .session ? work.session : nil
+        let pushed = current.map { WorkLedger.work(in: $0, work.entries, now: now) }
+            ?? work.entries.filter { $0.date >= start && $0.date <= now }
         let live = pushed.filter(\.published).count
-        let sent = span == .session ? (work.session?.messages ?? 0)
-            : WorkLedger.total(messages, from: start, to: now, calendar: calendar)
-        let caption = span.caption(rolling: rolling)
+        let sent = current?.messages ?? WorkLedger.total(messages, from: start, to: now, calendar: calendar)
+        // Asked for the session before any conversation has been counted: say so, don't show noughts as fact.
+        let caption = span == .session && current == nil ? "no session counted yet" : span.caption(rolling: rolling)
 
         // The graph, cut by the hour or the day to suit the stretch.
         let cut = span.graph
@@ -185,9 +188,24 @@ struct WorkCard: View {
                             .accessibilityLabel(rolling ? "Counting the last 24 hours. Switch to today." : "Counting today. Switch to the last 24 hours.")
                             Spacer()
                             if span == .session, let session = work.session {
-                                Text("since \(session.started.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
-                                    .font(Face.style(.caption))
-                                    .foregroundStyle(Ink.muted)
+                                // The conversation itself, a tap away when its address is known.
+                                Button {
+                                    if let link = session.link.flatMap(URL.init(string:)) { ClaudeApp.open(link) }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Text("since \(session.started.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
+                                            .font(Face.style(.caption))
+                                            .foregroundStyle(Ink.muted)
+                                        if session.link != nil {
+                                            LogoTile(name: "Logo-Claude", size: 20)
+                                        }
+                                    }
+                                    .frame(minHeight: 44)
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(session.link == nil)
+                                .accessibilityLabel("Open this conversation in Claude")
                             }
                         }
                     }

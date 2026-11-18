@@ -20,8 +20,9 @@ machine: no words from any conversation.
     claude_stats.py --publish --remote URL   (the Mac) push it as claude.json, the only
         file on the branch stats/claude. It uses a small repo of its own in
         ~/.paradox/stats, so it never touches a working checkout.
-    claude_stats.py --out FILE               (a cloud session) merge this machine's
+    claude_stats.py --out FILE --link URL    (a cloud session) merge this machine's
         sessions into FILE, which is committed with the work: paradox-hq/stats/cloud.json.
+        URL is the conversation's own address, so the app can tell which changes it made.
         A cloud session's transcript only exists in its own container, so this is the
         only way its messages are ever counted.
 """
@@ -147,8 +148,11 @@ def shaped(sessions, now):
     for session in sorted(sessions, key=lambda item: str(item["id"])):
         started, last = (when if isinstance(when, str) else when.astimezone(UTC).strftime(STAMP)
                          for when in (session["started"], session["last"]))
-        listed.append({"id": session["id"], "started": started, "last": last,
-                       "hours": dict(sorted(session["hours"].items()))})
+        entry = {"id": session["id"], "started": started, "last": last,
+                 "hours": dict(sorted(session["hours"].items()))}
+        if session.get("link"):
+            entry["link"] = session["link"]
+        listed.append(entry)
         for hour, amount in session["hours"].items():
             day = datetime.datetime.strptime(hour, "%Y-%m-%dT%H").replace(tzinfo=UTC).astimezone().date()
             messages[day] = messages.get(day, 0) + amount
@@ -200,9 +204,14 @@ def main():
     parser.add_argument("--remote", default="")
     parser.add_argument("--workdir", default=os.path.expanduser("~/.paradox/stats"))
     parser.add_argument("--out", default="", help="merge into this file instead of printing")
+    parser.add_argument("--link", default="", help="this conversation's address in Claude (a cloud session knows its own)")
     args = parser.parse_args()
     now = datetime.datetime.now().astimezone()
     data = count(args.root, args.days, now)
+    if args.link:
+        # A cloud container holds one conversation: its changes carry this same address.
+        for session in data["sessions"]:
+            session["link"] = args.link
     total = sum(day["messages"] for day in data["days"])
     if args.out:
         data = merged(data, args.out, now, args.days)
