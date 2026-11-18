@@ -109,3 +109,12 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **Permissions only when absolutely necessary (18 Nov 2026):** "The users shouldn't have to click a bunch of
   accessibility stuff unless it is absolutely necessary." Show a permission line only when it is the reason
   something just failed.
+- **One answer, not a list (Super Smart Search, 18 Nov 2026).** A list of results "just looks like Spotlight… generic…
+  boring… shows too many results. The whole point really should be that it has the fewest number, and that if you
+  want to, you can see more results, but it should really just direct your attention to what you want straight
+  away." Show the single best answer; the rest are one key away.
+- **Motion must be seen, and mean something (18 Nov 2026).** Subtle arrival animations read as "no animation". His
+  design for the SSS mark: two movements, "one at all times, the other while searching": the lens's rim turns from
+  the start to show it is listening ("better than a spinning thing"), and the lens fills with white from the bottom
+  as it searches. Centre the bar on the screen; centre the mark in it.
+

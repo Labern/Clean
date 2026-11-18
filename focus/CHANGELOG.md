@@ -4,6 +4,16 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.26.0 — 2026-11-18
+- **Super Smart Search has its own look.** A small black pill in the centre of the screen with the IQ mark in its
+  middle. Type, and it springs a little wider: your words, then the one answer. It stays compact: under a third of
+  the screen at its widest.
+- **One answer.** The others wait as small icons at the end of the pill: Tab brings the next one in, ↓ lists them
+  underneath, ↑ from the top closes the list.
+- **The lens is alive.** Its rim turns the whole time (it is listening). As you type it fills with white from the
+  bottom, higher the closer it is to one answer, and full when there is exactly one.
+- It bounces in when it opens and lifts away when it goes. The page in Focus shows one answer the same way.
+
 ## 0.25.0 — 2026-11-18
 - **Super Smart Search tells same-named things apart.** Two tabs both called "Fasthosts Control Panel" now read
   "Fasthosts Control Panel  Advanced DNS" and "Fasthosts Control Panel  Account › Login": each page's own heading

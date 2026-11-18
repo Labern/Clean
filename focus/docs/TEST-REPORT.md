@@ -1,6 +1,6 @@
 # Focus — test report
 
-**quick** run · version 0.25.0 · 2026-11-18 20:47 · 67s · **46 passed, 0 failed**
+**quick** run · version 0.26.0 · 2026-11-18 21:07 · 69s · **46 passed, 0 failed**
 
 | Result | Check | Detail |
 |---|---|---|
@@ -10,7 +10,7 @@
 | PASS | 18. submenus keep their own items when they open (Settings must not become a copy of the menu) | Settings, Tools, Past sessions unchanged on open |
 | PASS | 23. shortcuts: switching registers the new keys at once; the defaults are ⌘⇧F (session), ⌘⇧E (desktop app), ⌥⇧E (menu) | defaults ⌘⇧F / ⌘⇧E app / ⌥⇧E menu: true; ⌃⇧F registered live: true; ticked in the menu: true |
 | PASS | 24. animation speed: Normal is the default and keeps the original timing; Slow/Fast change only the holds | default Normal with hold 0.24 s / 0.02 s: true; slow longer: true; fast shorter: true; Appearance has Icon Colour: true and the dial: true |
-| PASS | 32. icon picker: hovering a design plays it back and forth (rest → in session with hit stop → back); leaving stops it; 21 designs | starts: true; landing t=1.0 scale=1.1199999999998653; rest t=0.0; returning t=0.5555555555555557; stops: true; designs: 21 |
+| PASS | 32. icon picker: hovering a design plays it back and forth (rest → in session with hit stop → back); leaving stops it; 21 designs | starts: true; landing t=1.0 scale=1.1199999999406214; rest t=0.0; returning t=0.5555555555555557; stops: true; designs: 21 |
 | PASS | 33. colour schemes: the Evangelion pairs are listed by name; a user can save, pick and delete their own; the originals stay | Evangelion listed: true; originals kept: true; saved scheme listed: true; picking it applies it: true; ⌥ delete: true; deleted: true |
 | PASS | 34. the menu has no state line; its first row is Quit, at the top right | first row is Quit: 'Quit' |
 | PASS | 35. modes: suggestions use only installed apps (Web Only = the default browser); adding one makes a real mode and it leaves the list; a mode's apps can be added and removed; Temporarily Closed wording | suggestions ["Web Only: Google Chrome", "Coding: Xcode, Terminal, Google Chrome", "Game Design: UnrealEditor, Claude"]; Web Only = default browser: true; all apps installed: true; added as a mode: true, then leaves the list: true; add/remove apps: true; mode menu has app rows + Add App: true |
@@ -28,7 +28,7 @@
 | PASS | 27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration | migration true · create+dedupe true · dragged .app true · no duplicates true · reorder true · remove+rename true · found by id true · delete true |
 | PASS | 28. a live session: no banner and no state line at the top; the button says End Session | first line 'Quit', no banner or state line: true; button 'End Session' |
 | PASS | 29. switching and hide-instead-of-quit settings; the Fewer icon | careful unless chosen: true; menu ticks Careful: true; per-app hide rows: true; Fewer icon: true |
-| PASS | 16. menu speed with every process on the Mac | 67 ms per menu open |
+| PASS | 16. menu speed with every process on the Mac | 59 ms per menu open |
 | PASS | 201. SSS: a word finds its window | Budget November.numbers |
 | PASS | 202. SSS: a typo still finds it | invioce → Invoice INV-2041 – Stripe Dashboard; screnplay → Screenplay draft 4.pdf |
 | PASS | 203. SSS: the start of a word is enough | kit → Kitten weights 2026; down → Downloads |
@@ -42,12 +42,12 @@
 | PASS | 211. SSS: a browser's answer becomes its tabs, the current one ranked with its window | 3 tabs; orders [24, 4, 5] |
 | PASS | 215. SSS: a window's name drops its app's name from the end | Inbox |
 | PASS | 214. SSS: every installed browser understands its tab scripts | Chrome, Safari |
-| PASS | 212. SSS: nothing typed, one bar and no list; type and the best guesses show (dark look) | under the bar: 0 with nothing typed, 4037 while typing; typed text and mark: 233 |
-| PASS | 213. SSS: nothing typed, one bar and no list; type and the best guesses show (light look) | under the bar: 0 with nothing typed, 4037 while typing; typed text and mark: 233 |
-| PASS | 216. SSS: typing shows the choices on the best one, Tab moves on, Return goes; an empty box closes them; nothing found shakes | list shown while typing; chosen 0 then 1; went to ["Focus — sss.swift"]; closes true; shakes 1 |
+| PASS | 212. SSS: one answer in the pill and nothing under it; ↓ lists the rest (dark look) | in the pill: 202 idle, 1390 with an answer; under it: 0 with an answer, 3952 after ↓ |
+| PASS | 213. SSS: one answer in the pill and nothing under it; ↓ lists the rest (light look) | in the pill: 202 idle, 1390 with an answer; under it: 0 with an answer, 3952 after ↓ |
+| PASS | 216. SSS: one answer; Tab brings the next; ↓ lists all, ↑ closes; Return goes; the lens fills as it narrows | one answer true; chosen 0 then 1; listed true; closed true; went to ["Focus — sss.swift"]; lens 0.0 → 0.4 → 1.0 |
 | PASS | 218. SSS: a word inside a page finds it; the name of a page still comes first | paypal → Checkout — Paradoxica · “…ay · Google Pay · PayPal Early adopter code applie…”; with a tab named PayPal: PayPal: Summary first |
 | PASS | 219. SSS: page scripts compile for every installed browser | Chrome, Safari |
-| PASS | 220. SSS: on Basic its page is locked, with Upgrade to Pro; on Pro it is open | bright samples where the unlock line sits: Basic 8441, Pro 2049 |
+| PASS | 220. SSS: on Basic its page is locked, with Upgrade to Pro; on Pro it is open | bright samples where the unlock line sits: Basic 8441, Pro 2035 |
 | PASS | 221. SSS: two tabs with the same name are told apart | by address: ["Advanced DNS", "Account › Login"]; by heading: ["paradoxica.co.uk", "Log in"] |
 | PASS | 217. SSS: its mark draws for the menu | 18 × 13 |
 
