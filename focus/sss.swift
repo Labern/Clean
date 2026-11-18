@@ -182,7 +182,12 @@ final class SSSIndex {
     static let chromium = ["com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.canary", "com.brave.Browser",
                            "com.microsoft.edgemac", "com.vivaldi.Vivaldi", "org.chromium.Chromium"]
     static let safari = ["com.apple.Safari", "com.apple.SafariTechnologyPreview"]
-    static var windowsAllowed: Bool { AXIsProcessTrusted() }
+    static var windowsAllowed: Bool {
+        let ok = AXIsProcessTrusted()
+        if !ok && !axReported { axReported = true; ferr(.accessibilityMissing, "SSS can't read or raise windows: Focus has no Accessibility permission") }
+        return ok
+    }
+    private static var axReported = false
     /// The one deliberate ask for Accessibility: macOS shows its own prompt, with a button to System Settings.
     static func askWindows() {
         _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
@@ -207,14 +212,14 @@ final class SSSIndex {
     static func run(_ source: String, limit: TimeInterval, quiet: Bool) -> (out: String?, err: String) {
         let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript"); p.arguments = ["-e", source]
         let out = Pipe(), err = Pipe(); p.standardOutput = out; p.standardError = err
-        guard (try? p.run()) != nil else { return (nil, "could not start") }
+        guard (try? p.run()) != nil else { if !quiet { ferr(.scriptCouldNotStart, "osascript would not start") }; return (nil, "could not start") }
         DispatchQueue.global().asyncAfter(deadline: .now() + limit) { if p.isRunning { p.terminate() } }
         let data = out.fileHandleForReading.readDataToEndOfFile(), problem = err.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
         var said = ""
         if p.terminationStatus != 0 {                                           // said in Focus.log, so a failure is never silent
             said = String(data: problem, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if said.isEmpty { said = "stopped after \(limit) s" }
-            if !quiet { lastScriptError = said; flog("SSS: a script failed — \(said.prefix(200))") }
+            if !quiet { lastScriptError = said; ferr(ErrorLog.scriptCode(said), "SSS: a script failed", ["said": said.prefix(200), "status": p.terminationStatus]) }
         }
         return (p.terminationStatus == 0 ? String(data: data, encoding: .utf8) : nil, said)
     }
@@ -481,7 +486,7 @@ final class SSSIndex {
         // macOS can accept and still not do it: look, and if it isn't in front, open it the way the Dock does.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             guard NSWorkspace.shared.frontmostApplication?.processIdentifier != pid, let url = app.bundleURL else { return }
-            flog("SSS: \(app.localizedName ?? "?") did not come forward (\(ok ? "accepted" : "refused")) — opening it instead")
+            ferr(.notBroughtForward, "SSS: \(app.localizedName ?? "?") did not come forward — opening it instead", ["id": app.bundleIdentifier ?? "?", "activate": ok ? "accepted" : "refused", "front": NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?"])
             let c = NSWorkspace.OpenConfiguration(); c.activates = true
             NSWorkspace.shared.openApplication(at: url, configuration: c)
         }
@@ -535,7 +540,7 @@ final class SSSIndex {
             let trusted = SSSIndex.windowsAllowed
             work.async {
                 let found = SSSIndex.script(source, limit: 5)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                if found != "true" { flog("SSS: the tab was not found where it was (\(found ?? "the browser did not answer"))") }
+                if found != "true" { ferr(.tabNotFound, "SSS: the tab was not found", ["answer": found ?? "the browser did not answer", "browser": item.bundle]) }
                 if trusted {                                              // and the browser's window itself, over its other windows
                     let wins = SSSIndex.windows(of: item.pid, expecting: 0)
                     if let w = wins.first(where: { !item.title.isEmpty && SSSIndex.string($0, kAXTitleAttribute).hasPrefix(item.title) }) { SSSIndex.raise(w) }

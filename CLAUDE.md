@@ -107,6 +107,10 @@ no build step, no dependencies.
   zip; reverse on End Session) plays at once; the snapshot runs async and only if
   CGPreflightScreenCaptureAccess() — NEVER let it prompt (user hit a prompt on every press). The one ask is
   Settings ▸ "Allow snapshots…". `--pill-demo X Y` plays both shows without a session.
+  ERROR CODES (0.23.0): every failure goes through `ferr(.code, "detail", ctx)` (focus/errors.swift) →
+  ~/Library/Logs/Focus/errors.jsonl with version, run id and the last 20 Focus.log lines. Debug with
+  `/Applications/Focus.app/Contents/MacOS/Focus --diagnose [DAYS]` first. New failure paths get a new code in
+  FocusError AND a row in focus/docs/ERROR-CODES.md (GUI check 37 fails otherwise). Never log typed text.
   App icon: generated at build by `Focus --make-icon` from the same glyph() (rest state, white on near-black).
   NO custom ⌘⇥ switcher — user rejected it outright ("use the native Command-Tab"); built + removed 2026-11-12.
   Tools submenu: Quit All Apps, Quit All & Restart Mac (restarts only once every app has quit), Force Quit All

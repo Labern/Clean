@@ -258,7 +258,9 @@ final class DesktopModel: ObservableObject {
     /// Asks the release page which version it holds (it sends nothing about this Mac beyond an ordinary web request).
     func checkForUpdate() {
         let mine = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
-        URLSession.shared.dataTask(with: Self.releaseAPI) { [weak self] data, _, _ in
+        URLSession.shared.dataTask(with: Self.releaseAPI) { [weak self] data, resp, error in
+            if let error { ferr(.updateCheckFailed, "the release page did not answer", ["error": error.localizedDescription]) }
+            else if let h = resp as? HTTPURLResponse, !(200..<300).contains(h.statusCode) { ferr(.updateCheckFailed, "the release page answered \(h.statusCode)") }
             guard let data, let j = try? JSONSerialization.jsonObject(with: data) as? [String: Any], let body = j["body"] as? String,
                   let r = body.range(of: #"focus-v[0-9]+(\.[0-9]+)+"#, options: .regularExpression) else { return }
             let latest = String(body[r].dropFirst("focus-v".count))
@@ -385,8 +387,9 @@ final class DesktopModel: ObservableObject {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try? JSONSerialization.data(withJSONObject: ["app": Self.appName, "to": Self.feedbackAddress, "subject": subject,
                                                                     "email": email, "version": version, "macOS": os, "message": text])
-        URLSession.shared.dataTask(with: req) { [weak self] _, resp, _ in
+        URLSession.shared.dataTask(with: req) { [weak self] _, resp, error in
             let ok = (resp as? HTTPURLResponse).map { (200..<300).contains($0.statusCode) } ?? false
+            if !ok { ferr(.feedbackFailed, "the feedback post failed: the email fallback opened", ["status": (resp as? HTTPURLResponse)?.statusCode ?? 0, "error": error?.localizedDescription ?? ""]) }
             DispatchQueue.main.async {
                 guard let self else { return }
                 if ok { self.feedbackState = .sent; self.feedbackText = ""; return }
@@ -869,8 +872,10 @@ struct Pricing: Decodable {
     }()
     /// Fetches the live file; keeps it only if it parses.
     static func refresh(_ done: (() -> Void)? = nil) {
-        URLSession.shared.dataTask(with: URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)) { data, _, _ in
-            guard let data, let p = try? JSONDecoder().decode(Pricing.self, from: data) else { return }
+        URLSession.shared.dataTask(with: URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)) { data, _, error in
+            guard let data, let p = try? JSONDecoder().decode(Pricing.self, from: data) else {
+                ferr(.pricingFetchFailed, "the live prices could not be read", ["error": error?.localizedDescription ?? "unreadable"]); return
+            }
             try? data.write(to: cacheFile)
             DispatchQueue.main.async { current = p; done?() }
         }.resume()
@@ -3513,6 +3518,30 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     check(36, "Session times", offByDefault && tStart && tWrongDay && tOnce && tLate,
           "off until turned on: \(offByDefault); starts on its day: \(tStart); not other days: \(tWrongDay); once a day: \(tOnce); not late: \(tLate)")
 
+    // 37. Error codes: every code unique and in docs/ERROR-CODES.md; a record is one JSON line with its code, the
+    // version and the lines that led up to it; a repeat inside 10 s is counted, not written; script errors get the right code.
+    let codes = FocusError.allCases.map(\.rawValue)
+    let doc = (try? String(contentsOfFile: URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("docs/ERROR-CODES.md").path, encoding: .utf8)) ?? ""
+    let undocumented = FocusError.allCases.filter { !doc.contains("| \($0.rawValue) |") || !doc.contains($0.name) }.map(\.rawValue)
+    let savedDir = ErrorLog.dir
+    ErrorLog.dir = FileManager.default.temporaryDirectory.appendingPathComponent("focus-errtest-\(UUID().uuidString)")
+    flog("a line before the error")
+    ErrorLog.record(.tabNotFound, "test record", ["browser": "com.google.Chrome"])
+    ErrorLog.record(.tabNotFound, "test record")                     // inside 10 s: counted, not written
+    let recs = ErrorLog.all()
+    let rec = recs.first ?? [:]
+    let wellFormed = recs.count == 1 && rec["code"] as? String == "F410" && rec["v"] != nil && rec["run"] != nil
+        && ((rec["trail"] as? [String])?.contains("a line before the error") ?? false) && (rec["ctx"] as? [String: Any])?["browser"] as? String == "com.google.Chrome"
+    let mapped = ErrorLog.scriptCode("execution error: Not authorized to send Apple events to Google Chrome. (-1743)") == .scriptNotAllowed
+        && ErrorLog.scriptCode("stopped after 3.0 s") == .scriptTimedOut
+        && ErrorLog.scriptCode("Google Chrome got an error: Executing JavaScript through AppleScript is turned off.") == .pageReadingOff
+        && ErrorLog.scriptCode("execution error: Google Chrome isn’t running. (-600)") == .scriptAppNotRunning
+        && ErrorLog.scriptCode("something else") == .scriptFailed
+    let diag = ErrorLog.diagnose().contains("F410")
+    try? FileManager.default.removeItem(at: ErrorLog.dir); ErrorLog.dir = savedDir
+    check(37, "Error codes", Set(codes).count == codes.count && undocumented.isEmpty && wellFormed && mapped && diag,
+          "\(codes.count) codes, unique \(Set(codes).count == codes.count); undocumented \(undocumented); record well formed \(wellFormed) (\(recs.count) written); script errors mapped \(mapped); diagnose lists it \(diag)")
+
     print("gui: \(failures == 0 ? "all passed" : "\(failures) failed")")
     return Int32(failures)
 }
@@ -3557,7 +3586,10 @@ final class Scheduler: ObservableObject {
     private weak var f: Focus?
     private var timer: Timer?, launchWatch: Any?
     private let key = "focusSchedule"
-    init() { if let d = UserDefaults.standard.data(forKey: key), let r = try? JSONDecoder().decode([ScheduleRule].self, from: d) { rules = r } }
+    init() {
+        guard let d = UserDefaults.standard.data(forKey: key) else { return }
+        if let r = try? JSONDecoder().decode([ScheduleRule].self, from: d) { rules = r } else { ferr(.settingsUnreadable, "the saved schedule rules could not be read", ["bytes": d.count]) }
+    }
     private func save() {                                          // renders and tests never touch the real schedule
         guard !renderArgs.contains("--render-desktop"), !CommandLine.arguments.contains("--selftest-gui") else { return }
         if let d = try? JSONEncoder().encode(rules) { UserDefaults.standard.set(d, forKey: key) }
@@ -3768,6 +3800,7 @@ enum Chime {
         s.stop(); s.volume = 0.12                                  // very quiet: a touch, not an announcement
         let ok = s.play()
         flog("chime \(start ? "start" : "end"): play() \(ok)")
+        if !ok { ferr(.chimeFailed, "the \(start ? "start" : "end") sound would not play") }
     }
     /// Five soft clicks, quick and even, like cards squared into a stack, with a hit stop: the last click waits a beat
     /// before it lands. Pitches 1 (lowest) to 4. Start: 1-2-3-4 … 1. End: 1-1-2-3 … 4.

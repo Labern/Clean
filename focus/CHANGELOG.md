@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.23.0 — 2026-11-18
+- Error codes: every failure Focus can notice is recorded with a code (F101–F904, 27 in all) in
+  ~/Library/Logs/Focus/errors.jsonl, with the version, the run and the log lines that led up to it. Table:
+  docs/ERROR-CODES.md.
+- Crashes are caught: a fatal signal keeps its stack and is reported on the next launch; a run that never quit is noted.
+- `Focus --diagnose [DAYS]` summarises them. Super Smart Search's script, tab, window and permission failures now
+  carry codes (F401–F501), so a search that "doesn't work" leaves a trail.
+- GUI check 37 and `--selftest-crash`.
+
 ## 0.22.1 — 2026-11-18
 - The IQ mark is the original again, with its handle a little shorter (0.22.0 had cut it to a stub, which lost the
   magnifying glass).

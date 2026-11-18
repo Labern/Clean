@@ -83,3 +83,8 @@ build and release over time, the click line animating, ⌘Q/⌘H in a live windo
 34. **Pro tags follow the tier live:** a tag drawn as Basic disappears when View As switches to Pro, in the same view.
 35. **Schedule rules:** a block holds only on its days and hours, an overnight one wraps past midnight; a timed mode is
     due within two minutes of its time and only once a day; a rule turned off does nothing.
+36. **Session times:** off until turned on; starts on its days only, once a day, never late.
+37. **Error codes:** every code is unique and has a row in docs/ERROR-CODES.md; a record is one JSON line with its
+    code, version, run and the Focus.log lines before it; a repeat inside 10 s is counted, not written; script errors
+    map to their codes; `--diagnose` lists them. Crash capture is proved separately by `--selftest-crash DIR crash`
+    then `--selftest-crash DIR check` (F902 with a stack, and F903).

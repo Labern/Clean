@@ -11,7 +11,7 @@ VERSION="$(tr -d '[:space:]' < VERSION)"                 # semantic version, sin
 OUT="${TMPDIR:-/tmp}/focus-build"; rm -rf "$OUT"; mkdir -p "$OUT"
 C="$OUT/Focus.app/Contents"
 mkdir -p "$C/MacOS"
-swiftc -O -swift-version 5 main.swift desktop.swift sss.swift -o "$C/MacOS/Focus"
+swiftc -O -swift-version 5 main.swift desktop.swift sss.swift errors.swift -o "$C/MacOS/Focus"
 mkdir -p "$C/Resources"                                  # app icon, drawn by the app's own glyph()
 cp pricing.json "$C/Resources/pricing.json"              # prices and tiers: a copy of paradoxica.uk/focus/pricing.json
 "$C/MacOS/Focus" --make-icon "$OUT/Focus.iconset" && iconutil -c icns "$OUT/Focus.iconset" -o "$C/Resources/Focus.icns"

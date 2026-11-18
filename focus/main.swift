@@ -30,6 +30,7 @@ func healSystemSwitcher() { systemSwitcher(true) }
 func flog(_ line: String) {
     let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Focus.log")
     let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    ErrorLog.breadcrumb(line)                                    // kept briefly: an error record shows what led up to it
     let data = Data((f.string(from: Date()) + "  " + line + "\n").utf8)
     if let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int, size > 200_000 { try? FileManager.default.removeItem(at: url) }
     if let h = try? FileHandle(forWritingTo: url) { h.seekToEndOfFile(); h.write(data); try? h.close() } else { try? data.write(to: url) }
@@ -39,6 +40,7 @@ func flog(_ line: String) {
 func hotkey(_ id: UInt32, _ key: Int, _ mods: Int) -> EventHotKeyRef? {
     var ref: EventHotKeyRef?
     let err = RegisterEventHotKey(UInt32(key), UInt32(mods), EventHotKeyID(signature: 0x464F_4355, id: id), GetEventDispatcherTarget(), 0, &ref)
+    if err != noErr { ferr(.hotkeyTaken, "macOS would not register shortcut \(id)", ["id": id, "key": key, "mods": mods, "status": err]) }
     return err == noErr ? ref : nil
 }
 
@@ -1608,8 +1610,9 @@ final class Focus: NSObject, NSMenuDelegate {
         if let limit { out = out.filter { limit.contains($0.bundleIdentifier ?? "") } }
         if let keep {                                           // the mode's apps come up first, in the background
             for id in keep where !ws.runningApplications.contains(where: { $0.bundleIdentifier == id }) {
-                guard let url = ws.urlForApplication(withBundleIdentifier: id) else { continue }
-                let c = NSWorkspace.OpenConfiguration(); c.activates = false; ws.openApplication(at: url, configuration: c)
+                guard let url = ws.urlForApplication(withBundleIdentifier: id) else { ferr(.modeAppNotFound, "a mode's app is not installed", ["id": id]); continue }
+                let c = NSWorkspace.OpenConfiguration(); c.activates = false
+                ws.openApplication(at: url, configuration: c) { _, e in if let e { ferr(.appOpenFailed, "a mode's app would not open", ["id": id, "error": e.localizedDescription]) } }
             }
         }
         guard !out.isEmpty else { return }
@@ -1658,12 +1661,12 @@ final class Focus: NSObject, NSMenuDelegate {
         let kept = modeKeep ?? Set(excluded)                     // a mode decides what stays; otherwise the ticks do
         if protected(a) || (!clearing && kept.contains(a.bundleIdentifier ?? "")) { queue.removeFirst(); return quitNext() }   // marked keep / critical since it began
         status = "Saving and quitting \(a.localizedName ?? "app") · \(total - queue.count + 1) of \(total)"
-        a.terminate()
+        if !a.terminate() { ferr(.quitRefused, "macOS would not ask \(a.localizedName ?? "an app") to quit", ["id": a.bundleIdentifier ?? "?"]) }
         let started = Date()
         func check() {
             guard queue.first === a else { return }             // cancelled by Bring Back
             if a.isTerminated || Date().timeIntervalSince(started) > patience {
-                if !a.isTerminated { waiting.append(a) }
+                if !a.isTerminated { waiting.append(a); ferr(.quitTimedOut, "\(a.localizedName ?? "an app") was still open after \(Int(patience)) s", ["id": a.bundleIdentifier ?? "?"]) }
                 queue.removeFirst()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.quitNext() }
             } else {
@@ -1734,7 +1737,7 @@ final class Focus: NSObject, NSMenuDelegate {
         alert.informativeText = "Anything it hasn't saved will be lost. End Session still reopens it."
         alert.addButton(withTitle: "Force Quit"); alert.addButton(withTitle: "Cancel"); alert.buttons[0].hasDestructiveAction = true
         guard run(alert) == .alertFirstButtonReturn else { return }
-        a.forceTerminate(); waiting.removeAll { $0 == a }
+        if !a.forceTerminate() { ferr(.forceQuitRefused, "force quit refused", ["id": a.bundleIdentifier ?? "?"]) }; waiting.removeAll { $0 == a }
         if waiting.isEmpty, status?.hasPrefix("Waiting") == true { status = nil }
     }
 
@@ -1856,10 +1859,10 @@ final class Focus: NSObject, NSMenuDelegate {
     @objc func openActivityMonitor() { openApp("com.apple.ActivityMonitor") }
     @objc func openSystemSettings() { openApp("com.apple.systempreferences") }
     func openApp(_ id: String) {
-        guard let url = ws.urlForApplication(withBundleIdentifier: id) else { flog("tool: open \(id) — not found"); tell("Couldn't find that app", "macOS didn't return \(id)."); return }
+        guard let url = ws.urlForApplication(withBundleIdentifier: id) else { ferr(.appNotFound, "tool: open — not installed", ["id": id]); tell("Couldn't find that app", "macOS didn't return \(id)."); return }
         flog("tool: open \(id)")
         ws.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
-            if let error { flog("tool: open \(id) failed — \(error.localizedDescription)") }
+            if let error { ferr(.appOpenFailed, "tool: open failed", ["id": id, "error": error.localizedDescription]) }
         }
     }
     /// A quit tool asked for at a moment it can't run: say why, rather than doing nothing.
@@ -1917,9 +1920,13 @@ final class Focus: NSObject, NSMenuDelegate {
                 // Tabs back even though Chrome's own setting is "New Tab page" — but nothing plays until you click:
                 // a restored YouTube tab must not start blaring (user's rule).
                 if Bundle(path: path)?.bundleIdentifier == chrome { cfg.arguments = ["--restore-last-session", "--autoplay-policy=user-gesture-required"] }
-                ws.openApplication(at: URL(fileURLWithPath: path), configuration: cfg)
+                ws.openApplication(at: URL(fileURLWithPath: path), configuration: cfg) { _, err in
+                    if let err { ferr(.restoreLaunchFailed, "an app could not be reopened after the session", ["path": path, "error": err.localizedDescription]) }
+                }
                 launched = true
             }
+        } else if let path = e["path"] as? String {
+            ferr(.restoreAppMissing, "an app from the session is no longer where it was", ["path": path])
         }
         // Space out real launches; an app that was already open costs no wait.
         let gap = fastSwitching ? 0 : (launched ? 0.7 : 0.05)     // fast: everything opens at once
@@ -3165,6 +3172,24 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-colourpanel"), Command
     exit(0)
 }
 if CommandLine.arguments.contains("--chime-check") { _ = NSApplication.shared; Chime.check(); exit(0) }
+// Proof of crash capture (GUI-TESTS): `--selftest-crash DIR crash` starts the log in DIR and dies on SIGSEGV;
+// `--selftest-crash DIR check` starts it again, which must turn the crash into F902 and the unquit run into F903.
+if let i = CommandLine.arguments.firstIndex(of: "--selftest-crash"), CommandLine.arguments.count > i + 2 {
+    _ = NSApplication.shared
+    ErrorLog.dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
+    ErrorLog.start()
+    if CommandLine.arguments[i + 2] == "crash" { flog("about to crash on purpose"); kill(getpid(), SIGSEGV); Thread.sleep(forTimeInterval: 2); exit(3) }
+    let codes = ErrorLog.all().compactMap { $0["code"] as? String }
+    let stack = (ErrorLog.all().first { $0["code"] as? String == "F902" }?["ctx"] as? [String: Any])?["stack"] as? String ?? ""
+    let ok = codes.contains("F902") && codes.contains("F903") && !stack.isEmpty
+    print("crash: \(ok ? "PASS" : "FAIL") — recorded \(codes); stack lines \(stack.split(separator: "\n").count)")
+    exit(ok ? 0 : 1)
+}
+// `Focus --diagnose [DAYS]`: the error codes recorded lately, counted by code, with the last fifteen in full.
+if let i = CommandLine.arguments.firstIndex(of: "--diagnose") {
+    let days = CommandLine.arguments.dropFirst(i + 1).first.flatMap(Double.init) ?? 7
+    print(ErrorLog.diagnose(days: days)); exit(0)
+}
 if !others.isEmpty && !testing {
     // A second copy: ask the running one to show its window. If it answers, leave it be. If it doesn't answer within
     // 2 s it's stuck (or a stale copy that survived an update): replace it, so Focus always opens.
@@ -3176,7 +3201,7 @@ if !others.isEmpty && !testing {
     while !answered && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
     dnc.removeObserver(ack)
     if answered { print("Focus is already running: asked it to open its window"); exit(0) }
-    flog("a running Focus didn't answer in 2 s: replaced it")
+    ferr(.staleCopyReplaced, "a running Focus didn't answer in 2 s: replaced it", ["pids": others.map { $0.processIdentifier }])
     for o in others { o.terminate() }
     Thread.sleep(forTimeInterval: 1)
     for o in others where !o.isTerminated { o.forceTerminate() }
@@ -3996,6 +4021,7 @@ if CommandLine.arguments.contains("--selftest") {
     }
     app.run()
 }
+ErrorLog.start()                                                 // error codes: how the last run ended, crash capture for this one
 let focus = Focus()
 Scheduler.shared.start(focus)                                   // Schedule: blocks and timed modes, window or not
 desktop.adopt()                                                  // reopening Focus from Finder, Spotlight or the Dock opens its window
