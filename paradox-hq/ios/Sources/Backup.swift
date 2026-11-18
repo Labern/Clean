@@ -19,6 +19,9 @@ nonisolated struct BackupFile: Codable, Equatable {
     var projects: [ProjectCopy]
     var notes: [NoteCopy]
     var deadlines: [DeadlineCopy]
+    /// The app's settings (profile, layout, colours and the rest) as one property
+    /// list. Absent in backups made before settings were kept.
+    var settings: Data? = nil
 
     struct ProjectCopy: Codable, Equatable {
         var remoteID: String
@@ -130,7 +133,8 @@ enum BackupError: LocalizedError {
 extension BackupFile {
     /// Reads everything out of the store.
     @MainActor
-    static func take(_ context: ModelContext, now: Date = .now) -> BackupFile {
+    /// `withSettings` adds the app's settings; tests leave them out, as they change underfoot.
+    static func take(_ context: ModelContext, now: Date = .now, withSettings: Bool = true) -> BackupFile {
         let projects = ((try? context.fetch(FetchDescriptor<Project>())) ?? [])
             .sorted { ($0.order, $0.created) < ($1.order, $1.created) }
         let notes = ((try? context.fetch(FetchDescriptor<Note>())) ?? []).sorted { $0.created < $1.created }
@@ -157,12 +161,14 @@ extension BackupFile {
             },
             deadlines: deadlines.map {
                 DeadlineCopy(title: $0.title, who: $0.who, date: $0.date, everyMonths: $0.everyMonths)
-            })
+            },
+            settings: withSettings ? SavedSettings.snapshot() : nil)
     }
 
-    /// Replaces everything in the store with this backup.
+    /// Replaces everything in the store with this backup. `settings` puts the
+    /// app's settings back too: for a fresh install, or a file chosen by hand.
     @MainActor
-    func restore(into context: ModelContext) throws {
+    func restore(into context: ModelContext, settings applying: Bool = false) throws {
         for project in try context.fetch(FetchDescriptor<Project>()) { context.delete(project) }
         for item in try context.fetch(FetchDescriptor<FocusItem>()) { context.delete(item) }
         for note in try context.fetch(FetchDescriptor<Note>()) { context.delete(note) }
@@ -204,6 +210,7 @@ extension BackupFile {
             context.insert(Deadline(title: copy.title, who: copy.who, date: copy.date, everyMonths: copy.everyMonths))
         }
         try context.save()
+        if applying { SavedSettings.apply(settings) }
     }
 }
 
@@ -329,7 +336,7 @@ extension BackupFile {
     /// Puts a backup back. What's on the phone now is saved first, so a restore can be undone.
     func restore(_ snapshot: BackupFile, into context: ModelContext) throws {
         write(context, label: "before restore")
-        try snapshot.restore(into: context)
+        try snapshot.restore(into: context, settings: true)
         Seed.personal(context)
         write(context)
     }

@@ -3,14 +3,17 @@ import SwiftData
 
 @main
 struct ParadoxHQApp: App {
-    @State private var money = MoneyStore()
-    @State private var lock = AppLock()
-    @State private var feed = FeedSync()
-    @State private var site = SiteMonitor()
-    @State private var backups = Backups()
-    @State private var shelf = IconShelf()
-    @State private var profile = Profile()
-    @State private var work = WorkStore()
+    // Made in `init`, after a fresh install has had its settings put back, so
+    // each one starts from the restored values.
+    @State private var money: MoneyStore
+    @State private var lock: AppLock
+    @State private var feed: FeedSync
+    @State private var site: SiteMonitor
+    @State private var backups: Backups
+    @State private var vault: Vault
+    @State private var shelf: IconShelf
+    @State private var profile: Profile
+    @State private var work: WorkStore
     @AppStorage("appearance") private var appearance: Appearance = .auto
     @AppStorage("typeface") private var typeface: Typeface = .system
     @AppStorage(Palette.accentKey) private var accent = 0
@@ -20,11 +23,24 @@ struct ParadoxHQApp: App {
 
     init() {
         Face.load()
+        let container: ModelContainer
         do {
             container = try ModelContainer(for: Project.self, FocusItem.self, Deadline.self, Note.self)
         } catch {
             fatalError("The store couldn't be opened: \(error)")
         }
+        // A fresh install with a copy in the Keychain: everything comes back before anything else runs.
+        Vault.recoverIfFresh(container.mainContext)
+        self.container = container
+        _money = State(initialValue: MoneyStore())
+        _lock = State(initialValue: AppLock())
+        _feed = State(initialValue: FeedSync())
+        _site = State(initialValue: SiteMonitor())
+        _backups = State(initialValue: Backups())
+        _vault = State(initialValue: Vault())
+        _shelf = State(initialValue: IconShelf())
+        _profile = State(initialValue: Profile())
+        _work = State(initialValue: WorkStore())
         Seed.run(container.mainContext)
         if !Launch.unlocked { Starter.run(container.mainContext) }
         Seed.sampleNotes(container.mainContext)
@@ -38,6 +54,7 @@ struct ParadoxHQApp: App {
                 .environment(feed)
                 .environment(site)
                 .environment(backups)
+                .environment(vault)
                 .environment(shelf)
                 .environment(profile)
                 .environment(work)
@@ -62,6 +79,7 @@ struct Gate: View {
     @Environment(FeedSync.self) private var feed
     @Environment(SiteMonitor.self) private var site
     @Environment(Backups.self) private var backups
+    @Environment(Vault.self) private var vault
     @Environment(IconShelf.self) private var shelf
     @Environment(WorkStore.self) private var work
     @Environment(\.scenePhase) private var phase
@@ -98,8 +116,10 @@ struct Gate: View {
             lock.changed(to: new)
             if new == .background {
                 Background.schedule()
-                // Every time you leave the app, a copy goes to the backup folder.
+                // Every time you leave the app, a copy is kept on the phone and in the
+                // Keychain, and another goes to the backup folder.
                 try? context.save()
+                vault.save(context)
                 backups.write(context)
                 shelf.mirror(into: backups)
                 // Ticks made since the last refresh change what the widgets show.

@@ -81,13 +81,35 @@ nonisolated struct CustomIcon: Codable, Identifiable, Hashable {
     /// True when this build was made with the icon inside it, so iOS will wear it.
     func isInstalled(_ icon: CustomIcon) -> Bool { Self.installed().contains(icon.asset) }
 
-    /// Puts the wanted icon on once a build carries it. Called as the app opens.
+    /// The icon being worn (its name in the build), kept with the settings so a
+    /// reinstall, which starts on the standard icon, puts it back on.
+    nonisolated static var worn: String {
+        get { UserDefaults.standard.string(forKey: "icon-worn") ?? "" }
+        set { UserDefaults.standard.set(newValue, forKey: "icon-worn") }
+    }
+
+    /// Puts the wanted icon on once a build carries it, and after a reinstall puts
+    /// back the one that was on. Called as the app opens.
     func adopt() {
-        guard let icon = icons.first(where: { $0.id == wanted }), isInstalled(icon),
-              UIApplication.shared.supportsAlternateIcons else { return }
-        wanted = ""
-        guard UIApplication.shared.alternateIconName != icon.asset else { return }
-        UIApplication.shared.setAlternateIconName(icon.asset) { _ in }
+        let app = UIApplication.shared
+        guard app.supportsAlternateIcons else { return }
+        if let icon = icons.first(where: { $0.id == wanted }), isInstalled(icon) {
+            wanted = ""
+            Self.worn = icon.asset
+            if app.alternateIconName != icon.asset { app.setAlternateIconName(icon.asset) { _ in } }
+            return
+        }
+        if let name = app.alternateIconName {
+            Self.worn = name
+        } else if let back = Self.toPutBack(worn: Self.worn, current: nil, installed: Self.installed()) {
+            app.setAlternateIconName(back) { _ in }
+        }
+    }
+
+    /// The icon to put back on: the one that was worn, when the phone is on the
+    /// standard icon and this build carries it.
+    nonisolated static func toPutBack(worn: String, current: String?, installed: Set<String>) -> String? {
+        current == nil && !worn.isEmpty && installed.contains(worn) ? worn : nil
     }
 
     /// Copies every icon into the backup folder and clears out ones deleted here,

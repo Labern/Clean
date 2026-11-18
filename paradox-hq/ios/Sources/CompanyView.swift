@@ -10,10 +10,13 @@ struct CompanyView: View {
     @Environment(SiteMonitor.self) private var site
     @Environment(AppLock.self) private var lock
     @Environment(Backups.self) private var backups
+    @Environment(Vault.self) private var vault
     @Environment(\.modelContext) private var context
     @State private var lockAfter = AppLock.away
     @State private var picking: Picking? = nil
     @State private var pending: BackupFile? = nil
+    /// A copy kept on the phone, waiting for a yes before it goes back.
+    @State private var earlier: BackupFile? = nil
     @State private var restored = false
     @AppStorage("appearance") private var appearance: Appearance = .auto
     @AppStorage("typeface") private var typeface: Typeface = .system
@@ -378,6 +381,28 @@ struct CompanyView: View {
             SectionHeader(title: "Backup")
             Card(padding: 0) {
                 VStack(spacing: 0) {
+                    InfoRow(symbol: "lock.shield", title: "On this phone", detail: vaultDetail) {
+                        Pill(text: vault.problem.isEmpty ? "On" : "Failed",
+                             color: vault.problem.isEmpty ? Ink.ok : Ink.hazard)
+                    }
+                    if !vault.copies.isEmpty {
+                        Hairline(inset: 58)
+                        Menu {
+                            ForEach(vault.copies.prefix(40)) { copy in
+                                Button(copy.made.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())) {
+                                    do { earlier = try vault.open(copy) } catch { backups.problem = error.localizedDescription }
+                                }
+                            }
+                        } label: {
+                            InfoRow(symbol: "arrow.uturn.backward", title: "Go back to an earlier copy") {
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(Face.style(.caption, .semibold))
+                                    .foregroundStyle(Ink.idle)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    Hairline(inset: 58)
                     Button { picking = .folder } label: {
                         InfoRow(symbol: "folder", title: backups.isSet ? backups.folderName : "Choose a folder",
                                 detail: backupDetail) {
@@ -407,17 +432,41 @@ struct CompanyView: View {
                     .buttonStyle(.plain)
                 }
             }
-            if !backups.problem.isEmpty {
-                Text(backups.problem)
+            if !backups.problem.isEmpty || !vault.problem.isEmpty {
+                Text(backups.problem.isEmpty ? vault.problem : backups.problem)
                     .font(Face.style(.footnote))
                     .foregroundStyle(Ink.hazard)
                     .padding(.horizontal, 4)
             }
         }
+        .confirmationDialog(earlier.map { "Go back to \($0.made.formatted(.dateTime.day().month(.wide).hour().minute()))?" } ?? "",
+                            isPresented: Binding(get: { earlier != nil }, set: { if !$0 { earlier = nil } }),
+                            titleVisibility: .visible) {
+            Button("Put back \(earlier?.summary ?? "")", role: .destructive) {
+                guard let file = earlier else { return }
+                do {
+                    try vault.restore(file, into: context)
+                    restored = true
+                } catch {
+                    backups.problem = error.localizedDescription
+                }
+                earlier = nil
+            }
+        } message: {
+            Text("What's here now is kept as a copy first, so this can be undone.")
+        }
+    }
+
+    private var vaultDetail: String {
+        guard let latest = vault.latest else { return "Kept if the app is deleted" }
+        let when = Calendar.current.isDateInToday(latest)
+            ? latest.formatted(.dateTime.hour().minute())
+            : latest.formatted(.dateTime.day().month(.abbreviated))
+        return "\(vault.copies.count) \(vault.copies.count == 1 ? "copy" : "copies") · latest \(when) · kept if the app is deleted"
     }
 
     private var backupDetail: String {
-        guard backups.isSet else { return "iCloud Drive keeps it safe if the app is deleted" }
+        guard backups.isSet else { return "A second copy, in iCloud Drive" }
         guard let last = backups.last else { return "Not backed up yet" }
         let when = Calendar.current.isDateInToday(last)
             ? last.formatted(.dateTime.hour().minute())

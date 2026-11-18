@@ -232,6 +232,13 @@ struct WorkCard: View {
                             .font(Face.style(.footnote))
                             .foregroundStyle(Ink.amber)
                     }
+                    // How fresh each source is, so a refresh can be seen to have happened.
+                    TimelineView(.periodic(from: .now, by: 30)) { clock in
+                        Text(Self.freshness(github: work.fetched, claude: work.claudeCounted, now: clock.date))
+                            .font(Face.style(.caption2))
+                            .foregroundStyle(Ink.idle)
+                            .monospacedDigit()
+                    }
                 }
             }
         }
@@ -276,6 +283,22 @@ struct WorkCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    /// "GitHub read 2 min ago · Claude counted 14 min ago"
+    nonisolated static func freshness(github: Date?, claude: Date?, now: Date) -> String {
+        func ago(_ date: Date) -> String {
+            let minutes = max(0, Int(now.timeIntervalSince(date) / 60))
+            switch minutes {
+            case 0: return "just now"
+            case 1..<60: return "\(minutes) min ago"
+            case 60..<1440: return "\(minutes / 60) h ago"
+            default: return "\(minutes / 1440) d ago"
+            }
+        }
+        let read = github.map { "GitHub read \(ago($0))" } ?? "GitHub not read yet"
+        let counted = claude.map { "Claude counted \(ago($0))" } ?? "Claude not counted yet"
+        return "\(read) · \(counted)"
     }
 
     nonisolated static func count(_ n: Int, _ measure: WorkMeasure) -> String {
@@ -459,6 +482,18 @@ struct WorkLog: View {
                     .buttonStyle(.plain)
                 }
             }
+            // Past the last line, out of the way: everything here as text.
+            if !entries.isEmpty {
+                Section {
+                    HStack {
+                        Spacer()
+                        CopyWork { WorkLedger.retrospective(entries, calendar: calendar) }
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
+                    .listRowInsets(EdgeInsets())
+                }
+            }
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
@@ -484,6 +519,50 @@ struct WorkLog: View {
             return count == 0 ? nil : "\(count) \(kind.title.lowercased())"
         }
         .joined(separator: " · ")
+    }
+}
+
+/// Copies the work on show as text, to paste somewhere and look back over it.
+/// Small and quiet, at the very end of the list.
+struct CopyWork: View {
+    let text: () -> String
+    @State private var copied = false
+    @State private var hits = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button {
+            UIPasteboard.general.string = text()
+            Thud.success()
+            copied = true
+            if !reduceMotion { hits += 1 }
+            Task {
+                try? await Task.sleep(for: .seconds(1.8))
+                copied = false
+            }
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                Text(copied ? "Copied" : "Copy all")
+            }
+            .font(Face.style(.caption, .semibold))
+            .foregroundStyle(copied ? Ink.ok : Ink.idle)
+            .padding(.leading, 16)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        // Hit stop: it jumps, holds, then settles.
+        .keyframeAnimator(initialValue: CGFloat(1), trigger: hits) { view, scale in
+            view.scaleEffect(scale, anchor: .trailing)
+        } keyframes: { _ in
+            KeyframeTrack {
+                LinearKeyframe(1.18, duration: 0.06)
+                LinearKeyframe(1.18, duration: 0.10)
+                SpringKeyframe(1.0, duration: 0.32, spring: .bouncy)
+            }
+        }
+        .accessibilityLabel(copied ? "Copied" : "Copy all of this work")
     }
 }
 

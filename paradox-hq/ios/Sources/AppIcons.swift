@@ -128,7 +128,7 @@ struct AppIconPicker: View {
         guard current != asset, UIApplication.shared.supportsAlternateIcons else { return }
         UIApplication.shared.setAlternateIconName(asset) { error in
             Task { @MainActor in
-                if let error { problem = error.localizedDescription } else { current = asset; problem = "" }
+                if let error { problem = error.localizedDescription } else { current = asset; problem = ""; IconShelf.worn = asset ?? "" }
             }
         }
     }

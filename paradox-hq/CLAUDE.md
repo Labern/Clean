@@ -54,13 +54,25 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
     end commit messages with the Claude-Session trailer**, or the link is lost.
   - **Real data only.** Example work exists for the cloud build's screenshots and is
     behind `-unlocked YES -sampleNotes YES`; the phone never shows it.
-  - **GitHub** (Company › Connected to › GitHub): the account's repos pushed to in the
-    last 30 days (`users/<owner>/repos`, or `user/repos` with a token, which adds private
-    ones), then per repo `events` for which branches moved (push events no longer carry
-    commits) and `commits?sha=<branch>&since=` for each. No token is needed for public
-    work, but GitHub then allows 60 questions an hour, so it reads at most every 20
-    minutes and at most 4 repos (pull to refresh forces it); a failed read keeps what was
-    there. Merges, `ci/` and `stats/` branches and robots are left out.
+  - **GitHub** (Company › Connected to › GitHub). Without a token GitHub allows 60
+    questions an hour, and the first reader spent about 50 on every refresh, so refresh
+    was refused most of the time and the spans disagreed (2026-11-18). It now asks one
+    thing first, `users/<owner>/events/public` (with a token `users/<owner>/events`,
+    which adds private work), stops at the last event it has already seen
+    (`Progress.lastEvent`), and reads `commits?sha=<branch>&since=` only for branches
+    whose head moved (`GitHubWork.moved`). A refresh with nothing new costs one
+    question. It reads at most every 4 minutes (1 with a token); pull to refresh forces
+    it; a refusal waits until GitHub's own `X-RateLimit-Reset`; a failed read keeps what
+    was there. New entries are merged into the saved ones, never replace them. Merges,
+    `ci/` and `stats/` branches and robots are left out. The card's foot says how fresh
+    each source is (`WorkCard.freshness`).
+  - Saved work (`work.json`) carries a `version`; a file from an older build is dropped
+    and read afresh, since its entries lack things kept now. Each entry keeps its commit
+    message (`raw`) and is read again from it on launch (`reread`), so better reading
+    never needs GitHub again.
+  - **All work ends with "Copy all"**, small and bottom right, past the last line: the
+    work on show as plain text, oldest first (`WorkLedger.retrospective`), for pasting
+    into Claude to look back over it. It is out of the way on purpose.
   - **Published means a live production site was updated**: a commit on `gh-pages`,
     which GitHub serves (Labern, 2026-11-18: "not products"). A product's code reaching
     its main branch is `shipped`, a separate figure ("Products") that only shows when
@@ -81,7 +93,7 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
     count exactly the changes made in that conversation (they carry the same address);
     without one it counts everything since the conversation began.
   - The counts are plain files and are re-read on every refresh; only GitHub's API is
-    paced. (When they shared the 20-minute pacing, a new build started with no
+    paced. (When they shared GitHub's pacing, a new build started with no
     conversation loaded and "Session" showed nothing while "Hour" was full: 2026-11-18.)
 - **Notes** — a proper notebook. Chips filter to one project's notes; a note's menu
   turns it into a to-do (title becomes the line, the rest its note) on its project,
@@ -221,6 +233,13 @@ Made to be lifted out as its own app: `Sources/IconDesigner.swift`,
   `Custom.xcconfig` → `$(CUSTOM_APPICONS)`; the first launch of that build puts the
   wanted icon on (`IconShelf.adopt`). The cloud build proves the bake with a stand-in
   picture (`ci.txt`: "custom icon baked into the app: yes").
+- **Every install carries the icons made on the phone.** Before building, the Mac
+  copies `Library/Application Support/Icons/*.png` out of the app on the phone into
+  `design/icons/custom/` (gitignored), so no folder has to be chosen and nothing shared
+  by hand: make an icon, pick it ("Next install"), and the next install wears it. iOS
+  cannot put on a picture the build doesn't carry, so "at once" is not possible.
+- The icon being worn is remembered (`icon-worn`, kept with the settings), so a
+  reinstall, which starts on the standard icon, puts it back on (`IconShelf.toPutBack`).
 - Not verified on the Mac yet: the script finding the folder in iCloud Drive
   (`~/Library/Mobile Documents/com~apple~CloudDocs`, up to four levels down). If it
   doesn't, drop the PNGs (Share from the icon's menu) into `design/icons/custom/`.
@@ -230,13 +249,33 @@ Asks only when the app has been out of use longer than "Ask again after" (defaul
 measured across launches (`lock-last-seen`). Unlock is only attempted while the scene is
 active (asking earlier fails and shows "Try again").
 
-## Backups (the safety net until iCloud sync)
-`Backup.swift`: the whole store as one JSON `BackupFile` (projects with lines at every
-depth, notes, deadlines). You pick a folder once (iCloud Drive recommended; kept as a
-security-scoped bookmark); a copy is written every time the app goes to the background,
-one file per day (`PARADOX yyyy-mm-dd.json`), the newest 30 kept. Restore replaces
-everything after first writing a "before restore" copy. **iCloud sync proper** needs the
-paid team: add the iCloud/CloudKit entitlement and container in `project.yml`; the
+## Saving (nothing typed into the app can be lost)
+`Vault.swift` and `Backup.swift`. A copy is the whole store as one JSON `BackupFile`
+(projects with lines at every depth, notes, deadlines) plus the app's settings
+(`SavedSettings`: profile, layout, colours and the rest, minus clocks and caches). Every
+time the app is left, without being asked, a copy goes to:
+1. **The phone**, `Application Support/Backups`, only when something changed. Every copy
+   from the last day is kept (up to 48), then the newest of each day for 60 days
+   (`Vault.surplus`). Company › Backup › "Go back to an earlier copy" puts one back
+   (data only, settings stay), after first saving what is there.
+2. **The Keychain**, compressed, which iOS keeps when an app is deleted. Two slots
+   written in turn with a pointer moved last, so a failed write never destroys the good
+   copy; a third, slow slot is not replaced by a store under half its size for a week.
+   A fresh install with an empty store puts the newest back by itself before anything is
+   seeded (`Vault.recoverIfFresh`, settings and profile photo included) and lands the
+   older Keychain copies in the list. Stores are made in `ParadoxHQApp.init` after this,
+   so they start from the restored settings.
+3. **The folder chosen in Company › Backup** (iCloud Drive), one file a day, newest 30.
+   A file chosen there by hand puts settings back too.
+4. **The Mac**: every install first copies `Library/Application Support/Backups`,
+   `Icons` and `Profile` out of the app on the phone to `~/PARADOX backups/<stamp>/`
+   with `devicectl` (newest 60 kept). The Mac session does this; it is not in this repo.
+
+Rules that keep it from making things worse: a copy is read back and compared before it
+counts and before anything older is removed; an empty store is never saved, and never
+replaces a copy with something in it; nothing here runs under `-unlocked` (the cloud
+screenshots). Tests use `Vault(folder:usesKeychain: false)`. **iCloud sync proper** needs
+the paid team: add the iCloud/CloudKit entitlement and container in `project.yml`; the
 `ModelContainer` uses the default (automatic) CloudKit setting, and every model property
 is already defaulted and optional-safe for it.
 

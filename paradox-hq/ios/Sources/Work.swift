@@ -58,8 +58,20 @@ nonisolated struct WorkEntry: Codable, Identifiable, Hashable, Sendable {
     /// It reached a product's main branch. Counted separately, and only when
     /// Settings asks for products on the Work card.
     var shipped: Bool? = nil
+    /// The commit message as written, kept so the entry can be read afresh when
+    /// the reading gets better, without asking GitHub again.
+    var raw: String? = nil
 
     var sessionLink: URL? { session.flatMap(URL.init(string:)) }
+
+    /// The same entry, read again from its message with today's rules.
+    func reread() -> WorkEntry {
+        guard let raw else { return self }
+        var fresh = WorkEntry.read(id: id, date: date, repo: repo, branches: branches, message: raw)
+        fresh.published = fresh.published || published
+        fresh.shipped = (fresh.shipped ?? false) || (shipped ?? false)
+        return fresh
+    }
 
     /// "Added the icon designer": the kind, then the subject.
     var line: String {
@@ -133,7 +145,7 @@ nonisolated struct WorkEntry: Codable, Identifiable, Hashable, Sendable {
         return WorkEntry(id: id, date: date, repo: repo, branches: branches.sorted(), kind: kind, project: project,
                          subject: subject, points: points, claude: !trailers.isEmpty || session != nil,
                          published: branches.contains(site), session: session,
-                         shipped: !mains.isDisjoint(with: branches))
+                         shipped: !mains.isDisjoint(with: branches), raw: message)
     }
 
     private static let kinds: [String: WorkKind] = [
@@ -360,6 +372,42 @@ nonisolated enum WorkLedger {
             .sorted { $0.day > $1.day }
     }
 
+    /// Everything as plain text, oldest first, for pasting somewhere to look back
+    /// over it: a heading, then each day with its changes and their points.
+    static func retrospective(_ entries: [WorkEntry], calendar: Calendar) -> String {
+        let days = byDay(entries, calendar: calendar).reversed()
+        guard let first = days.first?.day, let last = days.last?.day else { return "" }
+        func name(_ day: Date, weekday: Bool) -> String {
+            let p = calendar.dateComponents([.weekday, .day, .month, .year], from: day)
+            let date = "\(p.day ?? 0) \(calendar.monthSymbols[(p.month ?? 1) - 1]) \(p.year ?? 0)"
+            return weekday ? "\(calendar.weekdaySymbols[(p.weekday ?? 1) - 1]) \(date)" : date
+        }
+        func tally(_ some: [WorkEntry]) -> String {
+            WorkKind.allCases.compactMap { kind in
+                let count = some.filter { $0.kind == kind }.count
+                return count == 0 ? nil : "\(count) \(kind.title.lowercased())"
+            }
+            .joined(separator: ", ")
+        }
+        let span = first == last ? name(first, weekday: false) : "\(name(first, weekday: false)) to \(name(last, weekday: false))"
+        let live = entries.filter(\.published).count
+        var lines = ["Work, \(span)",
+                     "\(entries.count) \(entries.count == 1 ? "change" : "changes") over \(days.count) \(days.count == 1 ? "day" : "days"): \(tally(entries))"
+                        + (live == 0 ? "" : ". \(live) went live.")]
+        for group in days {
+            lines.append("")
+            lines.append("\(name(group.day, weekday: true)) (\(tally(group.entries)))")
+            for entry in group.entries.reversed() {
+                let p = calendar.dateComponents([.hour, .minute], from: entry.date)
+                let time = String(format: "%02d:%02d", p.hour ?? 0, p.minute ?? 0)
+                let about = [entry.project, entry.published ? "live" : ""].filter { !$0.isEmpty }.joined(separator: ", ")
+                lines.append("\(time)  \(entry.line)" + (about.isEmpty ? "" : " [\(about)]"))
+                for point in entry.points { lines.append("  - \(point)") }
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// The same commit seen on several branches is one piece of work.
     static func merged(_ seen: [WorkEntry]) -> [WorkEntry] {
         var byID: [String: WorkEntry] = [:]
@@ -382,9 +430,41 @@ nonisolated enum WorkLedger {
 /// The little of GitHub's JSON that is read.
 nonisolated enum GitHubWork {
     struct Event: Decodable {
+        var id: String?
         var type: String
+        var repo: Named?
         var payload: Payload
-        struct Payload: Decodable { var ref: String? }
+        struct Payload: Decodable {
+            var ref: String?
+            var head: String?
+        }
+        struct Named: Decodable { var name: String }
+    }
+
+    /// A branch that has moved: which, where, and the commit it now ends at.
+    struct Move: Equatable {
+        var repo: String
+        var branch: String
+        var head: String
+        var key: String { "\(repo)#\(branch)" }
+    }
+
+    /// The branches that have moved since they were last read. `events` is the
+    /// account's activity, newest first; `heads` is where each branch ended when
+    /// it was last read. A branch already read up to its newest push is left out,
+    /// which is what makes a refresh cost one question when nothing has changed.
+    static func moved(_ events: [Event], heads: [String: String]) -> [Move] {
+        var seen = Set<String>()
+        var moves: [Move] = []
+        for event in events where event.type == "PushEvent" {
+            guard let repo = event.repo?.name, let ref = event.payload.ref, ref.hasPrefix("refs/heads/") else { continue }
+            let branch = String(ref.dropFirst("refs/heads/".count))
+            if branch.hasPrefix("ci/") || branch.hasPrefix("stats/") { continue }
+            let move = Move(repo: repo, branch: branch, head: event.payload.head ?? "")
+            guard seen.insert(move.key).inserted else { continue }      // only the newest push of each branch
+            if move.head.isEmpty || heads[move.key] != move.head { moves.append(move) }
+        }
+        return moves
     }
 
     struct Repo: Decodable {
@@ -483,13 +563,31 @@ nonisolated enum GitHubWork {
     private(set) var fetched: Date? = nil
     @ObservationIgnored private let file: URL
 
+    /// What has been read so far, so the next read only asks about what moved.
+    nonisolated struct Progress: Codable, Equatable, Sendable {
+        /// "Labern/Clean#master" → the commit that branch ended at when it was read.
+        var heads: [String: String] = [:]
+        /// Each repo's own main branch.
+        var mains: [String: String] = [:]
+        /// The newest activity already seen.
+        var lastEvent: String? = nil
+    }
+
     private nonisolated struct Saved: Codable {
+        var version: Int?
         var entries: [WorkEntry]
         var sessions: [ClaudeSession]?
         var fetched: Date?
         var repos: [String]?
         var claudeCounted: Date?
+        var progress: Progress?
     }
+
+    /// Raised when what is kept about an entry changes, so older saves are read afresh from GitHub.
+    private nonisolated static let version = 3
+    @ObservationIgnored private var progress = Progress()
+    /// When GitHub last refused, so the phone doesn't keep asking.
+    @ObservationIgnored private var refused: Date? = nil
 
     /// The session being talked to now: the one most recently used.
     var session: ClaudeSession? { sessions.first }
@@ -497,11 +595,16 @@ nonisolated enum GitHubWork {
     init(file: URL = URL.applicationSupportDirectory.appending(path: "work.json")) {
         self.file = file
         if let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
-            entries = saved.entries
             sessions = saved.sessions ?? []
-            fetched = saved.fetched
-            repos = saved.repos ?? []
             claudeCounted = saved.claudeCounted
+            // Entries saved by an older build lack things kept now (their Claude
+            // conversation, for one): those are dropped and read again in full.
+            if saved.version == Self.version {
+                entries = saved.entries.map { $0.reread() }
+                fetched = saved.fetched
+                repos = saved.repos ?? []
+                progress = saved.progress ?? Progress()
+            }
         }
         // Only the cloud build's screenshots: it launches with -sampleNotes and never reaches GitHub.
         if Launch.unlocked, UserDefaults.standard.bool(forKey: "sampleNotes"), entries.isEmpty {
@@ -528,9 +631,10 @@ nonisolated enum GitHubWork {
     }
 
     /// Reads everything again. The Claude counts are plain public files and are
-    /// read every time. GitHub's API is paced: without a token it allows 60
-    /// questions an hour and one read asks ten to twenty, so it waits 20 minutes
-    /// between reads unless told to go now.
+    /// read every time. GitHub is asked only what has moved since last time (one
+    /// question when nothing has), so a refresh always goes through: without a
+    /// token GitHub allows 60 questions an hour, and reading everything every
+    /// time used them up and left the app showing old work (2026-11-18).
     func refresh(force: Bool = false, now: Date = .now) async {
         guard !loading, !Launch.unlocked else { return }
         loading = true
@@ -538,20 +642,28 @@ nonisolated enum GitHubWork {
 
         await readClaude()
 
-        let rest: TimeInterval = hasToken ? 3 * 60 : 20 * 60
-        if force || fetched.map({ now.timeIntervalSince($0) >= rest }) ?? true {
+        let rest: TimeInterval = hasToken ? 60 : 4 * 60
+        let due = fetched.map { now.timeIntervalSince($0) >= rest } ?? true
+        // After a refusal, wait a little even when asked to go now: asking again only prolongs it.
+        let cooling = refused.map { now.timeIntervalSince($0) < 90 } ?? false
+        if (force || due) && !cooling {
             do {
-                let read = try await Self.read(owner: owner, token: token, now: now)
-                entries = read.entries
-                repos = read.repos
+                let read = try await Self.read(owner: owner, token: token, progress: progress, now: now)
+                let oldest = now.addingTimeInterval(-Double(Self.days + 5) * 86_400)
+                entries = WorkLedger.merged(entries + read.entries).filter { $0.date >= oldest }
+                progress = read.progress
+                repos = Array(Set(entries.map(\.repo))).sorted()
                 problem = ""
+                fetched = now
+                refused = nil
             } catch {
                 // What was read before stays on screen.
                 problem = (error as? LocalizedError)?.errorDescription ?? "GitHub couldn't be reached."
+                refused = now
             }
-            fetched = now
         }
-        let saved = Saved(entries: entries, sessions: sessions, fetched: fetched, repos: repos, claudeCounted: claudeCounted)
+        let saved = Saved(version: Self.version, entries: entries, sessions: sessions, fetched: fetched, repos: repos,
+                          claudeCounted: claudeCounted, progress: progress)
         try? JSONEncoder().encode(saved).write(to: file, options: .atomic)
     }
 
@@ -584,66 +696,93 @@ nonisolated enum GitHubWork {
 
     nonisolated struct Refused: LocalizedError {
         var code: Int
+        /// When GitHub says it will answer again, if it said.
+        var until: Date? = nil
         var errorDescription: String? {
             switch code {
             case 401: "GitHub didn't accept the token."
-            case 403, 429: "GitHub is limiting how often this phone can ask. It reads again shortly."
+            case 403, 429:
+                until.map { "GitHub is limiting how often this phone can ask, until \($0.formatted(date: .omitted, time: .shortened))." }
+                    ?? "GitHub is limiting how often this phone can ask. It reads again shortly."
             case 404: "GitHub has no account by that name."
             default: "GitHub answered \(code)."
             }
         }
     }
 
-    /// Every version pushed in the window, across the account's active repos.
-    private nonisolated static func read(owner: String, token: String?, now: Date) async throws -> (entries: [WorkEntry], repos: [String]) {
+    /// What has been pushed since the last read, across the whole account.
+    ///
+    /// One question says which branches moved (the account's activity). Only
+    /// those are then read. A repo met for the first time is asked its main
+    /// branch once, and its main branch and live site are read once.
+    private nonisolated static func read(owner: String, token: String?, progress: Progress, now: Date) async throws
+        -> (entries: [WorkEntry], progress: Progress) {
+        var progress = progress
         let since = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
         let stamp = since.formatted(.iso8601)
-        // With a token: everything of his, private too. Without: what the account shows publicly.
-        let listing = token == nil ? "users/\(owner)/repos?sort=pushed&per_page=50"
-                                   : "user/repos?affiliation=owner&sort=pushed&per_page=50"
-        let all: [GitHubWork.Repo] = try await ask(listing, token: token)
-        let active = GitHubWork.active(all, since: since, limit: token == nil ? 4 : 12)
 
-        var seen: [WorkEntry] = []
-        var asked = 0
-        for repo in active {
-            let name = repo.full_name
-            // Which branches moved lately. A busy repo fills a page of events in a couple
-            // of days, so more than one page is read.
-            var events: [GitHubWork.Event] = []
-            for page in 1...(token == nil ? 2 : 3) {
-                let more: [GitHubWork.Event] = (try? await ask("repos/\(name)/events?per_page=100&page=\(page)", token: token)) ?? []
-                events += more
-                if more.count < 100 { break }
+        // The account's activity, newest first, back to what was already seen.
+        // With a token it includes private repos; without, what the account shows publicly.
+        let feed = token == nil ? "users/\(owner)/events/public" : "users/\(owner)/events"
+        var events: [GitHubWork.Event] = []
+        for page in 1...3 {
+            let more: [GitHubWork.Event] = try await ask("\(feed)?per_page=100&page=\(page)", token: token)
+            if let known = progress.lastEvent, let index = more.firstIndex(where: { $0.id == known }) {
+                events += more[..<index]
+                break
             }
-            let main = repo.default_branch ?? "main"
-            // The main branch and the live site are always read, so nothing shipped or published is missed.
-            var branches = [main, WorkEntry.site]
-            for branch in GitHubWork.branches(in: events) where !branches.contains(branch) { branches.append(branch) }
-            for branch in branches.prefix(token == nil ? 10 : 30) {
-                // Without a token, stop short of GitHub's hourly allowance.
-                if token == nil, asked >= 30 { break }
-                asked += 1
-                let path = "repos/\(name)/commits?sha=\(branch.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? branch)&since=\(stamp)&per_page=100"
-                do {
-                    let commits: [GitHubWork.Commit] = try await ask(path, token: token)
-                    seen += GitHubWork.entries(commits, repo: name, branch: branch, main: branch == main)
-                } catch let refused as Refused where [404, 409, 422].contains(refused.code) {
-                    continue    // a branch that has gone, or an empty repo
-                }
+            events += more
+            if more.count < 100 { break }
+        }
+
+        var wanted = GitHubWork.moved(events, heads: progress.heads)
+        // A repo never read before: learn its main branch, and read that and its live site once.
+        let pushed = Set(events.compactMap { $0.type == "PushEvent" ? $0.repo?.name : nil })
+        for repo in pushed.sorted() where progress.mains[repo] == nil {
+            let info: GitHubWork.Repo? = try? await ask("repos/\(repo)", token: token)
+            let main = info?.default_branch ?? "main"
+            progress.mains[repo] = main
+            for branch in [main, WorkEntry.site] where !wanted.contains(where: { $0.repo == repo && $0.branch == branch }) {
+                wanted.append(GitHubWork.Move(repo: repo, branch: branch, head: ""))
             }
         }
-        return (WorkLedger.merged(seen), active.map(\.full_name))
+
+        // Read the branches that moved. Without a token, a dozen at most per read;
+        // the rest keep until the next one, which is why the marker below only
+        // moves on once everything has been read.
+        let limit = token == nil ? 12 : 40
+        var seen: [WorkEntry] = []
+        for move in wanted.prefix(limit) {
+            let branch = move.branch.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? move.branch
+            do {
+                let commits: [GitHubWork.Commit] = try await ask("repos/\(move.repo)/commits?sha=\(branch)&since=\(stamp)&per_page=100", token: token)
+                seen += GitHubWork.entries(commits, repo: move.repo, branch: move.branch, main: move.branch == progress.mains[move.repo])
+                progress.heads[move.key] = move.head.isEmpty ? (progress.heads[move.key] ?? "read") : move.head
+            } catch let refused as Refused where [404, 409, 422].contains(refused.code) {
+                // A branch that has gone, or a repo with no live site: nothing to read, and no need to ask again.
+                progress.heads[move.key] = move.head.isEmpty ? "none" : move.head
+            }
+        }
+        if wanted.count <= limit, let newest = events.first?.id {
+            progress.lastEvent = newest
+        }
+        return (WorkLedger.merged(seen), progress)
     }
 
     private nonisolated static func ask<T: Decodable>(_ path: String, token: String?) async throws -> T {
         var request = URLRequest(url: URL(string: "https://api.github.com/\(path)")!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
+        request.cachePolicy = .reloadIgnoringLocalCacheData
         if let token, !token.isEmpty { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         let (data, response) = try await URLSession.shared.data(for: request)
-        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard code == 200 else { throw Refused(code: code) }
+        let answer = response as? HTTPURLResponse
+        let code = answer?.statusCode ?? 0
+        guard code == 200 else {
+            let reset = answer?.value(forHTTPHeaderField: "X-RateLimit-Reset").flatMap { TimeInterval($0) }
+            let spent = answer?.value(forHTTPHeaderField: "X-RateLimit-Remaining") == "0"
+            throw Refused(code: code, until: spent ? reset.map(Date.init(timeIntervalSince1970:)) : nil)
+        }
         return try GitHubWork.decoder().decode(T.self, from: data)
     }
 

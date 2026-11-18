@@ -38,6 +38,34 @@ nonisolated enum Keychain {
         return text
     }
 
+    /// The same, for bytes rather than words (a compressed backup). `travels`
+    /// lets it move to a new phone set up from this one's backup; keys never do.
+    @discardableResult
+    static func setData(_ value: Data, for name: String, travels: Bool = false) -> Bool {
+        delete(name)
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: name,
+            kSecValueData as String: value,
+            kSecAttrAccessible as String: travels ? kSecAttrAccessibleAfterFirstUnlock : kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+        ]
+        return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
+    }
+
+    static func data(_ name: String) -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: name,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess else { return nil }
+        return result as? Data
+    }
+
     static func delete(_ name: String) {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

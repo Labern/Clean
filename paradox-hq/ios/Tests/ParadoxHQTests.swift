@@ -1155,6 +1155,78 @@ struct WorkTests {
         #expect(GitHubWork.branches(in: events) == ["claude/a", "master"])
     }
 
+    /// A refresh asks only about branches that moved since they were last read:
+    /// reading everything every time used up GitHub's hourly allowance.
+    @Test func onlyBranchesThatMovedAreReadAgain() throws {
+        let json = """
+        [{"id":"9","type":"PushEvent","repo":{"name":"Labern/Clean"},"payload":{"ref":"refs/heads/claude/a","head":"c3"}},
+         {"id":"8","type":"PushEvent","repo":{"name":"Labern/Clean"},"payload":{"ref":"refs/heads/ci/paradox-hq","head":"x1"}},
+         {"id":"7","type":"PushEvent","repo":{"name":"Labern/Clean"},"payload":{"ref":"refs/heads/claude/a","head":"c2"}},
+         {"id":"6","type":"DeleteEvent","repo":{"name":"Labern/Clean"},"payload":{"ref":"old"}},
+         {"id":"5","type":"PushEvent","repo":{"name":"Labern/Clean"},"payload":{"ref":"refs/heads/gh-pages","head":"g1"}},
+         {"id":"4","type":"PushEvent","repo":{"name":"Labern/iOS"},"payload":{"ref":"refs/heads/main","head":"m1"}},
+         {"id":"3","type":"PushEvent","repo":{"name":"Labern/Clean"},"payload":{"ref":"refs/heads/stats/claude","head":"s1"}}]
+        """
+        let events = try GitHubWork.decoder().decode([GitHubWork.Event].self, from: Data(json.utf8))
+        // Nothing read yet: every working branch, once each, at its newest push.
+        let first = GitHubWork.moved(events, heads: [:])
+        #expect(first.map(\.key) == ["Labern/Clean#claude/a", "Labern/Clean#gh-pages", "Labern/iOS#main"])
+        #expect(first.first?.head == "c3")
+        // Read up to those pushes: nothing to ask.
+        let heads = ["Labern/Clean#claude/a": "c3", "Labern/Clean#gh-pages": "g1", "Labern/iOS#main": "m1"]
+        #expect(GitHubWork.moved(events, heads: heads).isEmpty)
+        // One branch moved on since.
+        #expect(GitHubWork.moved(events, heads: heads.merging(["Labern/Clean#claude/a": "c2"]) { $1 }).map(\.branch) == ["claude/a"])
+    }
+
+    /// An entry keeps its message, so it can be read again when the reading improves.
+    @Test func anEntryCanBeReadAgainFromItsMessage() {
+        var entry = read("feat(paradox-hq): Work tab\n\nClaude-Session: https://claude.ai/code/session_abc")
+        #expect(entry.raw?.hasPrefix("feat(paradox-hq)") == true)
+        entry.session = nil            // as an older build would have saved it
+        entry.kind = .changed
+        entry.shipped = true           // learned from the repo's main branch, not from the message
+        let again = entry.reread()
+        #expect(again.session == "https://claude.ai/code/session_abc" && again.kind == .added)
+        #expect(again.shipped == true)
+    }
+
+    @Test func allTheWorkReadsAsTextOldestFirst() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Europe/London")!
+        calendar.locale = Locale(identifier: "en_GB")
+        var first = read("feat(paradox-hq): the Work tab\n\n- Counts from GitHub\n- A graph that scrubs")
+        first.date = at(2026, 11, 17, 9)
+        var second = read("fix(paradox-hq): refresh")
+        second.date = at(2026, 11, 18, 14)
+        second.published = true
+        var third = read("style: grey rule")
+        third.date = at(2026, 11, 18, 16)
+        let text = WorkLedger.retrospective([third, first, second], calendar: calendar)
+        #expect(text == """
+        Work, 17 November 2026 to 18 November 2026
+        3 changes over 2 days: 1 added, 1 fixed, 1 styled. 1 went live.
+
+        Tuesday 17 November 2026 (1 added)
+        09:00  \(first.line) [paradox-hq]
+          - Counts from GitHub
+          - A graph that scrubs
+
+        Wednesday 18 November 2026 (1 fixed, 1 styled)
+        14:00  \(second.line) [paradox-hq, live]
+        16:00  \(third.line)
+        """)
+        #expect(WorkLedger.retrospective([], calendar: calendar).isEmpty)
+    }
+
+    @Test func theCardSaysHowFreshItsSourcesAre() {
+        let now = at(2026, 11, 18, 12)
+        #expect(WorkCard.freshness(github: now.addingTimeInterval(-130), claude: now.addingTimeInterval(-3 * 3600), now: now)
+            == "GitHub read 2 min ago · Claude counted 3 h ago")
+        #expect(WorkCard.freshness(github: nil, claude: nil, now: now) == "GitHub not read yet · Claude not counted yet")
+        #expect(WorkCard.freshness(github: now, claude: now, now: now) == "GitHub read just now · Claude counted just now")
+    }
+
     /// Only the account's own repos that were pushed to lately are read, newest first.
     @Test func onlyReposWorkedOnLatelyAreRead() throws {
         let json = """
@@ -1472,7 +1544,7 @@ struct BackupTests {
         context.insert(Deadline(title: "VAT return", who: "HMRC", date: at(2026, 12, 7), everyMonths: 3))
         try context.save()
 
-        let before = BackupFile.take(context, now: at(2026, 11, 17))
+        let before = BackupFile.take(context, now: at(2026, 11, 17), withSettings: false)
         let read = try BackupFile.read(try before.data())
         // The file keeps times to the millisecond and a fresh `Date()` is finer than
         // that, so what must hold is that reading a file and writing it again changes nothing.
@@ -1481,7 +1553,7 @@ struct BackupTests {
 
         let other = try FeedTests.store()
         try read.restore(into: other)
-        let after = BackupFile.take(other, now: at(2026, 11, 17))
+        let after = BackupFile.take(other, now: at(2026, 11, 17), withSettings: false)
         let wrote = String(decoding: try before.data(), as: UTF8.self)
         let got = String(decoding: try after.data(), as: UTF8.self)
         let differing = zip(wrote.split(separator: "\n"), got.split(separator: "\n")).filter { $0 != $1 }.prefix(4)
@@ -1573,5 +1645,126 @@ struct InkTests {
     @Test(arguments: [UIUserInterfaceStyle.dark, .light])
     func whiteMeansHeadingInk(_ style: UIUserInterfaceStyle) {
         #expect(Self.contrast(Ink.tint(0xFFFFFF), Ink.head, style) < 1.01)
+    }
+}
+
+/// The safety net: copies on the phone, and the rules that stop it making things worse.
+@MainActor
+struct VaultTests {
+    private func folder() -> URL {
+        URL.temporaryDirectory.appending(path: "vault-\(UUID().uuidString)")
+    }
+
+    private func file(lines: Int, notes: Int = 0, made: Date = at(2026, 11, 18)) -> BackupFile {
+        let stamp = at(2026, 11, 1)
+        let items = (0..<lines).map {
+            BackupFile.ItemCopy(remoteID: "", title: "Line \($0)", notes: "", done: false, completed: nil, order: $0,
+                                created: stamp, collapsed: false, due: nil, children: [])
+        }
+        let project = BackupFile.ProjectCopy(remoteID: "", name: "Mine", summary: "", stage: "", symbol: "", tint: 0, link: "",
+                                             order: 0, created: stamp, isPersonal: true, items: items)
+        let kept = (0..<notes).map {
+            BackupFile.NoteCopy(text: "Note \($0)", created: stamp, edited: stamp, pinned: false, project: nil)
+        }
+        return BackupFile(made: made, projects: [project], notes: kept, deadlines: [])
+    }
+
+    @Test func aCopyIsKeptOnlyWhenSomethingChanged() throws {
+        let context = try FeedTests.store()
+        Seed.run(context)
+        let mine = Seed.personal(context)
+        let line = FocusItem(title: "Ring the accountant", order: 0)
+        context.insert(line)
+        line.project = mine
+        let vault = Vault(folder: folder(), usesKeychain: false)
+        #expect(vault.save(context, now: at(2026, 11, 18, 9)))
+        #expect(!vault.save(context, now: at(2026, 11, 18, 10)))
+        line.title = "Ring the accountant today"
+        #expect(vault.save(context, now: at(2026, 11, 18, 11)))
+        #expect(vault.copies.count == 2)
+    }
+
+    @Test func anEmptyStoreIsNeverSaved() throws {
+        let context = try FeedTests.store()
+        let vault = Vault(folder: folder(), usesKeychain: false)
+        #expect(!vault.save(context))
+        #expect(vault.copies.isEmpty)
+    }
+
+    @Test func goingBackKeepsWhatWasThere() throws {
+        let context = try FeedTests.store()
+        Seed.run(context)
+        let mine = Seed.personal(context)
+        let line = FocusItem(title: "First", order: 0)
+        context.insert(line)
+        line.project = mine
+        let vault = Vault(folder: folder(), usesKeychain: false)
+        vault.save(context, now: at(2026, 11, 18, 9))
+        let first = try vault.open(try #require(vault.copies.first))
+        line.title = "Second"
+        try vault.restore(first, into: context, now: at(2026, 11, 18, 10))
+        let titles = try context.fetch(FetchDescriptor<FocusItem>()).map(\.title)
+        #expect(titles.contains("First") && !titles.contains("Second"))
+        // "Second" was saved on the way, so the going back can itself be undone.
+        let saved = try vault.copies.map { try vault.open($0) }
+        #expect(saved.contains { $0.projects.contains { $0.items.contains { $0.title == "Second" } } })
+    }
+
+    @Test func oldCopiesThinOutButTheNewestAlwaysStays() {
+        let now = at(2026, 11, 18, 12)
+        func copy(_ hoursAgo: Double) -> Vault.Copy {
+            let made = now.addingTimeInterval(-hoursAgo * 3600)
+            return Vault.Copy(name: Vault.name(for: made, calendar: london), made: made)
+        }
+        // Everything from the last day stays.
+        let today = [copy(1), copy(2), copy(5), copy(23)]
+        #expect(Vault.surplus(today, now: now, calendar: london).isEmpty)
+        // Older: the newest of each day, for sixty days.
+        let older = [copy(30), copy(31), copy(32), copy(24 * 59), copy(24 * 61)]
+        let gone = Set(Vault.surplus(today + older, now: now, calendar: london))
+        #expect(gone == [copy(31).name, copy(32).name, copy(24 * 61).name])
+        // A lone copy is never removed, however old.
+        #expect(Vault.surplus([copy(24 * 400)], now: now, calendar: london).isEmpty)
+        #expect(Vault.name(for: at(2026, 11, 18, 9), calendar: london) == "PARADOX 2026-11-18 090000.json")
+    }
+
+    @Test func aNearlyEmptyStoreCannotPushOutTheFullCopy() {
+        let full = file(lines: 40, notes: 10)
+        let now = full.made
+        #expect(Vault.replacesAnchor(file(lines: 45, notes: 10), held: full, now: now))
+        #expect(Vault.replacesAnchor(file(lines: 30), held: full, now: now))
+        #expect(!Vault.replacesAnchor(file(lines: 3), held: full, now: now))
+        #expect(!Vault.replacesAnchor(file(lines: 0), held: full, now: now))
+        // After a week a smaller store is taken as meant.
+        #expect(Vault.replacesAnchor(file(lines: 3), held: full, now: now.addingTimeInterval(8 * 86_400)))
+        #expect(Vault.replacesAnchor(file(lines: 1), held: nil, now: now))
+        #expect(file(lines: 0).isEmpty && !file(lines: 0, notes: 1).isEmpty)
+        #expect(file(lines: 2).same(as: file(lines: 2, made: at(2026, 1, 1))))
+    }
+
+    @Test func settingsAreKeptButNotClocksOrCaches() throws {
+        #expect(SavedSettings.belongs("profile-name") && SavedSettings.belongs("colour-accent") && SavedSettings.belongs("starter-1"))
+        #expect(!SavedSettings.belongs("lock-last-seen") && !SavedSettings.belongs("backup-folder"))
+        #expect(!SavedSettings.belongs("AppleLanguages") && !SavedSettings.belongs("NSInterfaceStyle") && !SavedSettings.belongs("unlocked"))
+        let kept = SavedSettings.kept(["profile-name": "Labern", "seen": Data(count: 200), "blob": Data(count: 100_000)] as [String: Any])
+        #expect(Set(kept.keys) == ["profile-name", "seen"])
+
+        let name = "vault-test-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let list = try PropertyListSerialization.data(fromPropertyList: ["typeface": "graphik", "lock-last-seen": 5.0, "work-rolling": true] as [String: Any],
+                                                      format: .xml, options: 0)
+        SavedSettings.apply(list, to: defaults)
+        #expect(defaults.string(forKey: "typeface") == "graphik" && defaults.bool(forKey: "work-rolling"))
+        #expect(defaults.object(forKey: "lock-last-seen") == nil)
+    }
+
+    @Test func theIconWornBeforeAReinstallGoesBackOn() {
+        let built: Set<String> = ["AppIcon-Custom-ab12cd34", "AppIcon-Light"]
+        #expect(IconShelf.toPutBack(worn: "AppIcon-Custom-ab12cd34", current: nil, installed: built) == "AppIcon-Custom-ab12cd34")
+        // Not when another icon is on, when none was worn, or when the build doesn't carry it.
+        #expect(IconShelf.toPutBack(worn: "AppIcon-Custom-ab12cd34", current: "AppIcon-Light", installed: built) == nil)
+        #expect(IconShelf.toPutBack(worn: "", current: nil, installed: built) == nil)
+        #expect(IconShelf.toPutBack(worn: "AppIcon-Custom-gone0000", current: nil, installed: built) == nil)
     }
 }
