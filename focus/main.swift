@@ -3112,6 +3112,23 @@ if CommandLine.arguments.contains("--pill-demo") {          // watch the start a
     app.run()
 }
 let testing = CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest") })
+/// `Focus --render-colourpanel FILE`: the Mac's own colour panel (colour wheel), drawn off-screen, for marketing shots.
+if let i = CommandLine.arguments.firstIndex(of: "--render-colourpanel"), CommandLine.arguments.count > i + 1 {
+    _ = NSApplication.shared
+    let p = NSColorPanel.shared; p.appearance = NSAppearance(named: .darkAqua); p.showsAlpha = false; p.mode = .wheel
+    p.color = (CommandLine.arguments.count > i + 2 ? hexColor(CommandLine.arguments[i + 2]) : nil) ?? NSColor(srgbRed: 0.65, green: 0.55, blue: 0.98, alpha: 1)
+    if let v = p.contentView {
+        v.layoutSubtreeIfNeeded()
+        NSAppearance(named: .darkAqua)!.performAsCurrentDrawingAppearance {
+            if let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
+                v.cacheDisplay(in: v.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: CommandLine.arguments[i + 1]))
+
+            }
+        }
+    }
+    exit(0)
+}
 if CommandLine.arguments.contains("--chime-check") { _ = NSApplication.shared; Chime.check(); exit(0) }
 if !others.isEmpty && !testing {
     // A second copy: ask the running one to show its window. If it answers, leave it be. If it doesn't answer within
