@@ -109,7 +109,9 @@ struct Gate: View {
         }
         .task {
             // An icon made in the designer goes on the first time a build carrying it opens.
-            shelf.adopt()
+            // iOS refuses an icon change until the app is active; if it isn't yet, the
+            // change below puts it on the moment it is.
+            if phase == .active { shelf.adopt() }
             await refresh()
         }
         .onChange(of: phase) { _, new in
@@ -126,6 +128,7 @@ struct Gate: View {
                 Task { await Bridge.publish(money: money, site: site, context: context) }
             }
             guard new == .active else { return }
+            shelf.adopt()
             Task {
                 // After a refusal the lock waits for a tap, so cancelling
                 // Face ID doesn't bring the prompt straight back.
