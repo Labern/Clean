@@ -102,3 +102,10 @@ Each rule is his decision, criticism or praise, in his words where possible. Add
 - **Mockups as artifacts** before big visual decisions; he picks.
 - **A developer "View As" panel** (Actual / Basic / Pro) to see every tier, and it must *really* lock what's locked: "You don't even have the app working."
 - **Remember his decisions, criticisms and praise:** in this file and in CLAUDE.md.
+- **A search must show what it has found as you type (Super Smart Search, 18 Nov 2026).** He first asked for a bar
+  with no suggestions unless Tab was pressed. Built that way, nothing appeared while typing and he reported "it
+  doesn't work" five times; then: "Started working AFTER I pressed tab… Fix that." An invisible feature reads as a
+  broken one. Minimal is one bar with nothing typed; once he types, the matches show, best one chosen.
+- **Permissions only when absolutely necessary (18 Nov 2026):** "The users shouldn't have to click a bunch of
+  accessibility stuff unless it is absolutely necessary." Show a permission line only when it is the reason
+  something just failed.
