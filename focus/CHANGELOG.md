@@ -13,6 +13,7 @@ New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
   the open Focus to Basic or "0 sessions left", and two test runs can no longer trip over each other's settings.
   Proved: the live settings are byte-for-byte the same before and after the full GUI and stress suites.
 
+- Tests and renders no longer write into the real Focus.log; they log beside their own records.
 ## 0.23.2 — 2026-11-18
 - **Return always reaches Super Smart Search.** It is now caught three ways (the key itself, the text system, the
   field's action), and Focus.log says which one it was. The box no longer autocorrects or predicts what you type.
