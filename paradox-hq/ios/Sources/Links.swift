@@ -55,7 +55,7 @@ struct QuickLinkRow: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 Text(missing ? "Couldn't open the app" : link.label)
-                    .font(.caption)
+                    .font(Face.style(.caption))
                     .foregroundStyle(missing ? Ink.amber : Ink.muted)
                     .lineLimit(1)
                     .contentTransition(.opacity)
@@ -74,7 +74,7 @@ struct QuickLinkRow: View {
     private func chip(_ title: String, primary: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(Face.style(.subheadline, .semibold))
                 .foregroundStyle(primary ? Ink.buttonInk : Ink.body)
                 .padding(.horizontal, 14)
                 .frame(minWidth: 56, minHeight: 34)

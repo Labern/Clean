@@ -44,7 +44,7 @@ struct OutlineLine: View {
             Button(action: open) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.title.isEmpty ? "Untitled" : item.title)
-                        .font(small ? .subheadline : .body)
+                        .font(Face.style(small ? .subheadline : .body))
                         .strikethrough(item.done)
                         .foregroundStyle(item.done || item.title.isEmpty ? Ink.muted : Ink.body)
                         .multilineTextAlignment(.leading)
@@ -59,7 +59,7 @@ struct OutlineLine: View {
                                     .lineLimit(1)
                             }
                         }
-                        .font(.caption)
+                        .font(Face.style(.caption))
                     }
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -90,10 +90,10 @@ struct Fold: View {
                 Text("\(leaves.done)/\(leaves.total)")
                     .monospacedDigit()
                 Image(systemName: "chevron.down")
-                    .font(.caption2.weight(.bold))
+                    .font(Face.style(.caption2, .bold))
                     .rotationEffect(.degrees(item.collapsed ? -90 : 0))
             }
-            .font(.caption)
+            .font(Face.style(.caption))
             .foregroundStyle(item.collapsed ? Ink.body : Ink.muted)
             .padding(.horizontal, 10)
             .frame(minWidth: 44, minHeight: 30)
@@ -260,7 +260,7 @@ struct DraftLine: View {
                 .frame(width: 20, height: 20)
                 .frame(width: 44, height: 44)
             TextField("Under \(parent.title)", text: $text)
-                .font(.subheadline)
+                .font(Face.style(.subheadline))
                 .focused($focused)
                 .submitLabel(.next)
                 .onSubmit(add)
@@ -315,7 +315,7 @@ struct ItemPage: View {
         Form {
             Section {
                 TextField("Title", text: $item.title, axis: .vertical)
-                    .font(.title3.weight(.semibold))
+                    .font(Face.style(.title3, .semibold))
                     .strikethrough(item.done)
                     .focused($field, equals: .title)
                     .submitLabel(.next)
@@ -355,7 +355,7 @@ struct ItemPage: View {
                 }
                 HStack(spacing: 2) {
                     Image(systemName: "plus")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Face.at(15, .semibold))
                         .foregroundStyle(tint)
                         .frame(width: 44, height: 44)
                     TextField("Add a sub-item", text: $draft)
@@ -482,18 +482,18 @@ struct ChildLine: View {
                             .multilineTextAlignment(.leading)
                         if let due = item.due {
                             DueLabel(date: due, late: item.overdue)
-                                .font(.caption)
+                                .font(Face.style(.caption))
                         }
                     }
                     Spacer(minLength: 4)
                     if !item.children.isEmpty {
                         Text("\(leaves.done)/\(leaves.total)")
-                            .font(.caption)
+                            .font(Face.style(.caption))
                             .monospacedDigit()
                             .foregroundStyle(Ink.muted)
                     }
                     Image(systemName: "chevron.right")
-                        .font(.caption.weight(.semibold))
+                        .font(Face.style(.caption, .semibold))
                         .foregroundStyle(Ink.idle)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
@@ -532,15 +532,15 @@ struct MyListCard: View {
             Button(action: openAll) {
                 HStack(alignment: .firstTextBaseline) {
                     Text("My list")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(Face.at(12, .semibold))
                         .textCase(.uppercase)
                         .tracking(0.9)
                     Spacer()
                     Text(tally.total - tally.done == 0 ? "" : "\(tally.total - tally.done) open")
-                        .font(.footnote)
+                        .font(Face.style(.footnote))
                         .monospacedDigit()
                     Image(systemName: "chevron.right")
-                        .font(.caption2.weight(.bold))
+                        .font(Face.style(.caption2, .bold))
                 }
                 .foregroundStyle(Ink.muted)
                 .padding(.horizontal, 4)
@@ -564,7 +564,7 @@ struct MyListCard: View {
                                 }
                                 .draggable(row.id) {
                                     Text(item.title)
-                                        .font(.body)
+                                        .font(Face.style(.body))
                                         .foregroundStyle(Ink.body)
                                         .padding(.horizontal, 14)
                                         .padding(.vertical, 10)
@@ -589,7 +589,7 @@ struct MyListCard: View {
                     HStack(spacing: 2) {
                         Button(action: add) {
                             Image(systemName: "plus")
-                                .font(.system(size: 17, weight: .semibold))
+                                .font(Face.at(17, .semibold))
                                 .foregroundStyle(Ink.head)
                                 .frame(width: 44, height: 44)
                         }

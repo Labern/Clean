@@ -62,7 +62,7 @@ struct AppIconPicker: View {
             Button { designing = true } label: {
                 HStack(spacing: 10) {
                     Image(systemName: "plus")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(Face.at(15, .semibold))
                     Text("Create custom app icon")
                     Spacer()
                 }
@@ -73,7 +73,7 @@ struct AppIconPicker: View {
             .buttonStyle(.plain)
             if !problem.isEmpty {
                 Text(problem)
-                    .font(.footnote)
+                    .font(Face.style(.footnote))
                     .foregroundStyle(Ink.hazard)
             }
         }
@@ -95,7 +95,7 @@ struct AppIconPicker: View {
                         .strokeBorder(selected ? Ink.head : Ink.line, lineWidth: selected ? 2 : 1)
                 }
             Text(title)
-                .font(.caption2)
+                .font(Face.style(.caption2))
                 .foregroundStyle(selected ? Ink.head : Ink.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)

@@ -81,7 +81,7 @@ struct ProjectsView: View {
             .bareRow()
             if feed.isSet, !feed.status.isEmpty {
                 Text("Claude: \(feed.status)")
-                    .font(.footnote)
+                    .font(Face.style(.footnote))
                     .foregroundStyle(feed.failed ? Ink.hazard : Ink.muted)
                     .padding(.horizontal, 4)
                     .bareRow(bottom: 28)
@@ -124,18 +124,18 @@ struct ProjectCard: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 12) {
                     Image(systemName: project.symbol)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(Face.at(17, .semibold))
                         .foregroundStyle(tint)
                         .frame(width: 40, height: 40)
                         .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(project.name)
-                            .font(.title3.weight(.semibold))
+                            .font(Face.style(.title3, .semibold))
                             .foregroundStyle(Ink.head)
                             .lineLimit(1)
                         if !project.summary.isEmpty {
                             Text(project.summary)
-                                .font(.caption)
+                                .font(Face.style(.caption))
                                 .foregroundStyle(Ink.muted)
                                 .lineLimit(2)
                         }
@@ -149,20 +149,20 @@ struct ProjectCard: View {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     if let next = project.openItems.first {
                         Text("Next")
-                            .font(.caption.weight(.semibold))
+                            .font(Face.style(.caption, .semibold))
                             .foregroundStyle(Ink.muted)
                         Text(next.title)
-                            .font(.subheadline)
+                            .font(Face.style(.subheadline))
                             .foregroundStyle(Ink.body)
                             .lineLimit(1)
                     } else {
                         Text(tally.total == 0 ? "Nothing listed yet" : "All done")
-                            .font(.subheadline)
+                            .font(Face.style(.subheadline))
                             .foregroundStyle(Ink.muted)
                     }
                     Spacer(minLength: 4)
                     Text("\(tally.done)/\(tally.total)")
-                        .font(.caption)
+                        .font(Face.style(.caption))
                         .monospacedDigit()
                         .foregroundStyle(Ink.muted)
                 }
@@ -195,7 +195,7 @@ struct ProjectDetail: View {
                     Heading(title: project.name, detail: "\(tally.done)/\(tally.total)")
                     if !project.summary.isEmpty {
                         Text(project.summary)
-                            .font(.subheadline)
+                            .font(Face.style(.subheadline))
                             .foregroundStyle(Ink.muted)
                     }
                     Meter(done: tally.done, total: tally.total, color: tint)
@@ -227,7 +227,7 @@ struct ProjectDetail: View {
                 OutlineSection(lines: open, tint: tint, drafting: $drafting) { opened = $0 }
             } header: {
                 Text(project.isPersonal ? "To do" : "Focus")
-                    .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
+                    .font(Face.at(12, .semibold)).textCase(.uppercase).tracking(0.9)
                     .foregroundStyle(Ink.muted)
             }
 
@@ -263,9 +263,9 @@ struct ProjectDetail: View {
                             Text("\(done.count)")
                                 .monospacedDigit()
                             Image(systemName: showDone ? "chevron.down" : "chevron.right")
-                                .font(.caption2.weight(.bold))
+                                .font(Face.style(.caption2, .bold))
                         }
-                        .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
+                        .font(Face.at(12, .semibold)).textCase(.uppercase).tracking(0.9)
                         .foregroundStyle(Ink.muted)
                     }
                     .buttonStyle(.plain)
@@ -313,7 +313,7 @@ struct AddBar: View {
                 .background(Ink.surface2, in: Capsule())
             Button(action: add) {
                 Image(systemName: "plus")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(Face.at(17, .bold))
                     .foregroundStyle(Ink.buttonInk)
                     .frame(width: 46, height: 46)
                     .background(Ink.button, in: Circle())
@@ -380,7 +380,7 @@ struct ProjectEditor: View {
                                 symbol = name
                             } label: {
                                 Image(systemName: name)
-                                    .font(.system(size: 17, weight: .semibold))
+                                    .font(Face.at(17, .semibold))
                                     .foregroundStyle(symbol == name ? Ink.buttonInk : Ink.body)
                                     .frame(width: 44, height: 44)
                                     .background(symbol == name ? Ink.button : Ink.surface2,

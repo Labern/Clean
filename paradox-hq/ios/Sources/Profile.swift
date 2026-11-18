@@ -61,6 +61,23 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
         return closer.clamped(to: photo)
     }
 
+    /// How far the middle can travel across and down the photo at this zoom
+    /// before the circle would show past an edge. A single point means no room.
+    func room(in photo: CGSize) -> (x: ClosedRange<Double>, y: ClosedRange<Double>) {
+        let short = min(photo.width, photo.height)
+        guard short > 0, zoom > 0 else { return (0.5...0.5, 0.5...0.5) }
+        let halfX = min(0.5, short / (2 * photo.width * zoom))
+        let halfY = min(0.5, short / (2 * photo.height * zoom))
+        return (halfX...(1 - halfX), halfY...(1 - halfY))
+    }
+
+    /// Where to start with a photo when no face can be found in it: head and
+    /// shoulders for an upright portrait, the plain middle otherwise.
+    static func standing(for photo: CGSize) -> Framing {
+        guard photo.height > photo.width * 1.1 else { return Framing() }
+        return Framing(x: 0.5, y: 0.25, zoom: 2.2).clamped(to: photo)
+    }
+
     /// A framing that puts a face in the circle with room for the hair. `face` is
     /// the box round it as a share of the photo, measured from the top-left.
     static func around(face: CGRect, in photo: CGSize) -> Framing {
@@ -91,7 +108,7 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
     var framing: Framing = Profile.savedFraming() {
         didSet {
             guard framing != oldValue, let data = try? JSONEncoder().encode(framing) else { return }
-            UserDefaults.standard.set(data, forKey: "profile-framing")
+            UserDefaults.standard.set(data, forKey: "profile-framing-2")
         }
     }
     private(set) var photo: UIImage?
@@ -109,9 +126,14 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
             photo = Self.prepared(data)
         }
         // A photo that has never been positioned is framed on the face.
-        if let photo, UserDefaults.standard.data(forKey: "profile-framing") == nil {
-            framing = Self.face(in: photo).map { Framing.around(face: $0, in: photo.size) } ?? Framing()
+        if let photo, UserDefaults.standard.data(forKey: "profile-framing-2") == nil {
+            framing = Self.framed(photo)
         }
+    }
+
+    /// On the face when one is found, head and shoulders otherwise.
+    static func framed(_ photo: UIImage) -> Framing {
+        Self.face(in: photo).map { Framing.around(face: $0, in: photo.size) } ?? Framing.standing(for: photo.size)
     }
 
     private var file: URL { folder.appending(path: "photo.jpg") }
@@ -128,7 +150,7 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
         try? jpeg.write(to: file, options: .atomic)
         UserDefaults.standard.set(false, forKey: "profile-no-photo")
         photo = picture
-        framing = Self.face(in: picture).map { Framing.around(face: $0, in: picture.size) } ?? Framing()
+        framing = Self.framed(picture)
         return true
     }
 
@@ -156,7 +178,7 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
     }
 
     nonisolated static func savedFraming() -> Framing {
-        guard let data = UserDefaults.standard.data(forKey: "profile-framing"),
+        guard let data = UserDefaults.standard.data(forKey: "profile-framing-2"),
               let framing = try? JSONDecoder().decode(Framing.self, from: data) else { return Framing() }
         return framing
     }
@@ -206,7 +228,7 @@ struct Avatar: View {
                     .frame(width: side, height: side)
             } else {
                 Text(initial)
-                    .font(.system(size: side * 0.42, weight: .semibold))
+                    .font(Face.at(side * 0.42, .semibold))
                     .foregroundStyle(Ink.body)
                     .frame(width: side, height: side)
                     .background(Ink.surface2)
@@ -231,15 +253,14 @@ struct ProfileBadge: View {
         @Bindable var profile = profile
         HStack(spacing: 10) {
             Button { editing = true } label: {
-                Avatar(photo: profile.photo, framing: profile.framing, side: 40, initial: profile.initial)
-                    .frame(minWidth: 44, minHeight: 44)
-                    .contentShape(Rectangle())
+                Avatar(photo: profile.photo, framing: profile.framing, side: 44, initial: profile.initial)
+                    .contentShape(Circle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Your photo")
             VStack(alignment: .leading, spacing: 1) {
                 Text(profile.name)
-                    .font(.body)
+                    .font(Face.style(.body))
                     .foregroundStyle(Ink.head)
                     .lineLimit(1)
                 Menu {
@@ -252,7 +273,7 @@ struct ProfileBadge: View {
                     }
                 } label: {
                     Text(profile.role)
-                        .font(.subheadline)
+                        .font(Face.style(.subheadline))
                         .foregroundStyle(Ink.muted)
                         .lineLimit(1)
                         .contentTransition(.opacity)
@@ -290,7 +311,7 @@ private struct ChoosePhotoLabel: View {
 
     var body: some View {
         Label(title, systemImage: "photo")
-            .font(.subheadline.weight(.semibold))
+            .font(Face.style(.subheadline, .semibold))
             .foregroundStyle(Ink.body)
             .frame(maxWidth: .infinity, minHeight: 46)
             .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -315,30 +336,45 @@ struct ProfileEditor: View {
                 VStack(spacing: 22) {
                     Avatar(photo: profile.photo, framing: profile.framing, side: side, initial: profile.initial)
                         .contentShape(Circle())
-                        .gesture(position)
+                        // Ahead of the page's own scrolling, so a drag on the photo moves the photo.
+                        .highPriorityGesture(position)
                         .padding(.top, 12)
                     if let photo = profile.photo {
-                        HStack(spacing: 12) {
-                            Image(systemName: "minus.magnifyingglass")
-                            Slider(value: Binding(
-                                get: { profile.framing.zoom },
-                                set: { value in
-                                    var closer = profile.framing
-                                    closer.zoom = value
-                                    profile.framing = closer.clamped(to: photo.size)
-                                }), in: 1...Framing.closest)
-                            .tint(Ink.head)
-                            Image(systemName: "plus.magnifyingglass")
+                        let room = profile.framing.room(in: photo.size)
+                        Card(padding: 0) {
+                            VStack(spacing: 0) {
+                                control("plus.magnifyingglass", "Zoom", 1...Framing.closest,
+                                        get: { profile.framing.zoom },
+                                        set: { value in
+                                            var closer = profile.framing
+                                            closer.zoom = value
+                                            profile.framing = closer.clamped(to: photo.size)
+                                        })
+                                Hairline(inset: 50)
+                                control("arrow.left.and.right", "Left and right", room.x,
+                                        get: { profile.framing.x },
+                                        set: { value in
+                                            var moved = profile.framing
+                                            moved.x = value
+                                            profile.framing = moved.clamped(to: photo.size)
+                                        })
+                                Hairline(inset: 50)
+                                control("arrow.up.and.down", "Up and down", room.y,
+                                        get: { profile.framing.y },
+                                        set: { value in
+                                            var moved = profile.framing
+                                            moved.y = value
+                                            profile.framing = moved.clamped(to: photo.size)
+                                        })
+                            }
                         }
-                        .foregroundStyle(Ink.muted)
-                        .padding(.horizontal, 8)
                     }
                     // The picker builds its label off the main actor, so the label is made here.
                     let choose = ChoosePhotoLabel(title: profile.photo == nil ? "Choose a photo" : "Change photo")
                     PhotosPicker(selection: $pick, matching: .images) { choose }
                     if !problem.isEmpty {
                         Text(problem)
-                            .font(.footnote)
+                            .font(Face.style(.footnote))
                             .foregroundStyle(Ink.hazard)
                     }
                     Card(padding: 0) {
@@ -352,7 +388,7 @@ struct ProfileEditor: View {
                         Button("Remove photo", role: .destructive) {
                             withAnimation(.snappy) { profile.removePhoto() }
                         }
-                        .font(.subheadline)
+                        .font(Face.style(.subheadline))
                     }
                 }
                 .page()
@@ -381,6 +417,34 @@ struct ProfileEditor: View {
                 }
             }
         }
+    }
+
+    /// One slider of the three. With no room to move (a tall photo at full width has
+    /// none sideways until it is zoomed), the slider rests in the middle, dimmed.
+    private func control(_ symbol: String, _ name: String, _ range: ClosedRange<Double>,
+                         get: @escaping @MainActor () -> Double,
+                         set: @escaping @MainActor (Double) -> Void) -> some View {
+        let open = range.upperBound - range.lowerBound > 0.002
+        return HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(Face.at(15, .semibold))
+                .foregroundStyle(Ink.muted)
+                .frame(width: 24)
+            if open {
+                Slider(value: Binding(get: { min(max(get(), range.lowerBound), range.upperBound) }, set: { set($0) }),
+                       in: range)
+                    .tint(Ink.head)
+            } else {
+                Slider(value: .constant(0.5), in: 0...1)
+                    .tint(Ink.head)
+                    .disabled(true)
+                    .opacity(0.35)
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(minHeight: 48)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(name)
     }
 
     /// One finger moves the photo in its circle; two fingers bring it closer or further.

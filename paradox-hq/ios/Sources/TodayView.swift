@@ -2,6 +2,52 @@ import SwiftUI
 import SwiftData
 import Charts
 
+/// The top of Today, all one thing: the mark and its word on the left, and on
+/// the right who is running it. Narrower phones get a smaller mark, then no word.
+struct TodayHeader: View {
+    let loading: Bool
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            row(mark: 124, word: true)
+            row(mark: 108, word: true)
+            row(mark: 124, word: false)
+            row(mark: 96, word: false)
+        }
+    }
+
+    private func row(mark: CGFloat, word: Bool) -> some View {
+        // PARADOX's capitals stand a tenth of the mark's width tall; Graphik's
+        // capitals are 0.72 of its size, so this is the size that matches them.
+        let size = mark * 0.138
+        return HStack(alignment: .center, spacing: 12) {
+            HStack(alignment: .bottom, spacing: 0) {
+                MarkView(width: mark)
+                    .hunt()
+                if word {
+                    // "PARADOX Dashboard": the word stands on the wordmark's own baseline,
+                    // which is the mark's bottom edge, a word-gap after the X. The mark's
+                    // frame runs on past PARADOX to hold its ™, so the word steps back into it.
+                    Text("Dashboard")
+                        .font(Face.graphik(size))
+                        .foregroundStyle(Ink.muted)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.leading, -mark * 0.1)
+                        .offset(y: Face.graphikDescent(size))
+                        .accessibilityHidden(true)
+                }
+            }
+            if loading {
+                ProgressView()
+            }
+            Spacer(minLength: 0)
+            ProfileBadge()
+                .fixedSize()
+        }
+    }
+}
+
 /// The front page: what came in, where the money is, what needs a decision,
 /// and the next line of every project.
 struct TodayView: View {
@@ -19,34 +65,8 @@ struct TodayView: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    // Top right: who is running it today.
-                    HStack {
-                        Spacer(minLength: 0)
-                        ProfileBadge()
-                    }
-                    .padding(.top, 2)
-                    .padding(.bottom, -8)
-
-                    HStack(alignment: .bottom, spacing: 0) {
-                        MarkView(width: 170)
-                            .hunt()
-                        // "PARADOX Dashboard": sits on the wordmark's own baseline, the
-                        // bottom edge of the mark, so the two read as one name.
-                        // The mark's frame runs on past PARADOX to hold the ™ above it, so
-                        // the word steps back into that space to sit a word-gap after the X.
-                        Text("Dashboard")
-                            .font(.system(size: 25, weight: .regular, design: .serif))
-                            .foregroundStyle(Ink.muted)
-                            .lineLimit(1)
-                            .fixedSize()
-                            .padding(.leading, -17)
-                            .offset(y: 4)
-                            .accessibilityHidden(true)
-                        Spacer(minLength: 8)
-                        if money.loading {
-                            ProgressView()
-                        }
-                    }
+                    TodayHeader(loading: money.loading)
+                        .padding(.top, 6)
 
                     if !money.live {
                         ExampleBanner { connecting = true }
@@ -126,11 +146,11 @@ struct TakingsCard: View {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(picked == nil ? "Today" : "That day")
-                        .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
+                        .font(Face.at(12, .semibold)).textCase(.uppercase).tracking(0.9)
                         .foregroundStyle(Ink.muted)
                     Spacer(minLength: 8)
                     Text(picked?.date ?? now, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
-                        .font(.footnote)
+                        .font(Face.style(.footnote))
                         .foregroundStyle(picked == nil ? Ink.muted : Ink.head)
                 }
                 HStack(alignment: .firstTextBaseline) {
@@ -178,7 +198,7 @@ struct TakingsCard: View {
                     Spacer()
                     Text("Today")
                 }
-                .font(.caption)
+                .font(Face.style(.caption))
                 .foregroundStyle(Ink.muted)
             }
         }
@@ -207,7 +227,7 @@ struct BalanceTiles: View {
             Card {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(now, format: .dateTime.month(.wide))
-                        .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
+                        .font(Face.at(12, .semibold)).textCase(.uppercase).tracking(0.9)
                         .foregroundStyle(Ink.muted)
                     Text(money.money(month))
                         .figure(26, value: Double(month))
@@ -220,7 +240,7 @@ struct BalanceTiles: View {
             Card {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Stripe balance")
-                        .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
+                        .font(Face.at(12, .semibold)).textCase(.uppercase).tracking(0.9)
                         .foregroundStyle(Ink.muted)
                     Text(money.money(money.available))
                         .figure(26, value: Double(money.available))
@@ -229,13 +249,13 @@ struct BalanceTiles: View {
                         .minimumScaleFactor(0.6)
                     if let payout = money.nextPayout {
                         Text("\(money.money(payout.amount)) out \(payout.arrives.formatted(.dateTime.weekday(.abbreviated)))")
-                            .font(.caption)
+                            .font(Face.style(.caption))
                             .foregroundStyle(Ink.muted)
                             .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     } else {
                         Text("\(money.money(money.pending)) pending")
-                            .font(.caption)
+                            .font(Face.style(.caption))
                             .foregroundStyle(Ink.muted)
                     }
                 }
@@ -265,7 +285,7 @@ struct NeedsYou: View {
                                         .foregroundStyle(Ink.body)
                                     if !need.detail.isEmpty {
                                         Text(need.detail)
-                                            .font(.caption)
+                                            .font(Face.style(.caption))
                                             .foregroundStyle(Ink.muted)
                                             .lineLimit(2)
                                     }
@@ -329,7 +349,7 @@ struct FocusNowRow: View {
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                         Text(project.name)
-                            .font(.caption.weight(.medium))
+                            .font(Face.style(.caption, .medium))
                             .foregroundStyle(Ink.muted)
                     }
                     Spacer(minLength: 0)

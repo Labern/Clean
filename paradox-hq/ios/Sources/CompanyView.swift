@@ -16,6 +16,7 @@ struct CompanyView: View {
     @State private var pending: BackupFile? = nil
     @State private var restored = false
     @AppStorage("appearance") private var appearance: Appearance = .auto
+    @AppStorage("typeface") private var typeface: Typeface = .system
 
     enum Picking: Identifiable {
         case folder, file
@@ -57,7 +58,7 @@ struct CompanyView: View {
                     lockSection
                     backupSection
                     Text("PARADOX \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
-                        .font(.footnote)
+                        .font(Face.style(.footnote))
                         .foregroundStyle(Ink.idle)
                         .frame(maxWidth: .infinity)
                 }
@@ -115,7 +116,7 @@ struct CompanyView: View {
                 VStack(spacing: 0) {
                     if deadlines.isEmpty {
                         Text("Add each filing date once. It counts down here and shows on Today in its last 30 days.")
-                            .font(.subheadline)
+                            .font(Face.style(.subheadline))
                             .foregroundStyle(Ink.muted)
                             .padding(14)
                         Hairline()
@@ -143,7 +144,7 @@ struct CompanyView: View {
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "plus")
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(Face.at(15, .semibold))
                                 .frame(width: 32, height: 32)
                             Text("Add a deadline")
                             Spacer()
@@ -219,7 +220,7 @@ struct CompanyView: View {
                 }
             }
             Text("Money is checked in the background, so it can arrive a while after the payment. Deadlines come at 09:00, a week before and the day before.")
-                .font(.footnote)
+                .font(Face.style(.footnote))
                 .foregroundStyle(Ink.muted)
                 .padding(.horizontal, 4)
         }
@@ -257,7 +258,7 @@ struct CompanyView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(spacing: 12) {
                         Image(systemName: "circle.lefthalf.filled")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(Face.at(15, .semibold))
                             .foregroundStyle(Ink.muted)
                             .frame(width: 32, height: 32)
                             .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -269,9 +270,26 @@ struct CompanyView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .sensoryFeedback(.selection, trigger: appearance)
+                    if Face.hasGraphik {
+                        Hairline(inset: 14)
+                        HStack(spacing: 12) {
+                            Image(systemName: "textformat")
+                                .font(Face.at(15, .semibold))
+                                .foregroundStyle(Ink.muted)
+                                .frame(width: 32, height: 32)
+                                .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            Picker("Typeface", selection: $typeface) {
+                                ForEach(Typeface.allCases) { Text($0.title).tag($0) }
+                            }
+                            .pickerStyle(.segmented)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .sensoryFeedback(.selection, trigger: typeface)
+                    }
                     Hairline(inset: 14)
                     Text("App icon")
-                        .font(.subheadline)
+                        .font(Face.style(.subheadline))
                         .foregroundStyle(Ink.body)
                         .padding(.horizontal, 14)
                         .padding(.top, 12)
@@ -294,7 +312,7 @@ struct CompanyView: View {
                                      color: backups.problem.isEmpty ? Ink.ok : Ink.hazard)
                             } else {
                                 Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
+                                    .font(Face.style(.caption, .semibold))
                                     .foregroundStyle(Ink.idle)
                             }
                         }
@@ -317,7 +335,7 @@ struct CompanyView: View {
             }
             if !backups.problem.isEmpty {
                 Text(backups.problem)
-                    .font(.footnote)
+                    .font(Face.style(.footnote))
                     .foregroundStyle(Ink.hazard)
                     .padding(.horizontal, 4)
             }
@@ -341,7 +359,7 @@ struct CompanyView: View {
                     Toggle(isOn: $locking) {
                         HStack(spacing: 12) {
                             Image(systemName: lock.symbol)
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(Face.at(15, .semibold))
                                 .foregroundStyle(Ink.muted)
                                 .frame(width: 32, height: 32)
                                 .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -356,7 +374,7 @@ struct CompanyView: View {
                     Hairline(inset: 58)
                     HStack(spacing: 12) {
                         Image(systemName: "clock")
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(Face.at(15, .semibold))
                             .foregroundStyle(Ink.muted)
                             .frame(width: 32, height: 32)
                             .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -408,7 +426,7 @@ struct DeadlineRow: View {
                     .monospacedDigit()
                     .foregroundStyle(Ink.body)
                 Text(days < 0 ? "\(-days) days late" : days == 0 ? "Today" : "\(days) days")
-                    .font(.caption)
+                    .font(Face.style(.caption))
                     .monospacedDigit()
                     .foregroundStyle(color)
             }
@@ -539,7 +557,7 @@ struct FeedSettings: View {
                     .disabled(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || feed.busy)
                     if !feed.status.isEmpty {
                         Text(feed.status)
-                            .font(.footnote)
+                            .font(Face.style(.footnote))
                             .foregroundStyle(feed.failed ? Ink.hazard : Ink.muted)
                     }
                 }

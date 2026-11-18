@@ -126,10 +126,10 @@ struct NotesView: View {
                                 Text("\(done.count)")
                                     .monospacedDigit()
                                 Image(systemName: showDone ? "chevron.down" : "chevron.right")
-                                    .font(.caption2.weight(.bold))
+                                    .font(Face.style(.caption2, .bold))
                                 Spacer()
                             }
-                            .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
+                            .font(Face.at(12, .semibold)).textCase(.uppercase).tracking(0.9)
                             .foregroundStyle(Ink.muted)
                             .frame(minHeight: 30)
                             .contentShape(Rectangle())
@@ -151,7 +151,7 @@ struct NotesView: View {
             .safeAreaInset(edge: .bottom, alignment: .trailing) {
                 Button(action: write) {
                     Image(systemName: "square.and.pencil")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(Face.at(20, .semibold))
                         .foregroundStyle(Ink.buttonInk)
                         .frame(width: 58, height: 58)
                         .background(Ink.button, in: Circle())
@@ -176,7 +176,7 @@ struct NotesView: View {
 
     private func label(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
+            .font(Face.at(12, .semibold)).textCase(.uppercase).tracking(0.9)
             .foregroundStyle(Ink.muted)
     }
 
@@ -244,7 +244,7 @@ struct ProjectChips: View {
                 Circle().fill(color).frame(width: 7, height: 7)
                 Text(title).lineLimit(1)
             }
-            .font(.subheadline.weight(.medium))
+            .font(Face.style(.subheadline, .medium))
             .foregroundStyle(on ? Ink.buttonInk : Ink.body)
             .padding(.horizontal, 12)
             .frame(minHeight: 34)
@@ -273,7 +273,7 @@ struct NoteRow: View {
                     // The tick undoes it: tap and the note goes back where it was.
                     Button(action: toggleDone) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(Face.at(22, .semibold))
                             .foregroundStyle(Ink.ok)
                             // Hit stop: it swells, holds for a few frames, then settles.
                             .keyframeAnimator(initialValue: CGFloat(1), trigger: hits) { view, scale in
@@ -295,11 +295,11 @@ struct NoteRow: View {
                     HStack(spacing: 6) {
                         if note.pinned {
                             Image(systemName: "pin.fill")
-                                .font(.caption2)
+                                .font(Face.style(.caption2))
                                 .foregroundStyle(Ink.violet)
                         }
                         Text(NoteText.title(note.text))
-                            .font(.body.weight(.semibold))
+                            .font(Face.style(.body, .semibold))
                             .strikethrough(note.done)
                             .foregroundStyle(note.done ? Ink.muted : Ink.body)
                             .lineLimit(1)
@@ -317,7 +317,7 @@ struct NoteRow: View {
                                 .lineLimit(1)
                         }
                     }
-                    .font(.subheadline)
+                    .font(Face.style(.subheadline))
                     .lineLimit(1)
                 }
                 .padding(.vertical, 3)
@@ -392,13 +392,13 @@ struct NotesChart: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
                 Text(picked.map { Self.count($0.amount) } ?? "\(Self.count(total)) in 30 days")
-                    .font(.footnote.weight(.semibold))
+                    .font(Face.style(.footnote, .semibold))
                     .foregroundStyle(picked == nil ? Ink.muted : Ink.head)
                     .monospacedDigit()
                 Spacer(minLength: 8)
                 if let picked {
                     Text(picked.date, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
-                        .font(.footnote)
+                        .font(Face.style(.footnote))
                         .foregroundStyle(Ink.head)
                 }
             }
@@ -459,7 +459,7 @@ struct NoteEditor: View {
         TextEditor(text: $note.text)
             .focused($typing)
             .scrollDismissesKeyboard(.interactively)
-            .font(.body)
+            .font(Face.style(.body))
             .foregroundStyle(Ink.body)
             .scrollContentBackground(.hidden)
             .padding(.horizontal, 12)
@@ -472,7 +472,7 @@ struct NoteEditor: View {
                         Text(note.edited, format: .dateTime.day().month(.abbreviated).hour().minute())
                         Text(NoteText.words(note.text) == 1 ? "1 word" : "\(NoteText.words(note.text)) words")
                     }
-                    .font(.caption2)
+                    .font(Face.style(.caption2))
                     .monospacedDigit()
                     .foregroundStyle(Ink.muted)
                 }
@@ -512,7 +512,7 @@ struct NoteEditor: View {
             .overlay(alignment: .bottom) {
                 if let madeToDo {
                     Text("Added to \(madeToDo)")
-                        .font(.subheadline.weight(.semibold))
+                        .font(Face.style(.subheadline, .semibold))
                         .foregroundStyle(Ink.buttonInk)
                         .padding(.horizontal, 16)
                         .frame(minHeight: 40)
@@ -566,7 +566,7 @@ struct ProjectNotes: View {
             .listRowSeparatorTint(Ink.line)
         } header: {
             Text("Notes")
-                .font(.system(size: 12, weight: .semibold)).textCase(.uppercase).tracking(0.9)
+                .font(Face.at(12, .semibold)).textCase(.uppercase).tracking(0.9)
                 .foregroundStyle(Ink.muted)
         }
     }

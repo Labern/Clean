@@ -116,10 +116,10 @@ struct LockView: View {
                     } label: {
                         VStack(spacing: 10) {
                             Image(systemName: lock.symbol)
-                                .font(.system(size: 44, weight: .light))
+                                .font(Face.at(44, .light))
                             if lock.refused {
                                 Text("Try again")
-                                    .font(.footnote.weight(.semibold))
+                                    .font(Face.style(.footnote, .semibold))
                             }
                         }
                         .foregroundStyle(Ink.violet)

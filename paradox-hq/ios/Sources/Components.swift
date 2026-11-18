@@ -24,13 +24,13 @@ struct Heading: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.system(size: 34, weight: .semibold))
+                    .font(Face.at(34, .semibold))
                     .tracking(-0.8)
                     .foregroundStyle(Ink.head)
                 Spacer(minLength: 8)
                 if !detail.isEmpty {
                     Text(detail)
-                        .font(.subheadline)
+                        .font(Face.style(.subheadline))
                         .foregroundStyle(Ink.muted)
                         .monospacedDigit()
                 }
@@ -64,13 +64,13 @@ struct SectionHeader: View {
         HStack(alignment: .firstTextBaseline) {
             // The Focus site's eyebrow: small, upper case, tracked out.
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(Face.at(12, .semibold))
                 .textCase(.uppercase)
                 .tracking(0.9)
             Spacer(minLength: 8)
             if !trailing.isEmpty {
                 Text(trailing)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(Face.at(12, .medium))
                     .monospacedDigit()
                     .contentTransition(.numericText())
             }
@@ -98,7 +98,7 @@ struct Pill: View {
 
     var body: some View {
         Text(text)
-            .font(.caption.weight(.semibold))
+            .font(Face.style(.caption, .semibold))
             .monospacedDigit()
             .lineLimit(1)
             .foregroundStyle(color)
@@ -157,7 +157,7 @@ struct InfoRow<Trailing: View>: View {
                 LogoTile(name: logo)
             } else if !symbol.isEmpty {
                 Image(systemName: symbol)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(Face.at(15, .semibold))
                     .foregroundStyle(symbolColor)
                     .frame(width: 32, height: 32)
                     .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -168,7 +168,7 @@ struct InfoRow<Trailing: View>: View {
                     .lineLimit(1)
                 if !detail.isEmpty {
                     Text(detail)
-                        .font(.caption)
+                        .font(Face.style(.caption))
                         .foregroundStyle(Ink.muted)
                         .lineLimit(1)
                 }
@@ -188,7 +188,7 @@ struct WhiteButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.headline)
+            .font(Face.style(.headline))
             .foregroundStyle(Ink.buttonInk)
             .frame(maxWidth: .infinity, minHeight: 50)
             .background(Ink.button, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -201,7 +201,7 @@ struct WhiteButtonStyle: ButtonStyle {
 struct QuietButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.subheadline.weight(.semibold))
+            .font(Face.style(.subheadline, .semibold))
             .foregroundStyle(Ink.body)
             .frame(maxWidth: .infinity, minHeight: 46)
             .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -225,7 +225,7 @@ struct Tick: View {
             if done {
                 Circle().fill(color)
                 Image(systemName: "checkmark")
-                    .font(.system(size: size * 0.46, weight: .bold))
+                    .font(Face.at(size * 0.46, .bold))
                     .foregroundStyle(Ink.buttonInk)
             }
         }
@@ -277,15 +277,15 @@ struct ExampleBanner: View {
                     .foregroundStyle(Ink.amber)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Example figures")
-                        .font(.subheadline.weight(.semibold))
+                        .font(Face.style(.subheadline, .semibold))
                         .foregroundStyle(Ink.body)
                     Text("Connect Stripe to see your own.")
-                        .font(.caption)
+                        .font(Face.style(.caption))
                         .foregroundStyle(Ink.muted)
                 }
                 Spacer(minLength: 8)
                 Text("Connect")
-                    .font(.subheadline.weight(.semibold))
+                    .font(Face.style(.subheadline, .semibold))
                     .foregroundStyle(Ink.buttonInk)
                     .padding(.horizontal, 14)
                     .frame(minHeight: 34)
@@ -321,7 +321,7 @@ struct Figure: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .font(.system(size: size, weight: .medium))
+            .font(Face.at(size, .medium))
             .tracking(-size * 0.025)
             .monospacedDigit()
             .contentTransition(.numericText(value: value))

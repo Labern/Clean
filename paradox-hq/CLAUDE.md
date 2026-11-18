@@ -92,17 +92,31 @@ per launch (`.rise`), the mark's "hunt" hit stop on Today (`.hunt`), the ground 
 under the status bar (`.statusBarFade`). "PARADOX Dashboard" on Today: the word sits on
 the wordmark's baseline, stepped back into the space the mark keeps for its ™.
 
-## Profile (top right of Today)
+## Today's header and the profile
+One row, one thing (`TodayHeader`): the mark and "Dashboard" on the left, the profile
+hard against the right edge, centred on each other; the photo is the mark's height.
+"Dashboard" is always in Graphik, on the wordmark's baseline. `ViewThatFits` gives
+narrower phones a smaller mark, then drops the word. Labern, 2026-11-18, of the first
+version (profile floating on a row of its own): "This is a mess."
 `Sources/Profile.swift`. `[photo] Labern / Founder & Director`, laid out like the Claude
-app's account row. Tap the photo to change it (`PhotosPicker`), move it in its circle
-(one finger drags, two fingers or the slider zoom: `Framing`, tested) and set the name.
-A new photo is framed on the face automatically (Vision). Tap the role for the list of
+app's account row. Tap the photo to change it (`PhotosPicker`), and place it in its
+circle: three sliders (zoom, left and right, up and down) and dragging or pinching the
+photo itself (`Framing`, tested). A tall photo has no room sideways until it is zoomed.
+A new photo is framed on the face automatically (Vision), or on head and shoulders. Tap the role for the list of
 hats (`Profile.roles`: Founder & Director, Writer, Programmer, Actor, Designer,
 Filmmaker) or "New role" to add one; the change lands with hit stop. Everything stays
 on the phone: the photo in Application Support/Profile, the rest in UserDefaults. **No
 photo of Labern is in this repo**, which is public. His photo sits on the Mac at
 `ios/Resources/Private/profile.jpg` (gitignored); a build made there carries it, and the
 app wears it, framed on the face, until he picks another on the phone.
+
+## Typeface
+`Sources/Typeface.swift`. Every font in the app is `Face.at(size, weight)` or
+`Face.style(.body, weight)`, never `.system` or `.body` directly, so Company › Settings ›
+Typeface (SF Pro / Graphik) changes the whole app. **Graphik's files are not in this
+repo** (licensed, and the repo is public): they sit on the Mac in
+`ios/Resources/Private/` (gitignored) and `Face.load` registers whatever the build
+carries. A build without them is in SF Pro and hides the setting.
 
 ## App icons
 Main icon = the app's own mark scaled to 90% width (`design/icons/classic-max-black.png`).

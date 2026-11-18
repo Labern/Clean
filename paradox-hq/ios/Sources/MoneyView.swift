@@ -17,7 +17,7 @@ struct MoneyView: View {
                     }
                     if let problem = money.problem {
                         Text(problem)
-                            .font(.footnote)
+                            .font(Face.style(.footnote))
                             .foregroundStyle(Ink.hazard)
                     }
                     Picker("Period", selection: $period) {
@@ -83,10 +83,10 @@ struct RevenueCard: View {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(picked.map { Self.label($0.date, period) } ?? "Revenue this \(period.title.lowercased())")
-                            .font(.footnote.weight(.semibold))
+                            .font(Face.style(.footnote, .semibold))
                             .foregroundStyle(picked == nil ? Ink.muted : Ink.head)
                         Text(money.money(picked?.amount ?? total))
-                            .font(.system(size: 38, weight: .medium)).tracking(-0.95)
+                            .font(Face.at(38, .medium)).tracking(-0.95)
                             .monospacedDigit()
                             .foregroundStyle(Ink.head)
                             .lineLimit(1)
@@ -96,7 +96,7 @@ struct RevenueCard: View {
                     VStack(alignment: .trailing, spacing: 3) {
                         ChangePill(change: Ledger.change(from: before, to: total))
                         Text("on \(period.before)")
-                            .font(.caption2)
+                            .font(Face.style(.caption2))
                             .foregroundStyle(Ink.muted)
                     }
                     .opacity(picked == nil ? 1 : 0)
@@ -142,10 +142,10 @@ struct RevenueCard: View {
     private func stat(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
-                .font(.caption)
+                .font(Face.style(.caption))
                 .foregroundStyle(Ink.muted)
             Text(value)
-                .font(.subheadline.weight(.semibold))
+                .font(Face.style(.subheadline, .semibold))
                 .monospacedDigit()
                 .foregroundStyle(Ink.body)
                 .lineLimit(1)
@@ -165,10 +165,10 @@ struct SubscriberTiles: View {
                 Card {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Subscribers")
-                            .font(.footnote.weight(.semibold))
+                            .font(Face.style(.footnote, .semibold))
                             .foregroundStyle(Ink.muted)
                         Text("\(subscribers)")
-                            .font(.system(size: 26, weight: .medium)).tracking(-0.65)
+                            .font(Face.at(26, .medium)).tracking(-0.65)
                             .monospacedDigit()
                             .foregroundStyle(Ink.head)
                     }
@@ -176,10 +176,10 @@ struct SubscriberTiles: View {
                 Card {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Monthly recurring")
-                            .font(.footnote.weight(.semibold))
+                            .font(Face.style(.footnote, .semibold))
                             .foregroundStyle(Ink.muted)
                         Text(money.money(mrr))
-                            .font(.system(size: 26, weight: .medium)).tracking(-0.65)
+                            .font(Face.at(26, .medium)).tracking(-0.65)
                             .monospacedDigit()
                             .foregroundStyle(Ink.head)
                             .lineLimit(1)
@@ -284,7 +284,7 @@ struct PaymentRow: View {
                     .strikethrough(payment.status == .refunded)
                 if payment.status != .succeeded {
                     Text(payment.status.label)
-                        .font(.caption)
+                        .font(Face.style(.caption))
                         .foregroundStyle(payment.status.color)
                 }
             }
@@ -306,17 +306,17 @@ struct PaymentDetail: View {
             VStack(spacing: 22) {
                 VStack(spacing: 8) {
                     Image(systemName: payment.status.symbol)
-                        .font(.system(size: 22, weight: .semibold))
+                        .font(Face.at(22, .semibold))
                         .foregroundStyle(payment.status.color)
                         .frame(width: 56, height: 56)
                         .background(Ink.surface, in: Circle())
                     Text(Money.string(payment.amount, currency: payment.currency, pennies: true))
-                        .font(.system(size: 42, weight: .medium)).tracking(-1.05)
+                        .font(Face.at(42, .medium)).tracking(-1.05)
                         .monospacedDigit()
                         .foregroundStyle(Ink.head)
                     Pill(text: payment.status.label, color: payment.status.color)
                     Text("\(payment.who) · \(payment.date.formatted(date: .abbreviated, time: .shortened))")
-                        .font(.subheadline)
+                        .font(Face.style(.subheadline))
                         .foregroundStyle(Ink.muted)
                         .multilineTextAlignment(.center)
                 }
@@ -413,7 +413,7 @@ struct ConnectStripe: View {
                                 .foregroundStyle(Ink.body)
                             ForEach(Self.reads, id: \.self) { name in
                                 Label(name, systemImage: "checkmark")
-                                    .font(.subheadline)
+                                    .font(Face.style(.subheadline))
                                     .foregroundStyle(Ink.muted)
                             }
                         }
@@ -433,7 +433,7 @@ struct ConnectStripe: View {
                             .background(Ink.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                         if let problem {
                             Text(problem)
-                                .font(.footnote)
+                                .font(Face.style(.footnote))
                                 .foregroundStyle(Ink.hazard)
                         }
                         Button {
@@ -445,7 +445,7 @@ struct ConnectStripe: View {
                         .disabled(working || key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
 
                         Text("A read-only key can't move money or change anything. It's stored in the Keychain on this phone.")
-                            .font(.footnote)
+                            .font(Face.style(.footnote))
                             .foregroundStyle(Ink.muted)
                     }
                 }
@@ -500,7 +500,7 @@ struct CustomersCard: View {
                             } label: {
                                 InfoRow(symbol: "person.2", title: "All customers") {
                                     Image(systemName: "chevron.right")
-                                        .font(.footnote.weight(.semibold))
+                                        .font(Face.style(.footnote, .semibold))
                                         .foregroundStyle(Ink.idle)
                                 }
                             }
@@ -566,10 +566,10 @@ struct CustomerDetail: View {
                     Card {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Paid in all")
-                                .font(.footnote.weight(.semibold))
+                                .font(Face.style(.footnote, .semibold))
                                 .foregroundStyle(Ink.muted)
                             Text(money.money(customer.total))
-                                .font(.system(size: 26, weight: .medium)).tracking(-0.65)
+                                .font(Face.at(26, .medium)).tracking(-0.65)
                                 .monospacedDigit()
                                 .foregroundStyle(Ink.head)
                         }
@@ -577,10 +577,10 @@ struct CustomerDetail: View {
                     Card {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Last paid")
-                                .font(.footnote.weight(.semibold))
+                                .font(Face.style(.footnote, .semibold))
                                 .foregroundStyle(Ink.muted)
                             Text(customer.last, format: .dateTime.day().month(.abbreviated).year(.twoDigits))
-                                .font(.system(size: 26, weight: .medium)).tracking(-0.65)
+                                .font(Face.at(26, .medium)).tracking(-0.65)
                                 .monospacedDigit()
                                 .foregroundStyle(Ink.head)
                                 .lineLimit(1)
@@ -634,7 +634,7 @@ struct ChargeCard: View {
         } label: {
             InfoRow(symbol: symbol, title: title, detail: "Opens Stripe") {
                 Image(systemName: "arrow.up.forward")
-                    .font(.footnote.weight(.semibold))
+                    .font(Face.style(.footnote, .semibold))
                     .foregroundStyle(Ink.idle)
             }
         }

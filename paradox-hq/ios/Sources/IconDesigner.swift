@@ -280,7 +280,7 @@ struct IconDesigner: View {
                     board.ask("save()")
                 } label: {
                     Text("Save")
-                        .font(.subheadline.weight(.semibold))
+                        .font(Face.style(.subheadline, .semibold))
                         .foregroundStyle(Ink.buttonInk)
                         .padding(.horizontal, 18)
                         .frame(minHeight: 36)
@@ -319,7 +319,7 @@ struct IconDesigner: View {
 
             if !board.problem.isEmpty {
                 Text(board.problem)
-                    .font(.footnote)
+                    .font(Face.style(.footnote))
                     .foregroundStyle(Ink.hazard)
                     .padding(.bottom, 8)
             }
@@ -357,13 +357,13 @@ struct IconDesigner: View {
                 key("chevron.left", "Previous mark") { board.ask("step(-1)") }
                 VStack(spacing: 2) {
                     Text(board.label)
-                        .font(.footnote.weight(.semibold))
+                        .font(Face.style(.footnote, .semibold))
                         .tracking(1.2)
                         .foregroundStyle(Ink.head)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
                     Text(board.total == 0 ? " " : "\(board.index + 1) of \(board.total)")
-                        .font(.caption2)
+                        .font(Face.style(.caption2))
                         .monospacedDigit()
                         .foregroundStyle(Ink.muted)
                 }
@@ -393,7 +393,7 @@ struct IconDesigner: View {
             HStack(spacing: 10) {
                 key("minus", "Fewer") { board.ask("count(-1)") }
                 Text("×\(board.count)")
-                    .font(.subheadline.weight(.semibold))
+                    .font(Face.style(.subheadline, .semibold))
                     .monospacedDigit()
                     .foregroundStyle(Ink.head)
                     .frame(minWidth: 30)
@@ -412,7 +412,7 @@ struct IconDesigner: View {
     private func key(_ symbol: String, _ name: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 15, weight: .semibold))
+                .font(Face.at(15, .semibold))
                 .foregroundStyle(Ink.body)
                 .frame(width: 44, height: 44)
                 .background(Ink.surface2, in: Circle())

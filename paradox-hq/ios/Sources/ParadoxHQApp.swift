@@ -11,9 +11,11 @@ struct ParadoxHQApp: App {
     @State private var shelf = IconShelf()
     @State private var profile = Profile()
     @AppStorage("appearance") private var appearance: Appearance = .auto
+    @AppStorage("typeface") private var typeface: Typeface = .system
     private let container: ModelContainer
 
     init() {
+        Face.load()
         do {
             container = try ModelContainer(for: Project.self, FocusItem.self, Deadline.self, Note.self)
         } catch {
@@ -35,6 +37,9 @@ struct ParadoxHQApp: App {
                 .environment(shelf)
                 .environment(profile)
                 .preferredColorScheme(appearance.scheme)
+                // Text with no font of its own follows the typeface too; a change redraws everything.
+                .font(Face.style(.body))
+                .id(typeface)
                 .tint(Ink.violet)
         }
         .modelContainer(container)

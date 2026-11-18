@@ -990,6 +990,24 @@ struct ProfileTests {
         #expect(abs(start.zoomed(by: 1.5, photo: portrait).zoom - 3) < 0.0001)
     }
 
+    /// The sliders run exactly as far as the photo can travel at the current zoom.
+    @Test func thePhotoHasRoomToMoveOnceItIsZoomed() {
+        let wide = Framing().room(in: portrait)
+        #expect(wide.x == 0.5...0.5)                       // a tall photo at full width: no room sideways
+        #expect(abs(wide.y.lowerBound - 1000.0 / 2800.0) < 0.0001)
+        let close = Framing(zoom: 2).room(in: portrait)
+        #expect(close.x == 0.25...0.75)
+        #expect(abs(close.y.upperBound - (1 - 1000.0 / 5600.0)) < 0.0001)
+        #expect(Framing().room(in: .zero).x == 0.5...0.5)
+    }
+
+    /// With no face found, an upright portrait starts on head and shoulders.
+    @Test func aPortraitStartsOnHeadAndShoulders() {
+        let start = Framing.standing(for: CGSize(width: 1122, height: 1402))
+        #expect(start.x == 0.5 && start.y == 0.25 && start.zoom == 2.2)
+        #expect(Framing.standing(for: CGSize(width: 1600, height: 1000)) == Framing())
+    }
+
     /// A new photo is framed on the face, with room for the hair.
     @Test func aFaceIsFramedWithRoomAroundIt() {
         let photo = CGSize(width: 1122, height: 1402)
