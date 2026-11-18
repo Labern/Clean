@@ -1,0 +1,14 @@
+Timestamp               Ty Process[PID:TID]
+2026-11-18 02:19:04.017 E  Icons[8129:8188] [com.apple.extensionkit:default] Failed to resolve host network app id to config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 81A870D3-3C21-4CAA-8EA0-433EB89EB2D4])
+2026-11-18 02:19:05.069 E  Icons[8129:8179] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access quirks from WebPrivacy.
+2026-11-18 02:19:05.070 E  Icons[8129:8179] [com.apple.WebKit:ResourceLoadStatistics] Failed to request known fingerprinting scripts from WebPrivacy: Error Domain=WebPrivacyErrorDomain Code=1001 "List data not found" UserInfo={NSLocalizedDescription=List data not found}
+2026-11-18 02:19:05.070 E  Icons[8129:8179] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access user agent string quirks from WebPrivacy.
+2026-11-18 02:19:05.482 E  Icons[8129:8179] [com.apple.WebKit:ResourceLoadStatistics] Failed to request query parameters from WebPrivacy.
+2026-11-18 02:19:06.482 E  Icons[8129:81d1] [com.apple.WebKit:ResourceLoadStatistics] WebContent[8140] Unable to filter tracking query parameters (missing data)
+2026-11-18 02:19:06.525 E  Icons[8129:81d1] [com.apple.WebKit:ResourceLoadStatistics] WebContent[8140] Unable to hide query parameters from script (missing data)
+2026-11-18 02:19:06.530 E  Icons[8129:8179] [com.apple.WebKit:ResourceLoadStatistics] Failed to request allowed query parameters from WebPrivacy.
+2026-11-18 02:19:06.909 E  Icons[8129:8179] [com.apple.WebKit:ResourceLoadStatistics] Failed to request restricted opener domains from WebPrivacy
+2026-11-18 02:19:51.068 E  Icons[8999:8aeb] [com.apple.extensionkit:default] Failed to resolve host network app id to config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 4E6EBCFE-BF80-495E-B43A-20C13B0447AD])
+2026-11-18 02:19:51.964 E  Icons[8999:8b95] [com.apple.WebKit:ResourceLoadStatistics] WebContent[9061] Unable to hide query parameters from script (missing data)
+2026-11-18 02:20:36.491 E  Icons[10816:9d66] [com.apple.extensionkit:default] Failed to resolve host network app id to config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 667587BB-4FC6-4A3B-9542-6C6BD3793C55])
+2026-11-18 02:20:37.395 E  Icons[10816:9dc3] [com.apple.WebKit:ResourceLoadStatistics] WebContent[10820] Unable to hide query parameters from script (missing data)
