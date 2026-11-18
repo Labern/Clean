@@ -4,6 +4,16 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.22.0 — 2026-11-18
+- **Super Smart Search looks inside.** A word that is only in a page's text, or in a window's, now finds it. The
+  dropdown shows the words around the match. A match in the name still comes first.
+- Pages: Safari and the Chrome family, read in the background after the bar opens (the most recent first, for at most
+  eight seconds; the rest next time). It needs the browser's "Allow JavaScript from Apple Events"; the page says so
+  when it's off. Private (incognito) tabs are never read.
+- Windows: the text of ordinary Mac apps (Terminal, Notes, TextEdit…), through Accessibility. Never a password field.
+  Apps built on Chromium (Electron) are skipped: asking them slows them down.
+- Nothing read is saved: it is kept in memory for a few minutes and dropped.
+
 ## 0.21.1 — 2026-11-18
 - **Super Smart Search goes where it says.** A tab is now found by its address at the moment you press Return (tabs
   move and close after the list was read), the browser brings itself forward, and if macOS still leaves it behind
