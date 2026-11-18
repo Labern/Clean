@@ -40,7 +40,8 @@ struct ProjectsView: View {
             .navigationDestination(for: Note.self) { NoteEditor(note: $0) }
             .sheet(isPresented: $adding) { ProjectEditor(project: nil) }
             .onAppear {
-                // The cloud build opens straight into the first project to photograph it.
+                // The cloud build photographs the Projects pane ("cards") and the first project.
+                if Launch.screen == "cards" { pane = .projects }
                 if Launch.screen == "project", path.isEmpty, let first = projects.first(where: { !$0.isPersonal }) {
                     pane = .projects
                     path.append(first)

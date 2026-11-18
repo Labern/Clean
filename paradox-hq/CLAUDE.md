@@ -18,7 +18,8 @@ and kept in the Keychain on the phone.
 - Cloud: `.github/workflows/paradox-hq-ios.yml` builds, tests and screenshots every
   screen on any push that touches `paradox-hq/ios/`, then force-pushes the results to
   `ci/paradox-hq` (`git fetch origin ci/paradox-hq`). `result.txt` holds the compiler
-  errors. Launch arguments: `-unlocked YES -sampleNotes YES -screen lock|today|projects|project|notes|note|money|company|widgets|designer`.
+  errors. Launch arguments: `-unlocked YES -sampleNotes YES -screen lock|today|projects|project|cards|notes|note|money|company|widgets|designer`
+  (`cards` is the Projects pane).
 
 ## The five tabs
 Today · To-do · Notes · Money · Company. (Six would push one behind a "More" button.)

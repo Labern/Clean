@@ -142,7 +142,7 @@ extension RootView {
     /// The tab to open on, which a launch argument can choose.
     static func opening() -> Screen {
         switch Launch.screen {
-        case "project": .projects
+        case "project", "cards": .projects
         case "note": .notes
         default: Screen(rawValue: Launch.screen) ?? .today
         }
