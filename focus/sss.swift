@@ -646,7 +646,7 @@ struct SSSLogo: View {
 struct SSSLens: View {
     var level: Double                                           // 0 empty … 1 full
     var height: CGFloat = 24
-    var ink: Color = .white
+    var ink: Color? = .white                                    // nil: the colour of the text around it (the sidebar)
     static var still: Bool { renderArgs.contains(where: { $0.hasPrefix("--render") || $0.hasPrefix("--selftest") }) || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
     struct Stem: Shape {                                        // the I and the handle: everything but the lens
         func path(in r: CGRect) -> Path {
@@ -680,6 +680,7 @@ struct SSSLens: View {
     var body: some View {
         let w = height * 30 / 22, line = max(1.4, height * 0.105), rad = 0.33 * height
         let lens = CGRect(x: 0.60 * w - rad, y: 0.47 * height - rad, width: rad * 2, height: rad * 2)
+        let ink: AnyShapeStyle = self.ink.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.foreground)
         TimelineView(.animation(minimumInterval: 1.0 / 60, paused: SSSLens.still)) { tl in
             let t = SSSLens.still ? 0.4 : tl.date.timeIntervalSinceReferenceDate
             ZStack(alignment: .topLeading) {
@@ -729,6 +730,7 @@ final class SSSModel: ObservableObject {
     @Published var expanded = false
     @Published var leaving = false                              // going to what it found: it lifts away
     @Published var shown = false                                // the bar has arrived
+    @Published var ready = false                                // the mark has had its moment: the pill is a search bar now
     @Published var shakes = 0                                   // Return with nothing to find: the bar shakes its head
     @Published var focus = 0                                    // bumped to put the caret back in the field
     @Published var tick = 0
@@ -942,11 +944,14 @@ struct SSSBar: View {
     var radius: CGFloat = 16
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 14) {
-                SSSLens(level: s.level, height: 20, ink: look.ink).opacity(s.match ? 1 : 0.35).animation(.easeOut(duration: 0.18), value: s.match)
-                SSSField(s: s, ink: look.nsInk).frame(height: 30)
+            let wide = s.ready || !s.query.isEmpty                           // the mark in the middle for a moment, as in the floating bar; then to its place
+            HStack(spacing: wide ? 14 : 0) {
+                SSSLens(level: s.level, height: 24, ink: look.ink).opacity(s.match ? 1 : 0.35).animation(.easeOut(duration: 0.18), value: s.match)
+                SSSField(s: s, ink: look.nsInk).frame(maxWidth: wide ? .infinity : 0.5).frame(height: 30).opacity(wide ? 1 : 0)
             }
+            .frame(maxWidth: .infinity, alignment: wide ? .leading : .center)
             .padding(.horizontal, 20).frame(height: 60)
+            .animation(.spring(response: 0.42, dampingFraction: 0.66), value: wide)
             if s.open {
                 Rectangle().fill(look.line).frame(height: 1)
                 if s.results.isEmpty {
@@ -983,13 +988,23 @@ struct SSSIsland: View {
     /// It stays a compact thing in the middle of the screen (his rule, 2026-11-18, of a 720-wide first try: "way too
     /// much. It cannot come anywhere near the far left"). On a 1512-wide screen its widest is under a third.
     static let idle: CGFloat = 104, typing: CGFloat = 250, full: CGFloat = 470, height: CGFloat = 60
+    /// How long the mark has the pill to itself before it opens into a search bar (his ask, 2026-11-18: "after a very
+    /// short period, it should immediately become a search bar… they don't have to type to do it"). A key opens it sooner.
+    static let moment: TimeInterval = 0.5
+    /// What the opened bar says until something is typed (his words, 2026-11-18).
+    static let ask = "Type what you're looking for, and I'll find it"
     var body: some View {
         let look = SSSLook.bar, typed = !s.query.trimmingCharacters(in: .whitespaces).isEmpty
+        let wide = typed || s.ready, asking = wide && s.query.isEmpty
+        let askWidth = (SSSIsland.ask as NSString).size(withAttributes: [.font: sssFont(15)]).width + 10
         let item = typed && s.results.indices.contains(s.selected) ? s.results[s.selected] : nil
         let textWidth = min(120, max(44, (s.query as NSString).size(withAttributes: [.font: sssFont(22)]).width + 16))
-        HStack(spacing: typed ? 11 : 0) {
+        HStack(spacing: wide ? 11 : 0) {
             SSSLens(level: s.level, height: 26, ink: look.ink).opacity(typed && item == nil ? 0.4 : 1)
-            SSSField(s: s, ink: look.nsInk).frame(width: !typed ? 0.5 : item == nil ? SSSIsland.typing - 110 : textWidth, height: 30).opacity(typed ? 1 : 0)   // there from the start (it takes the first key), unseen until something is typed
+            SSSField(s: s, ink: look.nsInk).frame(width: !wide ? 0.5 : asking ? askWidth : item == nil ? SSSIsland.typing - 110 : textWidth, height: 30).opacity(wide ? 1 : 0)   // there from the start (it takes the first key), unseen until the pill opens
+                .overlay(alignment: .leading) {
+                    if asking { Text(SSSIsland.ask).font(Font(sssFont(15))).foregroundColor(look.muted).lineLimit(1).fixedSize().padding(.leading, 3).allowsHitTesting(false).transition(.opacity) }
+                }
             if let item {
                 Rectangle().fill(Site.hex(0x3A3A3A)).frame(width: 1, height: 28)
                 HStack(spacing: 11) {
@@ -1014,13 +1029,14 @@ struct SSSIsland: View {
                 }
             }
         }
-        .padding(.leading, typed ? 20 : 0).padding(.trailing, typed ? 16 : 0)
-        .frame(width: !typed ? SSSIsland.idle : item == nil ? SSSIsland.typing : SSSIsland.full, height: SSSIsland.height, alignment: typed ? .leading : .center)
+        .padding(.leading, wide ? 20 : 0).padding(.trailing, wide ? 16 : 0)
+        .frame(width: !wide ? SSSIsland.idle : asking ? askWidth + 110 : item == nil ? SSSIsland.typing : SSSIsland.full, height: SSSIsland.height, alignment: wide ? .leading : .center)
         .background(Capsule().fill(Color.black))
         .overlay(Capsule().stroke(look.edge, lineWidth: 1))
         .clipShape(Capsule())
         .modifier(SSSShake(animatableData: CGFloat(s.shakes)))
-        .animation(.spring(response: 0.42, dampingFraction: 0.66), value: typed)
+        .animation(.spring(response: 0.42, dampingFraction: 0.66), value: wide)
+        .animation(.spring(response: 0.42, dampingFraction: 0.66), value: asking)
         .animation(.spring(response: 0.42, dampingFraction: 0.66), value: item?.id)
     }
 }
@@ -1070,6 +1086,7 @@ final class SSSController: NSObject, NSWindowDelegate {
     static let shared = SSSController()
     static let width: CGFloat = 600
     private var going = false
+    private var opens = 0                                       // which showing this is: a late timer from an earlier one does nothing
     let model = SSSModel()
     private var panel: SSSPanel?
     private var leaving = false
@@ -1097,8 +1114,14 @@ final class SSSController: NSObject, NSWindowDelegate {
         }
         leaving = false
         model.open = false; model.expanded = false; model.leaving = false; model.query = ""; model.update(reset: true); model.shown = false; model.focus &+= 1
+        model.ready = still; opens &+= 1
         p.makeKeyAndOrderFront(nil); p.orderFrontRegardless()
         if still { model.shown = true } else { withAnimation(.spring(response: 0.4, dampingFraction: 0.58)) { model.shown = true } }   // it bounces in
+        let mine = opens                                                        // the mark alone for a moment, then the search bar, typed in or not
+        DispatchQueue.main.asyncAfter(deadline: .now() + SSSIsland.moment) { [weak self] in
+            guard let self, self.opens == mine, self.shown else { return }
+            self.model.ready = true
+        }
         model.reload()                                                          // what was there last time is ready at once; the fresh list follows
     }
     /// Fades the bar out, then takes the panel away.
@@ -1177,6 +1200,8 @@ struct SSSPage: View {
             if renderArgs.contains("open") { s.open = true }
             if let q = renderArgs.first(where: { $0.hasPrefix("query=") }) { s.query = String(q.dropFirst(6)) }
             s.update(reset: true); s.reload(); s.focus &+= 1
+            s.ready = SSSLens.still
+            DispatchQueue.main.asyncAfter(deadline: .now() + SSSIsland.moment) { s.ready = true }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in s.reload() }   // back from System Settings
         .onReceive(NotificationCenter.default.publisher(for: SSSPage.focusBox)) { _ in s.focus &+= 1; s.reload() }
@@ -1225,7 +1250,7 @@ func renderSSS(to file: String) -> NSBitmapImageRep? {
         let until = Date().addingTimeInterval(6); while !done && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
     } else { SSSIndex.shared.refresh() }
     s.query = renderArgs.first { $0.hasPrefix("query=") }.map { String($0.dropFirst(6)) } ?? ""
-    s.update(reset: true); s.shown = true; if renderArgs.contains("open") { s.open = true; s.expanded = true }
+    s.update(reset: true); s.shown = true; s.ready = !renderArgs.contains("mark"); if renderArgs.contains("open") { s.open = true; s.expanded = true }
     let size = NSSize(width: SSSController.width + 100, height: SSSStage.pillCentre + SSSIsland.height / 2 + SSSStage.gap + CGFloat(s.limit) * 44 + 104)
     let view = SSSStage(s: s).padding(.top, 20)
         .background(Site.hex(0x4A4A4A))                                         // a mid grey stands in for the desktop behind
@@ -1357,6 +1382,21 @@ func sssSelfTest() -> Int32 {
           twins.count == 2 && Set(twins.compactMap { apart[$0.id] }) == ["Advanced DNS", "Account › Login"] && Set(h1.compactMap { byHead[$0.id] }) == ["paradoxica.co.uk", "Log in"]
           && SSSRank.tellApart(Array(desk.prefix(5))).isEmpty,
           "by address: \(twins.compactMap { apart[$0.id] }); by heading: \(h1.compactMap { byHead[$0.id] })")
+    // The mark has the pill to itself for a moment; then the pill is a search bar, with nothing typed.
+    func pill(_ opts: [String]) -> Int {
+        let saved = renderArgs; renderArgs = ["Focus", "--render-sss", ""] + opts
+        let rep = renderSSS(to: ""); renderArgs = saved
+        guard let rep else { return 0 }
+        let s = CGFloat(rep.pixelsWide) / (SSSController.width + 100), y = Int((20 + SSSStage.pillCentre - 22) * s); var n = 0
+        for x in 0..<rep.pixelsWide {
+            guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+            if 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent < 0.03 { n += 1 }
+        }
+        return Int(CGFloat(n) / s)
+    }
+    let alone = pill(["mark"]), bar = pill([])
+    check(222, "SSS: the mark alone for a moment, then a search bar without a key pressed", alone > 40 && alone <= Int(SSSIsland.idle) && bar > alone + 120 && bar <= Int(SSSIsland.full) && SSSIsland.moment <= 0.6,
+          "the pill is \(alone) pt across with the mark alone, \(bar) pt as a search bar, after \(SSSIsland.moment) s")
     let menuMark = SSSGlyph.image()
     check(217, "SSS: its mark draws for the menu", menuMark.isTemplate && menuMark.size.width > menuMark.size.height, "\(Int(menuMark.size.width)) × \(Int(menuMark.size.height))")
     SSSIndex.fixture = nil

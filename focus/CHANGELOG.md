@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.27.0 — 2026-11-18
+- **Super Smart Search opens itself.** The mark has the middle of the screen for half a second, then the pill widens
+  into a search bar that says "Type what you're looking for, and I'll find it". No key needed; typing opens it sooner.
+- **The living mark is in the Focus window too.** Its rim turns in the sidebar, and on its page the mark starts in
+  the middle of the box, then moves to its place.
+
 ## 0.26.0 — 2026-11-18
 - **Super Smart Search has its own look.** A small black pill in the centre of the screen with the IQ mark in its
   middle. Type, and it springs a little wider: your words, then the one answer. It stays compact: under a third of

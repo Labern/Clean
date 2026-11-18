@@ -1791,7 +1791,7 @@ struct DesktopView: View {
             VStack(spacing: 2) {
                 SideRow(title: "Session Editor", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
                         action: { m.selection = nil }, state: m.f.focused)
-                SideRow(title: "Super Smart Search", trailing: "", live: false, selected: m.selection == Page.sss, icons: [], symbol: nil, action: { m.selection = Page.sss }, pro: true, fits: true, mark: AnyView(SSSLogo(height: 15)))
+                SideRow(title: "Super Smart Search", trailing: "", live: false, selected: m.selection == Page.sss, icons: [], symbol: nil, action: { m.selection = Page.sss }, pro: true, fits: true, mark: AnyView(SSSLens(level: 0, height: 15, ink: nil)))   // the living mark: its rim turns here too
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard", action: { m.selection = Page.shortcuts }, pro: true)
                 SideRow(title: "Schedule", trailing: "", live: false, selected: m.selection == Page.schedule, icons: [], symbol: "calendar.badge.clock", action: { m.selection = Page.schedule }, pro: true)
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver", action: { m.selection = Page.tools }, pro: true)
