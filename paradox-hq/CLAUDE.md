@@ -137,8 +137,9 @@ the wordmark's baseline, stepped back into the space the mark keeps for its ™.
 
 ## The Work tab's header and the profile
 `TodayHeader`: the mark top left, the profile top right, their tops level; beneath both,
-the word Dashboard in Graphik, centred, with a white line running out either side
-(Labern's own design, 2026-11-18: "so it looks beautiful"). `ViewThatFits` gives
+the word Dashboard in Graphik, centred, with a line running out either side, all in
+grey (his design, 2026-11-18; the first version was white and "looks worse", so grey is
+on trial: he may remove it or make it a setting). `ViewThatFits` gives
 narrower phones a smaller mark. Of the first version, with the profile floating on a
 row of its own: "This is a mess."
 **Roles stack.** Under the name, every role being worn, one per line, as many or as

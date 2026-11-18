@@ -14,16 +14,17 @@ struct TodayHeader: View {
                 row(mark: 124)
                 row(mark: 100)
             }
-            // ——— Dashboard ———
-            HStack(spacing: 14) {
-                Rectangle().fill(Ink.head).frame(height: 1)
+            // ——— Dashboard ———  in grey: the white version shouted over the mark
+            // (Labern, 2026-11-18: "it looks worse. Try a grey variation.").
+            HStack(spacing: 12) {
+                Rectangle().fill(Ink.idle).frame(height: 1)
                 Text("Dashboard")
-                    .font(Face.graphik(17, .medium))
-                    .tracking(0.4)
-                    .foregroundStyle(Ink.head)
+                    .font(Face.graphik(15))
+                    .tracking(0.6)
+                    .foregroundStyle(Ink.muted)
                     .lineLimit(1)
                     .fixedSize()
-                Rectangle().fill(Ink.head).frame(height: 1)
+                Rectangle().fill(Ink.idle).frame(height: 1)
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Dashboard")
