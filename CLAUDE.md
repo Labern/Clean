@@ -1,10 +1,13 @@
 # CLAUDE.md
 
-## ALWAYS — end every reply with the live link(s)
-Every reply must END with clickable links to the thing currently being worked
-on ONLY (its live GitHub Pages URL, plus its code location) — NOT every
-project. The user corrected this: "the link of the thing we're working on,
-not all the links." Reference list, pick the relevant one(s):
+## ALWAYS — end every reply with the live link, never the code
+Every reply must END with the clickable link to the live site of the thing
+currently being worked on ONLY — NOT every project ("the link of the thing
+we're working on, not all the links"). **Never a link to the code**, and when
+the thing has no live page yet, no link at all (Labern, 2026-11-18: "I don't
+need a link to the code either. Send me the link to the site, or nothing.").
+Reference list, pick the relevant one (the Code lines are for you, not for
+replies):
 Flap Guard (cat flap chip lock):
 - https://labern.github.io/Clean/catflap/
 - Code: https://github.com/Labern/Clean/tree/master/catflap
