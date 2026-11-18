@@ -1799,7 +1799,7 @@ struct DesktopView: View {
                 }
                 .frame(maxHeight: CGFloat(m.modes.count + 1) * 36 + 4)    // only as tall as the modes: what follows sits right under them
             }
-            if UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true { ViewAsPanel(m: m) }
+            if !renderArgs.contains("clean"), UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true { ViewAsPanel(m: m) }   // renders: `clean` hides it
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
@@ -2907,7 +2907,7 @@ func renderDesktop(to file: String, mode: Bool) {
     let have = { (ids: [String]) in ids.filter { f.path($0) != nil } }
     f.createMode("AI", apps: have(["com.apple.Terminal", "com.apple.Safari"]))
     let second = f.createMode("Research", apps: have(["com.apple.Safari", "com.apple.Notes", "com.apple.Preview"]))
-    f.createMode("", apps: have(["com.apple.TextEdit"]))
+    f.createMode(renderArgs.contains("clean") ? "Writing" : "", apps: have(["com.apple.TextEdit"]))
     if let n = renderArgs.first(where: { $0.hasPrefix("modes=") }).flatMap({ Int($0.dropFirst(6)) }) {
         f.modes = []                                              // a given number of modes (sizing checks)
         for i in 0..<n { f.createMode("Mode \(i + 1)", apps: have(["com.apple.TextEdit", "com.apple.Safari"])) }
@@ -2933,7 +2933,7 @@ func renderDesktop(to file: String, mode: Bool) {
     if renderArgs.contains("trial=narrow") { DesktopView.renderTrial = .narrow }
     if renderArgs.contains("trial=wide") { DesktopView.renderTrial = .wide }
     if renderArgs.contains("trial=minimal") { DesktopView.renderTrial = .minimal }
-    m.update = ("9.9.9", DesktopModel.releasePage)               // so the Update button's place can be checked
+    if !renderArgs.contains("clean") { m.update = ("9.9.9", DesktopModel.releasePage) }   // the Update button's place (not in `clean` marketing shots)
     if renderArgs.contains("schedule") {                           // two example rules (never saved)
         Scheduler.shared.enabled = !renderArgs.contains("scheduleoff")
         Scheduler.shared.rules = [ScheduleRule(kind: "block", apps: ["com.hnc.Discord", "com.apple.Music", "com.apple.TV"].filter { f.path($0) != nil }, from: 9 * 60, to: 17 * 60 + 30)]

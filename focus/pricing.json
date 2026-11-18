@@ -19,7 +19,7 @@
   "tiers": {
     "free": {
       "name": "Basic",
-      "tagline": "Start and create {free_sessions_per_week} sessions per week",
+      "tagline": "{free_sessions_per_week} sessions per week",
       "monthly": 0,
       "price_note": "Free",
       "summary": "{free_sessions_per_week} sessions a week"
