@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.23.2 — 2026-11-18
+- **Return always reaches Super Smart Search.** It is now caught three ways (the key itself, the text system, the
+  field's action), and Focus.log says which one it was. The box no longer autocorrects or predicts what you type.
+- **No permission rows unless one is the reason.** The page shows only the bar. If a search finds nothing and a
+  permission is why, that one line appears.
+
 ## 0.23.0 — 2026-11-18
 - Error codes: every failure Focus can notice is recorded with a code (F101–F904, 27 in all) in
   ~/Library/Logs/Focus/errors.jsonl, with the version, the run and the log lines that led up to it. Table:
