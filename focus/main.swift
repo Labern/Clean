@@ -859,12 +859,16 @@ final class ModeRow: HoverView {
     override func draw(_ r: NSRect) {
         if hover { theme.hover.setFill(); NSBezierPath(roundedRect: bounds.insetBy(dx: 5, dy: 1), xRadius: 5, yRadius: 5).fill() }
         icon.draw(in: NSRect(x: 14, y: 5, width: icon.size.width, height: 16), from: .zero, operation: .sourceOver, fraction: enabled ? 1 : 0.5)
+        // Running: the name in your chosen colour (when it reads on the menu) and a little heavier, with a tick to match.
+        let chosen = hexColor(UserDefaults.standard.string(forKey: "iconColor") ?? "").flatMap { c in
+            DesktopView.contrast(c, theme.menuBackground) >= 3 ? c : nil } ?? theme.accent
         (name as NSString).draw(at: NSPoint(x: 58, y: 4.5),            // one fixed place: clear of three icons, whatever the mode holds
-                                withAttributes: [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: enabled ? theme.text : theme.faint])
+                                withAttributes: [.font: live ? NSFont.systemFont(ofSize: 13, weight: .semibold) : NSFont.menuFont(ofSize: 13),
+                                                 .foregroundColor: live ? chosen : enabled ? theme.text : theme.faint])
         let small: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 13), .foregroundColor: theme.faint]
         let k = key as NSString
         k.draw(at: NSPoint(x: bounds.width - 42 - k.size(withAttributes: small).width, y: 4.5), withAttributes: small)
-        let mark = live ? symbol(hover ? "stop.circle.fill" : "checkmark.circle.fill", [theme.onAccent, theme.accent])
+        let mark = live ? symbol(hover ? "stop.circle.fill" : "checkmark.circle.fill", [theme.onAccent, chosen])
                         : hover && enabled ? symbol("play.circle", [theme.text]) : nil
         mark?.draw(in: NSRect(x: bounds.width - 32, y: 5, width: 16, height: 16))
     }

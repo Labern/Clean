@@ -4,6 +4,12 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.19.18 — 2026-11-18
+- Sidebar: a running mode says "Active" instead of "On".
+- Menu: the running mode's name is in your chosen colour, a little bolder, with a tick in the same colour.
+- The free +10 reset works once only. Sessions → 0 now shows "You have run out of sessions."; a new "Re-arm +10" developer button brings the reset back for testing.
+- Tests: checks 8 and 9 no longer depend on your View As setting.
+
 ## 0.19.17 — 2026-11-17
 
 - **Focus always opens.** A stale copy from 19 hours earlier had survived the updates: every new launch saw it and quit,

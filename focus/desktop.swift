@@ -219,7 +219,8 @@ final class DesktopModel: ObservableObject {
     func devSpendAll() {
         let ud = UserDefaults.standard
         ud.set(DesktopModel.weekStart, forKey: "devSpentWeek")
-        ["devSpentBack", "focusGiftUsed", "focusGiftWeek", "focusGiftFrom", "outShownWeek"].forEach { ud.removeObject(forKey: $0) }
+        ["devSpentBack", "focusGiftWeek", "focusGiftFrom", "outShownWeek"].forEach { ud.removeObject(forKey: $0) }   // the gift stays used: it's once ever
+        outShownThisOpen = false                                       // so the run-out pop-up shows now
         viewAs("free"); showGiftIfDue()
     }
     func devRestore() {
@@ -227,6 +228,8 @@ final class DesktopModel: ObservableObject {
         ["devSpentWeek", "devSpentBack", "focusGiftWeek", "focusGiftFrom", "focusTokens", "focusWelcomeShown", "outShownWeek"].forEach { ud.removeObject(forKey: $0) }
         tick &+= 1
     }
+    /// Developer Panel: make the one-time free reset available again (only here; never by itself).
+    func devRearmGift() { ["focusGiftUsed", "focusGiftWeek", "focusGiftFrom"].forEach { UserDefaults.standard.removeObject(forKey: $0) }; tick &+= 1 }
     /// Developer Panel: show the early-adopter welcome as a new copy would.
     func devWelcome() { UserDefaults.standard.removeObject(forKey: "focusWelcomeShown"); giftKind = .welcome; giftShown = true }
     /// Basic, and this week's sessions are used up: starting one opens Upgrade instead (Use it > love it > run out >
@@ -1399,7 +1402,10 @@ struct ViewAsPanel: View {
                     devButton("Sessions → 0") { m.devSpendAll() }
                     devButton("Welcome") { m.devWelcome() }
                 }
-                devButton("Restore sessions and tokens") { m.devRestore() }
+                HStack(spacing: 6) {
+                    devButton("Re-arm +10") { m.devRearmGift() }
+                    devButton("Restore") { m.devRestore() }
+                }
                 HStack(spacing: 6) {                                         // the session sounds, without a session
                     devButton("Hear start") { Chime.play(start: true, force: true) }
                     devButton("Hear end") { Chime.play(start: false, force: true) }
@@ -1628,12 +1634,12 @@ struct SideRow: View {
                         .padding(.horizontal, 10).frame(height: 22).background(Capsule().fill(Site.ink))
                 }.buttonStyle(PressStyle()).help(live ? "End this session" : "Start this session")
             } else {
-            if live && state == nil { Text("On").font(Site.font(14, .medium)).foregroundColor(Site.paper).padding(.horizontal, 7).frame(height: 18).background(Capsule().fill(Site.ink)) }
+            if live && state == nil { Text("Active").font(Site.font(14, .medium)).foregroundColor(Site.paper).padding(.horizontal, 8).frame(height: 18).background(Capsule().fill(Site.ink)) }
             if hover, let hint, state != nil { Text(hint).font(Site.font(15)).foregroundColor(Site.head) }
             if let on = state {                                 // "On" in a session; nothing otherwise
                 if on {
-                    Text("On").font(Site.font(14, .medium)).foregroundColor(Site.paper)
-                        .frame(width: 38, height: 20).background(RoundedRectangle(cornerRadius: 10, style: .circular).fill(Site.ink))
+                    Text("Active").font(Site.font(14, .medium)).foregroundColor(Site.paper)
+                        .padding(.horizontal, 8).frame(height: 20).background(RoundedRectangle(cornerRadius: 10, style: .circular).fill(Site.ink))
                 }
             } else if !trailing.isEmpty || (hover && hint != nil) { Text(hover && hint != nil ? hint! : trailing).font(Site.font(15)).foregroundColor(live || (hover && hint != nil) ? Site.head : Site.muted) }   // nothing empty: a Pro tag ends where the ⌘ keys do
             }
@@ -3004,11 +3010,11 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     _ = NSApplication.shared
     var failures = 0
     // His real settings are never left changed by a test: saved now, put back at the end. Dev and gift state starts clear.
-    let keepPrefs = ["desktopViewAs", "devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "desktopButtonInkWhite",
+    let keepPrefs = ["desktopViewAs", "desktopViewAsOpen", "devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "desktopButtonInkWhite",
                 "focusTier", "focusPro", "desktopLook", "desktopPage", "desktopMemoryBar", "focusTokens", "focusWelcomeShown",
                 "focusGiftFrom", "outShownWeek"]
     let savedPrefs = Dictionary(uniqueKeysWithValues: keepPrefs.compactMap { k in UserDefaults.standard.object(forKey: k).map { (k, $0) } })
-    ["devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "focusGiftFrom", "focusTokens", "outShownWeek"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
+    ["desktopViewAs", "desktopViewAsOpen", "devSpentWeek", "devSpentBack", "focusGiftUsed", "focusGiftWeek", "focusGiftFrom", "focusTokens", "outShownWeek"].forEach { UserDefaults.standard.removeObject(forKey: $0) }
     defer { keepPrefs.forEach { k in if let v = savedPrefs[k] { UserDefaults.standard.set(v, forKey: k) } else { UserDefaults.standard.removeObject(forKey: k) } } }
     func check(_ n: Int, _ name: String, _ ok: Bool, _ detail: String) {
         guard only == nil || only!.contains(n) else { return }
@@ -3093,7 +3099,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     std.set(true, forKey: "focusPro"); let on = DesktopModel.licensed && DesktopModel.tier == .pro
     var proBox = true
     for look in ["dark", "light"] {                                  // the box is ink: white in Dark, black in Light
-        guard let r = guiRender(["trial=narrow", "look=\(look)"]) else { proBox = false; continue }
+        guard let r = guiRender(["trial=narrow", "look=\(look)", "clean"]) else { proBox = false; continue }
         let s = CGFloat(r.pixelsWide) / 1000
         proBox = proBox && (Int(190 * s)..<Int(260 * s)).contains { x in look == "dark" ? lum(r, x, Int(63 * s)) > 0.93 : lum(r, x, Int(63 * s)) < 0.07 }
     }
@@ -3106,7 +3112,7 @@ func guiSelfTest(only: Set<Int>?) -> Int32 {
     std.removeObject(forKey: "desktopButtonInkWhite"); let inkBlack = !DesktopView.buttonInkWhite
     var tinted = true
     for look in ["dark", "light"] {                                  // his colour wins in either look
-        guard let r = guiRender(["colour=8B5CF6", "trial=narrow", "look=\(look)"]) else { tinted = false; continue }
+        guard let r = guiRender(["colour=8B5CF6", "trial=narrow", "look=\(look)", "clean"]) else { tinted = false; continue }
         let s = CGFloat(r.pixelsWide) / 1000, c = r.colorAt(x: Int(400 * s), y: Int(45 * s))?.usingColorSpace(.sRGB)
         tinted = tinted && (c.map { abs($0.redComponent - 0.545) < 0.06 && abs($0.blueComponent - 0.965) < 0.06 } ?? false)
     }
