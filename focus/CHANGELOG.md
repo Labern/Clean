@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.25.0 — 2026-11-18
+- **Super Smart Search tells same-named things apart.** Two tabs both called "Fasthosts Control Panel" now read
+  "Fasthosts Control Panel  Advanced DNS" and "Fasthosts Control Panel  Account › Login": each page's own heading
+  when it differs, otherwise where in the site it is.
+- **Rows are tighter.** The name comes first and is never cut short for the note at the right; the note (the words
+  around a match, the site, or the app) takes what room is left.
+- Pressing the shortcut while already on its page in the Focus window puts the caret in that page's box, instead of
+  opening a second bar over it.
+
 ## 0.24.0 — 2026-11-18
 - **Super Smart Search shows what it has found as you type.** The matches appear under the bar, the best one
   chosen; Return opens it, Tab or the arrows move. Before, nothing showed until Tab, so it looked as if it wasn't

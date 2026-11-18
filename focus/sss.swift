@@ -35,6 +35,7 @@ struct SSSItem: Identifiable, Equatable {
     var order = 0                                               // 0 = in front right now; larger = used longer ago
     var text = ""                                               // what it says inside (a page's text, a window's), when it could be read
     var grep = ""                                               // the same, folded for searching
+    var heading = ""                                            // a page's own main heading, when it could be read
     var secret = false                                          // a private (incognito) tab: its contents are never read
     /// The address without its scheme, "www." or path: what people call the site.
     var host: String {
@@ -128,6 +129,39 @@ enum SSSRank {
             return (from > item.text.startIndex ? "…" : "") + cut + (to < item.text.endIndex ? "…" : "")
         }
         return nil
+    }
+    /// What an address says about where in the site it is: "/AdvancedDNS/1143680759" → "Advanced DNS",
+    /// "/Account/Login" → "Account › Login". Numbers and ids are left out.
+    static func pathLabel(_ url: String) -> String {
+        guard let c = URLComponents(string: url) else { return "" }
+        let parts = c.path.split(separator: "/").map(String.init).filter { p in
+            !p.isEmpty && p.count <= 28 && !p.allSatisfy { $0.isNumber } && !(p.count >= 12 && p.allSatisfy { $0.isHexDigit || $0 == "-" })
+        }.suffix(2).map { p -> String in
+            var w = (p as NSString).deletingPathExtension.replacingOccurrences(of: "-", with: " ").replacingOccurrences(of: "_", with: " ")
+            w = w.replacingOccurrences(of: "([a-z0-9])([A-Z])", with: "$1 $2", options: .regularExpression)
+            w = w.replacingOccurrences(of: "([A-Z]+)([A-Z][a-z])", with: "$1 $2", options: .regularExpression)
+            return w.prefix(1).uppercased() + w.dropFirst()
+        }
+        return parts.joined(separator: " › ")
+    }
+    /// Things in the list that share a name, told apart: by each page's own heading if they differ, else by where in
+    /// the site each is, else by its place among the tabs. Returns what to add after the name, by item id.
+    static func tellApart(_ items: [SSSItem]) -> [String: String] {
+        var out: [String: String] = [:]
+        let groups = Dictionary(grouping: items.filter { $0.kind != .app }, by: { fold($0.title) + "|" + $0.bundle })
+        for group in groups.values where group.count > 1 {
+            func distinct(_ v: [String]) -> Bool { Set(v).count == v.count && !v.contains("") }
+            let heads = group.map { h -> String in
+                let line = h.heading.split(whereSeparator: \.isNewline).first.map(String.init)?.trimmingCharacters(in: .whitespaces) ?? ""
+                return fold(line) == fold(h.title) ? "" : String(line.prefix(48))
+            }
+            let paths = group.map { pathLabel($0.url) }
+            let both = zip(heads, paths).map { h, p in h.isEmpty ? p : p.isEmpty || fold(h).contains(fold(p)) ? h : h + " · " + p }
+            let chosen = distinct(heads) ? heads : distinct(paths) ? paths : distinct(both) ? both
+                : group.map { $0.kind == .tab ? (both[group.firstIndex(of: $0) ?? 0].isEmpty ? "" : both[group.firstIndex(of: $0) ?? 0] + " · ") + "tab \($0.tab)" : "" }
+            for (i, item) in group.enumerated() where !chosen[i].isEmpty { out[item.id] = chosen[i] }
+        }
+        return out
     }
     /// The whole query against one item: every typed word must fit somewhere (its name, its app, its address, or inside it).
     static func score(_ query: String, _ item: SSSItem) -> Double? {
@@ -383,7 +417,7 @@ final class SSSIndex {
 
     // MARK: what's inside — a page's text, a window's text. Read in the background, kept in memory only, never saved.
 
-    private var inside: [String: (text: String, at: Date)] = [:]      // by address (tabs) or app + name (windows)
+    private var inside: [String: (text: String, head: String, at: Date)] = [:]      // by address (tabs) or app + name (windows)
     private var missed: [String: Date] = [:]                           // a page that wouldn't answer: not asked again for a while
     private var deepening = false
     /// Browsers whose "Allow JavaScript from Apple Events" is off: their pages can be found by name, not by contents.
@@ -401,7 +435,7 @@ final class SSSIndex {
     private static func key(_ i: SSSItem) -> String { i.kind == .tab ? "t|" + i.url : "w|\(i.pid)|\(i.title)" }
     private func withText(_ i: SSSItem) -> SSSItem {
         guard let t = inside[SSSIndex.key(i)], !i.secret else { return i }
-        var o = i; o.text = t.text; o.grep = SSSRank.fold(t.text); return o
+        var o = i; o.text = t.text; o.grep = SSSRank.fold(t.text); o.heading = t.head; return o
     }
     /// The words in a window: what its text fields and labels say. Never a password field, never a web view.
     static func windowText(_ root: AXUIElement) -> String {
@@ -422,7 +456,7 @@ final class SSSIndex {
         return String(out.suffix(20000))
     }
     static func pageScript(_ item: SSSItem) -> String {
-        let js = "location.href+String.fromCharCode(31)+((document.body&&document.body.innerText)||'').slice(0,20000)"
+        let js = "location.href+String.fromCharCode(31)+((document.querySelector('h1')||{}).innerText||'').slice(0,120)+String.fromCharCode(31)+((document.body&&document.body.innerText)||'').slice(0,20000)"
         let ask = safari.contains(item.bundle) ? "do JavaScript \"\(js)\" in tab \(item.tab) of window id \(item.window)"
                                                : "execute tab \(item.tab) of window id \(item.window) javascript \"\(js)\""
         return "with timeout of 3 seconds\ntell application id \"\(item.bundle)\"\nreturn (\(ask)) as text\nend tell\nend timeout"
@@ -448,7 +482,7 @@ final class SSSIndex {
         DispatchQueue.global(qos: .utility).async {
             var got: [String: String] = [:], lost: [String] = [], off: [String] = []
             let lock = NSLock()
-            for w in wins { if let el = els[w.id] { let t = SSSIndex.windowText(el); got[SSSIndex.key(w)] = t } }
+            for w in wins { if let el = els[w.id] { let t = SSSIndex.windowText(el); got[SSSIndex.key(w)] = "\u{1F}" + t } }
             var allowed = Set<String>()
             for b in Set(tabs.map(\.bundle)) { if SSSIndex.pagesAllowed(b) { allowed.insert(b) } else { off.append(b) } }
             let q = OperationQueue(); q.maxConcurrentOperationCount = 4
@@ -456,16 +490,19 @@ final class SSSIndex {
             for t in tabs where allowed.contains(t.bundle) {
                 q.addOperation {
                     guard Date() < deadline else { return }
-                    let parts = (SSSIndex.run(SSSIndex.pageScript(t), limit: 4, quiet: true).out ?? "").split(separator: "\u{1F}", maxSplits: 1, omittingEmptySubsequences: false)
+                    let parts = (SSSIndex.run(SSSIndex.pageScript(t), limit: 4, quiet: true).out ?? "").split(separator: "\u{1F}", maxSplits: 2, omittingEmptySubsequences: false)
                     lock.lock(); defer { lock.unlock() }
-                    if parts.count == 2, parts[0].trimmingCharacters(in: .whitespacesAndNewlines) == t.url { got[SSSIndex.key(t)] = String(parts[1]) }   // the page at that place is still that page
+                    if parts.count == 3, parts[0].trimmingCharacters(in: .whitespacesAndNewlines) == t.url { got[SSSIndex.key(t)] = String(parts[1]) + "\u{1F}" + String(parts[2]) }   // the page at that place is still that page
                     else { lost.append(SSSIndex.key(t)) }
                 }
             }
             q.waitUntilAllOperationsAreFinished()
             DispatchQueue.main.async {
                 let at = Date()
-                for (k, v) in got { self.inside[k] = (v, at) }
+                for (k, v) in got {                                       // heading, then text
+                    let p = v.split(separator: "\u{1F}", maxSplits: 1, omittingEmptySubsequences: false)
+                    self.inside[k] = (p.count == 2 ? String(p[1]) : v, p.count == 2 ? String(p[0]).trimmingCharacters(in: .whitespacesAndNewlines) : "", at)
+                }
                 for k in lost { self.missed[k] = at }
                 self.scriptOff = off.sorted(); self.items = self.items.map(self.withText); self.deepening = false
                 done()
@@ -623,6 +660,7 @@ final class SSSModel: ObservableObject {
     } } }
     private var loaded = Date.distantPast
     @Published var results: [SSSItem] = []
+    var apart: [String: String] = [:]                           // what tells same-named results apart, by id
     @Published var selected = 0
     @Published var open = false                                 // the list under the bar: while something is typed (or after Tab with nothing typed)
     @Published var shown = false                                // the bar has arrived
@@ -642,7 +680,8 @@ final class SSSModel: ObservableObject {
     /// Whether there is something to go to for what's typed (the mark dims when there isn't).
     var match: Bool { query.trimmingCharacters(in: .whitespaces).isEmpty || !results.isEmpty }
     func update(reset: Bool) {
-        results = Array(SSSRank.search(query, in: SSSIndex.shared.items).prefix(limit))
+        let found = Array(SSSRank.search(query, in: SSSIndex.shared.items).prefix(limit))
+        apart = SSSRank.tellApart(found); results = found
         // Nothing typed: most recent first, and the choice starts on the one before this one.
         if reset { selected = query.isEmpty && results.count > 1 ? 1 : 0; moved = false }
         selected = min(selected, max(0, results.count - 1))
@@ -767,6 +806,7 @@ struct SSSField: NSViewRepresentable {
 /// A name with the typed parts brighter.
 struct SSSTitle: View {
     let text: String, query: String, on: Bool, look: SSSLook
+    var detail = ""                                             // what tells it from another of the same name
     var body: some View {
         let marks = SSSRank.marks(query, in: text), base = on || marks.isEmpty ? look.ink : look.low
         var out = AttributedString(), at = text.startIndex
@@ -775,21 +815,27 @@ struct SSSTitle: View {
         }
         for r in marks where r.lowerBound >= at { piece(text[at..<r.lowerBound], false); piece(text[r], true); at = r.upperBound }
         piece(text[at...], false)
-        return Text(out).lineLimit(1).truncationMode(.tail)
+        if !detail.isEmpty {
+            var d = AttributedString("  " + detail); d.foregroundColor = on ? look.low : look.muted; d.font = Site.font(16); out += d
+        }
+        return Text(out).lineLimit(1).truncationMode(.middle)       // a long name keeps its start and what tells it apart
     }
 }
 
 struct SSSRow: View {
-    let item: SSSItem, icon: NSImage, query: String, on: Bool, look: SSSLook, pick: () -> Void
+    let item: SSSItem, icon: NSImage, query: String, on: Bool, look: SSSLook
+    var detail = ""
+    let pick: () -> Void
     @State private var hover = false
     var body: some View {
         HStack(spacing: 12) {
             Image(nsImage: icon).resizable().interpolation(.high).frame(width: 26, height: 26)
-            SSSTitle(text: item.title, query: query, on: on, look: look)
+            SSSTitle(text: item.title, query: query, on: on, look: look, detail: detail).layoutPriority(1)   // the name first: it is never cut for the sake of the right-hand note
             Spacer(minLength: 12)
-            let place = SSSRank.snippet(query, item) ?? (item.kind == .tab && !item.host.isEmpty ? item.host : item.app)   // found inside: the words around it
-            Text(place.count > 46 ? place.prefix(45) + "…" : place).font(Site.font(15)).foregroundColor(look.muted).lineLimit(1)
-                .fixedSize().layoutPriority(1)                                  // the site is short: a long name gives way first
+            // At the right: the words around a match found inside it; else the site (a tab) or the app (a window).
+            let place = SSSRank.snippet(query, item) ?? (item.kind == .tab && !item.host.isEmpty ? item.host : item.app)
+            Text(place.count > 40 ? place.prefix(39) + "…" : place).font(Site.font(15)).foregroundColor(look.muted).lineLimit(1).truncationMode(.tail)
+                .frame(minWidth: 70, alignment: .trailing)
             Image(systemName: "return").font(.system(size: 11, weight: .medium)).foregroundColor(look.muted).opacity(on ? 1 : 0).frame(width: 16)   // Return goes here
         }
         .padding(.horizontal, 14).frame(height: 42)
@@ -824,7 +870,7 @@ struct SSSBar: View {
                 } else {
                     VStack(spacing: 2) {
                         ForEach(Array(s.results.enumerated()), id: \.element.id) { i, item in
-                            SSSRow(item: item, icon: s.icon(item.path), query: s.query, on: i == s.selected, look: look) { s.onPick(item) }
+                            SSSRow(item: item, icon: s.icon(item.path), query: s.query, on: i == s.selected, look: look, detail: s.apart[item.id] ?? "") { s.onPick(item) }
                         }
                     }.padding(6)
                 }
@@ -923,6 +969,10 @@ extension Focus {
             if SSSController.shared.shown { SSSController.shared.hide() }
             openDesktop(); desktop.model?.selection = Page.sss; return
         }
+        // Already looking at its page in the Focus window: the caret goes to that box (a second bar over it would be two of the same thing).
+        if desktop.shown, NSApp.isActive, desktop.window?.isKeyWindow == true, desktop.model?.selection == Page.sss, !SSSController.shared.shown {
+            NotificationCenter.default.post(name: SSSPage.focusBox, object: nil); return
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { SSSController.shared.toggle() }
     }
     @objc func pickSSSKey(_ s: NSMenuItem) { sssMods = s.tag }
@@ -931,6 +981,7 @@ extension Focus {
 // MARK: its page in the desktop app — the header, the bar, one line
 
 struct SSSPage: View {
+    static let focusBox = Notification.Name("focus.sss.focusBox")
     @ObservedObject var m: DesktopModel
     @StateObject private var s = SSSModel()
     var body: some View {
@@ -963,6 +1014,7 @@ struct SSSPage: View {
             s.update(reset: true); s.reload(); s.focus &+= 1
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in s.reload() }   // back from System Settings
+        .onReceive(NotificationCenter.default.publisher(for: SSSPage.focusBox)) { _ in s.focus &+= 1; s.reload() }
     }
 }
 
@@ -991,6 +1043,8 @@ func sssFixture() -> [SSSItem] {
         win(3, "Downloads", "Finder", "com.apple.finder", 3),
         win(4, "Budget November.numbers", "Numbers", "com.apple.iWork.Numbers", 4),
         win(5, "Screenplay draft 4.pdf", "Preview", "com.apple.Preview", 5),
+        tab(6, "Fasthosts Control Panel", "https://admin.fasthosts.co.uk/AdvancedDNS/1143680759", 25),
+        tab(7, "Fasthosts Control Panel", "https://login.admin.fasthosts.co.uk/Account/Login?ReturnUrl=%2F", 26),
         SSSItem(id: "a:9", kind: .app, title: "Music", app: "Music", bundle: "com.apple.Music", pid: 9, path: path("com.apple.Music"), order: 6),
     ]
 }
@@ -1043,7 +1097,7 @@ func sssSelfTest() -> Int32 {
     let all = SSSRank.search("", in: desk)
     check(209, "SSS: nothing typed lists everything, most recent first", all.count == desk.count && all.map(\.order) == all.map(\.order).sorted(), "\(all.count) of \(desk.count)")
     let browser = found("chrome").isEmpty ? "safari" : "chrome"
-    check(210, "SSS: an app's name lists all of its tabs", found(browser).count == 5, "\(found(browser).count) for “\(browser)”")
+    check(210, "SSS: an app's name lists all of its tabs", found(browser).count == 7, "\(found(browser).count) for “\(browser)”")
     let rec = "71\u{1F}1\u{1F}1\u{1F}false\u{1F}Inbox\u{1F}https://mail.example.com/\u{1E}71\u{1F}1\u{1F}2\u{1F}true\u{1F}Docs, with a comma\u{1F}https://docs.example.com/a\u{1E}9\u{1F}2\u{1F}1\u{1F}true\u{1F}\u{1F}about:blank\u{1E}"
     let tabs = SSSIndex.parseTabs(rec, app: "Browser", bundle: "b", pid: 1, path: "/", front: 4)
     check(211, "SSS: a browser's answer becomes its tabs, the current one ranked with its window",
@@ -1124,6 +1178,14 @@ func sssSelfTest() -> Int32 {
     }
     let asBasic = pageInk(["viewas=free", "tier=free"]), asPro = pageInk(["licensed"])
     check(220, "SSS: on Basic its page is locked, with Upgrade to Pro; on Pro it is open", asBasic > asPro + 400 && asPro >= 0, "bright samples where the unlock line sits: Basic \(asBasic), Pro \(asPro)")
+    // Two tabs with one name are told apart: by where in the site each is, or by each page's own heading when it was read.
+    let twins = SSSRank.search("fasthosts", in: desk), apart = SSSRank.tellApart(twins)
+    var h1 = twins; for i in h1.indices { h1[i].heading = i == 0 ? "paradoxica.co.uk" : "Log in" }
+    let byHead = SSSRank.tellApart(h1)
+    check(221, "SSS: two tabs with the same name are told apart",
+          twins.count == 2 && Set(twins.compactMap { apart[$0.id] }) == ["Advanced DNS", "Account › Login"] && Set(h1.compactMap { byHead[$0.id] }) == ["paradoxica.co.uk", "Log in"]
+          && SSSRank.tellApart(Array(desk.prefix(5))).isEmpty,
+          "by address: \(twins.compactMap { apart[$0.id] }); by heading: \(h1.compactMap { byHead[$0.id] })")
     let menuMark = SSSGlyph.image()
     check(217, "SSS: its mark draws for the menu", menuMark.isTemplate && menuMark.size.width > menuMark.size.height, "\(Int(menuMark.size.width)) × \(Int(menuMark.size.height))")
     SSSIndex.fixture = nil
