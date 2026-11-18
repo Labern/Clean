@@ -6,6 +6,9 @@ import Charts
 /// right, and beneath them the word Dashboard with a white line either side.
 struct TodayHeader: View {
     let loading: Bool
+    /// Goes up each time a refresh finishes: the stars play.
+    var refreshed = 0
+    @State private var taps = 0
 
     var body: some View {
         VStack(spacing: 16) {
@@ -35,8 +38,12 @@ struct TodayHeader: View {
     /// The mark's top and the photo's top line up, however many roles are stacked under the name.
     private func row(mark: CGFloat) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            MarkView(width: mark)
-                .hunt()
+            // A tap plays the stars, left to right; so does a refresh finishing.
+            MarkView(width: mark, twinkle: taps + refreshed)
+                .hunt(taps)
+                .contentShape(Rectangle())
+                .onTapGesture { taps += 1 }
+                .accessibilityAddTraits(.isButton)
             if loading {
                 ProgressView()
             }
@@ -58,6 +65,8 @@ struct TodayView: View {
     @Query(sort: \Project.order) private var projects: [Project]
     @Query(sort: \Deadline.date) private var deadlines: [Deadline]
     @State private var connecting = false
+    /// Goes up each time a pull to refresh finishes.
+    @State private var refreshed = 0
     @State private var path = NavigationPath()
     @AppStorage(Layout.work.key) private var layout = ""
 
@@ -68,7 +77,7 @@ struct TodayView: View {
             ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    TodayHeader(loading: money.loading)
+                    TodayHeader(loading: money.loading, refreshed: refreshed)
                         .padding(.top, 6)
 
                     // The cards, in the order chosen: hold one and drop it on another to move it.
@@ -108,12 +117,15 @@ struct TodayView: View {
             .statusBarFade()
             .background(Ink.ground)
             .toolbar(.hidden, for: .navigationBar)
-            .refreshable {
+            .refreshable { @MainActor in
                 await money.refresh()
                 await feed.pull(into: context)
                 await site.check()
                 await work.refresh(force: true)
+                // Done: the mark's five stars play, with a haptic.
+                refreshed += 1
             }
+            .sensoryFeedback(.success, trigger: refreshed)
             .sheet(isPresented: $connecting) {
                 ConnectStripe()
             }

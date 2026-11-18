@@ -3,6 +3,10 @@ import SwiftUI
 /// ★★★★★ × PARADOX™, drawn from the logo's own outlines.
 struct MarkView: View {
     var width: CGFloat = 150
+    /// Each change plays the five stars once, left to right, as the website does.
+    var twinkle = 0
+    @State private var ticks = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Image("Mark")
@@ -11,7 +15,133 @@ struct MarkView: View {
             .aspectRatio(contentMode: .fit)
             .frame(width: width)
             .foregroundStyle(Ink.head)
+            // The mark is not redrawn: the stars are dimmed through a mask over the picture.
+            .keyframeAnimator(initialValue: 0.0, trigger: reduceMotion ? 0 : twinkle) { view, time in
+                view.mask { StarMask(time: time) }
+            } keyframes: { _ in
+                KeyframeTrack { LinearKeyframe(Twinkle.length, duration: Twinkle.length) }
+            }
+            // A tick under the finger as each star goes.
+            .sensoryFeedback(.selection, trigger: ticks)
+            .onChange(of: twinkle) {
+                guard !reduceMotion else { return }
+                Task {
+                    for _ in 0..<Twinkle.count {
+                        ticks += 1
+                        try? await Task.sleep(for: .seconds(Twinkle.stagger))
+                    }
+                }
+            }
             .accessibilityLabel("Five stars times PARADOX")
+    }
+}
+
+/// The website's twinkle (`.m-stars`, `@keyframes twinkle`), played once: each
+/// star dims and comes back, one after the other from the left.
+nonisolated enum Twinkle {
+    static let count = 5
+    /// How far a star dims.
+    static let low = 0.35
+    /// Seconds to dim, and the same again to come back (8% of the site's 6s loop).
+    static let dip = 0.48
+    /// Seconds between one star starting and the next.
+    static let stagger = 0.18
+    static var length: Double { stagger * Double(count - 1) + dip * 2 }
+
+    // Where the stars sit in mark.svg (viewBox 430.30 497.10 612.90 212.90):
+    // five cells 100 wide from x 430.85, above the wordmark.
+    static let first = (430.85 - 430.30) / 612.90
+    static let step = 100.0 / 612.90
+    static let band = 0.5
+    /// The stars alone are this much of the mark's width and height.
+    static var rowWidth: Double { first + step * Double(count) }
+    static let rowHeight = (593.5 - 497.10) / 212.90
+    static let markAspect = 212.90 / 612.90
+
+    /// The part of the mark holding one star.
+    static func cell(_ star: Int, in size: CGSize) -> CGRect {
+        CGRect(x: (first + step * Double(star)) * size.width, y: 0, width: step * size.width, height: band * size.height)
+    }
+
+    /// How much of a star shows, `time` seconds into the twinkle.
+    static func opacity(star: Int, at time: Double) -> Double {
+        let local = time - stagger * Double(star)
+        guard local > 0, local < dip * 2 else { return 1 }
+        let part = local < dip ? local / dip : 2 - local / dip      // 0 → 1 → 0
+        let eased = part * part * (3 - 2 * part)                    // ease in and out
+        return 1 - (1 - low) * eased
+    }
+}
+
+/// Shows all of the mark, each star as much as the twinkle says at this moment.
+private struct StarMask: View {
+    let time: Double
+
+    var body: some View {
+        Canvas { context, size in
+            var rest = Path(CGRect(origin: .zero, size: size))
+            for star in 0..<Twinkle.count {
+                let cell = Twinkle.cell(star, in: size)
+                rest.addRect(cell)
+                context.fill(Path(cell), with: .color(.black.opacity(Twinkle.opacity(star: star, at: time))))
+            }
+            context.fill(rest, with: .color(.black), style: FillStyle(eoFill: true))
+        }
+    }
+}
+
+/// The five stars alone: the mark itself, shown down to its stars.
+struct StarsRow: View {
+    var width: CGFloat = 84
+    var twinkle = 0
+
+    var body: some View {
+        let mark = width / Twinkle.rowWidth
+        MarkView(width: mark, twinkle: twinkle)
+            .frame(width: width, height: mark * Twinkle.markAspect * Twinkle.rowHeight, alignment: .topLeading)
+            .clipped()
+            .accessibilityHidden(true)
+    }
+}
+
+/// Pull to refresh, and five stars when it is done: they drop in under the
+/// status bar, twinkle once left to right, and go. For pages without the mark.
+struct RefreshStars: ViewModifier {
+    let action: @MainActor () async -> Void
+    @State private var done = 0
+    @State private var showing = false
+    /// Goes up once the stars are on screen, which is what sets them off.
+    @State private var play = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .refreshable { @MainActor in
+                await action()
+                done += 1
+            }
+            .overlay(alignment: .top) {
+                if showing {
+                    StarsRow(twinkle: play)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(Ink.surface2, in: Capsule())
+                        .overlay(Capsule().strokeBorder(Ink.line, lineWidth: 1))
+                        .padding(.top, 6)
+                        .transition(reduceMotion ? .opacity : .scale(scale: 0.8, anchor: .top).combined(with: .opacity))
+                        .allowsHitTesting(false)
+                }
+            }
+            .sensoryFeedback(.success, trigger: done)
+            .onChange(of: done) {
+                Task {
+                    withAnimation(.snappy(duration: 0.22)) { showing = true }
+                    try? await Task.sleep(for: .seconds(0.3))
+                    play += 1
+                    try? await Task.sleep(for: .seconds(Twinkle.length + 0.35))
+                    withAnimation(.easeOut(duration: 0.3)) { showing = false }
+                }
+            }
     }
 }
 
@@ -353,9 +483,11 @@ struct Rise: ViewModifier {
 }
 
 /// The Focus lens's "hunt then lock", on the mark: it pulls in, snaps out,
-/// holds a squash for a beat (hit stop), and settles. Once per launch.
+/// holds a squash for a beat (hit stop), and settles. Once per launch, and on a tap.
 struct Hunt: ViewModifier {
     static var played = false
+    /// Each tap on the mark plays it again.
+    var taps = 0
     @State private var beat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -372,6 +504,9 @@ struct Hunt: ViewModifier {
                 }
             }
             .sensoryFeedback(.impact(weight: .light), trigger: beat)
+            .onChange(of: taps) {
+                if !reduceMotion { beat += 1 }
+            }
             .onAppear {
                 guard !Hunt.played, !reduceMotion else { return }
                 Hunt.played = true
@@ -404,5 +539,6 @@ extension View {
     func statusBarFade() -> some View { modifier(StatusBarFade()) }
     func figure(_ size: CGFloat, value: Double) -> some View { modifier(Figure(size: size, value: value)) }
     func rise(_ step: Int) -> some View { modifier(Rise(step: step)) }
-    func hunt() -> some View { modifier(Hunt()) }
+    func hunt(_ taps: Int = 0) -> some View { modifier(Hunt(taps: taps)) }
+    func refreshStars(_ action: @escaping @MainActor () async -> Void) -> some View { modifier(RefreshStars(action: action)) }
 }

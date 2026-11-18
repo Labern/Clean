@@ -1768,3 +1768,32 @@ struct VaultTests {
         #expect(IconShelf.toPutBack(worn: "AppIcon-Custom-gone0000", current: nil, installed: built) == nil)
     }
 }
+
+/// The mark's five stars, played left to right as on the website.
+struct TwinkleTests {
+    @Test func eachStarDimsInTurnAndComesBack() {
+        // Before it starts and once it is over, every star is whole.
+        for star in 0..<Twinkle.count {
+            #expect(Twinkle.opacity(star: star, at: 0) == 1)
+            #expect(abs(Twinkle.opacity(star: star, at: Twinkle.length) - 1) < 0.0001)
+            // Each is at its dimmest half a dip after its own start.
+            let lowest = Twinkle.stagger * Double(star) + Twinkle.dip
+            #expect(abs(Twinkle.opacity(star: star, at: lowest) - Twinkle.low) < 0.0001)
+        }
+        // Left to right: when the first is at its dimmest the last has not begun.
+        #expect(Twinkle.opacity(star: 4, at: Twinkle.dip) == 1)
+        #expect(Twinkle.opacity(star: 1, at: Twinkle.dip) < 1)
+        #expect(abs(Twinkle.length - 1.68) < 0.0001)
+    }
+
+    @Test func theCellsCoverTheStarsAndNothingElse() {
+        let size = CGSize(width: 612.9, height: 212.9)      // the mark's own units
+        let cells = (0..<Twinkle.count).map { Twinkle.cell($0, in: size) }
+        // Side by side with no gaps, starting at the mark's left edge.
+        #expect(abs(cells[0].minX - 0.55) < 0.01)
+        for (left, right) in zip(cells, cells.dropFirst()) { #expect(abs(left.maxX - right.minX) < 0.001) }
+        // They stop before the × (which starts 26 units after the fifth star) and above the wordmark.
+        #expect(abs(cells[4].maxX - 500.55) < 0.01)
+        #expect(cells.allSatisfy { $0.minY == 0 && $0.maxY < 130 })
+    }
+}

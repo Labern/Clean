@@ -55,7 +55,7 @@ struct MoneyView: View {
             .statusBarFade()
             .background(Ink.ground)
             .toolbar(.hidden, for: .navigationBar)
-            .refreshable { await money.refresh() }
+            .refreshStars { await money.refresh() }
             .navigationDestination(for: Payment.self) { PaymentDetail(payment: $0) }
             .navigationDestination(for: Customer.self) { CustomerDetail(customer: $0) }
             .sheet(isPresented: $connecting) { ConnectStripe() }

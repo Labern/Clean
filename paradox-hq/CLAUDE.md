@@ -323,6 +323,15 @@ The Focus site's tokens (black, `#1A1A1A` surfaces, white and greys, one hazard 
 large and white with a white line under. Solid white is the one primary button on a
 screen. SF Pro throughout. Dark only: the brand is the black box.
 
+**The five stars twinkle, left to right, as on the website** (its `.m-stars` /
+`@keyframes twinkle`: each star dims to 35% and back, 0.18s apart; `Twinkle`). A tap
+on the mark plays it (with the hunt and a tick per star), and so does a pull to refresh
+finishing on the Work tab. Pages without the mark use `.refreshStars { }` in place of
+`.refreshable { }`: five stars drop in under the status bar, twinkle once and go
+(`StarsRow` is the mark itself shown down to its stars). The stars are dimmed through
+a mask over the picture (`StarMask`), using where they sit in `mark.svg`: if the
+master is ever swapped, check `Twinkle.first`/`step`. Reduce Motion: none of it.
+
 **The mark is never redrawn.** `Mark.imageset/mark.svg` is ★★★★★ × over PARADOX with
 ™ top right, built from the outlines in `logo-experiments/logos.js`. The proper
 masters are on the Mac at `~/Documents/Codex/2026-09-17/t/outputs/PARADOX_Logo_Library/`;

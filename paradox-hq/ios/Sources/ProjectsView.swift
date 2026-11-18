@@ -95,7 +95,7 @@ struct ProjectsView: View {
         .scrollDismissesKeyboard(.interactively)
         .statusBarFade()
         .background(Ink.ground)
-        .refreshable { await feed.pull(into: context) }
+        .refreshStars { await feed.pull(into: context) }
     }
 
     private var summary: String {

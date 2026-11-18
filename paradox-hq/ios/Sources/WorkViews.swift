@@ -509,7 +509,7 @@ struct WorkLog: View {
             }
         }
         .sensoryFeedback(.selection, trigger: open.count)
-        .refreshable { await work.refresh(force: true) }
+        .refreshStars { await work.refresh(force: true) }
     }
 
     /// "5 added · 2 fixed · 1 styled": the day in a line.
