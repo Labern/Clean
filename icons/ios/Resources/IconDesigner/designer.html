@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Icon designer</title>
+<!-- The artboard of PARADOX's icon designer. The marks and the move / spin /
+     scale handling come from logo-experiments (logos.js is a copy of its
+     generated outlines: never edit it here). The app draws the controls and
+     talks to this page through window.D; the page answers through the
+     "designer" message handler. Everything is a fraction of the board's side,
+     so what is saved at 1024px is exactly what was on screen. -->
+<style>
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:transparent;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+#board{position:absolute;overflow:hidden;touch-action:none}
+.tile{position:absolute;transform:translate(-50%,-50%) rotate(var(--r)) scale(var(--s));
+  transform-origin:50% 50%;will-change:transform,left,top}
+.tile img{display:block;width:100%;height:100%;pointer-events:none;-webkit-user-drag:none}
+.guide{position:absolute;display:none;opacity:.45;pointer-events:none}
+#gx{left:50%;top:0;bottom:0;width:1px;margin-left:-.5px}
+#gy{top:50%;left:0;right:0;height:1px;margin-top:-.5px}
+</style>
+</head>
+<body>
+<div id="board"><div id="field"></div><div class="guide" id="gx"></div><div class="guide" id="gy"></div></div>
+<script src="logos.js"></script>
+<script>
+(function(){
+  const L=window.LOGOS, board=document.getElementById('board'), field=document.getElementById('field'),
+        gx=document.getElementById('gx'), gy=document.getElementById('gy');
+
+  /* ground and the ink that reads on it */
+  const GROUNDS=[['#000000','#ffffff'],['#ffffff','#000000'],['#594992','#ffffff'],
+                 ['#A78BFA','#000000'],['#5FD7AF','#000000'],['#ED4E3B','#ffffff']];
+  const HOME={i:0,g:0,x:.5,y:.5,s:1,r:0,n:1};
+  const T=Object.assign({},HOME);
+  let raw=0;                       // the angle before it snaps
+  let S=1;                         // the board's side in px
+
+  const post=m=>{ try{ window.webkit.messageHandlers.designer.postMessage(m); }catch(e){} };
+  const logo=()=>L[T.i];
+  const uri=s=>'data:image/svg+xml;charset=utf-8,'+encodeURIComponent(s);
+  function svgText(l, ink, w, h){
+    return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" `+
+           `viewBox="${l.vb}" width="${w||l.w}" height="${h||l.h}"><g fill="${ink}">${l.d}</g></svg>`;
+  }
+  /* a mark starts at 72% of the board along its longer side */
+  function base(){ const l=logo(), A=l.w/l.h, h=Math.min(.72,.72/A); return {w:h*A,h:h}; }
+  const spread=()=>{ const l=logo(); return (l.w/l.h)<.3 ? 1.7 : 1.3; };
+  /* where each copy sits: spread along the mark's own rotated axis */
+  function places(){
+    const b=base(), a=T.r*Math.PI/180, step=b.w*T.s*spread(), out=[];
+    for(let c=0;c<T.n;c++){ const off=(c-(T.n-1)/2)*step; out.push([T.x+Math.cos(a)*off, T.y+Math.sin(a)*off]); }
+    return out;
+  }
+
+  function layout(){
+    S=Math.min(innerWidth,innerHeight);
+    board.style.cssText=`left:${(innerWidth-S)/2}px;top:${(innerHeight-S)/2}px;width:${S}px;height:${S}px;`+
+                        `background:${GROUNDS[T.g][0]}`;
+    gx.style.background=gy.style.background=GROUNDS[T.g][1];
+  }
+  function build(){
+    layout();
+    const b=base(), art=uri(svgText(logo(),GROUNDS[T.g][1]));
+    field.innerHTML='';
+    for(const [x,y] of places()){
+      const t=document.createElement('div'); t.className='tile';
+      t.style.cssText=`left:${x*S}px;top:${y*S}px;width:${b.w*S}px;height:${b.h*S}px;--r:${T.r}deg;--s:${T.s}`;
+      const im=document.createElement('img'); im.src=art; im.alt=''; im.draggable=false;
+      t.appendChild(im); field.appendChild(t);
+    }
+    tell();
+  }
+  /* while a finger is down, move what is on screen instead of rebuilding it */
+  function paint(){
+    const p=places(), tiles=field.children;
+    for(let c=0;c<tiles.length;c++){
+      const t=tiles[c];
+      t.style.left=(p[c][0]*S)+'px'; t.style.top=(p[c][1]*S)+'px';
+      t.style.setProperty('--r',T.r+'deg'); t.style.setProperty('--s',T.s);
+    }
+  }
+  function tell(){
+    post({type:'state', label:logo().label, index:T.i, total:L.length, ground:T.g, count:T.n,
+          angle:Math.round(T.r), moved:JSON.stringify(T)!==JSON.stringify(Object.assign({},HOME,{i:T.i,g:T.g}))});
+  }
+
+  /* ── one finger moves, two fingers size and spin ─────────────────────── */
+  const MIN=.05, MAX=40, fingers=new Map();
+  let last=null;                   // {cx,cy,d,a} of the gesture a moment ago
+  function reading(){
+    const p=[...fingers.values()];
+    if(p.length===1) return {cx:p[0].x, cy:p[0].y, d:0, a:0};
+    const dx=p[1].x-p[0].x, dy=p[1].y-p[0].y;
+    return {cx:(p[0].x+p[1].x)/2, cy:(p[0].y+p[1].y)/2, d:Math.hypot(dx,dy), a:Math.atan2(dy,dx)*180/Math.PI};
+  }
+  let snapped={x:false,y:false,r:false};
+  function settle(){
+    /* the centre lines and every 45° take hold when close, with a tick */
+    const now={x:Math.abs(T.x-.5)<.012, y:Math.abs(T.y-.5)<.012, r:false};
+    const near=Math.round(raw/45)*45;
+    if(Math.abs(raw-near)<3.5){ T.r=near; now.r=true; } else T.r=raw;
+    if(now.x) T.x=.5; if(now.y) T.y=.5;
+    if((now.x&&!snapped.x)||(now.y&&!snapped.y)||(now.r&&!snapped.r)) post({type:'tick'});
+    snapped=now;
+    gx.style.display=now.x&&fingers.size?'block':'none';
+    gy.style.display=now.y&&fingers.size?'block':'none';
+  }
+  let free={x:.5,y:.5};            // where the mark would be without the snap
+  board.addEventListener('pointerdown',e=>{
+    if(fingers.size>=2) return;
+    fingers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(fingers.size===1){ free={x:T.x,y:T.y}; raw=T.r; }
+    last=reading(); e.preventDefault();
+  });
+  addEventListener('pointermove',e=>{
+    if(!fingers.has(e.pointerId)) return;
+    fingers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    const now=reading();
+    if(last && (last.d>0)===(now.d>0)){
+      free.x+=(now.cx-last.cx)/S; free.y+=(now.cy-last.cy)/S;
+      if(now.d>0 && last.d>0){
+        const f=Math.max(MIN/T.s,Math.min(MAX/T.s,now.d/last.d));
+        const r=board.getBoundingClientRect(), px=(now.cx-r.left)/S, py=(now.cy-r.top)/S;
+        T.s*=f; free.x=px+(free.x-px)*f; free.y=py+(free.y-py)*f;      // size about the fingers
+        let turn=now.a-last.a; if(turn>180) turn-=360; if(turn<-180) turn+=360;
+        raw+=turn;
+      }
+      T.x=free.x; T.y=free.y; settle(); paint();
+    }
+    last=now;
+  });
+  function lift(e){
+    if(!fingers.delete(e.pointerId)) return;
+    last=fingers.size?reading():null;
+    if(!fingers.size){ gx.style.display=gy.style.display='none'; raw=T.r; tell(); }
+  }
+  addEventListener('pointerup',lift);
+  addEventListener('pointercancel',lift);
+  addEventListener('resize',build);
+
+  /* ── saving: redrawn at full size, never a screenshot ────────────────── */
+  async function render(N){
+    const c=document.createElement('canvas'); c.width=c.height=N;
+    const ctx=c.getContext('2d');
+    ctx.fillStyle=GROUNDS[T.g][0]; ctx.fillRect(0,0,N,N);
+    const b=base(), w=b.w*N*T.s, h=b.h*N*T.s;
+    /* the outline is handed over at the size it will be drawn, so it is cut once */
+    const k=Math.min(1, 6000/Math.max(w,h));
+    const img=new Image(); img.src=uri(svgText(logo(),GROUNDS[T.g][1],Math.ceil(w*k),Math.ceil(h*k)));
+    await img.decode();
+    for(const [x,y] of places()){
+      ctx.save(); ctx.translate(x*N,y*N); ctx.rotate(T.r*Math.PI/180);
+      ctx.drawImage(img,-w/2,-h/2,w,h); ctx.restore();
+    }
+    return c;
+  }
+
+  /* ── what the app can ask for ────────────────────────────────────────── */
+  window.D={
+    step(d){ T.i=(T.i+d+L.length)%L.length; build(); },
+    pick(i){ T.i=Math.max(0,Math.min(L.length-1,i)); build(); },
+    ground(i){ T.g=Math.max(0,Math.min(GROUNDS.length-1,i)); build(); },
+    count(d){ T.n=Math.max(1,Math.min(9,T.n+d)); build(); },
+    turn(deg){ T.r=((Math.round(T.r/deg)*deg+deg)%360+360)%360; if(T.r>180) T.r-=360; raw=T.r; build(); },
+    size(f){ T.s=Math.max(MIN,Math.min(MAX,T.s*f)); build(); },
+    reset(){ Object.assign(T,HOME,{i:T.i,g:T.g}); raw=0; build(); },
+    recipe(){ return JSON.stringify(Object.assign({id:logo().id},T)); },
+    load(text){ try{ const r=JSON.parse(text), i=L.findIndex(l=>l.id===r.id);
+                     Object.assign(T,HOME,r,{i:i<0?0:i}); delete T.id; raw=T.r; build(); }catch(e){} },
+    async save(){
+      try{ const c=await render(1024);
+           post({type:'saved', png:c.toDataURL('image/png'), recipe:window.D.recipe(), label:logo().label}); }
+      catch(e){ post({type:'failed', message:String(e)}); }
+    },
+    grounds:GROUNDS, render, state:T
+  };
+  build();
+  post({type:'ready', grounds:GROUNDS.map(g=>g[0])});
+})();
+</script>
+</body>
+</html>

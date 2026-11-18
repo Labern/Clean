@@ -1,0 +1,74 @@
+# XcodeGen spec — the .xcodeproj is GENERATED from this file and never committed.
+# Regenerate any time with:  xcodegen generate   (ios-run does it for you)
+name: Icons
+options:
+  bundleIdPrefix: com.labern
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  # Icons made in the app's designer are baked in here, before the project is
+  # written: the script fills Custom.xcconfig, which may not exist until it runs.
+  preGenCommand: sh design/bake_custom.sh
+  disabledValidations: [missingConfigFiles]
+settings:
+  base:
+    SWIFT_VERSION: "6.0"                 # Swift 6 language mode — data races are compile errors
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_APPROACHABLE_CONCURRENCY: YES  # Xcode 26+: main-actor-by-default ergonomics
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    CODE_SIGN_STYLE: Automatic
+    PRODUCT_BUNDLE_IDENTIFIER: com.labern.paradox.icons
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    TARGETED_DEVICE_FAMILY: "1,2"        # iPhone + iPad
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    SWIFT_EMIT_LOC_STRINGS: YES
+  configs:
+    Debug:
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+    Release:
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+      SWIFT_COMPILATION_MODE: wholemodule
+targets:
+  Icons:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+      - path: Resources
+    configFiles:
+      Debug: Custom.xcconfig
+      Release: Custom.xcconfig
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "$(CUSTOM_APPICONS)"
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Icons
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: Ground
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        ITSAppUsesNonExemptEncryption: false
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: true
+    scheme:
+      testTargets: [IconsTests]
+      gatherCoverageData: true
+  IconsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies:
+      - target: Icons

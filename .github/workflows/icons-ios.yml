@@ -1,0 +1,105 @@
+name: icons iOS
+
+# The Labern/iOS cloud build (ci/ios.yml), specialised for icons/ios:
+# generate with XcodeGen (which bakes any icon in design/custom/), build, run
+# the tests, then screenshot the shelf and the designer (-screen designer) in
+# dark, light and large text. Results are force-pushed to the ci/icons branch
+# so a cloud session can read them with plain git.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'icons/ios/**'
+      - '.github/workflows/icons-ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: icons-ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: icons/ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          mkdir -p out
+          { echo "commit ${GITHUB_SHA}"; xcodebuild -version; } | tee out/ci.txt
+          brew install xcodegen >/dev/null 2>&1 || brew install xcodegen
+          UDID="$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          devs=[(k,x) for k,v in d["devices"].items() if "iOS" in k for x in v if x["name"].startswith("iPhone")]
+          devs.sort(key=lambda t: t[0])
+          pref=[t for t in devs if t[1]["name"]=="iPhone 17 Pro"] or devs
+          print(pref[-1][1]["udid"])')"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl list devices | grep "$UDID" | tee -a out/ci.txt
+
+      - name: Generate project
+        run: xcodegen generate --quiet
+
+      - name: Build and test
+        id: build
+        continue-on-error: true
+        run: |
+          set +e
+          xcodebuild -project Icons.xcodeproj -scheme Icons \
+            -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO test > out/xcodebuild.log 2>&1
+          status=$?
+          grep -E "error:|warning:|\*\* (BUILD|TEST)|Test run|✘|failed" out/xcodebuild.log | sort -u | head -200 > out/result.txt
+          tail -n 80 out/xcodebuild.log > out/tail.txt
+          rm out/xcodebuild.log
+          echo "xcodebuild exit $status" | tee -a out/ci.txt
+          exit $status
+
+      - name: Screenshots
+        if: always()
+        continue-on-error: true
+        run: |
+          APP="DerivedData/Build/Products/Debug-iphonesimulator/Icons.app"
+          [ -d "$APP" ] || { echo "no app built" | tee -a out/ci.txt; exit 0; }
+          BID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+          xcrun simctl install "$UDID" "$APP"
+          shot() {  # shot <file> [screen]
+            xcrun simctl launch --terminate-running-process "$UDID" "$BID" -screen "${2:-}" >/dev/null
+            sleep 6
+            xcrun simctl io "$UDID" screenshot "out/$1" >/dev/null
+            sips -Z 1300 "out/$1" >/dev/null
+          }
+          xcrun simctl ui "$UDID" appearance dark
+          shot dark.png; shot dark-designer.png designer
+          xcrun simctl ui "$UDID" appearance light
+          shot light.png; shot light-designer.png designer
+          xcrun simctl ui "$UDID" content_size accessibility-large
+          shot large-text.png; shot large-text-designer.png designer
+          xcrun simctl spawn "$UDID" log show --last 3m --style compact \
+            --predicate 'process == "Icons" AND messageType >= 16' > out/console.log 2>/dev/null || true
+
+      - name: Publish results
+        if: always()
+        run: |
+          cd out
+          git init -q
+          git checkout -q -b ci/icons
+          git add -A
+          git -c user.name="icons-ci" -c user.email="ci@users.noreply.github.com" commit -qm "CI ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci/icons
+
+      - name: Fail if the build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
