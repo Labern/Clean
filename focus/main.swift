@@ -4047,7 +4047,7 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
         switch hk.id {
         case 1: focus.toggle()
         case 2: focus.showMenu()
-        case 4: SSSController.shared.toggle()                   // Super Smart Search
+        case 4: focus.openSSS()                                 // Super Smart Search (on Basic: its page, with the plans)
         case 3: if desktop.shown && NSApp.isActive && desktop.window?.isKeyWindow == true { desktop.hide() } else { focus.openDesktop() }
         case 100...109: focus.modeKey(Int(hk.id) - 100)
         case 200: desktop.reopenFromH()                         // ⌘H straight after hiding the desktop app

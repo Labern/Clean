@@ -1,6 +1,6 @@
 # Focus — test report
 
-**quick** run · version 0.22.1 · 2026-11-18 19:11 · 62s · **44 passed, 0 failed**
+**quick** run · version 0.24.0 · 2026-11-18 19:54 · 64s · **45 passed, 0 failed**
 
 | Result | Check | Detail |
 |---|---|---|
@@ -47,6 +47,7 @@
 | PASS | 216. SSS: Tab opens the choices on the best one, Tab again moves on, Return goes; nothing found shakes | open true; chosen 0 then 1; went to ["Focus — sss.swift"]; shakes 1 |
 | PASS | 218. SSS: a word inside a page finds it; the name of a page still comes first | paypal → Checkout — Paradoxica · “…ay · Google Pay · PayPal Early adopter code applie…”; with a tab named PayPal: PayPal: Summary first |
 | PASS | 219. SSS: page scripts compile for every installed browser | Chrome, Safari |
+| PASS | 220. SSS: on Basic its page is locked, with Upgrade to Pro; on Pro it is open | bright samples where the unlock line sits: Basic 8441, Pro 2049 |
 | PASS | 217. SSS: its mark draws for the menu | 18 × 13 |
 
 Quick: `./test.sh` (every major change). Full: `./test.sh full` (when needed).

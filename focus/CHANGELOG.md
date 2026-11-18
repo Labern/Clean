@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.24.0 — 2026-11-18
+- **Super Smart Search is part of Pro.** On Basic it has the Pro tag in the sidebar and its page is greyed with
+  the plans above it, like the other Pro pages. The shortcut and the menu line open that page instead of the bar.
+
 ## 0.23.3 — 2026-11-18
 - Self-tests and renders run on a copy of your settings, never the settings themselves: a test run can no longer flip
   the open Focus to Basic or "0 sessions left", and two test runs can no longer trip over each other's settings.

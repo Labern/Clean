@@ -1619,6 +1619,7 @@ struct SideRow: View {
     var state: Bool? = nil                                       // the Session Editor: white "On" in a session, nothing otherwise
     var start: (() -> Void)? = nil                               // a mode: under the pointer, "Start" (or "End") takes the key's place
     var pro = false                                              // a Pro feature: a small "Pro" tag after the title
+    var fits = false                                             // a long title may shrink a little instead of being cut short
     var mark: AnyView? = nil                                     // a drawn mark in the symbol's place (Super Smart Search's own)
     @State private var hover = false
     var body: some View {
@@ -1633,6 +1634,7 @@ struct SideRow: View {
                 }.frame(width: 40, alignment: .leading)
             }
             Text(title).font(Site.font(18, selected ? .medium : .regular)).lineLimit(1).truncationMode(.tail)   // never shrinks (e.g. when Start appears)
+                .minimumScaleFactor(fits ? 0.84 : 1)                     // …except a long name beside a Pro tag: whole, a touch smaller, never cut
             Spacer(minLength: 6)
             if pro && !(hover && start != nil) { ProTag() }             // at the right edge, out of the title's way
             if hover, let start {
@@ -1789,7 +1791,7 @@ struct DesktopView: View {
             VStack(spacing: 2) {
                 SideRow(title: "Session Editor", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
                         action: { m.selection = nil }, state: m.f.focused)
-                SideRow(title: "Super Smart Search", trailing: "", live: false, selected: m.selection == Page.sss, icons: [], symbol: nil, action: { m.selection = Page.sss }, mark: AnyView(SSSLogo(height: 15)))
+                SideRow(title: "Super Smart Search", trailing: "", live: false, selected: m.selection == Page.sss, icons: [], symbol: nil, action: { m.selection = Page.sss }, pro: true, fits: true, mark: AnyView(SSSLogo(height: 15)))
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard", action: { m.selection = Page.shortcuts }, pro: true)
                 SideRow(title: "Schedule", trailing: "", live: false, selected: m.selection == Page.schedule, icons: [], symbol: "calendar.badge.clock", action: { m.selection = Page.schedule }, pro: true)
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver", action: { m.selection = Page.tools }, pro: true)

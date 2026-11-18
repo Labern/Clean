@@ -910,7 +910,15 @@ extension Focus {
     var sssMods: Int { get { store.object(forKey: "sssModsS") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "sssModsS"); applyShortcuts() } }
     var sssKey: String { label(sssMods) + "S" }
     /// The menu's line: the same thing the shortcut opens (once the menu has closed).
-    @objc func openSSS() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { SSSController.shared.show() } }
+    /// Pro only (his rule, 2026-11-18: "if you're in basic mode, it shouldn't open"): on Basic the shortcut and the menu
+    /// line open its page in the Focus window instead, greyed, with the plans right there.
+    @objc func openSSS() {
+        if DesktopModel.gated {
+            if SSSController.shared.shown { SSSController.shared.hide() }
+            openDesktop(); desktop.model?.selection = Page.sss; return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { SSSController.shared.toggle() }
+    }
     @objc func pickSSSKey(_ s: NSMenuItem) { sssMods = s.tag }
 }
 
@@ -921,7 +929,7 @@ struct SSSPage: View {
     @StateObject private var s = SSSModel()
     var body: some View {
         let _ = s.tick
-        PageFrame(title: "Super Smart Search", text: "") {
+        PageFrame(title: "Super Smart Search", text: "", locked: m, lockedText: "Unlock Super Smart Search by upgrading to Pro.") {
             SSSBar(s: s, look: .page, radius: 12).padding(.top, 6)
             Text("Type anything — tab name, contents, window — and SSS will find wherever it's running and open it.")
                 .font(Site.font(15)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true).padding(.top, 12).padding(.horizontal, 2)
@@ -1093,6 +1101,22 @@ func sssSelfTest() -> Int32 {
               p.arguments = ["-o", NSTemporaryDirectory() + "focus-sss-\(UUID().uuidString).scpt", "-e", SSSIndex.pageScript(probe)]; p.standardError = Pipe(); p.standardOutput = Pipe()
               try? p.run(); p.waitUntilExit(); try? FileManager.default.removeItem(atPath: p.arguments![1]); return p.terminationStatus == 0
           } && hidden.secret, installed.map { $0.components(separatedBy: ".").last ?? $0 }.joined(separator: ", "))
+    // Pro only: seen as Basic, the page is locked (the plans' button is drawn, the bar is greyed); as Pro it is not.
+    func pageInk(_ opts: [String]) -> Int {
+        let file = NSTemporaryDirectory() + "focus-sss-\(UUID().uuidString).png", saved = renderArgs
+        renderArgs = ["Focus", "--render-desktop", file, "sss", "clean", "look=dark"] + opts
+        defer { renderArgs = saved; try? FileManager.default.removeItem(atPath: file) }
+        renderDesktop(to: file, mode: false)
+        guard let rep = NSBitmapImageRep(data: (try? Data(contentsOf: URL(fileURLWithPath: file))) ?? Data()) else { return -1 }
+        let s = CGFloat(rep.pixelsWide) / 1000; var n = 0
+        for y in stride(from: Int(190 * s), to: Int(330 * s), by: 2) { for x in stride(from: Int(340 * s), to: Int(960 * s), by: 2) {
+            guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+            if 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent > 0.85 { n += 1 }
+        } }
+        return n
+    }
+    let asBasic = pageInk(["viewas=free", "tier=free"]), asPro = pageInk(["licensed"])
+    check(220, "SSS: on Basic its page is locked, with Upgrade to Pro; on Pro it is open", asBasic > asPro + 400 && asPro >= 0, "bright samples where the unlock line sits: Basic \(asBasic), Pro \(asPro)")
     let menuMark = SSSGlyph.image()
     check(217, "SSS: its mark draws for the menu", menuMark.isTemplate && menuMark.size.width > menuMark.size.height, "\(Int(menuMark.size.width)) × \(Int(menuMark.size.height))")
     SSSIndex.fixture = nil
