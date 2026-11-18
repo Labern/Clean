@@ -1,11 +1,11 @@
 # Focus — test report
 
-**quick** run · version 0.20.0 · 2026-11-18 18:09 · 60s · **40 passed, 0 failed**
+**quick** run · version 0.21.0 · 2026-11-18 18:28 · 62s · **42 passed, 0 failed**
 
 | Result | Check | Detail |
 |---|---|---|
 | PASS | Builds with zero errors and zero warnings |  |
-| PASS | 4. corrupted / odd saved settings | menu built with 19 items; session state reset to false |
+| PASS | 4. corrupted / odd saved settings | menu built with 21 items; session state reset to false |
 | PASS | 9. session history is capped at 12 | 12 kept of 15 |
 | PASS | 18. submenus keep their own items when they open (Settings must not become a copy of the menu) | Settings, Tools, Past sessions unchanged on open |
 | PASS | 23. shortcuts: switching registers the new keys at once; the defaults are ⌘⇧F (session), ⌘⇧E (desktop app), ⌥⇧E (menu) | defaults ⌘⇧F / ⌘⇧E app / ⌥⇧E menu: true; ⌃⇧F registered live: true; ticked in the menu: true |
@@ -28,7 +28,7 @@
 | PASS | 27. modes plumbing: stable ids, add (by id and by dragged .app), dedupe, reorder, remove, rename, delete, migration | migration true · create+dedupe true · dragged .app true · no duplicates true · reorder true · remove+rename true · found by id true · delete true |
 | PASS | 28. a live session: no banner and no state line at the top; the button says End Session | first line 'Quit', no banner or state line: true; button 'End Session' |
 | PASS | 29. switching and hide-instead-of-quit settings; the Fewer icon | careful unless chosen: true; menu ticks Careful: true; per-app hide rows: true; Fewer icon: true |
-| PASS | 16. menu speed with every process on the Mac | 64 ms per menu open |
+| PASS | 16. menu speed with every process on the Mac | 59 ms per menu open |
 | PASS | 201. SSS: a word finds its window | Budget November.numbers |
 | PASS | 202. SSS: a typo still finds it | invioce → Invoice INV-2041 – Stripe Dashboard; screnplay → Screenplay draft 4.pdf |
 | PASS | 203. SSS: the start of a word is enough | kit → Kitten weights 2026; down → Downloads |
@@ -42,7 +42,9 @@
 | PASS | 211. SSS: a browser's answer becomes its tabs, the current one ranked with its window | 3 tabs; orders [24, 4, 5] |
 | PASS | 215. SSS: a window's name drops its app's name from the end | Inbox |
 | PASS | 214. SSS: every installed browser understands its tab scripts | Chrome, Safari |
-| PASS | 212. SSS: the panel reads in dark mode | ground 56855, ink 1050 of 146188 samples |
-| PASS | 213. SSS: the panel reads in light mode | ground 144101, ink 862 of 146188 samples |
+| PASS | 212. SSS: one bar and no list until Tab; then the best guesses (dark look) | typed text and mark: 237 bright samples; under the bar: 0 shut, 2233 open |
+| PASS | 213. SSS: one bar and no list until Tab; then the best guesses (light look) | typed text and mark: 237 bright samples; under the bar: 0 shut, 2233 open |
+| PASS | 216. SSS: Tab opens the choices on the best one, Tab again moves on, Return goes; nothing found shakes | open true; chosen 0 then 1; went to ["Focus — sss.swift"]; shakes 1 |
+| PASS | 217. SSS: its mark draws for the menu | 18 × 13 |
 
 Quick: `./test.sh` (every major change). Full: `./test.sh full` (when needed).

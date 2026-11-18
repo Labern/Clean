@@ -1614,10 +1614,12 @@ struct SideRow: View {
     var state: Bool? = nil                                       // the Session Editor: white "On" in a session, nothing otherwise
     var start: (() -> Void)? = nil                               // a mode: under the pointer, "Start" (or "End") takes the key's place
     var pro = false                                              // a Pro feature: a small "Pro" tag after the title
+    var mark: AnyView? = nil                                     // a drawn mark in the symbol's place (Super Smart Search's own)
     @State private var hover = false
     var body: some View {
         HStack(spacing: 10) {
-            if let symbol { Image(systemName: symbol).font(.system(size: 14)).frame(width: 22) }
+            if let mark { mark.frame(width: 22) }
+            else if let symbol { Image(systemName: symbol).font(.system(size: 14)).frame(width: 22) }
             else {
                 ZStack(alignment: .leading) {
                     ForEach(Array(icons.prefix(3).enumerated().reversed()), id: \.offset) { i, im in
@@ -1782,7 +1784,7 @@ struct DesktopView: View {
             VStack(spacing: 2) {
                 SideRow(title: "Session Editor", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
                         action: { m.selection = nil }, state: m.f.focused)
-                SideRow(title: "Super Smart Search", trailing: "", live: false, selected: m.selection == Page.sss, icons: [], symbol: "sparkle.magnifyingglass") { m.selection = Page.sss }
+                SideRow(title: "Super Smart Search", trailing: "", live: false, selected: m.selection == Page.sss, icons: [], symbol: nil, action: { m.selection = Page.sss }, mark: AnyView(SSSLogo(height: 15)))
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard", action: { m.selection = Page.shortcuts }, pro: true)
                 SideRow(title: "Schedule", trailing: "", live: false, selected: m.selection == Page.schedule, icons: [], symbol: "calendar.badge.clock", action: { m.selection = Page.schedule }, pro: true)
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver", action: { m.selection = Page.tools }, pro: true)
@@ -2213,6 +2215,9 @@ struct ShortcutsPage: View {
             }
             SettingLine(title: "Open the Desktop App", note: f.appKeyTaken ? "That combination is taken by another app. Pick another." : "From anywhere. Press again to put it away.") {
                 Choice(options: modifierChoices.map { $0.label + "E" }, selected: modifierChoices.firstIndex { $0.mods == f.appMods } ?? 0) { i in if DesktopModel.gated { m.openUpgrade() } else { m.act { f.appMods = modifierChoices[i].mods } } }
+            }
+            SettingLine(title: "Super Smart Search", note: f.sssKeyTaken ? "That combination is taken by another app. Pick another." : "") {
+                Choice(options: modifierChoices.map { $0.label + "S" }, selected: modifierChoices.firstIndex { $0.mods == f.sssMods } ?? 0) { i in if DesktopModel.gated { m.openUpgrade() } else { m.act { f.sssMods = modifierChoices[i].mods } } }
             }
             SettingLine(title: "Modes", note: "This, plus the number you give each mode.") {
                 Choice(options: modeModifierChoices.map { $0.label + "1" }, selected: modeModifierChoices.firstIndex { $0.mods == f.modeMods } ?? 0) { i in if DesktopModel.gated { m.openUpgrade() } else { m.act { f.modeMods = modeModifierChoices[i].mods } } }
