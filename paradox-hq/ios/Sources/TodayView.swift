@@ -69,22 +69,25 @@ struct TodayView: View {
                         .padding(.top, 6)
 
                     WorkCard { path.append($0) }
+                        .rise(0)
 
-                    if !money.live {
-                        ExampleBanner { connecting = true }
-                    }
-                    TakingsCard().rise(0)
-                    BalanceTiles().rise(1)
-                    NeedsYou(needs: needs).rise(2)
+                    // Second on the tab: what there is to do, mine first, then each project's next line.
                     if let mine = projects.first(where: \.isPersonal) {
                         MyListCard(project: mine, open: { path.append($0) }, openAll: { path.append(mine) }) {
                             // Keep the field being typed in above the keyboard.
                             withAnimation(.snappy) { proxy.scrollTo(MyListCard.fieldID, anchor: .bottom) }
                         }
-                        .rise(3)
+                        .rise(1)
                     }
                     FocusNow(projects: projects.filter { !$0.isPersonal }) { path.append($0) }
-                        .rise(4)
+                        .rise(2)
+
+                    NeedsYou(needs: needs).rise(3)
+                    // The takings graph lives at the top of Money now; the month and the balance stay here.
+                    if !money.live {
+                        ExampleBanner { connecting = true }
+                    }
+                    BalanceTiles().rise(4)
                 }
                 .page()
             }

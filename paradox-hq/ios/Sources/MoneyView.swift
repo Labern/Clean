@@ -12,6 +12,8 @@ struct MoneyView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Heading(title: "Money", detail: updatedLine)
+                    // Today's takings over the 30-day trend: the first thing on Money (it was on the front tab).
+                    TakingsCard()
                     if !money.live {
                         ExampleBanner { connecting = true }
                     }

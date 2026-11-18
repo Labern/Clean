@@ -86,10 +86,11 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
   "Me" on launch), always first, never sent to the feed, never deletable. Today shows
   it whole (`MyListCard`): type to add, tick, fold, tap a line to open its page.
 - Each project page ends with its own notes.
-- **Today** — the mark, today's takings over a 30-day trend, this month and the
-  Stripe balance, *Needs you* (disputes, failed payments, deadlines inside 30 days,
-  the site being down; hidden when empty), and the next open line of each project.
-- **Money** — revenue by week, month, quarter or year against the same stretch of
+- **Work** (was Today), top to bottom: the header, the Work card, My list and the
+  next open line of each project, *Needs you* (disputes, failed payments, deadlines
+  inside 30 days, the site being down; hidden when empty), this month and the Stripe
+  balance. The takings graph moved to the top of Money (2026-11-18).
+- **Money** — today's takings over a 30-day trend first, then revenue by week, month, quarter or year against the same stretch of
   the period before; subscribers and monthly recurring; payouts; every payment.
 - **To-do** (was Projects) — a switch at the top: To-do (My list, the default) and
   Projects. Each project has a Focus list (`TodoViews.swift`). Lines nest to any
