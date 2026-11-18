@@ -21,6 +21,16 @@ and kept in the Keychain on the phone.
   errors. Launch arguments: `-unlocked YES -sampleNotes YES -screen lock|today|projects|project|cards|notes|note|money|company|widgets|designer`
   (`cards` is the Projects pane).
 
+## Cards can be rearranged (Work, Money, Company)
+`Sources/Layout.swift`. Every card on those tabs sits in an `Arranged` wrapper: hold it,
+drag it onto another card, and it takes that card's place; a line across the top of
+the target shows where it will land. The order is kept per tab (`layout-work`,
+`layout-money`, `layout-company`), survives cards being added or removed later
+(`Layout.order`), and Company › Settings has "Put every tab back in its original
+order". **What ships is only the default**: add a new card to the tab's list in
+`Layout` and to the tab's `switch`, never as a fixed view above or below the loop.
+A card carries the payload `card:<id>`, so it is never mistaken for a to-do line.
+
 ## The five tabs
 Work · To-do · Notes · Money · Company. (Six would push one behind a "More" button.)
 "Work" was "Today" until 2026-11-18; in code it is still `TodayView` and `Screen.today`.
@@ -86,6 +96,12 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
   "Me" on launch), always first, never sent to the feed, never deletable. Today shows
   it whole (`MyListCard`): type to add, tick, fold, tap a line to open its page.
 - Each project page ends with its own notes.
+- **A project knows its own work** (`ProjectWork`, `WorkLedger.belongs`, tested): its
+  page lists the changes made to it, read from GitHub, each one tap from the Claude
+  conversation it was made in. A change belongs when it names the project
+  (`feat(paradox-hq): …`, "Focus 0.0.4: …") or sits on a branch filed under it
+  (`focus/…`); a word in the subject is not enough, so a project never claims work that
+  isn't its own. The section is absent until there is some, so nothing breaks without it.
 - **Work** (was Today), top to bottom: the header, the Work card, My list and the
   next open line of each project, *Needs you* (disputes, failed payments, deadlines
   inside 30 days, the site being down; hidden when empty), this month and the Stripe

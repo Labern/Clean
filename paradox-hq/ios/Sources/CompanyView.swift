@@ -17,6 +17,10 @@ struct CompanyView: View {
     @State private var restored = false
     @AppStorage("appearance") private var appearance: Appearance = .auto
     @AppStorage("typeface") private var typeface: Typeface = .system
+    @AppStorage(Layout.company.key) private var layout = ""
+
+    static let names = ["links": "Links", "deadlines": "Deadlines", "connections": "Connected to", "notifications": "Notifications",
+                        "settings": "Settings", "lock": "Lock", "backup": "Backup"]
     @AppStorage("work-products") private var workProducts = false
     @Environment(WorkStore.self) private var work
 
@@ -52,13 +56,20 @@ struct CompanyView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Heading(title: "Company")
-                    linkSection
-                    deadlineSection
-                    connectionSection
-                    notifySection
-                    settingsSection
-                    lockSection
-                    backupSection
+                    // The sections, in the order chosen: hold one and drop it on another to move it.
+                    ForEach(Layout.order(layout, Layout.company.cards), id: \.self) { card in
+                        Arranged(card: card, name: Self.names[card] ?? card, tab: Layout.company) {
+                            switch card {
+                            case "links": linkSection
+                            case "deadlines": deadlineSection
+                            case "connections": connectionSection
+                            case "notifications": notifySection
+                            case "settings": settingsSection
+                            case "lock": lockSection
+                            default: backupSection
+                            }
+                        }
+                    }
                     Text("PARADOX \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "")")
                         .font(Face.style(.footnote))
                         .foregroundStyle(Ink.idle)
@@ -330,6 +341,26 @@ struct CompanyView: View {
                     .sensoryFeedback(.selection, trigger: workProducts)
                     Hairline(inset: 14)
                     ColourSettings()
+                    Hairline(inset: 14)
+                    Button {
+                        withAnimation(.snappy) { Layout.reset() }
+                        Thud.play()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "rectangle.3.group")
+                                .font(Face.at(15, .semibold))
+                                .foregroundStyle(Ink.muted)
+                                .frame(width: 32, height: 32)
+                                .background(Ink.surface2, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                            Text("Put every tab back in its original order")
+                                .foregroundStyle(Ink.body)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                     Hairline(inset: 14)
                     Text("App icon")
                         .font(Face.style(.subheadline))

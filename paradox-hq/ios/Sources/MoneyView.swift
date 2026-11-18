@@ -6,14 +6,16 @@ struct MoneyView: View {
     @Environment(MoneyStore.self) private var money
     @State private var period: Period = .month
     @State private var connecting = false
+    @AppStorage(Layout.money.key) private var layout = ""
+
+    static let names = ["takings": "Today", "revenue": "Revenue", "subscribers": "Subscribers", "payouts": "Payouts",
+                        "customers": "Customers", "payments": "Payments", "charge": "Charge"]
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     Heading(title: "Money", detail: updatedLine)
-                    // Today's takings over the 30-day trend: the first thing on Money (it was on the front tab).
-                    TakingsCard()
                     if !money.live {
                         ExampleBanner { connecting = true }
                     }
@@ -22,17 +24,29 @@ struct MoneyView: View {
                             .font(Face.style(.footnote))
                             .foregroundStyle(Ink.hazard)
                     }
-                    Picker("Period", selection: $period) {
-                        ForEach(Period.allCases) { Text($0.title).tag($0) }
+                    // The cards, in the order chosen: hold one and drop it on another to move it.
+                    // By default today's takings over the 30-day trend comes first.
+                    ForEach(Layout.order(layout, Layout.money.cards), id: \.self) { card in
+                        Arranged(card: card, name: Self.names[card] ?? card, tab: Layout.money) {
+                            switch card {
+                            case "takings":
+                                TakingsCard()
+                            case "revenue":
+                                VStack(alignment: .leading, spacing: 22) {
+                                    Picker("Period", selection: $period) {
+                                        ForEach(Period.allCases) { Text($0.title).tag($0) }
+                                    }
+                                    .pickerStyle(.segmented)
+                                    RevenueCard(period: period)
+                                }
+                            case "subscribers": SubscriberTiles()
+                            case "payouts": PayoutsCard()
+                            case "customers": CustomersCard()
+                            case "payments": PaymentsCard()
+                            default: ChargeCard()
+                            }
+                        }
                     }
-                    .pickerStyle(.segmented)
-
-                    RevenueCard(period: period)
-                    SubscriberTiles()
-                    PayoutsCard()
-                    CustomersCard()
-                    PaymentsCard()
-                    ChargeCard()
                 }
                 .page()
             }

@@ -59,6 +59,9 @@ struct TodayView: View {
     @Query(sort: \Deadline.date) private var deadlines: [Deadline]
     @State private var connecting = false
     @State private var path = NavigationPath()
+    @AppStorage(Layout.work.key) private var layout = ""
+
+    static let names = ["work": "Work", "mylist": "My list", "focus": "Projects", "needs": "Needs you", "balance": "This month"]
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -68,26 +71,35 @@ struct TodayView: View {
                     TodayHeader(loading: money.loading)
                         .padding(.top, 6)
 
-                    WorkCard { path.append($0) }
-                        .rise(0)
-
-                    // Second on the tab: what there is to do, mine first, then each project's next line.
-                    if let mine = projects.first(where: \.isPersonal) {
-                        MyListCard(project: mine, open: { path.append($0) }, openAll: { path.append(mine) }) {
-                            // Keep the field being typed in above the keyboard.
-                            withAnimation(.snappy) { proxy.scrollTo(MyListCard.fieldID, anchor: .bottom) }
+                    // The cards, in the order chosen: hold one and drop it on another to move it.
+                    ForEach(Array(Layout.order(layout, Layout.work.cards).enumerated()), id: \.element) { index, card in
+                        Arranged(card: card, name: Self.names[card] ?? card, tab: Layout.work) {
+                            switch card {
+                            case "work":
+                                WorkCard { path.append($0) }
+                            case "mylist":
+                                if let mine = projects.first(where: \.isPersonal) {
+                                    MyListCard(project: mine, open: { path.append($0) }, openAll: { path.append(mine) }) {
+                                        // Keep the field being typed in above the keyboard.
+                                        withAnimation(.snappy) { proxy.scrollTo(MyListCard.fieldID, anchor: .bottom) }
+                                    }
+                                }
+                            case "focus":
+                                FocusNow(projects: projects.filter { !$0.isPersonal }) { path.append($0) }
+                            case "needs":
+                                NeedsYou(needs: needs)
+                            default:
+                                // The takings graph lives at the top of Money; the month and the balance stay here.
+                                VStack(alignment: .leading, spacing: 22) {
+                                    if !money.live {
+                                        ExampleBanner { connecting = true }
+                                    }
+                                    BalanceTiles()
+                                }
+                            }
                         }
-                        .rise(1)
+                        .rise(index)
                     }
-                    FocusNow(projects: projects.filter { !$0.isPersonal }) { path.append($0) }
-                        .rise(2)
-
-                    NeedsYou(needs: needs).rise(3)
-                    // The takings graph lives at the top of Money now; the month and the balance stay here.
-                    if !money.live {
-                        ExampleBanner { connecting = true }
-                    }
-                    BalanceTiles().rise(4)
                 }
                 .page()
             }

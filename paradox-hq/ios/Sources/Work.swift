@@ -294,6 +294,25 @@ nonisolated enum WorkLedger {
         return entries.filter { $0.date >= session.started && $0.date <= now }
     }
 
+    /// A name with only its letters and digits, lower case: "PARADOX HQ" and "paradox-hq" are the same.
+    static func plain(_ text: String) -> String {
+        String(text.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) })
+    }
+
+    /// Whether a change belongs to a project. It is deliberately cautious, so a
+    /// project never claims work that isn't its own: the change has to name the
+    /// project (`feat(paradox-hq): …`, "Focus 0.0.4: …"), or sit on a branch
+    /// filed under it (`focus/feat-desktop-app`). Words in the subject don't count.
+    static func belongs(_ entry: WorkEntry, toProject name: String, id: String) -> Bool {
+        let names = Set([plain(name), plain(id)].filter { $0.count >= 2 })
+        guard !names.isEmpty else { return false }
+        if names.contains(plain(entry.project)) { return true }
+        return entry.branches.contains { branch in
+            guard let filed = branch.split(separator: "/").first, branch.contains("/") else { return false }
+            return names.contains(plain(String(filed)))
+        }
+    }
+
     /// One of each session: where two files report the same one, the fuller report.
     static func unique(_ sessions: [ClaudeSession]) -> [ClaudeSession] {
         var held: [String: ClaudeSession] = [:]

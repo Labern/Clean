@@ -1102,6 +1102,29 @@ struct WorkTests {
         #expect(WorkSpan.session.start(now: now, calendar: london, rolling: false, session: nil) == at(2026, 11, 18, 0))
     }
 
+    /// A project knows its own work, and never claims another's.
+    @Test func aProjectFindsItsOwnWork() {
+        let hq = read("feat(paradox-hq): Work tab")
+        let focusScoped = read("fix(focus): the Dock icon stayed")
+        let focusBranch = read("Something with no label", branches: ["focus/feat-desktop-app"])
+        let focusRelease = read("Focus 0.0.4: stress-tested")
+        let other = read("feat(gt7): track guides")
+        let mentions = read("feat(paradox-hq): company logos on the links")
+
+        #expect(WorkLedger.belongs(hq, toProject: "PARADOX HQ", id: "hq"))
+        #expect(!WorkLedger.belongs(hq, toProject: "Focus", id: "focus"))
+        for entry in [focusScoped, focusBranch, focusRelease] {
+            #expect(WorkLedger.belongs(entry, toProject: "Focus", id: "focus"), "\(entry.subject)")
+        }
+        #expect(!WorkLedger.belongs(other, toProject: "Focus", id: "focus"))
+        // A word in the subject is not enough: "company logos" is not the Company project's work.
+        #expect(!WorkLedger.belongs(mentions, toProject: "Company", id: "company"))
+        // A project made on the phone has no id; one with no name claims nothing.
+        #expect(WorkLedger.belongs(focusScoped, toProject: "Focus", id: ""))
+        #expect(!WorkLedger.belongs(focusScoped, toProject: "", id: ""))
+        #expect(WorkLedger.plain("PARADOX HQ") == WorkLedger.plain("paradox-hq"))
+    }
+
     /// A change made in a Claude conversation carries the way back to it.
     @Test func aChangeRemembersItsClaudeConversation() {
         let linked = read("""
@@ -1168,6 +1191,42 @@ struct WorkTests {
         let entries = GitHubWork.entries(commits, repo: "Labern/Clean", branch: "master")
         #expect(entries.map(\.id) == ["1"])
         #expect(entries.first?.shipped == true)
+    }
+}
+
+@Suite("Layout")
+@MainActor
+struct LayoutTests {
+    private let cards = ["a", "b", "c", "d"]
+
+    /// A card dropped on another takes its place, like a line in a list.
+    @Test func aDroppedCardTakesTheOthersPlace() {
+        #expect(Layout.moved(cards, "d", onto: "a") == ["d", "a", "b", "c"])
+        #expect(Layout.moved(cards, "a", onto: "c") == ["b", "c", "a", "d"])
+        #expect(Layout.moved(cards, "b", onto: "b") == cards)
+        #expect(Layout.moved(cards, "x", onto: "a") == cards)
+    }
+
+    /// What was saved survives cards being added or removed in a later version.
+    @Test func aSavedOrderSurvivesNewAndRemovedCards() {
+        #expect(Layout.order("", cards) == cards)
+        #expect(Layout.order("c,a", cards) == ["c", "a", "b", "d"])
+        #expect(Layout.order("c,gone,a,c", cards) == ["c", "a", "b", "d"])
+    }
+
+    /// Only a card moves cards: a to-do line dropped on a card does nothing to the layout.
+    @Test func onlyCardsRearrangeATab() {
+        let key = "layout-test-\(UUID().uuidString)"
+        defer { UserDefaults.standard.removeObject(forKey: key) }
+        #expect(!Layout.drop("line-123", onto: "a", key: key, cards: cards))
+        #expect(Layout.drop(Layout.tag + "d", onto: "a", key: key, cards: cards))
+        #expect(UserDefaults.standard.string(forKey: key) == "d,a,b,c")
+        #expect(!Layout.drop(Layout.tag + "d", onto: "d", key: key, cards: cards))
+    }
+
+    @Test func theDefaultsAreTheShippedOrder() {
+        #expect(Layout.work.cards.prefix(3) == ["work", "mylist", "focus"])
+        #expect(Layout.money.cards.first == "takings")
     }
 }
 

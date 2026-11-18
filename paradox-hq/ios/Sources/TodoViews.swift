@@ -572,6 +572,14 @@ struct MyListCard: View {
                                 }
                                 .dropDestination(for: String.self) { dropped, _ in
                                     target = nil
+                                    // A whole card let go over this line is meant for the card, not the line.
+                                    if let payload = dropped.first, payload.hasPrefix(Layout.tag) {
+                                        let landed = withAnimation(.snappy) {
+                                            Layout.drop(payload, onto: "mylist", key: Layout.work.key, cards: Layout.work.cards)
+                                        }
+                                        if landed { Thud.play() }
+                                        return landed
+                                    }
                                     guard let id = dropped.first, let source = rows.firstIndex(where: { $0.id == id }),
                                           source != index else { return false }
                                     // Dropped on a line, it takes that line's place: above it

@@ -231,6 +231,11 @@ struct ProjectDetail: View {
                     .foregroundStyle(Ink.muted)
             }
 
+            // What has been built for it, read from GitHub, each change with its conversation.
+            if !project.isPersonal {
+                ProjectWork(project: project)
+            }
+
             ProjectNotes(project: project) {
                 let note = Note(project: project)
                 context.insert(note)

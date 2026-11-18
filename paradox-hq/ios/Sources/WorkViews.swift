@@ -289,6 +289,8 @@ struct WorkLine: View {
     let entry: WorkEntry
     /// One line, no bullets.
     var compact = false
+    /// Show the day as well as the time (where lines from many days sit together).
+    var dated = false
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -305,9 +307,9 @@ struct WorkLine: View {
                     .lineLimit(compact ? 1 : nil)
                     .multilineTextAlignment(.leading)
                 HStack(spacing: 6) {
-                    Text(entry.date, format: .dateTime.hour().minute())
+                    Text(entry.date, format: dated ? .dateTime.day().month(.abbreviated).hour().minute() : .dateTime.hour().minute())
                         .monospacedDigit()
-                    if !entry.project.isEmpty {
+                    if !entry.project.isEmpty, !dated {
                         Text(entry.project)
                     }
                     if entry.published {
@@ -474,5 +476,59 @@ struct WorkLog: View {
             return count == 0 ? nil : "\(count) \(kind.title.lowercased())"
         }
         .joined(separator: " · ")
+    }
+}
+
+/// On a project's page: the changes that were made to it, each a tap from the
+/// Claude conversation it was made in. Nothing shows until GitHub has some.
+struct ProjectWork: View {
+    @Environment(WorkStore.self) private var work
+    let project: Project
+    /// Lines showing their bullets.
+    @State private var open: Set<String> = []
+    @State private var all = false
+
+    var body: some View {
+        let mine = work.entries.filter { WorkLedger.belongs($0, toProject: project.name, id: project.remoteID) }
+        if !mine.isEmpty {
+            Section {
+                ForEach(all ? mine : Array(mine.prefix(4))) { entry in
+                    Button {
+                        withAnimation(.snappy) {
+                            if open.contains(entry.id) { open.remove(entry.id) } else { open.insert(entry.id) }
+                        }
+                    } label: {
+                        WorkLine(entry: entry, compact: !open.contains(entry.id), dated: true)
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(Ink.surface)
+                    .listRowSeparatorTint(Ink.line)
+                }
+                if mine.count > 4 {
+                    Button {
+                        withAnimation(.snappy) { all.toggle() }
+                    } label: {
+                        Text(all ? "Show fewer" : "Show all \(mine.count)")
+                            .font(Face.style(.subheadline))
+                            .foregroundStyle(Ink.head)
+                    }
+                    .listRowBackground(Ink.surface)
+                    .listRowSeparatorTint(Ink.line)
+                }
+            } header: {
+                HStack {
+                    Text("Work")
+                    Spacer()
+                    Text(WorkLog.tally(mine))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                }
+                .font(Face.at(12, .semibold))
+                .textCase(.uppercase)
+                .tracking(0.9)
+                .foregroundStyle(Ink.muted)
+            }
+        }
     }
 }
