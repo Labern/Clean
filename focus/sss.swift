@@ -565,7 +565,7 @@ enum SSSGlyph {
         let c = pt(0.60, 0.47), rad = 0.33 * h, k: CGFloat = 0.7071
         p.addEllipse(in: CGRect(x: c.x - rad, y: c.y - rad, width: rad * 2, height: rad * 2))
         p.move(to: CGPoint(x: c.x + rad * k * 0.7, y: c.y + rad * k * 0.7))
-        p.addLine(to: CGPoint(x: c.x + rad * k + 0.29 * h, y: c.y + rad * k + 0.29 * h))
+        p.addLine(to: CGPoint(x: c.x + rad * k + 0.13 * h, y: c.y + rad * k + 0.13 * h))   // short (his ask, 2026-11-18): it ends level with the I's foot
         return p
     }
     /// For the menu: a template image, so macOS colours it like the menu's other symbols.

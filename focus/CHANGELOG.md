@@ -13,6 +13,7 @@ New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 - Windows: the text of ordinary Mac apps (Terminal, Notes, TextEdit…), through Accessibility. Never a password field.
   Apps built on Chromium (Electron) are skipped: asking them slows them down.
 - Nothing read is saved: it is kept in memory for a few minutes and dropped.
+- The IQ mark's handle is shorter, so the mark sits level.
 
 ## 0.21.1 — 2026-11-18
 - **Super Smart Search goes where it says.** A tab is now found by its address at the moment you press Return (tabs
