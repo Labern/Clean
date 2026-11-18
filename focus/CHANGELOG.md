@@ -4,6 +4,11 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.22.1 — 2026-11-18
+- The IQ mark is the original again, with its handle a little shorter (0.22.0 had cut it to a stub, which lost the
+  magnifying glass).
+- The floating bar says SUPER SMART SEARCH above the field.
+
 ## 0.22.0 — 2026-11-18
 - **Super Smart Search looks inside.** A word that is only in a page's text, or in a window's, now finds it. The
   dropdown shows the words around the match. A match in the name still comes first.

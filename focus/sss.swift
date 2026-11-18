@@ -565,7 +565,7 @@ enum SSSGlyph {
         let c = pt(0.60, 0.47), rad = 0.33 * h, k: CGFloat = 0.7071
         p.addEllipse(in: CGRect(x: c.x - rad, y: c.y - rad, width: rad * 2, height: rad * 2))
         p.move(to: CGPoint(x: c.x + rad * k * 0.7, y: c.y + rad * k * 0.7))
-        p.addLine(to: CGPoint(x: c.x + rad * k + 0.13 * h, y: c.y + rad * k + 0.13 * h))   // short (his ask, 2026-11-18): it ends level with the I's foot
+        p.addLine(to: CGPoint(x: c.x + rad * k + 0.22 * h, y: c.y + rad * k + 0.22 * h))   // the original (0.29), a little shorter: still plainly a handle. 0.13 was a stub and lost the glass ("you just changed the logo", 2026-11-18)
         return p
     }
     /// For the menu: a template image, so macOS colours it like the menu's other symbols.
@@ -737,8 +737,13 @@ struct SSSBar: View {
     @ObservedObject var s: SSSModel
     let look: SSSLook
     var radius: CGFloat = 16
+    var caption: String? = nil                                  // the floating bar says its name above the field (his ask, 2026-11-18: "for now")
     var body: some View {
         VStack(spacing: 0) {
+            if let caption {
+                Text(caption).font(Site.font(11.5, .medium)).tracking(2.6).foregroundColor(look.muted)
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 21).padding(.top, 13).padding(.bottom, -4)
+            }
             HStack(spacing: 14) {
                 SSSLogo(height: 20, draws: true).foregroundColor(look.ink).opacity(s.match ? 1 : 0.35).animation(.easeOut(duration: 0.18), value: s.match)
                     .id(s.focus)                                                // it writes itself each time the bar opens
@@ -778,7 +783,7 @@ final class SSSPanel: NSPanel {
 struct SSSStage: View {
     @ObservedObject var s: SSSModel
     var body: some View {
-        SSSBar(s: s, look: .bar).frame(width: SSSController.width)
+        SSSBar(s: s, look: .bar, caption: "SUPER SMART SEARCH").frame(width: SSSController.width)
             .shadow(color: .black.opacity(0.55), radius: 30, y: 16)
             .scaleEffect(s.shown ? 1 : 0.965, anchor: .top).opacity(s.shown ? 1 : 0)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 10)
@@ -798,7 +803,7 @@ final class SSSController: NSObject, NSWindowDelegate {
 
     func toggle() { if shown { hide() } else { show() } }
     func show() {
-        let height = 60 + CGFloat(model.limit) * 44 + 14 + 90                 // the dropdown at its tallest, and room for the shadow
+        let height = 86 + CGFloat(model.limit) * 44 + 14 + 90                 // the dropdown at its tallest, and room for the shadow
         if panel == nil {
             let p = SSSPanel(contentRect: NSRect(x: 0, y: 0, width: SSSController.width + 100, height: height), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = false; p.level = .modalPanel
@@ -929,7 +934,7 @@ func renderSSS(to file: String) -> NSBitmapImageRep? {
     } else { SSSIndex.shared.refresh() }
     s.query = renderArgs.first { $0.hasPrefix("query=") }.map { String($0.dropFirst(6)) } ?? ""
     s.update(reset: true); s.shown = true; s.open = renderArgs.contains("open")
-    let size = NSSize(width: SSSController.width + 100, height: 60 + CGFloat(s.limit) * 44 + 104)
+    let size = NSSize(width: SSSController.width + 100, height: 86 + CGFloat(s.limit) * 44 + 104)
     let view = SSSStage(s: s).padding(.top, 20)
         .background(Site.hex(0x4A4A4A))                                         // a mid grey stands in for the desktop behind
     let host = NSHostingView(rootView: view)
@@ -1000,7 +1005,7 @@ func sssSelfTest() -> Int32 {
             } }
             return n
         }
-        return (bright(Int(34 * s)..<Int(86 * s)), bright(Int(100 * s)..<Int(330 * s)))
+        return (bright(Int(34 * s)..<Int(108 * s)), bright(Int(126 * s)..<Int(356 * s)))
     }
     for look in ["dark", "light"] {
         let shut = ink(["look=\(look)", "query=in"]), open = ink(["look=\(look)", "query=in", "open"])
