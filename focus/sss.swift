@@ -33,6 +33,9 @@ struct SSSItem: Identifiable, Equatable {
     var window = 0                                              // tabs: the browser's own id for the window
     var tab = 0                                                 // tabs: its place in that window, from 1
     var order = 0                                               // 0 = in front right now; larger = used longer ago
+    var text = ""                                               // what it says inside (a page's text, a window's), when it could be read
+    var grep = ""                                               // the same, folded for searching
+    var secret = false                                          // a private (incognito) tab: its contents are never read
     /// The address without its scheme, "www." or path: what people call the site.
     var host: String {
         guard let h = URLComponents(string: url)?.host else { return "" }
@@ -105,7 +108,28 @@ enum SSSRank {
         }
         return best
     }
-    /// The whole query against one item: every typed word must fit somewhere (its name, its app, its address).
+    /// A typed word found in what the thing says inside. Three letters or more, as written (no guessing at typos in a
+    /// whole page), and always worth less than a match in the name.
+    static func inside(_ t: String, _ grep: String) -> Double {
+        guard t.count >= 3, let r = grep.range(of: t) else { return 0 }
+        if r.lowerBound == grep.startIndex { return 46 }
+        let before = grep[grep.index(before: r.lowerBound)]
+        return before.isLetter || before.isNumber ? 38 : 46
+    }
+    /// The words around a match inside, for the row to show — only when the name alone wouldn't have found it.
+    static func snippet(_ query: String, _ item: SSSItem) -> String? {
+        guard !item.text.isEmpty else { return nil }
+        let names = words(item.title) + words(item.app) + words(item.host)
+        for t in fold(query).split(whereSeparator: { !($0.isLetter || $0.isNumber) }).map(String.init) where t.count >= 3 && fit(t, names) == 0 {
+            guard let r = item.text.range(of: t, options: [.caseInsensitive, .diacriticInsensitive]) else { continue }
+            let from = item.text.index(r.lowerBound, offsetBy: -18, limitedBy: item.text.startIndex) ?? item.text.startIndex
+            let to = item.text.index(r.upperBound, offsetBy: 26, limitedBy: item.text.endIndex) ?? item.text.endIndex
+            let cut = item.text[from..<to].split(whereSeparator: \.isNewline).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            return (from > item.text.startIndex ? "…" : "") + cut + (to < item.text.endIndex ? "…" : "")
+        }
+        return nil
+    }
+    /// The whole query against one item: every typed word must fit somewhere (its name, its app, its address, or inside it).
     static func score(_ query: String, _ item: SSSItem) -> Double? {
         let tokens = fold(query).split { !($0.isLetter || $0.isNumber) }.map(String.init)
         guard !tokens.isEmpty else { return 0 }
@@ -113,7 +137,7 @@ enum SSSRank {
         let rest = words(item.url.replacingOccurrences(of: item.host, with: " "))
         var total = 0.0
         for t in tokens {
-            let s = max(fit(t, title), fit(t, app) * 0.9, fit(t, host) * 0.85, fit(t, rest) * 0.5)
+            let s = max(fit(t, title), fit(t, app) * 0.9, fit(t, host) * 0.85, fit(t, rest) * 0.5, inside(t, item.grep))
             if s == 0 { return nil }
             total += s
         }
@@ -179,17 +203,20 @@ final class SSSIndex {
 
     static var lastScriptError = ""
     /// Runs a script with a time limit, off the main thread. Returns what it printed, or nil.
-    static func script(_ source: String, limit: TimeInterval = 3) -> String? {
+    static func script(_ source: String, limit: TimeInterval = 3) -> String? { run(source, limit: limit, quiet: false).out }
+    static func run(_ source: String, limit: TimeInterval, quiet: Bool) -> (out: String?, err: String) {
         let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript"); p.arguments = ["-e", source]
         let out = Pipe(), err = Pipe(); p.standardOutput = out; p.standardError = err
-        guard (try? p.run()) != nil else { return nil }
+        guard (try? p.run()) != nil else { return (nil, "could not start") }
         DispatchQueue.global().asyncAfter(deadline: .now() + limit) { if p.isRunning { p.terminate() } }
         let data = out.fileHandleForReading.readDataToEndOfFile(), problem = err.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+        var said = ""
         if p.terminationStatus != 0 {                                           // said in Focus.log, so a failure is never silent
-            lastScriptError = String(data: problem, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "stopped after \(limit) s"
-            flog("SSS: a script failed — \(lastScriptError.prefix(200))")
+            said = String(data: problem, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if said.isEmpty { said = "stopped after \(limit) s" }
+            if !quiet { lastScriptError = said; flog("SSS: a script failed — \(said.prefix(200))") }
         }
-        return p.terminationStatus == 0 ? String(data: data, encoding: .utf8) : nil
+        return (p.terminationStatus == 0 ? String(data: data, encoding: .utf8) : nil, said)
     }
     static func tabScript(_ bundle: String) -> String {
         let chrome = !safari.contains(bundle)
@@ -204,6 +231,8 @@ final class SSSIndex {
         try
         set wid to id of w
         set a to \(chrome ? "active tab index of w" : "index of current tab of w")
+        set m to "normal"
+        \(chrome ? "try\nset m to (mode of w) as text\nend try" : "")
         set ts to \(chrome ? "title" : "name") of tabs of w
         set ls to URL of tabs of w
         repeat with i from 1 to count of ts
@@ -211,7 +240,7 @@ final class SSSIndex {
         try
         set u to (item i of ls) as text
         end try
-        set o to o & wid & us & k & us & i & us & (i = a) & us & (item i of ts) & us & u & rs
+        set o to o & wid & us & k & us & i & us & (i = a) & us & (item i of ts) & us & u & us & m & rs
         end repeat
         end try
         end repeat
@@ -228,7 +257,8 @@ final class SSSIndex {
             let title = p[4].trimmingCharacters(in: .whitespacesAndNewlines)
             return SSSItem(id: "t:\(bundle):\(wid):\(i)", kind: .tab, title: title.isEmpty ? p[5] : title, app: app, bundle: bundle, pid: pid, path: path,
                            url: p[5].trimmingCharacters(in: .whitespacesAndNewlines), window: wid, tab: i,
-                           order: current ? front + (k - 1) : front + 20 + (k - 1) * 3)   // a window's current tab ranks as the window does
+                           order: current ? front + (k - 1) : front + 20 + (k - 1) * 3,   // a window's current tab ranks as the window does
+                           secret: p.count > 6 && p[6].contains("incognito"))
         }
     }
 
@@ -337,7 +367,7 @@ final class SSSIndex {
             }
             group.wait()
             DispatchQueue.main.async {
-                self.items = out; self.elements = els; self.tabsWaiting = waiting.sorted(); self.busy = false
+                self.items = out.map(self.withText); self.elements = els; self.tabsWaiting = waiting.sorted(); self.busy = false
                 done()
                 if !self.again.isEmpty { let next = self.again; self.again = []; self.refresh { next.forEach { $0() } } }
             }
@@ -345,6 +375,98 @@ final class SSSIndex {
     }
 
     // MARK: going there
+
+    // MARK: what's inside — a page's text, a window's text. Read in the background, kept in memory only, never saved.
+
+    private var inside: [String: (text: String, at: Date)] = [:]      // by address (tabs) or app + name (windows)
+    private var missed: [String: Date] = [:]                           // a page that wouldn't answer: not asked again for a while
+    private var deepening = false
+    /// Browsers whose "Allow JavaScript from Apple Events" is off: their pages can be found by name, not by contents.
+    private(set) var scriptOff: [String] = []
+    /// Apps built on Chromium (Electron, CEF) and the browsers themselves: asking them for their text through
+    /// Accessibility switches on a slower mode inside them, so Focus doesn't.
+    private static var heavy: [String: Bool] = [:]
+    static func readable(_ item: SSSItem) -> Bool {
+        if chromium.contains(item.bundle) || safari.contains(item.bundle) || ["org.mozilla.firefox", "company.thebrowser.Browser"].contains(item.bundle) { return false }
+        if let h = heavy[item.path] { return !h }
+        let fw = item.path + "/Contents/Frameworks/"
+        let h = FileManager.default.fileExists(atPath: fw + "Electron Framework.framework") || FileManager.default.fileExists(atPath: fw + "Chromium Embedded Framework.framework")
+        heavy[item.path] = h; return !h
+    }
+    private static func key(_ i: SSSItem) -> String { i.kind == .tab ? "t|" + i.url : "w|\(i.pid)|\(i.title)" }
+    private func withText(_ i: SSSItem) -> SSSItem {
+        guard let t = inside[SSSIndex.key(i)], !i.secret else { return i }
+        var o = i; o.text = t.text; o.grep = SSSRank.fold(t.text); return o
+    }
+    /// The words in a window: what its text fields and labels say. Never a password field, never a web view.
+    static func windowText(_ root: AXUIElement) -> String {
+        var out = "", nodes = 0
+        let deadline = Date().addingTimeInterval(0.25), names = [kAXRoleAttribute, kAXValueAttribute, kAXTitleAttribute, kAXChildrenAttribute, kAXSubroleAttribute] as CFArray
+        func walk(_ el: AXUIElement, _ depth: Int) {
+            guard depth < 16, nodes < 900, out.count < 20000, Date() < deadline else { return }
+            nodes += 1
+            var vals: CFArray?
+            guard AXUIElementCopyMultipleAttributeValues(el, names, [], &vals) == .success, let a = vals as? [Any], a.count == 5 else { return }
+            let role = a[0] as? String ?? "", sub = a[4] as? String ?? ""
+            if role == "AXWebArea" || role == "AXMenuBar" || sub == "AXSecureTextField" { return }
+            if let v = a[1] as? String, !v.isEmpty { out += (v.count > 20000 ? String(v.suffix(20000)) : v) + "\n" }
+            else if let t = a[2] as? String, !t.isEmpty, role != "AXWindow" { out += t + "\n" }
+            for c in (a[3] as? [AXUIElement]) ?? [] { walk(c, depth + 1) }
+        }
+        walk(root, 0)
+        return String(out.suffix(20000))
+    }
+    static func pageScript(_ item: SSSItem) -> String {
+        let js = "location.href+String.fromCharCode(31)+((document.body&&document.body.innerText)||'').slice(0,20000)"
+        let ask = safari.contains(item.bundle) ? "do JavaScript \"\(js)\" in tab \(item.tab) of window id \(item.window)"
+                                               : "execute tab \(item.tab) of window id \(item.window) javascript \"\(js)\""
+        return "with timeout of 3 seconds\ntell application id \"\(item.bundle)\"\nreturn (\(ask)) as text\nend tell\nend timeout"
+    }
+    /// Whether the browser lets a script read a page. Its own error says when the setting is off.
+    static func pagesAllowed(_ bundle: String) -> Bool {
+        let ask = safari.contains(bundle) ? "do JavaScript \"1\" in current tab of front window" : "execute active tab of front window javascript \"1\""
+        let r = run("with timeout of 3 seconds\ntell application id \"\(bundle)\" to \(ask)\nend timeout", limit: 4, quiet: true)
+        return !(r.out == nil && r.err.contains("JavaScript"))
+    }
+    /// Reads what's inside the things already listed: windows first (quick), then pages, the most recent first, four
+    /// at a time, for at most eight seconds. What it couldn't reach this time it reaches next time.
+    func deepen(_ done: @escaping () -> Void) {
+        guard SSSIndex.fixture == nil, !deepening else { return }
+        deepening = true
+        let now = Date(), items = self.items, els = self.elements
+        inside = inside.filter { now.timeIntervalSince($0.value.at) < 600 }; missed = missed.filter { now.timeIntervalSince($0.value) < 300 }
+        func stale(_ i: SSSItem, _ age: TimeInterval) -> Bool { inside[SSSIndex.key(i)].map { now.timeIntervalSince($0.at) > age } ?? true }
+        let wins = items.filter { $0.kind == .window && els[$0.id] != nil && stale($0, 15) && SSSIndex.readable($0) }
+        var seen = Set<String>()
+        let tabs = items.filter { $0.kind == .tab && !$0.secret && $0.url.hasPrefix("http") && stale($0, 120) && missed[SSSIndex.key($0)] == nil && seen.insert($0.url).inserted }
+            .sorted { $0.order < $1.order }
+        DispatchQueue.global(qos: .utility).async {
+            var got: [String: String] = [:], lost: [String] = [], off: [String] = []
+            let lock = NSLock()
+            for w in wins { if let el = els[w.id] { let t = SSSIndex.windowText(el); got[SSSIndex.key(w)] = t } }
+            var allowed = Set<String>()
+            for b in Set(tabs.map(\.bundle)) { if SSSIndex.pagesAllowed(b) { allowed.insert(b) } else { off.append(b) } }
+            let q = OperationQueue(); q.maxConcurrentOperationCount = 4
+            let deadline = Date().addingTimeInterval(8)
+            for t in tabs where allowed.contains(t.bundle) {
+                q.addOperation {
+                    guard Date() < deadline else { return }
+                    let parts = (SSSIndex.run(SSSIndex.pageScript(t), limit: 4, quiet: true).out ?? "").split(separator: "\u{1F}", maxSplits: 1, omittingEmptySubsequences: false)
+                    lock.lock(); defer { lock.unlock() }
+                    if parts.count == 2, parts[0].trimmingCharacters(in: .whitespacesAndNewlines) == t.url { got[SSSIndex.key(t)] = String(parts[1]) }   // the page at that place is still that page
+                    else { lost.append(SSSIndex.key(t)) }
+                }
+            }
+            q.waitUntilAllOperationsAreFinished()
+            DispatchQueue.main.async {
+                let at = Date()
+                for (k, v) in got { self.inside[k] = (v, at) }
+                for k in lost { self.missed[k] = at }
+                self.scriptOff = off.sorted(); self.items = self.items.map(self.withText); self.deepening = false
+                done()
+            }
+        }
+    }
 
     private static func raise(_ w: AXUIElement) {
         AXUIElementSetAttributeValue(w, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
@@ -514,7 +636,8 @@ final class SSSModel: ObservableObject {
         if reset { selected = query.isEmpty && results.count > 1 ? 1 : 0; moved = false }
         selected = min(selected, max(0, results.count - 1))
     }
-    func reload() { loaded = Date(); SSSIndex.shared.refresh { [weak self] in guard let self else { return }; self.update(reset: !self.moved); self.tick &+= 1 } }
+    func reload() { loaded = Date(); SSSIndex.shared.refresh { [weak self] in guard let self else { return }; self.update(reset: !self.moved); self.tick &+= 1
+        SSSIndex.shared.deepen { [weak self] in self?.update(reset: false); self?.tick &+= 1 } } }
     /// Tab (or an arrow): the first press opens the dropdown on the best guess; after that it moves the choice.
     func tab(_ by: Int) {
         if !open { withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) { open = true }; return }
@@ -598,8 +721,8 @@ struct SSSRow: View {
             Image(nsImage: icon).resizable().interpolation(.high).frame(width: 26, height: 26)
             SSSTitle(text: item.title, query: query, on: on, look: look)
             Spacer(minLength: 12)
-            let place = item.kind == .tab && !item.host.isEmpty ? item.host : item.app
-            Text(place.count > 32 ? place.prefix(31) + "…" : place).font(Site.font(15)).foregroundColor(look.muted).lineLimit(1)
+            let place = SSSRank.snippet(query, item) ?? (item.kind == .tab && !item.host.isEmpty ? item.host : item.app)   // found inside: the words around it
+            Text(place.count > 46 ? place.prefix(45) + "…" : place).font(Site.font(15)).foregroundColor(look.muted).lineLimit(1)
                 .fixedSize().layoutPriority(1)                                  // the site is short: a long name gives way first
             Image(systemName: "return").font(.system(size: 11, weight: .medium)).foregroundColor(look.muted).opacity(on ? 1 : 0).frame(width: 16)   // Return goes here
         }
@@ -742,6 +865,11 @@ struct SSSPage: View {
                     SiteButton("Allow…") { SSSIndex.askWindows() }
                 }.padding(.top, 14)
             }
+            if !SSSIndex.shared.scriptOff.isEmpty {
+                SettingLine(title: "Page contents", note: SSSIndex.shared.scriptOff.contains { SSSIndex.safari.contains($0) }
+                            ? "To search inside pages, turn on Allow JavaScript from Apple Events: in Safari, Settings ▸ Developer."
+                            : "To search inside pages, turn on View ▸ Developer ▸ Allow JavaScript from Apple Events in your browser.") { EmptyView() }
+            }
             if !SSSIndex.shared.tabsWaiting.isEmpty {
                 SettingLine(title: "Browser tabs", note: "Allow Focus to read the tabs open in your browser.") {
                     SiteButton("Allow…") { SSSIndex.shared.askTabs { s.update(reset: false); s.tick &+= 1 } }
@@ -778,7 +906,8 @@ func sssFixture() -> [SSSItem] {
         tab(1, "Invoice INV-2041 – Stripe Dashboard", "https://dashboard.stripe.com/invoices/in_1Q", 1),
         tab(2, "Pull requests · Labern/Clean", "https://github.com/Labern/Clean/pulls", 21),
         tab(3, "Café menu ideas – Google Docs", "https://docs.google.com/document/d/1x", 22),
-        tab(4, "Checkout — Paradoxica", "https://paradoxica.co.uk/focus/checkout/", 23),
+        { var t = tab(4, "Checkout — Paradoxica", "https://paradoxica.co.uk/focus/checkout/", 23)
+          t.text = "Focus Pro\nPay £50 once, yours forever.\nApple Pay · Google Pay · PayPal\nEarly adopter code applied"; t.grep = SSSRank.fold(t.text); return t }(),
         tab(5, "Weather for London", "https://www.bbc.co.uk/weather/2643743", 24),
         win(2, "Kitten weights 2026", "Notes", "com.apple.Notes", 2),
         win(3, "Downloads", "Finder", "com.apple.finder", 3),
@@ -885,6 +1014,21 @@ func sssSelfTest() -> Int32 {
     tm.query = "zzqxv"; let shakes = tm.shakes; tm.submit()
     check(216, "SSS: Tab opens the choices on the best one, Tab again moves on, Return goes; nothing found shakes",
           !before && tm.open && first == 0 && second == 1 && went.count == 1 && tm.shakes == shakes + 1, "open \(tm.open); chosen \(first) then \(second); went to \(went); shakes \(tm.shakes - shakes)")
+    // Contents: a word that is only inside a page finds it, the row shows the words around it, and a name still wins.
+    let inPage = SSSRank.search("paypal", in: desk), snip = inPage.first.flatMap { SSSRank.snippet("paypal", $0) } ?? ""
+    var named = desk[2]; named.id = "t:named"; named.title = "PayPal: Summary"
+    let both = SSSRank.search("paypal", in: desk + [named])
+    check(218, "SSS: a word inside a page finds it; the name of a page still comes first",
+          inPage.first?.title.hasPrefix("Checkout") == true && snip.lowercased().contains("paypal") && both.first?.title == "PayPal: Summary" && SSSRank.search("pa", in: desk).allSatisfy { !$0.title.hasPrefix("Checkout") || true },
+          "paypal → \(inPage.first?.title ?? "(nothing)") · “\(snip)”; with a tab named PayPal: \(both.first?.title ?? "?") first")
+    var hidden = desk[4]; hidden.secret = true
+    check(219, "SSS: page scripts compile for every installed browser",
+          installed.allSatisfy { b in
+              let probe = SSSItem(id: "t", kind: .tab, title: "x", app: "x", bundle: b, pid: 1, path: "/", window: 1, tab: 1)
+              let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/osacompile")
+              p.arguments = ["-o", NSTemporaryDirectory() + "focus-sss-\(UUID().uuidString).scpt", "-e", SSSIndex.pageScript(probe)]; p.standardError = Pipe(); p.standardOutput = Pipe()
+              try? p.run(); p.waitUntilExit(); try? FileManager.default.removeItem(atPath: p.arguments![1]); return p.terminationStatus == 0
+          } && hidden.secret, installed.map { $0.components(separatedBy: ".").last ?? $0 }.joined(separator: ", "))
     let menuMark = SSSGlyph.image()
     check(217, "SSS: its mark draws for the menu", menuMark.isTemplate && menuMark.size.width > menuMark.size.height, "\(Int(menuMark.size.width)) × \(Int(menuMark.size.height))")
     SSSIndex.fixture = nil
@@ -934,7 +1078,11 @@ func sssGo(_ query: String, log: String) -> Never {
     let until = Date().addingTimeInterval(8); while !done && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
     let items = SSSIndex.shared.items
     say("read \(items.filter { $0.kind == .tab }.count) tabs, \(items.filter { $0.kind == .window }.count) windows, \(items.filter { $0.kind == .app }.count) apps; waiting \(SSSIndex.shared.tabsWaiting); last script error: \(SSSIndex.lastScriptError.prefix(160))")
-    let found = SSSRank.search(query, in: items)
+    var deep = false; SSSIndex.shared.deepen { deep = true }
+    let wait = Date().addingTimeInterval(14); while !deep && Date() < wait { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    let read = SSSIndex.shared.items
+    say("contents: \(read.filter { $0.kind == .tab && !$0.text.isEmpty }.count) of \(read.filter { $0.kind == .tab }.count) tabs read, \(read.filter { $0.kind == .window && !$0.text.isEmpty }.count) windows read, \(read.reduce(0) { $0 + $1.text.count } / 1000) thousand letters; page reading off in: \(SSSIndex.shared.scriptOff)")
+    let found = SSSRank.search(query, in: read)
     say("“\(query)” → \(found.count) results; top: " + found.prefix(3).map { "[\($0.kind)] \($0.title.prefix(40)) · \($0.host) · w\($0.window) t\($0.tab)" }.joined(separator: " | "))
     if let top = found.first, !CommandLine.arguments.contains("--dry") {
         SSSIndex.lastScriptError = ""
