@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.21.1 — 2026-11-18
+- **Super Smart Search goes where it says.** A tab is now found by its address at the moment you press Return (tabs
+  move and close after the list was read), the browser brings itself forward, and if macOS still leaves it behind
+  Focus opens it the way the Dock does. Typing after a pause re-reads what's open.
+- Focus.log says what Return did (how many results, whether the app came forward); never what you typed.
+- `Focus --sss-go=WORDS --log FILE` and `--sss-page` run the real path for testing.
+
 ## 0.21.0 — 2026-11-18
 - **Super Smart Search is one bar.** A black bar and nothing else: type, press Return, and it goes to the best match.
   It shows no list of what's open. Press Tab (or ↓) for a dropdown of what it could mean, with the best guess already

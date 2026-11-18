@@ -2984,6 +2984,10 @@ if CommandLine.arguments.contains("--selftest-gui") {
     exit(guiSelfTest(only: only))
 }
 /// `Focus --selftest-sss`: Super Smart Search's own checks (the search itself, on a made-up desk; see sss.swift).
+if let g = CommandLine.arguments.first(where: { $0.hasPrefix("--sss-go=") }), let i = CommandLine.arguments.firstIndex(of: "--log"), CommandLine.arguments.count > i + 1 {
+    sssGo(String(g.dropFirst(9)), log: CommandLine.arguments[i + 1])
+}
+if CommandLine.arguments.contains("--sss-page") { sssPageWindow() }
 if CommandLine.arguments.contains("--selftest-sss-live") { exit(sssLiveTest()) }
 if CommandLine.arguments.contains("--selftest-sss") { exit(sssSelfTest()) }
 /// `Focus --render-sss FILE [query=…] [look=light] [live]`: the Super Smart Search panel, drawn off-screen.

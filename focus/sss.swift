@@ -177,13 +177,18 @@ final class SSSIndex {
         }
     }
 
+    static var lastScriptError = ""
     /// Runs a script with a time limit, off the main thread. Returns what it printed, or nil.
     static func script(_ source: String, limit: TimeInterval = 3) -> String? {
         let p = Process(); p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript"); p.arguments = ["-e", source]
-        let out = Pipe(); p.standardOutput = out; p.standardError = Pipe()
+        let out = Pipe(), err = Pipe(); p.standardOutput = out; p.standardError = err
         guard (try? p.run()) != nil else { return nil }
         DispatchQueue.global().asyncAfter(deadline: .now() + limit) { if p.isRunning { p.terminate() } }
-        let data = out.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+        let data = out.fileHandleForReading.readDataToEndOfFile(), problem = err.fileHandleForReading.readDataToEndOfFile(); p.waitUntilExit()
+        if p.terminationStatus != 0 {                                           // said in Focus.log, so a failure is never silent
+            lastScriptError = String(data: problem, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "stopped after \(limit) s"
+            flog("SSS: a script failed — \(lastScriptError.prefix(200))")
+        }
         return p.terminationStatus == 0 ? String(data: data, encoding: .utf8) : nil
     }
     static func tabScript(_ bundle: String) -> String {
@@ -350,12 +355,54 @@ final class SSSIndex {
         guard let app = NSRunningApplication(processIdentifier: pid) else { return }
         if app.isHidden { app.unhide() }
         if #available(macOS 14.0, *) { NSApp.yieldActivation(to: app) }
-        app.activate(options: [])
+        let ok = app.activate(options: [])
+        // macOS can accept and still not do it: look, and if it isn't in front, open it the way the Dock does.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            guard NSWorkspace.shared.frontmostApplication?.processIdentifier != pid, let url = app.bundleURL else { return }
+            flog("SSS: \(app.localizedName ?? "?") did not come forward (\(ok ? "accepted" : "refused")) — opening it instead")
+            let c = NSWorkspace.OpenConfiguration(); c.activates = true
+            NSWorkspace.shared.openApplication(at: url, configuration: c)
+        }
     }
+    /// Chooses the tab in its browser and has the browser come forward itself. The tab is found by its address at the
+    /// moment of going (tabs move and close after the list was read); its remembered place is only the fallback.
     static func openScript(_ item: SSSItem) -> String {
-        SSSIndex.safari.contains(item.bundle)
-            ? "tell application id \"\(item.bundle)\"\nset w to window id \(item.window)\nset current tab of w to tab \(item.tab) of w\nset index of w to 1\nend tell"
-            : "tell application id \"\(item.bundle)\"\nset active tab index of window id \(item.window) to \(item.tab)\nset index of window id \(item.window) to 1\nend tell"
+        let safari = SSSIndex.safari.contains(item.bundle)
+        let url = item.url.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let choose = safari ? "set current tab of w to tab i of w" : "set active tab index of w to i"
+        return """
+        tell application id "\(item.bundle)"
+        set target to "\(url)"
+        set found to false
+        try
+        set w to window id \(item.window)
+        if (URL of tab \(item.tab) of w) is target then
+        set i to \(item.tab)
+        \(choose)
+        set index of w to 1
+        set found to true
+        end if
+        end try
+        if not found then
+        repeat with w in windows
+        try
+        set ls to URL of tabs of w
+        repeat with i from 1 to count of ls
+        if (item i of ls) is target then
+        \(choose)
+        set index of w to 1
+        set found to true
+        exit repeat
+        end if
+        end repeat
+        end try
+        if found then exit repeat
+        end repeat
+        end if
+        activate
+        return found
+        end tell
+        """
     }
     /// Brings the item forward: the tab is chosen in its browser, the window raised, the app made active.
     func open(_ item: SSSItem) {
@@ -365,7 +412,8 @@ final class SSSIndex {
             let source = SSSIndex.openScript(item)
             let trusted = SSSIndex.windowsAllowed
             work.async {
-                _ = SSSIndex.script(source)
+                let found = SSSIndex.script(source, limit: 5)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                if found != "true" { flog("SSS: the tab was not found where it was (\(found ?? "the browser did not answer"))") }
                 if trusted {                                              // and the browser's window itself, over its other windows
                     let wins = SSSIndex.windows(of: item.pid, expecting: 0)
                     if let w = wins.first(where: { !item.title.isEmpty && SSSIndex.string($0, kAXTitleAttribute).hasPrefix(item.title) }) { SSSIndex.raise(w) }
@@ -439,7 +487,8 @@ struct SSSLook {
 }
 
 final class SSSModel: ObservableObject {
-    @Published var query = "" { didSet { if query != oldValue { update(reset: true) } } }
+    @Published var query = "" { didSet { if query != oldValue { update(reset: true); if Date().timeIntervalSince(loaded) > 4 { reload() } } } }   // typing after a pause re-reads what's open
+    private var loaded = Date.distantPast
     @Published var results: [SSSItem] = []
     @Published var selected = 0
     @Published var open = false                                 // the dropdown: only after Tab (or an arrow)
@@ -465,7 +514,7 @@ final class SSSModel: ObservableObject {
         if reset { selected = query.isEmpty && results.count > 1 ? 1 : 0; moved = false }
         selected = min(selected, max(0, results.count - 1))
     }
-    func reload() { SSSIndex.shared.refresh { [weak self] in guard let self else { return }; self.update(reset: !self.moved); self.tick &+= 1 } }
+    func reload() { loaded = Date(); SSSIndex.shared.refresh { [weak self] in guard let self else { return }; self.update(reset: !self.moved); self.tick &+= 1 } }
     /// Tab (or an arrow): the first press opens the dropdown on the best guess; after that it moves the choice.
     func tab(_ by: Int) {
         if !open { withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) { open = true }; return }
@@ -474,6 +523,7 @@ final class SSSModel: ObservableObject {
     }
     func submit() {
         let empty = query.trimmingCharacters(in: .whitespaces).isEmpty
+        flog("SSS: Return — \(query.count) letters typed, \(results.count) results, \(SSSIndex.shared.items.count) things known")
         if results.indices.contains(selected), !(empty && !emptyGoes && !open) { onPick(results[selected]) }
         else if !empty { withAnimation(.linear(duration: 0.38)) { shakes += 1 } }
     }
@@ -871,4 +921,41 @@ func sssLiveTest() -> Int32 {
     let returned = back.hasPrefix(home.app) && (home.kind == .app || back.contains(String(home.title.prefix(12))))
     print("sss-live: \(returned ? "PASS" : "FAIL")  came back to \(home.title.prefix(30)) · before: \(before.prefix(60)) · after: \(back.prefix(60))")
     return ok && returned ? 0 : 1
+}
+
+/// `Focus --sss-go=WORDS --log FILE`: the real path, once, as Focus itself (launch with `open`, so macOS applies
+/// Focus's own permissions): read this Mac, find WORDS, go there, and write what happened to FILE.
+func sssGo(_ query: String, log: String) -> Never {
+    _ = NSApplication.shared
+    var lines: [String] = []
+    func say(_ s: String) { lines.append(s); try? lines.joined(separator: "\n").write(toFile: log, atomically: true, encoding: .utf8) }
+    say("accessibility \(SSSIndex.windowsAllowed); chrome automation \(SSSIndex.automation("com.google.Chrome", ask: false))")
+    var done = false; SSSIndex.shared.refresh { done = true }
+    let until = Date().addingTimeInterval(8); while !done && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    let items = SSSIndex.shared.items
+    say("read \(items.filter { $0.kind == .tab }.count) tabs, \(items.filter { $0.kind == .window }.count) windows, \(items.filter { $0.kind == .app }.count) apps; waiting \(SSSIndex.shared.tabsWaiting); last script error: \(SSSIndex.lastScriptError.prefix(160))")
+    let found = SSSRank.search(query, in: items)
+    say("“\(query)” → \(found.count) results; top: " + found.prefix(3).map { "[\($0.kind)] \($0.title.prefix(40)) · \($0.host) · w\($0.window) t\($0.tab)" }.joined(separator: " | "))
+    if let top = found.first, !CommandLine.arguments.contains("--dry") {
+        SSSIndex.lastScriptError = ""
+        SSSIndex.shared.open(top); RunLoop.main.run(until: Date().addingTimeInterval(2.0))
+        let front = NSWorkspace.shared.frontmostApplication?.localizedName ?? "?"
+        let now = SSSIndex.script("tell application id \"\(top.bundle)\" to return (URL of active tab of front window)") ?? "(could not ask)"
+        say("after going: in front is \(front); the browser's front tab is \(now.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80)); script error: \(SSSIndex.lastScriptError.prefix(160))")
+    }
+    exit(0)
+}
+
+/// `Focus --sss-page`: the Super Smart Search page on its own in a plain window (test settings, nothing saved), to
+/// press real keys in it. Launch with `open` so macOS applies Focus's own permissions.
+func sssPageWindow() -> Never {
+    let app = NSApplication.shared; app.setActivationPolicy(.accessory)
+    let f = Focus(store: UserDefaults(suiteName: "com.labern.focus.selftest")!)
+    let m = DesktopModel(f); m.still = true
+    let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 420), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+    w.title = "Focus test — closes itself"; w.isReleasedWhenClosed = false
+    w.contentView = NSHostingView(rootView: SSSPage(m: m).frame(width: 760, height: 420).background(Site.bg))
+    w.center(); w.makeKeyAndOrderFront(nil); app.activate(ignoringOtherApps: true)
+    DispatchQueue.main.asyncAfter(deadline: .now() + 25) { exit(0) }
+    app.run(); exit(0)
 }
