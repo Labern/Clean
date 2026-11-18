@@ -42,6 +42,9 @@ else record FAIL "Builds with zero errors and zero warnings" "$errors errors, $w
 echo "2. Menu, settings, history, shortcuts"
 collect < <("$BIN" --selftest-stress --only=4,9,16,18,23,24,26,27,28,29,32,33,34,35,36,38,39,40,41,42,43,45,46,48 2>&1)   # not a pipe: results must reach this shell
 
+echo "2b. Super Smart Search"
+collect < <("$BIN" --selftest-sss 2>&1)
+
 if [ "$MODE" = "full" ]; then
     quiet_mic
     echo "3. Stand-in apps"

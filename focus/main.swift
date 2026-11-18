@@ -1283,6 +1283,7 @@ final class Focus: NSObject, NSMenuDelegate {
     var appMods: Int { get { store.object(forKey: "appModsE") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "appModsE"); applyShortcuts() } }
     func appLabel(_ mods: Int) -> String { label(mods) }
     var appKeyTaken = false
+    var sssKeyTaken = false                                     // Super Smart Search (sss.swift)
     var takenModeKeys: Set<Int> = []                            // digits macOS refused (another app holds them)
     var keyRefs: [EventHotKeyRef?] = []
     var sessionKeyTaken = false, menuKeyTaken = false
@@ -1293,6 +1294,7 @@ final class Focus: NSObject, NSMenuDelegate {
         keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }
         let s = hotkey(1, kVK_ANSI_F, sessionMods), m = hotkey(2, kVK_ANSI_E, menuMods), a = hotkey(3, kVK_ANSI_E, appMods)
         keyRefs = [s, m, a]; sessionKeyTaken = s == nil; menuKeyTaken = m == nil; appKeyTaken = a == nil
+        let q = hotkey(4, kVK_Space, sssMods); keyRefs.append(q); sssKeyTaken = q == nil
         takenModeKeys = []
         for md in modes { if let d = md["key"] as? Int, digitKeys.indices.contains(d) {   // only the keys the user set
             let r = hotkey(UInt32(100 + d), digitKeys[d], modeMods); keyRefs.append(r); if r == nil { takenModeKeys.insert(d) }
@@ -2971,6 +2973,21 @@ if CommandLine.arguments.contains("--selftest-gui") {
     let only = CommandLine.arguments.first { $0.hasPrefix("--only=") }.map { Set($0.dropFirst(7).split(separator: ",").compactMap { Int($0) }) }
     exit(guiSelfTest(only: only))
 }
+/// `Focus --selftest-sss`: Super Smart Search's own checks (the search itself, on a made-up desk; see sss.swift).
+if CommandLine.arguments.contains("--selftest-sss-live") { exit(sssLiveTest()) }
+if CommandLine.arguments.contains("--selftest-sss") { exit(sssSelfTest()) }
+/// `Focus --render-sss FILE [query=…] [look=light] [live]`: the Super Smart Search panel, drawn off-screen.
+if let i = CommandLine.arguments.firstIndex(of: "--render-sss"), CommandLine.arguments.count > i + 1 {
+    _ = renderSSS(to: CommandLine.arguments[i + 1]); exit(0)
+}
+/// `Focus --sss`: Super Smart Search on its own, live, without the rest of Focus (and without touching a running
+/// Focus): the panel opens, one search, then it quits.
+if CommandLine.arguments.contains("--sss") {
+    let a = NSApplication.shared; a.setActivationPolicy(.accessory)
+    SSSController.shared.onHide = { exit(0) }
+    DispatchQueue.main.async { SSSController.shared.show() }
+    a.run()
+}
 /// `Focus --render-desktop FILE [mode]`: the desktop window's content, drawn off-screen.
 if let i = CommandLine.arguments.firstIndex(of: "--render-desktop"), CommandLine.arguments.count > i + 1 {
     _ = NSApplication.shared
@@ -3419,7 +3436,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
     steps.append(("23. shortcuts: switching registers the new keys at once; the defaults are ⌘⇧F (session), ⌘⇧E (desktop app), ⌥⇧E (menu)", { done in
         let defaultOK = t.label(t.sessionMods) == "⌘⇧" && t.menuLabel(t.menuMods) == "⌥⇧" && t.appLabel(t.appMods) == "⌘⇧"
         t.sessionMods = controlKey | shiftKey                  // ⌃⇧F (the real Focus keeps its own keys)
-        let s1 = !t.sessionKeyTaken && sessionKey == "⌃⇧F" && t.keyRefs.count == 3   // session, menu, desktop app
+        let s1 = !t.sessionKeyTaken && sessionKey == "⌃⇧F" && t.keyRefs.count == 4   // session, menu, desktop app, Super Smart Search
         let m = NSMenu(); t.menuNeedsUpdate(m)
         let keysMenu = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Shortcuts" }?.submenu
         let ticked = keysMenu?.items.first { $0.state == .on }?.title.hasPrefix("⌃⇧F") == true
@@ -3983,6 +4000,7 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
         switch hk.id {
         case 1: focus.toggle()
         case 2: focus.showMenu()
+        case 4: SSSController.shared.toggle()                   // Super Smart Search
         case 3: if desktop.shown && NSApp.isActive && desktop.window?.isKeyWindow == true { desktop.hide() } else { focus.openDesktop() }
         case 100...109: focus.modeKey(Int(hk.id) - 100)
         case 200: desktop.reopenFromH()                         // ⌘H straight after hiding the desktop app
