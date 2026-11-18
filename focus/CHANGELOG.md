@@ -4,6 +4,15 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## Unreleased (focus/sss-b) — Super Smart Search
+- **Super Smart Search (SSS)**: ⌘⇧Space from anywhere opens a Spotlight-style panel that finds any window of any app
+  or any Chrome / Safari / Arc / Brave / Edge tab, and Return brings that exact one to the front (un-minimised,
+  tab switched, raised). Smart ranking: whole words, word starts, initials, letters in order, one typo, the site's
+  address; recency breaks ties; it learns what you open. ⌘1–9 opens a row; Escape clears, then closes.
+- Its own sidebar page in the desktop window (live search + shortcut choice) and Tools ▸ Find ▸ Super Smart Search.
+- Needs Accessibility (asked on first use) and Automation per browser (macOS asks once).
+- `Focus --sss "query" [--open]` and `Focus --render-sss FILE "query"` for testing against the real Mac.
+
 ## 0.19.18 — 2026-11-18
 - Sidebar: a running mode says "Active" instead of "On".
 - Menu: the running mode's name is in your chosen colour, a little bolder, with a tick in the same colour.

@@ -1282,6 +1282,11 @@ final class Focus: NSObject, NSMenuDelegate {
     /// 2026-11-15), beside ⌘⇧F for sessions. Stored under its own key so the brief ⌃⌥D and ⌥⇧F trials never linger.
     var appMods: Int { get { store.object(forKey: "appModsE") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "appModsE"); applyShortcuts() } }
     func appLabel(_ mods: Int) -> String { label(mods) }
+    /// Super Smart Search, from anywhere: ⌘⇧Space by default (Settings: the SSS page's Shortcut).
+    var sssMods: Int { get { store.object(forKey: "sssMods") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "sssMods"); applyShortcuts() } }
+    var sssKey: String { label(sssMods) + "Space" }
+    var sssKeyTaken = false
+    @objc func openSSS() { SSSController.shared.show() }
     var appKeyTaken = false
     var takenModeKeys: Set<Int> = []                            // digits macOS refused (another app holds them)
     var keyRefs: [EventHotKeyRef?] = []
@@ -1292,7 +1297,8 @@ final class Focus: NSObject, NSMenuDelegate {
     func applyShortcuts() {
         keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }
         let s = hotkey(1, kVK_ANSI_F, sessionMods), m = hotkey(2, kVK_ANSI_E, menuMods), a = hotkey(3, kVK_ANSI_E, appMods)
-        keyRefs = [s, m, a]; sessionKeyTaken = s == nil; menuKeyTaken = m == nil; appKeyTaken = a == nil
+        let q = hotkey(4, kVK_Space, sssMods)
+        keyRefs = [s, m, a, q]; sessionKeyTaken = s == nil; menuKeyTaken = m == nil; appKeyTaken = a == nil; sssKeyTaken = q == nil
         takenModeKeys = []
         for md in modes { if let d = md["key"] as? Int, digitKeys.indices.contains(d) {   // only the keys the user set
             let r = hotkey(UInt32(100 + d), digitKeys[d], modeMods); keyRefs.append(r); if r == nil { takenModeKeys.insert(d) }
@@ -2673,6 +2679,10 @@ final class Focus: NSObject, NSMenuDelegate {
         let tools = add("Tools", nil, image: symbol("wrench.and.screwdriver")), tm = NSMenu()
         tm.autoenablesItems = false
         let busy = focused || clearing
+        tm.addItem(headingItem("Find"))
+        let sssItem = add("Super Smart Search", #selector(openSSS), image: symbol("magnifyingglass"), to: tm)
+        sssItem.keyEquivalent = " "; sssItem.keyEquivalentModifierMask = NSEvent.ModifierFlags(carbon: sssMods)
+        tm.addItem(.separator())
         tm.addItem(headingItem("Analyse performance"))
         add("Open Activity Monitor", #selector(openActivityMonitor), image: symbol("waveform.path.ecg"), to: tm)
         add("Open System Settings", #selector(openSystemSettings), image: symbol("gearshape.2"), to: tm)
@@ -2957,6 +2967,21 @@ if let i = CommandLine.arguments.firstIndex(of: "--render-banner"), CommandLine.
     exit(0)
 }
 
+/// `Focus --sss "query" [--open]`: Super Smart Search from the command line — prints the ranked results (and with
+/// --open, brings the top one to the front). How SSS is tested against the real windows and tabs on this Mac.
+if let i = CommandLine.arguments.firstIndex(of: "--sss") {
+    let q = CommandLine.arguments.count > i + 1 ? CommandLine.arguments[i + 1] : ""
+    let t0 = Date(), items = SSS.gather(), t1 = Date()
+    let hits = SSS.rank(items, q, memory: [:])
+    print("SSS \"\(q)\": \(items.count) things (\(items.filter { $0.kind == .tab }.count) tabs, \(items.filter { $0.kind == .window }.count) windows) in \(Int(t1.timeIntervalSince(t0) * 1000)) ms; accessibility: \(SSS.trusted)")
+    for h in hits.prefix(12) { print(String(format: "%6.1f", h.score), h.item.kind.rawValue.padding(toLength: 6, withPad: " ", startingAt: 0), h.item.app, "—", h.item.title.prefix(80), h.item.host.isEmpty ? "" : "(\(h.item.host))") }
+    if CommandLine.arguments.contains("--open"), let top = hits.first { print("open:", SSS.open(top.item)) }
+    exit(0)
+}
+if let i = CommandLine.arguments.firstIndex(of: "--render-sss"), CommandLine.arguments.count > i + 1 {
+    _ = NSApplication.shared
+    renderSSS(to: CommandLine.arguments[i + 1], query: CommandLine.arguments.count > i + 2 ? CommandLine.arguments[i + 2] : ""); exit(0)
+}
 /// `Focus --open-desktop`: asks the running Focus to show its desktop window, then exits (no second Focus).
 if CommandLine.arguments.contains("--open-desktop") {
     // Asked again over the next few seconds: a Focus that has only just launched may not be listening yet.
@@ -3419,7 +3444,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
     steps.append(("23. shortcuts: switching registers the new keys at once; the defaults are ⌘⇧F (session), ⌘⇧E (desktop app), ⌥⇧E (menu)", { done in
         let defaultOK = t.label(t.sessionMods) == "⌘⇧" && t.menuLabel(t.menuMods) == "⌥⇧" && t.appLabel(t.appMods) == "⌘⇧"
         t.sessionMods = controlKey | shiftKey                  // ⌃⇧F (the real Focus keeps its own keys)
-        let s1 = !t.sessionKeyTaken && sessionKey == "⌃⇧F" && t.keyRefs.count == 3   // session, menu, desktop app
+        let s1 = !t.sessionKeyTaken && sessionKey == "⌃⇧F" && t.keyRefs.count >= 4 && t.keyRefs[0] != nil   // session, menu, desktop app, Super Smart Search (then any mode digits)
         let m = NSMenu(); t.menuNeedsUpdate(m)
         let keysMenu = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Shortcuts" }?.submenu
         let ticked = keysMenu?.items.first { $0.state == .on }?.title.hasPrefix("⌃⇧F") == true
@@ -3603,7 +3628,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
         let m = NSMenu(); t.menuNeedsUpdate(m)
         let titles = m.items.map(\.title)
         let tools = m.items.first { $0.title == "Tools" }?.submenu?.items.map(\.title) ?? []
-        let toolsOK = tools.firstIndex(of: "Analyse performance") == 0 && tools.firstIndex(of: "Open Activity Monitor") == 1 && (tools.firstIndex(of: "Quit Unresponsive Apps") ?? 0) + 1 == tools.firstIndex(of: "Quit All Apps…")
+        let toolsOK = tools.firstIndex(of: "Find") == 0 && tools.firstIndex(of: "Super Smart Search") == 1 && (tools.firstIndex(of: "Analyse performance") ?? 0) + 1 == tools.firstIndex(of: "Open Activity Monitor") && (tools.firstIndex(of: "Quit Unresponsive Apps") ?? 0) + 1 == tools.firstIndex(of: "Quit All Apps…")
         let settings = m.items.first { $0.title == "Settings" }?.submenu?.items.map(\.title) ?? []
         let order = settings.firstIndex(of: "Appearance") == 0 && settings.firstIndex(of: "Shortcuts") == 1 && settings.firstIndex(of: "Behaviour") == 2
         let beh = m.items.first { $0.title == "Settings" }?.submenu?.items.first { $0.title == "Behaviour" }?.submenu?.items.map(\.title) ?? []
@@ -3983,6 +4008,7 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
         switch hk.id {
         case 1: focus.toggle()
         case 2: focus.showMenu()
+        case 4: SSSController.shared.toggle()
         case 3: if desktop.shown && NSApp.isActive && desktop.window?.isKeyWindow == true { desktop.hide() } else { focus.openDesktop() }
         case 100...109: focus.modeKey(Int(hk.id) - 100)
         case 200: desktop.reopenFromH()                         // ⌘H straight after hiding the desktop app
