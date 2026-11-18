@@ -155,6 +155,9 @@ enum ErrorLog {
         }
         crashFD = open(crashFile.path, O_WRONLY | O_CREAT | O_TRUNC, 0o644)
         for s in [SIGSEGV, SIGBUS, SIGILL, SIGABRT, SIGFPE, SIGTRAP] { signal(s, focusCrashHandler) }
+        // An update or a plain `kill` asks politely (SIGTERM): that is a normal end, not F903.
+        markerCPath = strdup(marker.path)
+        for s in [SIGTERM, SIGINT, SIGHUP] { signal(s, focusQuitHandler) }
     }
 
     /// The newest macOS crash report for Focus written since a date (its file name, for --diagnose and the record).
@@ -216,6 +219,11 @@ private extension String { func ifEmpty(_ s: String) -> String { isEmpty ? s : s
 // MARK: - The signal handler (async-signal-safe: write() only, to a file opened in advance)
 
 nonisolated(unsafe) var crashFD: Int32 = -1
+nonisolated(unsafe) var markerCPath: UnsafeMutablePointer<CChar>? = nil
+private func focusQuitHandler(_ sig: Int32) {
+    if let p = markerCPath { unlink(p) }
+    signal(sig, SIG_DFL); raise(sig)
+}
 private func focusCrashHandler(_ sig: Int32) {
     if crashFD >= 0 {
         var head: [UInt8] = Array("Focus stopped on signal ".utf8)

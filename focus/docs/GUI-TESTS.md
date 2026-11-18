@@ -87,4 +87,4 @@ build and release over time, the click line animating, ⌘Q/⌘H in a live windo
 37. **Error codes:** every code is unique and has a row in docs/ERROR-CODES.md; a record is one JSON line with its
     code, version, run and the Focus.log lines before it; a repeat inside 10 s is counted, not written; script errors
     map to their codes; `--diagnose` lists them. Crash capture is proved separately by `--selftest-crash DIR crash`
-    then `--selftest-crash DIR check` (F902 with a stack, and F903).
+    then `--selftest-crash DIR check` (F902 with a stack, and F903). A SIGTERM (`--selftest-crash DIR wait`, kill, then `term-check`) must record nothing.

@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.23.1 — 2026-11-18
+- Error codes: an update or a plain quit request (SIGTERM, SIGINT, SIGHUP) ends a run cleanly, so it is never
+  reported as F903. Proved by `--selftest-crash DIR wait`, a SIGTERM, then `--selftest-crash DIR term-check`.
+
 ## 0.23.0 — 2026-11-18
 - Error codes: every failure Focus can notice is recorded with a code (F101–F904, 27 in all) in
   ~/Library/Logs/Focus/errors.jsonl, with the version, the run and the log lines that led up to it. Table:

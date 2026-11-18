@@ -3179,6 +3179,11 @@ if let i = CommandLine.arguments.firstIndex(of: "--selftest-crash"), CommandLine
     ErrorLog.dir = URL(fileURLWithPath: CommandLine.arguments[i + 1])
     ErrorLog.start()
     if CommandLine.arguments[i + 2] == "crash" { flog("about to crash on purpose"); kill(getpid(), SIGSEGV); Thread.sleep(forTimeInterval: 2); exit(3) }
+    if CommandLine.arguments[i + 2] == "wait" { Thread.sleep(forTimeInterval: 30); exit(0) }      // to be ended with SIGTERM
+    if CommandLine.arguments[i + 2] == "term-check" {                                               // after SIGTERM: a normal end
+        let codes = ErrorLog.all().compactMap { $0["code"] as? String }
+        print("term: \(codes.isEmpty ? "PASS" : "FAIL") — recorded \(codes)"); exit(codes.isEmpty ? 0 : 1)
+    }
     let codes = ErrorLog.all().compactMap { $0["code"] as? String }
     let stack = (ErrorLog.all().first { $0["code"] as? String == "F902" }?["ctx"] as? [String: Any])?["stack"] as? String ?? ""
     let ok = codes.contains("F902") && codes.contains("F903") && !stack.isEmpty
