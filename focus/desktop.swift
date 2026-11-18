@@ -1693,6 +1693,7 @@ struct DesktopView: View {
                 Group {
                     if m.selection == Page.shortcuts { ShortcutsPage(m: m) }
                     else if m.selection == Page.tools { ToolsPage(m: m) }
+                    else if m.selection == Page.sss { SSSPage(m: m) }
                     else if m.selection == Page.settings { SettingsPage(m: m) }
                     else if m.selection == Page.appearance { AppearancePage(m: m) }
                     else if m.selection == Page.schedule { SchedulePage(m: m) }
@@ -1770,9 +1771,18 @@ struct DesktopView: View {
     static var buttonInkWhite: Bool { renderArgs.contains("ink=white") || UserDefaults.standard.bool(forKey: "desktopButtonInkWhite") }
     var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // The pages, the modes and the developer panel: as they are while they fit; in a short window they scroll
+            // as one, so the top of the window is never pushed out of sight.
+            ViewThatFits(in: .vertical) { sidebarPages; ScrollView(showsIndicators: false) { sidebarPages } }
+            sidebarFoot
+        }
+    }
+    @ViewBuilder var sidebarPages: some View {
+        VStack(alignment: .leading, spacing: 0) {
             VStack(spacing: 2) {
                 SideRow(title: "Session Editor", trailing: "", live: m.f.focused && !m.modes.contains { $0.live }, selected: m.selection == nil, icons: [], symbol: "circle.grid.2x2",
                         action: { m.selection = nil }, state: m.f.focused)
+                SideRow(title: "Super Smart Search", trailing: "", live: false, selected: m.selection == Page.sss, icons: [], symbol: "sparkle.magnifyingglass") { m.selection = Page.sss }
                 SideRow(title: "Shortcuts", trailing: "", live: false, selected: m.selection == Page.shortcuts, icons: [], symbol: "keyboard", action: { m.selection = Page.shortcuts }, pro: true)
                 SideRow(title: "Schedule", trailing: "", live: false, selected: m.selection == Page.schedule, icons: [], symbol: "calendar.badge.clock", action: { m.selection = Page.schedule }, pro: true)
                 SideRow(title: "Tools", trailing: "", live: false, selected: m.selection == Page.tools, icons: [], symbol: "wrench.and.screwdriver", action: { m.selection = Page.tools }, pro: true)
@@ -1806,6 +1816,10 @@ struct DesktopView: View {
                 .frame(maxHeight: CGFloat(m.modes.count + 1) * 36 + 4)    // only as tall as the modes: what follows sits right under them
             }
             if !renderArgs.contains("clean"), UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true { ViewAsPanel(m: m) }   // renders: `clean` hides it
+        }
+    }
+    @ViewBuilder var sidebarFoot: some View {
+        Group {
             Spacer(minLength: 8)
             // The foot: an update when there is one; Help and the Manual; then the maker's mark, which opens the site.
             VStack(spacing: 8) {
@@ -1953,7 +1967,7 @@ struct ModeDetail: View {
 // MARK: the other pages — the same settings the menu has, read from and written to the same place
 
 /// Sidebar pages that aren't a mode (a mode's id is a UUID, so these can't collide).
-enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history", manual = "§manual", upgrade = "§upgrade", appearance = "§appearance", schedule = "§schedule" }
+enum Page { static let shortcuts = "§shortcuts", tools = "§tools", settings = "§settings", history = "§history", manual = "§manual", upgrade = "§upgrade", appearance = "§appearance", schedule = "§schedule", sss = "§sss" }
 
 struct PageFrame<Content: View>: View {
     let title: String, text: String
@@ -2927,7 +2941,8 @@ func renderDesktop(to file: String, mode: Bool) {
         f.sessions = [["date": Date(), "name": "Research", "mode": "Research", "modeID": second, "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app", "id": "com.apple.Notes"]]]]
         f.store.set(true, forKey: "focused")
     }
-    for p in [Page.schedule, Page.settings, Page.appearance, Page.shortcuts, Page.tools, Page.history, Page.manual] where renderArgs.contains(String(p.dropFirst())) { m.selection = p }
+    SSSIndex.fixture = sssFixture(); defer { SSSIndex.fixture = nil }   // the Super Smart Search page never shows (or reads) what is really open
+    for p in [Page.schedule, Page.settings, Page.appearance, Page.shortcuts, Page.tools, Page.history, Page.manual, Page.sss] where renderArgs.contains(String(p.dropFirst())) { m.selection = p }
     if !renderArgs.contains("live") { f.sessions = [["date": Date().addingTimeInterval(-3600), "kept": have(["com.apple.Safari"]), "apps": [["path": "/System/Applications/Notes.app"]]]] }
     if renderArgs.contains("hover") { SessionButton.still = (true, 0, false) }
     if let a = renderArgs.first(where: { $0.hasPrefix("line=") }), let t = Double(a.dropFirst(5)) {

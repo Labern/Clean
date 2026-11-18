@@ -4,6 +4,19 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.20.0 — 2026-11-18
+- **Super Smart Search (SSS).** Press ⌥Space from anywhere, type a few letters, press Return: the exact window or
+  browser tab comes forward. It searches every open window of every app, and every tab in Safari and the Chrome family
+  (Chrome, Brave, Edge, Vivaldi), by name, app and web address. Typos, initials, accents and word order don't matter.
+  Nothing typed: everything open, most recent first, and Return goes to the window you used before this one.
+  ↑ ↓ or Tab to move, ⌘1–9 to pick, Esc to put it away.
+- Its own page in the sidebar: the search itself, the shortcut (⌥Space, ⌃Space, ⌥⇧Space or ⌃⌥Space), and an Allow
+  button for each permission it still needs (Accessibility for windows; one prompt per browser for tabs).
+- The sidebar scrolls in a short window instead of pushing the top of the window out of sight.
+- `Focus --sss` opens the search on its own, without the rest of Focus. Tests: `--selftest-sss` (15 checks, in
+  `./test.sh`) and `--selftest-sss-live` (goes to a real window and comes back).
+- Not yet: tabs in Firefox and Arc (their windows are found); a menu item; a Basic/Pro decision (it is open to all).
+
 ## 0.19.18 — 2026-11-18
 - Sidebar: a running mode says "Active" instead of "On".
 - Menu: the running mode's name is in your chosen colour, a little bolder, with a tick in the same colour.
