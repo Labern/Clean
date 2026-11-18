@@ -66,6 +66,16 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
     was there. New entries are merged into the saved ones, never replace them. Merges,
     `ci/` and `stats/` branches and robots are left out. The card's foot says how fresh
     each source is (`WorkCard.freshness`).
+  - **That activity feed can run minutes to hours behind a push**, which left the newest
+    work off the card. So the repo worked in most recently (eight of them with a token)
+    is also asked for its branches as they stand now (`repos/<repo>/branches`, one
+    question), and any whose head differs from the one last read is read at once
+    (`GitHubWork.moved(_:repo:heads:)`, tested). Branches never read before may be old,
+    so only three of those are taken up per read.
+  - **Hour is the last sixty minutes**, never "since the clock struck": that read 0 for
+    most of every hour (Labern, 2026-11-18: "it always shows 0").
+  - **Private work is invisible without a token** (Company › Connected to › GitHub):
+    the dashboard site in `paradoxica-hub` and the iOS pipeline are private repos.
   - Saved work (`work.json`) carries a `version`; a file from an older build is dropped
     and read afresh, since its entries lack things kept now. Each entry keeps its commit
     message (`raw`) and is read again from it on launch (`reread`), so better reading
@@ -95,7 +105,12 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
   - The counts are plain files and are re-read on every refresh; only GitHub's API is
     paced. (When they shared GitHub's pacing, a new build started with no
     conversation loaded and "Session" showed nothing while "Hour" was full: 2026-11-18.)
-- **Notes** — a proper notebook. Chips filter to one project's notes; a note's menu
+- **Notes** — a proper notebook. Chips are its **sections**: every project, with or
+  without notes. The plus makes a new one (`SectionEditor`: a name and a colour, twelve
+  swatches or any colour from the wheel); the pencil, shown when a section is chosen,
+  or holding a chip, renames or recolours it; a note written while a section is chosen
+  is filed there. A section is a `Project`, so one made here has a to-do list too, and
+  deleting it deletes that list but keeps its notes. A note's menu
   turns it into a to-do (title becomes the line, the rest its note) on its project,
   or on My list. Plain text, the first line is the title, saved as
   typed. Search (every word must appear), pin, file under a project, share, delete.
@@ -138,8 +153,12 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
   balance. The takings graph moved to the top of Money (2026-11-18).
 - **Money** — today's takings over a 30-day trend first, then revenue by week, month, quarter or year against the same stretch of
   the period before; subscribers and monthly recurring; payouts; every payment.
-- **To-do** (was Projects) — a switch at the top: To-do (My list, the default) and
-  Projects. Each project has a Focus list (`TodoViews.swift`). Lines nest to any
+- **To-do** (was Projects) — a switch **at the foot of the screen**: two large
+  buttons, To-do (My list, the default) in the accent and Projects in the second
+  colour, the chosen one filled; it lands with hit stop and steps aside while the
+  keyboard is up. (Labern, 2026-11-18: "move To-Do and Projects to the bottom of the
+  screen with bigger buttons… colour code them. I'd rather have it be its own things,
+  to be honest. But do this for now", so they may become tabs of their own.) Each project has a Focus list (`TodoViews.swift`). Lines nest to any
   depth. Ticking a line ticks everything under it; ticking the last open sub-item
   ticks its parent, all the way up; reopening reopens every line above. A line with
   sub-items shows a done/total count that folds them (`collapsed`, stored). Swipe

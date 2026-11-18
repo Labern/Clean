@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import SwiftData
 
 /// The To-do tab: your own list, and beside it every project being built.
@@ -13,6 +14,57 @@ struct ProjectsView: View {
     enum Pane: String, CaseIterable, Identifiable {
         case todo = "To-do", projects = "Projects"
         var id: String { rawValue }
+        var symbol: String { self == .todo ? "checklist" : "square.stack.3d.up" }
+        /// Each has its own colour: the accent for To-do, the second colour for Projects.
+        var colour: Color { self == .todo ? Ink.violet : Ink.ok }
+    }
+
+    /// Goes up with each switch: the button that was chosen lands with a hit stop.
+    @State private var switches = 0
+    /// The switch steps aside while something is being typed.
+    @State private var keyboardUp = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// To-do and Projects, side by side at the foot of the screen, large enough to hit without looking.
+    private var switcher: some View {
+        HStack(spacing: 10) {
+            ForEach(Pane.allCases) { one in
+                let on = pane == one
+                Button {
+                    guard pane != one else { return }
+                    withAnimation(.snappy) { pane = one }
+                    if !reduceMotion { switches += 1 }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: one.symbol)
+                            .font(Face.at(17, .semibold))
+                        Text(one.rawValue)
+                            .font(Face.style(.headline))
+                    }
+                    .foregroundStyle(on ? Ink.onHead : one.colour)
+                    .frame(maxWidth: .infinity, minHeight: 54)
+                    .background(on ? one.colour : one.colour.opacity(0.16),
+                                in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .keyframeAnimator(initialValue: CGFloat(1), trigger: on ? switches : -1) { view, scale in
+                    view.scaleEffect(scale)
+                } keyframes: { _ in
+                    KeyframeTrack {
+                        LinearKeyframe(1.06, duration: 0.06)
+                        LinearKeyframe(1.06, duration: 0.09)
+                        SpringKeyframe(1.0, duration: 0.3, spring: .bouncy)
+                    }
+                }
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
+        .background(Ink.ground)
+        .sensoryFeedback(.impact(weight: .medium), trigger: pane)
     }
 
     var body: some View {
@@ -24,17 +76,11 @@ struct ProjectsView: View {
                     projectList
                 }
             }
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Picker("Show", selection: $pane.animation(.snappy)) {
-                    ForEach(Pane.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.top, 6)
-                .padding(.bottom, 8)
-                .background(Ink.ground)
-                .sensoryFeedback(.selection, trigger: pane)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !keyboardUp { switcher }
             }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in keyboardUp = true }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardUp = false }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: Project.self) { ProjectDetail(project: $0) }
             .navigationDestination(for: Note.self) { NoteEditor(note: $0) }

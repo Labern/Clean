@@ -226,7 +226,7 @@ nonisolated enum WorkSpan: String, CaseIterable, Identifiable, Sendable {
     /// Said under each figure: "this hour", "last 24 hours".
     func caption(rolling: Bool) -> String {
         switch self {
-        case .hour: "this hour"
+        case .hour: "last hour"
         case .session: "this session"
         case .day: rolling ? "last 24 hours" : "today"
         case .week: rolling ? "last 7 days" : "this week"
@@ -238,7 +238,9 @@ nonisolated enum WorkSpan: String, CaseIterable, Identifiable, Sendable {
     func start(now: Date, calendar: Calendar, rolling: Bool, session: Date?) -> Date {
         switch self {
         case .hour:
-            calendar.dateInterval(of: .hour, for: now)?.start ?? now
+            // The last sixty minutes, always. "Since the clock last struck" read 0
+            // for most of every hour (Labern, 2026-11-18: "it always shows 0").
+            now.addingTimeInterval(-3600)
         case .session:
             session ?? calendar.startOfDay(for: now)
         case .day:
@@ -467,6 +469,24 @@ nonisolated enum GitHubWork {
         return moves
     }
 
+    /// A branch as its repo lists it now.
+    struct Branch: Decodable {
+        var name: String
+        var commit: Tip
+        struct Tip: Decodable { var sha: String }
+    }
+
+    /// The branches whose head, read straight from the repo, is not the one last
+    /// read. The account's activity can run minutes to hours behind a push; the
+    /// repo's own list of branches cannot, so the newest work shows at once.
+    static func moved(_ branches: [Branch], repo: String, heads: [String: String]) -> [Move] {
+        branches.compactMap { branch in
+            if branch.name.hasPrefix("ci/") || branch.name.hasPrefix("stats/") { return nil }
+            let move = Move(repo: repo, branch: branch.name, head: branch.commit.sha)
+            return heads[move.key] == move.head ? nil : move
+        }
+    }
+
     struct Repo: Decodable {
         var full_name: String
         var default_branch: String?
@@ -648,7 +668,10 @@ nonisolated enum GitHubWork {
         let cooling = refused.map { now.timeIntervalSince($0) < 90 } ?? false
         if (force || due) && !cooling {
             do {
-                let read = try await Self.read(owner: owner, token: token, progress: progress, now: now)
+                // The repos worked in most recently are asked directly as well.
+                let latest = Dictionary(grouping: entries, by: \.repo).mapValues { $0.map(\.date).max() ?? .distantPast }
+                let recent = latest.sorted { $0.value > $1.value }.map(\.key)
+                let read = try await Self.read(owner: owner, token: token, progress: progress, recent: recent, now: now)
                 let oldest = now.addingTimeInterval(-Double(Self.days + 5) * 86_400)
                 entries = WorkLedger.merged(entries + read.entries).filter { $0.date >= oldest }
                 progress = read.progress
@@ -715,7 +738,7 @@ nonisolated enum GitHubWork {
     /// One question says which branches moved (the account's activity). Only
     /// those are then read. A repo met for the first time is asked its main
     /// branch once, and its main branch and live site are read once.
-    private nonisolated static func read(owner: String, token: String?, progress: Progress, now: Date) async throws
+    private nonisolated static func read(owner: String, token: String?, progress: Progress, recent: [String], now: Date) async throws
         -> (entries: [WorkEntry], progress: Progress) {
         var progress = progress
         let since = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
@@ -744,6 +767,23 @@ nonisolated enum GitHubWork {
             progress.mains[repo] = main
             for branch in [main, WorkEntry.site] where !wanted.contains(where: { $0.repo == repo && $0.branch == branch }) {
                 wanted.append(GitHubWork.Move(repo: repo, branch: branch, head: ""))
+            }
+        }
+
+        // The activity above can be hours behind. The repos worked in most recently
+        // are asked for their branches as they stand now (one question each; one
+        // repo without a token). A branch never read before may be an old one, so
+        // only a few of those are taken up per read, and never ahead of a known move.
+        var unread = 0
+        for repo in recent.prefix(token == nil ? 1 : 8) {
+            guard let branches: [GitHubWork.Branch] = try? await ask("repos/\(repo)/branches?per_page=100", token: token) else { continue }
+            for move in GitHubWork.moved(branches, repo: repo, heads: progress.heads)
+            where !wanted.contains(where: { $0.key == move.key }) {
+                if progress.heads[move.key] == nil {
+                    guard unread < 3 else { continue }
+                    unread += 1
+                }
+                wanted.append(move)
             }
         }
 

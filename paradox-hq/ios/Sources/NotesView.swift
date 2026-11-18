@@ -56,9 +56,10 @@ struct NotesView: View {
     @State private var only: Project? = nil
     /// Whether the Done list at the bottom is open. Remembered.
     @AppStorage("notes-show-done") private var showDone = true
+    /// The section being made or changed.
+    @State private var section: SectionDraft? = nil
 
     var body: some View {
-        let filed = projects.filter { project in notes.contains { $0.project === project } }
         let shown = notes.filter { note in
             NoteText.matches(note.text, search) && (only == nil || note.project === only)
         }
@@ -74,10 +75,11 @@ struct NotesView: View {
                         if !notes.isEmpty {
                             NotesChart(dates: notes.map(\.created))
                             SearchField(text: $search)
-                            if !filed.isEmpty {
-                                ProjectChips(projects: filed, only: $only)
-                            }
                         }
+                        // Every section, with or without notes, so a new one can be written into.
+                        ProjectChips(projects: projects, only: $only,
+                                     add: { section = SectionDraft(project: nil) },
+                                     edit: { section = SectionDraft(project: $0) })
                     }
                     .listRowInsets(EdgeInsets(top: 4, leading: 4, bottom: 6, trailing: 4))
                     .listRowBackground(Color.clear)
@@ -92,7 +94,7 @@ struct NotesView: View {
                     }
                 } else if shown.isEmpty {
                     Section {
-                        Text("Nothing matches.")
+                        Text(only != nil && search.isEmpty ? "Nothing here yet." : "Nothing matches.")
                             .foregroundStyle(Ink.muted)
                             .listRowBackground(Ink.surface)
                     }
@@ -162,9 +164,14 @@ struct NotesView: View {
                 .padding(.trailing, 18)
                 .padding(.bottom, 10)
             }
-            .onChange(of: filed.map(\.persistentModelID)) { _, ids in
-                // A chosen project that no longer has notes lets go, rather than leaving an empty list.
+            .onChange(of: projects.map(\.persistentModelID)) { _, ids in
+                // A chosen section that has been deleted lets go.
                 if let chosen = only, !ids.contains(chosen.persistentModelID) { only = nil }
+            }
+            .sheet(item: $section) { draft in
+                SectionEditor(project: draft.project) { made in
+                    withAnimation(.snappy) { only = made }
+                }
             }
             .onAppear {
                 // The cloud build opens straight into a note to photograph the editor.
@@ -217,10 +224,19 @@ struct SearchField: View {
     }
 }
 
-/// All notes, or one project's.
+/// A section being made (no project yet) or changed.
+struct SectionDraft: Identifiable {
+    let id = UUID()
+    var project: Project?
+}
+
+/// All notes, or one section's. A section is a project: it has a name, a colour, and
+/// (in To-do) a list of its own. The plus makes one; the pencil changes the chosen one.
 struct ProjectChips: View {
     let projects: [Project]
     @Binding var only: Project?
+    var add: () -> Void = {}
+    var edit: (Project) -> Void = { _ in }
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -230,7 +246,14 @@ struct ProjectChips: View {
                     chip(project.name, color: Ink.tint(project.tint), on: only === project) {
                         only = only === project ? nil : project
                     }
+                    .contextMenu {
+                        Button("Rename or recolour", systemImage: "pencil") { edit(project) }
+                    }
                 }
+                if let chosen = only {
+                    round("pencil", "Change \(chosen.name)") { edit(chosen) }
+                }
+                round("plus", "New section", action: add)
             }
         }
         .scrollIndicators(.hidden)
@@ -253,6 +276,127 @@ struct ProjectChips: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func round(_ symbol: String, _ name: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(Face.style(.subheadline, .semibold))
+                .foregroundStyle(Ink.body)
+                .frame(width: 34, height: 34)
+                .background(Ink.surface2, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(name)
+    }
+}
+
+/// A section's name and colour. Making one makes a project, so it has a to-do list as well.
+struct SectionEditor: View {
+    let project: Project?
+    var made: (Project) -> Void = { _ in }
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query private var all: [Project]
+    @State private var name = ""
+    @State private var tint = 0xA78BFA
+    @State private var confirming = false
+    @FocusState private var naming: Bool
+
+    static let tints = [0xFFFFFF, 0xA78BFA, 0x5FD7AF, 0xFFD27A, 0xED4E3B, 0x6FB1FF,
+                        0xF472B6, 0xFF9F5A, 0x5EEAD4, 0xC4B5FD, 0xE5E54B, 0x9CA3AF]
+
+    /// A picked colour as the six-figure number a project keeps.
+    static func hex(_ color: Color) -> Int {
+        var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+        UIColor(color).getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        func part(_ value: CGFloat) -> Int { Int((min(max(value, 0), 1) * 255).rounded()) }
+        return part(red) << 16 | part(green) << 8 | part(blue)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Name", text: $name)
+                        .focused($naming)
+                }
+                Section("Colour") {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 16) {
+                        ForEach(Self.tints, id: \.self) { value in
+                            Button {
+                                tint = value
+                            } label: {
+                                Circle()
+                                    .fill(Ink.tint(value))
+                                    .frame(width: 30, height: 30)
+                                    .overlay {
+                                        Circle().strokeBorder(Ink.head, lineWidth: tint == value ? 2 : 0).padding(-5)
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Colour")
+                            .accessibilityAddTraits(tint == value ? .isSelected : [])
+                        }
+                    }
+                    .padding(.vertical, 8)
+                    ColorPicker("Any colour", selection: Binding(get: { Ink.tint(tint) }, set: { tint = Self.hex($0) }),
+                                supportsOpacity: false)
+                }
+                if let project, !project.isPersonal {
+                    Section {
+                        Button("Delete section", role: .destructive) { confirming = true }
+                    }
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle(project == nil ? "New section" : "Section")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: save)
+                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .confirmationDialog("Delete \(name) and its to-do list? Its notes are kept.",
+                                isPresented: $confirming, titleVisibility: .visible) {
+                Button("Delete", role: .destructive) {
+                    let doomed = project
+                    dismiss()
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(500))
+                        doomed?.remove(from: context)
+                    }
+                }
+            }
+            .sensoryFeedback(.selection, trigger: tint)
+            .onAppear {
+                if let project {
+                    name = project.name
+                    tint = project.tint
+                } else {
+                    naming = true
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    private func save() {
+        let target: Project
+        if let project {
+            target = project
+        } else {
+            target = Project(name: "", order: (all.map(\.order).max() ?? -1) + 1)
+            context.insert(target)
+        }
+        target.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        target.tint = tint
+        if project == nil { made(target) }
+        dismiss()
     }
 }
 

@@ -1072,7 +1072,7 @@ struct WorkTests {
         func start(_ span: WorkSpan, _ rolling: Bool) -> Date {
             span.start(now: now, calendar: london, rolling: rolling, session: at(2026, 11, 18, 9))
         }
-        #expect(start(.hour, false) == at(2026, 11, 18, 15))
+        #expect(start(.hour, false) == at(2026, 11, 18, 14))            // the last sixty minutes, not since the hour struck
         #expect(start(.session, false) == at(2026, 11, 18, 9))
         #expect(start(.day, false) == at(2026, 11, 18, 0))
         #expect(start(.day, true) == at(2026, 11, 17, 15))
@@ -1217,6 +1217,28 @@ struct WorkTests {
         16:00  \(third.line)
         """)
         #expect(WorkLedger.retrospective([], calendar: calendar).isEmpty)
+    }
+
+    /// The repo's own branch list shows a push at once; the activity feed can be hours late.
+    @Test func aBranchReadStraightFromItsRepoShowsWhatMoved() throws {
+        let json = """
+        [{"name":"master","commit":{"sha":"aaa"}},{"name":"claude/x","commit":{"sha":"bbb"}},
+         {"name":"old","commit":{"sha":"ccc"}},{"name":"ci/paradox-hq","commit":{"sha":"ddd"}},
+         {"name":"stats/claude","commit":{"sha":"eee"}}]
+        """
+        let branches = try GitHubWork.decoder().decode([GitHubWork.Branch].self, from: Data(json.utf8))
+        let heads = ["Labern/Clean#master": "aaa", "Labern/Clean#claude/x": "old-head"]
+        let moved = GitHubWork.moved(branches, repo: "Labern/Clean", heads: heads)
+        // master is where it was; claude/x moved; "old" has never been read; robots' branches are left out.
+        #expect(moved.map(\.branch) == ["claude/x", "old"])
+        #expect(moved.first?.head == "bbb")
+    }
+
+    @Test func hourMeansTheLastSixtyMinutes() {
+        let now = at(2026, 11, 18, 18).addingTimeInterval(120)      // 18:02
+        let start = WorkSpan.hour.start(now: now, calendar: london, rolling: false, session: nil)
+        #expect(now.timeIntervalSince(start) == 3600)
+        #expect(WorkSpan.hour.caption(rolling: false) == "last hour")
     }
 
     @Test func theCardSaysHowFreshItsSourcesAre() {
@@ -1892,5 +1914,18 @@ struct NoteMarkupTests {
         // Words selected become the link's words, with the caret where the address goes.
         #expect(NoteMarkup.link("see site now", selection: range(4, 4)) == NoteMarkup.Edit(range: range(4, 4), replacement: "[site](https://)", caret: 19))
         #expect(NoteMarkup.link("", selection: range(0, 0)) == NoteMarkup.Edit(range: range(0, 0), replacement: "[](https://)", caret: 1))
+    }
+}
+
+/// A notes section's colour, picked from the wheel, is kept as the number a project stores.
+@MainActor
+struct SectionTests {
+    @Test func aPickedColourBecomesItsNumber() {
+        for wanted in [0xA78BFA, 0x5FD7AF, 0xED4E3B, 0x000000] {
+            let got = SectionEditor.hex(Color(hex: UInt32(wanted)))
+            for shift in [16, 8, 0] {
+                #expect(abs(((got >> shift) & 0xFF) - ((wanted >> shift) & 0xFF)) <= 1)
+            }
+        }
     }
 }
