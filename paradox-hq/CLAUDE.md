@@ -46,9 +46,11 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
   show), a day's heading folds the day, and Expand/Contract does all at once.
   - **Every change leads back to its conversation.** A commit that carries
     `Claude-Session: https://claude.ai/code/session_…` keeps that address in its
-    `WorkEntry.session`; the line shows a quiet arrow, and tapping it (or "Open in
-    Claude") opens that conversation in the Claude app, which claims `/code/*`. No
-    Claude logo on the Work card or its lines: it was tried and Labern didn't like it. **Always
+    `WorkEntry.session`. **Opening Claude is an option, never the tap**: tapping a
+    line on the card opens that day's work, as it always did; "Open in Claude" is a
+    button on the opened line and in the menu when the line is held. It opens the
+    conversation in the Claude app, which claims `/code/*`. (Tap-opens-Claude was
+    shipped and rejected the same day, as was a Claude logo on the lines.) **Always
     end commit messages with the Claude-Session trailer**, or the link is lost.
   - **Real data only.** Example work exists for the cloud build's screenshots and is
     behind `-unlocked YES -sampleNotes YES`; the phone never shows it.

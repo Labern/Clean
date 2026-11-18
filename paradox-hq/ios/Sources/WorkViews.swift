@@ -150,15 +150,25 @@ struct WorkCard: View {
                             .accessibilityLabel("\(measure.rawValue), \(cut.unit == .hour ? "hour by hour" : "day by day")")
                         }
 
-                        // What was done in the chosen bar. A line made in a Claude conversation opens it.
+                        // What was done in the chosen bar. A tap opens that day's work. Opening the
+                        // Claude conversation is an option, never the tap itself (Labern, 2026-11-18:
+                        // "I want the OPTION to open it in Claude"): hold the line, or open it and use the button.
                         VStack(spacing: 0) {
                             ForEach(barWork.prefix(3)) { entry in
                                 Button {
-                                    if let link = entry.sessionLink { ClaudeApp.open(link) } else { open(.day(entry.date)) }
+                                    open(.day(entry.date))
                                 } label: {
                                     WorkLine(entry: entry, compact: true)
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    if let link = entry.sessionLink {
+                                        Button("Open in Claude", systemImage: "bubble.left") { ClaudeApp.open(link) }
+                                    }
+                                    if let link = entry.link {
+                                        Button("Open on GitHub", systemImage: "arrow.up.forward") { UIApplication.shared.open(link) }
+                                    }
+                                }
                                 Hairline(inset: 0)
                             }
                             link(barWork.isEmpty ? "Nothing pushed then" : Self.dayLabel(bar?.date ?? now, barWork.count, calendar),
@@ -351,14 +361,6 @@ struct WorkLine: View {
                 }
             }
             Spacer(minLength: 0)
-            // The conversation it came from rides with every line, a tap away: a quiet
-            // arrow says so. (A Claude logo here was tried and removed, 2026-11-18.)
-            if compact, entry.session != nil {
-                Image(systemName: "arrow.up.forward")
-                    .font(Face.style(.caption, .semibold))
-                    .foregroundStyle(Ink.idle)
-                    .padding(.top, 8)
-            }
         }
         .padding(.vertical, compact ? 8 : 6)
         .contentShape(Rectangle())
