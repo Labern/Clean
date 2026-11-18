@@ -1294,7 +1294,7 @@ final class Focus: NSObject, NSMenuDelegate {
         keyRefs.forEach { if let k = $0 { UnregisterEventHotKey(k) } }
         let s = hotkey(1, kVK_ANSI_F, sessionMods), m = hotkey(2, kVK_ANSI_E, menuMods), a = hotkey(3, kVK_ANSI_E, appMods)
         keyRefs = [s, m, a]; sessionKeyTaken = s == nil; menuKeyTaken = m == nil; appKeyTaken = a == nil
-        let q = hotkey(4, kVK_Space, sssMods); keyRefs.append(q); sssKeyTaken = q == nil
+        let q = hotkey(4, kVK_ANSI_S, sssMods); keyRefs.append(q); sssKeyTaken = q == nil
         takenModeKeys = []
         for md in modes { if let d = md["key"] as? Int, digitKeys.indices.contains(d) {   // only the keys the user set
             let r = hotkey(UInt32(100 + d), digitKeys[d], modeMods); keyRefs.append(r); if r == nil { takenModeKeys.insert(d) }
@@ -2506,6 +2506,10 @@ final class Focus: NSObject, NSMenuDelegate {
             row.inert = true; view(row)
         }
         add("Add or remove…", #selector(showNever), image: symbol("plus.circle"))
+        // Super Smart Search: one line; it opens what its shortcut opens.
+        m.addItem(.separator())
+        let sss = add("Super Smart Search", #selector(openSSS), image: SSSGlyph.image())
+        sss.keyEquivalent = "s"; sss.keyEquivalentModifierMask = NSEvent.ModifierFlags(carbon: sssMods)
 
         let left = stragglers()
         let back = reopened()
@@ -2793,6 +2797,12 @@ final class Focus: NSObject, NSMenuDelegate {
             let i = add(c.label + "E", #selector(pickAppKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == appMods ? .on : .off
         }
         if appKeyTaken { add("⚠︎ " + appLabel(appMods) + "E is taken by another app — pick another", nil, to: km).isEnabled = false }
+        km.addItem(.separator())
+        km.addItem(headingItem("Super Smart Search"))
+        for c in modifierChoices {
+            let i = add(c.label + "S", #selector(pickSSSKey(_:)), to: km); i.tag = c.mods; i.state = c.mods == sssMods ? .on : .off
+        }
+        if sssKeyTaken { add("⚠︎ " + sssKey + " is taken by another app — pick another", nil, to: km).isEnabled = false }
         km.addItem(.separator())
         km.addItem(headingItem("Modes — this plus a number you give each mode"))
         for c in modeModifierChoices {

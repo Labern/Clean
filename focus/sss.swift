@@ -382,44 +382,157 @@ final class SSSIndex {
     }
 }
 
-// MARK: what the search shows
+// MARK: the mark — "IQ", where the Q is the magnifying glass
+
+enum SSSGlyph {
+    /// The mark in a box (drawn for 30 × 22, y downwards): an I with its serifs, then a ring whose tail is a handle.
+    static func path(in r: CGRect) -> CGPath {
+        let p = CGMutablePath(), w = r.width, h = r.height
+        func pt(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: r.minX + x * w, y: r.minY + y * h) }
+        p.move(to: pt(0.14, 0.14)); p.addLine(to: pt(0.14, 0.80))
+        p.move(to: pt(0.04, 0.14)); p.addLine(to: pt(0.24, 0.14))
+        p.move(to: pt(0.04, 0.80)); p.addLine(to: pt(0.24, 0.80))
+        let c = pt(0.60, 0.47), rad = 0.33 * h, k: CGFloat = 0.7071
+        p.addEllipse(in: CGRect(x: c.x - rad, y: c.y - rad, width: rad * 2, height: rad * 2))
+        p.move(to: CGPoint(x: c.x + rad * k * 0.7, y: c.y + rad * k * 0.7))
+        p.addLine(to: CGPoint(x: c.x + rad * k + 0.29 * h, y: c.y + rad * k + 0.29 * h))
+        return p
+    }
+    /// For the menu: a template image, so macOS colours it like the menu's other symbols.
+    static func image(height: CGFloat = 13) -> NSImage {
+        let size = NSSize(width: (height * 30 / 22).rounded(), height: height)
+        let im = NSImage(size: size, flipped: true) { r in
+            guard let g = NSGraphicsContext.current?.cgContext else { return false }
+            g.addPath(path(in: r.insetBy(dx: 0.8, dy: 0.8))); g.setLineWidth(max(1.2, height * 0.11)); g.setLineCap(.round); g.setLineJoin(.round)
+            g.setStrokeColor(NSColor.black.cgColor); g.strokePath(); return true
+        }
+        im.isTemplate = true; return im
+    }
+}
+struct SSSGlyphShape: Shape { func path(in rect: CGRect) -> Path { Path(SSSGlyph.path(in: rect)) } }
+
+/// The mark, in whatever colour the text around it is. `draws`: it writes itself when it appears.
+struct SSSLogo: View {
+    var height: CGFloat = 15
+    var draws = false
+    @State private var t: CGFloat = 1
+    var body: some View {
+        SSSGlyphShape().trim(from: 0, to: t)
+            .stroke(style: StrokeStyle(lineWidth: max(1.2, height * 0.105), lineCap: .round, lineJoin: .round))
+            .frame(width: height * 30 / 22, height: height)
+            .onAppear {
+                guard draws, !renderArgs.contains(where: { $0.hasPrefix("--render") || $0.hasPrefix("--selftest") }), !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+                t = 0; withAnimation(.easeOut(duration: 0.55)) { t = 1 }
+            }
+    }
+}
+
+// MARK: what the search shows — one bar. No list, unless Tab asks for one.
+
+/// The colours of the bar: black, always, when it floats over the Mac; the window's own look on its page in Focus.
+struct SSSLook {
+    let ground: Color, edge: Color, ink: Color, low: Color, muted: Color, line: Color, chosen: Color, hover: Color, nsInk: NSColor
+    static let bar = SSSLook(ground: .black, edge: Color.white.opacity(0.18), ink: .white, low: Site.hex(0xD0D1D2), muted: Site.hex(0x8E8E8E),
+                             line: Site.hex(0x2A2A2A), chosen: Site.hex(0x232323), hover: Site.hex(0x1A1A1A), nsInk: .white)
+    static var page: SSSLook { SSSLook(ground: Site.surface, edge: Site.line, ink: Site.head, low: Site.low, muted: Site.muted, line: Site.line,
+                                       chosen: Site.surface2, hover: Site.surface2.opacity(0.6), nsInk: Site.light ? .black : .white) }
+}
 
 final class SSSModel: ObservableObject {
     @Published var query = "" { didSet { if query != oldValue { update(reset: true) } } }
     @Published var results: [SSSItem] = []
     @Published var selected = 0
+    @Published var open = false                                 // the dropdown: only after Tab (or an arrow)
+    @Published var shown = false                                // the bar has arrived
+    @Published var shakes = 0                                   // Return with nothing to find: the bar shakes its head
     @Published var focus = 0                                    // bumped to put the caret back in the field
     @Published var tick = 0
-    var limit = 60
+    var limit = 6
+    var emptyGoes = true                                        // nothing typed + Return: the window used before this one
+    var onPick: (SSSItem) -> Void = { _ in }
+    var onCancel: () -> Void = {}
+    var moved = false                                           // the arrows were used: a fresh list leaves the chosen row alone
     private var icons: [String: NSImage] = [:]
     func icon(_ path: String) -> NSImage {
         if let i = icons[path] { return i }
         let i = NSWorkspace.shared.icon(forFile: path); i.size = NSSize(width: 64, height: 64); icons[path] = i; return i
     }
+    /// Whether there is something to go to for what's typed (the mark dims when there isn't).
+    var match: Bool { query.trimmingCharacters(in: .whitespaces).isEmpty || !results.isEmpty }
     func update(reset: Bool) {
         results = Array(SSSRank.search(query, in: SSSIndex.shared.items).prefix(limit))
-        // Nothing typed: the list is everything, most recent first, and Return goes to the one before this one.
-        if reset { selected = query.isEmpty && results.count > 1 ? 1 : 0 }
+        // Nothing typed: most recent first, and the choice starts on the one before this one.
+        if reset { selected = query.isEmpty && results.count > 1 ? 1 : 0; moved = false }
         selected = min(selected, max(0, results.count - 1))
     }
-    var moved = false                                           // the arrows were used: a fresh list leaves the marked row alone
-    func reload() { SSSIndex.shared.refresh { [weak self] in guard let self else { return }; self.update(reset: !self.moved && self.query.isEmpty); self.tick &+= 1 } }
-    func move(_ by: Int) { guard !results.isEmpty else { return }; moved = true; selected = (selected + by + results.count) % results.count }
-    var counts: String {
-        let items = SSSIndex.shared.items, tabs = items.filter { $0.kind == .tab }.count, wins = items.count - tabs
-        func n(_ c: Int, _ w: String) -> String { "\(c) \(w)\(c == 1 ? "" : "s")" }
-        return tabs > 0 ? "\(n(wins, "window")) · \(n(tabs, "tab"))" : n(wins, "window")
+    func reload() { SSSIndex.shared.refresh { [weak self] in guard let self else { return }; self.update(reset: !self.moved); self.tick &+= 1 } }
+    /// Tab (or an arrow): the first press opens the dropdown on the best guess; after that it moves the choice.
+    func tab(_ by: Int) {
+        if !open { withAnimation(.spring(response: 0.3, dampingFraction: 0.84)) { open = true }; return }
+        guard !results.isEmpty else { return }
+        moved = true; selected = (selected + by + results.count) % results.count
+    }
+    func submit() {
+        let empty = query.trimmingCharacters(in: .whitespaces).isEmpty
+        if results.indices.contains(selected), !(empty && !emptyGoes && !open) { onPick(results[selected]) }
+        else if !empty { withAnimation(.linear(duration: 0.38)) { shakes += 1 } }
+    }
+}
+
+struct SSSShake: GeometryEffect {
+    var animatableData: CGFloat
+    func effectValue(size: CGSize) -> ProjectionTransform { ProjectionTransform(CGAffineTransform(translationX: 8 * sin(animatableData * .pi * 4), y: 0)) }
+}
+
+func sssFont(_ base: CGFloat, medium: Bool = false) -> NSFont {
+    let size = (base * Site.standard * Site.scale).rounded()
+    return NSFont(name: medium ? "Graphik-Medium" : "Graphik-Regular", size: size) ?? NSFont(name: medium ? "HelveticaNeue-Medium" : "HelveticaNeue", size: size) ?? .systemFont(ofSize: size)
+}
+
+/// The field itself: a plain line of text that hands Tab, the arrows, Return and Esc to the search.
+struct SSSField: NSViewRepresentable {
+    @ObservedObject var s: SSSModel
+    let ink: NSColor
+    func makeCoordinator() -> Keys { Keys(s) }
+    func makeNSView(context: Context) -> NSTextField {
+        let f = NSTextField()
+        f.isBordered = false; f.drawsBackground = false; f.focusRingType = .none; f.usesSingleLineMode = true
+        f.cell?.wraps = false; f.cell?.isScrollable = true; f.font = sssFont(22); f.textColor = ink; f.delegate = context.coordinator
+        f.setContentHuggingPriority(.defaultLow, for: .horizontal); f.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return f
+    }
+    func updateNSView(_ f: NSTextField, context: Context) {
+        if f.stringValue != s.query { f.stringValue = s.query }
+        f.textColor = ink
+        if context.coordinator.focus != s.focus {
+            context.coordinator.focus = s.focus
+            DispatchQueue.main.async { f.window?.makeFirstResponder(f); (f.currentEditor() as? NSTextView)?.insertionPointColor = ink }
+        }
+    }
+    final class Keys: NSObject, NSTextFieldDelegate {
+        let s: SSSModel; var focus = -1
+        init(_ s: SSSModel) { self.s = s }
+        func controlTextDidChange(_ n: Notification) { if let f = n.object as? NSTextField { s.query = f.stringValue } }
+        func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
+            switch sel {
+            case #selector(NSResponder.insertTab(_:)), #selector(NSResponder.moveDown(_:)): s.tab(1); return true
+            case #selector(NSResponder.insertBacktab(_:)), #selector(NSResponder.moveUp(_:)): s.tab(-1); return true
+            case #selector(NSResponder.insertNewline(_:)): s.submit(); return true
+            case #selector(NSResponder.cancelOperation(_:)): s.onCancel(); return true
+            default: return false
+            }
+        }
     }
 }
 
 /// A name with the typed parts brighter.
 struct SSSTitle: View {
-    let text: String, query: String, on: Bool
+    let text: String, query: String, on: Bool, look: SSSLook
     var body: some View {
-        let marks = SSSRank.marks(query, in: text), base = on || marks.isEmpty ? Site.head : Site.low
+        let marks = SSSRank.marks(query, in: text), base = on || marks.isEmpty ? look.ink : look.low
         var out = AttributedString(), at = text.startIndex
         func piece(_ t: Substring, _ bright: Bool) {
-            var a = AttributedString(String(t)); a.foregroundColor = bright ? Site.head : base; a.font = Site.font(17, bright ? .medium : .regular); out += a
+            var a = AttributedString(String(t)); a.foregroundColor = bright ? look.ink : base; a.font = Site.font(17, bright ? .medium : .regular); out += a
         }
         for r in marks where r.lowerBound >= at { piece(text[at..<r.lowerBound], false); piece(text[r], true); at = r.upperBound }
         piece(text[at...], false)
@@ -428,173 +541,156 @@ struct SSSTitle: View {
 }
 
 struct SSSRow: View {
-    let item: SSSItem, icon: NSImage, query: String, on: Bool, key: String, pick: () -> Void
+    let item: SSSItem, icon: NSImage, query: String, on: Bool, look: SSSLook, pick: () -> Void
     @State private var hover = false
     var body: some View {
         HStack(spacing: 12) {
             Image(nsImage: icon).resizable().interpolation(.high).frame(width: 26, height: 26)
-            SSSTitle(text: item.title, query: query, on: on)
+            SSSTitle(text: item.title, query: query, on: on, look: look)
             Spacer(minLength: 12)
             let place = item.kind == .tab && !item.host.isEmpty ? item.host : item.app
-            Text(place.count > 32 ? place.prefix(31) + "…" : place).font(Site.font(15)).foregroundColor(Site.muted).lineLimit(1)
+            Text(place.count > 32 ? place.prefix(31) + "…" : place).font(Site.font(15)).foregroundColor(look.muted).lineLimit(1)
                 .fixedSize().layoutPriority(1)                                  // the site is short: a long name gives way first
-            if !key.isEmpty { Text(key).font(Site.font(13)).foregroundColor(Site.muted).frame(width: 26, alignment: .trailing) }   // ⌘1–9: one column, so the names line up
+            Image(systemName: "return").font(.system(size: 11, weight: .medium)).foregroundColor(look.muted).opacity(on ? 1 : 0).frame(width: 16)   // Return goes here
         }
         .padding(.horizontal, 14).frame(height: 42)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? Site.surface2 : hover ? Site.surface : Color.clear))
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(on ? look.chosen : hover ? look.hover : Color.clear))
         .contentShape(Rectangle()).onHover { hover = $0 }.onTapGesture(perform: pick)
     }
 }
 
-/// The field and the list under it: the same in the floating panel and on the page.
-struct SSSBox: View {
+/// The bar: the mark, the field. Under it, only once Tab has asked, the few things it could mean.
+struct SSSBar: View {
     @ObservedObject var s: SSSModel
-    let rows: Int                                               // how many show before the list scrolls
-    let pick: (SSSItem) -> Void
-    var keys = true                                             // the panel's ⌘1–9 and its marked row; the page has neither
-    var placeholder = "Search windows and tabs"
-    @FocusState private var typing: Bool
+    let look: SSSLook
+    var radius: CGFloat = 16
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                Image(systemName: "magnifyingglass").font(.system(size: 19, weight: .medium)).foregroundColor(Site.muted)
-                TextField("", text: $s.query, prompt: Text(placeholder).foregroundColor(Site.muted))
-                    .textFieldStyle(.plain).font(Site.font(22)).foregroundColor(Site.head).focused($typing)
-                    .onSubmit { if s.results.indices.contains(s.selected) { pick(s.results[s.selected]) } }
-                Text(s.counts).font(Site.font(14)).foregroundColor(Site.muted).lineLimit(1).fixedSize()
+            HStack(spacing: 14) {
+                SSSLogo(height: 20, draws: true).foregroundColor(look.ink).opacity(s.match ? 1 : 0.35).animation(.easeOut(duration: 0.18), value: s.match)
+                    .id(s.focus)                                                // it writes itself each time the bar opens
+                SSSField(s: s, ink: look.nsInk).frame(height: 30)
             }
-            .padding(.horizontal, 18).frame(height: 58)
-            if !s.results.isEmpty {
-                Rectangle().fill(Site.line).frame(height: 1)
-                ScrollViewReader { proxy in
-                    ScrollView(showsIndicators: false) {
-                        LazyVStack(spacing: 2) {
-                            ForEach(Array(s.results.enumerated()), id: \.element.id) { i, item in
-                                SSSRow(item: item, icon: s.icon(item.path), query: s.query, on: keys && i == s.selected, key: !keys ? "" : i < 9 ? "⌘\(i + 1)" : " ") { pick(item) }.id(item.id)
-                            }
-                        }.padding(6)
-                    }
-                    .frame(height: CGFloat(min(rows, s.results.count)) * 44 + 10)
-                    .onReceive(s.$selected) { i in if s.results.indices.contains(i) { proxy.scrollTo(s.results[i].id) } }
+            .padding(.horizontal, 20).frame(height: 60)
+            if s.open {
+                Rectangle().fill(look.line).frame(height: 1)
+                if s.results.isEmpty {
+                    Text("Nothing open matches.").font(Site.font(16)).foregroundColor(look.muted).frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 20).frame(height: 50)
+                } else {
+                    VStack(spacing: 2) {
+                        ForEach(Array(s.results.enumerated()), id: \.element.id) { i, item in
+                            SSSRow(item: item, icon: s.icon(item.path), query: s.query, on: i == s.selected, look: look) { s.onPick(item) }
+                        }
+                    }.padding(6)
                 }
-            } else if !s.query.isEmpty {
-                Rectangle().fill(Site.line).frame(height: 1)
-                Text("Nothing open matches “\(s.query)”.").font(Site.font(16)).foregroundColor(Site.muted).frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 18).frame(height: 52)
             }
         }
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Site.bg))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Site.light ? Site.line : Site.ink.opacity(0.22), lineWidth: 1))
-        .onAppear { typing = true }
-        .onReceive(s.$focus) { _ in typing = true }
+        .background(RoundedRectangle(cornerRadius: radius, style: .continuous).fill(look.ground))
+        .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).stroke(look.edge, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+        .modifier(SSSShake(animatableData: CGFloat(s.shakes)))
+        .animation(.spring(response: 0.3, dampingFraction: 0.84), value: s.results.count)
     }
 }
 
-// MARK: the floating panel — the shortcut opens it over whatever is in front
+// MARK: the floating bar — the shortcut (or the menu) opens it over whatever is in front
 
 final class SSSPanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }
 
+/// The bar's arrival and leaving: it settles in from slightly small, and lifts away towards what it found.
+struct SSSStage: View {
+    @ObservedObject var s: SSSModel
+    var body: some View {
+        SSSBar(s: s, look: .bar).frame(width: SSSController.width)
+            .shadow(color: .black.opacity(0.55), radius: 30, y: 16)
+            .scaleEffect(s.shown ? 1 : 0.965, anchor: .top).opacity(s.shown ? 1 : 0)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 10)
+            .preferredColorScheme(.dark)
+    }
+}
+
 final class SSSController: NSObject, NSWindowDelegate {
     static let shared = SSSController()
-    static let width: CGFloat = 720, rows = 9
+    static let width: CGFloat = 640
     let model = SSSModel()
     private var panel: SSSPanel?
-    private var keys: Any?
-    var onHide: (() -> Void)?                                   // the stand-alone try-out quits when the panel goes
-    var shown: Bool { panel?.isVisible == true }
+    private var leaving = false
+    var onHide: (() -> Void)?                                   // the stand-alone try-out quits when the bar goes
+    var shown: Bool { panel?.isVisible == true && !leaving }
+    private var still: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
     func toggle() { if shown { hide() } else { show() } }
     func show() {
-        let height = 60 + CGFloat(SSSController.rows) * 44 + 12 + 60          // the list at its tallest, and room for the shadow
+        let height = 60 + CGFloat(model.limit) * 44 + 14 + 90                 // the dropdown at its tallest, and room for the shadow
         if panel == nil {
-            let p = SSSPanel(contentRect: NSRect(x: 0, y: 0, width: SSSController.width + 80, height: height), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+            let p = SSSPanel(contentRect: NSRect(x: 0, y: 0, width: SSSController.width + 100, height: height), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
             p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = false; p.level = .modalPanel
             p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]; p.hidesOnDeactivate = false; p.isReleasedWhenClosed = false
-            p.delegate = self
-            let view = SSSBox(s: model, rows: SSSController.rows) { [weak self] item in self?.go(item) }
-                .frame(width: SSSController.width)
-                .shadow(color: .black.opacity(Site.light ? 0 : 0.6), radius: 28, y: 14)     // light mode: no shadows
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 8)
-                .preferredColorScheme(Site.light ? .light : .dark)
-            p.contentView = NSHostingView(rootView: view)
+            p.appearance = NSAppearance(named: .darkAqua); p.delegate = self
+            p.contentView = NSHostingView(rootView: SSSStage(s: model))
+            model.onPick = { [weak self] item in self?.go(item) }
+            model.onCancel = { [weak self] in self?.hide() }
             panel = p
         }
         guard let p = panel else { return }
-        p.appearance = NSAppearance(named: Site.light ? .aqua : .darkAqua)
         let screen = NSScreen.screens.first { NSMouseInRect(NSEvent.mouseLocation, $0.frame, false) } ?? NSScreen.main
-        if let v = screen?.visibleFrame {                                       // a quarter of the way down, where the eye already is
-            p.setFrameOrigin(NSPoint(x: v.midX - p.frame.width / 2, y: v.maxY - v.height * 0.22 - p.frame.height))
+        if let v = screen?.visibleFrame {                                       // a little above the middle, where the eye already is
+            p.setFrameOrigin(NSPoint(x: v.midX - p.frame.width / 2, y: v.maxY - v.height * 0.28 - p.frame.height))
         }
-        model.query = ""; model.moved = false; model.update(reset: true); model.focus &+= 1
+        leaving = false
+        model.open = false; model.query = ""; model.update(reset: true); model.shown = false; model.focus &+= 1
         p.makeKeyAndOrderFront(nil); p.orderFrontRegardless()
-        model.reload()                                                          // what was there last time shows at once; the fresh list follows
-        if keys == nil {
-            keys = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
-                guard let self, self.shown, e.window === self.panel else { return e }
-                let cmd = e.modifierFlags.contains(.command), ctrl = e.modifierFlags.contains(.control)
-                switch Int(e.keyCode) {
-                case kVK_DownArrow: self.model.move(1); return nil
-                case kVK_UpArrow: self.model.move(-1); return nil
-                case kVK_Tab: self.model.move(e.modifierFlags.contains(.shift) ? -1 : 1); return nil
-                case kVK_ANSI_N where ctrl: self.model.move(1); return nil
-                case kVK_ANSI_P where ctrl: self.model.move(-1); return nil
-                case kVK_Escape: self.hide(); return nil
-                case kVK_Return, kVK_ANSI_KeypadEnter:
-                    if self.model.results.indices.contains(self.model.selected) { self.go(self.model.results[self.model.selected]) }
-                    return nil
-                default:
-                    if cmd, let d = digitKeys.firstIndex(of: Int(e.keyCode)), d >= 1, self.model.results.indices.contains(d - 1) { self.go(self.model.results[d - 1]); return nil }
-                    return e
-                }
-            }
+        if still { model.shown = true } else { withAnimation(.spring(response: 0.26, dampingFraction: 0.8)) { model.shown = true } }
+        model.reload()                                                          // what was there last time is ready at once; the fresh list follows
+    }
+    /// Fades the bar out, then takes the panel away.
+    private func leave(_ after: @escaping () -> Void = {}) {
+        guard panel?.isVisible == true, !leaving else { return }
+        leaving = true
+        if still { model.shown = false } else { withAnimation(.easeIn(duration: 0.12)) { model.shown = false } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (still ? 0 : 0.13)) { [weak self] in
+            guard let self else { return }
+            self.panel?.orderOut(nil); self.leaving = false; after()
         }
     }
-    func hide() {
-        guard shown else { return }
-        panel?.orderOut(nil)
-        onHide?()
-    }
+    func hide() { leave { [weak self] in self?.onHide?() } }
     func go(_ item: SSSItem) {
-        panel?.orderOut(nil)
-        SSSIndex.shared.open(item)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in self?.onHide?() }
+        SSSIndex.shared.open(item)                                              // at once: the bar is already leaving
+        leave { [weak self] in DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { self?.onHide?() } }
     }
     func windowDidResignKey(_ notification: Notification) { hide() }             // a click anywhere else puts it away
 }
 
-// MARK: the shortcut
+// MARK: the shortcut and the menu
 
-/// Super Smart Search: a modifier + Space. ⌥Space by default.
-let sssChoices: [KeyChoice] = [
-    KeyChoice(label: "⌥", mods: optionKey, clash: "types a non-breaking space in text, which few people need"),
-    KeyChoice(label: "⌃", mods: controlKey, clash: "switches keyboard layout if you have more than one"),
-    KeyChoice(label: "⌥⇧", mods: optionKey | shiftKey, clash: "rarely used on a Mac"),
-    KeyChoice(label: "⌃⌥", mods: controlKey | optionKey, clash: "free, except while VoiceOver is on"),
-]
 extension Focus {
-    var sssMods: Int { get { store.object(forKey: "sssMods") as? Int ?? sssChoices[0].mods } set { store.set(newValue, forKey: "sssMods"); applyShortcuts() } }
-    var sssKey: String { (sssChoices.first { $0.mods == sssMods }?.label ?? "⌥") + "Space" }
+    /// Super Smart Search: ⌘⇧S by default (his choice, 2026-11-18), beside ⌘⇧F for sessions and ⌘⇧E for this app.
+    var sssMods: Int { get { store.object(forKey: "sssModsS") as? Int ?? modifierChoices[0].mods } set { store.set(newValue, forKey: "sssModsS"); applyShortcuts() } }
+    var sssKey: String { label(sssMods) + "S" }
+    /// The menu's line: the same thing the shortcut opens (once the menu has closed).
+    @objc func openSSS() { DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { SSSController.shared.show() } }
+    @objc func pickSSSKey(_ s: NSMenuItem) { sssMods = s.tag }
 }
 
-// MARK: its page in the desktop app
+// MARK: its page in the desktop app — the header, the bar, one line
 
 struct SSSPage: View {
     @ObservedObject var m: DesktopModel
     @StateObject private var s = SSSModel()
     var body: some View {
-        let f = m.f, _ = s.tick
-        PageFrame(title: "Super Smart Search (SSS)", text: "Find any open window or browser tab and go straight to it. Press \(f.sssKey) from anywhere.") {
-            SSSBox(s: s, rows: 7, pick: { SSSIndex.shared.open($0) }, keys: false).padding(.top, 16).padding(.bottom, 8)
-            SettingLine(title: "Shortcut", note: f.sssKeyTaken ? "That combination is taken by another app. Pick another." : "") {
-                Choice(options: sssChoices.map { $0.label + "Space" }, selected: sssChoices.firstIndex { $0.mods == f.sssMods } ?? 0) { i in m.act { f.sssMods = sssChoices[i].mods } }
-            }
+        let _ = s.tick
+        PageFrame(title: "Super Smart Search", text: "") {
+            SSSBar(s: s, look: .page, radius: 12).padding(.top, 6)
+            Text("Type anything — tab name, contents, window — and SSS will find wherever it's running and open it.")
+                .font(Site.font(15)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true).padding(.top, 12).padding(.horizontal, 2)
             if !SSSIndex.windowsAllowed && SSSIndex.fixture == nil {
                 SettingLine(title: "Windows", note: "Allow Focus in Accessibility, so it can read each window's name and bring it forward.") {
                     SiteButton("Allow…") { SSSIndex.askWindows() }
-                }
+                }.padding(.top, 14)
             }
             if !SSSIndex.shared.tabsWaiting.isEmpty {
                 SettingLine(title: "Browser tabs", note: "Allow Focus to read the tabs open in your browser.") {
@@ -602,7 +698,14 @@ struct SSSPage: View {
                 }
             }
         }
-        .onAppear { s.limit = 40; s.update(reset: true); s.reload() }
+        .onAppear {
+            s.emptyGoes = false
+            s.onPick = { item in SSSIndex.shared.open(item); s.open = false; s.query = "" }
+            s.onCancel = { withAnimation(.easeOut(duration: 0.15)) { s.open = false }; s.query = "" }
+            if renderArgs.contains("open") { s.open = true }
+            if let q = renderArgs.first(where: { $0.hasPrefix("query=") }) { s.query = String(q.dropFirst(6)) }
+            s.update(reset: true); s.reload(); s.focus &+= 1
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in s.reload() }   // back from System Settings
     }
 }
@@ -646,11 +749,10 @@ func renderSSS(to file: String) -> NSBitmapImageRep? {
         let until = Date().addingTimeInterval(6); while !done && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
     } else { SSSIndex.shared.refresh() }
     s.query = renderArgs.first { $0.hasPrefix("query=") }.map { String($0.dropFirst(6)) } ?? ""
-    s.update(reset: true)
-    let size = NSSize(width: SSSController.width + 80, height: 60 + CGFloat(SSSController.rows) * 44 + 72)
-    let view = SSSBox(s: s, rows: SSSController.rows) { _ in }.frame(width: SSSController.width)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top).padding(.top, 30)
-        .background(Site.light ? Site.hex(0xD9D9D9) : Site.hex(0x3A3A3A)).preferredColorScheme(Site.light ? .light : .dark)   // a mid grey stands in for the desktop behind
+    s.update(reset: true); s.shown = true; s.open = renderArgs.contains("open")
+    let size = NSSize(width: SSSController.width + 100, height: 60 + CGFloat(s.limit) * 44 + 104)
+    let view = SSSStage(s: s).padding(.top, 20)
+        .background(Site.hex(0x4A4A4A))                                         // a mid grey stands in for the desktop behind
     let host = NSHostingView(rootView: view)
     let w = NSWindow(contentRect: NSRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
     w.appearance = NSAppearance(named: Site.light ? .aqua : .darkAqua); w.contentView = host
@@ -704,21 +806,37 @@ func sssSelfTest() -> Int32 {
         }
     }
     check(214, "SSS: every installed browser understands its tab scripts", bad.isEmpty && !installed.isEmpty, installed.map { $0.components(separatedBy: ".").last ?? $0 }.joined(separator: ", ") + (bad.isEmpty ? "" : " — failed: \(bad)"))
-    // The pictures: the panel must show its rows, and its text must read in both looks (no white on white, no black on black).
-    for look in ["dark", "light"] {
-        let saved = renderArgs; renderArgs = ["Focus", "--render-sss", "", "look=\(look)", "query=in"]
+    // The pictures. The bar shows no list until Tab asks for one; then the best guesses are under it. The bar is
+    // black with white text whatever the window's look.
+    func ink(_ opts: [String]) -> (bar: Int, below: Int) {
+        let saved = renderArgs; renderArgs = ["Focus", "--render-sss", ""] + opts
         let rep = renderSSS(to: ""); renderArgs = saved
-        var dark = 0, lightPx = 0, n = 0
-        if let rep {
-            for y in stride(from: 70, to: rep.pixelsHigh - 20, by: 3) { for x in stride(from: 120, to: rep.pixelsWide - 120, by: 3) {
+        guard let rep else { return (0, 0) }
+        let s = CGFloat(rep.pixelsWide) / (SSSController.width + 100)          // pixels per point
+        func bright(_ ys: Range<Int>) -> Int {
+            var n = 0
+            for y in stride(from: ys.lowerBound, to: ys.upperBound, by: 2) { for x in stride(from: Int(70 * s), to: rep.pixelsWide - Int(70 * s), by: 2) {
                 guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
-                let l = 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent
-                n += 1; if l < 0.25 { dark += 1 }; if l > 0.75 { lightPx += 1 }
+                if 0.2126 * c.redComponent + 0.7152 * c.greenComponent + 0.0722 * c.blueComponent > 0.8 { n += 1 }
             } }
+            return n
         }
-        let ink = look == "dark" ? lightPx : dark, ground = look == "dark" ? dark : lightPx
-        check(look == "dark" ? 212 : 213, "SSS: the panel reads in \(look) mode", n > 0 && ground > n / 4 && ink > n / 400, "ground \(ground), ink \(ink) of \(n) samples")
+        return (bright(Int(34 * s)..<Int(86 * s)), bright(Int(100 * s)..<Int(330 * s)))
     }
+    for look in ["dark", "light"] {
+        let shut = ink(["look=\(look)", "query=in"]), open = ink(["look=\(look)", "query=in", "open"])
+        check(look == "dark" ? 212 : 213, "SSS: one bar and no list until Tab; then the best guesses (\(look) look)",
+              shut.bar > 40 && shut.below == 0 && open.below > 200, "typed text and mark: \(shut.bar) bright samples; under the bar: \(shut.below) shut, \(open.below) open")
+    }
+    // Tab opens the dropdown on the best guess; Tab again moves on; Return with nothing to find shakes instead of going.
+    SSSIndex.fixture = desk; SSSIndex.shared.refresh()
+    let tm = SSSModel(); var went: [String] = []; tm.onPick = { went.append($0.title) }
+    tm.query = "in"; let before = tm.open; tm.tab(1); let first = tm.selected; tm.tab(1); let second = tm.selected; tm.submit()
+    tm.query = "zzqxv"; let shakes = tm.shakes; tm.submit()
+    check(216, "SSS: Tab opens the choices on the best one, Tab again moves on, Return goes; nothing found shakes",
+          !before && tm.open && first == 0 && second == 1 && went.count == 1 && tm.shakes == shakes + 1, "open \(tm.open); chosen \(first) then \(second); went to \(went); shakes \(tm.shakes - shakes)")
+    let menuMark = SSSGlyph.image()
+    check(217, "SSS: its mark draws for the menu", menuMark.isTemplate && menuMark.size.width > menuMark.size.height, "\(Int(menuMark.size.width)) × \(Int(menuMark.size.height))")
     SSSIndex.fixture = nil
     return Int32(failures)
 }

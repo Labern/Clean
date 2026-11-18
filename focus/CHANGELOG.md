@@ -4,6 +4,17 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.21.0 — 2026-11-18
+- **Super Smart Search is one bar.** A black bar and nothing else: type, press Return, and it goes to the best match.
+  It shows no list of what's open. Press Tab (or ↓) for a dropdown of what it could mean, with the best guess already
+  chosen; Tab again moves on. Esc puts it away. Return with nothing to find: the bar shakes.
+- **⌘⇧S** opens it (changed in Shortcuts, or the menu's Settings ▸ Shortcuts). It was ⌥Space.
+- **Its own mark:** "IQ", where the Q is the magnifying glass. In the sidebar, in the bar (it writes itself as the
+  bar opens, and dims when nothing matches) and in the menu.
+- **In the menu:** one line, Super Smart Search, under Critical System Processes. It opens the same bar.
+- Its page is the header, the bar and one line. The shortcut moved to the Shortcuts page.
+- The bar settles in as it opens and fades as it goes. Reduce Motion turns the movement off.
+
 ## 0.20.0 — 2026-11-18
 - **Super Smart Search (SSS).** Press ⌥Space from anywhere, type a few letters, press Return: the exact window or
   browser tab comes forward. It searches every open window of every app, and every tab in Safari and the Chrome family
