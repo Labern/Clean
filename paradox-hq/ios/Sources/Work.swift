@@ -224,6 +224,21 @@ nonisolated enum GitHubWork {
         struct Payload: Decodable { var ref: String? }
     }
 
+    struct Repo: Decodable {
+        var full_name: String
+        var default_branch: String?
+        var pushed_at: Date?
+        var fork: Bool?
+        var archived: Bool?
+    }
+
+    /// The repos worth reading: the account's own, pushed to inside the window, newest first.
+    static func active(_ repos: [Repo], since: Date, limit: Int) -> [Repo] {
+        Array(repos.filter { ($0.pushed_at ?? .distantPast) >= since && $0.fork != true && $0.archived != true }
+            .sorted { ($0.pushed_at ?? .distantPast) > ($1.pushed_at ?? .distantPast) }
+            .prefix(limit))
+    }
+
     struct Commit: Decodable {
         var sha: String
         var commit: Detail
@@ -253,13 +268,16 @@ nonisolated enum GitHubWork {
     }
 
     /// Commits as work: merges and the build robot's own commits are left out.
-    static func entries(_ commits: [Commit], repo: String, branch: String) -> [WorkEntry] {
+    /// `live` marks a branch as published whatever it is called (a repo's own default branch).
+    static func entries(_ commits: [Commit], repo: String, branch: String, live: Bool = false) -> [WorkEntry] {
         commits.compactMap { commit in
             guard commit.parents.count <= 1,
                   let date = commit.commit.committer?.date ?? commit.commit.author?.date else { return nil }
             let who = commit.commit.author?.name ?? ""
-            if who.hasSuffix("-ci") || who.contains("[bot]") { return nil }
-            return WorkEntry.read(id: commit.sha, date: date, repo: repo, branches: [branch], message: commit.commit.message)
+            if who.hasSuffix("-ci") || who.hasSuffix("-stats") || who.contains("[bot]") { return nil }
+            var entry = WorkEntry.read(id: commit.sha, date: date, repo: repo, branches: [branch], message: commit.commit.message)
+            entry.published = entry.published || live
+            return entry
         }
     }
 
@@ -271,15 +289,27 @@ nonisolated enum GitHubWork {
 }
 
 /// Fetches the work and keeps the last answer on the phone.
+///
+/// Nothing here is made up: versions come from GitHub's own API, message
+/// counts from the file the Mac publishes. (The cloud build's screenshots use
+/// example work, behind a launch argument the phone never gets.)
 @MainActor @Observable final class WorkStore {
-    /// The repos read. One for now: everything is built in it.
-    static let repos = ["Labern/Clean"]
+    /// The Keychain name of the GitHub token, when one has been given.
+    nonisolated static let tokenName = "github-token"
     /// Where the Mac publishes the count of messages sent to Claude.
-    static let claudeFeed = URL(string: "https://raw.githubusercontent.com/Labern/Clean/stats/claude/claude.json")!
-    static let days = 30
+    nonisolated static let claudeFeed = URL(string: "https://raw.githubusercontent.com/Labern/Clean/stats/claude/claude.json")!
+    nonisolated static let days = 30
 
+    /// Whose GitHub account is read.
+    var owner: String = UserDefaults.standard.string(forKey: "github-owner") ?? "Labern" {
+        didSet { UserDefaults.standard.set(owner, forKey: "github-owner") }
+    }
     private(set) var entries: [WorkEntry] = []
     private(set) var claude: [ClaudeDay] = []
+    /// When the Mac last counted. Nil until its file has been read once.
+    private(set) var claudeCounted: Date? = nil
+    /// The repos the last read covered, e.g. ["Labern/Clean"].
+    private(set) var repos: [String] = []
     private(set) var loading = false
     private(set) var problem = ""
     private(set) var fetched: Date? = nil
@@ -289,6 +319,8 @@ nonisolated enum GitHubWork {
         var entries: [WorkEntry]
         var claude: [ClaudeDay]
         var fetched: Date?
+        var repos: [String]?
+        var claudeCounted: Date?
     }
 
     init(file: URL = URL.applicationSupportDirectory.appending(path: "work.json")) {
@@ -297,64 +329,117 @@ nonisolated enum GitHubWork {
             entries = saved.entries
             claude = saved.claude
             fetched = saved.fetched
+            repos = saved.repos ?? []
+            claudeCounted = saved.claudeCounted
         }
-        if Launch.screen == "work" || UserDefaults.standard.bool(forKey: "sampleNotes") && entries.isEmpty {
+        // Only the cloud build's screenshots: it launches with -sampleNotes and never reaches GitHub.
+        if Launch.unlocked, UserDefaults.standard.bool(forKey: "sampleNotes"), entries.isEmpty {
             entries = Self.sample()
             claude = Self.sampleClaude()
+            repos = ["Labern/Clean"]
         }
     }
 
-    /// Reads GitHub again, unless it was read in the last few minutes (without a
-    /// token GitHub allows 60 questions an hour, and one refresh asks about ten).
+    /// The token to ask GitHub with: its own, or the one already given for the feed.
+    var token: String? {
+        let own = Keychain.get(Self.tokenName) ?? Keychain.get(FeedSync.tokenName)
+        return own?.isEmpty == false ? own : nil
+    }
+
+    var hasToken: Bool { token != nil }
+
+    /// "142 versions in 3 repositories", for the Company tab.
+    var summary: String {
+        guard fetched != nil else { return "Not read yet" }
+        let versions = "\(entries.count) \(entries.count == 1 ? "version" : "versions")"
+        return repos.count <= 1 ? "\(versions) in 30 days" : "\(versions) in \(repos.count) repositories"
+    }
+
+    /// Reads GitHub and the Mac's count again. Without a token GitHub allows 60
+    /// questions an hour and one read asks ten to twenty, so it waits 20 minutes
+    /// between reads unless told to go now.
     func refresh(force: Bool = false, now: Date = .now) async {
-        guard !loading, !Launch.unlocked || force else { return }
-        if !force, let fetched, now.timeIntervalSince(fetched) < 15 * 60 { return }
+        guard !loading, !Launch.unlocked else { return }
+        let rest: TimeInterval = hasToken ? 3 * 60 : 20 * 60
+        if !force, let fetched, now.timeIntervalSince(fetched) < rest { return }
         loading = true
         defer { loading = false }
-        let token = Keychain.get(FeedSync.tokenName)
+
         do {
-            var seen: [WorkEntry] = []
-            let since = Calendar.current.date(byAdding: .day, value: -Self.days, to: now) ?? now
-            for repo in Self.repos {
-                let events: [GitHubWork.Event] = try await Self.ask("repos/\(repo)/events?per_page=100", token: token)
-                let pushed = GitHubWork.branches(in: events)
-                // The live branches are always read, so "published" is right.
-                let branches = Array((pushed + WorkEntry.live.sorted()).reduce(into: [String]()) { list, branch in
-                    if !list.contains(branch) { list.append(branch) }
-                }.prefix(14))
-                let stamp = since.formatted(.iso8601)
-                for branch in branches {
-                    let path = "repos/\(repo)/commits?sha=\(branch.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? branch)&since=\(stamp)&per_page=100"
-                    // A branch that has gone, or never was, is simply skipped.
-                    guard let commits: [GitHubWork.Commit] = try? await Self.ask(path, token: token) else { continue }
-                    seen += GitHubWork.entries(commits, repo: repo, branch: branch)
-                }
-            }
-            entries = WorkLedger.merged(seen)
+            let read = try await Self.read(owner: owner, token: token, now: now)
+            entries = read.entries
+            repos = read.repos
             problem = ""
         } catch {
+            // What was read before stays on screen.
             problem = (error as? LocalizedError)?.errorDescription ?? "GitHub couldn't be reached."
         }
-        // The count of Claude messages is a small public file; missing is fine.
-        if let (data, response) = try? await URLSession.shared.data(from: Self.claudeFeed),
+        // The count of Claude messages is a small public file; a missing one is not a problem.
+        var request = URLRequest(url: Self.claudeFeed)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        if let (data, response) = try? await URLSession.shared.data(for: request),
            (response as? HTTPURLResponse)?.statusCode == 200,
-           let feed = try? JSONDecoder().decode(ClaudeFeed.self, from: data) {
+           let feed = try? GitHubWork.decoder().decode(ClaudeFeed.self, from: data) {
             claude = feed.days
+            claudeCounted = feed.updated
         }
         fetched = now
-        try? JSONEncoder().encode(Saved(entries: entries, claude: claude, fetched: fetched)).write(to: file, options: .atomic)
+        let saved = Saved(entries: entries, claude: claude, fetched: fetched, repos: repos, claudeCounted: claudeCounted)
+        try? JSONEncoder().encode(saved).write(to: file, options: .atomic)
     }
 
-    private nonisolated struct ClaudeFeed: Decodable { var days: [ClaudeDay] }
+    private nonisolated struct ClaudeFeed: Decodable {
+        var updated: Date?
+        var days: [ClaudeDay]
+    }
 
-    private nonisolated struct Refused: LocalizedError {
+    nonisolated struct Refused: LocalizedError {
         var code: Int
         var errorDescription: String? {
-            code == 403 || code == 429 ? "GitHub is rate-limiting this phone. It reads again shortly." : "GitHub answered \(code)."
+            switch code {
+            case 401: "GitHub didn't accept the token."
+            case 403, 429: "GitHub is limiting how often this phone can ask. It reads again shortly."
+            case 404: "GitHub has no account by that name."
+            default: "GitHub answered \(code)."
+            }
         }
     }
 
-    private static func ask<T: Decodable>(_ path: String, token: String?) async throws -> T {
+    /// Every version pushed in the window, across the account's active repos.
+    private nonisolated static func read(owner: String, token: String?, now: Date) async throws -> (entries: [WorkEntry], repos: [String]) {
+        let since = Calendar.current.date(byAdding: .day, value: -days, to: now) ?? now
+        let stamp = since.formatted(.iso8601)
+        // With a token: everything of his, private too. Without: what the account shows publicly.
+        let listing = token == nil ? "users/\(owner)/repos?sort=pushed&per_page=50"
+                                   : "user/repos?affiliation=owner&sort=pushed&per_page=50"
+        let all: [GitHubWork.Repo] = try await ask(listing, token: token)
+        let active = GitHubWork.active(all, since: since, limit: token == nil ? 4 : 12)
+
+        var seen: [WorkEntry] = []
+        var asked = 0
+        for repo in active {
+            let name = repo.full_name
+            let events: [GitHubWork.Event] = (try? await ask("repos/\(name)/events?per_page=100", token: token)) ?? []
+            let main = repo.default_branch ?? "main"
+            var branches = [main]
+            for branch in GitHubWork.branches(in: events) where !branches.contains(branch) { branches.append(branch) }
+            for branch in branches.prefix(token == nil ? 10 : 30) {
+                // Without a token, stop short of GitHub's hourly allowance.
+                if token == nil, asked >= 30 { break }
+                asked += 1
+                let path = "repos/\(name)/commits?sha=\(branch.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? branch)&since=\(stamp)&per_page=100"
+                do {
+                    let commits: [GitHubWork.Commit] = try await ask(path, token: token)
+                    seen += GitHubWork.entries(commits, repo: name, branch: branch, live: branch == main || branch == "gh-pages")
+                } catch let refused as Refused where [404, 409, 422].contains(refused.code) {
+                    continue    // a branch that has gone, or an empty repo
+                }
+            }
+        }
+        return (WorkLedger.merged(seen), active.map(\.full_name))
+    }
+
+    private nonisolated static func ask<T: Decodable>(_ path: String, token: String?) async throws -> T {
         var request = URLRequest(url: URL(string: "https://api.github.com/\(path)")!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         request.setValue("2022-11-28", forHTTPHeaderField: "X-GitHub-Api-Version")
@@ -380,7 +465,7 @@ nonisolated enum GitHubWork {
         ]
         return messages.enumerated().map { index, message in
             let date = now.addingTimeInterval(-Double(index) * 5.3 * 3600 - 1200)
-            return WorkEntry.read(id: String(format: "%040d", index), date: date, repo: repos[0],
+            return WorkEntry.read(id: String(format: "%040d", index), date: date, repo: "Labern/Clean",
                                   branches: [index % 3 == 0 ? "master" : "claude/work"], message: message)
         }
     }

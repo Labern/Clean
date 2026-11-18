@@ -1045,6 +1045,31 @@ struct WorkTests {
         #expect(GitHubWork.branches(in: events) == ["claude/a", "master"])
     }
 
+    /// Only the account's own repos that were pushed to lately are read, newest first.
+    @Test func onlyReposWorkedOnLatelyAreRead() throws {
+        let json = """
+        [{"full_name":"Labern/Old","default_branch":"main","pushed_at":"2026-08-01T10:00:00Z","fork":false},
+         {"full_name":"Labern/iOS","default_branch":"main","pushed_at":"2026-11-16T10:00:00Z","fork":false},
+         {"full_name":"Labern/Fork","default_branch":"main","pushed_at":"2026-11-17T10:00:00Z","fork":true},
+         {"full_name":"Labern/Clean","default_branch":"master","pushed_at":"2026-11-17T23:00:00Z"}]
+        """
+        let repos = try GitHubWork.decoder().decode([GitHubWork.Repo].self, from: Data(json.utf8))
+        let active = GitHubWork.active(repos, since: at(2026, 10, 18), limit: 4)
+        #expect(active.map(\.full_name) == ["Labern/Clean", "Labern/iOS"])
+        #expect(active.first?.default_branch == "master")
+        #expect(GitHubWork.active(repos, since: at(2026, 10, 18), limit: 1).count == 1)
+    }
+
+    /// A repo's own default branch is published, whatever it is called.
+    @Test func theDefaultBranchIsPublished() throws {
+        let json = """
+        [{"sha":"1","parents":[],"commit":{"message":"feat: a","committer":{"name":"x","date":"2026-11-17T10:00:00Z"},"author":{"name":"Labern","date":"2026-11-17T10:00:00Z"}}}]
+        """
+        let commits = try GitHubWork.decoder().decode([GitHubWork.Commit].self, from: Data(json.utf8))
+        #expect(GitHubWork.entries(commits, repo: "Labern/iOS", branch: "trunk", live: true).first?.published == true)
+        #expect(GitHubWork.entries(commits, repo: "Labern/iOS", branch: "trunk").first?.published == false)
+    }
+
     @Test func mergesAndTheBuildRobotAreNotWork() throws {
         let json = """
         [{"sha":"1","parents":[{"sha":"0"}],"commit":{"message":"feat: a","committer":{"name":"GitHub","date":"2026-11-17T10:00:00Z"},"author":{"name":"Claude","date":"2026-11-17T10:00:00Z"}}},

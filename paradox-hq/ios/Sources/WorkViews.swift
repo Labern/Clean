@@ -45,7 +45,8 @@ struct WorkCard: View {
                     HStack(alignment: .top, spacing: 0) {
                         figure(pushed.last?.amount ?? 0, "Pushed today", "\(week(pushed)) this week")
                         figure(live, "Published", "this week")
-                        figure(claude.last?.amount ?? 0, "Claude messages", "\(week(claude)) this week")
+                        figure(claude.last?.amount ?? 0, "Claude messages",
+                               work.claudeCounted == nil ? "waiting for the Mac" : "\(week(claude)) this week")
                     }
 
                     Picker("Graph", selection: $measure.animation(.snappy)) {

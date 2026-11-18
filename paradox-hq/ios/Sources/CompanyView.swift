@@ -17,6 +17,7 @@ struct CompanyView: View {
     @State private var restored = false
     @AppStorage("appearance") private var appearance: Appearance = .auto
     @AppStorage("typeface") private var typeface: Typeface = .system
+    @Environment(WorkStore.self) private var work
 
     enum Picking: Identifiable {
         case folder, file
@@ -32,7 +33,7 @@ struct CompanyView: View {
     @AppStorage("notify-deadline") private var notifyDeadlines = true
 
     enum Connection: String, Identifiable {
-        case stripe, claude, site
+        case stripe, claude, site, github
         var id: String { rawValue }
     }
 
@@ -104,6 +105,7 @@ struct CompanyView: View {
                 case .stripe: ConnectStripe()
                 case .claude: FeedSettings()
                 case .site: SiteSettings()
+                case .github: GitHubSettings()
                 }
             }
         }
@@ -185,9 +187,29 @@ struct CompanyView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    Hairline(inset: 58)
+                    // The Work tab's two sources.
+                    Button { sheet = .github } label: {
+                        InfoRow(logo: "Logo-GitHub", title: "GitHub", detail: work.problem.isEmpty ? work.summary : work.problem) {
+                            Pill(text: work.fetched == nil ? "Reading" : work.problem.isEmpty ? "Connected" : "Waiting",
+                                 color: work.fetched == nil ? Ink.muted : work.problem.isEmpty ? Ink.ok : Ink.amber)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    Hairline(inset: 58)
+                    InfoRow(logo: "Logo-Claude", title: "Claude messages", detail: claudeDetail) {
+                        Pill(text: work.claudeCounted == nil ? "Waiting" : "Connected",
+                             color: work.claudeCounted == nil ? Ink.amber : Ink.ok)
+                    }
                 }
             }
         }
+    }
+
+    /// "Counted on the Mac 12 minutes ago", or what it is waiting for.
+    private var claudeDetail: String {
+        guard let counted = work.claudeCounted else { return "Waiting for the Mac's count" }
+        return "Counted on the Mac \(counted.formatted(.relative(presentation: .named)))"
     }
 
     private var feedDetail: String {
@@ -507,6 +529,99 @@ struct DeadlineEditor: View {
 
 /// Where the Claude feed lives. Any Claude session can add projects and lines
 /// to that file; the app pulls them in on every open.
+/// GitHub, for the Work tab: whose account, and a token when private work should count too.
+struct GitHubSettings: View {
+    @Environment(WorkStore.self) private var work
+    @Environment(\.dismiss) private var dismiss
+    @State private var owner = ""
+    @State private var token = ""
+    @State private var hasToken = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Account", text: $owner)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                } header: {
+                    Text("Account")
+                }
+                Section {
+                    SecureField(hasToken ? "Saved. Type to replace." : "Only for private repositories", text: $token)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if hasToken {
+                        Button("Remove the token", role: .destructive) {
+                            Keychain.delete(WorkStore.tokenName)
+                            hasToken = Keychain.get(FeedSync.tokenName) != nil
+                        }
+                    }
+                } header: {
+                    Text("Token")
+                } footer: {
+                    Text("Kept in the Keychain on this phone. Read-only access to contents is enough.")
+                }
+                Section {
+                    Button {
+                        save()
+                        Task { await work.refresh(force: true) }
+                    } label: {
+                        HStack {
+                            Text("Read now")
+                            Spacer()
+                            if work.loading { ProgressView() }
+                        }
+                    }
+                    .disabled(work.loading)
+                    Text(work.problem.isEmpty ? work.summary : work.problem)
+                        .font(Face.style(.footnote))
+                        .foregroundStyle(work.problem.isEmpty ? Ink.muted : Ink.amber)
+                    ForEach(work.repos, id: \.self) { repo in
+                        LabeledContent(repo, value: "\(work.entries.filter { $0.repo == repo }.count)")
+                            .font(Face.style(.subheadline))
+                    }
+                }
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("GitHub")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") {
+                        let changed = save()
+                        dismiss()
+                        if changed { Task { await work.refresh(force: true) } }
+                    }
+                }
+            }
+            .onAppear {
+                owner = work.owner
+                hasToken = work.hasToken
+            }
+        }
+    }
+
+    /// Keeps what was typed. True when it changes what GitHub should be asked.
+    @discardableResult
+    private func save() -> Bool {
+        var changed = false
+        let name = owner.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty, name != work.owner {
+            work.owner = name
+            changed = true
+        }
+        let typed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !typed.isEmpty {
+            Keychain.set(typed, for: WorkStore.tokenName)
+            token = ""
+            hasToken = true
+            changed = true
+        }
+        return changed
+    }
+}
+
 struct FeedSettings: View {
     @Environment(FeedSync.self) private var feed
     @Environment(\.modelContext) private var context
