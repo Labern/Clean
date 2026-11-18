@@ -47,4 +47,28 @@ assert len(stats.tally(noise)) == 1
 
 # The same turn written twice in a file is counted once.
 assert len(stats.tally([turn("x", T % 0, "a"), turn("x", T % 0, "a")])) == 1
-print("claude_stats: 5 checks pass")
+# Counts are kept per session per UTC hour, with when the session began and was last used.
+import datetime  # noqa: E402
+import tempfile  # noqa: E402
+
+folder = tempfile.mkdtemp()
+with open(os.path.join(folder, "one.jsonl"), "w") as handle:
+    handle.write("\n".join([turn("a", "2026-11-17T10:05:00.000Z", "a"), turn("b", "2026-11-17T10:40:00.000Z", "b"),
+                            turn("c", "2026-11-17T12:01:00.000Z", "c")]))
+now = datetime.datetime(2026, 11, 17, 13, 0, tzinfo=datetime.timezone.utc)
+data = stats.count(folder, 60, now)
+assert data["sessions"] == [{"id": "s", "started": "2026-11-17T10:05:00Z", "last": "2026-11-17T12:01:00Z",
+                             "hours": {"2026-11-17T10": 2, "2026-11-17T12": 1}}], data["sessions"]
+assert sum(day["messages"] for day in data["days"]) == 3
+
+# Merging into a shared file: the same session is replaced, another is kept, a stale one goes.
+shared = os.path.join(folder, "cloud.json")
+json.dump({"sessions": [
+    {"id": "s", "started": "2026-11-17T10:05:00Z", "last": "2026-11-17T10:05:00Z", "hours": {"2026-11-17T10": 1}},
+    {"id": "other", "started": "2026-11-16T09:00:00Z", "last": "2026-11-16T09:30:00Z", "hours": {"2026-11-16T09": 4}},
+    {"id": "old", "started": "2026-01-01T09:00:00Z", "last": "2026-01-01T09:30:00Z", "hours": {"2026-01-01T09": 9}},
+]}, open(shared, "w"))
+both = stats.merged(data, shared, now)
+assert [session["id"] for session in both["sessions"]] == ["other", "s"], both["sessions"]
+assert sum(day["messages"] for day in both["days"]) == 7
+print("claude_stats: 7 checks pass")

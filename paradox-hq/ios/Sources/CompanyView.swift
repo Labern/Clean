@@ -310,6 +310,8 @@ struct CompanyView: View {
                         .sensoryFeedback(.selection, trigger: typeface)
                     }
                     Hairline(inset: 14)
+                    ColourSettings()
+                    Hairline(inset: 14)
                     Text("App icon")
                         .font(Face.style(.subheadline))
                         .foregroundStyle(Ink.body)

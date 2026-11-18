@@ -51,6 +51,11 @@ nonisolated struct WorkEntry: Codable, Identifiable, Hashable, Sendable {
     var claude: Bool
     /// On a branch that is live: the default branch or the published pages.
     var published: Bool
+    /// The Claude conversation it was made in, when the commit names one
+    /// ("Claude-Session: https://claude.ai/code/session_…"). Opens in the Claude app.
+    var session: String? = nil
+
+    var sessionLink: URL? { session.flatMap(URL.init(string:)) }
 
     /// "Added the icon designer": the kind, then the subject.
     var line: String {
@@ -113,9 +118,15 @@ nonisolated struct WorkEntry: Codable, Identifiable, Hashable, Sendable {
                 points[points.count - 1] += " " + line
             }
         }
+        // The conversation it came from: the trailer's address, or one in the pull-request footer.
+        let session = lines.lazy.compactMap { line -> String? in
+            guard let found = line.range(of: "https://claude.ai/code/session_") else { return nil }
+            let address = line[found.lowerBound...].prefix { !$0.isWhitespace && $0 != ")" && $0 != ">" }
+            return address.count > "https://claude.ai/code/session_".count ? String(address) : nil
+        }.first
         return WorkEntry(id: id, date: date, repo: repo, branches: branches.sorted(), kind: kind, project: project,
-                         subject: subject, points: points, claude: !trailers.isEmpty,
-                         published: !live.isDisjoint(with: branches))
+                         subject: subject, points: points, claude: !trailers.isEmpty || session != nil,
+                         published: !live.isDisjoint(with: branches), session: session)
     }
 
     private static let kinds: [String: WorkKind] = [
@@ -141,11 +152,22 @@ nonisolated struct WorkEntry: Codable, Identifiable, Hashable, Sendable {
     ]
 }
 
-/// Messages sent to Claude on one day (counted on the Mac, see tools/claude_stats.py).
+/// Messages sent to Claude on one day: the older shape of the Mac's file, still read.
 nonisolated struct ClaudeDay: Codable, Hashable, Sendable {
     var day: String          // "2026-11-17"
     var messages: Int
     var sessions: Int
+}
+
+/// One conversation with Claude: when it began, when it was last used, and how
+/// many messages were sent in each hour of it (keys are UTC hours, "2026-11-18T01").
+nonisolated struct ClaudeSession: Codable, Hashable, Identifiable, Sendable {
+    var id: String
+    var started: Date
+    var last: Date
+    var hours: [String: Int]
+
+    var messages: Int { hours.values.reduce(0, +) }
 }
 
 /// What the graph can show.
@@ -162,6 +184,60 @@ nonisolated enum WorkMeasure: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// The stretch of time the Work card is looking at.
+nonisolated enum WorkSpan: String, CaseIterable, Identifiable, Sendable {
+    case hour, session, day, week, month
+    var id: String { rawValue }
+
+    /// The word on its button. `rolling` is the bottom-left switch: the last 24
+    /// hours, 7 days and 30 days instead of today, this week and this month.
+    func title(rolling: Bool) -> String {
+        switch self {
+        case .hour: "Hour"
+        case .session: "Session"
+        case .day: rolling ? "24 h" : "Today"
+        case .week: rolling ? "7 days" : "Week"
+        case .month: rolling ? "30 days" : "Month"
+        }
+    }
+
+    /// Said under each figure: "this hour", "last 24 hours".
+    func caption(rolling: Bool) -> String {
+        switch self {
+        case .hour: "this hour"
+        case .session: "this session"
+        case .day: rolling ? "last 24 hours" : "today"
+        case .week: rolling ? "last 7 days" : "this week"
+        case .month: rolling ? "last 30 days" : "this month"
+        }
+    }
+
+    /// When the stretch began. `session` is when the current Claude session started.
+    func start(now: Date, calendar: Calendar, rolling: Bool, session: Date?) -> Date {
+        switch self {
+        case .hour:
+            calendar.dateInterval(of: .hour, for: now)?.start ?? now
+        case .session:
+            session ?? now
+        case .day:
+            rolling ? now.addingTimeInterval(-86_400) : calendar.startOfDay(for: now)
+        case .week:
+            rolling ? now.addingTimeInterval(-7 * 86_400) : calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? now
+        case .month:
+            rolling ? now.addingTimeInterval(-30 * 86_400) : calendar.dateInterval(of: .month, for: now)?.start ?? now
+        }
+    }
+
+    /// How the graph is cut for this stretch: 24 hours by the hour, or days.
+    var graph: (unit: Calendar.Component, count: Int) {
+        switch self {
+        case .hour, .session, .day: (.hour, 24)
+        case .week: (.day, 7)
+        case .month: (.day, 30)
+        }
+    }
+}
+
 /// The sums behind the Work card. Pure, so they can be tested.
 nonisolated enum WorkLedger {
     /// How many versions were pushed on each of the last `days` days, oldest first.
@@ -169,14 +245,62 @@ nonisolated enum WorkLedger {
         NoteText.perDay(entries.map(\.date), days: days, now: now, calendar: calendar)
     }
 
-    /// Messages to Claude on each of the last `days` days, oldest first.
-    static func perDay(_ claude: [ClaudeDay], days: Int, now: Date, calendar: Calendar) -> [Bucket] {
-        let counts = Dictionary(claude.map { ($0.day, $0.messages) }, uniquingKeysWith: +)
-        let today = calendar.startOfDay(for: now)
-        return (0..<days).reversed().compactMap { back in
-            calendar.date(byAdding: .day, value: -back, to: today).map { date in
-                Bucket(date: date, amount: counts[stamp(date, calendar)] ?? 0)
+    /// Things that happened (each a time and how many) counted into the last
+    /// `count` hours or days, oldest first. The newest bucket is the one `now` is in.
+    static func buckets(_ points: [(date: Date, amount: Int)], unit: Calendar.Component, count: Int,
+                        now: Date, calendar: Calendar) -> [Bucket] {
+        guard let latest = calendar.dateInterval(of: unit, for: now)?.start else { return [] }
+        var sums: [Date: Int] = [:]
+        for point in points {
+            if let start = calendar.dateInterval(of: unit, for: point.date)?.start { sums[start, default: 0] += point.amount }
+        }
+        return (0..<count).reversed().compactMap { back in
+            calendar.date(byAdding: unit, value: -back, to: latest).map { Bucket(date: $0, amount: sums[$0] ?? 0) }
+        }
+    }
+
+    /// Every hour in which messages went to Claude, across sessions. The same
+    /// session reported twice (by the Mac and by a cloud session) counts once.
+    static func messages(_ sessions: [ClaudeSession]) -> [(date: Date, amount: Int)] {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        return unique(sessions).flatMap { session in
+            session.hours.compactMap { key, amount -> (date: Date, amount: Int)? in
+                let parts = key.split(whereSeparator: { $0 == "-" || $0 == "T" }).compactMap { Int($0) }
+                guard parts.count == 4,
+                      let date = utc.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: parts[3]))
+                else { return nil }
+                return (date, amount)
             }
+        }
+    }
+
+    /// One of each session: where two files report the same one, the fuller report.
+    static func unique(_ sessions: [ClaudeSession]) -> [ClaudeSession] {
+        var held: [String: ClaudeSession] = [:]
+        for session in sessions where (held[session.id]?.messages ?? -1) < session.messages {
+            held[session.id] = session
+        }
+        return held.values.sorted { $0.last > $1.last }
+    }
+
+    /// How many of `points` fall from `start` up to `now`. Hours are whole, so an
+    /// hour counts when it began inside the stretch.
+    static func total(_ points: [(date: Date, amount: Int)], from start: Date, to now: Date, calendar: Calendar) -> Int {
+        let first = calendar.dateInterval(of: .hour, for: start)?.start ?? start
+        return points.filter { $0.date >= first && $0.date <= now }.reduce(0) { $0 + $1.amount }
+    }
+
+    /// The older file had only days: each becomes a session of its own at midday.
+    static func sessions(from days: [ClaudeDay]) -> [ClaudeSession] {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        return days.compactMap { day in
+            let parts = day.day.split(separator: "-").compactMap { Int($0) }
+            guard parts.count == 3,
+                  let noon = utc.date(from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: 12))
+            else { return nil }
+            return ClaudeSession(id: "day-\(day.day)", started: noon, last: noon, hours: ["\(day.day)T12": day.messages])
         }
     }
 
@@ -296,8 +420,13 @@ nonisolated enum GitHubWork {
 @MainActor @Observable final class WorkStore {
     /// The Keychain name of the GitHub token, when one has been given.
     nonisolated static let tokenName = "github-token"
-    /// Where the Mac publishes the count of messages sent to Claude.
-    nonisolated static let claudeFeed = URL(string: "https://raw.githubusercontent.com/Labern/Clean/stats/claude/claude.json")!
+    /// Where the counts of messages sent to Claude are published: by the Mac, for
+    /// conversations held there, and by cloud sessions, for their own (a cloud
+    /// conversation's transcript never reaches the Mac). See tools/claude_stats.py.
+    nonisolated static let claudeFeeds = [
+        URL(string: "https://raw.githubusercontent.com/Labern/Clean/stats/claude/claude.json")!,
+        URL(string: "https://raw.githubusercontent.com/Labern/Clean/claude/dazzling-cerf-y7p4jg/paradox-hq/stats/cloud.json")!,
+    ]
     nonisolated static let days = 30
 
     /// Whose GitHub account is read.
@@ -305,7 +434,7 @@ nonisolated enum GitHubWork {
         didSet { UserDefaults.standard.set(owner, forKey: "github-owner") }
     }
     private(set) var entries: [WorkEntry] = []
-    private(set) var claude: [ClaudeDay] = []
+    private(set) var sessions: [ClaudeSession] = []
     /// When the Mac last counted. Nil until its file has been read once.
     private(set) var claudeCounted: Date? = nil
     /// The repos the last read covered, e.g. ["Labern/Clean"].
@@ -317,17 +446,20 @@ nonisolated enum GitHubWork {
 
     private nonisolated struct Saved: Codable {
         var entries: [WorkEntry]
-        var claude: [ClaudeDay]
+        var sessions: [ClaudeSession]?
         var fetched: Date?
         var repos: [String]?
         var claudeCounted: Date?
     }
 
+    /// The session being talked to now: the one most recently used.
+    var session: ClaudeSession? { sessions.first }
+
     init(file: URL = URL.applicationSupportDirectory.appending(path: "work.json")) {
         self.file = file
         if let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(Saved.self, from: data) {
             entries = saved.entries
-            claude = saved.claude
+            sessions = saved.sessions ?? []
             fetched = saved.fetched
             repos = saved.repos ?? []
             claudeCounted = saved.claudeCounted
@@ -335,7 +467,8 @@ nonisolated enum GitHubWork {
         // Only the cloud build's screenshots: it launches with -sampleNotes and never reaches GitHub.
         if Launch.unlocked, UserDefaults.standard.bool(forKey: "sampleNotes"), entries.isEmpty {
             entries = Self.sample()
-            claude = Self.sampleClaude()
+            sessions = Self.sampleSessions()
+            claudeCounted = .now
             repos = ["Labern/Clean"]
         }
     }
@@ -374,23 +507,33 @@ nonisolated enum GitHubWork {
             // What was read before stays on screen.
             problem = (error as? LocalizedError)?.errorDescription ?? "GitHub couldn't be reached."
         }
-        // The count of Claude messages is a small public file; a missing one is not a problem.
-        var request = URLRequest(url: Self.claudeFeed)
-        request.cachePolicy = .reloadIgnoringLocalCacheData
-        if let (data, response) = try? await URLSession.shared.data(for: request),
-           (response as? HTTPURLResponse)?.statusCode == 200,
-           let feed = try? GitHubWork.decoder().decode(ClaudeFeed.self, from: data) {
-            claude = feed.days
-            claudeCounted = feed.updated
+        // The counts of Claude messages are small public files; a missing one is not a problem.
+        var read: [ClaudeSession] = []
+        var counted: Date? = nil
+        var answered = false
+        for feed in Self.claudeFeeds {
+            var request = URLRequest(url: feed)
+            request.cachePolicy = .reloadIgnoringLocalCacheData
+            guard let (data, response) = try? await URLSession.shared.data(for: request),
+                  (response as? HTTPURLResponse)?.statusCode == 200,
+                  let file = try? GitHubWork.decoder().decode(ClaudeFeed.self, from: data) else { continue }
+            answered = true
+            read += file.sessions ?? WorkLedger.sessions(from: file.days ?? [])
+            if let updated = file.updated { counted = max(counted ?? updated, updated) }
+        }
+        if answered {
+            sessions = WorkLedger.unique(read)
+            claudeCounted = counted
         }
         fetched = now
-        let saved = Saved(entries: entries, claude: claude, fetched: fetched, repos: repos, claudeCounted: claudeCounted)
+        let saved = Saved(entries: entries, sessions: sessions, fetched: fetched, repos: repos, claudeCounted: claudeCounted)
         try? JSONEncoder().encode(saved).write(to: file, options: .atomic)
     }
 
     private nonisolated struct ClaudeFeed: Decodable {
         var updated: Date?
-        var days: [ClaudeDay]
+        var sessions: [ClaudeSession]?
+        var days: [ClaudeDay]?
     }
 
     nonisolated struct Refused: LocalizedError {
@@ -454,7 +597,7 @@ nonisolated enum GitHubWork {
 
     static func sample(now: Date = .now) -> [WorkEntry] {
         let messages = [
-            "feat(paradox-hq): one header row; Dashboard in Graphik\n\n- The mark and Dashboard on the left, the photo and role on the right\n- Settings > Typeface switches the whole app\n\nCo-Authored-By: Claude <noreply@anthropic.com>",
+            "feat(paradox-hq): one header row; Dashboard in Graphik\n\n- The mark and Dashboard on the left, the photo and role on the right\n- Settings > Typeface switches the whole app\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_example",
             "fix(paradox-hq): Focus wears its own colours on the links",
             "feat(paradox-hq): mark a note done with a swipe; a Done list that folds\n\n- A done note is crossed out with a tick\n- Tap the Done heading to fold the list away",
             "style(focus): quieter session banner",
@@ -470,10 +613,18 @@ nonisolated enum GitHubWork {
         }
     }
 
-    static func sampleClaude(now: Date = .now) -> [ClaudeDay] {
-        (0..<14).map { back in
-            let date = Calendar.current.date(byAdding: .day, value: -back, to: now) ?? now
-            return ClaudeDay(day: WorkLedger.stamp(date, .current), messages: [84, 131, 40, 0, 212, 96, 57][back % 7], sessions: 3 + back % 4)
+    static func sampleSessions(now: Date = .now) -> [ClaudeSession] {
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        return (0..<9).map { back in
+            let last = now.addingTimeInterval(-Double(back) * 19 * 3600)
+            var hours: [String: Int] = [:]
+            for step in 0..<4 {
+                let parts = utc.dateComponents([.year, .month, .day, .hour], from: last.addingTimeInterval(-Double(step) * 3600))
+                let key = String(format: "%04d-%02d-%02dT%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0, parts.hour ?? 0)
+                hours[key] = [9, 14, 6, 3][step] + back % 5
+            }
+            return ClaudeSession(id: "sample\(back)", started: last.addingTimeInterval(-3 * 3600), last: last, hours: hours)
         }
     }
 }

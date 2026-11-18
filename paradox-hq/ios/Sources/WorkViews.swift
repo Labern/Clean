@@ -1,6 +1,7 @@
 import SwiftUI
 import SwiftData
 import Charts
+import UIKit
 
 /// Where a tap on the Work card leads.
 enum WorkRoute: Hashable {
@@ -10,115 +11,185 @@ enum WorkRoute: Hashable {
     case all
 }
 
-/// The Work card: how much went out today, a graph of the last thirty days,
-/// and a way into what was done on any one of them.
+/// Opens a Claude conversation in the Claude app, or on the web without it.
+@MainActor enum ClaudeApp {
+    static func open(_ link: URL) {
+        // claude.ai/code/… is an address the Claude app claims, so this lands in the app itself.
+        UIApplication.shared.open(link, options: [.universalLinksOnly: true]) { opened in
+            if !opened {
+                Task { @MainActor in UIApplication.shared.open(link, options: [:], completionHandler: nil) }
+            }
+        }
+    }
+}
+
+/// The Work card: how much went out in a chosen stretch of time, a graph of
+/// it, and a way into what was done.
 struct WorkCard: View {
     @Environment(WorkStore.self) private var work
     @Query private var notes: [Note]
+    @AppStorage("work-span") private var span: WorkSpan = .day
+    /// Bottom left: the last 24 hours, 7 days, 30 days, instead of today, this week, this month.
+    @AppStorage("work-rolling") private var rolling = false
+    /// Folded, the card is its three figures and nothing else.
+    @AppStorage("work-folded") private var folded = false
     @State private var measure: WorkMeasure = .pushed
     @State private var touched: Date? = nil
-    /// The day last read off the graph. It stays chosen when the finger lifts.
-    @State private var chosen: Date = Calendar.current.startOfDay(for: .now)
+    /// The bar last read off the graph. It stays chosen when the finger lifts.
+    @State private var chosen: Date? = nil
     let open: (WorkRoute) -> Void
 
     var body: some View {
         let calendar = Calendar.current
         let now = Date.now
-        let pushed = WorkLedger.perDay(work.entries, days: WorkStore.days, now: now, calendar: calendar)
-        let claude = WorkLedger.perDay(work.claude, days: WorkStore.days, now: now, calendar: calendar)
-        let writing = NoteText.perDay(notes.map(\.created), days: WorkStore.days, now: now, calendar: calendar)
-        let bars = switch measure {
-        case .pushed: pushed
-        case .claude: claude
-        case .writing: writing
+        let start = span.start(now: now, calendar: calendar, rolling: rolling, session: work.session?.started)
+        let pushes = work.entries.map { (date: $0.date, amount: 1) }
+        let messages = WorkLedger.messages(work.sessions)
+        let written = notes.map { (date: $0.created, amount: 1) }
+
+        // The three figures, for the stretch chosen.
+        let pushed = work.entries.filter { $0.date >= start && $0.date <= now }
+        let live = pushed.filter(\.published).count
+        let sent = span == .session ? (work.session?.messages ?? 0)
+            : WorkLedger.total(messages, from: start, to: now, calendar: calendar)
+        let caption = span.caption(rolling: rolling)
+
+        // The graph, cut by the hour or the day to suit the stretch.
+        let cut = span.graph
+        let points = switch measure {
+        case .pushed: pushes
+        case .claude: messages
+        case .writing: written
         }
+        let bars = WorkLedger.buckets(points, unit: cut.unit, count: cut.count, now: now, calendar: calendar)
         let picked = touched.flatMap { Ledger.pick(bars, at: $0) }
-        let week = { (all: [Bucket]) in all.suffix(7).reduce(0) { $0 + $1.amount } }
-        let live = work.entries.filter { $0.published && $0.date > now.addingTimeInterval(-7 * 86_400) }.count
         let shown = bars.first { $0.date == chosen } ?? bars.last
-        let dayWork = WorkLedger.on(chosen, work.entries, calendar: calendar)
+        let bar = picked ?? shown
+        let barEnd = bar.flatMap { calendar.date(byAdding: cut.unit, value: 1, to: $0.date) } ?? now
+        let barWork = work.entries.filter { entry in
+            guard let bar else { return false }
+            return entry.date >= bar.date && entry.date < barEnd
+        }
 
         VStack(alignment: .leading, spacing: 8) {
-            SectionHeader(title: "Work", trailing: work.loading ? "Reading GitHub" : "")
+            // The heading folds the card: tap to hide the graph and the list, tap to bring them back.
+            Button {
+                withAnimation(.snappy) { folded.toggle() }
+            } label: {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("Work")
+                        .font(Face.at(12, .semibold))
+                        .textCase(.uppercase)
+                        .tracking(0.9)
+                    Image(systemName: folded ? "chevron.right" : "chevron.down")
+                        .font(Face.style(.caption2, .bold))
+                    Spacer(minLength: 8)
+                    if work.loading {
+                        Text("Reading GitHub")
+                            .font(Face.at(12, .medium))
+                    }
+                }
+                .foregroundStyle(Ink.muted)
+                .padding(.horizontal, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .sensoryFeedback(.selection, trigger: folded)
+            .accessibilityLabel(folded ? "Show the work graph" : "Hide the work graph")
+
             Card {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(alignment: .top, spacing: 0) {
-                        figure(pushed.last?.amount ?? 0, "Pushed today", "\(week(pushed)) this week")
-                        figure(live, "Published", "this week")
-                        figure(claude.last?.amount ?? 0, "Claude messages",
-                               work.claudeCounted == nil ? "waiting for the Mac" : "\(week(claude)) this week")
+                        figure(pushed.count, "Pushed", caption)
+                        figure(live, "Published", caption)
+                        figure(sent, "Claude messages", work.claudeCounted == nil ? "waiting for a count" : caption)
                     }
 
-                    Picker("Graph", selection: $measure.animation(.snappy)) {
-                        ForEach(WorkMeasure.allCases) { Text($0.rawValue).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .sensoryFeedback(.selection, trigger: measure)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(Self.count((picked ?? shown)?.amount ?? 0, measure))
-                                .font(Face.style(.footnote, .semibold))
-                                .foregroundStyle(Ink.head)
-                                .monospacedDigit()
-                                .contentTransition(.numericText())
-                            Spacer(minLength: 8)
-                            Text((picked ?? shown)?.date ?? chosen, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
-                                .font(Face.style(.footnote))
-                                .foregroundStyle(Ink.muted)
+                    if !folded {
+                        Picker("Graph", selection: $measure.animation(.snappy)) {
+                            ForEach(WorkMeasure.allCases) { Text($0.rawValue).tag($0) }
                         }
-                        // Drag along it: each day reads off in turn, with a tick as the finger crosses.
-                        Chart(bars) { bar in
-                            BarMark(x: .value("Day", bar.date, unit: .day),
-                                    y: .value(measure.rawValue, max(Double(bar.amount), 0.12)))
-                                .cornerRadius(2)
-                                .foregroundStyle(bar.date == (picked?.date ?? chosen)
-                                                 ? Ink.head : Ink.violet.opacity(bar.amount == 0 ? 0.25 : 0.7))
-                        }
-                        .chartXAxis(.hidden)
-                        .chartYAxis(.hidden)
-                        .chartXSelection(value: $touched)
-                        .sensoryFeedback(.selection, trigger: picked?.date)
-                        .frame(height: 64)
-                        .accessibilityLabel("\(measure.rawValue) per day, last thirty days")
-                    }
+                        .pickerStyle(.segmented)
+                        .sensoryFeedback(.selection, trigger: measure)
 
-                    // What was done on the chosen day, and the way in to all of it.
-                    VStack(spacing: 0) {
-                        ForEach(dayWork.prefix(3)) { entry in
-                            WorkLine(entry: entry, compact: true)
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(Self.count(bar?.amount ?? 0, measure))
+                                    .font(Face.style(.footnote, .semibold))
+                                    .foregroundStyle(Ink.head)
+                                    .monospacedDigit()
+                                    .contentTransition(.numericText())
+                                Spacer(minLength: 8)
+                                Text(Self.stamp(bar?.date ?? now, hourly: cut.unit == .hour))
+                                    .font(Face.style(.footnote))
+                                    .foregroundStyle(Ink.muted)
+                                    .monospacedDigit()
+                            }
+                            // Drag along it: each bar reads off in turn, with a tick as the finger crosses.
+                            Chart(bars) { item in
+                                BarMark(x: .value("When", item.date, unit: cut.unit),
+                                        y: .value(measure.rawValue, max(Double(item.amount), 0.12)))
+                                    .cornerRadius(2)
+                                    .foregroundStyle(item.date == bar?.date
+                                                     ? Ink.head : Ink.violet.opacity(item.amount == 0 ? 0.25 : 0.7))
+                            }
+                            .chartXAxis(.hidden)
+                            .chartYAxis(.hidden)
+                            .chartXSelection(value: $touched)
+                            .sensoryFeedback(.selection, trigger: picked?.date)
+                            .frame(height: 64)
+                            .accessibilityLabel("\(measure.rawValue), \(cut.unit == .hour ? "hour by hour" : "day by day")")
+                        }
+
+                        // What was done in the chosen bar. A line made in a Claude conversation opens it.
+                        VStack(spacing: 0) {
+                            ForEach(barWork.prefix(3)) { entry in
+                                Button {
+                                    if let link = entry.sessionLink { ClaudeApp.open(link) } else { open(.day(entry.date)) }
+                                } label: {
+                                    WorkLine(entry: entry, compact: true)
+                                }
+                                .buttonStyle(.plain)
+                                Hairline(inset: 0)
+                            }
+                            link(barWork.isEmpty ? "Nothing pushed then" : Self.dayLabel(bar?.date ?? now, barWork.count, calendar),
+                                 strong: !barWork.isEmpty) { open(.day(bar?.date ?? now)) }
+                                .disabled(barWork.isEmpty)
                             Hairline(inset: 0)
+                            link("All work", strong: false) { open(.all) }
                         }
-                        Button { open(.day(chosen)) } label: {
-                            HStack {
-                                Text(dayWork.isEmpty ? "Nothing pushed that day" : Self.dayLabel(chosen, dayWork.count, calendar))
-                                    .font(Face.style(.subheadline, .semibold))
-                                    .foregroundStyle(dayWork.isEmpty ? Ink.muted : Ink.head)
-                                Spacer()
-                                Image(systemName: "chevron.right")
+                    }
+
+                    // The stretch of time, along the bottom; bottom left, calendar or rolling.
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("Stretch", selection: $span.animation(.snappy)) {
+                            ForEach(WorkSpan.allCases) { Text($0.title(rolling: rolling)).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                        .sensoryFeedback(.selection, trigger: span)
+                        HStack {
+                            Button {
+                                withAnimation(.snappy) { rolling.toggle() }
+                            } label: {
+                                Label(rolling ? "Last 24 hours" : "Today", systemImage: rolling ? "clock.arrow.circlepath" : "calendar")
                                     .font(Face.style(.caption, .semibold))
-                                    .foregroundStyle(Ink.idle)
-                            }
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(dayWork.isEmpty)
-                        Hairline(inset: 0)
-                        Button { open(.all) } label: {
-                            HStack {
-                                Text("All work")
-                                    .font(Face.style(.subheadline))
                                     .foregroundStyle(Ink.body)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(Face.style(.caption, .semibold))
-                                    .foregroundStyle(Ink.idle)
+                                    .padding(.horizontal, 10)
+                                    .frame(minHeight: 30)
+                                    .background(Ink.surface2, in: Capsule())
+                                    .frame(minHeight: 44)
+                                    .contentShape(Rectangle())
                             }
-                            .frame(minHeight: 44)
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
+                            .sensoryFeedback(.selection, trigger: rolling)
+                            .accessibilityLabel(rolling ? "Counting the last 24 hours. Switch to today." : "Counting today. Switch to the last 24 hours.")
+                            Spacer()
+                            if span == .session, let session = work.session {
+                                Text("since \(session.started.formatted(.dateTime.weekday(.abbreviated).hour().minute()))")
+                                    .font(Face.style(.caption))
+                                    .foregroundStyle(Ink.muted)
+                            }
                         }
-                        .buttonStyle(.plain)
                     }
                     if !work.problem.isEmpty {
                         Text(work.problem)
@@ -128,9 +199,11 @@ struct WorkCard: View {
                 }
             }
         }
-        .onChange(of: picked?.date) { _, day in
-            if let day { chosen = day }
+        .onChange(of: picked?.date) { _, date in
+            if let date { chosen = date }
         }
+        .onChange(of: span) { chosen = nil }
+        .onChange(of: measure) { chosen = nil }
     }
 
     private func figure(_ value: Int, _ title: String, _ detail: String) -> some View {
@@ -147,12 +220,36 @@ struct WorkCard: View {
                 .font(Face.style(.caption2))
                 .foregroundStyle(Ink.muted)
                 .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func link(_ title: String, strong: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(Face.style(.subheadline, strong ? .semibold : .regular))
+                    .foregroundStyle(strong ? Ink.head : Ink.body)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(Face.style(.caption, .semibold))
+                    .foregroundStyle(Ink.idle)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     nonisolated static func count(_ n: Int, _ measure: WorkMeasure) -> String {
         "\(n) \(n == 1 ? measure.unit.one : measure.unit.many)"
+    }
+
+    /// "Tue 17 Nov", or "Tue 14:00" for an hour's bar.
+    static func stamp(_ date: Date, hourly: Bool) -> String {
+        hourly ? date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+               : date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
     }
 
     static func dayLabel(_ day: Date, _ count: Int, _ calendar: Calendar) -> String {
@@ -166,7 +263,7 @@ struct WorkCard: View {
 /// One piece of work: when, what kind, and what it was.
 struct WorkLine: View {
     let entry: WorkEntry
-    /// On the card: one line, no bullets.
+    /// One line, no bullets.
     var compact = false
     @Environment(\.openURL) private var openURL
 
@@ -192,7 +289,7 @@ struct WorkLine: View {
                     if entry.published {
                         Text("Live").foregroundStyle(Ink.ok)
                     }
-                    if entry.claude {
+                    if entry.claude, entry.session == nil {
                         Text("with Claude")
                     }
                 }
@@ -212,22 +309,43 @@ struct WorkLine: View {
                                 .multilineTextAlignment(.leading)
                         }
                     }
+                    HStack(spacing: 8) {
+                        if let link = entry.sessionLink {
+                            chip("Open in Claude", logo: "Logo-Claude") { ClaudeApp.open(link) }
+                        }
+                        if let link = entry.link {
+                            chip("GitHub", logo: "Logo-GitHub") { openURL(link) }
+                        }
+                    }
+                    .padding(.top, 2)
                 }
             }
             Spacer(minLength: 0)
-            if !compact, let link = entry.link {
-                Button { openURL(link) } label: {
-                    Image(systemName: "arrow.up.forward")
-                        .font(Face.style(.caption, .semibold))
-                        .foregroundStyle(Ink.idle)
-                        .frame(width: 36, height: 36)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.borderless)
-                .accessibilityLabel("Open on GitHub")
+            // The conversation it came from rides with every line, a tap away.
+            if compact, entry.session != nil {
+                LogoTile(name: "Logo-Claude", size: 20)
+                    .padding(.top, 4)
             }
         }
         .padding(.vertical, compact ? 8 : 6)
+        .contentShape(Rectangle())
+    }
+
+    private func chip(_ title: String, logo: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                LogoTile(name: logo, size: 18)
+                Text(title)
+                    .font(Face.style(.caption, .semibold))
+                    .foregroundStyle(Ink.body)
+            }
+            .padding(.leading, 6)
+            .padding(.trailing, 10)
+            .frame(minHeight: 32)
+            .background(Ink.surface2, in: Capsule())
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
     }
 
     static func colour(_ kind: WorkKind) -> Color {
@@ -240,16 +358,23 @@ struct WorkLine: View {
     }
 }
 
-/// What was done, at each time: one day, or every day there is.
+/// What was done, at each time: one day, or every day there is. Lines are one
+/// line each until tapped; a day's heading folds the day; the button at the top
+/// opens or closes everything at once.
 struct WorkLog: View {
     @Environment(WorkStore.self) private var work
     /// Nil shows every day.
     let day: Date?
+    /// Lines showing their bullets.
+    @State private var open: Set<String> = []
+    /// Days folded away.
+    @State private var shut: Set<Date> = []
 
     var body: some View {
         let calendar = Calendar.current
         let entries = day.map { WorkLedger.on($0, work.entries, calendar: calendar) } ?? work.entries
         let days = WorkLedger.byDay(entries, calendar: calendar)
+        let allOpen = !entries.isEmpty && open.count >= entries.count
         List {
             if days.isEmpty {
                 Text("Nothing pushed.")
@@ -258,22 +383,44 @@ struct WorkLog: View {
             }
             ForEach(days, id: \.day) { group in
                 Section {
-                    ForEach(group.entries) { entry in
-                        WorkLine(entry: entry)
+                    if !shut.contains(group.day) {
+                        ForEach(group.entries) { entry in
+                            Button {
+                                withAnimation(.snappy) {
+                                    if open.contains(entry.id) { open.remove(entry.id) } else { open.insert(entry.id) }
+                                }
+                            } label: {
+                                WorkLine(entry: entry, compact: !open.contains(entry.id))
+                            }
+                            .buttonStyle(.plain)
                             .listRowBackground(Ink.surface)
                             .listRowSeparatorTint(Ink.line)
+                        }
                     }
                 } header: {
-                    HStack {
-                        Text(group.day, format: .dateTime.weekday(.wide).day().month(.wide))
-                        Spacer()
-                        Text(Self.tally(group.entries))
-                            .monospacedDigit()
+                    Button {
+                        withAnimation(.snappy) {
+                            if shut.contains(group.day) { shut.remove(group.day) } else { shut.insert(group.day) }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(group.day, format: .dateTime.weekday(.wide).day().month(.wide))
+                            Image(systemName: shut.contains(group.day) ? "chevron.right" : "chevron.down")
+                                .font(Face.style(.caption2, .bold))
+                            Spacer()
+                            Text(Self.tally(group.entries))
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        .font(Face.at(12, .semibold))
+                        .textCase(.uppercase)
+                        .tracking(0.9)
+                        .foregroundStyle(Ink.muted)
+                        .frame(minHeight: 30)
+                        .contentShape(Rectangle())
                     }
-                    .font(Face.at(12, .semibold))
-                    .textCase(.uppercase)
-                    .tracking(0.9)
-                    .foregroundStyle(Ink.muted)
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -282,6 +429,15 @@ struct WorkLog: View {
         .background(Ink.ground)
         .navigationTitle(day == nil ? "All work" : "Work")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(allOpen ? "Contract" : "Expand") {
+                    withAnimation(.snappy) { open = allOpen ? [] : Set(entries.map(\.id)) }
+                }
+                .disabled(entries.isEmpty)
+            }
+        }
+        .sensoryFeedback(.selection, trigger: open.count)
         .refreshable { await work.refresh(force: true) }
     }
 

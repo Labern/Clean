@@ -13,6 +13,9 @@ struct ParadoxHQApp: App {
     @State private var work = WorkStore()
     @AppStorage("appearance") private var appearance: Appearance = .auto
     @AppStorage("typeface") private var typeface: Typeface = .system
+    @AppStorage(Palette.accentKey) private var accent = 0
+    @AppStorage(Palette.secondKey) private var second = 0
+    @AppStorage(Palette.buttonsKey) private var colouredButtons = false
     private let container: ModelContainer
 
     init() {
@@ -41,7 +44,8 @@ struct ParadoxHQApp: App {
                 .preferredColorScheme(appearance.scheme)
                 // Text with no font of its own follows the typeface too; a change redraws everything.
                 .font(Face.style(.body))
-                .id(typeface)
+                // The same for the colours chosen in Settings.
+                .id("\(typeface.rawValue) \(accent) \(second) \(colouredButtons)")
                 .tint(Ink.violet)
         }
         .modelContainer(container)

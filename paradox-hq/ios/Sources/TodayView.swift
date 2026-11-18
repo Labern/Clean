@@ -2,42 +2,40 @@ import SwiftUI
 import SwiftData
 import Charts
 
-/// The top of Today, all one thing: the mark and its word on the left, and on
-/// the right who is running it. Narrower phones get a smaller mark, then no word.
+/// The top of the Work tab: the mark on the left, who is running it on the
+/// right, and beneath them the word Dashboard with a white line either side.
 struct TodayHeader: View {
     let loading: Bool
 
     var body: some View {
-        ViewThatFits(in: .horizontal) {
-            row(mark: 124, word: true)
-            row(mark: 108, word: true)
-            row(mark: 124, word: false)
-            row(mark: 96, word: false)
+        VStack(spacing: 16) {
+            ViewThatFits(in: .horizontal) {
+                row(mark: 150)
+                row(mark: 124)
+                row(mark: 100)
+            }
+            // ——— Dashboard ———
+            HStack(spacing: 14) {
+                Rectangle().fill(Ink.head).frame(height: 1)
+                Text("Dashboard")
+                    .font(Face.graphik(17, .medium))
+                    .tracking(0.4)
+                    .foregroundStyle(Ink.head)
+                    .lineLimit(1)
+                    .fixedSize()
+                Rectangle().fill(Ink.head).frame(height: 1)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Dashboard")
+            .accessibilityAddTraits(.isHeader)
         }
     }
 
-    private func row(mark: CGFloat, word: Bool) -> some View {
-        // PARADOX's capitals stand a tenth of the mark's width tall; Graphik's
-        // capitals are 0.72 of its size, so this is the size that matches them.
-        let size = mark * 0.138
-        return HStack(alignment: .center, spacing: 12) {
-            HStack(alignment: .bottom, spacing: 0) {
-                MarkView(width: mark)
-                    .hunt()
-                if word {
-                    // "PARADOX Dashboard": the word stands on the wordmark's own baseline,
-                    // which is the mark's bottom edge, a word-gap after the X. The mark's
-                    // frame runs on past PARADOX to hold its ™, so the word steps back into it.
-                    Text("Dashboard")
-                        .font(Face.graphik(size))
-                        .foregroundStyle(Ink.muted)
-                        .lineLimit(1)
-                        .fixedSize()
-                        .padding(.leading, -mark * 0.1)
-                        .offset(y: Face.graphikDescent(size))
-                        .accessibilityHidden(true)
-                }
-            }
+    /// The mark's top and the photo's top line up, however many roles are stacked under the name.
+    private func row(mark: CGFloat) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            MarkView(width: mark)
+                .hunt()
             if loading {
                 ProgressView()
             }

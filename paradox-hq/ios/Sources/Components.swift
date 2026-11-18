@@ -226,7 +226,7 @@ struct Tick: View {
                 Circle().fill(color)
                 Image(systemName: "checkmark")
                     .font(Face.at(size * 0.46, .bold))
-                    .foregroundStyle(Ink.buttonInk)
+                    .foregroundStyle(Ink.onHead)
             }
         }
         .frame(width: size, height: size)

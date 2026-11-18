@@ -25,10 +25,20 @@ and kept in the Keychain on the phone.
 Work · To-do · Notes · Money · Company. (Six would push one behind a "More" button.)
 "Work" was "Today" until 2026-11-18; in code it is still `TodayView` and `Screen.today`.
 - **Work card** (`Work.swift`, `WorkViews.swift`), first thing on the Work tab: versions
-  pushed today, published this week, messages sent to Claude; a 30-day graph that
-  switches between Pushed, Claude and Writing and scrubs with a haptic; under it what
-  was done on the chosen day, and a way in to the whole log (`WorkLog`: each version at
-  its time, as "Added: …", "Fixed: …", "Styled: …", with the commit's own bullets).
+  pushed, published, and messages sent to Claude, for a stretch chosen along the
+  bottom: Hour, Session (the current Claude conversation), Today, Week, Month. The
+  switch at the bottom left makes those the last 24 hours, 7 days and 30 days
+  (`WorkSpan`, tested). The graph switches between Pushed, Claude and Writing, is cut by
+  the hour or the day to suit, and scrubs with a haptic; under it, what was done in the
+  chosen bar. Tapping the card's heading folds it down to its three figures.
+  `WorkLog` is the way in to everything: each version at its time as "Added: …",
+  "Fixed: …", "Styled: …". Lines are one line until tapped (then the commit's bullets
+  show), a day's heading folds the day, and Expand/Contract does all at once.
+  - **Every change leads back to its conversation.** A commit that carries
+    `Claude-Session: https://claude.ai/code/session_…` keeps that address in its
+    `WorkEntry.session`; the line shows Claude's tile, and tapping it (or "Open in
+    Claude") opens that conversation in the Claude app, which claims `/code/*`. **Always
+    end commit messages with the Claude-Session trailer**, or the link is lost.
   - **Real data only.** Example work exists for the cloud build's screenshots and is
     behind `-unlocked YES -sampleNotes YES`; the phone never shows it.
   - **GitHub** (Company › Connected to › GitHub): the account's repos pushed to in the
@@ -41,11 +51,15 @@ Work · To-do · Notes · Money · Company. (Six would push one behind a "More" 
     repo's default branch or `gh-pages` count as published. `WorkEntry.read` turns a commit
     message into kind, product, subject and bullets, and is tested: **write commit
     messages as `type(product): subject` with `- ` bullets and they read well here.**
-  - **Claude messages**: there is no API for it. `tools/claude_stats.py` on the Mac
-    counts the messages typed in every transcript under `~/.claude/projects` and pushes
-    only the per-day counts as `claude.json` on the branch `stats/claude`; the app reads
-    that file and Company shows when the Mac last counted. Conversations that ran in the
-    cloud are not on the Mac, so they are not counted.
+  - **Claude messages**: there is no API for it. `tools/claude_stats.py` counts the
+    messages typed in every transcript under `~/.claude/projects`, per session per hour,
+    and publishes only those counts. Two files are read and joined, a session counted
+    once: the Mac's `claude.json` on the branch `stats/claude` (`--publish`, run at each
+    install), and `paradox-hq/stats/cloud.json` on the app branch, for conversations
+    that ran in the cloud, whose transcripts never reach the Mac. **A cloud session
+    working on this app runs
+    `python3 paradox-hq/tools/claude_stats.py --out paradox-hq/stats/cloud.json`
+    before each push and commits the file**; that is the only way its messages count.
 - **Notes** — a proper notebook. Chips filter to one project's notes; a note's menu
   turns it into a to-do (title becomes the line, the rest its note) on its project,
   or on My list. Plain text, the first line is the title, saved as
@@ -115,19 +129,20 @@ per launch (`.rise`), the mark's "hunt" hit stop on Today (`.hunt`), the ground 
 under the status bar (`.statusBarFade`). "PARADOX Dashboard" on Today: the word sits on
 the wordmark's baseline, stepped back into the space the mark keeps for its ™.
 
-## Today's header and the profile
-One row, one thing (`TodayHeader`): the mark and "Dashboard" on the left, the profile
-hard against the right edge, centred on each other; the photo is the mark's height.
-"Dashboard" is always in Graphik, on the wordmark's baseline. `ViewThatFits` gives
-narrower phones a smaller mark, then drops the word. Labern, 2026-11-18, of the first
-version (profile floating on a row of its own): "This is a mess."
+## The Work tab's header and the profile
+`TodayHeader`: the mark top left, the profile top right, their tops level; beneath both,
+the word Dashboard in Graphik, centred, with a white line running out either side
+(Labern's own design, 2026-11-18: "so it looks beautiful"). `ViewThatFits` gives
+narrower phones a smaller mark. Of the first version, with the profile floating on a
+row of its own: "This is a mess."
+**Roles stack.** Under the name, every role being worn, one per line, as many or as
+few as he likes. Tapping them opens a menu of ticks that stays open while several are
+chosen (`Profile.toggled`, tested); "New role" adds one.
 `Sources/Profile.swift`. `[photo] Labern / Founder & Director`, laid out like the Claude
 app's account row. Tap the photo to change it (`PhotosPicker`), and place it in its
 circle: three sliders (zoom, left and right, up and down) and dragging or pinching the
 photo itself (`Framing`, tested). A tall photo has no room sideways until it is zoomed.
-A new photo is framed on the face automatically (Vision), or on head and shoulders. Tap the role for the list of
-hats (`Profile.roles`: Founder & Director, Writer, Programmer, Actor, Designer,
-Filmmaker) or "New role" to add one; the change lands with hit stop. Everything stays
+A new photo is framed on the face automatically (Vision), or on head and shoulders. Everything stays
 on the phone: the photo in Application Support/Profile, the rest in UserDefaults. **No
 photo of Labern is in this repo**, which is public. His photo sits on the Mac at
 `ios/Resources/Private/profile.jpg` (gitignored); a build made there carries it, and the
@@ -140,6 +155,14 @@ Typeface (SF Pro / Graphik) changes the whole app. **Graphik's files are not in 
 repo** (licensed, and the repo is public): they sit on the Mac in
 `ios/Resources/Private/` (gitignored) and `Face.load` registers whatever the build
 carries. A build without them is in SF Pro and hides the setting.
+
+## Colours (Company › Settings)
+Focus's own customisation, brought over name for name (`Palette` in `Shared/Theme.swift`,
+`Sources/Colours.swift`): its two-tone presets (Purple & Green, Pink & Teal … Pen Pen)
+and nine hues set the accent (`Ink.violet`) and the second colour (`Ink.ok`); Buttons
+can take the accent instead of white. **Default is the app exactly as it was.** A chosen
+colour is deepened for the light appearance, and words on a coloured button are black
+or white, whichever reads (tested). Ticks draw with `Ink.onHead`, not the button ink.
 
 ## App icons
 Main icon = the app's own mark scaled to 90% width (`design/icons/classic-max-black.png`).

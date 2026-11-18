@@ -1025,11 +1025,75 @@ struct WorkTests {
         #expect(WorkLog.tally([a, b, c]) == "1 added · 1 fixed · 1 styled")
     }
 
-    @Test func claudeMessagesAreCountedPerDay() {
-        let days = [ClaudeDay(day: "2026-11-17", messages: 40, sessions: 3), ClaudeDay(day: "2026-11-15", messages: 7, sessions: 1)]
-        let bars = WorkLedger.perDay(days, days: 4, now: at(2026, 11, 17, 20), calendar: london)
-        #expect(bars.map(\.amount) == [0, 7, 0, 40])
+    private func session(_ id: String, _ hours: [String: Int], last: Date) -> ClaudeSession {
+        ClaudeSession(id: id, started: last.addingTimeInterval(-3600), last: last, hours: hours)
+    }
+
+    /// Messages are kept per session per UTC hour, and a session reported twice counts once.
+    @Test func claudeMessagesAreCountedOncePerSession() {
+        let mac = session("aaaa", ["2026-11-17T10": 4, "2026-11-17T11": 6], last: at(2026, 11, 17, 11))
+        let cloudCopy = session("aaaa", ["2026-11-17T10": 4], last: at(2026, 11, 17, 10))
+        let other = session("bbbb", ["2026-11-17T20": 3], last: at(2026, 11, 17, 20))
+        let unique = WorkLedger.unique([cloudCopy, mac, other])
+        #expect(unique.map(\.id) == ["bbbb", "aaaa"])                    // latest used first
+        #expect(unique.last?.messages == 10)                             // the fuller report wins
+        let points = WorkLedger.messages([cloudCopy, mac, other])
+        #expect(points.reduce(0) { $0 + $1.amount } == 13)
+        // London is on UTC in November, so 20:00 UTC is 8pm there.
+        let evening = WorkLedger.total(points, from: at(2026, 11, 17, 19), to: at(2026, 11, 17, 21), calendar: london)
+        #expect(evening == 3)
+        #expect(WorkLedger.total(points, from: at(2026, 11, 17, 0), to: at(2026, 11, 17, 23), calendar: london) == 13)
+    }
+
+    /// The older file, with days only, still reads.
+    @Test func theOlderCountOfDaysStillReads() {
+        let old = WorkLedger.sessions(from: [ClaudeDay(day: "2026-11-17", messages: 40, sessions: 3)])
+        #expect(old.first?.messages == 40)
+        let bars = WorkLedger.buckets(WorkLedger.messages(old), unit: .day, count: 3, now: at(2026, 11, 18, 9), calendar: london)
+        #expect(bars.map(\.amount) == [0, 40, 0])
         #expect(WorkLedger.stamp(at(2026, 1, 5), london) == "2026-01-05")
+    }
+
+    @Test func theGraphIsCutByTheHourOrTheDay() {
+        let points = [(date: at(2026, 11, 17, 9), amount: 1), (date: at(2026, 11, 17, 9), amount: 2), (date: at(2026, 11, 17, 11), amount: 5)]
+        let hours = WorkLedger.buckets(points, unit: .hour, count: 4, now: at(2026, 11, 17, 12), calendar: london)
+        #expect(hours.map(\.amount) == [3, 0, 5, 0])
+        #expect(hours.last?.date == at(2026, 11, 17, 12))
+        #expect(WorkSpan.day.graph.count == 24 && WorkSpan.week.graph.count == 7 && WorkSpan.month.graph.count == 30)
+    }
+
+    /// Today or the last 24 hours; this week or the last 7 days: the switch at the bottom left.
+    @Test func aStretchIsCalendarOrRolling() {
+        let now = at(2026, 11, 18, 15)                                   // a Wednesday
+        func start(_ span: WorkSpan, _ rolling: Bool) -> Date {
+            span.start(now: now, calendar: london, rolling: rolling, session: at(2026, 11, 18, 9))
+        }
+        #expect(start(.hour, false) == at(2026, 11, 18, 15))
+        #expect(start(.session, false) == at(2026, 11, 18, 9))
+        #expect(start(.day, false) == at(2026, 11, 18, 0))
+        #expect(start(.day, true) == at(2026, 11, 17, 15))
+        #expect(start(.week, false) == at(2026, 11, 16, 0))             // Monday
+        #expect(start(.week, true) == at(2026, 11, 11, 15))
+        #expect(start(.month, false) == at(2026, 11, 1, 0))
+        #expect(WorkSpan.day.title(rolling: true) == "24 h" && WorkSpan.day.title(rolling: false) == "Today")
+        #expect(WorkSpan.day.caption(rolling: true) == "last 24 hours")
+    }
+
+    /// A change made in a Claude conversation carries the way back to it.
+    @Test func aChangeRemembersItsClaudeConversation() {
+        let linked = read("""
+        feat(paradox-hq): Work tab
+
+        Co-Authored-By: Claude <noreply@anthropic.com>
+        Claude-Session: https://claude.ai/code/session_01561EZoimxQTm7bYAzipx1m
+        """)
+        #expect(linked.session == "https://claude.ai/code/session_01561EZoimxQTm7bYAzipx1m")
+        #expect(linked.sessionLink?.path() == "/code/session_01561EZoimxQTm7bYAzipx1m")
+        #expect(linked.claude)
+        let footer = read("fix: x\n\n🤖 Generated with Claude\n\nhttps://claude.ai/code/session_abc123)")
+        #expect(footer.session == "https://claude.ai/code/session_abc123")
+        #expect(read("fix: x\n\nCo-Authored-By: Claude Opus <noreply@anthropic.com>").session == nil)
+        #expect(read("fix: see https://claude.ai/code/session_ for more").session == nil)
     }
 
     /// GitHub's push events no longer carry commits: only which branch moved.
@@ -1080,6 +1144,38 @@ struct WorkTests {
         let entries = GitHubWork.entries(commits, repo: "Labern/Clean", branch: "master")
         #expect(entries.map(\.id) == ["1"])
         #expect(entries.first?.published == true)
+    }
+}
+
+@Suite("Colours")
+@MainActor
+struct ColourTests {
+    /// Words on a coloured button are black or white, whichever reads.
+    @Test func buttonWordsReadOnAnyColour() {
+        for hue in Palette.hues + Palette.presets.flatMap({ [$0.accent, $0.second] }) {
+            for ground in [hue, Palette.deep(hue)] {
+                let ink = Palette.ink(on: ground)
+                func luminance(_ hex: UInt32) -> Double {
+                    Palette.luminance(Double((hex >> 16) & 0xFF), Double((hex >> 8) & 0xFF), Double(hex & 0xFF))
+                }
+                let (a, b) = (luminance(ink), luminance(ground))
+                #expect((max(a, b) + 0.05) / (min(a, b) + 0.05) >= 4.5, "\(String(hue, radix: 16))")
+            }
+        }
+    }
+
+    /// In the light appearance a chosen colour is deepened until it reads on white.
+    @Test func chosenColoursReadOnWhite() {
+        for hue in Palette.hues {
+            let deep = Palette.deep(hue)
+            let l = Palette.luminance(Double((deep >> 16) & 0xFF), Double((deep >> 8) & 0xFF), Double(deep & 0xFF))
+            #expect((1.05) / (l + 0.05) >= 3, "\(String(hue, radix: 16))")
+        }
+    }
+
+    @Test func theDefaultIsFocusPurpleAndGreen() {
+        #expect(Palette.presets.first?.accent == 0xA78BFA && Palette.presets.first?.second == 0x5FD7AF)
+        #expect(Palette.hues.count == 9)
     }
 }
 
@@ -1152,6 +1248,19 @@ struct ProfileTests {
         #expect(framing.y > 0.2 && framing.y < 0.3)
         #expect(framing.zoom > 2 && framing.zoom < 2.6)
         #expect(framing == framing.clamped(to: photo))
+    }
+
+    /// Any number of roles can be worn at once, listed in the order of the menu.
+    @Test func rolesStack() {
+        let order = Profile.roles
+        var worn = ["Founder & Director"]
+        worn = Profile.toggled(worn, "Writer", order: order)
+        worn = Profile.toggled(worn, "Programmer", order: order)
+        #expect(worn == ["Founder & Director", "Writer", "Programmer"])
+        worn = Profile.toggled(worn, "Founder & Director", order: order)
+        #expect(worn == ["Writer", "Programmer"])
+        #expect(Profile.toggled(["Writer"], "Writer", order: order).isEmpty)
+        #expect(Profile.toggled(["Composer"], "Writer", order: order + ["Composer"]) == ["Writer", "Composer"])
     }
 
     @Test func rolesAddedAreKeptWithoutRepeats() {
@@ -1370,7 +1479,7 @@ struct InkTests {
             ("muted on surface", Ink.muted, Ink.surface, 3), ("muted on ground", Ink.muted, Ink.ground, 3),
             ("violet on surface", Ink.violet, Ink.surface, 3), ("ok on surface", Ink.ok, Ink.surface, 3),
             ("hazard on surface", Ink.hazard, Ink.surface, 3), ("amber on surface", Ink.amber, Ink.surface, 3),
-            ("tick ink on head", Ink.buttonInk, Ink.head, 7), ("tick ink on violet", Ink.buttonInk, Ink.violet, 3),
+            ("tick ink on head", Ink.onHead, Ink.head, 7), ("tick ink on violet", Ink.onHead, Ink.violet, 3),
         ]
         for (name, front, back, floor) in text {
             let ratio = Self.contrast(front, back, style)

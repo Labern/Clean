@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
-"""Count the messages Labern sends to Claude, per day, and publish the count.
+"""Count the messages Labern sends to Claude and publish the counts.
 
 PARADOX HQ's Work tab shows "Claude messages". There is no public API for that,
-but every Claude Code and Claude desktop conversation on this Mac is kept as a
+but every Claude Code and Claude desktop conversation on a machine is kept as a
 transcript under ~/.claude/projects. This reads them, counts the messages he
 typed (not tool results, not the system's own notes), and writes
 
-    {"updated": "...", "days": [{"day": "2026-11-17", "messages": 212, "sessions": 9}, ...]}
+    {"updated": "...",
+     "sessions": [{"id": "4c98e031", "started": "...Z", "last": "...Z",
+                   "hours": {"2026-11-18T01": 5, ...}}, ...],
+     "days": [{"day": "2026-11-17", "messages": 212, "sessions": 9}, ...]}
 
-Only the counts leave the Mac: no words from any conversation.
+Counts per session per hour (UTC), so the app can show an hour, a session, a
+day, a week or a month in the phone's own time zone, and so the same session
+reported from two places is only counted once. Only counts and times leave the
+machine: no words from any conversation.
 
-    claude_stats.py                       print the JSON
-    claude_stats.py --publish --remote URL
-        also push it as claude.json, the only file on the branch stats/claude,
-        which the app reads. It uses a small repo of its own in ~/.paradox/stats,
-        so it never touches a working checkout (or the Desktop folder, which a
-        background job may not read).
-
-Conversations that ran in the cloud are not on this Mac and are not counted.
+    claude_stats.py                          print the JSON
+    claude_stats.py --publish --remote URL   (the Mac) push it as claude.json, the only
+        file on the branch stats/claude. It uses a small repo of its own in
+        ~/.paradox/stats, so it never touches a working checkout.
+    claude_stats.py --out FILE               (a cloud session) merge this machine's
+        sessions into FILE, which is committed with the work: paradox-hq/stats/cloud.json.
+        A cloud session's transcript only exists in its own container, so this is the
+        only way its messages are ever counted.
 """
 import argparse
 import datetime
@@ -69,7 +75,7 @@ def queued(entry):
 
 
 def tally(lines):
-    """The messages in one transcript, as (day, session) pairs.
+    """The messages in one transcript, as (time, session) pairs.
 
     A message can be recorded twice: as a turn of its own, and as a queue record
     (always for one typed while Claude was still working, which may never get a
@@ -96,10 +102,10 @@ def tally(lines):
         else:
             continue
         try:
-            when = datetime.datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00")).astimezone()
+            when = datetime.datetime.fromisoformat(entry["timestamp"].replace("Z", "+00:00"))
         except (KeyError, ValueError, AttributeError):
             continue
-        kind.setdefault(words(entry), []).append((when.date(), entry.get("sessionId")))
+        kind.setdefault(words(entry), []).append((when, entry.get("sessionId")))
     counted = []
     for text in set(turns) | set(sent):
         a, b = turns.get(text, []), sent.get(text, [])
@@ -107,10 +113,14 @@ def tally(lines):
     return counted
 
 
+UTC = datetime.timezone.utc
+STAMP = "%Y-%m-%dT%H:%M:%SZ"
+
+
 def count(root, days=60, now=None):
     now = now or datetime.datetime.now().astimezone()
     first = (now - datetime.timedelta(days=days - 1)).date()
-    messages, sessions = {}, {}
+    sessions = {}
     for path in glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True):
         try:
             if datetime.date.fromtimestamp(os.path.getmtime(path)) < first:
@@ -119,16 +129,50 @@ def count(root, days=60, now=None):
                 counted = tally(handle)
         except OSError:
             continue
-        for day, session in counted:
-            if day < first or day > now.date():
+        for when, session in counted:
+            if when.astimezone().date() < first or when > now:
                 continue
-            messages[day] = messages.get(day, 0) + 1
-            sessions.setdefault(day, set()).add(session or path)
+            name = (session or os.path.basename(path))[:8]
+            held = sessions.setdefault(name, {"id": name, "started": when, "last": when, "hours": {}})
+            held["started"] = min(held["started"], when)
+            held["last"] = max(held["last"], when)
+            hour = when.astimezone(UTC).strftime("%Y-%m-%dT%H")
+            held["hours"][hour] = held["hours"].get(hour, 0) + 1
+    return shaped(sessions.values(), now)
+
+
+def shaped(sessions, now):
+    """The file's shape, from sessions whose times are datetimes or already text."""
+    listed, messages, people = [], {}, {}
+    for session in sorted(sessions, key=lambda item: str(item["id"])):
+        started, last = (when if isinstance(when, str) else when.astimezone(UTC).strftime(STAMP)
+                         for when in (session["started"], session["last"]))
+        listed.append({"id": session["id"], "started": started, "last": last,
+                       "hours": dict(sorted(session["hours"].items()))})
+        for hour, amount in session["hours"].items():
+            day = datetime.datetime.strptime(hour, "%Y-%m-%dT%H").replace(tzinfo=UTC).astimezone().date()
+            messages[day] = messages.get(day, 0) + amount
+            people.setdefault(day, set()).add(session["id"])
     return {
-        "updated": now.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "days": [{"day": day.isoformat(), "messages": messages[day], "sessions": len(sessions[day])}
+        "updated": now.astimezone(UTC).strftime(STAMP),
+        "sessions": listed,
+        "days": [{"day": day.isoformat(), "messages": messages[day], "sessions": len(people[day])}
                  for day in sorted(messages)],
     }
+
+
+def merged(mine, path, now, days=60):
+    """This machine's sessions laid over the ones already in `path`: a session
+    here replaces the same session there, and ones gone quiet for `days` drop out."""
+    held = {}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            held = {session["id"]: session for session in json.load(handle).get("sessions", [])}
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    held.update({session["id"]: session for session in mine["sessions"]})
+    oldest = (now.astimezone(UTC) - datetime.timedelta(days=days)).strftime(STAMP)
+    return shaped([session for session in held.values() if session["last"] >= oldest], now)
 
 
 def git(*args, cwd, text=None):
@@ -155,14 +199,23 @@ def main():
     parser.add_argument("--publish", action="store_true")
     parser.add_argument("--remote", default="")
     parser.add_argument("--workdir", default=os.path.expanduser("~/.paradox/stats"))
+    parser.add_argument("--out", default="", help="merge into this file instead of printing")
     args = parser.parse_args()
-    data = count(args.root, args.days)
-    if args.publish:
+    now = datetime.datetime.now().astimezone()
+    data = count(args.root, args.days, now)
+    total = sum(day["messages"] for day in data["days"])
+    if args.out:
+        data = merged(data, args.out, now, args.days)
+        os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+        with open(args.out, "w", encoding="utf-8") as handle:
+            json.dump(data, handle, indent=1)
+            handle.write("\n")
+        print(f"wrote {args.out}: {len(data['sessions'])} sessions, {sum(d['messages'] for d in data['days'])} messages")
+    elif args.publish:
         if not args.remote:
             sys.exit("--publish needs --remote (the Clean repo's push address)")
         commit = publish(data, args.remote, args.workdir)
-        total = sum(day["messages"] for day in data["days"])
-        print(f"published {commit[:7]}: {total} messages over {len(data['days'])} days")
+        print(f"published {commit[:7]}: {total} messages over {len(data['days'])} days, {len(data['sessions'])} sessions")
     else:
         print(json.dumps(data, indent=1))
 

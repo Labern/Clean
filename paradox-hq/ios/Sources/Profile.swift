@@ -93,13 +93,14 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
 /// Labern's photo, name and current role. Kept on the phone only.
 @MainActor @Observable final class Profile {
     /// The hats on offer. More can be added from the role's own menu.
-    static let roles = ["Founder & Director", "Writer", "Programmer", "Actor", "Designer", "Filmmaker"]
+    nonisolated static let roles = ["Founder & Director", "Writer", "Programmer", "Actor", "Designer", "Filmmaker"]
 
     var name: String = UserDefaults.standard.string(forKey: "profile-name") ?? "Labern" {
         didSet { UserDefaults.standard.set(name, forKey: "profile-name") }
     }
-    var role: String = UserDefaults.standard.string(forKey: "profile-role") ?? Profile.roles[0] {
-        didSet { UserDefaults.standard.set(role, forKey: "profile-role") }
+    /// The roles being worn, in the order they are listed under the name. Any number, or none.
+    private(set) var worn: [String] = Profile.savedWorn() {
+        didSet { UserDefaults.standard.set(worn, forKey: "profile-worn") }
     }
     /// Roles added on the phone.
     private(set) var added: [String] = UserDefaults.standard.stringArray(forKey: "profile-roles") ?? [] {
@@ -166,7 +167,28 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
         let trimmed = new.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if !allRoles.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) { added.append(trimmed) }
-        role = allRoles.first { $0.caseInsensitiveCompare(trimmed) == .orderedSame } ?? trimmed
+        let named = allRoles.first { $0.caseInsensitiveCompare(trimmed) == .orderedSame } ?? trimmed
+        if !worn.contains(named) { worn = Self.toggled(worn, named, order: allRoles) }
+    }
+
+    func wears(_ role: String) -> Bool { worn.contains(role) }
+
+    /// Puts a role on, or takes it off.
+    func toggle(_ role: String) {
+        worn = Self.toggled(worn, role, order: allRoles)
+    }
+
+    /// The roles worn after one is tapped, kept in the order of the list they are chosen from.
+    nonisolated static func toggled(_ worn: [String], _ role: String, order: [String]) -> [String] {
+        var next = worn.contains(role) ? worn.filter { $0 != role } : worn + [role]
+        next.sort { (order.firstIndex(of: $0) ?? .max) < (order.firstIndex(of: $1) ?? .max) }
+        return next
+    }
+
+    /// What was worn last time; before there could be several, the one role chosen.
+    nonisolated static func savedWorn() -> [String] {
+        if let saved = UserDefaults.standard.stringArray(forKey: "profile-worn") { return saved }
+        return [UserDefaults.standard.string(forKey: "profile-role") ?? roles[0]]
     }
 
     // MARK: Pure parts, tested
@@ -239,8 +261,8 @@ struct Avatar: View {
     }
 }
 
-/// Top right of Today: the photo, the name, and the role under it. The photo
-/// opens the editor; the role opens the list of hats.
+/// Top right of the Work tab: the photo, the name, and under it every role
+/// being worn, stacked. The photo opens the editor; the roles open the list.
 struct ProfileBadge: View {
     @Environment(Profile.self) private var profile
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -250,8 +272,7 @@ struct ProfileBadge: View {
     @State private var hits = 0
 
     var body: some View {
-        @Bindable var profile = profile
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             Button { editing = true } label: {
                 Avatar(photo: profile.photo, framing: profile.framing, side: 44, initial: profile.initial)
                     .contentShape(Circle())
@@ -263,38 +284,51 @@ struct ProfileBadge: View {
                     .font(Face.style(.body))
                     .foregroundStyle(Ink.head)
                     .lineLimit(1)
+                // Tick as many as apply; the menu stays open while you do.
                 Menu {
-                    Picker("Role", selection: $profile.role) {
-                        ForEach(profile.allRoles, id: \.self) { Text($0).tag($0) }
+                    ForEach(profile.allRoles, id: \.self) { role in
+                        Toggle(role, isOn: Binding(get: { profile.wears(role) }, set: { _ in profile.toggle(role) }))
                     }
+                    .menuActionDismissBehavior(.disabled)
+                    Divider()
                     Button("New role", systemImage: "plus") {
                         draft = ""
                         adding = true
                     }
                 } label: {
-                    Text(profile.role)
-                        .font(Face.style(.subheadline))
-                        .foregroundStyle(Ink.muted)
-                        .lineLimit(1)
-                        .contentTransition(.opacity)
-                        // Hit stop: the new role swells, holds, and settles.
-                        .keyframeAnimator(initialValue: CGFloat(1), trigger: hits) { view, scale in
-                            view.scaleEffect(scale, anchor: .leading)
-                        } keyframes: { _ in
-                            KeyframeTrack {
-                                LinearKeyframe(1.14, duration: 0.06)
-                                LinearKeyframe(1.14, duration: 0.10)
-                                SpringKeyframe(1.0, duration: 0.3, spring: .bouncy)
-                            }
+                    VStack(alignment: .leading, spacing: 1) {
+                        if profile.worn.isEmpty {
+                            Text("Add a role")
+                                .foregroundStyle(Ink.idle)
                         }
-                        .frame(minHeight: 22)
-                        .contentShape(Rectangle())
+                        ForEach(profile.worn, id: \.self) { role in
+                            Text(role)
+                                .lineLimit(1)
+                        }
+                    }
+                    .font(Face.style(.subheadline))
+                    .foregroundStyle(Ink.muted)
+                    .multilineTextAlignment(.leading)
+                    // Hit stop: a change swells the stack, holds, and settles.
+                    .keyframeAnimator(initialValue: CGFloat(1), trigger: hits) { view, scale in
+                        view.scaleEffect(scale, anchor: .topLeading)
+                    } keyframes: { _ in
+                        KeyframeTrack {
+                            LinearKeyframe(1.1, duration: 0.06)
+                            LinearKeyframe(1.1, duration: 0.10)
+                            SpringKeyframe(1.0, duration: 0.3, spring: .bouncy)
+                        }
+                    }
+                    .frame(minHeight: 22, alignment: .top)
+                    .contentShape(Rectangle())
                 }
-                .accessibilityLabel("Role, \(profile.role)")
+                .accessibilityLabel(profile.worn.isEmpty ? "Roles" : "Roles: \(profile.worn.joined(separator: ", "))")
             }
+            // The name sits level with the middle of the photo's top half, like the account row it is modelled on.
+            .padding(.top, 2)
         }
-        .sensoryFeedback(.impact(weight: .light), trigger: profile.role)
-        .onChange(of: profile.role) {
+        .sensoryFeedback(.impact(weight: .light), trigger: profile.worn)
+        .onChange(of: profile.worn) {
             if !reduceMotion { hits += 1 }
         }
         .sheet(isPresented: $editing) { ProfileEditor() }
