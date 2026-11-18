@@ -59,17 +59,28 @@ g = logos["icons"]["google-icon"]
 write("Google", svg=tile("#FFFFFF", g["body"], g.get("width", logos.get("width", 256)),
                          g.get("height", logos.get("height", 256)), 0.58))
 
-# Focus: its own icon, cropped to the dark body; the clear corners take the
-# colour beside them so the app's own corner clip is the only edge.
+# Focus: Labern's own colours for it, the "Purple & Green" preset in Focus itself
+# (violet tile, green lens). The lens is lifted off the site icon, where it is white
+# on near-black, and laid on the tile exactly as Focus's appIconRep draws it: the
+# tile colour lightened 18% at the top and darkened 22% at the bottom.
+VIOLET, GREEN = (0xA7, 0x8B, 0xFA), (0x5F, 0xD7, 0xAF)
 icon = Image.open(FOCUS).convert("RGBA")
 icon = icon.crop(icon.getchannel("A").getbbox())
-flat = Image.new("RGBA", icon.size)
+top = tuple(c + (255 - c) * 0.18 for c in VIOLET)
+bottom = tuple(c * (1 - 0.22) for c in VIOLET)
+flat = Image.new("RGB", icon.size)
 px, out = icon.load(), flat.load()
+edge = icon.width // 12  # a column inside the tile that the lens never reaches
 for y in range(icon.height):
-    solid = px[icon.width // 2, y]
+    ground = sum(px[edge, y][:3]) / 3
+    t = y / (icon.height - 1)
+    tile_colour = tuple(top[i] + (bottom[i] - top[i]) * t for i in range(3))
     for x in range(icon.width):
         p = px[x, y]
-        a = p[3] / 255
-        out[x, y] = tuple(round(p[i] * a + solid[i] * (1 - a)) for i in range(3)) + (255,)
-write("Focus", png=flat.convert("RGB").resize((360, 360), Image.LANCZOS))
+        lens = max(0.0, min(1.0, (sum(p[:3]) / 3 - ground) / (255 - ground)))
+        # The old tile's own rim is not part of the lens.
+        if min(x, y, icon.width - 1 - x, icon.height - 1 - y) < edge:
+            lens = 0.0
+        out[x, y] = tuple(round(tile_colour[i] * (1 - lens) + GREEN[i] * lens) for i in range(3))
+write("Focus", png=flat.resize((360, 360), Image.LANCZOS))
 print("wrote", ", ".join(sorted(p.name for p in ASSETS.glob("Logo-*.imageset"))))
