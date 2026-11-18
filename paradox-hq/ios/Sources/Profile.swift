@@ -96,20 +96,30 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
     nonisolated static let roles = ["Founder & Director", "Writer", "Programmer", "Actor", "Designer", "Filmmaker"]
 
     var name: String = UserDefaults.standard.string(forKey: "profile-name") ?? "Labern" {
-        didSet { UserDefaults.standard.set(name, forKey: "profile-name") }
+        didSet {
+            UserDefaults.standard.set(name, forKey: "profile-name")
+            onChange?()
+        }
     }
     /// The roles being worn, in the order they are listed under the name. Any number, or none.
     private(set) var worn: [String] = Profile.savedWorn() {
-        didSet { UserDefaults.standard.set(worn, forKey: "profile-worn") }
+        didSet {
+            UserDefaults.standard.set(worn, forKey: "profile-worn")
+            onChange?()
+        }
     }
     /// Roles added on the phone.
     private(set) var added: [String] = UserDefaults.standard.stringArray(forKey: "profile-roles") ?? [] {
-        didSet { UserDefaults.standard.set(added, forKey: "profile-roles") }
+        didSet {
+            UserDefaults.standard.set(added, forKey: "profile-roles")
+            onChange?()
+        }
     }
     var framing: Framing = Profile.savedFraming() {
         didSet {
             guard framing != oldValue, let data = try? JSONEncoder().encode(framing) else { return }
             UserDefaults.standard.set(data, forKey: "profile-framing-2")
+            onChange?()
         }
     }
     private(set) var photo: UIImage?
@@ -152,6 +162,7 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
         UserDefaults.standard.set(false, forKey: "profile-no-photo")
         photo = picture
         framing = Self.framed(picture)
+        onChange?()
         return true
     }
 
@@ -160,6 +171,47 @@ nonisolated struct Framing: Codable, Equatable, Sendable {
         UserDefaults.standard.set(true, forKey: "profile-no-photo")
         photo = nil
         framing = Framing()
+        onChange?()
+    }
+
+    // MARK: The canonical copy (see `CloudSync`)
+
+    /// Called whenever anything here changes, so it is sent on.
+    @ObservationIgnored var onChange: (() -> Void)? = nil
+
+    /// The photo being worn, as bytes: the one chosen on the phone, or the one this build carries.
+    var photoBytes: Data? {
+        if let chosen = try? Data(contentsOf: file) { return chosen }
+        guard !UserDefaults.standard.bool(forKey: "profile-no-photo"),
+              let built = Bundle.main.url(forResource: "profile", withExtension: "jpg") else { return nil }
+        return try? Data(contentsOf: built)
+    }
+
+    /// A photo small enough to send: as it is, or made lighter when it is large.
+    static func light(_ data: Data) -> Data {
+        guard data.count > 700_000, let smaller = prepared(data)?.jpegData(compressionQuality: 0.85) else { return data }
+        return smaller
+    }
+
+    /// Takes the name, roles and framing set on another device.
+    func take(name: String, worn: [String], added: [String], framing: Framing) {
+        if self.name != name, !name.isEmpty { self.name = name }
+        if self.added != added { self.added = added }
+        if self.worn != worn { self.worn = worn }
+        if self.framing != framing { self.framing = framing }
+    }
+
+    /// Takes the photo chosen on another device, exactly as it is (its framing comes with it), or none.
+    func takePhoto(_ data: Data?) {
+        if let data, let picture = UIImage(data: data) {
+            try? data.write(to: file, options: .atomic)
+            UserDefaults.standard.set(false, forKey: "profile-no-photo")
+            photo = picture
+        } else if data == nil {
+            try? FileManager.default.removeItem(at: file)
+            UserDefaults.standard.set(true, forKey: "profile-no-photo")
+            photo = nil
+        }
     }
 
     /// Adds a role of your own and puts it on.

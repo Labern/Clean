@@ -340,9 +340,14 @@ account is Labern's login address; "Founder & Director" is that account's alone.
 - **Guards:** an empty phone never empties the server; an empty answer from the server
   never empties the phone; a pass that would remove most of a table stops and says so.
   The server is written first, so a refusal leaves the phone untouched.
-- Synced so far: projects, lines, notes, deadlines. **Not yet:** profile and photo,
-  settings and layout, links (the server makes its seven), Money and Work read through
-  the server's functions (the phone still reads Stripe and GitHub itself).
+- Synced so far: projects, lines, notes, deadlines, and **the profile**: name, roles
+  worn, roles added, the photo and its framing (`CloudSync.syncProfile`). The photo goes
+  to Storage bucket `profile` at `<account id>/photo-<ms>.jpg` and `profiles.photo` holds
+  the path. The phone knows its own photo by a mark of its bytes (`CloudSync.mark`): the
+  same photo is never sent twice, a new one is, and one chosen on another device comes
+  down as it is. Framing crosses to four decimal places so it always compares equal.
+  **Not yet:** settings and layout, links (the server makes its seven), Money and Work
+  read through the server's functions (the phone still reads Stripe and GitHub itself).
 - Sign-in is asked once, by itself, the first time a build that can sync is opened
   (`CloudSignIn`: the mark, Dashboard, two fields); after that Company › Connected to ›
   Dashboard shows the account, "Sync now" and Sign out.

@@ -1,5 +1,6 @@
 import Foundation
 import SwiftData
+import CryptoKit
 
 // Keeping the phone and the canonical copy the same.
 //
@@ -140,6 +141,9 @@ nonisolated struct CloudState: Codable, Sendable {
     var account = ""
     /// table → id → row.
     var base: [String: [String: CloudRow]] = [:]
+    /// Where the profile photo sits on the server, and the mark of the photo on the phone that it matches.
+    var photoPath: String? = nil
+    var photoMark: String? = nil
 }
 
 @MainActor @Observable final class CloudSync {
@@ -159,6 +163,7 @@ nonisolated struct CloudState: Codable, Sendable {
     @ObservationIgnored private let api: CloudAPI?
     @ObservationIgnored private var socket: CloudSocket? = nil
     @ObservationIgnored private var context: ModelContext? = nil
+    @ObservationIgnored private weak var profile: Profile? = nil
     @ObservationIgnored private var waiting: Task<Void, Never>? = nil
     @ObservationIgnored private var running = false
     @ObservationIgnored private var again = false
@@ -220,8 +225,10 @@ nonisolated struct CloudState: Codable, Sendable {
     // MARK: When to sync
 
     /// Called as the app opens, with the store to keep in step.
-    func start(_ context: ModelContext) {
+    func start(_ context: ModelContext, profile: Profile) {
         self.context = context
+        self.profile = profile
+        profile.onChange = { [weak self] in self?.kick() }
         guard available, signedIn else { return }
         listen()
         kick(after: 0)
@@ -336,6 +343,10 @@ nonisolated struct CloudState: Codable, Sendable {
             }
             for table in CloudTable.allCases { state.base[table.rawValue] = plans[table]?.base ?? [:] }
             try JSONEncoder().encode(state).write(to: file, options: .atomic)
+
+            // Who he is: name, roles, the photo and how it sits in its circle.
+            try await syncProfile(api: api, user: user.lowercased(), state: &state)
+            try JSONEncoder().encode(state).write(to: file, options: .atomic)
             last = .now
             problem = ""
         } catch {
@@ -346,6 +357,100 @@ nonisolated struct CloudState: Codable, Sendable {
             }
             problem = (error as? CloudError)?.message ?? "No connection to the dashboard. It will sync when there is one."
         }
+    }
+
+    // MARK: The profile and its photo
+
+    static let profileColumns = ["id", "name", "worn", "roles", "framing", "photo"]
+
+    /// A short, stable mark of a photo's bytes, to tell whether it has changed.
+    nonisolated static func mark(_ data: Data) -> String {
+        SHA256.hash(data: data).prefix(8).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// How the photo sits in its circle, to four places, so the same framing always compares equal.
+    nonisolated static func framing(_ framing: Framing) -> JSONValue {
+        func round(_ value: Double) -> JSONValue { .number((value * 10_000).rounded() / 10_000) }
+        return .object(["x": round(framing.x), "y": round(framing.y), "zoom": round(framing.zoom)])
+    }
+
+    nonisolated static func framing(_ value: JSONValue?) -> Framing? {
+        guard case .object(let parts)? = value, let x = parts["x"]?.number, let y = parts["y"]?.number,
+              let zoom = parts["zoom"]?.number else { return nil }
+        return Framing(x: x, y: y, zoom: zoom)
+    }
+
+    nonisolated static func strings(_ value: JSONValue?) -> [String] {
+        guard case .array(let values)? = value else { return [] }
+        return values.compactMap(\.string)
+    }
+
+    /// The profile row as the phone would write it. `photo` is the server's path when the
+    /// phone's photo is the one already there, and a mark of its own when it has changed.
+    static func profileRow(id: String, name: String, worn: [String], added: [String], framing: Framing,
+                           photoMark: String?, state: CloudState) -> CloudRow {
+        let photo: JSONValue
+        if let photoMark {
+            photo = photoMark == state.photoMark && state.photoPath != nil ? .string(state.photoPath ?? "") : .string("local:\(photoMark)")
+        } else {
+            photo = .null
+        }
+        let wearing = worn.map { JSONValue.string($0) }
+        let extra = added.map { JSONValue.string($0) }
+        return ["id": .string(id), "name": .string(name), "worn": .array(wearing),
+                "roles": .array(extra), "framing": Self.framing(framing), "photo": photo]
+    }
+
+    private func syncProfile(api: CloudAPI, user: String, state: inout CloudState) async throws {
+        guard let profile else { return }
+        let table = "profiles"
+        guard let sent = try await api.rows(table).first(where: { $0["id"]?.string?.lowercased() == user }) else { return }
+        var remote: CloudRow = [:]
+        for column in Self.profileColumns { remote[column] = sent[column] ?? .null }
+        remote["id"] = .string(user)
+        if let there = Self.framing(remote["framing"]) { remote["framing"] = Self.framing(there) }
+
+        let bytes = profile.photoBytes
+        let mark = bytes.map(Self.mark)
+        let local = Self.profileRow(id: user, name: profile.name, worn: profile.worn, added: profile.added,
+                                    framing: profile.framing, photoMark: mark, state: state)
+        let plan = CloudMerge.plan(local: [local], remote: [remote], base: state.base[table] ?? [:])
+        var agreed = plan.base[user] ?? local
+
+        if var send = plan.changeThere[user] {
+            if let marker = send["photo"]?.string, marker.hasPrefix("local:"), let bytes, let mark {
+                // The phone's photo is new to the server: it goes up first, then the row points at it.
+                let path = "\(user)/photo-\(Int(Date().timeIntervalSince1970 * 1000)).jpg"
+                try await api.upload(Profile.light(bytes), to: path, in: "profile")
+                send["photo"] = .string(path)
+                agreed["photo"] = .string(path)
+                state.photoPath = path
+                state.photoMark = mark
+            } else if send["photo"] == .some(.null) {
+                state.photoPath = nil
+                state.photoMark = nil
+            }
+            try await api.change(user, to: send, in: table)
+        }
+
+        if let merged = plan.putHere.first {
+            profile.take(name: merged["name"]?.string ?? profile.name, worn: Self.strings(merged["worn"]),
+                         added: Self.strings(merged["roles"]), framing: Self.framing(merged["framing"]) ?? profile.framing)
+            if merged["photo"] != local["photo"] {
+                // Another device chose a photo: it comes down as it is.
+                if let path = merged["photo"]?.string, !path.hasPrefix("local:") {
+                    let data = try await api.download(path, from: "profile")
+                    profile.takePhoto(data)
+                    state.photoPath = path
+                    state.photoMark = Self.mark(data)
+                } else if merged["photo"] == .some(.null) {
+                    profile.takePhoto(nil)
+                    state.photoPath = nil
+                    state.photoMark = nil
+                }
+            }
+        }
+        state.base[table] = [user: agreed]
     }
 
     // MARK: The phone's records as rows

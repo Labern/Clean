@@ -2055,6 +2055,31 @@ struct CloudTests {
         }
     }
 
+    /// The profile: a photo already on the server is named by its path; a new one by its own mark, so it is sent.
+    @MainActor @Test func aNewPhotoIsSentAndAKnownOneIsNot() {
+        var state = CloudState()
+        let first = CloudSync.profileRow(id: "u", name: "Labern", worn: ["Founder & Director"], added: [],
+                                         framing: Framing(x: 0.123456, y: 0.5, zoom: 2), photoMark: "aaaa", state: state)
+        #expect(first["photo"] == .string("local:aaaa"))
+        #expect(first["framing"] == .object(["x": .number(0.1235), "y": .number(0.5), "zoom": .number(2)]))
+        // Once it is up, the same photo reads as the server's path, and nothing is sent again.
+        state.photoPath = "u/photo-1.jpg"
+        state.photoMark = "aaaa"
+        let same = CloudSync.profileRow(id: "u", name: "Labern", worn: ["Founder & Director"], added: [],
+                                        framing: Framing(x: 0.123456, y: 0.5, zoom: 2), photoMark: "aaaa", state: state)
+        #expect(same["photo"] == .string("u/photo-1.jpg"))
+        var there = same
+        there["photo"] = .string("u/photo-1.jpg")
+        #expect(CloudMerge.plan(local: [same], remote: [there], base: ["u": same]).isEmpty)
+        // A different photo on the phone is sent; no photo at all reads as none.
+        #expect(CloudSync.profileRow(id: "u", name: "Labern", worn: [], added: [], framing: Framing(), photoMark: "bbbb", state: state)["photo"]
+            == .string("local:bbbb"))
+        #expect(CloudSync.profileRow(id: "u", name: "Labern", worn: [], added: [], framing: Framing(), photoMark: nil, state: state)["photo"] == .null)
+        // The mark is the same for the same bytes on every launch.
+        #expect(CloudSync.mark(Data("photo".utf8)) == CloudSync.mark(Data("photo".utf8)) && CloudSync.mark(Data("photo".utf8)).count == 16)
+        #expect(CloudSync.framing(CloudSync.framing(Framing(x: 0.25, y: 0.75, zoom: 1.5))) == Framing(x: 0.25, y: 0.75, zoom: 1.5))
+    }
+
     /// The server's own "My list" is the phone's "My list": its id is taken, not a second list made.
     @MainActor @Test func theServersOwnListIsAdoptedNotDoubled() throws {
         let context = try FeedTests.store()

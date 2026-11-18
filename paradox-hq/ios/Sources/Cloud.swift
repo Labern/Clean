@@ -279,6 +279,21 @@ nonisolated struct CloudAPI: Sendable {
         }
     }
 
+    /// Puts a file in the project's storage, replacing one of the same name.
+    func upload(_ data: Data, to path: String, in bucket: String, type: String = "image/jpeg") async throws {
+        var request = try await ask("storage/v1/object/\(bucket)/\(path)")
+        request.httpMethod = "POST"
+        request.setValue(type, forHTTPHeaderField: "Content-Type")
+        request.setValue("true", forHTTPHeaderField: "x-upsert")
+        request.httpBody = data
+        _ = try await send(request)
+    }
+
+    /// Reads a file the signed-in person may see.
+    func download(_ path: String, from bucket: String) async throws -> Data {
+        try await send(try await ask("storage/v1/object/authenticated/\(bucket)/\(path)"))
+    }
+
     /// Calls one of the project's server functions (Money and Work are read there, so no device holds a key).
     func function(_ name: String, query: [URLQueryItem] = []) async throws -> Data {
         try await send(try await ask("functions/v1/\(name)", query: query))

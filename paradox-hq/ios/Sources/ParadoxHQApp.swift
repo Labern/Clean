@@ -90,6 +90,7 @@ struct Gate: View {
     @Environment(IconShelf.self) private var shelf
     @Environment(WorkStore.self) private var work
     @Environment(CloudSync.self) private var cloud
+    @Environment(Profile.self) private var profile
     @Environment(\.scenePhase) private var phase
     @Environment(\.modelContext) private var context
     /// The dashboard's sign-in, shown by itself once, the first time a build that can sync is opened.
@@ -133,7 +134,7 @@ struct Gate: View {
             // iOS refuses an icon change until the app is active; if it isn't yet, the
             // change below puts it on the moment it is.
             if phase == .active { shelf.adopt() }
-            cloud.start(context)
+            cloud.start(context, profile: profile)
             if !lock.locked, cloud.available, !cloud.signedIn, !askedToSignIn {
                 askedToSignIn = true
                 signingIn = true
@@ -156,7 +157,7 @@ struct Gate: View {
             }
             guard new == .active else { return }
             shelf.adopt()
-            cloud.start(context)
+            cloud.start(context, profile: profile)
             Task {
                 // After a refusal the lock waits for a tap, so cancelling
                 // Face ID doesn't bring the prompt straight back.
