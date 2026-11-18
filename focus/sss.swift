@@ -651,7 +651,7 @@ final class SSSModel: ObservableObject {
     }
     func submit() {
         let empty = query.trimmingCharacters(in: .whitespaces).isEmpty
-        flog("SSS: Return — \(query.count) letters typed, \(results.count) results, \(SSSIndex.shared.items.count) things known")
+        flog("SSS: Return — \(query.count) letters typed, \(results.count) results, \(SSSIndex.shared.items.count) things known, Tab list \(open ? "open" : "shut")")
         if results.indices.contains(selected), !(empty && !emptyGoes && !open) { onPick(results[selected]) }
         else if !empty { withAnimation(.linear(duration: 0.38)) { shakes += 1 } }
     }
@@ -668,6 +668,11 @@ func sssFont(_ base: CGFloat, medium: Bool = false) -> NSFont {
 }
 
 /// The field itself: a plain line of text that hands Tab, the arrows, Return and Esc to the search.
+///
+/// Return reaches the search by three separate routes, because for him it did not arrive by the one (2026-11-18,
+/// "I press Return" with nothing in the log): the key itself, caught before the text system sees it; the text
+/// system's own "new line" command; and the field's action. Whichever comes first acts; the others are ignored.
+/// Focus.log says which route it was (never what was typed).
 struct SSSField: NSViewRepresentable {
     @ObservedObject var s: SSSModel
     let ink: NSColor
@@ -677,25 +682,75 @@ struct SSSField: NSViewRepresentable {
         f.isBordered = false; f.drawsBackground = false; f.focusRingType = .none; f.usesSingleLineMode = true
         f.cell?.wraps = false; f.cell?.isScrollable = true; f.font = sssFont(22); f.textColor = ink; f.delegate = context.coordinator
         f.setContentHuggingPriority(.defaultLow, for: .horizontal); f.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        f.target = context.coordinator; f.action = #selector(Keys.acted(_:))
+        context.coordinator.watch(f)
         return f
     }
     func updateNSView(_ f: NSTextField, context: Context) {
-        if f.stringValue != s.query { f.stringValue = s.query }
+        if f.stringValue != s.query, f.currentEditor() == nil || s.query.isEmpty { f.stringValue = s.query }   // never over what is being typed
         f.textColor = ink
         if context.coordinator.focus != s.focus {
             context.coordinator.focus = s.focus
-            DispatchQueue.main.async { f.window?.makeFirstResponder(f); (f.currentEditor() as? NSTextView)?.insertionPointColor = ink }
+            DispatchQueue.main.async { f.window?.makeFirstResponder(f); context.coordinator.plain(f, ink) }
         }
     }
+    static func dismantleNSView(_ f: NSTextField, coordinator: Keys) { coordinator.unwatch() }
     final class Keys: NSObject, NSTextFieldDelegate {
         let s: SSSModel; var focus = -1
+        private var monitor: Any?, lastReturn = Date.distantPast
         init(_ s: SSSModel) { self.s = s }
+        /// A search box is not prose: no autocorrect, no completions, no predictions changing what was typed.
+        func plain(_ f: NSTextField, _ ink: NSColor) {
+            guard let e = f.currentEditor() as? NSTextView else { return }
+            e.insertionPointColor = ink
+            e.isAutomaticSpellingCorrectionEnabled = false; e.isAutomaticTextCompletionEnabled = false; e.isContinuousSpellCheckingEnabled = false
+            e.isAutomaticTextReplacementEnabled = false; e.isAutomaticQuoteSubstitutionEnabled = false; e.isAutomaticDashSubstitutionEnabled = false
+            if #available(macOS 14.0, *) { e.inlinePredictionType = .no }
+        }
+        private func go(_ route: String, _ f: NSTextField?) {
+            guard Date().timeIntervalSince(lastReturn) > 0.25 else { return }
+            lastReturn = Date()
+            if let f, f.stringValue != s.query { s.query = f.stringValue }      // text that arrived without a keystroke (dictation, paste by another app)
+            flog("SSS: Return arrived by \(route)")
+            s.submit()
+        }
+        func watch(_ f: NSTextField) {
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak f] e in
+                guard let self, let f, let w = f.window, e.window === w else { return e }
+                let code = Int(e.keyCode), mine = f.currentEditor() != nil
+                guard mine else {
+                    if code == kVK_Return || code == kVK_ANSI_KeypadEnter, !f.stringValue.isEmpty {
+                        flog("SSS: Return was pressed, but the search field was not the one being typed in (it was \(w.firstResponder.map { String(describing: type(of: $0)) } ?? "nothing"))")
+                    }
+                    return e
+                }
+                let composing = (f.currentEditor() as? NSTextView)?.hasMarkedText() == true
+                switch code {
+                case kVK_Return, kVK_ANSI_KeypadEnter:
+                    if composing { flog("SSS: Return finished a word being composed by the keyboard's input method; press it again to go"); return e }
+                    self.go("the key", f); return nil
+                case kVK_Tab where !composing: self.s.tab(e.modifierFlags.contains(.shift) ? -1 : 1); return nil
+                case kVK_DownArrow where !composing: self.s.tab(1); return nil
+                case kVK_UpArrow where !composing: self.s.tab(-1); return nil
+                case kVK_Escape where !composing: self.s.onCancel(); return nil
+                default: return e
+                }
+            }
+        }
+        func unwatch() { if let m = monitor { NSEvent.removeMonitor(m) }; monitor = nil }
+        deinit { unwatch() }
+        @objc func acted(_ f: NSTextField) {                         // the field's own action: Return ends editing
+            guard let e = NSApp.currentEvent, e.type == .keyDown, [kVK_Return, kVK_ANSI_KeypadEnter].contains(Int(e.keyCode)) else { return }
+            go("the field's action", f)
+        }
         func controlTextDidChange(_ n: Notification) { if let f = n.object as? NSTextField { s.query = f.stringValue } }
+        func controlTextDidBeginEditing(_ n: Notification) { if let f = n.object as? NSTextField { plain(f, f.textColor ?? .white) } }
         func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
             switch sel {
             case #selector(NSResponder.insertTab(_:)), #selector(NSResponder.moveDown(_:)): s.tab(1); return true
             case #selector(NSResponder.insertBacktab(_:)), #selector(NSResponder.moveUp(_:)): s.tab(-1); return true
-            case #selector(NSResponder.insertNewline(_:)): s.submit(); return true
+            case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertLineBreak(_:)), #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
+                go("the text system", control as? NSTextField); return true
             case #selector(NSResponder.cancelOperation(_:)): s.onCancel(); return true
             default: return false
             }
@@ -870,19 +925,18 @@ struct SSSPage: View {
             SSSBar(s: s, look: .page, radius: 12).padding(.top, 6)
             Text("Type anything — tab name, contents, window — and SSS will find wherever it's running and open it.")
                 .font(Site.font(15)).foregroundColor(Site.muted).fixedSize(horizontal: false, vertical: true).padding(.top, 12).padding(.horizontal, 2)
-            if !SSSIndex.windowsAllowed && SSSIndex.fixture == nil {
-                SettingLine(title: "Windows", note: "Allow Focus in Accessibility, so it can read each window's name and bring it forward.") {
-                    SiteButton("Allow…") { SSSIndex.askWindows() }
-                }.padding(.top, 14)
-            }
-            if !SSSIndex.shared.scriptOff.isEmpty {
-                SettingLine(title: "Page contents", note: SSSIndex.shared.scriptOff.contains { SSSIndex.safari.contains($0) }
-                            ? "To search inside pages, turn on Allow JavaScript from Apple Events: in Safari, Settings ▸ Developer."
-                            : "To search inside pages, turn on View ▸ Developer ▸ Allow JavaScript from Apple Events in your browser.") { EmptyView() }
-            }
-            if !SSSIndex.shared.tabsWaiting.isEmpty {
-                SettingLine(title: "Browser tabs", note: "Allow Focus to read the tabs open in your browser.") {
-                    SiteButton("Allow…") { SSSIndex.shared.askTabs { s.update(reset: false); s.tick &+= 1 } }
+            // Permissions are asked for only when one is the reason a search just found nothing (his rule, 2026-11-18:
+            // "users shouldn't have to click a bunch of accessibility stuff unless it is absolutely necessary").
+            // Tabs need none of this once the browser has been allowed; windows of other apps need Accessibility.
+            if s.shakes > 0 && SSSIndex.fixture == nil {
+                if !SSSIndex.shared.tabsWaiting.isEmpty {
+                    SettingLine(title: "Browser tabs", note: "Allow Focus to read the tabs open in your browser.") {
+                        SiteButton("Allow…") { SSSIndex.shared.askTabs { s.update(reset: false); s.tick &+= 1 } }
+                    }.padding(.top, 14)
+                } else if !SSSIndex.windowsAllowed {
+                    SettingLine(title: "Windows", note: "Nothing found in your tabs. To search other apps' windows too, allow Focus in Accessibility.") {
+                        SiteButton("Allow…") { SSSIndex.askWindows() }
+                    }.padding(.top, 14)
                 }
             }
         }
