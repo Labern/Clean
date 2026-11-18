@@ -15,6 +15,7 @@ New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 - Its page is the header, the bar and one line. The shortcut moved to the Shortcuts page.
 - The bar settles in as it opens and fades as it goes. Reduce Motion turns the movement off.
 
+- Sidebar: "Create New Mode" is never hidden behind Feedback and Manual; a short window scrolls the whole sidebar instead.
 ## 0.20.0 — 2026-11-18
 - **Super Smart Search (SSS).** Press ⌥Space from anywhere, type a few letters, press Return: the exact window or
   browser tab comes forward. It searches every open window of every app, and every tab in Safari and the Chrome family

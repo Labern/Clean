@@ -1775,7 +1775,7 @@ struct DesktopView: View {
         VStack(alignment: .leading, spacing: 0) {
             // The pages, the modes and the developer panel: as they are while they fit; in a short window they scroll
             // as one, so the top of the window is never pushed out of sight.
-            ViewThatFits(in: .vertical) { sidebarPages; ScrollView(showsIndicators: false) { sidebarPages } }
+            ScrollView(showsIndicators: false) { sidebarPages }      // scrolls only when the window is too short to show every row
             sidebarFoot
         }
     }
@@ -1801,7 +1801,7 @@ struct DesktopView: View {
                 }.foregroundColor(Site.muted).padding(.leading, 22).padding(.trailing, 22).padding(.top, 14).padding(.bottom, 5).contentShape(Rectangle())   // the tag in the rows' column
             }.buttonStyle(.plain).help(m.modesShown ? "Hide your modes" : "Show your modes")
             if m.modesShown {
-                ScrollView(showsIndicators: false) {
+                Group {                                        // no inner scroll: the whole sidebar scrolls as one when short, so no row is ever squashed or hidden
                     VStack(spacing: 2) {
                         ForEach(m.modes) { mode in
                             SideRow(title: mode.name, trailing: mode.key, live: mode.live, selected: m.selection == mode.id,
@@ -1813,9 +1813,8 @@ struct DesktopView: View {
                                 .contextMenu { ModeMenu(m: m, mode: mode) }
                         }
                         SideRow(title: "Create New Mode", trailing: "", live: false, selected: false, icons: [], symbol: "plus.circle") { if DesktopModel.gated { m.openUpgrade() } else { m.newMode() } }
-                    }.padding(.horizontal, 10)
+                    }.padding(.horizontal, 10).fixedSize(horizontal: false, vertical: true)
                 }
-                .frame(maxHeight: CGFloat(m.modes.count + 1) * 36 + 4)    // only as tall as the modes: what follows sits right under them
             }
             if !renderArgs.contains("clean"), UserDefaults.standard.object(forKey: "desktopDevPanel") as? Bool ?? true { ViewAsPanel(m: m) }   // renders: `clean` hides it
         }
