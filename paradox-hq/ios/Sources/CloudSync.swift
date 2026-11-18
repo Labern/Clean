@@ -149,7 +149,11 @@ nonisolated struct CloudState: Codable, Sendable {
     private(set) var signedIn = false
     private(set) var busy = false
     private(set) var last: Date? = nil
-    var problem = ""
+    /// Why the last sync didn't finish. Empty when the two are in step.
+    private(set) var problem = ""
+    /// Why a sign-in was refused. Kept apart from `problem`: a sync that is still
+    /// under way is not a failed sign-in.
+    var refusal = ""
 
     @ObservationIgnored private let account: CloudAccount?
     @ObservationIgnored private let api: CloudAPI?
@@ -192,12 +196,13 @@ nonisolated struct CloudState: Codable, Sendable {
             }
             signedIn = true
             self.email = account.email ?? address
+            refusal = ""
             problem = ""
             listen()
             kick(after: 0)
             return true
         } catch {
-            problem = (error as? LocalizedError)?.errorDescription ?? "Couldn't reach the dashboard."
+            refusal = (error as? LocalizedError)?.errorDescription ?? "Couldn't reach the dashboard."
             return false
         }
     }
@@ -240,11 +245,14 @@ nonisolated struct CloudState: Codable, Sendable {
     /// Asks for a pass shortly. Several asks close together make one pass.
     func kick(after delay: TimeInterval = 0.6) {
         guard available, signedIn else { return }
+        // Only the wait can be called off. The pass itself runs on its own: a save made
+        // during a pass asks for another, and must not cut short the one in flight (it did,
+        // and the first sync after signing in reported "Couldn't reach the dashboard").
         waiting?.cancel()
         waiting = Task { [weak self] in
             if delay > 0 { try? await Task.sleep(for: .seconds(delay)) }
             guard !Task.isCancelled else { return }
-            await self?.pass()
+            Task { [weak self] in await self?.pass() }
         }
     }
 
@@ -331,10 +339,12 @@ nonisolated struct CloudState: Codable, Sendable {
             last = .now
             problem = ""
         } catch {
+            // Called off part-way (the app went to the background): not a fault, the next pass does it.
+            if error is CancellationError || (error as? URLError)?.code == .cancelled { return }
             if (error as? CloudError)?.code == 401 {
                 signedIn = account.hasRenewal
             }
-            problem = (error as? LocalizedError)?.errorDescription ?? "Couldn't reach the dashboard."
+            problem = (error as? CloudError)?.message ?? "No connection to the dashboard. It will sync when there is one."
         }
     }
 

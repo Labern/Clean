@@ -346,6 +346,12 @@ account is Labern's login address; "Founder & Director" is that account's alone.
 - Sign-in is asked once, by itself, the first time a build that can sync is opened
   (`CloudSignIn`: the mark, Dashboard, two fields); after that Company › Connected to ›
   Dashboard shows the account, "Sync now" and Sign out.
+- **A pass is never cancelled by the next ask.** `kick` only debounces; the pass runs in
+  a task of its own. When the pass ran inside the debounce task, the save it made itself
+  (giving records their ids) asked for another pass, cancelled its own requests, and the
+  first sync after signing in said "Couldn't reach the dashboard" although the sign-in
+  had worked and the next pass synced (2026-11-18). A refused sign-in (`refusal`) and an
+  unfinished sync (`problem`) are separate messages for the same reason.
 - Dates cross as ISO 8601 to the millisecond, written and read by hand (`CloudDate`): the
   system formatter turns .123 into .122 now and then, which the comparing would see as a
   change every pass.

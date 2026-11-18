@@ -62,7 +62,7 @@ struct CloudSignIn: View {
             .padding(16)
         }
         .sensoryFeedback(.success, trigger: landed)
-        .sensoryFeedback(.error, trigger: cloud.problem) { _, new in !new.isEmpty }
+        .sensoryFeedback(.error, trigger: cloud.refusal) { _, new in !new.isEmpty }
         .onAppear {
             email = cloud.email ?? email
             if !reduceMotion { stars += 1 }
@@ -106,8 +106,8 @@ struct CloudSignIn: View {
             .foregroundStyle(Ink.head)
             .background(Ink.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-            if !cloud.problem.isEmpty {
-                Text(cloud.problem)
+            if !cloud.refusal.isEmpty {
+                Text(cloud.refusal)
                     .font(Face.style(.footnote))
                     .foregroundStyle(Ink.hazard)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -146,7 +146,7 @@ struct CloudSignIn: View {
             Button {
                 withAnimation(.snappy) {
                     new.toggle()
-                    cloud.problem = ""
+                    cloud.refusal = ""
                 }
             } label: {
                 Text(new ? "I have an account" : "Create the account")
