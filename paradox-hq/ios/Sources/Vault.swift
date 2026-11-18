@@ -105,17 +105,23 @@ nonisolated enum SavedSettings {
     func save(_ context: ModelContext, now: Date = .now) -> Bool {
         guard !Launch.unlocked else { return false }
         try? context.save()
-        let file = BackupFile.take(context, now: now, withSettings: usesKeychain)
-        // Nothing to save, or nothing new since the last copy (this launch's, or the newest on disk).
-        if file.isEmpty { return false }
+        let taken = BackupFile.take(context, now: now, withSettings: usesKeychain)
+        // Nothing to save.
+        if taken.isEmpty { return false }
+        // A file keeps times to the millisecond and the store is finer than that,
+        // so everything is compared as it reads back from a file, never as taken.
+        guard let data = try? taken.data(), let file = try? BackupFile.read(data) else {
+            problem = "A backup couldn't be written on this phone."
+            return false
+        }
+        // Nothing new since the last copy (this launch's, or the newest on disk).
         if last == nil, let newest = copies.first { last = try? open(newest) }
         if let last, last.same(as: file) {
             // Nothing new, but the Keychain must never be left without a copy.
-            if usesKeychain, Self.kept() == nil, let data = try? file.data() { Self.keep(data) }
+            if usesKeychain, Self.kept() == nil { Self.keep(data) }
             return false
         }
         do {
-            let data = try file.data()
             // 1. On the phone.
             let target = folder.appending(path: Self.name(for: now))
             try data.write(to: target, options: .atomic)
