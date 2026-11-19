@@ -199,7 +199,9 @@ views never use `.white`/`.black`. `Ink.head` for headings and figures, `Ink.but
 `Ink.buttonInk` for the one solid button, `Ink.tint(hex)` for project colours (white
 means "no colour" and becomes `Ink.head`). `InkTests` checks every pairing's contrast in
 both appearances: no white on white, no black on black. Appearance is `@AppStorage
-("appearance")` auto/light/dark. Focus-site touches: uppercase tracked eyebrow labels
+("appearance")` auto/light/dark, and **dark is the default on every platform** (Labern,
+2026-11-19: "Dark is default mode by the way. For all of them."); light and auto are
+choices in Settings, never where the app starts. Focus-site touches: uppercase tracked eyebrow labels
 (`SectionHeader`), figures at medium weight that tick (`.figure`), cards rising in once
 per launch (`.rise`), the mark's "hunt" hit stop on Today (`.hunt`), the ground fading
 under the status bar (`.statusBarFade`). "PARADOX Dashboard" on Today: the word sits on

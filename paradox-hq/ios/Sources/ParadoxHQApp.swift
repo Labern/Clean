@@ -17,7 +17,7 @@ struct ParadoxHQApp: App {
     @State private var profile: Profile
     @State private var work: WorkStore
     @State private var cloud: CloudSync
-    @AppStorage("appearance") private var appearance: Appearance = .auto
+    @AppStorage("appearance") private var appearance: Appearance = .dark
     @AppStorage("typeface") private var typeface: Typeface = .system
     @AppStorage(Palette.accentKey) private var accent = 0
     @AppStorage(Palette.secondKey) private var second = 0

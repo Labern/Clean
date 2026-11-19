@@ -19,7 +19,7 @@ struct CompanyView: View {
     /// A copy kept on the phone, waiting for a yes before it goes back.
     @State private var earlier: BackupFile? = nil
     @State private var restored = false
-    @AppStorage("appearance") private var appearance: Appearance = .auto
+    @AppStorage("appearance") private var appearance: Appearance = .dark
     @AppStorage("typeface") private var typeface: Typeface = .system
     @AppStorage(Layout.company.key) private var layout = ""
 
