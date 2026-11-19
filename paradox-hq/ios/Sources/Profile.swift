@@ -317,6 +317,9 @@ struct Avatar: View {
 /// being worn, stacked. The photo opens the editor; the roles open the list.
 struct ProfileBadge: View {
     @Environment(Profile.self) private var profile
+    @Environment(CloudSync.self) private var cloud
+    @State private var signingIn = false
+    @State private var leaving = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var editing = false
     @State private var adding = false
@@ -325,12 +328,27 @@ struct ProfileBadge: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
-            Button { editing = true } label: {
+            // The photo is the account: its picture, and the way out.
+            Menu {
+                Button("Photo and position", systemImage: "person.crop.circle") { editing = true }
+                if cloud.available {
+                    if cloud.signedIn {
+                        Section(cloud.email ?? "Signed in") {
+                            Button("Sign out", systemImage: "rectangle.portrait.and.arrow.right", role: .destructive) {
+                                leaving = true
+                            }
+                        }
+                    } else {
+                        Divider()
+                        Button("Sign in", systemImage: "person.badge.key") { signingIn = true }
+                    }
+                }
+            } label: {
                 Avatar(photo: profile.photo, framing: profile.framing, side: 44, initial: profile.initial)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Your photo")
+            .accessibilityLabel("Your account")
             VStack(alignment: .leading, spacing: 1) {
                 Text(profile.name)
                     .font(Face.style(.body))
@@ -384,6 +402,18 @@ struct ProfileBadge: View {
             if !reduceMotion { hits += 1 }
         }
         .sheet(isPresented: $editing) { ProfileEditor() }
+        .sheet(isPresented: $signingIn) { CloudSignIn() }
+        .confirmationDialog("Sign out of the dashboard on this phone?", isPresented: $leaving, titleVisibility: .visible) {
+            Button("Sign out", role: .destructive) {
+                Task {
+                    await cloud.signOut()
+                    // Straight to the way back in.
+                    signingIn = true
+                }
+            }
+        } message: {
+            Text("Everything stays on this phone. It stops syncing until you sign in again.")
+        }
         .alert("New role", isPresented: $adding) {
             TextField("Role", text: $draft)
             Button("Add") { profile.add(role: draft) }

@@ -348,6 +348,11 @@ account is Labern's login address; "Founder & Director" is that account's alone.
   down as it is. Framing crosses to four decimal places so it always compares equal.
   **Not yet:** settings and layout, links (the server makes its seven), Money and Work
   read through the server's functions (the phone still reads Stripe and GitHub itself).
+- **Signing out is under the photo, on every platform** (Labern, 2026-11-19: "if you click
+  the user you need to be able to sign out… click pic and have it there as an option").
+  On the phone the photo is a menu: Photo and position, the account's address, Sign out
+  (asked once more before it does; the data stays on the phone and stops syncing), or
+  Sign in when signed out. Signing out leads straight to the sign-in sheet.
 - Sign-in is asked once, by itself, the first time a build that can sync is opened
   (`CloudSignIn`: the mark, Dashboard, two fields); after that Company › Connected to ›
   Dashboard shows the account, "Sync now" and Sign out.
