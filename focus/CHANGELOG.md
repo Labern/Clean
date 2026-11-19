@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.27.1 — 2026-11-19
+- **Fixed: Super Smart Search finds an app by its name.** Typing "paradox" gave a browser tab that mentioned PARADOX
+  instead of the app called PARADOX. A thing's whole name, typed, now comes before anything that only mentions it.
+
 ## 0.27.0 — 2026-11-18
 - **Super Smart Search opens itself.** The mark has the middle of the screen for half a second, then the pill widens
   into a search bar that says "Type what you're looking for, and I'll find it". No key needed; typing opens it sooner.

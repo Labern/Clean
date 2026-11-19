@@ -177,9 +177,13 @@ enum SSSRank {
         }
         var out = total / Double(tokens.count)
         let q = fold(query).trimmingCharacters(in: .whitespaces)
-        if q.count >= 3, fold(item.title).contains(q) { out += 12 }             // typed as it's written
+        let name = fold(item.title)
+        if q.count >= 3, name.contains(q) { out += 12 }                         // typed as it's written
         out += max(0, 8 - Double(item.order) * 0.4)                             // what you used last, first
-        if item.kind == .app { out -= 4 }
+        // The thing's whole name, typed: that thing, before anything that only mentions it ("paradox" is the app
+        // PARADOX, not a tab about it: his report, 2026-11-19). An app whose name starts that way isn't held back either.
+        if q.count >= 2, name == q || fold(item.app) == q && item.kind != .tab { out += 24 }
+        else if item.kind == .app, !(q.count >= 3 && name.hasPrefix(q)) { out -= 4 }
         return out
     }
     static func search(_ query: String, in items: [SSSItem]) -> [SSSItem] {
@@ -1397,6 +1401,12 @@ func sssSelfTest() -> Int32 {
     let alone = pill(["mark"]), bar = pill([])
     check(222, "SSS: the mark alone for a moment, then a search bar without a key pressed", alone > 40 && alone <= Int(SSSIsland.idle) && bar > alone + 120 && bar <= Int(SSSIsland.full) && SSSIsland.moment <= 0.6,
           "the pill is \(alone) pt across with the mark alone, \(bar) pt as a search bar, after \(SSSIsland.moment) s")
+    // An app's own name, typed, is that app: before tabs that mention it, however recently they were used.
+    let ownName = [SSSItem(id: "t:1", kind: .tab, title: "Brand · PARADOX", app: "Google Chrome", bundle: "com.google.Chrome", pid: 1, path: "/", url: "https://paradoxica.uk/brand", window: 1, tab: 1, order: 0),
+                 SSSItem(id: "t:2", kind: .tab, title: "Paradox of choice", app: "Google Chrome", bundle: "com.google.Chrome", pid: 1, path: "/", url: "https://example.com/p", window: 1, tab: 2, order: 1),
+                 SSSItem(id: "a:2", kind: .app, title: "PARADOX", app: "PARADOX", bundle: "x.paradox", pid: 2, path: "/", order: 300)]
+    let byName = SSSRank.search("paradox", in: ownName).first?.id ?? "", byPart = SSSRank.search("parad", in: ownName).map(\.id), other = SSSRank.search("brand", in: ownName).first?.id ?? ""
+    check(223, "SSS: an app's own name finds the app, before tabs that mention it", byName == "a:2" && byPart.contains("a:2") && byPart.count == 3 && other == "t:1", "paradox → \(byName); parad lists \(byPart.count); brand → \(other)")
     let menuMark = SSSGlyph.image()
     check(217, "SSS: its mark draws for the menu", menuMark.isTemplate && menuMark.size.width > menuMark.size.height, "\(Int(menuMark.size.width)) × \(Int(menuMark.size.height))")
     SSSIndex.fixture = nil
