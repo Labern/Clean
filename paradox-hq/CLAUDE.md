@@ -432,6 +432,11 @@ masters are on the Mac at `~/Documents/Codex/2026-09-17/t/outputs/PARADOX_Logo_L
 swap the master in when on the Mac. Do not adjust spacing, order or glyphs.
 
 ## Rules
+- **Every install ends with the app open, and him told.** Labern, 2026-11-19: "you don't
+  seem to do anything like reopen the app or tell me what's happened… Can you start doing
+  that?" After every phone install the app is launched (retrying while the phone is
+  locked); after every Mac app rebuild it is reopened and brought to the front. Then he is
+  told at once, in a line or two, what changed and that it is open, without waiting to be asked.
 - **Merge without asking.** Labern, 2026-11-18: "I'm not doing any code: auto-merge
   latest version every time unless I say not to." Finished work goes straight into
   the branch the Mac builds from (`claude/dazzling-cerf-y7p4jg` today). Don't ask.
