@@ -1,0 +1,8 @@
+commit dc3888fe5590d8a50c9d44b701f935158ccd8e33
+Xcode 26.6
+Build version 17F113
+    iPhone 17 Pro (CDC7077E-2206-4FEC-B03A-52EB15B2CAD4) (Shutdown) 
+CUSTOM_APPICONS = AppIcon-Custom-citest01
+xcodebuild exit 0
+custom icon baked into the app: yes
+designer.html logos.js 

@@ -1,0 +1,15 @@
+Timestamp               Ty Process[PID:TID]
+2026-11-19 15:03:14.450 E  ParadoxHQ[22453:10f4e] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name: com.apple.app_launch_measurement.FirstFramePresentationMetric
+2026-11-19 15:03:14.747 E  ParadoxHQ[22453:10f4e] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name: com.apple.app_launch_measurement.ExtendedLaunchMetrics
+2026-11-19 15:03:40.018 E  ParadoxHQ[23404:11841] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 0 event_name: com.apple.app_launch_measurement.FirstFramePresentationMetric
+2026-11-19 15:03:40.212 E  ParadoxHQ[23404:11841] [com.apple.app_launch_measurement:General] Failed to send CA Event for app launch measurements for ca_event_type: 1 event_name: com.apple.app_launch_measurement.ExtendedLaunchMetrics
+2026-11-19 15:04:15.508 F  ParadoxHQ[24397:121f8] [com.apple.renderbox:error] building pipeline mask_color-la7ca8feba4 took 0.500068 seconds
+2026-11-19 15:04:45.825 E  ParadoxHQ[25761:12f10] [com.apple.extensionkit:default] Failed to resolve host network app id to config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: A7307B93-F2C6-4613-8964-C9A9E2635799])
+2026-11-19 15:04:46.981 E  ParadoxHQ[25761:12ee3] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access quirks from WebPrivacy.
+2026-11-19 15:04:46.981 E  ParadoxHQ[25761:12ee3] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access user agent string quirks from WebPrivacy.
+2026-11-19 15:04:46.981 E  ParadoxHQ[25761:12ee3] [com.apple.WebKit:ResourceLoadStatistics] Failed to request known fingerprinting scripts from WebPrivacy: Error Domain=WebPrivacyErrorDomain Code=1001 "List data not found" UserInfo={NSLocalizedDescription=List data not found}
+2026-11-19 15:04:47.114 E  ParadoxHQ[25761:12ee3] [com.apple.WebKit:ResourceLoadStatistics] Failed to request query parameters from WebPrivacy.
+2026-11-19 15:04:47.238 E  ParadoxHQ[25761:12f8b] [com.apple.WebKit:ResourceLoadStatistics] WebContent[25793] Unable to filter tracking query parameters (missing data)
+2026-11-19 15:04:47.293 E  ParadoxHQ[25761:12f8b] [com.apple.WebKit:ResourceLoadStatistics] WebContent[25793] Unable to hide query parameters from script (missing data)
+2026-11-19 15:04:47.300 E  ParadoxHQ[25761:12ee3] [com.apple.WebKit:ResourceLoadStatistics] Failed to request allowed query parameters from WebPrivacy.
+2026-11-19 15:04:47.518 E  ParadoxHQ[25761:12ee3] [com.apple.WebKit:ResourceLoadStatistics] Failed to request restricted opener domains from WebPrivacy
