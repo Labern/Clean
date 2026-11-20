@@ -1,10 +1,13 @@
 # CLAUDE.md
 
-## ALWAYS — end every reply with the live link(s)
-Every reply must END with clickable links to the thing currently being worked
-on ONLY (its live GitHub Pages URL, plus its code location) — NOT every
-project. The user corrected this: "the link of the thing we're working on,
-not all the links." Reference list, pick the relevant one(s):
+## ALWAYS — end every reply with the live link, never the code
+Every reply must END with the clickable link to the live site of the thing
+currently being worked on ONLY — NOT every project ("the link of the thing
+we're working on, not all the links"). **Never a link to the code**, and when
+the thing has no live page yet, no link at all (Labern, 2026-11-18: "I don't
+need a link to the code either. Send me the link to the site, or nothing.").
+Reference list, pick the relevant one (the Code lines are for you, not for
+replies):
 Flap Guard (cat flap chip lock):
 - https://labern.github.io/Clean/catflap/
 - Code: https://github.com/Labern/Clean/tree/master/catflap
@@ -19,7 +22,39 @@ For GT7 Endgame:
 - The app: https://labern.github.io/Clean/gt7/
 - Sector Trainer: https://labern.github.io/Clean/gt7/#/ce
 - Code branch: https://github.com/Labern/Clean/tree/master/gt7
+For the PARADOXICA dashboard (the site; the same data as the PARADOX HQ app):
+- https://paradoxica.co.uk/dash/
+- Code: https://github.com/Labern/paradoxica-hub/tree/main/dash (private)
+For PARADOX HQ (iOS app, no web page of its own; when the work is about syncing, the dashboard link above is the one to give):
+- Code: https://github.com/Labern/Clean/tree/claude/dazzling-cerf-y7p4jg/paradox-hq
 Add any new page to this list the moment it ships.
+
+## ALWAYS — hit stop in animation (every product, present and future)
+Labern loves hit stop and wants it used wherever it possibly can be. It is a
+direct descendant of Smash Brothers: at the moment of impact everything freezes
+for a few frames, then the motion carries on. Reach for it by default in any
+animation with a moment of contact — a tick landing, a button press, a card
+dropping, a number arriving, a session starting. Focus's session pill already
+does it (zop, hit stop, zip). Pair it with a haptic on the phone. Honour Reduce
+Motion. Carry this rule into the CLAUDE.md of every new project and repo.
+
+## ALWAYS — graphs scrub with a haptic (every product, present and future)
+On every graph (money going up, releases pushed, notes written in a day,
+anything), dragging left or right reads off each data point in turn, and the
+phone gives a haptic tick each time the finger crosses onto another point.
+Labern: "I really like that. It's a premium feel." The figure on show changes to
+the point under the finger and goes back when it lifts. In SwiftUI:
+`chartXSelection` plus `.sensoryFeedback(.selection, trigger:)` on the picked
+point, as in `paradox-hq/ios/Sources/MoneyView.swift`.
+
+## ALWAYS — keep the Mac's global rules in step (Mac sessions only)
+`global/standing-rules.md` holds the rules that apply to every repo, not just this
+one. `~/.claude/CLAUDE.md` on the Mac is what carries them into other repos, and a
+cloud session cannot reach that file. So at the start of any session running on
+the Mac, run `global/install.sh` (idempotent: it replaces only its own marked
+block). When Labern gives a new rule for "everything" or "all future products",
+add it to `global/standing-rules.md` as well as here, and run the script if on
+the Mac.
 
 ## Project
 A sandbox directory, not a formal app. Currently contains a single static
@@ -77,6 +112,11 @@ no build step, no dependencies.
 - `ribbit/` — Ribbit: kawaii frog pet born from a lily (treats, cuddles,
   shop, decorating, friends, bakery, growth, day/night/rain). Single-file PWA,
   live at `labern.github.io/Clean/ribbit/`. See `ribbit/CLAUDE.md`.
+
+- `paradox-hq/` — PARADOX HQ: the iOS app that runs the company (Today, Money from
+  Stripe, Projects with tickable Focus lists, Company deadlines, Face ID). SwiftUI,
+  `paradox-hq/ios/`, built and screenshotted by `.github/workflows/paradox-hq-ios.yml`.
+  See `paradox-hq/CLAUDE.md`. Moves to the company's private repo when that exists.
 
 - `iOS/` — the iOS app pipeline (nested **private** repo, `github.com/Labern/iOS`,
   gitignored here). XcodeGen template + `bin/ios-*` scripts: scaffold, run in the
