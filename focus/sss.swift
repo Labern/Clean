@@ -179,12 +179,34 @@ enum SSSRank {
         let q = fold(query).trimmingCharacters(in: .whitespaces)
         let name = fold(item.title)
         if q.count >= 3, name.contains(q) { out += 12 }                         // typed as it's written
+        out += about(tokens, q, item)
         out += max(0, 8 - Double(item.order) * 0.4)                             // what you used last, first
         // The thing's whole name, typed: that thing, before anything that only mentions it ("paradox" is the app
         // PARADOX, not a tab about it: his report, 2026-11-19). An app whose name starts that way isn't held back either.
         if q.count >= 2, name == q || fold(item.app) == q && item.kind != .tab { out += 24 }
         else if item.kind == .app, !(q.count >= 3 && name.hasPrefix(q)) { out -= 4 }
         return out
+    }
+    /// How much a thing is about the words, from what it says inside (his ask, 2026-11-20: of three things that all
+    /// say PARADOX, "find the most relevant one"). How often each word comes up (fewer counts for less on a long page),
+    /// the page's own heading saying it, and the words together as typed. Up to 20 — a tie-breaker between things that
+    /// all match, never enough to lift something that only mentions a word once over the thing named by it.
+    static func about(_ tokens: [String], _ q: String, _ item: SSSItem) -> Double {
+        guard !item.grep.isEmpty else { return 0 }
+        let g = item.grep, size = max(1.0, Double(g.count) / 6)               // about how many words
+        var per = 0.0
+        for t in tokens where t.count >= 3 {
+            var n = 0, from = g.startIndex
+            while n < 60, let r = g.range(of: t, range: from..<g.endIndex) { n += 1; from = r.upperBound }
+            guard n > 0 else { continue }
+            let density = Double(n) / size * 1000                              // times in a thousand words
+            per += min(9, 2.2 * log2(1 + Double(n)) + min(3, density / 4))
+        }
+        var out = per / Double(max(1, tokens.filter { $0.count >= 3 }.count))
+        let head = fold(item.heading)
+        if q.count >= 3, !head.isEmpty, tokens.allSatisfy({ head.contains($0) }) { out += 6 }
+        if tokens.count > 1, q.count >= 5, g.contains(q) { out += 5 }
+        return min(20, out)
     }
     static func search(_ query: String, in items: [SSSItem]) -> [SSSItem] {
         if query.trimmingCharacters(in: .whitespaces).isEmpty { return items.sorted { $0.order < $1.order } }
@@ -426,6 +448,8 @@ final class SSSIndex {
     private var deepening = false
     /// Browsers whose "Allow JavaScript from Apple Events" is off: their pages can be found by name, not by contents.
     private(set) var scriptOff: [String] = []
+    /// The last read, counted: for --sss-go and --diagnose.
+    private(set) var lastRead = ""
     /// Apps built on Chromium (Electron, CEF) and the browsers themselves: asking them for their text through
     /// Accessibility switches on a slower mode inside them, so Focus doesn't.
     private static var heavy: [String: Bool] = [:]
@@ -436,6 +460,20 @@ final class SSSIndex {
         let h = FileManager.default.fileExists(atPath: fw + "Electron Framework.framework") || FileManager.default.fileExists(atPath: fw + "Chromium Embedded Framework.framework")
         heavy[item.path] = h; return !h
     }
+    /// Reads what's open in the background, every few minutes, so that by the time the bar opens the pages have
+    /// already been read — a tab Chrome has put to sleep can't be read, and isn't woken, so it has to be caught while
+    /// it's awake. Only while Super Smart Search is unlocked; kept in memory only.
+    func keepWarm() {
+        guard SSSIndex.fixture == nil, warmer == nil else { return }
+        let go = { [weak self] in
+            guard let self, !DesktopModel.gated, !SSSController.shared.shown else { return }
+            self.refresh { self.deepen(patient: true) {} }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: go)
+        let t = Timer(timeInterval: 150, repeats: true) { _ in go() }; t.tolerance = 30
+        RunLoop.main.add(t, forMode: .common); warmer = t
+    }
+    private var warmer: Timer?
     private static func key(_ i: SSSItem) -> String { i.kind == .tab ? "t|" + i.url : "w|\(i.pid)|\(i.title)" }
     private func withText(_ i: SSSItem) -> SSSItem {
         guard let t = inside[SSSIndex.key(i)], !i.secret else { return i }
@@ -463,7 +501,7 @@ final class SSSIndex {
         let js = "location.href+String.fromCharCode(31)+((document.querySelector('h1')||{}).innerText||'').slice(0,120)+String.fromCharCode(31)+((document.body&&document.body.innerText)||'').slice(0,20000)"
         let ask = safari.contains(item.bundle) ? "do JavaScript \"\(js)\" in tab \(item.tab) of window id \(item.window)"
                                                : "execute tab \(item.tab) of window id \(item.window) javascript \"\(js)\""
-        return "with timeout of 3 seconds\ntell application id \"\(item.bundle)\"\nreturn (\(ask)) as text\nend tell\nend timeout"
+        return "with timeout of 2 seconds\ntell application id \"\(item.bundle)\"\nreturn (\(ask)) as text\nend tell\nend timeout"
     }
     /// Whether the browser lets a script read a page. Its own error says when the setting is off.
     static func pagesAllowed(_ bundle: String) -> Bool {
@@ -473,11 +511,12 @@ final class SSSIndex {
     }
     /// Reads what's inside the things already listed: windows first (quick), then pages, the most recent first, four
     /// at a time, for at most eight seconds. What it couldn't reach this time it reaches next time.
-    func deepen(_ done: @escaping () -> Void) {
+    func deepen(patient: Bool = false, _ done: @escaping () -> Void) {
         guard SSSIndex.fixture == nil, !deepening else { return }
         deepening = true
         let now = Date(), items = self.items, els = self.elements
-        inside = inside.filter { now.timeIntervalSince($0.value.at) < 600 }; missed = missed.filter { now.timeIntervalSince($0.value) < 300 }
+        let open = Set(items.map(SSSIndex.key))                                 // what was read stays while it's still open
+        inside = inside.filter { open.contains($0.key) || now.timeIntervalSince($0.value.at) < 600 }; missed = missed.filter { now.timeIntervalSince($0.value) < 600 }
         func stale(_ i: SSSItem, _ age: TimeInterval) -> Bool { inside[SSSIndex.key(i)].map { now.timeIntervalSince($0.at) > age } ?? true }
         let wins = items.filter { $0.kind == .window && els[$0.id] != nil && stale($0, 15) && SSSIndex.readable($0) }
         var seen = Set<String>()
@@ -485,19 +524,23 @@ final class SSSIndex {
             .sorted { $0.order < $1.order }
         DispatchQueue.global(qos: .utility).async {
             var got: [String: String] = [:], lost: [String] = [], off: [String] = []
+            var late = 0, wrong = 0, failed = 0, slow = 0.0
             let lock = NSLock()
             for w in wins { if let el = els[w.id] { let t = SSSIndex.windowText(el); got[SSSIndex.key(w)] = "\u{1F}" + t } }
             var allowed = Set<String>()
             for b in Set(tabs.map(\.bundle)) { if SSSIndex.pagesAllowed(b) { allowed.insert(b) } else { off.append(b) } }
-            let q = OperationQueue(); q.maxConcurrentOperationCount = 4
-            let deadline = Date().addingTimeInterval(8)
+            let q = OperationQueue(); q.maxConcurrentOperationCount = patient ? 3 : 4
+            let deadline = Date().addingTimeInterval(patient ? 240 : 8)            // in the background, every page it can; with the bar open, what it can in a moment
             for t in tabs where allowed.contains(t.bundle) {
                 q.addOperation {
-                    guard Date() < deadline else { return }
-                    let parts = (SSSIndex.run(SSSIndex.pageScript(t), limit: 4, quiet: true).out ?? "").split(separator: "\u{1F}", maxSplits: 2, omittingEmptySubsequences: false)
+                    guard Date() < deadline else { lock.lock(); late += 1; lock.unlock(); return }
+                    let began = Date()
+                    let r = SSSIndex.run(SSSIndex.pageScript(t), limit: 4, quiet: true)
+                    let parts = (r.out ?? "").split(separator: "\u{1F}", maxSplits: 2, omittingEmptySubsequences: false)
                     lock.lock(); defer { lock.unlock() }
+                    slow = max(slow, Date().timeIntervalSince(began))
                     if parts.count == 3, parts[0].trimmingCharacters(in: .whitespacesAndNewlines) == t.url { got[SSSIndex.key(t)] = String(parts[1]) + "\u{1F}" + String(parts[2]) }   // the page at that place is still that page
-                    else { lost.append(SSSIndex.key(t)) }
+                    else { lost.append(SSSIndex.key(t)); if parts.count == 3 { wrong += 1 } else { failed += 1; if failed <= 3 { NSLog("SSS read failed: %@ — %@", t.url, r.err) } } }
                 }
             }
             q.waitUntilAllOperationsAreFinished()
@@ -508,6 +551,7 @@ final class SSSIndex {
                     self.inside[k] = (p.count == 2 ? String(p[1]) : v, p.count == 2 ? String(p[0]).trimmingCharacters(in: .whitespacesAndNewlines) : "", at)
                 }
                 for k in lost { self.missed[k] = at }
+                self.lastRead = "pages: \(tabs.count) asked, \(got.count - wins.count) read, \(late) not reached in time, \(wrong) moved, \(failed) wouldn't answer; slowest \(String(format: "%.1f", slow)) s"
                 self.scriptOff = off.sorted(); self.items = self.items.map(self.withText); self.deepening = false
                 done()
             }
@@ -1407,6 +1451,18 @@ func sssSelfTest() -> Int32 {
                  SSSItem(id: "a:2", kind: .app, title: "PARADOX", app: "PARADOX", bundle: "x.paradox", pid: 2, path: "/", order: 300)]
     let byName = SSSRank.search("paradox", in: ownName).first?.id ?? "", byPart = SSSRank.search("parad", in: ownName).map(\.id), other = SSSRank.search("brand", in: ownName).first?.id ?? ""
     check(223, "SSS: an app's own name finds the app, before tabs that mention it", byName == "a:2" && byPart.contains("a:2") && byPart.count == 3 && other == "t:1", "paradox → \(byName); parad lists \(byPart.count); brand → \(other)")
+    // Of three things that all say the word, the one most about it first: by what each says inside.
+    func page(_ id: String, _ title: String, _ head: String, _ text: String, _ order: Int) -> SSSItem {
+        var i = SSSItem(id: id, kind: .tab, title: title, app: "Google Chrome", bundle: "com.google.Chrome", pid: 1, path: "/", url: "https://example.com/\(id)", window: 1, tab: 1, order: order)
+        i.text = text; i.grep = SSSRank.fold(text); i.heading = head; return i
+    }
+    let filler = String(repeating: "Some other words about the weather, trains and lunch. ", count: 40)
+    let three = [page("news", "Paradox news · Daily", "Today", filler + "A paradox, once.", 0),
+                 page("shop", "Shop · PARADOX", "Basket", filler, 1),
+                 page("brand", "Brand · PARADOX", "The PARADOX brand", "PARADOX is the house. The PARADOX lockup, PARADOX colours, the PARADOX mark. " + filler, 2)]
+    let pick = SSSRank.search("paradox", in: three).map(\.id), phrase = SSSRank.search("paradox lockup", in: three).first?.id ?? ""
+    check(224, "SSS: of things that all say the word, the one most about it comes first", pick.first == "brand" && pick.count == 3 && phrase == "brand",
+          "paradox → \(pick); paradox lockup → \(phrase)")
     let menuMark = SSSGlyph.image()
     check(217, "SSS: its mark draws for the menu", menuMark.isTemplate && menuMark.size.width > menuMark.size.height, "\(Int(menuMark.size.width)) × \(Int(menuMark.size.height))")
     SSSIndex.fixture = nil
@@ -1456,12 +1512,14 @@ func sssGo(_ query: String, log: String) -> Never {
     let until = Date().addingTimeInterval(8); while !done && Date() < until { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
     let items = SSSIndex.shared.items
     say("read \(items.filter { $0.kind == .tab }.count) tabs, \(items.filter { $0.kind == .window }.count) windows, \(items.filter { $0.kind == .app }.count) apps; waiting \(SSSIndex.shared.tabsWaiting); last script error: \(SSSIndex.lastScriptError.prefix(160))")
-    var deep = false; SSSIndex.shared.deepen { deep = true }
-    let wait = Date().addingTimeInterval(14); while !deep && Date() < wait { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+    let patient = CommandLine.arguments.contains("--patient")                   // as the background reader does
+    var deep = false; SSSIndex.shared.deepen(patient: patient) { deep = true }
+    let wait = Date().addingTimeInterval(patient ? 250 : 14); while !deep && Date() < wait { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
     let read = SSSIndex.shared.items
+    say(SSSIndex.shared.lastRead)
     say("contents: \(read.filter { $0.kind == .tab && !$0.text.isEmpty }.count) of \(read.filter { $0.kind == .tab }.count) tabs read, \(read.filter { $0.kind == .window && !$0.text.isEmpty }.count) windows read, \(read.reduce(0) { $0 + $1.text.count } / 1000) thousand letters; page reading off in: \(SSSIndex.shared.scriptOff)")
     let found = SSSRank.search(query, in: read)
-    say("“\(query)” → \(found.count) results; top: " + found.prefix(3).map { "[\($0.kind)] \($0.title.prefix(40)) · \($0.host) · w\($0.window) t\($0.tab)" }.joined(separator: " | "))
+    say("“\(query)” → \(found.count) results; top: " + found.prefix(5).map { "[\($0.kind)] \($0.title.prefix(40)) (about \(Int(SSSRank.about([query.lowercased()], query.lowercased(), $0)))) · \($0.host) · w\($0.window) t\($0.tab)" }.joined(separator: " | "))
     if let top = found.first, !CommandLine.arguments.contains("--dry") {
         SSSIndex.lastScriptError = ""
         SSSIndex.shared.open(top); RunLoop.main.run(until: Date().addingTimeInterval(2.0))

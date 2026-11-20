@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.28.0 — 2026-11-20
+- **Super Smart Search ranks by what's inside.** Of several things that all say what you typed, the one most about
+  it comes first: how often each page or window says it, its own heading, and your words together as typed.
+- **It reads before you ask.** Focus reads open pages quietly in the background every few minutes, so their contents
+  are ready when the bar opens. Before, it gave up after eight seconds and read about a quarter of the tabs; now it
+  reads every awake one. Tabs Chrome has put to sleep can't be read and aren't woken; they're still found by name.
+
 ## 0.27.1 — 2026-11-19
 - **Fixed: Super Smart Search finds an app by its name.** Typing "paradox" gave a browser tab that mentioned PARADOX
   instead of the app called PARADOX. A thing's whole name, typed, now comes before anything that only mentions it.
