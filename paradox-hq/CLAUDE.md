@@ -437,6 +437,11 @@ swap the master in when on the Mac. Do not adjust spacing, order or glyphs.
   that?" After every phone install the app is launched (retrying while the phone is
   locked); after every Mac app rebuild it is reopened and brought to the front. Then he is
   told at once, in a line or two, what changed and that it is open, without waiting to be asked.
+- **Never say "I'm building it". Build it, then show it.** Labern, 2026-11-20: "don't ever
+  say, 'I'm doing something, I'm building something.' Build it and then show it to me."
+  A reply about a change comes only once it is done and on his device, with a screenshot
+  of it. (A tab bar was announced as "being built", finished, and never sent to the Mac
+  for nine hours, 2026-11-19.)
 - **Merge without asking.** Labern, 2026-11-18: "I'm not doing any code: auto-merge
   latest version every time unless I say not to." Finished work goes straight into
   the branch the Mac builds from (`claude/dazzling-cerf-y7p4jg` today). Don't ask.
