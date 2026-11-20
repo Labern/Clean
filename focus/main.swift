@@ -4061,4 +4061,5 @@ InstallEventHandler(GetEventDispatcherTarget(), { _, event, _ in
     return noErr
 }, 1, &spec, nil, nil)
 focus.applyShortcuts()                                          // ⌘⇧F / ⌘⇧E by default; Settings ▸ Shortcuts changes them
+SSSIndex.shared.keepWarm()                                      // Super Smart Search reads pages while they're awake
 app.run()
