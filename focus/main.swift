@@ -3301,6 +3301,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
     t.snapshots = false
     let ws = NSWorkspace.shared, edit = "com.apple.TextEdit", calc = "com.apple.calculator", slow = "com.labern.focus.slowquit"
     let front = ws.frontmostApplication
+    let editWasOpen = ws.runningApplications.contains { $0.bundleIdentifier == edit && !$0.isTerminated }   // yours: left open at the end
     var results: [(String, Bool, String)] = []
     func say(_ s: String) { print("stress:", s); fflush(stdout) }
     func running(_ id: String) -> [NSRunningApplication] { ws.runningApplications.filter { $0.bundleIdentifier == id && !$0.isTerminated } }
@@ -4037,7 +4038,8 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
     func run(_ i: Int) {
         guard i < steps.count else {
             say("———"); for (n, ok, note) in results { say("\(ok ? "PASS" : "FAIL")  \(n) — \(note)") }
-            for id in [calc, slow] { running(id).forEach { $0.terminate() } }
+            // Nothing the tests opened stays open: TextEdit used to be left running (and showing) after every run.
+            for id in [calc, slow] + (editWasOpen ? [] : [edit]) { running(id).forEach { $0.terminate() } }
             front?.activate()
             UserDefaults.standard.removePersistentDomain(forName: suite)
             exit(results.allSatisfy { $0.1 } ? 0 : 1)
