@@ -1,0 +1,110 @@
+name: paradox-hq iOS
+
+# The Labern/iOS cloud build, specialised for paradox-hq/ios: generate with
+# XcodeGen, build, run the tests, then screenshot every screen (via the
+# -screen launch argument, unlocked). Results are force-pushed to the
+# ci/paradox-hq branch so a cloud session can read them with plain git.
+
+on:
+  push:
+    paths:
+      - 'paradox-hq/ios/**'
+      - '.github/workflows/paradox-hq-ios.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paradox-hq-ios
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: paradox-hq/ios
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          mkdir -p out
+          { echo "commit ${GITHUB_SHA}"; xcodebuild -version; } | tee out/ci.txt
+          brew install xcodegen >/dev/null 2>&1 || brew install xcodegen
+          UDID="$(xcrun simctl list devices available -j | python3 -c '
+          import json,sys
+          d=json.load(sys.stdin)
+          devs=[(k,x) for k,v in d["devices"].items() if "iOS" in k for x in v if x["name"].startswith("iPhone")]
+          devs.sort(key=lambda t: t[0])
+          pref=[t for t in devs if t[1]["name"]=="iPhone 17 Pro"] or devs
+          print(pref[-1][1]["udid"])')"
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
+          xcrun simctl list devices | grep "$UDID" | tee -a out/ci.txt
+
+      - name: Generate project
+        run: |
+          # One picture stands in for an icon made in the app's designer, to
+          # prove the bake step puts it into the build.
+          mkdir -p design/icons/custom
+          cp Resources/Assets.xcassets/AppIcon-Kana.appiconset/icon-1024.png design/icons/custom/citest01.png
+          xcodegen generate --quiet
+          cat Custom.xcconfig | tee -a out/ci.txt
+
+      - name: Build and test
+        id: build
+        continue-on-error: true
+        run: |
+          set +e
+          xcodebuild -project ParadoxHQ.xcodeproj -scheme ParadoxHQ \
+            -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath DerivedData \
+            CODE_SIGNING_ALLOWED=NO test > out/xcodebuild.log 2>&1
+          status=$?
+          grep -E "error:|warning:|\*\* (BUILD|TEST)|Test run|✘|failed" out/xcodebuild.log | sort -u | head -200 > out/result.txt
+          tail -n 80 out/xcodebuild.log > out/tail.txt
+          rm out/xcodebuild.log
+          echo "xcodebuild exit $status" | tee -a out/ci.txt
+          exit $status
+
+      - name: Screenshots
+        if: always()
+        continue-on-error: true
+        run: |
+          APP="DerivedData/Build/Products/Debug-iphonesimulator/ParadoxHQ.app"
+          [ -d "$APP" ] || { echo "no app built" | tee -a out/ci.txt; exit 0; }
+          BID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")"
+          if /usr/libexec/PlistBuddy -c 'Print :CFBundleIcons:CFBundleAlternateIcons:AppIcon-Custom-citest01' "$APP/Info.plist" >/dev/null 2>&1; then
+            echo "custom icon baked into the app: yes" | tee -a out/ci.txt
+          else
+            echo "custom icon baked into the app: NO" | tee -a out/ci.txt
+          fi
+          ls "$APP" | grep -E "designer.html|logos.js" | tr '\n' ' ' | tee -a out/ci.txt; echo | tee -a out/ci.txt
+          xcrun simctl boot "$UDID" 2>/dev/null || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl status_bar "$UDID" override --time 9:41 --batteryState charged --batteryLevel 100 || true
+          xcrun simctl ui "$UDID" appearance dark
+          xcrun simctl install "$UDID" "$APP"
+          for screen in lock today projects project cards notes note money company widgets designer; do
+            xcrun simctl launch --terminate-running-process "$UDID" "$BID" -unlocked YES -sampleNotes YES -screen "$screen" >/dev/null
+            sleep 7
+            xcrun simctl io "$UDID" screenshot "out/$screen.png" >/dev/null
+            sips -Z 1300 "out/$screen.png" >/dev/null
+          done
+          xcrun simctl spawn "$UDID" log show --last 3m --style compact \
+            --predicate 'process == "ParadoxHQ" AND messageType >= 16' > out/console.log 2>/dev/null || true
+
+      - name: Publish results
+        if: always()
+        run: |
+          cd out
+          git init -q
+          git checkout -q -b ci/paradox-hq
+          git add -A
+          git -c user.name="paradox-hq-ci" -c user.email="ci@users.noreply.github.com" commit -qm "CI ${GITHUB_SHA::7}"
+          git push -qf "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" ci/paradox-hq
+
+      - name: Fail if the build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
