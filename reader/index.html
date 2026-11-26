@@ -137,7 +137,7 @@ figure.code:hover .tools,figure.code:focus-within .tools{opacity:1}
 <script src="/vendor/highlight.min.js"></script>
 <script>
 'use strict';
-const VERSION = 3;                       // bump when extraction changes: invalidates caches
+const VERSION = 5;                       // bump when extraction changes: invalidates caches
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/vendor/pdf.worker.min.js';
 const $ = (id) => document.getElementById(id);
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -204,7 +204,8 @@ addEventListener('drop', (e) => { e.preventDefault(); document.body.classList.re
 /* ---------- extraction: PDF → lines → blocks ---------- */
 const MONO_NAME = /mono|courier|consol|menlo|typewriter|cmtt|lettergothic|andale|sourcecode|inconsolata|firacode|\bcode\b|prestige|ocr-?[ab]/i;
 const CODE_SHAPE = /[;{}]\s*(\/\/.*)?$|^\s*(#\s*(include|define|if|ifn?def|endif|pragma)\b|\/\/|\/\*|(template|class|struct|enum|namespace|using|typedef|return|for|while|if|else|switch|case|public|private|protected|try|catch|auto|const|constexpr|static|void|int|double|float|char|bool|long|unsigned|virtual|explicit|inline|def|import|fn|let|var|func|function)\b)|::|->|==|!=|<<|>>|\+\+|&&|\|\||\(\)|\[\]|\w\(.*\)|=\s*\S/;
-const BULLET = /^(•|·|–|—|▪|■|□|○|●|\*|\[\d+\]|\(\d+\)|\d{1,2}\.)\s/;
+const STRONG_CODE = /[;{}]\s*(\/\/.*)?$|^\s*(\/\/|\/\*|#\s*(include|define|ifn?def|endif)\b|(public|private|protected)\s*:|(class|struct|template|namespace|enum|typedef|using|virtual|static|const|void|int|bool|char|double|float|unsigned|return|delete|else)\b|std::|(if|for|while|switch|catch)\s*\()/;
+const BULLET =/^(•|·|–|—|▪|■|□|○|●|\*|\[\d+\]|\(\d+\)|\d{1,2}\.)\s/;
 
 function buildLines(items, fonts, y0) {
   const its = [];
@@ -278,6 +279,22 @@ async function extract(pdf, progress) {
     if (n % 4 === 0) { progress(n / pdf.numPages); await frame(); }
   }
 
+  // Running heads and folios the fixed margins missed (scans sit lower on the page):
+  // a short line, set off from the text, at the same height on most pages.
+  for (const edge of [0, -1]) {
+    const bucket = (l) => Math.round(l.y / 12), count = {};
+    const pick = (p) => {
+      const l = p.lines.at(edge), nb = p.lines.at(edge === 0 ? 1 : -2);
+      return l && nb && l.text.length < 100 && Math.abs(l.y - nb.y) > l.sz * 1.5 ? l : null;
+    };
+    for (const p of pages) { const l = pick(p); if (l) count[bucket(l)] = (count[bucket(l)] || 0) + 1; }
+    for (const p of pages) {
+      const l = pick(p); if (!l) continue;
+      const b = bucket(l);
+      if ((count[b] || 0) + (count[b - 1] || 0) + (count[b + 1] || 0) > pages.length * 0.4) p.lines.splice(edge === 0 ? 0 : p.lines.length - 1, 1);
+    }
+  }
+
   // document-wide facts: the body size and body font
   const sizeW = {}, fontW = {};
   for (const p of pages) for (const l of p.lines) sizeW[l.sz] = (sizeW[l.sz] || 0) + l.len;
@@ -312,6 +329,36 @@ async function extract(pdf, progress) {
     };
     for (let i = 1; i < p.lines.length; i++) grow(i, i - 1);
     for (let i = p.lines.length - 2; i >= 0; i--) grow(i, i + 1);
+  }
+  // Scanned books: the OCR text layer is a single font, so there is no code face to learn.
+  // Fall back to shape and geometry, and learn from the book itself whether its code is
+  // set smaller, indented, or both.
+  let nCode = 0, nAll = 0;
+  for (const p of pages) for (const l of p.lines) { nAll++; if (l.code) nCode++; }
+  if (nCode < nAll * 0.01) {
+    const smallish = (l) => l.sz < body * 0.965 && l.sz > body * 0.8;
+    const prose = (l, p) => l.x1 > p.right - l.sz * 1.5 && l.text.split(/\s+/).length >= 8 && !/[;{}]|::|\/\//.test(l.text);
+    const seeds = [];
+    for (const p of pages) for (const l of p.lines)
+      if ((l.indented || smallish(l)) && l.sz < body * 1.1 && !prose(l, p) && STRONG_CODE.test(l.text)) seeds.push(l);
+    if (seeds.length >= 30) {
+      const needSmall = seeds.filter(smallish).length > seeds.length * 0.7;
+      const needIndent = seeds.filter((l) => l.indented).length > seeds.length * 0.7;
+      const cand = (l, p) => (!needSmall || smallish(l)) && (!needIndent || l.indented) &&
+        (l.indented || smallish(l)) && l.sz < body * 1.1 && !prose(l, p);
+      for (const p of pages) {
+        for (const l of p.lines) if (cand(l, p) && STRONG_CODE.test(l.text)) l.code = true;
+        const grow = (i, j) => {
+          const l = p.lines[i], nb = p.lines[j];
+          if (!l || !nb || l.code || !nb.code) return;
+          const gap = Math.abs(nb.y - l.y);
+          // a lone closing brace belongs to the block above it, whatever the scan made of its size
+          if ((cand(l, p) && gap < l.sz * 2.2) || (/^[{}();,\s]+$/.test(l.text) && gap < l.sz * 3.2)) l.code = true;
+        };
+        for (let i = 1; i < p.lines.length; i++) grow(i, i - 1);
+        for (let i = p.lines.length - 2; i >= 0; i--) grow(i, i + 1);
+      }
+    }
   }
   const flagsOf = (k) => { const f = fonts.get(k) || {}; const nm = f.name || k;
     return (f.mono || codeFonts.has(nm) ? 1 : 0) | (f.bold ? 2 : 0) | (f.italic && !codeFonts.has(nm) ? 4 : 0); };
