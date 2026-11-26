@@ -429,7 +429,7 @@ final class DesktopModel: ObservableObject {
     func stop() { timer?.invalidate(); timer = nil; lineTimer?.invalidate(); lineTimer = nil }
     private var lineTimer: Timer?
     private var lastCaption = ""
-    func refresh() { f.mem = memoryByPid(); if Site.look == 2, let w = desktop.window { DesktopController.applyLook(to: w) }; tick &+= 1 }
+    func refresh() { f.mem = memoryByPid(); f.adoptOpened(); if Site.look == 2, let w = desktop.window { DesktopController.applyLook(to: w) }; tick &+= 1 }
     /// Do something to the engine, then show it.
     func act(_ change: () -> Void) { change(); tick &+= 1 }
     /// A Pro action: viewing as Basic it opens Upgrade instead; otherwise it does the change.
@@ -479,15 +479,16 @@ final class DesktopModel: ObservableObject {
         let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
         let listed = f.sorted(f.apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } })
         let mine = listed.enumerated().sorted { (rank[$0.element.0] ?? 10_000 + $0.offset) < (rank[$1.element.0] ?? 10_000 + $1.offset) }.map(\.element)
-        return mine.map { id, p in
+        return mine.compactMap { id, p in
             let size = NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }.map(f.memory) ?? 0
             let parked = f.focused && f.isParked(id)
-            return AppLine(id: id, path: p, name: f.appName(p), usage: size > 0 ? gb(size) : "", on: f.focused ? !parked : f.excluded.contains(id), note: parked ? "leaving…" : "", bytes: size)
+            if parked && f.parkedState(id) == .away { return nil }     // hidden for the session: it's under Apps Outside Session
+            return AppLine(id: id, path: p, name: f.appName(p), usage: size > 0 ? gb(size) : "", on: f.focused ? !parked : f.excluded.contains(id), note: parked ? f.parkedNote(id) : "", bytes: size)
         }
     }
     var outside: [AppLine] {
         guard f.focused else { return [] }
-        let open = Set(f.apps().compactMap(\.bundleIdentifier))
+        let open = Set(f.apps().compactMap(\.bundleIdentifier).filter { f.parkedState($0) != .away })
         return f.parkedEntries.compactMap { e in
             guard let p = e["path"] as? String, let id = (e["id"] as? String) ?? Bundle(path: p)?.bundleIdentifier, !open.contains(id) else { return nil }
             return AppLine(id: id, path: p, name: f.appName(p), usage: "", on: false, note: "")

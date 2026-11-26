@@ -4,6 +4,14 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.28.1 — 2026-11-26
+- **Fixed: an app you open during a session no longer sits on "leaving…".** Open an app the session had closed
+  (Obsidian, say) and it's in the session: ticked, in the menu and in the Focus window, and End Session leaves it as
+  it is. Before, it stayed on the closed list while running, so it showed as neither open nor closed, for good.
+- **The same for hidden apps.** With "hide instead of quit" (or a hide-only app), hidden apps are listed under Apps
+  Outside Session instead of "leaving…"; bring one forward and it joins the session.
+- An app that a helper relaunches within seconds of being quit says "reopened itself", and still has "quit again".
+
 ## 0.28.0 — 2026-11-20
 - **Super Smart Search ranks by what's inside.** Of several things that all say what you typed, the one most about
   it comes first: how often each page or window says it, its own heading, and your words together as typed.
