@@ -1,0 +1,5 @@
+# Your books, positions and opened examples never leave this Mac.
+library/
+examples/
+test/out/
+.DS_Store
