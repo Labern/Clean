@@ -4,6 +4,13 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.29.0 — 2026-11-27
+- **Name a window from Super Smart Search: ⌘R.** On a tab or a window, ⌘R suggests a name to see at a glance what's
+  in it — a short summary, then each tab: "PARADOX | Brand | Shop | Designer | Lockup | Colours | +2". Return gives
+  it, Esc backs out, or type your own. Chrome keeps the name itself (it's Chrome's own Name Window), so it shows in
+  Chrome's Window menu and Mission Control and lasts. Other apps' windows keep the name in Focus while it runs.
+- **A window's name finds its tabs.** Type the summary and you get that window; a tab's own name still comes first.
+
 ## 0.28.2 — 2026-11-27
 - **The app list is "Choose Your Apps for Next Session" until a session starts.** It said "Apps in Session" with no session running. It
   says that now only during one. Same in the menu and the Focus window.
