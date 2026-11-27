@@ -1868,11 +1868,11 @@ struct SessionDetail: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("Apps in Session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)   // the menu's own headings
+                        Text(f.appsHeading).font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)   // the menu's own headings
                     }
                     PanelRule()
                     Text(f.focused ? "These apps are in your session. Click one to take it out."
-                                   : "Tick the apps you want in the session. Everything else closes when the session starts and comes back when it ends.")
+                                   : "Tick the ones you want in the session. Everything else closes when the session starts and comes back when it ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
       // the memory to be saved is shown before a session, never during one
                     SectionLabel("", "Usage", divider: false).padding(.horizontal, -14).padding(.top, f.focused ? 0 : 8)

@@ -822,10 +822,12 @@ final class ColumnHeader: NSView {
         super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: theme.headingSize + 11)); autoresizingMask = [.width]
         toolTip = "Ticked apps are in the session. Click an app to put it in or take it out."
     }
+    /// The list's name. Out of a session nothing is "in session" yet: it's a choice from what's open.
+    var title = "Apps in Session" { didSet { needsDisplay = true } }
     required init?(coder: NSCoder) { nil }
     override func draw(_ r: NSRect) {
         let a = Heading.attrs
-        ("Apps in Session" as NSString).draw(at: NSPoint(x: 14, y: 4), withAttributes: a)
+        (title as NSString).draw(at: NSPoint(x: 14, y: 4), withAttributes: a)
         let u = "Usage" as NSString
         u.draw(at: NSPoint(x: bounds.width - 42 - u.size(withAttributes: a).width, y: 4), withAttributes: a)   // over the memory
     }
@@ -2474,6 +2476,9 @@ final class Focus: NSObject, NSMenuDelegate {
         let since = (live["date"] as? Date).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) }
         return "Focus — \(displayName ?? "in session") (\(n) app\(n == 1 ? "" : "s")" + (since.map { ", since \($0)" } ?? "") + ")"
     }
+    /// The app list's heading, in the menu and the window. "Apps in Session" only while there is one; before that
+    /// it's a choice to make from what's open: "Choose Your Apps" ("Open Apps" didn't say pick; 2026-11-27).
+    var appsHeading: String { focused ? "Apps in Session" : "Choose Your Apps" }
     /// The line under the Start/End button: what pressing it will do. Shared by the menu and the desktop window.
     func sessionCaption() -> String {
         if focused {
@@ -2533,7 +2538,11 @@ final class Focus: NSObject, NSMenuDelegate {
         // Keep open — this session's picks.
         var running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
         running = sorted(running)
-        func columns() -> ColumnHeader { let c = ColumnHeader(); c.onUsage = { [unowned self] in self.cycleSort() }; return c }
+        func columns() -> ColumnHeader {
+            let c = ColumnHeader(); c.onUsage = { [unowned self] in self.cycleSort() }; c.title = appsHeading
+            if !focused { c.toolTip = "Tick the open apps you want in the session. Everything else closes when it starts." }
+            return c
+        }
         if focused {
             // In a session the rows ARE the session: ticked = in it, open. Click to take one out now, or put it back.
             view(columns())
@@ -4024,6 +4033,15 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
                 }
             }
         }
+    }))
+    steps.append(("51. the app list is 'Choose Your Apps' before a session and 'Apps in Session' only during one (menu and window)", { done in
+        func heading() -> String { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.compactMap { $0.view as? ColumnHeader }.first?.title ?? "" }
+        let before = heading(), beforeWindow = t.appsHeading
+        t.sessions = [["date": Date(), "apps": [[String: Any]]()]]; t.focused = true
+        let during = heading(), duringWindow = t.appsHeading
+        t.focused = false; t.sessions = []
+        done(before == "Choose Your Apps" && beforeWindow == before && during == "Apps in Session" && duringWindow == during,
+             "before: '\(before)'; during: '\(during)'")
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }

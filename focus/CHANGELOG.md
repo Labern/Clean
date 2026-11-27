@@ -4,6 +4,10 @@ Semantic versioning: MAJOR.MINOR.PATCH. New features bump MINOR, fixes bump PATC
 The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Releases are tagged `focus-vX.Y.Z`.
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
+## 0.28.2 — 2026-11-27
+- **The app list is "Choose Your Apps" until a session starts.** It said "Apps in Session" with no session running. It
+  says that now only during one. Same in the menu and the Focus window.
+
 ## 0.28.1 — 2026-11-26
 - **Fixed: an app you open during a session no longer sits on "leaving…".** Open an app the session had closed
   (Obsidian, say) and it's in the session: ticked, in the menu and in the Focus window, and End Session leaves it as
