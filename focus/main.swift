@@ -2457,12 +2457,16 @@ final class Focus: NSObject, NSMenuDelegate {
         case 1:
             func size(_ id: String) -> UInt64 { ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0 }
             return list.sorted { size($0.0) > size($1.0) }
-        case 2:
-            var uses: [String: Int] = [:]
-            for s in sessions { for id in kept(s) { uses[id, default: 0] += 1 } }
-            return list.sorted { (uses[$0.0] ?? 0, appName($1.1)) > (uses[$1.0] ?? 0, appName($0.1)) }
+        case 2: return byUse(list)
         default: return list
         }
+    }
+    /// Most used first: the apps you've kept open in the most sessions; ties by name. Apps Outside Session is always
+    /// in this order (it used to be the order the apps happened to be launched in, the newest additions last).
+    func byUse(_ list: [(String, String)]) -> [(String, String)] {
+        var uses: [String: Int] = [:]
+        for s in sessions { for id in kept(s) { uses[id, default: 0] += 1 } }
+        return list.sorted { (uses[$0.0] ?? 0, appName($1.1)) > (uses[$1.0] ?? 0, appName($0.1)) }
     }
     func cycleSort() {
         appSort += 1
@@ -2477,8 +2481,8 @@ final class Focus: NSObject, NSMenuDelegate {
         return "Focus — \(displayName ?? "in session") (\(n) app\(n == 1 ? "" : "s")" + (since.map { ", since \($0)" } ?? "") + ")"
     }
     /// The app list's heading, in the menu and the window. "Apps in Session" only while there is one; before that
-    /// it's a choice to make from what's open: "Choose Your Apps" ("Open Apps" didn't say pick; 2026-11-27).
-    var appsHeading: String { focused ? "Apps in Session" : "Choose Your Apps" }
+    /// it's a choice to make from what's open: "Choose Your Apps for Next Session" (his wording, 2026-11-27).
+    var appsHeading: String { focused ? "Apps in Session" : "Choose Your Apps for Next Session" }
     /// The line under the Start/End button: what pressing it will do. Shared by the menu and the desktop window.
     func sessionCaption() -> String {
         if focused {
@@ -2540,7 +2544,7 @@ final class Focus: NSObject, NSMenuDelegate {
         running = sorted(running)
         func columns() -> ColumnHeader {
             let c = ColumnHeader(); c.onUsage = { [unowned self] in self.cycleSort() }; c.title = appsHeading
-            if !focused { c.toolTip = "Tick the open apps you want in the session. Everything else closes when it starts." }
+            if !focused { c.toolTip = "Tick the apps you want in the next session. Everything else will reopen when the session ends." }
             return c
         }
         if focused {
@@ -2568,7 +2572,7 @@ final class Focus: NSObject, NSMenuDelegate {
                 m.addItem(.separator())
                 header("Apps Outside Session")
                 explain("These apps are not in the session right now. Click one to add it to the session.")
-                for (id, p) in parkedAway {
+                for (id, p) in byUse(parkedAway) {
                     view(AppRow(appName(p), appIcon(p), on: false, target: "your session") { [unowned self] in self.showMove(id, out: false); self.bringBack(id); return true })
                 }
             }
@@ -4034,13 +4038,13 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
             }
         }
     }))
-    steps.append(("51. the app list is 'Choose Your Apps' before a session and 'Apps in Session' only during one (menu and window)", { done in
+    steps.append(("51. the app list is 'Choose Your Apps for Next Session' before a session and 'Apps in Session' only during one (menu and window)", { done in
         func heading() -> String { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.compactMap { $0.view as? ColumnHeader }.first?.title ?? "" }
         let before = heading(), beforeWindow = t.appsHeading
         t.sessions = [["date": Date(), "apps": [[String: Any]]()]]; t.focused = true
         let during = heading(), duringWindow = t.appsHeading
         t.focused = false; t.sessions = []
-        done(before == "Choose Your Apps" && beforeWindow == before && during == "Apps in Session" && duringWindow == during,
+        done(before == "Choose Your Apps for Next Session" && beforeWindow == before && during == "Apps in Session" && duringWindow == during,
              "before: '\(before)'; during: '\(during)'")
     }))
     steps.append(("16. menu speed with every process on the Mac", { done in

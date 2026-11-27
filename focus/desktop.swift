@@ -489,10 +489,11 @@ final class DesktopModel: ObservableObject {
     var outside: [AppLine] {
         guard f.focused else { return [] }
         let open = Set(f.apps().compactMap(\.bundleIdentifier).filter { f.parkedState($0) != .away })
-        return f.parkedEntries.compactMap { e in
+        let away = f.parkedEntries.compactMap { e -> (String, String)? in
             guard let p = e["path"] as? String, let id = (e["id"] as? String) ?? Bundle(path: p)?.bundleIdentifier, !open.contains(id) else { return nil }
-            return AppLine(id: id, path: p, name: f.appName(p), usage: "", on: false, note: "")
+            return (id, p)
         }
+        return f.byUse(away).map { id, p in AppLine(id: id, path: p, name: f.appName(p), usage: "", on: false, note: "") }   // most used first
     }
     var critical: [AppLine] {
         f.neverClose.compactMap { id in f.path(id).map { AppLine(id: id, path: $0, name: f.appName($0), usage: "", on: true, note: "") } }
@@ -1872,7 +1873,7 @@ struct SessionDetail: View {
                     }
                     PanelRule()
                     Text(f.focused ? "These apps are in your session. Click one to take it out."
-                                   : "Tick the ones you want in the session. Everything else closes when the session starts and comes back when it ends.")
+                                   : "Tick the apps you want in the next session. Everything else will reopen when the session ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
       // the memory to be saved is shown before a session, never during one
                     SectionLabel("", "Usage", divider: false).padding(.horizontal, -14).padding(.top, f.focused ? 0 : 8)

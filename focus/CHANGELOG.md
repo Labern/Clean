@@ -5,8 +5,10 @@ The version lives in `focus/VERSION`; `build.sh` stamps it into the app. Release
 New features are built on `focus/feat-<name>` branches, cut from `focus/main`.
 
 ## 0.28.2 — 2026-11-27
-- **The app list is "Choose Your Apps" until a session starts.** It said "Apps in Session" with no session running. It
+- **The app list is "Choose Your Apps for Next Session" until a session starts.** It said "Apps in Session" with no session running. It
   says that now only during one. Same in the menu and the Focus window.
+- **Apps Outside Session lists your most used apps first** (the ones you've kept open in the most sessions). It was
+  in the order the apps happened to have been launched.
 
 ## 0.28.1 — 2026-11-26
 - **Fixed: an app you open during a session no longer sits on "leaving…".** Open an app the session had closed
