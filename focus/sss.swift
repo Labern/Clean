@@ -37,6 +37,9 @@ struct SSSItem: Identifiable, Equatable {
     var grep = ""                                               // the same, folded for searching
     var heading = ""                                            // a page's own main heading, when it could be read
     var secret = false                                          // a private (incognito) tab: its contents are never read
+    var windowName = ""                                         // the name its window was given (Chrome's Name Window…, or one given in the bar)
+    /// The first part of a window's name, "Summary | Tab | Tab…" → "Summary".
+    var windowSummary: String { windowName.components(separatedBy: " | ").first?.trimmingCharacters(in: .whitespaces) ?? "" }
     /// The address without its scheme, "www." or path: what people call the site.
     var host: String {
         guard let h = URLComponents(string: url)?.host else { return "" }
@@ -167,11 +170,11 @@ enum SSSRank {
     static func score(_ query: String, _ item: SSSItem) -> Double? {
         let tokens = fold(query).split { !($0.isLetter || $0.isNumber) }.map(String.init)
         guard !tokens.isEmpty else { return 0 }
-        let title = words(item.title), app = words(item.app), host = words(item.host)
+        let title = words(item.title), app = words(item.app), host = words(item.host), named = words(item.windowSummary), wname = words(item.windowName)
         let rest = words(item.url.replacingOccurrences(of: item.host, with: " "))
         var total = 0.0
         for t in tokens {
-            let s = max(fit(t, title), fit(t, app) * 0.9, fit(t, host) * 0.85, fit(t, rest) * 0.5, inside(t, item.grep))
+            let s = max(fit(t, title), fit(t, named) * 0.92, fit(t, wname) * 0.55, fit(t, app) * 0.9, fit(t, host) * 0.85, fit(t, rest) * 0.5, inside(t, item.grep))
             if s == 0 { return nil }
             total += s
         }
@@ -179,6 +182,7 @@ enum SSSRank {
         let q = fold(query).trimmingCharacters(in: .whitespaces)
         let name = fold(item.title)
         if q.count >= 3, name.contains(q) { out += 12 }                         // typed as it's written
+        if q.count >= 3, fold(item.windowSummary).contains(q) { out += 8 }      // the window's own name, as typed
         out += about(tokens, q, item)
         out += max(0, 8 - Double(item.order) * 0.4)                             // what you used last, first
         // The thing's whole name, typed: that thing, before anything that only mentions it ("paradox" is the app
@@ -208,6 +212,58 @@ enum SSSRank {
         if tokens.count > 1, q.count >= 5, g.contains(q) { out += 5 }
         return min(20, out)
     }
+    /// A name for a window, to see at a glance what's in it (his format, 2026-11-27): "Summary | Tab | Tab | Tab |
+    /// Tab". The summary is short and useful: the words most of its tabs share, else the sites they're on. Then each
+    /// tab by its short name, five at most, and "+N" for the rest.
+    static let quiet: Set<String> = ["the", "and", "for", "with", "you", "your", "new", "tab", "home", "page", "google", "search", "www", "com",
+                                     "http", "https", "untitled", "dashboard", "inbox", "login", "log", "sign", "account", "settings", "from", "this", "that"]
+    static func shortName(_ title: String) -> String {
+        var s = title
+        for cut in [" · ", " | ", " - ", " – ", " — ", ": "] { if let r = s.range(of: cut), s.distance(from: s.startIndex, to: r.lowerBound) >= 3 { s = String(s[..<r.lowerBound]) } }
+        s = s.trimmingCharacters(in: .whitespaces)
+        return s.count > 22 ? String(s.prefix(21)).trimmingCharacters(in: .whitespaces) + "…" : s
+    }
+    static func suggestName(_ tabs: [SSSItem]) -> String {
+        let ts = tabs.sorted { $0.tab < $1.tab }
+        guard !ts.isEmpty else { return "" }
+        var count: [String: Int] = [:], shown: [String: String] = [:], first: [String: Int] = [:]
+        for (i, tab) in ts.enumerated() {
+            var seen = Set<String>()
+            for w in tab.title.split(whereSeparator: { !($0.isLetter || $0.isNumber) }) where w.count >= 3 {
+                let k = fold(String(w))
+                guard !quiet.contains(k), !k.allSatisfy(\.isNumber), seen.insert(k).inserted else { continue }
+                count[k, default: 0] += 1; if shown[k] == nil { shown[k] = String(w); first[k] = i }
+            }
+        }
+        let need = max(2, (ts.count + 1) / 2)
+        let shared = count.filter { $0.value >= need }.sorted { $0.value != $1.value ? $0.value > $1.value : first[$0.key]! < first[$1.key]! }.prefix(2)
+            .sorted { first[$0.key]! < first[$1.key]! }.map { shown[$0.key]! }
+        var summary = shared.joined(separator: " ")
+        if summary.isEmpty {                                                   // nothing shared: the sites it's on
+            var sites: [String] = []
+            for tab in ts {
+                let parts = tab.host.split(separator: ".").map(String.init)
+                guard parts.count >= 2 else { continue }
+                let brand = parts.count >= 3 && ["co", "com", "org", "ac", "gov"].contains(parts[parts.count - 2]) ? parts[parts.count - 3] : parts[parts.count - 2]
+                let b = brand.prefix(1).uppercased() + brand.dropFirst()
+                if !sites.contains(b) { sites.append(b) }
+            }
+            summary = sites.count <= 2 ? sites.joined(separator: " & ") : sites.prefix(2).joined(separator: ", ") + " & more"
+        }
+        if summary.isEmpty { summary = ts[0].app }
+        var names: [String] = []
+        for tab in ts {
+            var n = shortName(tab.title)
+            if !shared.isEmpty {                                               // the summary's words aren't said again: "PARADOX Designer" → "Designer"
+                let rest = n.split(separator: " ").filter { w in !shared.contains { fold($0) == fold(String(w)) } }.joined(separator: " ")
+                if rest.contains(where: \.isLetter) { n = rest }
+            }
+            if fold(n) == fold(summary) || n.isEmpty { n = shortName(pathLabel(tab.url).isEmpty ? tab.host : pathLabel(tab.url)) }
+            if !n.isEmpty, !names.contains(n) { names.append(n) }
+        }
+        let most = 5, extra = names.count - most
+        return ([summary] + names.prefix(most) + (extra > 0 ? ["+\(extra)"] : [])).joined(separator: " | ")
+    }
     static func search(_ query: String, in items: [SSSItem]) -> [SSSItem] {
         if query.trimmingCharacters(in: .whitespaces).isEmpty { return items.sorted { $0.order < $1.order } }
         return items.compactMap { i in score(query, i).map { (i, $0) } }
@@ -225,6 +281,8 @@ enum SSSRank {
 
 // MARK: reading the Mac
 
+@_silgen_name("_AXUIElementGetWindow")
+private func _AXUIElementGetWindow(_ el: AXUIElement, _ id: UnsafeMutablePointer<CGWindowID>) -> AXError
 @_silgen_name("_AXUIElementCreateWithRemoteToken")
 private func _AXUIElementCreateWithRemoteToken(_ data: CFData) -> Unmanaged<AXUIElement>?
 
@@ -297,7 +355,8 @@ final class SSSIndex {
         set wid to id of w
         set a to \(chrome ? "active tab index of w" : "index of current tab of w")
         set m to "normal"
-        \(chrome ? "try\nset m to (mode of w) as text\nend try" : "")
+        set g to ""
+        \(chrome ? "try\nset m to (mode of w) as text\nend try\ntry\nset g to (given name of w) as text\nend try" : "")
         set ts to \(chrome ? "title" : "name") of tabs of w
         set ls to URL of tabs of w
         repeat with i from 1 to count of ts
@@ -305,7 +364,7 @@ final class SSSIndex {
         try
         set u to (item i of ls) as text
         end try
-        set o to o & wid & us & k & us & i & us & (i = a) & us & (item i of ts) & us & u & us & m & rs
+        set o to o & wid & us & k & us & i & us & (i = a) & us & (item i of ts) & us & u & us & m & us & g & rs
         end repeat
         end try
         end repeat
@@ -323,7 +382,7 @@ final class SSSIndex {
             return SSSItem(id: "t:\(bundle):\(wid):\(i)", kind: .tab, title: title.isEmpty ? p[5] : title, app: app, bundle: bundle, pid: pid, path: path,
                            url: p[5].trimmingCharacters(in: .whitespacesAndNewlines), window: wid, tab: i,
                            order: current ? front + (k - 1) : front + 20 + (k - 1) * 3,   // a window's current tab ranks as the window does
-                           secret: p.count > 6 && p[6].contains("incognito"))
+                           secret: p.count > 6 && p[6].contains("incognito"), windowName: p.count > 7 ? p[7].trimmingCharacters(in: .whitespacesAndNewlines) : "")
         }
     }
 
@@ -417,10 +476,11 @@ final class SSSIndex {
                         for (n, w) in SSSIndex.windows(of: app.pid, expecting: expecting).enumerated() {
                             let sub = SSSIndex.string(w, kAXSubroleAttribute), title = SSSIndex.string(w, kAXTitleAttribute)
                             guard sub == "AXStandardWindow" || (sub == "AXDialog" && !title.isEmpty) else { continue }
-                            if current.contains(where: { title.hasPrefix($0) }) { continue }        // a browser window already listed as its current tab
+                            if current.contains(where: { title.hasPrefix($0) }) || (!tabs.isEmpty && tabs.contains { !$0.windowName.isEmpty && title.hasPrefix($0.windowName) }) { continue }        // a browser window already listed as its current tab (or by the name it was given)
                             let id = "w:\(app.pid):\(n):\(title)"
+                            var cg: CGWindowID = 0; _ = _AXUIElementGetWindow(w, &cg)
                             mine.append(SSSItem(id: id, kind: .window, title: SSSIndex.plainTitle(title, app: app.name), app: app.name, bundle: app.bundle, pid: app.pid, path: app.path,
-                                                order: place(app.pid, SSSIndex.frame(w)) ?? (front + 40 + n)))
+                                                window: Int(cg), order: place(app.pid, SSSIndex.frame(w)) ?? (front + 40 + n)))
                             myEls[id] = w
                         }
                     }
@@ -432,7 +492,7 @@ final class SSSIndex {
             }
             group.wait()
             DispatchQueue.main.async {
-                self.items = out.map(self.withText); self.elements = els; self.tabsWaiting = waiting.sorted(); self.busy = false
+                self.items = out.map { self.withName(self.withText($0)) }; self.elements = els; self.tabsWaiting = waiting.sorted(); self.busy = false
                 done()
                 if !self.again.isEmpty { let next = self.again; self.again = []; self.refresh { next.forEach { $0() } } }
             }
@@ -474,6 +534,36 @@ final class SSSIndex {
         RunLoop.main.add(t, forMode: .common); warmer = t
     }
     private var warmer: Timer?
+    /// Names given in the bar to windows that can't hold one themselves (Safari's, other apps'): kept while Focus runs.
+    private var nicknames: [String: String] = [:]
+    private static func nickKey(_ i: SSSItem) -> String { i.kind == .tab ? "b:\(i.bundle):\(i.window)" : "w:\(i.pid):\(i.window)" }
+    private func withName(_ i: SSSItem) -> SSSItem {
+        guard i.windowName.isEmpty, let n = nicknames[SSSIndex.nickKey(i)] else { return i }
+        var o = i; o.windowName = n; return o
+    }
+    /// Can this thing's window be named? A tab's window, or a window Focus could tell apart from the others.
+    static func nameable(_ i: SSSItem) -> Bool { (i.kind == .tab && i.window != 0) || (i.kind == .window && i.window != 0) }
+    /// Names the window this thing is in (an empty name takes the name away). Chrome and its family keep it themselves
+    /// (Window ▸ Name Window…, so it shows in Chrome too and lasts); anything else, Focus remembers it.
+    func name(_ i: SSSItem, _ text: String, _ done: @escaping () -> Void = {}) {
+        let name = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard SSSIndex.nameable(i) else { done(); return }
+        if i.kind == .tab, SSSIndex.chromium.contains(i.bundle) {
+            let q = name.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+            work.async {
+                _ = SSSIndex.script("tell application id \"\(i.bundle)\" to set given name of (first window whose id is \(i.window)) to \"\(q)\"")
+                DispatchQueue.main.async { self.refresh(done) }
+            }
+        } else {
+            nicknames[SSSIndex.nickKey(i)] = name.isEmpty ? nil : name
+            items = items.map { $0.kind == i.kind && SSSIndex.nickKey($0) == SSSIndex.nickKey(i) ? { var o = $0; o.windowName = name; return o }($0) : $0 }
+            done()
+        }
+    }
+    /// The tabs in the window this thing is in, for a suggested name.
+    func windowTabs(_ i: SSSItem) -> [SSSItem] {
+        i.kind == .tab ? items.filter { $0.kind == .tab && $0.bundle == i.bundle && $0.window == i.window } : [i]
+    }
     private static func key(_ i: SSSItem) -> String { i.kind == .tab ? "t|" + i.url : "w|\(i.pid)|\(i.title)" }
     private func withText(_ i: SSSItem) -> SSSItem {
         guard let t = inside[SSSIndex.key(i)], !i.secret else { return i }
@@ -760,7 +850,7 @@ struct SSSLook {
 }
 
 final class SSSModel: ObservableObject {
-    @Published var query = "" { didSet { if query != oldValue {
+    @Published var query = "" { didSet { if query != oldValue, naming == nil {
         update(reset: true); if Date().timeIntervalSince(loaded) > 4 { reload() }       // typing after a pause re-reads what's open
         // What it has found shows as you type, the best guess chosen (his call, 2026-11-18: with nothing on screen
         // until Tab it looked dead — "Started working AFTER I pressed tab… Fix that"). Nothing typed: just the bar.
@@ -782,6 +872,11 @@ final class SSSModel: ObservableObject {
     @Published var shakes = 0                                   // Return with nothing to find: the bar shakes its head
     @Published var focus = 0                                    // bumped to put the caret back in the field
     @Published var tick = 0
+    /// Naming a window (⌘R): the field holds the name instead of a search. Return gives it; Esc goes back.
+    @Published var naming: SSSItem?
+    @Published var fill = 0                                     // bumped to put the model's text into the field, chosen
+    private var before = ""
+    var onName: (SSSItem, String) -> Void = { i, n in SSSIndex.shared.name(i, n) }
     var limit = 6
     var emptyGoes = true                                        // nothing typed + Return: the window used before this one
     var onPick: (SSSItem) -> Void = { _ in }
@@ -827,7 +922,26 @@ final class SSSModel: ObservableObject {
         if selected == 0 { expanded = false; return }
         moved = true; selected -= 1
     }
+    func startNaming() {
+        guard naming == nil, results.indices.contains(selected), SSSIndex.nameable(results[selected]) else { withAnimation(.linear(duration: 0.38)) { shakes += 1 }; return }
+        let item = results[selected]
+        before = query; expanded = false
+        naming = item
+        query = item.windowName.isEmpty ? SSSRank.suggestName(SSSIndex.shared.windowTabs(item)) : item.windowName
+        fill &+= 1
+    }
+    func stopNaming(keep: Bool) {
+        guard let item = naming else { return }
+        let name = query
+        naming = nil
+        if keep { onName(item, name); flog("SSS: named a window (\(name.count) letters)") }
+        query = before; fill &+= 1; update(reset: false); tick &+= 1
+        if keep { DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.update(reset: false); self?.tick &+= 1 } }
+    }
+    /// Esc: back out of naming; otherwise, away.
+    func escape() { if naming != nil { stopNaming(keep: false) } else { onCancel() } }
     func submit() {
+        if naming != nil { stopNaming(keep: true); return }
         let empty = query.trimmingCharacters(in: .whitespaces).isEmpty
         flog("SSS: Return — \(query.count) letters typed, \(results.count) results, \(SSSIndex.shared.items.count) things known, list \(expanded ? "open" : "shut")")
         if results.indices.contains(selected), !(empty && !emptyGoes && !open) { onPick(results[selected]) }
@@ -867,6 +981,10 @@ struct SSSField: NSViewRepresentable {
     func updateNSView(_ f: NSTextField, context: Context) {
         if f.stringValue != s.query, f.currentEditor() == nil || s.query.isEmpty { f.stringValue = s.query }   // never over what is being typed
         f.textColor = ink
+        if context.coordinator.fill != s.fill {                         // the model's own text (a suggested name), chosen so typing replaces it
+            context.coordinator.fill = s.fill; f.stringValue = s.query
+            DispatchQueue.main.async { f.window?.makeFirstResponder(f); f.currentEditor()?.selectAll(nil) }
+        }
         if context.coordinator.focus != s.focus {
             context.coordinator.focus = s.focus
             DispatchQueue.main.async { f.window?.makeFirstResponder(f); context.coordinator.plain(f, ink) }
@@ -874,7 +992,7 @@ struct SSSField: NSViewRepresentable {
     }
     static func dismantleNSView(_ f: NSTextField, coordinator: Keys) { coordinator.unwatch() }
     final class Keys: NSObject, NSTextFieldDelegate {
-        let s: SSSModel; var focus = -1
+        let s: SSSModel; var focus = -1, fill = 0
         private var monitor: Any?, lastReturn = Date.distantPast
         init(_ s: SSSModel) { self.s = s }
         /// A search box is not prose: no autocorrect, no completions, no predictions changing what was typed.
@@ -907,10 +1025,12 @@ struct SSSField: NSViewRepresentable {
                 case kVK_Return, kVK_ANSI_KeypadEnter:
                     if composing { flog("SSS: Return finished a word being composed by the keyboard's input method; press it again to go"); return e }
                     self.go("the key", f); return nil
+                case kVK_Tab where !composing && self.s.naming != nil: return nil
                 case kVK_Tab where !composing: self.s.tab(e.modifierFlags.contains(.shift) ? -1 : 1); return nil
                 case kVK_DownArrow where !composing: self.s.down(); return nil
                 case kVK_UpArrow where !composing: self.s.up(); return nil
-                case kVK_Escape where !composing: self.s.onCancel(); return nil
+                case kVK_Escape where !composing: self.s.escape(); return nil
+                case kVK_ANSI_R where !composing && e.modifierFlags.intersection([.command, .shift, .option, .control]) == .command: self.s.startNaming(); return nil
                 default: return e
                 }
             }
@@ -931,7 +1051,7 @@ struct SSSField: NSViewRepresentable {
             case #selector(NSResponder.moveUp(_:)): s.up(); return true
             case #selector(NSResponder.insertNewline(_:)), #selector(NSResponder.insertLineBreak(_:)), #selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)):
                 go("the text system", control as? NSTextField); return true
-            case #selector(NSResponder.cancelOperation(_:)): s.onCancel(); return true
+            case #selector(NSResponder.cancelOperation(_:)): s.escape(); return true
             default: return false
             }
         }
@@ -1045,21 +1165,27 @@ struct SSSIsland: View {
         let look = SSSLook.bar, typed = !s.query.trimmingCharacters(in: .whitespaces).isEmpty
         let wide = typed || s.ready, asking = wide && s.query.isEmpty
         let askWidth = (SSSIsland.ask as NSString).size(withAttributes: [.font: sssFont(15)]).width + 10
-        let item = typed && s.results.indices.contains(s.selected) ? s.results[s.selected] : nil
+        let naming = s.naming
+        let item = naming == nil && typed && s.results.indices.contains(s.selected) ? s.results[s.selected] : nil
         let textWidth = min(120, max(44, (s.query as NSString).size(withAttributes: [.font: sssFont(22)]).width + 16))
         HStack(spacing: wide ? 11 : 0) {
-            SSSLens(level: s.level, height: 26, ink: look.ink).opacity(typed && item == nil ? 0.4 : 1)
-            SSSField(s: s, ink: look.nsInk).frame(width: !wide ? 0.5 : asking ? askWidth : item == nil ? SSSIsland.typing - 110 : textWidth, height: 30).opacity(wide ? 1 : 0)   // there from the start (it takes the first key), unseen until the pill opens
+            SSSLens(level: s.level, height: 26, ink: look.ink).opacity(typed && item == nil && naming == nil ? 0.4 : 1)
+            SSSField(s: s, ink: look.nsInk).frame(width: !wide ? 0.5 : naming != nil ? SSSIsland.full - 160 : asking ? askWidth : item == nil ? SSSIsland.typing - 110 : textWidth, height: 30).opacity(wide ? 1 : 0)   // there from the start (it takes the first key), unseen until the pill opens
                 .overlay(alignment: .leading) {
                     if asking { Text(SSSIsland.ask).font(Font(sssFont(15))).foregroundColor(look.muted).lineLimit(1).fixedSize().padding(.leading, 3).allowsHitTesting(false).transition(.opacity) }
                 }
+            if let naming {                                                    // naming its window: the name, whose window, and Return
+                Image(nsImage: s.icon(naming.path)).resizable().interpolation(.high).frame(width: 24, height: 24)
+                Image(systemName: "return").font(.system(size: 12, weight: .medium)).foregroundColor(look.muted)
+            }
             if let item {
                 Rectangle().fill(Site.hex(0x3A3A3A)).frame(width: 1, height: 28)
                 HStack(spacing: 11) {
                     Image(nsImage: s.icon(item.path)).resizable().interpolation(.high).frame(width: 30, height: 30)
                     VStack(alignment: .leading, spacing: 1) {
                         SSSTitle(text: item.title, query: s.query, on: true, look: look)
-                        Text(s.apart[item.id] ?? SSSRank.snippet(s.query, item) ?? (item.kind == .tab && !item.host.isEmpty ? item.host : item.app))
+                        let place = item.kind == .tab && !item.host.isEmpty ? item.host : item.app
+                        Text(s.apart[item.id] ?? SSSRank.snippet(s.query, item) ?? (item.windowSummary.isEmpty ? place : item.windowSummary + " · " + place))
                             .font(Site.font(13)).foregroundColor(look.muted).lineLimit(1)
                     }
                 }
@@ -1078,13 +1204,14 @@ struct SSSIsland: View {
             }
         }
         .padding(.leading, wide ? 20 : 0).padding(.trailing, wide ? 16 : 0)
-        .frame(width: !wide ? SSSIsland.idle : asking ? askWidth + 110 : item == nil ? SSSIsland.typing : SSSIsland.full, height: SSSIsland.height, alignment: wide ? .leading : .center)
+        .frame(width: !wide ? SSSIsland.idle : naming != nil ? SSSIsland.full : asking ? askWidth + 110 : item == nil ? SSSIsland.typing : SSSIsland.full, height: SSSIsland.height, alignment: wide ? .leading : .center)
         .background(Capsule().fill(Color.black))
         .overlay(Capsule().stroke(look.edge, lineWidth: 1))
         .clipShape(Capsule())
         .modifier(SSSShake(animatableData: CGFloat(s.shakes)))
         .animation(.spring(response: 0.42, dampingFraction: 0.66), value: wide)
         .animation(.spring(response: 0.42, dampingFraction: 0.66), value: asking)
+        .animation(.spring(response: 0.42, dampingFraction: 0.66), value: naming?.id)
         .animation(.spring(response: 0.42, dampingFraction: 0.66), value: item?.id)
     }
 }
@@ -1299,6 +1426,7 @@ func renderSSS(to file: String) -> NSBitmapImageRep? {
     } else { SSSIndex.shared.refresh() }
     s.query = renderArgs.first { $0.hasPrefix("query=") }.map { String($0.dropFirst(6)) } ?? ""
     s.update(reset: true); s.shown = true; s.ready = !renderArgs.contains("mark"); if renderArgs.contains("open") { s.open = true; s.expanded = true }
+    if renderArgs.contains("naming") { s.startNaming() }
     let size = NSSize(width: SSSController.width + 100, height: SSSStage.pillCentre + SSSIsland.height / 2 + SSSStage.gap + CGFloat(s.limit) * 44 + 104)
     let view = SSSStage(s: s).padding(.top, 20)
         .background(Site.hex(0x4A4A4A))                                         // a mid grey stands in for the desktop behind
@@ -1463,6 +1591,32 @@ func sssSelfTest() -> Int32 {
     let pick = SSSRank.search("paradox", in: three).map(\.id), phrase = SSSRank.search("paradox lockup", in: three).first?.id ?? ""
     check(224, "SSS: of things that all say the word, the one most about it comes first", pick.first == "brand" && pick.count == 3 && phrase == "brand",
           "paradox → \(pick); paradox lockup → \(phrase)")
+    // A window's name: suggested as "Summary | Tab | Tab…", found by search, given with ⌘R.
+    func ctab(_ n: Int, _ title: String, _ url: String) -> SSSItem {
+        SSSItem(id: "c:\(n)", kind: .tab, title: title, app: "Google Chrome", bundle: "com.google.Chrome", pid: 1, path: "/", url: url, window: 7, tab: n, order: n)
+    }
+    let brandTabs = [ctab(1, "Brand · ★★★★★ × PARADOX", "https://paradoxica.uk/brand"), ctab(2, "Shop · PARADOX", "https://paradoxica.uk/shop"),
+                     ctab(3, "PARADOX Designer", "https://claude.ai/x"), ctab(4, "Lockup — PARADOX", "https://paradoxica.uk/lockup"),
+                     ctab(5, "Colours · PARADOX", "https://paradoxica.uk/c"), ctab(6, "Type · PARADOX", "https://paradoxica.uk/t"), ctab(7, "Icons · PARADOX", "https://paradoxica.uk/i")]
+    let mixed = [ctab(1, "Pull requests · Labern/Clean", "https://github.com/Labern/Clean/pulls"), ctab(2, "Invoice INV-2041 – Stripe Dashboard", "https://dashboard.stripe.com/x")]
+    let n1 = SSSRank.suggestName(brandTabs), n2 = SSSRank.suggestName(mixed)
+    let parts = n1.components(separatedBy: " | ")
+    check(225, "SSS: a window's suggested name is a short summary, then each tab, five at most", parts.first == "PARADOX" && parts.count == 7 && parts[1] == "Brand" && parts[3] == "Designer" && parts.last == "+2" && n2 == "Github & Stripe | Pull requests | Invoice INV-2041",
+          "\(n1) · \(n2)")
+    var namedDesk = desk.filter { $0.kind != .tab }
+    namedDesk += brandTabs.prefix(2).map { var t = $0; t.windowName = "Clients | Brand | Shop"; return t }
+    namedDesk.append(ctab(9, "Weather", "https://bbc.co.uk/weather"))
+    let byWindow = SSSRank.search("clients", in: namedDesk).map(\.id), byTab = SSSRank.search("shop", in: namedDesk).first?.id ?? ""
+    check(226, "SSS: a window's name finds its tabs; a tab's own name still wins", Set(byWindow) == ["c:1", "c:2"] && byTab == "c:2", "clients → \(byWindow); shop → \(byTab)")
+    SSSIndex.fixture = brandTabs; SSSIndex.shared.refresh()
+    let nm = SSSModel(); var given: [String] = []; nm.onName = { i, n in given.append("\(i.window):\(n)") }
+    nm.query = "lockup"; let lockupFirst = nm.results.first?.id == "c:4"
+    nm.startNaming(); let suggested = nm.query, frozen = nm.results.first?.id == "c:4"
+    nm.query = "Brand work"; nm.submit(); let back = nm.query == "lockup" && nm.naming == nil
+    nm.startNaming(); nm.query = "never"; nm.escape(); let cancelled = given.count == 1 && nm.naming == nil && nm.query == "lockup"
+    check(227, "SSS: ⌘R names the chosen thing's window (Return gives it, Esc backs out)", lockupFirst && suggested == n1 && frozen && back && cancelled && given == ["7:Brand work"],
+          "suggested “\(suggested)”; given \(given)")
+    SSSIndex.fixture = desk; SSSIndex.shared.refresh()
     let menuMark = SSSGlyph.image()
     check(217, "SSS: its mark draws for the menu", menuMark.isTemplate && menuMark.size.width > menuMark.size.height, "\(Int(menuMark.size.width)) × \(Int(menuMark.size.height))")
     SSSIndex.fixture = nil
@@ -1518,6 +1672,8 @@ func sssGo(_ query: String, log: String) -> Never {
     let read = SSSIndex.shared.items
     say(SSSIndex.shared.lastRead)
     say("contents: \(read.filter { $0.kind == .tab && !$0.text.isEmpty }.count) of \(read.filter { $0.kind == .tab }.count) tabs read, \(read.filter { $0.kind == .window && !$0.text.isEmpty }.count) windows read, \(read.reduce(0) { $0 + $1.text.count } / 1000) thousand letters; page reading off in: \(SSSIndex.shared.scriptOff)")
+    let windows = Dictionary(grouping: read.filter { $0.kind == .tab }, by: { "\($0.bundle):\($0.window)" }).values
+    say("window names it would suggest (nothing is named): " + windows.map { w in (w[0].windowName.isEmpty ? "" : "[named “\(w[0].windowName)”] ") + SSSRank.suggestName(w) }.joined(separator: "  //  "))
     let found = SSSRank.search(query, in: read)
     say("“\(query)” → \(found.count) results; top: " + found.prefix(5).map { "[\($0.kind)] \($0.title.prefix(40)) (about \(Int(SSSRank.about([query.lowercased()], query.lowercased(), $0)))) · \($0.host) · w\($0.window) t\($0.tab)" }.joined(separator: " | "))
     if let top = found.first, !CommandLine.arguments.contains("--dry") {

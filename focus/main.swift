@@ -822,10 +822,12 @@ final class ColumnHeader: NSView {
         super.init(frame: NSRect(x: 0, y: 0, width: menuWidth, height: theme.headingSize + 11)); autoresizingMask = [.width]
         toolTip = "Ticked apps are in the session. Click an app to put it in or take it out."
     }
+    /// The list's name. Out of a session nothing is "in session" yet: it's a choice from what's open.
+    var title = "Apps in Session" { didSet { needsDisplay = true } }
     required init?(coder: NSCoder) { nil }
     override func draw(_ r: NSRect) {
         let a = Heading.attrs
-        ("Apps in Session" as NSString).draw(at: NSPoint(x: 14, y: 4), withAttributes: a)
+        (title as NSString).draw(at: NSPoint(x: 14, y: 4), withAttributes: a)
         let u = "Usage" as NSString
         u.draw(at: NSPoint(x: bounds.width - 42 - u.size(withAttributes: a).width, y: 4), withAttributes: a)   // over the memory
     }
@@ -1582,12 +1584,19 @@ final class Focus: NSObject, NSMenuDelegate {
             if store.string(forKey: "iconStyle") == "lens" { store.set("site", forKey: "iconStyle") }
         }
         if store == .standard { iconStyle = iconStyleSetting }     // the real Focus draws the user's chosen design everywhere
-        if store == .standard {                                 // Counter shows how many apps are open: keep it current
-            for n in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
-                ws.notificationCenter.addObserver(forName: n, object: nil, queue: .main) { [weak self] _ in self?.countApps() }
+        // An app opened, quit, shown or came forward. Counter shows how many are open: keep it current. And an app the
+        // session closed that you've opened again is back in the session (adoptOpened).
+        for n in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification,
+                  NSWorkspace.didActivateApplicationNotification, NSWorkspace.didUnhideApplicationNotification] {
+            ws.notificationCenter.addObserver(forName: n, object: nil, queue: .main) { [weak self] note in
+                guard let self else { return }
+                if n == NSWorkspace.didTerminateApplicationNotification,
+                   let id = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier, self.isParked(id) { self.goneAt[id] = Date() }
+                if self.store == .standard { self.countApps() }
+                if self.adoptOpened(), self.store == .standard { desktop.model?.refresh() }
             }
-            countApps()
         }
+        if store == .standard { countApps() }
         setIcon(glyph(focused: focused))
         pruneSnapshots()
         if store == .standard && logoCustom { DispatchQueue.main.async { self.applyLogo() } }
@@ -1630,6 +1639,7 @@ final class Focus: NSObject, NSMenuDelegate {
         pill.play(start: true, icons: out.compactMap { $0.bundleURL.map { ws.icon(forFile: $0.path) } }, target: iconPoint, label: name ?? "Focus", hold: animSpeed.hold)
         // What defines a session is what you KEEP (Unreal + Claude = game design); the parked list is just what to bring back.
         let parkedIDs = Set(out.compactMap(\.bundleIdentifier))
+        for id in parkedIDs { tuckedAt[id] = Date(); goneAt[id] = nil }
         let keptNow = ws.runningApplications.filter { $0.activationPolicy == .regular && !system($0) && !parkedIDs.contains($0.bundleIdentifier ?? "") && !neverClose.contains($0.bundleIdentifier ?? "") }
         let keptIDs = keep.map { Array($0) } ?? keptNow.compactMap(\.bundleIdentifier)
         var record: Session = ["date": Date(), "kept": keptIDs, "apps": out.compactMap { a in a.bundleURL.map { ["path": $0.path, "id": a.bundleIdentifier ?? "", "hidden": a.isHidden, "pid": Int(a.processIdentifier)] as [String: Any] } }]
@@ -1644,9 +1654,9 @@ final class Focus: NSObject, NSMenuDelegate {
         focused = true
         let go = { [self] in
             guard generation == gen, focused else { return }     // ended (or restarted) before the snapshot finished
-            if !quit { out.forEach { $0.hide() }; return }
+            if !quit { out.forEach(tuck); return }
             let hide = Set(hideOnly)                              // these stay exactly as they are: hidden, never quit
-            out.filter { hide.contains($0.bundleIdentifier ?? "") }.forEach { $0.hide() }
+            out.filter { hide.contains($0.bundleIdentifier ?? "") }.forEach(tuck)
             let toQuit = out.filter { !hide.contains($0.bundleIdentifier ?? "") }
             if fastSwitching { return quitAllAtOnce(toQuit) }
             queue = toQuit.sorted { memory($0) > memory($1) }; total = queue.count   // biggest first: memory comes back soonest
@@ -1698,7 +1708,8 @@ final class Focus: NSObject, NSMenuDelegate {
             sessions[0] = s0
         }
         excluded = excluded.filter { $0 != id }; modeKeep?.remove(id)
-        if hideOnly.contains(id) { a.hide(); return }
+        tuckedAt[id] = Date(); goneAt[id] = nil
+        if hideOnly.contains(id) { tuck(a); return }
         if queue.isEmpty { queue = [a]; total = 1; quitNext() } else if !queue.contains(a) { queue.append(a); total += 1 }
     }
     /// One app taken out of, or brought back into, a running session from the menu: the session animation plays for
@@ -1730,6 +1741,62 @@ final class Focus: NSObject, NSMenuDelegate {
     }
     func isEntry(_ e: [String: Any], _ id: String) -> Bool {
         (e["id"] as? String) == id || (e["path"] as? String).flatMap { Bundle(path: $0)?.bundleIdentifier } == id
+    }
+
+    // MARK: an app the session closed that is open again
+
+    /// Where an app the session closed really is. The record says it's out of the session; the Mac may say otherwise.
+    /// `leaving`: being quit right now (or waiting on its save prompt). `away`: gone, or hidden for the session.
+    /// `open`: still on screen under the process Focus parked. `reopened`: running again as a new process.
+    enum ParkedState { case inSession, leaving, away, open, reopened }
+    var goneAt: [String: Date] = [:]                            // when an app the session closed actually quit
+    var tuckedAt: [String: Date] = [:]                          // when Focus last parked or hid it
+    static let selfReopen: TimeInterval = 5                     // back this soon after quitting: a helper did it, not you
+    func tuck(_ a: NSRunningApplication) { if let id = a.bundleIdentifier { tuckedAt[id] = Date() }; a.hide() }
+    func parkedState(_ id: String) -> ParkedState {
+        guard let e = parkedEntries.first(where: { isEntry($0, id) }) else { return .inSession }
+        guard let a = ws.runningApplications.first(where: { $0.bundleIdentifier == id && !$0.isTerminated }) else { return .away }
+        if (queue + waiting).contains(where: { $0.bundleIdentifier == id && !$0.isTerminated }) { return .leaving }
+        if (e["pid"] as? Int) != Int(a.processIdentifier) { return .reopened }
+        return a.isHidden ? .away : .open
+    }
+    /// The few words beside a running app's row that isn't in the session. Never a state that can't end.
+    func parkedNote(_ id: String) -> String {
+        switch parkedState(id) {
+        case .leaving, .open: return "leaving…"
+        case .reopened: return "reopened itself"
+        case .inSession, .away: return ""
+        }
+    }
+    /// An app you open yourself during a session is in the session: its row is ticked, and End Session leaves it as
+    /// it is. Before, it stayed on the closed list while running, and its row said "leaving…" for good. Two things
+    /// are not you opening it: an app back within seconds of being quit (a helper relaunched it: "Reopened by
+    /// itself", unless you're now using it), and an app Focus has only just hidden. True when anything joined.
+    @discardableResult func adoptOpened() -> Bool {
+        guard focused, !clearing, !sessions.isEmpty else { return false }
+        var joined = false
+        for e in parkedEntries {
+            guard let id = (e["id"] as? String).flatMap({ $0.isEmpty ? nil : $0 }) ?? (e["path"] as? String).flatMap({ Bundle(path: $0)?.bundleIdentifier }),
+                  let a = ws.runningApplications.first(where: { $0.bundleIdentifier == id && !$0.isTerminated }), !protected(a) else { continue }
+            switch parkedState(id) {
+            case .reopened:
+                if let born = a.launchDate, let gone = goneAt[id], born.timeIntervalSince(gone) < Self.selfReopen,
+                   !(a.isActive && Date().timeIntervalSince(born) > Self.selfReopen) { continue }
+            case .open:                                         // hidden for the session, and on screen again
+                guard hideMode || hideOnly.contains(id), tuckedAt[id].map({ Date().timeIntervalSince($0) > 3 }) ?? true else { continue }
+            case .inSession, .leaving, .away: continue
+            }
+            var s0 = sessions[0]
+            s0["apps"] = parkedEntries.filter { !isEntry($0, id) }
+            s0["kept"] = (s0["kept"] as? [String] ?? []).filter { $0 != id } + [id]
+            sessions[0] = s0
+            if !excluded.contains(id) { excluded.append(id) }; modeKeep?.insert(id)
+            goneAt[id] = nil; tuckedAt[id] = nil
+            flog("\(a.localizedName ?? id) was opened during the session: it's in the session now")
+            joined = true
+        }
+        if joined { button?.needsDisplay = true }
+        return joined
     }
     @objc func showPrompt(_ s: NSMenuItem) {
         guard let id = s.representedObject as? String, let a = ws.runningApplications.first(where: { $0.bundleIdentifier == id }) else { return }
@@ -2390,12 +2457,16 @@ final class Focus: NSObject, NSMenuDelegate {
         case 1:
             func size(_ id: String) -> UInt64 { ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0 }
             return list.sorted { size($0.0) > size($1.0) }
-        case 2:
-            var uses: [String: Int] = [:]
-            for s in sessions { for id in kept(s) { uses[id, default: 0] += 1 } }
-            return list.sorted { (uses[$0.0] ?? 0, appName($1.1)) > (uses[$1.0] ?? 0, appName($0.1)) }
+        case 2: return byUse(list)
         default: return list
         }
+    }
+    /// Most used first: the apps you've kept open in the most sessions; ties by name. Apps Outside Session is always
+    /// in this order (it used to be the order the apps happened to be launched in, the newest additions last).
+    func byUse(_ list: [(String, String)]) -> [(String, String)] {
+        var uses: [String: Int] = [:]
+        for s in sessions { for id in kept(s) { uses[id, default: 0] += 1 } }
+        return list.sorted { (uses[$0.0] ?? 0, appName($1.1)) > (uses[$1.0] ?? 0, appName($0.1)) }
     }
     func cycleSort() {
         appSort += 1
@@ -2409,6 +2480,9 @@ final class Focus: NSObject, NSMenuDelegate {
         let since = (live["date"] as? Date).map { DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short) }
         return "Focus — \(displayName ?? "in session") (\(n) app\(n == 1 ? "" : "s")" + (since.map { ", since \($0)" } ?? "") + ")"
     }
+    /// The app list's heading, in the menu and the window. "Apps in Session" only while there is one; before that
+    /// it's a choice to make from what's open: "Choose Your Apps for Next Session" (his wording, 2026-11-27).
+    var appsHeading: String { focused ? "Apps in Session" : "Choose Your Apps for Next Session" }
     /// The line under the Start/End button: what pressing it will do. Shared by the menu and the desktop window.
     func sessionCaption() -> String {
         if focused {
@@ -2452,6 +2526,7 @@ final class Focus: NSObject, NSMenuDelegate {
         func view(_ v: NSView, in menu: NSMenu? = nil) { let i = NSMenuItem(); i.view = v; (menu ?? m).addItem(i) }
 
         mem = memoryByPid()
+        adoptOpened()
         let quitRow = QuitRow { [unowned self] in self.bye() }
         quitRow.openApp = { [unowned self] in self.openDesktop() }
         let quit = NSMenuItem(title: "Quit", action: nil, keyEquivalent: ""); quit.view = quitRow
@@ -2467,16 +2542,21 @@ final class Focus: NSObject, NSMenuDelegate {
         // Keep open — this session's picks.
         var running = apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } }
         running = sorted(running)
-        func columns() -> ColumnHeader { let c = ColumnHeader(); c.onUsage = { [unowned self] in self.cycleSort() }; return c }
+        func columns() -> ColumnHeader {
+            let c = ColumnHeader(); c.onUsage = { [unowned self] in self.cycleSort() }; c.title = appsHeading
+            if !focused { c.toolTip = "Tick the apps you want in the next session. Everything else will reopen when the session ends." }
+            return c
+        }
         if focused {
             // In a session the rows ARE the session: ticked = in it, open. Click to take one out now, or put it back.
             view(columns())
             explain("These apps are in your session. Click one to take it out.")
             let stuckIDs = Set(waiting.compactMap(\.bundleIdentifier))
-            for (id, p) in running {
+            let away = Set(running.map(\.0).filter { parkedState($0) == .away })   // hidden for the session: listed below, as closed ones are
+            for (id, p) in running where !away.contains(id) {
                 let size = ws.runningApplications.first { $0.bundleIdentifier == id }.map(memory) ?? 0
                 let parked = isParked(id)
-                let detail = stuckIDs.contains(id) ? "waiting to save" : parked ? "leaving…" : (size > 0 ? gb(size) : "")
+                let detail = stuckIDs.contains(id) ? "waiting to save" : parked ? parkedNote(id) : (size > 0 ? gb(size) : "")
                 let liveRow = AppRow(appName(p), appIcon(p), detail: detail, on: !parked, target: "your session") { [unowned self] in
                     if self.isParked(id) { self.showMove(id, out: false); self.bringBack(id); return true }
                     self.showMove(id, out: true); self.parkNow(id); return false
@@ -2485,14 +2565,14 @@ final class Focus: NSObject, NSMenuDelegate {
             }
             let parkedAway = parkedEntries.compactMap { e -> (String, String)? in
                 guard let p = e["path"] as? String, let id = (e["id"] as? String) ?? Bundle(path: p)?.bundleIdentifier,
-                      !running.contains(where: { $0.0 == id }) else { return nil }
+                      away.contains(id) || !running.contains(where: { $0.0 == id }) else { return nil }
                 return (id, p)
             }
             if !parkedAway.isEmpty {
                 m.addItem(.separator())
                 header("Apps Outside Session")
                 explain("These apps are not in the session right now. Click one to add it to the session.")
-                for (id, p) in parkedAway {
+                for (id, p) in byUse(parkedAway) {
                     view(AppRow(appName(p), appIcon(p), on: false, target: "your session") { [unowned self] in self.showMove(id, out: false); self.bringBack(id); return true })
                 }
             }
@@ -3234,6 +3314,7 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
     t.snapshots = false
     let ws = NSWorkspace.shared, edit = "com.apple.TextEdit", calc = "com.apple.calculator", slow = "com.labern.focus.slowquit"
     let front = ws.frontmostApplication
+    let editWasOpen = ws.runningApplications.contains { $0.bundleIdentifier == edit && !$0.isTerminated }   // yours: left open at the end
     var results: [(String, Bool, String)] = []
     func say(_ s: String) { print("stress:", s); fflush(stdout) }
     func running(_ id: String) -> [NSRunningApplication] { ws.runningApplications.filter { $0.bundleIdentifier == id && !$0.isTerminated } }
@@ -3911,6 +3992,61 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
             }
         } }
     }))
+    steps.append(("49. an app the session closed, opened again by you, joins the session — never stuck on 'leaving…'", { done in
+        launch(edit) {
+            guard scope([edit]) else { return done(false, "scope") }
+            t.park(quit: true)
+            waitUntil(10, { running(edit).isEmpty && t.queue.isEmpty }) { gone in
+                let outside = t.isParked(edit) && t.parkedState(edit) == .away
+                DispatchQueue.main.asyncAfter(deadline: .now() + Focus.selfReopen + 1) {   // later than any helper would relaunch it
+                    launch(edit) {
+                        waitUntil(5, { !t.isParked(edit) }) { joined in
+                            let m = NSMenu(); t.menuNeedsUpdate(m)
+                            let rows = m.items.compactMap { $0.view as? AppRow }.filter { $0.bundleID == edit }
+                            let ticked = rows.count == 1 && rows[0].on && t.parkedNote(edit).isEmpty
+                            let pid = running(edit).first?.processIdentifier
+                            t.toggle()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                let same = running(edit).count == 1 && running(edit).first?.processIdentifier == pid
+                                done(gone && outside && joined && ticked && same && !t.focused,
+                                     "closed, listed outside: \(outside); opened again → in the session: \(joined); its row ticked, no 'leaving…': \(ticked); End leaves the one TextEdit alone: \(same)")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }))
+    steps.append(("50. hide instead of quit: hidden apps are outside the session, not 'leaving…'; showing one brings it in", { done in
+        launch(edit) {
+            guard scope([edit]) else { return done(false, "scope") }
+            t.hideMode = true
+            t.park(quit: false)
+            waitUntil(8, { running(edit).first?.isHidden == true }) { hidden in
+                let m = NSMenu(); t.menuNeedsUpdate(m)
+                let rows = m.items.compactMap { $0.view as? AppRow }.filter { $0.bundleID == edit }
+                let outside = t.parkedState(edit) == .away && rows.isEmpty && t.isParked(edit)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
+                    running(edit).first?.unhide()                 // you bring it forward yourself
+                    waitUntil(6, { !t.isParked(edit) }) { joined in
+                        let note = t.parkedNote(edit)
+                        t.toggle()
+                        done(hidden && outside && joined && note.isEmpty && !t.focused,
+                             "hidden: \(hidden); listed outside, no 'leaving…' row: \(outside); shown again → in the session: \(joined)")
+                    }
+                }
+            }
+        }
+    }))
+    steps.append(("51. the app list is 'Choose Your Apps for Next Session' before a session and 'Apps in Session' only during one (menu and window)", { done in
+        func heading() -> String { let m = NSMenu(); t.menuNeedsUpdate(m); return m.items.compactMap { $0.view as? ColumnHeader }.first?.title ?? "" }
+        let before = heading(), beforeWindow = t.appsHeading
+        t.sessions = [["date": Date(), "apps": [[String: Any]]()]]; t.focused = true
+        let during = heading(), duringWindow = t.appsHeading
+        t.focused = false; t.sessions = []
+        done(before == "Choose Your Apps for Next Session" && beforeWindow == before && during == "Apps in Session" && duringWindow == during,
+             "before: '\(before)'; during: '\(during)'")
+    }))
     steps.append(("16. menu speed with every process on the Mac", { done in
         let t0 = Date(); for _ in 0..<5 { t.menuNeedsUpdate(NSMenu()) }
         let ms = Int(Date().timeIntervalSince(t0) * 1000 / 5)
@@ -3924,7 +4060,8 @@ if CommandLine.arguments.contains(where: { $0.hasPrefix("--selftest-stress") || 
     func run(_ i: Int) {
         guard i < steps.count else {
             say("———"); for (n, ok, note) in results { say("\(ok ? "PASS" : "FAIL")  \(n) — \(note)") }
-            for id in [calc, slow] { running(id).forEach { $0.terminate() } }
+            // Nothing the tests opened stays open: TextEdit used to be left running (and showing) after every run.
+            for id in [calc, slow] + (editWasOpen ? [] : [edit]) { running(id).forEach { $0.terminate() } }
             front?.activate()
             UserDefaults.standard.removePersistentDomain(forName: suite)
             exit(results.allSatisfy { $0.1 } ? 0 : 1)

@@ -429,7 +429,7 @@ final class DesktopModel: ObservableObject {
     func stop() { timer?.invalidate(); timer = nil; lineTimer?.invalidate(); lineTimer = nil }
     private var lineTimer: Timer?
     private var lastCaption = ""
-    func refresh() { f.mem = memoryByPid(); if Site.look == 2, let w = desktop.window { DesktopController.applyLook(to: w) }; tick &+= 1 }
+    func refresh() { f.mem = memoryByPid(); f.adoptOpened(); if Site.look == 2, let w = desktop.window { DesktopController.applyLook(to: w) }; tick &+= 1 }
     /// Do something to the engine, then show it.
     func act(_ change: () -> Void) { change(); tick &+= 1 }
     /// A Pro action: viewing as Basic it opens Upgrade instead; otherwise it does the change.
@@ -479,19 +479,21 @@ final class DesktopModel: ObservableObject {
         let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
         let listed = f.sorted(f.apps().compactMap { a in a.bundleIdentifier.flatMap { id in a.bundleURL.map { (id, $0.path) } } })
         let mine = listed.enumerated().sorted { (rank[$0.element.0] ?? 10_000 + $0.offset) < (rank[$1.element.0] ?? 10_000 + $1.offset) }.map(\.element)
-        return mine.map { id, p in
+        return mine.compactMap { id, p in
             let size = NSWorkspace.shared.runningApplications.first { $0.bundleIdentifier == id }.map(f.memory) ?? 0
             let parked = f.focused && f.isParked(id)
-            return AppLine(id: id, path: p, name: f.appName(p), usage: size > 0 ? gb(size) : "", on: f.focused ? !parked : f.excluded.contains(id), note: parked ? "leaving…" : "", bytes: size)
+            if parked && f.parkedState(id) == .away { return nil }     // hidden for the session: it's under Apps Outside Session
+            return AppLine(id: id, path: p, name: f.appName(p), usage: size > 0 ? gb(size) : "", on: f.focused ? !parked : f.excluded.contains(id), note: parked ? f.parkedNote(id) : "", bytes: size)
         }
     }
     var outside: [AppLine] {
         guard f.focused else { return [] }
-        let open = Set(f.apps().compactMap(\.bundleIdentifier))
-        return f.parkedEntries.compactMap { e in
+        let open = Set(f.apps().compactMap(\.bundleIdentifier).filter { f.parkedState($0) != .away })
+        let away = f.parkedEntries.compactMap { e -> (String, String)? in
             guard let p = e["path"] as? String, let id = (e["id"] as? String) ?? Bundle(path: p)?.bundleIdentifier, !open.contains(id) else { return nil }
-            return AppLine(id: id, path: p, name: f.appName(p), usage: "", on: false, note: "")
+            return (id, p)
         }
+        return f.byUse(away).map { id, p in AppLine(id: id, path: p, name: f.appName(p), usage: "", on: false, note: "") }   // most used first
     }
     var critical: [AppLine] {
         f.neverClose.compactMap { id in f.path(id).map { AppLine(id: id, path: $0, name: f.appName($0), usage: "", on: true, note: "") } }
@@ -1867,11 +1869,11 @@ struct SessionDetail: View {
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     HStack(alignment: .firstTextBaseline) {
-                        Text("Apps in Session").font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)   // the menu's own headings
+                        Text(f.appsHeading).font(Site.font(26, .medium)).tracking(-0.5).foregroundColor(Site.head)   // the menu's own headings
                     }
                     PanelRule()
                     Text(f.focused ? "These apps are in your session. Click one to take it out."
-                                   : "Tick the apps you want in the session. Everything else closes when the session starts and comes back when it ends.")
+                                   : "Tick the apps you want in the next session. Everything else will reopen when the session ends.")
                         .font(Site.font(17)).foregroundColor(Site.low).fixedSize(horizontal: false, vertical: true)
       // the memory to be saved is shown before a session, never during one
                     SectionLabel("", "Usage", divider: false).padding(.horizontal, -14).padding(.top, f.focused ? 0 : 8)
