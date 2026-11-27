@@ -1,0 +1,80 @@
+◇ Test aCopyIsKeptOnlyWhenSomethingChanged() started.
+✔ Test aCopyIsKeptOnlyWhenSomethingChanged() passed after 0.063 seconds.
+◇ Test anEmptyStoreIsNeverSaved() started.
+✔ Test anEmptyStoreIsNeverSaved() passed after 0.003 seconds.
+◇ Test goingBackKeepsWhatWasThere() started.
+✔ Test goingBackKeepsWhatWasThere() passed after 0.111 seconds.
+◇ Test oldCopiesThinOutButTheNewestAlwaysStays() started.
+✔ Test oldCopiesThinOutButTheNewestAlwaysStays() passed after 0.001 seconds.
+◇ Test aNearlyEmptyStoreCannotPushOutTheFullCopy() started.
+✔ Test aNearlyEmptyStoreCannotPushOutTheFullCopy() passed after 0.001 seconds.
+◇ Test settingsAreKeptButNotClocksOrCaches() started.
+✔ Test settingsAreKeptButNotClocksOrCaches() passed after 0.005 seconds.
+◇ Test theIconWornBeforeAReinstallGoesBackOn() started.
+✔ Test theIconWornBeforeAReinstallGoesBackOn() passed after 0.001 seconds.
+✔ Suite VaultTests passed after 0.187 seconds.
+◇ Suite TwinkleTests started.
+◇ Test eachStarDimsInTurnAndComesBack() started.
+✔ Test eachStarDimsInTurnAndComesBack() passed after 0.001 seconds.
+◇ Test theStarsCompleteTheCircleAndThenTurn() started.
+✔ Test theStarsCompleteTheCircleAndThenTurn() passed after 0.001 seconds.
+◇ Test theCellsCoverTheStarsAndNothingElse() started.
+✔ Test theCellsCoverTheStarsAndNothingElse() passed after 0.001 seconds.
+✔ Suite TwinkleTests passed after 0.001 seconds.
+◇ Suite NoteMarkupTests started.
+◇ Test linesAreHeadingsBulletsOrPlain() started.
+✔ Test linesAreHeadingsBulletsOrPlain() passed after 0.027 seconds.
+◇ Test linksAreFoundWrittenOrBare() started.
+✔ Test linksAreFoundWrittenOrBare() passed after 0.027 seconds.
+◇ Test boldAndItalicAreFoundAndSnakeCaseIsLeftAlone() started.
+✔ Test boldAndItalicAreFoundAndSnakeCaseIsLeftAlone() passed after 0.001 seconds.
+◇ Test aTitleIsItsWordsAlone() started.
+✔ Test aTitleIsItsWordsAlone() passed after 0.001 seconds.
+◇ Test returnCarriesAListOnAndAnEmptyBulletEndsIt() started.
+✔ Test returnCarriesAListOnAndAnEmptyBulletEndsIt() passed after 0.001 seconds.
+◇ Test aDashAndASpaceBecomeABullet() started.
+✔ Test aDashAndASpaceBecomeABullet() passed after 0.001 seconds.
+◇ Test theBarMovesLinesInAndOut() started.
+✔ Test theBarMovesLinesInAndOut() passed after 0.001 seconds.
+◇ Test theBarCyclesHeadingsAndTogglesBulletsAndLinks() started.
+✔ Test theBarCyclesHeadingsAndTogglesBulletsAndLinks() passed after 0.001 seconds.
+✔ Suite NoteMarkupTests passed after 0.081 seconds.
+◇ Suite SectionTests started.
+◇ Test aPickedColourBecomesItsNumber() started.
+✔ Test aPickedColourBecomesItsNumber() passed after 0.001 seconds.
+✔ Suite SectionTests passed after 0.001 seconds.
+◇ Suite CloudTests started.
+◇ Test firstContactSendsThePhoneUpAndBringsTheServerDown() started.
+✔ Test firstContactSendsThePhoneUpAndBringsTheServerDown() passed after 0.001 seconds.
+◇ Test eachSideKeepsItsOwnChangeToTheSameRow() started.
+✔ Test eachSideKeepsItsOwnChangeToTheSameRow() passed after 0.001 seconds.
+◇ Test whenBothChangedTheSameThingThePhoneLeads() started.
+✔ Test whenBothChangedTheSameThingThePhoneLeads() passed after 0.001 seconds.
+◇ Test aDeleteOnOneSideIsCarriedToTheOther() started.
+✔ Test aDeleteOnOneSideIsCarriedToTheOther() passed after 0.001 seconds.
+◇ Test nothingHappensWhenTheyAgree() started.
+✔ Test nothingHappensWhenTheyAgree() passed after 0.001 seconds.
+◇ Test aPassThatWouldRemoveMostOfASideIsRefused() started.
+✔ Test aPassThatWouldRemoveMostOfASideIsRefused() passed after 0.001 seconds.
+◇ Test timesComeBackAsExactlyTheTextThatWasSent() started.
+✔ Test timesComeBackAsExactlyTheTextThatWasSent() passed after 0.054 seconds.
+◇ Test aServerRowIsCutToThePhonesColumns() started.
+✔ Test aServerRowIsCutToThePhonesColumns() passed after 0.001 seconds.
+◇ Test aPhonesRecordsSurviveTheTrip() started.
+✔ Test aPhonesRecordsSurviveTheTrip() passed after 0.091 seconds.
+◇ Test aNewPhotoIsSentAndAKnownOneIsNot() started.
+✔ Test aNewPhotoIsSentAndAKnownOneIsNot() passed after 0.001 seconds.
+◇ Test theServersOwnListIsAdoptedNotDoubled() started.
+✔ Test theServersOwnListIsAdoptedNotDoubled() passed after 0.039 seconds.
+✔ Suite CloudTests passed after 0.196 seconds.
+✔ Test run with 146 tests in 26 suites passed after 2.597 seconds.
+2026-11-27 02:24:19.472 xcodebuild[1509:8076] [MT] IDETestOperationsObserverDebug: 189.894 elapsed -- Testing started completed.
+2026-11-27 02:24:19.472 xcodebuild[1509:8076] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-11-27 02:24:19.472 xcodebuild[1509:8076] [MT] IDETestOperationsObserverDebug: 189.894 sec, +189.894 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/runner/work/Clean/Clean/paradox-hq/ios/DerivedData/Logs/Test/Test-ParadoxHQ-2026.11.27_02-19-46-+0000.xcresult
+
+** TEST SUCCEEDED **
+
+Testing started

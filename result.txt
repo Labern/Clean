@@ -1,0 +1,200 @@
+◇ Test run started.
+✔ Test run with 146 tests in 26 suites passed after 2.597 seconds.
+** TEST SUCCEEDED **
+2026-11-27 02:24:07.578209+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Failed to stat path '/Users/runner/Library/Developer/CoreSimulator/Devices/6478AFFB-AE17-412A-A1E5-51BCFFD300B6/data/Containers/Data/Application/05AF0F37-3E70-4BD1-BB94-A0AB84928B32/Library/Application Support/default.store', errno 2 / No such file or directory.
+2026-11-27 02:24:07.578453+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.578539+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create denied
+2026-11-27 02:24:07.578602+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Failed to statfs file; errno 2 / No such file or directory.
+2026-11-27 02:24:07.589236+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for file system
+2026-11-27 02:24:07.589453+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.589612+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File system type: 		0
+2026-11-27 02:24:07.589712+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File system flags: 		0
+2026-11-27 02:24:07.589773+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Total data blocks: 		0
+2026-11-27 02:24:07.589828+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Free data blocks: 		0
+2026-11-27 02:24:07.692617+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Free blocks for nonsuperuser:	0
+2026-11-27 02:24:07.692878+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Total i-nodes: 			0
+2026-11-27 02:24:07.692989+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File system ID: 		0, 0
+2026-11-27 02:24:07.693136+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Free i-nodes: 			0
+2026-11-27 02:24:07.693224+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Owner UID: 			0
+2026-11-27 02:24:07.693286+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Filesystem type name:
+2026-11-27 02:24:07.693339+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Mount on name:
+2026-11-27 02:24:07.693388+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Mount from name:
+2026-11-27 02:24:07.694771+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Failed to stat path '/Users/runner/Library/Developer/CoreSimulator/Devices/6478AFFB-AE17-412A-A1E5-51BCFFD300B6/data/Containers/Data/Application/05AF0F37-3E70-4BD1-BB94-A0AB84928B32/Library/Application Support', errno 2 / No such file or directory.
+2026-11-27 02:24:07.694891+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.694989+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create denied
+2026-11-27 02:24:07.695419+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Failed to statfs file; errno 2 / No such file or directory.
+2026-11-27 02:24:07.695507+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for file system
+2026-11-27 02:24:07.695567+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.695674+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File system type: 		0
+2026-11-27 02:24:07.695734+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File system flags: 		0
+2026-11-27 02:24:07.695789+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Total data blocks: 		0
+2026-11-27 02:24:07.695840+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Free data blocks: 		0
+2026-11-27 02:24:07.696294+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Free blocks for nonsuperuser:	0
+2026-11-27 02:24:07.696361+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Total i-nodes: 			0
+2026-11-27 02:24:07.696420+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File system ID: 		0, 0
+2026-11-27 02:24:07.696479+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Free i-nodes: 			0
+2026-11-27 02:24:07.696534+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Owner UID: 			0
+2026-11-27 02:24:07.696582+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Filesystem type name:
+2026-11-27 02:24:07.696649+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Mount on name:
+2026-11-27 02:24:07.697391+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Mount from name:
+2026-11-27 02:24:07.697554+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.697631+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer/CoreSimulator/Devices/6478AFFB-AE17-412A-A1E5-51BCFFD300B6/data/Containers/Data/Application/05AF0F37-3E70-4BD1-BB94-A0AB84928B32/Library
+2026-11-27 02:24:07.697711+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.697759+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.698474+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.698540+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		128 bytes
+2026-11-27 02:24:07.698652+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		3099639
+2026-11-27 02:24:07.698737+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.698804+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.698864+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.698921+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.699439+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   755
+2026-11-27 02:24:07.699504+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.699701+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.699792+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for file system
+2026-11-27 02:24:07.699976+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.700110+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File system type: 		0x1a
+2026-11-27 02:24:07.700173+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File system flags: 		0x4909000
+2026-11-27 02:24:07.700270+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   MNT_JOURNALED
+2026-11-27 02:24:07.700321+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Total data blocks: 		83758080
+2026-11-27 02:24:07.700375+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Free data blocks: 		24605566
+2026-11-27 02:24:07.700444+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Free blocks for nonsuperuser:	24605566
+2026-11-27 02:24:07.700516+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Total i-nodes: 			986141135
+2026-11-27 02:24:07.700579+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File system ID: 		0x100000d, 0x1a
+2026-11-27 02:24:07.701111+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Free i-nodes: 			984222640
+2026-11-27 02:24:07.701186+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Owner UID: 			0
+2026-11-27 02:24:07.701308+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Filesystem type name: 		apfs
+2026-11-27 02:24:07.701370+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Mount on name: 			/System/Volumes/Data
+2026-11-27 02:24:07.701421+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Mount from name: 		/dev/disk2s5
+2026-11-27 02:24:07.701524+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.701579+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer/CoreSimulator/Devices/6478AFFB-AE17-412A-A1E5-51BCFFD300B6/data/Containers/Data/Application/05AF0F37-3E70-4BD1-BB94-A0AB84928B32
+2026-11-27 02:24:07.701976+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.702034+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.702081+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.702143+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		224 bytes
+2026-11-27 02:24:07.702204+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		3099637
+2026-11-27 02:24:07.702437+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.702503+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.702563+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.702618+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.702671+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   755
+2026-11-27 02:24:07.702855+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.703010+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.703336+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.703407+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer/CoreSimulator/Devices/6478AFFB-AE17-412A-A1E5-51BCFFD300B6/data/Containers/Data/Application
+2026-11-27 02:24:07.703465+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.703563+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.703631+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.703687+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		4768 bytes
+2026-11-27 02:24:07.704460+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		3089022
+2026-11-27 02:24:07.704520+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.704570+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.704618+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.704829+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.704959+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   755
+2026-11-27 02:24:07.705121+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.705882+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.706221+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.706426+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer/CoreSimulator/Devices/6478AFFB-AE17-412A-A1E5-51BCFFD300B6/data/Containers/Data
+2026-11-27 02:24:07.706592+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.706768+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.707149+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.707243+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		192 bytes
+2026-11-27 02:24:07.707442+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		3088866
+2026-11-27 02:24:07.707655+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.707842+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.708013+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.708149+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.708262+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   755
+2026-11-27 02:24:07.708933+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.709716+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.709976+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.710086+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer/CoreSimulator/Devices/6478AFFB-AE17-412A-A1E5-51BCFFD300B6/data/Containers
+2026-11-27 02:24:07.710166+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.710801+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.710898+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.711213+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		224 bytes
+2026-11-27 02:24:07.711511+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		3088838
+2026-11-27 02:24:07.711713+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.711829+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.711905+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.712038+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.713625+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   755
+2026-11-27 02:24:07.713811+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.714094+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.714307+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.714453+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer/CoreSimulator/Devices/6478AFFB-AE17-412A-A1E5-51BCFFD300B6/data
+2026-11-27 02:24:07.714594+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.716226+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.716492+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.716584+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		384 bytes
+2026-11-27 02:24:07.716676+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		2387078
+2026-11-27 02:24:07.716732+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.716780+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.716829+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.717344+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.717405+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   775
+2026-11-27 02:24:07.717476+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.717602+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.717732+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.717797+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer/CoreSimulator/Devices/6478AFFB-AE17-412A-A1E5-51BCFFD300B6
+2026-11-27 02:24:07.718969+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.719280+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.719531+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.719786+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		128 bytes
+2026-11-27 02:24:07.720007+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		2387077
+2026-11-27 02:24:07.720140+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.720312+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.721624+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.721810+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.722061+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   755
+2026-11-27 02:24:07.722226+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.722808+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.723151+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.723363+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer/CoreSimulator/Devices
+2026-11-27 02:24:07.726895+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.727161+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.727393+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.727568+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		2016 bytes
+2026-11-27 02:24:07.727735+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		2365125
+2026-11-27 02:24:07.727988+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.728137+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.729893+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.730085+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.730259+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   755
+2026-11-27 02:24:07.730438+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.730888+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.731307+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.731556+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer/CoreSimulator
+2026-11-27 02:24:07.732813+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.732900+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.732963+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.733016+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		160 bytes
+2026-11-27 02:24:07.733070+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		2365096
+2026-11-27 02:24:07.733124+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.733347+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.733418+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.733469+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.733522+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   755
+2026-11-27 02:24:07.733601+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.733713+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.733787+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.733842+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library/Developer
+2026-11-27 02:24:07.734084+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.734155+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.734267+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.734355+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		160 bytes
+2026-11-27 02:24:07.734415+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File inode: 		2365047
+2026-11-27 02:24:07.734628+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File user ID: 		501
+2026-11-27 02:24:07.735050+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File group ID: 		20
+2026-11-27 02:24:07.735122+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Permissions:
+2026-11-27 02:24:07.735176+0000 ParadoxHQ[4330:18299] [error] CoreData: error: d
+2026-11-27 02:24:07.735225+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   755
+2026-11-27 02:24:07.735317+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   file is not a symbolic link
+2026-11-27 02:24:07.735595+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Sandbox access to file-write-create allowed
+2026-11-27 02:24:07.735809+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Executing as effective user 501
+2026-11-27 02:24:07.735937+0000 ParadoxHQ[4330:18299] [error] CoreData: error: Information for /Users/runner/Library
+2026-11-27 02:24:07.736561+0000 ParadoxHQ[4330:18299] [error] CoreData: error: ---------------------------
+2026-11-27 02:24:07.736701+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Device ID: 	0
+2026-11-27 02:24:07.736827+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   Device ID: 		16777229
+2026-11-27 02:24:07.736934+0000 ParadoxHQ[4330:18299] [error] CoreData: error:   File Size: 		2688 bytes

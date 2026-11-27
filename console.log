@@ -1,0 +1,13 @@
+Timestamp               Ty Process[PID:TID]
+2026-11-27 02:29:01.552 F  ParadoxHQ[10652:957e] [com.apple.renderbox:error] building pipeline primitive_coverage-e2ca5dba7feba4 took 0.587870 seconds
+2026-11-27 02:30:03.269 E  ParadoxHQ[12495:a90e] [com.apple.extensionkit:default] Failed to resolve host network app id to config: bundleID: com.apple.WebKit.Networking instance ID: Optional([_EXExtensionInstanceIdentifier: 8621CFF7-E06A-4440-A45C-1E36BA337CEA])
+2026-11-27 02:30:04.216 F  ParadoxHQ[12495:a902] [com.apple.WebKit:Process] GPU process (0x11d1201e0) took 1.477130 seconds to launch
+2026-11-27 02:30:04.368 F  ParadoxHQ[12495:a902] [com.apple.WebKit:Process] Networking process (0x11d154190) took 1.103495 seconds to launch
+2026-11-27 02:30:04.653 E  ParadoxHQ[12495:a902] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access quirks from WebPrivacy.
+2026-11-27 02:30:04.653 E  ParadoxHQ[12495:a902] [com.apple.WebKit:ResourceLoadStatistics] Failed to request known fingerprinting scripts from WebPrivacy: Error Domain=WebPrivacyErrorDomain Code=1001 "List data not found" UserInfo={NSLocalizedDescription=List data not found}
+2026-11-27 02:30:04.653 E  ParadoxHQ[12495:a902] [com.apple.WebKit:ResourceLoadStatistics] Failed to request storage access user agent string quirks from WebPrivacy.
+2026-11-27 02:30:04.974 E  ParadoxHQ[12495:a902] [com.apple.WebKit:ResourceLoadStatistics] Failed to request query parameters from WebPrivacy.
+2026-11-27 02:30:05.090 E  ParadoxHQ[12495:a9bf] [com.apple.WebKit:ResourceLoadStatistics] WebContent[12513] Unable to filter tracking query parameters (missing data)
+2026-11-27 02:30:05.164 E  ParadoxHQ[12495:a9bf] [com.apple.WebKit:ResourceLoadStatistics] WebContent[12513] Unable to hide query parameters from script (missing data)
+2026-11-27 02:30:05.169 E  ParadoxHQ[12495:a902] [com.apple.WebKit:ResourceLoadStatistics] Failed to request allowed query parameters from WebPrivacy.
+2026-11-27 02:30:05.540 E  ParadoxHQ[12495:a902] [com.apple.WebKit:ResourceLoadStatistics] Failed to request restricted opener domains from WebPrivacy
