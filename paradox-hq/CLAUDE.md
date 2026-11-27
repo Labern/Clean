@@ -355,6 +355,12 @@ account is Labern's login address; "Founder & Director" is that account's alone.
   On the phone the photo is a menu: Photo and position, the account's address, Sign out
   (asked once more before it does; the data stays on the phone and stops syncing), or
   Sign in when signed out. Signing out leads straight to the sign-in sheet.
+- **The sign-in is typed once per phone** (Labern, 2026-11-27: "it should clearly save login details so I don't
+  have to"). The address and password of the last sign-in are kept in the Keychain (`cloud-email`,
+  `cloud-password`; this phone only). They fill in `CloudSignIn` after Sign out, and `CloudAccount.token` uses
+  them to sign straight back in when the server refuses the long-lived pass (ended elsewhere), unless Sign out
+  was chosen here (`cloud-signed-out-here`). Only a refusal (400/401/403) ends a sign-in, never a failed
+  connection. Same three rules as the Mac and the site: `Labern/paradoxica-hub` `dash/CONTRACT.md` §7.
 - Sign-in is asked once, by itself, the first time a build that can sync is opened
   (`CloudSignIn`: the mark, Dashboard, two fields); after that Company › Connected to ›
   Dashboard shows the account, "Sync now" and Sign out.

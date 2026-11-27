@@ -119,10 +119,22 @@ nonisolated enum CloudDate {
 // MARK: - Signing in
 
 /// Who is signed in, and the pass that proves it. The pass lasts an hour and is
-/// renewed with a longer-lived one kept in the Keychain; the password is never kept.
+/// renewed with a longer-lived one kept in the Keychain. The address and password
+/// last signed in with are kept there too (this phone only, never in a backup), so
+/// the sign-in page is typed into once: they fill it in, and bring the sign-in
+/// straight back if it was ended somewhere else.
 actor CloudAccount {
     nonisolated static let renewalKey = "cloud-renewal"
     nonisolated static let emailKey = "cloud-email"
+    nonisolated static let passwordKey = "cloud-password"
+    /// True once Sign out has been chosen on this phone, until the next sign-in.
+    nonisolated static let leftKey = "cloud-signed-out-here"
+
+    /// What the sign-in page is filled in with.
+    nonisolated var remembered: (email: String, password: String)? {
+        guard let email = Keychain.get(Self.emailKey), let password = Keychain.get(Self.passwordKey) else { return nil }
+        return (email, password)
+    }
 
     struct Pass: Codable, Sendable {
         var access_token: String
@@ -144,6 +156,9 @@ actor CloudAccount {
 
     func signIn(email: String, password: String) async throws {
         try await take(grant: "password", body: ["email": email, "password": password])
+        Keychain.set(email, for: Self.emailKey)
+        Keychain.set(password, for: Self.passwordKey)
+        UserDefaults.standard.set(false, forKey: Self.leftKey)
     }
 
     /// Makes the account. Only an address the server has been told to allow gets one.
@@ -160,9 +175,11 @@ actor CloudAccount {
         try await signIn(email: email, password: password)
     }
 
-    func signOut() {
+    /// Ends the sign-in on this phone. The address and password stay for the sign-in
+    /// page; `byHand` (Sign out was chosen) stops them being used without being asked.
+    func signOut(byHand: Bool = true) {
         Keychain.delete(Self.renewalKey)
-        Keychain.delete(Self.emailKey)
+        if byHand { UserDefaults.standard.set(true, forKey: Self.leftKey) }
         access = nil
         userID = nil
         expires = .distantPast
@@ -175,9 +192,19 @@ actor CloudAccount {
         do {
             try await take(grant: "refresh_token", body: ["refresh_token": renewal])
         } catch let error as CloudError where error.code == 400 || error.code == 401 || error.code == 403 {
-            // The long-lived pass was refused: it has been used elsewhere or revoked. Sign in again.
-            signOut()
-            throw CloudError(code: 401, message: "Signed out of the dashboard. Sign in again.")
+            // The long-lived pass was refused: it has been used elsewhere or revoked. The kept
+            // address and password sign straight back in; only if they are refused too is it over.
+            if !UserDefaults.standard.bool(forKey: Self.leftKey), let remembered {
+                do {
+                    try await signIn(email: remembered.email, password: remembered.password)
+                } catch let error as CloudError where error.code == 400 || error.code == 401 || error.code == 403 {
+                    signOut(byHand: false)
+                    throw CloudError(code: 401, message: "Signed out of the dashboard. Sign in again.")
+                }
+            } else {
+                signOut(byHand: false)
+                throw CloudError(code: 401, message: "Signed out of the dashboard. Sign in again.")
+            }
         }
         guard let access else { throw CloudError(code: 401, message: "Not signed in to the dashboard.") }
         return access

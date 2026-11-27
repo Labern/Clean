@@ -177,7 +177,7 @@ nonisolated struct CloudState: Codable, Sendable {
             self.account = account
             self.api = CloudAPI(config: config, account: account)
             self.signedIn = account.hasRenewal
-            self.email = account.email
+            self.email = account.hasRenewal ? account.email : nil
         } else {
             self.account = nil
             self.api = nil
@@ -185,6 +185,9 @@ nonisolated struct CloudState: Codable, Sendable {
     }
 
     var available: Bool { config != nil && !Launch.unlocked }
+
+    /// The address and password last signed in with on this phone, for the sign-in page.
+    var remembered: (email: String, password: String)? { account?.remembered }
 
     // MARK: Signing in, once
 

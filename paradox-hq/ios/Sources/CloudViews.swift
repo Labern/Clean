@@ -1,7 +1,8 @@
 import SwiftUI
 
 /// Signing in to the dashboard: the mark, the word, two fields. Done once; the
-/// phone then stays signed in. The same sheet, once signed in, shows the account.
+/// phone then stays signed in, and after Sign out the fields come already filled in.
+/// The same sheet, once signed in, shows the account.
 struct CloudSignIn: View {
     @Environment(CloudSync.self) private var cloud
     @Environment(\.dismiss) private var dismiss
@@ -65,8 +66,13 @@ struct CloudSignIn: View {
         .sensoryFeedback(.error, trigger: cloud.refusal) { _, new in !new.isEmpty }
         .onAppear {
             email = cloud.email ?? email
+            // Filled in from the last sign-in on this phone: one tap is all it takes.
+            if !cloud.signedIn, password.isEmpty, let kept = cloud.remembered {
+                email = kept.email
+                password = kept.password
+            }
             if !reduceMotion { stars += 1 }
-            if !cloud.signedIn { field = email.isEmpty ? .email : .password }
+            if !cloud.signedIn, password.isEmpty { field = email.isEmpty ? .email : .password }
         }
     }
 
